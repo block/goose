@@ -1,0 +1,1387 @@
+[
+  {
+    "name": "SUPABASE__CREATE_SSO_PROVIDER",
+    "description": "Creates a new SSO provider.",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "POST",
+      "endpoint": "https://api.supabase.com/v1/projects/{ref}/config/auth/sso/providers"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "path": {
+          "type": "object",
+          "description": "path parameters",
+          "properties": {
+            "ref": {
+              "type": "string",
+              "description": "Project ref"
+            }
+          },
+          "required": [
+            "ref"
+          ],
+          "visible": [
+            "ref"
+          ],
+          "additionalProperties": false
+        },
+        "body": {
+          "type": "object",
+          "description": "body parameters",
+          "properties": {
+            "type": {
+              "type": "string",
+              "description": "Type of SSO provider",
+              "enum": [
+                "saml"
+              ]
+            },
+            "metadata_xml": {
+              "type": "string",
+              "description": "Metadata XML"
+            },
+            "metadata_url": {
+              "type": "string",
+              "description": "Metadata URL"
+            },
+            "domains": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "description": "Domains"
+            },
+            "attribute_mapping": {
+              "type": "object",
+              "description": "Attribute mapping",
+              "properties": {
+                "keys": {
+                  "type": "object",
+                  "properties": {},
+                  "required": [],
+                  "visible": [],
+                  "additionalProperties": {
+                    "type": "object",
+                    "properties": {
+                      "default": {
+                        "oneOf": [
+                          {
+                            "type": "object"
+                          },
+                          {
+                            "type": "number"
+                          },
+                          {
+                            "type": "string"
+                          },
+                          {
+                            "type": "boolean"
+                          }
+                        ]
+                      },
+                      "name": {
+                        "type": "string"
+                      },
+                      "names": {
+                        "type": "array",
+                        "items": {
+                          "type": "string"
+                        }
+                      },
+                      "array": {
+                        "type": "boolean"
+                      }
+                    },
+                    "required": [
+                      "name"
+                    ]
+                  }
+                }
+              },
+              "required": [
+                "keys"
+              ],
+              "visible": [],
+              "additionalProperties": false
+            }
+          },
+          "required": [
+            "type"
+          ],
+          "visible": [
+            "type",
+            "metadata_xml",
+            "metadata_url",
+            "domains"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "path",
+        "body"
+      ],
+      "visible": [
+        "path",
+        "body"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "SUPABASE__REMOVE_SSO_PROVIDER",
+    "description": "Removes an SSO provider by its UUID.",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "DELETE",
+      "endpoint": "https://api.supabase.com/v1/projects/{ref}/config/auth/sso/providers/{provider_id}"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "path": {
+          "type": "object",
+          "description": "path parameters",
+          "properties": {
+            "ref": {
+              "type": "string",
+              "description": "Project ref"
+            },
+            "provider_id": {
+              "type": "string",
+              "description": "Provider ID"
+            }
+          },
+          "required": [
+            "ref",
+            "provider_id"
+          ],
+          "visible": [
+            "ref",
+            "provider_id"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "path"
+      ],
+      "visible": [
+        "path"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "SUPABASE__GET_SSO_PROVIDER",
+    "description": "Gets an SSO provider by its UUID.",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "GET",
+      "endpoint": "https://api.supabase.com/v1/projects/{ref}/config/auth/sso/providers/{provider_id}"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "path": {
+          "type": "object",
+          "description": "path parameters",
+          "properties": {
+            "ref": {
+              "type": "string",
+              "description": "Project ref"
+            },
+            "provider_id": {
+              "type": "string",
+              "description": "Provider ID"
+            }
+          },
+          "required": [
+            "ref",
+            "provider_id"
+          ],
+          "visible": [
+            "ref",
+            "provider_id"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "path"
+      ],
+      "visible": [
+        "path"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "SUPABASE__GET_AUTH_CONFIG",
+    "description": "Gets project's auth config.",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "GET",
+      "endpoint": "https://api.supabase.com/v1/projects/{ref}/config/auth"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "path": {
+          "type": "object",
+          "description": "path parameters",
+          "properties": {
+            "ref": {
+              "type": "string",
+              "description": "Project ref"
+            }
+          },
+          "required": [
+            "ref"
+          ],
+          "visible": [
+            "ref"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "path"
+      ],
+      "visible": [
+        "path"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "SUPABASE__LIST_SSO_PROVIDERS",
+    "description": "Lists all SSO providers.",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "GET",
+      "endpoint": "https://api.supabase.com/v1/projects/{ref}/config/auth/sso/providers"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "path": {
+          "type": "object",
+          "description": "path parameters",
+          "properties": {
+            "ref": {
+              "type": "string",
+              "description": "Project ref"
+            }
+          },
+          "required": [
+            "ref"
+          ],
+          "visible": [
+            "ref"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "path"
+      ],
+      "visible": [
+        "path"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "SUPABASE__DISABLE_READONLY_MODE",
+    "description": "Disables project's readonly mode for the next 15 minutes.",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "POST",
+      "endpoint": "https://api.supabase.com/v1/projects/{ref}/readonly/temporary-disable"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "path": {
+          "type": "object",
+          "description": "path parameters",
+          "properties": {
+            "ref": {
+              "type": "string",
+              "description": "Project ref"
+            }
+          },
+          "required": [
+            "ref"
+          ],
+          "visible": [
+            "ref"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "path"
+      ],
+      "visible": [
+        "path"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "SUPABASE__GENERATE_TYPESCRIPT_TYPES",
+    "description": "Generates TypeScript types of your schema for use with supabase-js.",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "GET",
+      "endpoint": "https://api.supabase.com/v1/projects/{ref}/types/typescript"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "path": {
+          "type": "object",
+          "description": "path parameters",
+          "properties": {
+            "ref": {
+              "type": "string",
+              "description": "Project ref"
+            }
+          },
+          "required": [
+            "ref"
+          ],
+          "visible": [
+            "ref"
+          ],
+          "additionalProperties": false
+        },
+        "query": {
+          "type": "object",
+          "description": "query parameters",
+          "properties": {
+            "included_schemas": {
+              "type": "string",
+              "description": "Included schemas"
+            }
+          },
+          "required": [],
+          "visible": [
+            "included_schemas"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "path"
+      ],
+      "visible": [
+        "path",
+        "query"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "SUPABASE__LIST_ORGANIZATIONS",
+    "description": "List all organizations",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "GET",
+      "endpoint": "https://api.supabase.com/v1/organizations"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {},
+      "required": [],
+      "visible": [],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "SUPABASE__LIST_ORGANIZATION_MEMBERS",
+    "description": "List members of an organization",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "GET",
+      "endpoint": "https://api.supabase.com/v1/organizations/{slug}/members"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "path": {
+          "type": "object",
+          "description": "path parameters",
+          "properties": {
+            "slug": {
+              "type": "string",
+              "description": "Organization slug"
+            }
+          },
+          "required": [
+            "slug"
+          ],
+          "visible": [
+            "slug"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "path"
+      ],
+      "visible": [
+        "path"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "SUPABASE__GET_ORGANIZATION",
+    "description": "Gets information about the organization",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "GET",
+      "endpoint": "https://api.supabase.com/v1/organizations/{slug}"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "path": {
+          "type": "object",
+          "description": "path parameters",
+          "properties": {
+            "slug": {
+              "type": "string",
+              "description": "Organization slug"
+            }
+          },
+          "required": [
+            "slug"
+          ],
+          "visible": [
+            "slug"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "path"
+      ],
+      "visible": [
+        "path"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "SUPABASE__CREATE_ORGANIZATION",
+    "description": "Create an organization",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "POST",
+      "endpoint": "https://api.supabase.com/v1/organizations"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "body": {
+          "type": "object",
+          "description": "body parameters",
+          "properties": {
+            "name": {
+              "type": "string",
+              "description": "Organization name"
+            }
+          },
+          "required": [
+            "name"
+          ],
+          "visible": [
+            "name"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "body"
+      ],
+      "visible": [
+        "body"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "SUPABASE__LIST_PROJECTS",
+    "description": "List all projects",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "GET",
+      "endpoint": "https://api.supabase.com/v1/projects"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {},
+      "required": [],
+      "visible": [],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "SUPABASE__GET_PROJECT",
+    "description": "Get a project",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "GET",
+      "endpoint": "https://api.supabase.com/v1/projects/{ref}"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "path": {
+          "type": "object",
+          "description": "path parameters",
+          "properties": {
+            "ref": {
+              "type": "string",
+              "description": "Project ref"
+            }
+          },
+          "required": [
+            "ref"
+          ],
+          "visible": [
+            "ref"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "path"
+      ],
+      "visible": [
+        "path"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "SUPABASE__CREATE_PROJECT",
+    "description": "Create a project",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "POST",
+      "endpoint": "https://api.supabase.com/v1/projects"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "body": {
+          "type": "object",
+          "description": "body parameters",
+          "properties": {
+            "db_pass": {
+              "type": "string",
+              "description": "Database password"
+            },
+            "name": {
+              "type": "string",
+              "description": "Project name"
+            },
+            "organization_id": {
+              "type": "string",
+              "description": "Organization ID"
+            },
+            "region": {
+              "type": "string",
+              "description": "Region",
+              "enum": [
+                "us-east-1",
+                "us-east-2",
+                "us-west-1",
+                "us-west-2",
+                "ap-east-1",
+                "ap-southeast-1",
+                "ap-northeast-1",
+                "ap-northeast-2",
+                "ap-southeast-2",
+                "eu-west-1",
+                "eu-west-2",
+                "eu-west-3",
+                "eu-north-1",
+                "eu-central-1",
+                "eu-central-2",
+                "ca-central-1",
+                "ap-south-1",
+                "sa-east-1"
+              ]
+            },
+            "desired_instance_size": {
+              "type": "string",
+              "description": "Desired instance size",
+              "enum": [
+                "micro",
+                "small",
+                "medium",
+                "large",
+                "xlarge",
+                "2xlarge",
+                "4xlarge",
+                "8xlarge",
+                "12xlarge",
+                "16xlarge"
+              ]
+            },
+            "template_url": {
+              "type": "string",
+              "description": "Template URL"
+            }
+          },
+          "required": [
+            "db_pass",
+            "name",
+            "organization_id",
+            "region"
+          ],
+          "visible": [
+            "db_pass",
+            "name",
+            "organization_id",
+            "region",
+            "desired_instance_size",
+            "template_url"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "body"
+      ],
+      "visible": [
+        "body"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "SUPABASE__DELETE_PROJECT",
+    "description": "Deletes the given project",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "DELETE",
+      "endpoint": "https://api.supabase.com/v1/projects/{ref}"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "path": {
+          "type": "object",
+          "description": "path parameters",
+          "properties": {
+            "ref": {
+              "type": "string",
+              "description": "Project ref"
+            }
+          },
+          "required": [
+            "ref"
+          ],
+          "visible": [
+            "ref"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "path"
+      ],
+      "visible": [
+        "path"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "SUPABASE__RESTORE_PROJECT",
+    "description": "Restores the given project",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "POST",
+      "endpoint": "https://api.supabase.com/v1/projects/{ref}/restore"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "path": {
+          "type": "object",
+          "description": "path parameters",
+          "properties": {
+            "ref": {
+              "type": "string",
+              "description": "Project ref"
+            }
+          },
+          "required": [
+            "ref"
+          ],
+          "visible": [
+            "ref"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "path"
+      ],
+      "visible": [
+        "path"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "SUPABASE__PAUSE_PROJECT",
+    "description": "Pauses the given project",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "POST",
+      "endpoint": "https://api.supabase.com/v1/projects/{ref}/pause"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "path": {
+          "type": "object",
+          "description": "path parameters",
+          "properties": {
+            "ref": {
+              "type": "string",
+              "description": "Project ref"
+            }
+          },
+          "required": [
+            "ref"
+          ],
+          "visible": [
+            "ref"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "path"
+      ],
+      "visible": [
+        "path"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "SUPABASE__CANCEL_PROJECT_RESTORATION",
+    "description": "Cancels the given project restoration",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "POST",
+      "endpoint": "https://api.supabase.com/v1/projects/{ref}/restore/cancel"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "path": {
+          "type": "object",
+          "description": "path parameters",
+          "properties": {
+            "ref": {
+              "type": "string",
+              "description": "Project ref"
+            }
+          },
+          "required": [
+            "ref"
+          ],
+          "visible": [
+            "ref"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "path"
+      ],
+      "visible": [
+        "path"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "SUPABASE__GET_PROJECT_HEALTH_STATUS",
+    "description": "Gets project's service health status",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "GET",
+      "endpoint": "https://api.supabase.com/v1/projects/{ref}/health"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "path": {
+          "type": "object",
+          "description": "path parameters",
+          "properties": {
+            "ref": {
+              "type": "string",
+              "description": "Project ref"
+            }
+          },
+          "required": [
+            "ref"
+          ],
+          "visible": [
+            "ref"
+          ],
+          "additionalProperties": false
+        },
+        "query": {
+          "type": "object",
+          "description": "query parameters",
+          "properties": {
+            "services": {
+              "type": "string",
+              "description": "Comma-separated list of services to check health for (e.g., 'auth,db,pooler,realtime,rest,storage')"
+            },
+            "timeout_ms": {
+              "type": "integer",
+              "description": "Timeout in milliseconds for the health check"
+            }
+          },
+          "required": [
+            "services"
+          ],
+          "visible": [
+            "services",
+            "timeout_ms"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "path",
+        "query"
+      ],
+      "visible": [
+        "path",
+        "query"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "SUPABASE__GET_PROJECT_API_KEYS",
+    "description": "Get project api keys",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "GET",
+      "endpoint": "https://api.supabase.com/v1/projects/{ref}/api-keys"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "path": {
+          "type": "object",
+          "description": "path parameters",
+          "properties": {
+            "ref": {
+              "type": "string",
+              "description": "Project ref"
+            }
+          },
+          "required": [
+            "ref"
+          ],
+          "visible": [
+            "ref"
+          ],
+          "additionalProperties": false
+        },
+        "query": {
+          "type": "object",
+          "description": "query parameters",
+          "properties": {
+            "reveal": {
+              "type": "boolean",
+              "description": "Whether to reveal the API keys"
+            }
+          },
+          "required": [],
+          "visible": [
+            "reveal"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "path"
+      ],
+      "visible": [
+        "path",
+        "query"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "SUPABASE__RUN_SQL_QUERY",
+    "description": "[Beta] Run sql query",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "POST",
+      "endpoint": "https://api.supabase.com/v1/projects/{ref}/database/query"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "path": {
+          "type": "object",
+          "description": "path parameters",
+          "properties": {
+            "ref": {
+              "type": "string",
+              "description": "Project ref"
+            }
+          },
+          "required": [
+            "ref"
+          ],
+          "visible": [
+            "ref"
+          ],
+          "additionalProperties": false
+        },
+        "body": {
+          "type": "object",
+          "description": "body parameters",
+          "properties": {
+            "query": {
+              "type": "string",
+              "description": "SQL query to execute"
+            }
+          },
+          "required": [
+            "query"
+          ],
+          "visible": [
+            "query"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "path",
+        "body"
+      ],
+      "visible": [
+        "path",
+        "body"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "SUPABASE__LIST_ALL_EDGE_FUNCTIONS",
+    "description": "List all edge functions",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "GET",
+      "endpoint": "https://api.supabase.com/v1/projects/{ref}/functions"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "path": {
+          "type": "object",
+          "description": "path parameters",
+          "properties": {
+            "ref": {
+              "type": "string",
+              "description": "Project ref"
+            }
+          },
+          "required": [
+            "ref"
+          ],
+          "visible": [
+            "ref"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "path"
+      ],
+      "visible": [
+        "path"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "SUPABASE__CREATE_EDGE_FUNCTION",
+    "description": "Create an edge function (deprecated - use deploy endpoint)",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "POST",
+      "endpoint": "https://api.supabase.com/v1/projects/{ref}/functions"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "path": {
+          "type": "object",
+          "description": "path parameters",
+          "properties": {
+            "ref": {
+              "type": "string",
+              "description": "Project ref"
+            }
+          },
+          "required": [
+            "ref"
+          ],
+          "visible": [
+            "ref"
+          ],
+          "additionalProperties": false
+        },
+        "query": {
+          "type": "object",
+          "description": "query parameters",
+          "properties": {
+            "import_map_path": {
+              "type": "string",
+              "description": "Import map path"
+            },
+            "entrypoint_path": {
+              "type": "string",
+              "description": "Entrypoint path"
+            },
+            "import_map": {
+              "type": "boolean",
+              "description": "Import map enabled"
+            },
+            "verify_jwt": {
+              "type": "boolean",
+              "description": "Verify JWT"
+            },
+            "name": {
+              "type": "string",
+              "description": "Function name"
+            },
+            "slug": {
+              "type": "string",
+              "description": "Function slug"
+            }
+          },
+          "required": [],
+          "visible": [
+            "import_map_path",
+            "entrypoint_path",
+            "import_map",
+            "verify_jwt",
+            "name",
+            "slug"
+          ],
+          "additionalProperties": false
+        },
+        "body": {
+          "type": "object",
+          "description": "body parameters",
+          "properties": {
+            "slug": {
+              "type": "string",
+              "description": "Function slug"
+            },
+            "name": {
+              "type": "string",
+              "description": "Function name"
+            },
+            "body": {
+              "type": "string",
+              "description": "Function code body"
+            },
+            "verify_jwt": {
+              "type": "boolean",
+              "description": "Verify JWT"
+            }
+          },
+          "required": [
+            "slug",
+            "name",
+            "body"
+          ],
+          "visible": [
+            "slug",
+            "name",
+            "body",
+            "verify_jwt"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "path",
+        "body"
+      ],
+      "visible": [
+        "path",
+        "query",
+        "body"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "SUPABASE__DELETE_EDGE_FUNCTION",
+    "description": "Delete an edge function",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "DELETE",
+      "endpoint": "https://api.supabase.com/v1/projects/{ref}/functions/{function_slug}"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "path": {
+          "type": "object",
+          "description": "path parameters",
+          "properties": {
+            "ref": {
+              "type": "string",
+              "description": "Project ref"
+            },
+            "function_slug": {
+              "type": "string",
+              "description": "Function slug"
+            }
+          },
+          "required": [
+            "ref",
+            "function_slug"
+          ],
+          "visible": [
+            "ref",
+            "function_slug"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "path"
+      ],
+      "visible": [
+        "path"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "SUPABASE__GET_EDGE_FUNCTION",
+    "description": "Get an edge function",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "GET",
+      "endpoint": "https://api.supabase.com/v1/projects/{ref}/functions/{function_slug}"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "path": {
+          "type": "object",
+          "description": "path parameters",
+          "properties": {
+            "ref": {
+              "type": "string",
+              "description": "Project ref"
+            },
+            "function_slug": {
+              "type": "string",
+              "description": "Function slug"
+            }
+          },
+          "required": [
+            "ref",
+            "function_slug"
+          ],
+          "visible": [
+            "ref",
+            "function_slug"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "path"
+      ],
+      "visible": [
+        "path"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "SUPABASE__UPDATE_EDGE_FUNCTION",
+    "description": "Update an edge function",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "PATCH",
+      "endpoint": "https://api.supabase.com/v1/projects/{ref}/functions/{function_slug}"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "path": {
+          "type": "object",
+          "description": "path parameters",
+          "properties": {
+            "ref": {
+              "type": "string",
+              "description": "Project ref"
+            },
+            "function_slug": {
+              "type": "string",
+              "description": "Function slug"
+            }
+          },
+          "required": [
+            "ref",
+            "function_slug"
+          ],
+          "visible": [
+            "ref",
+            "function_slug"
+          ],
+          "additionalProperties": false
+        },
+        "query": {
+          "type": "object",
+          "description": "query parameters",
+          "properties": {
+            "import_map_path": {
+              "type": "string",
+              "description": "Import map path"
+            },
+            "entrypoint_path": {
+              "type": "string",
+              "description": "Entrypoint path"
+            },
+            "import_map": {
+              "type": "boolean",
+              "description": "Import map enabled"
+            },
+            "verify_jwt": {
+              "type": "boolean",
+              "description": "Verify JWT"
+            },
+            "name": {
+              "type": "string",
+              "description": "Function name"
+            }
+          },
+          "required": [],
+          "visible": [
+            "import_map_path",
+            "entrypoint_path",
+            "import_map",
+            "verify_jwt",
+            "name"
+          ],
+          "additionalProperties": false
+        },
+        "body": {
+          "type": "object",
+          "description": "body parameters",
+          "properties": {
+            "name": {
+              "type": "string",
+              "description": "Function name"
+            },
+            "body": {
+              "type": "string",
+              "description": "Function code body"
+            },
+            "verify_jwt": {
+              "type": "boolean",
+              "description": "Verify JWT"
+            }
+          },
+          "required": [],
+          "visible": [
+            "name",
+            "body",
+            "verify_jwt"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "path"
+      ],
+      "visible": [
+        "path",
+        "query",
+        "body"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "SUPABASE__GET_EDGE_FUNCTION_BODY",
+    "description": "Get an edge function body",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "GET",
+      "endpoint": "https://api.supabase.com/v1/projects/{ref}/functions/{function_slug}/body"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "path": {
+          "type": "object",
+          "description": "path parameters",
+          "properties": {
+            "ref": {
+              "type": "string",
+              "description": "Project ref"
+            },
+            "function_slug": {
+              "type": "string",
+              "description": "Function slug"
+            }
+          },
+          "required": [
+            "ref",
+            "function_slug"
+          ],
+          "visible": [
+            "ref",
+            "function_slug"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "path"
+      ],
+      "visible": [
+        "path"
+      ],
+      "additionalProperties": false
+    }
+  }
+]

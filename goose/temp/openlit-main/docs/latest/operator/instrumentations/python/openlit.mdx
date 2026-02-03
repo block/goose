@@ -1,0 +1,143 @@
+---
+title: 'OpenLIT'
+description: 'Complete AI observability with OpenLIT instrumentation provider'
+---
+
+The OpenLIT provider uses instrumentations built and maintained by OpenLIT for comprehensive AI observability across LLMs, vector databases, and AI frameworks.
+
+## Configuration
+
+<Tabs>
+  <Tab title="Basic">
+    ```yaml
+    apiVersion: openlit.io/v1alpha1
+    kind: AutoInstrumentation
+    metadata:
+      name: openlit-instrumentation
+    spec:
+      selector:
+        matchLabels:
+          openlit.io/instrument: "true"
+      python:
+        instrumentation:
+          provider: "openlit"
+          version: "latest"
+      otlp:
+        endpoint: "http://openlit:4318"
+    ```
+  </Tab>
+  
+  <Tab title="Advanced">
+    ```yaml
+    apiVersion: openlit.io/v1alpha1
+    kind: AutoInstrumentation
+    metadata:
+      name: openlit-production
+    spec:
+      selector:
+        matchLabels:
+          environment: "production"
+      python:
+        instrumentation:
+          provider: "openlit"
+          version: "v1.0.0"
+          customPackages: "langchain>=0.1.0,chromadb>=0.4.0"
+          env:
+      - name: OTEL_DEPLOYMENT_ENVIRONMENT
+        value: "production"
+      - name: OTEL_SERVICE_NAME
+        value: "ai-customer-support"
+      - name: OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT
+        value: "true"
+      - name: OPENLIT_DETAILED_TRACING
+        value: "true"
+      - name: OPENLIT_COLLECT_GPU_STATS
+        value: "true"
+      otlp:
+        endpoint: "http://openlit:4318"
+        timeout: 60
+      resource:
+        environment: "production"
+        serviceName: "customer-support-ai"
+    ```
+  </Tab>
+</Tabs>
+
+## Provider Specific Features
+
+OpenLIT offers unique capabilities extending the OpenTelemetry Instrumentations:
+
+### Custom Package Installation
+
+Install additional Python packages alongside OpenLIT instrumentation:
+
+```yaml
+spec:
+  python:
+    instrumentation:
+      customPackages: "langchain>=0.1.0,chromadb>=0.4.0,pinecone-client>=2.0.0"
+```
+
+**Common Package Examples:**
+- **AI Frameworks**: `langchain>=0.1.0,llama-index>=0.9.0`
+- **Vector Databases**: `chromadb>=0.4.0,pinecone-client>=2.0.0,qdrant-client>=1.0.0`
+- **LLM Providers**: `openai>=1.0.0,anthropic>=0.8.0,cohere>=4.0.0`
+- **Tools**: `crewai>=0.1.0,autogen>=0.2.0`
+
+### Pricing and Cost Tracking
+
+Automatic cost calculation for LLM operations using built-in pricing data:
+
+```yaml
+env:
+- name: OPENLIT_PRICING_JSON
+  value: "https://custom-pricing.json"  # Optional custom pricing
+```
+
+**Features:**
+- Token-level cost calculation with built-in pricing
+- Model cost comparison across providers
+- Automatic pricing updates
+
+### GPU and System Metrics
+
+Monitor system resources and GPU utilization:
+
+```yaml
+env:
+- name: OPENLIT_COLLECT_GPU_STATS
+  value: "true"
+- name: OPENLIT_COLLECT_SYSTEM_METRICS
+  value: "true"
+```
+
+**Metrics:**
+- GPU utilization and memory
+- CPU, memory, disk, network metrics
+- System performance tracking
+
+### Detailed Tracing Control
+
+Control the granularity of tracing for different use cases:
+
+```yaml
+env:
+- name: OPENLIT_DETAILED_TRACING
+  value: "true"  # Component-level tracing for debugging
+- name: OPENLIT_DISABLE_METRICS
+  value: "false"  # Keep metrics enabled
+```
+
+**Tracing modes:**
+- **Detailed tracing**: Component-level spans for debugging (20-50+ spans per query)
+- **Workflow tracing**: High-level operations only (5-10 spans per query)
+
+### Instrumentor Control
+
+Disable specific instrumentors if needed:
+
+```yaml
+env:
+- name: OPENLIT_DISABLED_INSTRUMENTORS
+  value: "anthropic,cohere"  # Disable specific providers
+```

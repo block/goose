@@ -1,0 +1,617 @@
+[
+  {
+    "name": "DIFY__SEND_CHAT_MESSAGE",
+    "description": "Send a chat message using the Dify API",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "POST",
+      "endpoint": "https://api.dify.ai/v1/chat-messages"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "header": {
+          "type": "object",
+          "description": "Headers for the HTTP request",
+          "properties": {
+            "Content-Type": {
+              "type": "string",
+              "description": "Content-Type header",
+              "default": "application/json"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "Content-Type"
+          ],
+          "visible": []
+        },
+        "body": {
+          "type": "object",
+          "description": "Chat message parameters",
+          "properties": {
+            "inputs": {
+              "type": "object",
+              "description": "Allows passing various variable values defined by the App. The inputs parameter contains multiple key/value pairs, where each key corresponds to a specific variable and each value is the specific value for that variable. Default {}",
+              "properties": {
+                "user_location": {
+                  "type": "string",
+                  "description": "User's geographical location information",
+                  "example": "New York"
+                },
+                "device_type": {
+                  "type": "string",
+                  "description": "Type of device the user is using",
+                  "example": "mobile"
+                },
+                "preferred_language": {
+                  "type": "string",
+                  "description": "User's preferred language",
+                  "example": "English"
+                },
+                "user_preference": {
+                  "type": "string",
+                  "description": "User's preference settings",
+                  "example": "detailed specs"
+                }
+              },
+              "required": [],
+              "visible": [
+                "user_location",
+                "device_type",
+                "preferred_language",
+                "user_preference"
+              ],
+              "additionalProperties": true,
+              "example": {
+                "user_location": "New York",
+                "device_type": "mobile",
+                "preferred_language": "English",
+                "user_preference": "detailed specs"
+              }
+            },
+            "query": {
+              "type": "string",
+              "description": "The query string to send to the chat",
+              "example": "What is the weather today?"
+            },
+            "response_mode": {
+              "type": "string",
+              "description": "Response mode - 'streaming' returns chunks as they're generated, 'blocking' returns complete response",
+              "default": "streaming"
+            },
+            "conversation_id": {
+              "type": "string",
+              "description": "ID of the conversation to continue",
+              "example": "conv_123456789"
+            },
+            "user": {
+              "type": "string",
+              "description": "Unique identifier for the user",
+              "example": "user_123456789"
+            },
+            "files": {
+              "type": "array",
+              "description": "Files to be sent with the message",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "type": {
+                    "type": "string",
+                    "description": "Type of the file (e.g., 'image', 'document')"
+                  },
+                  "transfer_method": {
+                    "type": "string",
+                    "description": "Method used to transfer the file (e.g., 'remote_url', 'local_file')"
+                  },
+                  "url": {
+                    "type": "string",
+                    "description": "URL of the file if using remote_url transfer method"
+                  }
+                },
+                "required": [
+                  "type",
+                  "transfer_method",
+                  "url"
+                ],
+                "visible": [
+                  "type",
+                  "transfer_method",
+                  "url"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "auto_generate_name": {
+              "type": "boolean",
+              "description": "Automatically generate a title for the conversation",
+              "default": true
+            }
+          },
+          "required": [
+            "query",
+            "user"
+          ],
+          "visible": [
+            "query",
+            "user",
+            "response_mode",
+            "conversation_id",
+            "files",
+            "auto_generate_name",
+            "inputs"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "header",
+        "body"
+      ],
+      "visible": [
+        "body"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "DIFY__STOP_RESPONSE",
+    "description": "Stop a response for a given task ID",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "POST",
+      "endpoint": "https://api.dify.ai/v1/chat-messages/{task_id}/stop"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "header": {
+          "type": "object",
+          "description": "Headers for the HTTP request",
+          "properties": {
+            "Content-Type": {
+              "type": "string",
+              "description": "Content-Type header",
+              "default": "application/json"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "Content-Type"
+          ],
+          "visible": []
+        },
+        "path": {
+          "type": "object",
+          "description": "Path parameters",
+          "properties": {
+            "task_id": {
+              "type": "string",
+              "description": "ID of the task to stop",
+              "example": "task_123456789"
+            }
+          },
+          "required": [
+            "task_id"
+          ],
+          "visible": [
+            "task_id"
+          ],
+          "additionalProperties": false
+        },
+        "body": {
+          "type": "object",
+          "description": "Parameters to stop the response",
+          "properties": {
+            "user": {
+              "type": "string",
+              "description": "Unique identifier for the user",
+              "example": "user_123456789"
+            }
+          },
+          "required": [
+            "user"
+          ],
+          "visible": [
+            "user"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "header",
+        "body",
+        "path"
+      ],
+      "visible": [
+        "body",
+        "path"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "DIFY__GET_CONVERSATION_LIST",
+    "description": "Retrieve a list of conversations for a user",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "GET",
+      "endpoint": "https://api.dify.ai/v1/conversations"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "header": {
+          "type": "object",
+          "description": "Headers for the HTTP request",
+          "properties": {
+            "Content-Type": {
+              "type": "string",
+              "description": "Content-Type header",
+              "default": "application/json"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "Content-Type"
+          ],
+          "visible": []
+        },
+        "query": {
+          "type": "object",
+          "description": "Query parameters",
+          "properties": {
+            "user": {
+              "type": "string",
+              "description": "User ID"
+            },
+            "last_id": {
+              "type": "string",
+              "description": "Last conversation ID for pagination"
+            },
+            "limit": {
+              "type": "integer",
+              "description": "Limit on the number of conversations",
+              "default": 20
+            }
+          },
+          "required": [
+            "user"
+          ],
+          "visible": [
+            "user",
+            "last_id",
+            "limit"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "header",
+        "query"
+      ],
+      "visible": [
+        "query"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "DIFY__SEND_FEEDBACK",
+    "description": "Send feedback for a specific message",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "POST",
+      "endpoint": "https://api.dify.ai/v1/messages/{message_id}/feedbacks"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "header": {
+          "type": "object",
+          "description": "Headers for the HTTP request",
+          "properties": {
+            "Content-Type": {
+              "type": "string",
+              "description": "Content-Type header",
+              "default": "application/json"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "Content-Type"
+          ],
+          "visible": []
+        },
+        "body": {
+          "type": "object",
+          "description": "Feedback parameters",
+          "properties": {
+            "rating": {
+              "type": "string",
+              "description": "Rating of the message"
+            },
+            "user": {
+              "type": "string",
+              "description": "User ID"
+            },
+            "content": {
+              "type": "string",
+              "description": "Feedback content"
+            }
+          },
+          "required": [
+            "rating",
+            "user"
+          ],
+          "visible": [
+            "rating",
+            "user",
+            "content"
+          ],
+          "additionalProperties": false
+        },
+        "path": {
+          "type": "object",
+          "description": "Path parameters",
+          "properties": {
+            "message_id": {
+              "type": "string",
+              "description": "ID of the message to send feedback for"
+            }
+          },
+          "required": [
+            "message_id"
+          ],
+          "visible": [
+            "message_id"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "header",
+        "body",
+        "path"
+      ],
+      "visible": [
+        "body",
+        "path"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "DIFY__DELETE_CONVERSATION",
+    "description": "Delete a specific conversation",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "DELETE",
+      "endpoint": "https://api.dify.ai/v1/conversations/{conversation_id}"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "header": {
+          "type": "object",
+          "description": "Headers for the HTTP request",
+          "properties": {
+            "Content-Type": {
+              "type": "string",
+              "description": "Content-Type header",
+              "default": "application/json"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "Content-Type"
+          ],
+          "visible": []
+        },
+        "path": {
+          "type": "object",
+          "description": "Path parameters",
+          "properties": {
+            "conversation_id": {
+              "type": "string",
+              "description": "ID of the conversation to delete"
+            }
+          },
+          "required": [
+            "conversation_id"
+          ],
+          "visible": [
+            "conversation_id"
+          ],
+          "additionalProperties": false
+        },
+        "body": {
+          "type": "object",
+          "description": "Parameters for deleting the conversation",
+          "properties": {
+            "user": {
+              "type": "string",
+              "description": "User ID"
+            }
+          },
+          "required": [
+            "user"
+          ],
+          "visible": [
+            "user"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "header",
+        "body",
+        "path"
+      ],
+      "visible": [
+        "body",
+        "path"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "DIFY__GET_MESSAGES",
+    "description": "Retrieve a list of messages for a specific conversation",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "GET",
+      "endpoint": "https://api.dify.ai/v1/messages"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "header": {
+          "type": "object",
+          "description": "Headers for the HTTP request",
+          "properties": {
+            "Content-Type": {
+              "type": "string",
+              "description": "Content-Type header",
+              "default": "application/json"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "Content-Type"
+          ],
+          "visible": []
+        },
+        "query": {
+          "type": "object",
+          "description": "Query parameters",
+          "properties": {
+            "user": {
+              "type": "string",
+              "description": "User ID"
+            },
+            "conversation_id": {
+              "type": "string",
+              "description": "ID of the conversation to retrieve messages for"
+            },
+            "first_id": {
+              "type": "string",
+              "description": "First message ID for pagination"
+            },
+            "limit": {
+              "type": "integer",
+              "description": "Limit on the number of messages",
+              "default": 20
+            }
+          },
+          "required": [
+            "user"
+          ],
+          "visible": [
+            "user",
+            "conversation_id",
+            "first_id",
+            "limit"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "header",
+        "query"
+      ],
+      "visible": [
+        "query"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "DIFY__UPDATE_CONVERSATION_NAME",
+    "description": "Update the name of a specific conversation",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "POST",
+      "endpoint": "https://api.dify.ai/v1/conversations/{conversation_id}/name"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "header": {
+          "type": "object",
+          "description": "Headers for the HTTP request",
+          "properties": {
+            "Content-Type": {
+              "type": "string",
+              "description": "Content-Type header",
+              "default": "application/json"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "Content-Type"
+          ],
+          "visible": []
+        },
+        "path": {
+          "type": "object",
+          "description": "Path parameters",
+          "properties": {
+            "conversation_id": {
+              "type": "string",
+              "description": "ID of the conversation to update",
+              "example": "1b12a04e-a4e9-47a1-869c-eb91da7e545a"
+            }
+          },
+          "required": [
+            "conversation_id"
+          ],
+          "visible": [
+            "conversation_id"
+          ],
+          "additionalProperties": false
+        },
+        "body": {
+          "type": "object",
+          "description": "Parameters for updating the conversation name",
+          "properties": {
+            "name": {
+              "type": "string",
+              "description": "New name for the conversation",
+              "example": "test"
+            },
+            "auto_generate": {
+              "type": "boolean",
+              "description": "Whether to automatically generate the name",
+              "default": true
+            },
+            "user": {
+              "type": "string",
+              "description": "Unique identifier for the user",
+              "example": "abc-123"
+            }
+          },
+          "required": [
+            "user"
+          ],
+          "visible": [
+            "name",
+            "auto_generate",
+            "user"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "header",
+        "body",
+        "path"
+      ],
+      "visible": [
+        "body",
+        "path"
+      ],
+      "additionalProperties": false
+    }
+  }
+]

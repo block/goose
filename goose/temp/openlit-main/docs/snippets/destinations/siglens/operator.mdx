@@ -1,0 +1,31 @@
+### 2. Instrument your application
+**For Kubernetes deployments with zero-code instrumentation:**
+
+```yaml
+apiVersion: openlit.io/v1alpha1
+kind: AutoInstrumentation
+metadata:
+  name: siglens-instrumentation
+  namespace: default
+spec:
+  selector:
+    matchLabels:
+      instrument: "true"
+  python:
+    instrumentation:
+      provider: "openlit"
+      version: "latest"
+  otlp:
+    endpoint: "YOUR_SIGLENS_HTTP_ENDPOINT"
+    timeout: 30
+  resource:
+    environment: "production"
+    serviceName: "my-ai-service"
+```
+
+Replace:
+1. `YOUR_SIGLENS_HTTP_ENDPOINT` with your SigLens OTLP endpoint from Step 1.
+   * Example (Local): `http://localhost:4318/v1/traces`
+   * Example (Remote): `http://siglens.company.com:4318/v1/traces`
+
+Refer to the [OpenLIT Operator Documentation](/latest/operator/overview) for more advanced configurations and use cases.

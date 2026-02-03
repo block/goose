@@ -1,0 +1,10 @@
+# Base Provider Requirements
+# Core OpenTelemetry packages only - users add custom packages via CR
+opentelemetry-api
+opentelemetry-sdk
+opentelemetry-exporter-otlp
+opentelemetry-instrumentation
+opentelemetry-semantic-conventions
+
+# Basic utilities
+requests

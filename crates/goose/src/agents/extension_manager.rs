@@ -956,8 +956,7 @@ impl ExtensionManager {
 
         // If extension name is not provided, we need to search for the resource across all extensions
         // Loop through each extension and try to read the resource, don't raise an error if the resource is not found
-        // TODO: do we want to find if a provided uri is in multiple extensions?
-        // currently it will return the first match and skip any others
+        // Note: When a URI exists in multiple extensions, returns the first match (current design choice)
         let extension_names: Vec<String> = self
             .extensions
             .lock()

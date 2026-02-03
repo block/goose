@@ -98,7 +98,7 @@ async fn test_state_graph_config() {
     // Verify enhanced configuration fields
     assert_eq!(graph.config().max_iterations, 5);
     assert_eq!(graph.config().max_fix_attempts, 2);
-    assert_eq!(graph.config().use_done_gate, true);
+    assert!(graph.config().use_done_gate);
     assert_eq!(graph.config().project_type, Some(ProjectType::Rust));
 }
 
@@ -136,8 +136,9 @@ async fn test_critic_manager_with_outputs() {
 
     let critique: AggregatedCritique = result.unwrap();
     // Validate critique structure - has results, passed status, issue counts
-    assert!(critique.total_issues >= 0);
-    assert!(critique.blocking_issues >= 0);
+    // total_issues and blocking_issues are usize, so we verify they exist by using them
+    let _total = critique.total_issues;
+    let _blocking = critique.blocking_issues;
 }
 
 /// Test StateGraph state machine basics

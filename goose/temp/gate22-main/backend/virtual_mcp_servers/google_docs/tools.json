@@ -1,0 +1,204 @@
+[
+  {
+    "name": "GOOGLE_DOCS__DOCUMENTS_CREATE",
+    "description": "Creates a blank document using the provided title.",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "POST",
+      "endpoint": "https://docs.googleapis.com/v1/documents"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "body": {
+          "type": "object",
+          "description": "Request body parameters",
+          "properties": {
+            "title": {
+              "type": "string",
+              "description": "The title of the document."
+            }
+          },
+          "required": [
+            "title"
+          ],
+          "visible": [
+            "title"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "body"
+      ],
+      "visible": [
+        "body"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "GOOGLE_DOCS__DOCUMENTS_UPDATE",
+    "description": "Applies one or more updates to a Google Document using the batchUpdate method. Only supports inserting text now.",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "POST",
+      "endpoint": "https://docs.googleapis.com/v1/documents/{documentId}:batchUpdate"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "path": {
+          "type": "object",
+          "description": "Path parameters for the request.",
+          "properties": {
+            "documentId": {
+              "type": "string",
+              "description": "The ID of the Google Document to update."
+            }
+          },
+          "required": [
+            "documentId"
+          ],
+          "visible": [
+            "documentId"
+          ],
+          "additionalProperties": false
+        },
+        "body": {
+          "type": "object",
+          "description": "Request body parameters",
+          "properties": {
+            "requests": {
+              "type": "array",
+              "description": "A list of update requests to apply to the document.",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "insertText": {
+                    "type": "object",
+                    "properties": {
+                      "location": {
+                        "type": "object",
+                        "properties": {
+                          "index": {
+                            "type": "integer",
+                            "description": "The index at which to insert the text. The default is 1, so the text is inserted at the beginning of the document.",
+                            "default": 1
+                          },
+                          "segmentId": {
+                            "type": "string",
+                            "description": "The ID of the header, footer, footnote, or endnote to insert the text into."
+                          },
+                          "tabId": {
+                            "type": "string",
+                            "description": "The ID of the tab to insert the text into."
+                          }
+                        },
+                        "required": [
+                          "index"
+                        ]
+                      },
+                      "text": {
+                        "type": "string"
+                      }
+                    },
+                    "visible": [
+                      "text"
+                    ],
+                    "required": [
+                      "location",
+                      "text"
+                    ]
+                  }
+                }
+              }
+            }
+          },
+          "required": [
+            "requests"
+          ],
+          "visible": [
+            "requests"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "path",
+        "body"
+      ],
+      "visible": [
+        "path",
+        "body"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "GOOGLE_DOCS__DOCUMENTS_GET",
+    "description": "Retrieves the latest version of the specified Google Document.",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "GET",
+      "endpoint": "https://docs.googleapis.com/v1/documents/{documentId}"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "path": {
+          "type": "object",
+          "description": "Path parameters",
+          "properties": {
+            "documentId": {
+              "type": "string",
+              "description": "The ID of the document to retrieve."
+            }
+          },
+          "required": [
+            "documentId"
+          ],
+          "visible": [
+            "documentId"
+          ],
+          "additionalProperties": false
+        },
+        "query": {
+          "type": "object",
+          "description": "Query parameters for the request.",
+          "properties": {
+            "suggestionsViewMode": {
+              "type": "string",
+              "description": "The suggestions view mode to apply to the document.",
+              "default": "DEFAULT_FOR_CURRENT_ACCESS",
+              "enum": [
+                "DEFAULT_FOR_CURRENT_ACCESS",
+                "SUGGESTIONS_INLINE",
+                "PREVIEW_SUGGESTIONS_ACCEPTED",
+                "PREVIEW_WITHOUT_SUGGESTIONS"
+              ]
+            },
+            "includeTabsContent": {
+              "type": "boolean",
+              "default": false,
+              "description": "Whether to populate the Document.tabs field instead of the text content fields like body and documentStyle on Document."
+            }
+          },
+          "required": [
+            "suggestionsViewMode",
+            "includeTabsContent"
+          ],
+          "visible": [],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "path"
+      ],
+      "visible": [
+        "path"
+      ],
+      "additionalProperties": false
+    }
+  }
+]

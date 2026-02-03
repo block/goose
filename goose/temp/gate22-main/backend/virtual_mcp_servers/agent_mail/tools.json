@@ -1,0 +1,262 @@
+[
+  {
+    "name": "AGENT_MAIL__GET_INBOX",
+    "description": "Retrieve information about a specific inbox by its ID (email address)",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "GET",
+      "endpoint": "https://api.agentmail.to/v0/inboxes/{inbox_id}"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "header": {
+          "type": "object",
+          "description": "Headers for the HTTP request",
+          "properties": {
+            "Content-Type": {
+              "type": "string",
+              "description": "Content-Type header",
+              "default": "application/json"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "Content-Type"
+          ],
+          "visible": []
+        },
+        "path": {
+          "type": "object",
+          "description": "Path parameters for the request",
+          "properties": {
+            "inbox_id": {
+              "type": "string",
+              "description": "ID (email address) of the inbox"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "inbox_id"
+          ],
+          "visible": [
+            "inbox_id"
+          ]
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "header",
+        "path"
+      ],
+      "visible": [
+        "path"
+      ]
+    }
+  },
+  {
+    "name": "AGENT_MAIL__CREATE_INBOX",
+    "description": "Create a new inbox with a specified username and display name",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "POST",
+      "endpoint": "https://api.agentmail.to/v0/inboxes"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "header": {
+          "type": "object",
+          "description": "Headers for the HTTP request",
+          "properties": {
+            "Content-Type": {
+              "type": "string",
+              "description": "Content-Type header",
+              "default": "application/json"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "Content-Type"
+          ],
+          "visible": []
+        },
+        "body": {
+          "type": "object",
+          "description": "Body parameters for creating the inbox",
+          "properties": {
+            "username": {
+              "type": "string",
+              "description": "Username of address. Randomly generated if not specified."
+            },
+            "domain": {
+              "type": "string",
+              "description": "Domain of address. Must be verified domain. Defaults to agentmail.to"
+            },
+            "display_name": {
+              "type": "string",
+              "description": "Display name for address: Display Name <username@domain.com>"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "username",
+            "display_name"
+          ],
+          "visible": [
+            "username",
+            "domain",
+            "display_name"
+          ]
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "header",
+        "body"
+      ],
+      "visible": [
+        "body"
+      ]
+    }
+  },
+  {
+    "name": "AGENT_MAIL__LIST_THREADS",
+    "description": "List threads from a specific inbox with pagination support",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "GET",
+      "endpoint": "https://api.agentmail.to/v0/inboxes/{inbox_id}/threads"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "header": {
+          "type": "object",
+          "description": "Headers for the HTTP request",
+          "properties": {
+            "Content-Type": {
+              "type": "string",
+              "description": "Content-Type header",
+              "default": "application/json"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "Content-Type"
+          ],
+          "visible": []
+        },
+        "path": {
+          "type": "object",
+          "description": "Path parameters for the request",
+          "properties": {
+            "inbox_id": {
+              "type": "string",
+              "description": "ID (email address) of the inbox"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "inbox_id"
+          ],
+          "visible": [
+            "inbox_id"
+          ]
+        },
+        "query": {
+          "type": "object",
+          "description": "Query parameters for the request",
+          "properties": {
+            "limit": {
+              "type": "integer",
+              "description": "Limit of number of items returned"
+            },
+            "last_key": {
+              "type": "string",
+              "description": "Key of last item for pagination"
+            },
+            "labels": {
+              "type": "array",
+              "description": "Labels to filter threads by",
+              "items": {
+                "type": "string"
+              }
+            }
+          },
+          "additionalProperties": false,
+          "required": [],
+          "visible": [
+            "limit",
+            "last_key",
+            "labels"
+          ]
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "header",
+        "path"
+      ],
+      "visible": [
+        "path",
+        "query"
+      ]
+    }
+  },
+  {
+    "name": "AGENT_MAIL__LIST_MESSAGES",
+    "description": "List messages from a specific inbox",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "GET",
+      "endpoint": "https://api.agentmail.to/v0/inboxes/{inbox_id}/messages"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "header": {
+          "type": "object",
+          "description": "Headers for the HTTP request",
+          "properties": {
+            "Content-Type": {
+              "type": "string",
+              "description": "Content-Type header",
+              "default": "application/json"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "Content-Type"
+          ],
+          "visible": []
+        },
+        "path": {
+          "type": "object",
+          "description": "Path parameters for the request",
+          "properties": {
+            "inbox_id": {
+              "type": "string",
+              "description": "ID (email address) of the inbox"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "inbox_id"
+          ],
+          "visible": [
+            "inbox_id"
+          ]
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "header",
+        "path"
+      ],
+      "visible": [
+        "path"
+      ]
+    }
+  }
+]

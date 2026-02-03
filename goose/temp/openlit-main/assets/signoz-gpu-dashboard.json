@@ -1,0 +1,2239 @@
+{
+    "description": "This dashboard displays the GPU performance metrics like Utilization, Temperature, Power Consumption, Memory and more using the OpenTelemetry Metrics generated using [OpenLIT SDK] (https://github.com/openlit/openlit) or the [OTel GPU Collector](https://github.com/openlit/openlit/tree/main/otel-gpu-collector).\n",
+    "image": "data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTgiIGhlaWdodD0iMTgiIHZpZXdCb3g9IjAgMCAxOCAxOCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHBhdGggZD0iTTE0Ljk0OTQgMTMuOTQyQzE2LjIzMTggMTIuNDI1OCAxNy4zMjY4IDkuNzAyMiAxNi4xOTU2IDYuNTc0ODdDMTUuNjQ0MyA1LjA1MjQ1IDE1LjAyMTkgNC4yMDI0OSAxNC4yOTY5IDMuNjYyNTJDMTMuODU1NyAzLjMzMzc5IDEyLjA5MzMgMi41MDYzMyA5Ljc1OTY1IDIuODY3NTZDOC4wNTM0OSAzLjEzMjU1IDUuNzc0ODcgNC4yMDg3NCA0LjI5MzY5IDUuOTU5OUMyLjg1NzUyIDcuNjYxMDYgMS43NDg4MyA5LjAwNDc0IDEuNjk3NTggMTAuMzA5N0MxLjYzMTMzIDExLjk4ODMgMi44OTYyNyAxMy40MzA4IDMuMDUwMDEgMTMuNjY0NUMzLjMyMzc0IDE0LjA3OTUgNS4xOTExNSAxNi40NTE4IDguNjk5NzEgMTYuNTczMUMxMS43OTcgMTYuNjc5MyAxMy44MTQ0IDE1LjI4NDQgMTQuOTQ5NCAxMy45NDJaIiBmaWxsPSIjNDAzRDNFIi8+CjxwYXRoIGQ9Ik00LjU1MzYzIDIuNzM3NDdDMi45Mzc0NiAzLjg5MTE2IDEuMTIxMzEgNi4yNTEwMyAxLjQ0NzU0IDkuNTYwODZDMS42MDYyOCAxMS4xNzIgMi4wMDI1MSAxMi4xNDk1IDIuNTcxMjMgMTIuODUwN0MyLjkxNzQ2IDEzLjI3ODIgNC40MTk4OCAxNC41NDkzIDYuNzczNTEgMTQuNzM2OEM5LjE0NTg4IDE0LjkyNTYgMTAuOTQ5NSAxNC4zOTQ0IDEyLjgzMzIgMTMuMDg0NEMxNi42NjE3IDEwLjQyMDggMTYuMDk4IDYuMzkzNTMgMTUuOTM0MyA1LjkyNDhDMTUuNzcwNSA1LjQ1NjA3IDE0LjU0NDQgMi42OTYyMiAxMS4xNzMzIDEuNzE1MDJDOC4xOTg0NCAwLjg1MDA2OCA1Ljk4MzU1IDEuNzE1MDIgNC41NTM2MyAyLjczNzQ3WiIgZmlsbD0iIzVFNjM2NyIvPgo8cGF0aCBkPSJNNy4zOTM1MyAyLjk2MTA5QzUuNjE3MzcgMi44OTczNCAzLjkxOTk2IDQuMjg4NTIgMy43NTYyMiA2LjAwNTkzQzMuNTkyNDggNy43MjIwOSA0LjY1NDkyIDkuMDI5NTIgNi4zMDk4MyA5LjI5NTc2QzcuOTY0NzUgOS41NjA3NCA5Ljg3ODM5IDguNTU1OCAxMC4yNjM0IDYuNDUwOTFDMTAuNjYwOSA0LjI4MjI3IDkuMDg5NjkgMy4wMjIzNCA3LjM5MzUzIDIuOTYxMDlaIiBmaWxsPSJ3aGl0ZSIvPgo8cGF0aCBkPSJNNy45NDIxNyA1LjkwMTE1QzcuOTQyMTcgNS45MDExNSA4LjM2OTY1IDUuODEyNCA4LjQ1NDY1IDUuMTgyNDRDOC41MzgzOSA0LjU2MjQ3IDguMjMwOTEgNC4wMzM3NSA3LjUxMzQ1IDMuODQzNzZDNi43MzM0OSAzLjYzNzUyIDYuMjA0NzcgNC4wNjYyNSA2LjA2NzI3IDQuNTE3NDdDNS44NzYwMyA1LjE0NDk0IDYuMTU4NTIgNS40NDM2NyA2LjE1ODUyIDUuNDQzNjdDNi4xNTg1MiA1LjQ0MzY3IDUuMzkzNTYgNS42Mjc0MSA1LjMzMjMxIDYuNTI5ODdDNS4yNzQ4MSA3LjM4MTA3IDUuODU2MDMgNy44Mzg1NSA2LjQzOTc1IDcuOTc4NTRDNy4xNjA5NiA4LjE1MjI4IDcuOTc4NDIgNy45NTQ3OSA4LjE3ODQxIDcuMDM0ODRDOC4zNDQ2NSA2LjI3NzM4IDcuOTQyMTcgNS45MDExNSA3Ljk0MjE3IDUuOTAxMTVaIiBmaWxsPSIjMzAzMDMwIi8+CjxwYXRoIGQ9Ik02LjczOTgzIDQuNzUzNjJDNi42NzEwOSA1LjAxMjM1IDYuODA4NTggNS4yNjIzNCA3LjA3ODU3IDUuMzMxMDlDNy4zNjk4IDUuNDA0ODMgNy42MzQ3OSA1LjMwODU5IDcuNzA2MDMgNS4wMTExQzcuNzY4NTMgNC43NDczNyA3LjY0MzU0IDQuNTE0ODggNy4zMzYwNSA0LjQzOTg4QzcuMDgzNTcgNC4zNzczOSA2LjgxNDgzIDQuNDcxMTMgNi43Mzk4MyA0Ljc1MzYyWiIgZmlsbD0id2hpdGUiLz4KPHBhdGggZD0iTTYuOTU5NzggNi4wMzk3NEM2LjYzMjMgNS45Mzg0OSA2LjE5OTgyIDYuMDY0NzMgNi4xMzEwNyA2LjUwNDcxQzYuMDYyMzMgNi45NDQ2OSA2LjMyNjA2IDcuMTY5NjggNi42NzEwNCA3LjIzMjE3QzcuMDE2MDMgNy4yOTQ2NyA3LjM0MjI2IDcuMTEzNDMgNy40MDYwMSA2Ljc2MDk1QzcuNDY4NSA2LjQwOTcyIDcuMjg2MDEgNi4xMzk3MyA2Ljk1OTc4IDYuMDM5NzRaIiBmaWxsPSJ3aGl0ZSIvPgo8L3N2Zz4K",
+    "layout": [
+      {
+        "h": 4,
+        "i": "b6d2bab2-1b1f-44ce-87fa-51c630869686",
+        "moved": false,
+        "static": false,
+        "w": 3,
+        "x": 0,
+        "y": 0
+      },
+      {
+        "h": 4,
+        "i": "138d3a52-3d30-49cb-9fb7-1536888a1118",
+        "moved": false,
+        "static": false,
+        "w": 3,
+        "x": 3,
+        "y": 0
+      },
+      {
+        "h": 4,
+        "i": "43065f7f-422e-4f0b-a8c9-9752636b0cd6",
+        "moved": false,
+        "static": false,
+        "w": 3,
+        "x": 6,
+        "y": 0
+      },
+      {
+        "h": 4,
+        "i": "f12cce65-c68e-4a83-98aa-3970d8b3014f",
+        "moved": false,
+        "static": false,
+        "w": 3,
+        "x": 9,
+        "y": 0
+      },
+      {
+        "h": 6,
+        "i": "e54dbc22-3159-4c8d-a7f5-6710e2cb37ae",
+        "moved": false,
+        "static": false,
+        "w": 6,
+        "x": 0,
+        "y": 4
+      },
+      {
+        "h": 6,
+        "i": "df3f614c-a17a-47b8-9876-b4304e3f6b58",
+        "moved": false,
+        "static": false,
+        "w": 6,
+        "x": 6,
+        "y": 4
+      },
+      {
+        "h": 6,
+        "i": "3b51283a-ec6b-4948-ae08-a0e2682b7a28",
+        "moved": false,
+        "static": false,
+        "w": 6,
+        "x": 0,
+        "y": 10
+      },
+      {
+        "h": 6,
+        "i": "b8c1c1d0-92f4-4491-9879-5e66c6440cfb",
+        "moved": false,
+        "static": false,
+        "w": 6,
+        "x": 6,
+        "y": 10
+      },
+      {
+        "h": 6,
+        "i": "dca0badd-d0d8-499b-b549-db5ebfd62e46",
+        "moved": false,
+        "static": false,
+        "w": 12,
+        "x": 0,
+        "y": 16
+      }
+    ],
+    "panelMap": {},
+    "tags": [
+      "GPU",
+      "NVIDIA",
+      "Infrastructure"
+    ],
+    "title": "GPU Monitoring",
+    "uploadedGrafana": false,
+    "version": "v4",
+    "widgets": [
+      {
+        "bucketCount": 30,
+        "bucketWidth": 0,
+        "columnUnits": {},
+        "description": "This panel displays the Average GPU Utilization",
+        "fillSpans": false,
+        "id": "f12cce65-c68e-4a83-98aa-3970d8b3014f",
+        "isStacked": false,
+        "mergeAllActiveQueries": false,
+        "nullZeroValues": "zero",
+        "opacity": "1",
+        "panelTypes": "value",
+        "query": {
+          "builder": {
+            "queryData": [
+              {
+                "aggregateAttribute": {
+                  "dataType": "float64",
+                  "id": "gpu_utilization--float64--Gauge--true",
+                  "isColumn": true,
+                  "isJSON": false,
+                  "key": "gpu_utilization",
+                  "type": "Gauge"
+                },
+                "aggregateOperator": "avg",
+                "dataSource": "metrics",
+                "disabled": false,
+                "expression": "A",
+                "filters": {
+                  "items": [
+                    {
+                      "id": "7a99c028",
+                      "key": {
+                        "dataType": "string",
+                        "id": "telemetry_sdk_name--string--tag--false",
+                        "isColumn": false,
+                        "isJSON": false,
+                        "key": "telemetry_sdk_name",
+                        "type": "tag"
+                      },
+                      "op": "=",
+                      "value": "openlit"
+                    }
+                  ],
+                  "op": "AND"
+                },
+                "functions": [],
+                "groupBy": [],
+                "having": [],
+                "legend": "",
+                "limit": null,
+                "orderBy": [],
+                "queryName": "A",
+                "reduceTo": "avg",
+                "spaceAggregation": "avg",
+                "stepInterval": 60,
+                "timeAggregation": "avg"
+              }
+            ],
+            "queryFormulas": []
+          },
+          "clickhouse_sql": [
+            {
+              "disabled": false,
+              "legend": "",
+              "name": "A",
+              "query": ""
+            }
+          ],
+          "id": "36406077-b3c4-4c3d-a16f-fc57ad38134f",
+          "promql": [
+            {
+              "disabled": false,
+              "legend": "",
+              "name": "A",
+              "query": ""
+            }
+          ],
+          "queryType": "builder"
+        },
+        "selectedLogFields": [
+          {
+            "dataType": "string",
+            "name": "body",
+            "type": ""
+          },
+          {
+            "dataType": "string",
+            "name": "timestamp",
+            "type": ""
+          }
+        ],
+        "selectedTracesFields": [
+          {
+            "dataType": "string",
+            "id": "serviceName--string--tag--true",
+            "isColumn": true,
+            "isJSON": false,
+            "key": "serviceName",
+            "type": "tag"
+          },
+          {
+            "dataType": "string",
+            "id": "name--string--tag--true",
+            "isColumn": true,
+            "isJSON": false,
+            "key": "name",
+            "type": "tag"
+          },
+          {
+            "dataType": "float64",
+            "id": "durationNano--float64--tag--true",
+            "isColumn": true,
+            "isJSON": false,
+            "key": "durationNano",
+            "type": "tag"
+          },
+          {
+            "dataType": "string",
+            "id": "httpMethod--string--tag--true",
+            "isColumn": true,
+            "isJSON": false,
+            "key": "httpMethod",
+            "type": "tag"
+          },
+          {
+            "dataType": "string",
+            "id": "responseStatusCode--string--tag--true",
+            "isColumn": true,
+            "isJSON": false,
+            "key": "responseStatusCode",
+            "type": "tag"
+          }
+        ],
+        "softMax": 0,
+        "softMin": 0,
+        "stackedBarChart": false,
+        "thresholds": [],
+        "timePreferance": "GLOBAL_TIME",
+        "title": "Average GPU Utilization",
+        "yAxisUnit": "percent"
+      },
+      {
+        "bucketCount": 30,
+        "bucketWidth": 0,
+        "columnUnits": {},
+        "description": "This panel displays the Average GPU Power Draw",
+        "fillSpans": false,
+        "id": "43065f7f-422e-4f0b-a8c9-9752636b0cd6",
+        "isStacked": false,
+        "mergeAllActiveQueries": false,
+        "nullZeroValues": "zero",
+        "opacity": "1",
+        "panelTypes": "value",
+        "query": {
+          "builder": {
+            "queryData": [
+              {
+                "aggregateAttribute": {
+                  "dataType": "float64",
+                  "id": "gpu_power_draw--float64--Gauge--true",
+                  "isColumn": true,
+                  "isJSON": false,
+                  "key": "gpu_power_draw",
+                  "type": "Gauge"
+                },
+                "aggregateOperator": "avg",
+                "dataSource": "metrics",
+                "disabled": false,
+                "expression": "A",
+                "filters": {
+                  "items": [
+                    {
+                      "id": "65a346b3",
+                      "key": {
+                        "dataType": "string",
+                        "id": "telemetry_sdk_name--string--tag--false",
+                        "isColumn": false,
+                        "isJSON": false,
+                        "key": "telemetry_sdk_name",
+                        "type": "tag"
+                      },
+                      "op": "=",
+                      "value": "openlit"
+                    }
+                  ],
+                  "op": "AND"
+                },
+                "functions": [],
+                "groupBy": [],
+                "having": [],
+                "legend": "",
+                "limit": null,
+                "orderBy": [],
+                "queryName": "A",
+                "reduceTo": "avg",
+                "spaceAggregation": "avg",
+                "stepInterval": 60,
+                "timeAggregation": "avg"
+              }
+            ],
+            "queryFormulas": []
+          },
+          "clickhouse_sql": [
+            {
+              "disabled": false,
+              "legend": "",
+              "name": "A",
+              "query": ""
+            }
+          ],
+          "id": "9355e0bd-edb1-431b-b709-2c4e2855d7d5",
+          "promql": [
+            {
+              "disabled": false,
+              "legend": "",
+              "name": "A",
+              "query": ""
+            }
+          ],
+          "queryType": "builder"
+        },
+        "selectedLogFields": [
+          {
+            "dataType": "string",
+            "name": "body",
+            "type": ""
+          },
+          {
+            "dataType": "string",
+            "name": "timestamp",
+            "type": ""
+          }
+        ],
+        "selectedTracesFields": [
+          {
+            "dataType": "string",
+            "id": "serviceName--string--tag--true",
+            "isColumn": true,
+            "isJSON": false,
+            "key": "serviceName",
+            "type": "tag"
+          },
+          {
+            "dataType": "string",
+            "id": "name--string--tag--true",
+            "isColumn": true,
+            "isJSON": false,
+            "key": "name",
+            "type": "tag"
+          },
+          {
+            "dataType": "float64",
+            "id": "durationNano--float64--tag--true",
+            "isColumn": true,
+            "isJSON": false,
+            "key": "durationNano",
+            "type": "tag"
+          },
+          {
+            "dataType": "string",
+            "id": "httpMethod--string--tag--true",
+            "isColumn": true,
+            "isJSON": false,
+            "key": "httpMethod",
+            "type": "tag"
+          },
+          {
+            "dataType": "string",
+            "id": "responseStatusCode--string--tag--true",
+            "isColumn": true,
+            "isJSON": false,
+            "key": "responseStatusCode",
+            "type": "tag"
+          }
+        ],
+        "softMax": 0,
+        "softMin": 0,
+        "stackedBarChart": false,
+        "thresholds": [],
+        "timePreferance": "GLOBAL_TIME",
+        "title": "Average GPU Power Draw",
+        "yAxisUnit": "watt"
+      },
+      {
+        "bucketCount": 30,
+        "bucketWidth": 0,
+        "columnUnits": {},
+        "description": "This panel displays the Average GPU Temperature",
+        "fillSpans": false,
+        "id": "138d3a52-3d30-49cb-9fb7-1536888a1118",
+        "isStacked": false,
+        "mergeAllActiveQueries": false,
+        "nullZeroValues": "zero",
+        "opacity": "1",
+        "panelTypes": "value",
+        "query": {
+          "builder": {
+            "queryData": [
+              {
+                "aggregateAttribute": {
+                  "dataType": "float64",
+                  "id": "gpu_temperature--float64--Gauge--true",
+                  "isColumn": true,
+                  "isJSON": false,
+                  "key": "gpu_temperature",
+                  "type": "Gauge"
+                },
+                "aggregateOperator": "avg",
+                "dataSource": "metrics",
+                "disabled": false,
+                "expression": "A",
+                "filters": {
+                  "items": [
+                    {
+                      "id": "454c9f4f",
+                      "key": {
+                        "dataType": "string",
+                        "id": "telemetry_sdk_name--string--tag--false",
+                        "isColumn": false,
+                        "isJSON": false,
+                        "key": "telemetry_sdk_name",
+                        "type": "tag"
+                      },
+                      "op": "=",
+                      "value": "openlit"
+                    }
+                  ],
+                  "op": "AND"
+                },
+                "functions": [],
+                "groupBy": [],
+                "having": [],
+                "legend": "",
+                "limit": null,
+                "orderBy": [],
+                "queryName": "A",
+                "reduceTo": "avg",
+                "spaceAggregation": "avg",
+                "stepInterval": 60,
+                "timeAggregation": "avg"
+              }
+            ],
+            "queryFormulas": []
+          },
+          "clickhouse_sql": [
+            {
+              "disabled": false,
+              "legend": "",
+              "name": "A",
+              "query": ""
+            }
+          ],
+          "id": "e21aeb62-4fe5-40d1-a957-7f2c76e55290",
+          "promql": [
+            {
+              "disabled": false,
+              "legend": "",
+              "name": "A",
+              "query": ""
+            }
+          ],
+          "queryType": "builder"
+        },
+        "selectedLogFields": [
+          {
+            "dataType": "string",
+            "name": "body",
+            "type": ""
+          },
+          {
+            "dataType": "string",
+            "name": "timestamp",
+            "type": ""
+          }
+        ],
+        "selectedTracesFields": [
+          {
+            "dataType": "string",
+            "id": "serviceName--string--tag--true",
+            "isColumn": true,
+            "isJSON": false,
+            "key": "serviceName",
+            "type": "tag"
+          },
+          {
+            "dataType": "string",
+            "id": "name--string--tag--true",
+            "isColumn": true,
+            "isJSON": false,
+            "key": "name",
+            "type": "tag"
+          },
+          {
+            "dataType": "float64",
+            "id": "durationNano--float64--tag--true",
+            "isColumn": true,
+            "isJSON": false,
+            "key": "durationNano",
+            "type": "tag"
+          },
+          {
+            "dataType": "string",
+            "id": "httpMethod--string--tag--true",
+            "isColumn": true,
+            "isJSON": false,
+            "key": "httpMethod",
+            "type": "tag"
+          },
+          {
+            "dataType": "string",
+            "id": "responseStatusCode--string--tag--true",
+            "isColumn": true,
+            "isJSON": false,
+            "key": "responseStatusCode",
+            "type": "tag"
+          }
+        ],
+        "softMax": 0,
+        "softMin": 0,
+        "stackedBarChart": false,
+        "thresholds": [
+          {
+            "index": "2558f889-cd96-4141-aa06-4a930c072bee",
+            "isEditEnabled": false,
+            "keyIndex": 1,
+            "selectedGraph": "value",
+            "thresholdColor": "Red",
+            "thresholdFormat": "Text",
+            "thresholdLabel": "",
+            "thresholdOperator": ">",
+            "thresholdTableOptions": "",
+            "thresholdUnit": "celsius",
+            "thresholdValue": 100
+          }
+        ],
+        "timePreferance": "GLOBAL_TIME",
+        "title": "Average GPU Temperature",
+        "yAxisUnit": "celsius"
+      },
+      {
+        "bucketCount": 30,
+        "bucketWidth": 0,
+        "columnUnits": {},
+        "description": "",
+        "fillSpans": false,
+        "id": "265c25fa-60f9-475c-9e67-688cde51c0fb",
+        "isStacked": false,
+        "mergeAllActiveQueries": false,
+        "nullZeroValues": "zero",
+        "opacity": "1",
+        "panelTypes": "graph",
+        "query": {
+          "builder": {
+            "queryData": [
+              {
+                "aggregateAttribute": {
+                  "dataType": "float64",
+                  "id": "gpu_utilization--float64--Gauge--true",
+                  "isColumn": true,
+                  "isJSON": false,
+                  "key": "gpu_utilization",
+                  "type": "Gauge"
+                },
+                "aggregateOperator": "avg",
+                "dataSource": "metrics",
+                "disabled": false,
+                "expression": "A",
+                "filters": {
+                  "items": [],
+                  "op": "AND"
+                },
+                "functions": [],
+                "groupBy": [],
+                "having": [],
+                "legend": "Total Utilization",
+                "limit": null,
+                "orderBy": [],
+                "queryName": "A",
+                "reduceTo": "avg",
+                "spaceAggregation": "avg",
+                "stepInterval": 60,
+                "timeAggregation": "avg"
+              },
+              {
+                "aggregateAttribute": {
+                  "dataType": "float64",
+                  "id": "gpu_enc_utilization--float64--Gauge--true",
+                  "isColumn": true,
+                  "isJSON": false,
+                  "key": "gpu_enc_utilization",
+                  "type": "Gauge"
+                },
+                "aggregateOperator": "avg",
+                "dataSource": "metrics",
+                "disabled": false,
+                "expression": "B",
+                "filters": {
+                  "items": [],
+                  "op": "AND"
+                },
+                "functions": [],
+                "groupBy": [],
+                "having": [],
+                "legend": "Encoder Utilization",
+                "limit": null,
+                "orderBy": [],
+                "queryName": "B",
+                "reduceTo": "avg",
+                "spaceAggregation": "avg",
+                "stepInterval": 60,
+                "timeAggregation": "avg"
+              },
+              {
+                "aggregateAttribute": {
+                  "dataType": "float64",
+                  "id": "gpu_dec_utilization--float64--Gauge--true",
+                  "isColumn": true,
+                  "isJSON": false,
+                  "key": "gpu_dec_utilization",
+                  "type": "Gauge"
+                },
+                "aggregateOperator": "avg",
+                "dataSource": "metrics",
+                "disabled": false,
+                "expression": "C",
+                "filters": {
+                  "items": [],
+                  "op": "AND"
+                },
+                "functions": [],
+                "groupBy": [],
+                "having": [],
+                "legend": "Decoder Utilization",
+                "limit": null,
+                "orderBy": [],
+                "queryName": "C",
+                "reduceTo": "avg",
+                "spaceAggregation": "avg",
+                "stepInterval": 60,
+                "timeAggregation": "avg"
+              }
+            ],
+            "queryFormulas": []
+          },
+          "clickhouse_sql": [
+            {
+              "disabled": false,
+              "legend": "",
+              "name": "A",
+              "query": ""
+            }
+          ],
+          "id": "9b10eaf4-033d-44bc-a0f7-0b729ef22b8d",
+          "promql": [
+            {
+              "disabled": false,
+              "legend": "",
+              "name": "A",
+              "query": ""
+            }
+          ],
+          "queryType": "builder"
+        },
+        "selectedLogFields": [
+          {
+            "dataType": "string",
+            "name": "body",
+            "type": ""
+          },
+          {
+            "dataType": "string",
+            "name": "timestamp",
+            "type": ""
+          }
+        ],
+        "selectedTracesFields": [
+          {
+            "dataType": "string",
+            "id": "serviceName--string--tag--true",
+            "isColumn": true,
+            "isJSON": false,
+            "key": "serviceName",
+            "type": "tag"
+          },
+          {
+            "dataType": "string",
+            "id": "name--string--tag--true",
+            "isColumn": true,
+            "isJSON": false,
+            "key": "name",
+            "type": "tag"
+          },
+          {
+            "dataType": "float64",
+            "id": "durationNano--float64--tag--true",
+            "isColumn": true,
+            "isJSON": false,
+            "key": "durationNano",
+            "type": "tag"
+          },
+          {
+            "dataType": "string",
+            "id": "httpMethod--string--tag--true",
+            "isColumn": true,
+            "isJSON": false,
+            "key": "httpMethod",
+            "type": "tag"
+          },
+          {
+            "dataType": "string",
+            "id": "responseStatusCode--string--tag--true",
+            "isColumn": true,
+            "isJSON": false,
+            "key": "responseStatusCode",
+            "type": "tag"
+          }
+        ],
+        "softMax": 0,
+        "softMin": 0,
+        "stackedBarChart": false,
+        "thresholds": [],
+        "timePreferance": "GLOBAL_TIME",
+        "title": "",
+        "yAxisUnit": "none"
+      },
+      {
+        "bucketCount": 30,
+        "bucketWidth": 0,
+        "columnUnits": {},
+        "description": "This panel displays the Average GPU Utilization",
+        "fillSpans": false,
+        "id": "f12cce65-c68e-4a83-98aa-3970d8b3014f",
+        "isStacked": false,
+        "mergeAllActiveQueries": false,
+        "nullZeroValues": "zero",
+        "opacity": "1",
+        "panelTypes": "value",
+        "query": {
+          "builder": {
+            "queryData": [
+              {
+                "aggregateAttribute": {
+                  "dataType": "float64",
+                  "id": "gpu_utilization--float64--Gauge--true",
+                  "isColumn": true,
+                  "isJSON": false,
+                  "key": "gpu_utilization",
+                  "type": "Gauge"
+                },
+                "aggregateOperator": "avg",
+                "dataSource": "metrics",
+                "disabled": false,
+                "expression": "A",
+                "filters": {
+                  "items": [
+                    {
+                      "id": "7a99c028",
+                      "key": {
+                        "dataType": "string",
+                        "id": "telemetry_sdk_name--string--tag--false",
+                        "isColumn": false,
+                        "isJSON": false,
+                        "key": "telemetry_sdk_name",
+                        "type": "tag"
+                      },
+                      "op": "=",
+                      "value": "openlit"
+                    }
+                  ],
+                  "op": "AND"
+                },
+                "functions": [],
+                "groupBy": [],
+                "having": [],
+                "legend": "",
+                "limit": null,
+                "orderBy": [],
+                "queryName": "A",
+                "reduceTo": "avg",
+                "spaceAggregation": "avg",
+                "stepInterval": 60,
+                "timeAggregation": "avg"
+              }
+            ],
+            "queryFormulas": []
+          },
+          "clickhouse_sql": [
+            {
+              "disabled": false,
+              "legend": "",
+              "name": "A",
+              "query": ""
+            }
+          ],
+          "id": "36406077-b3c4-4c3d-a16f-fc57ad38134f",
+          "promql": [
+            {
+              "disabled": false,
+              "legend": "",
+              "name": "A",
+              "query": ""
+            }
+          ],
+          "queryType": "builder"
+        },
+        "selectedLogFields": [
+          {
+            "dataType": "string",
+            "name": "body",
+            "type": ""
+          },
+          {
+            "dataType": "string",
+            "name": "timestamp",
+            "type": ""
+          }
+        ],
+        "selectedTracesFields": [
+          {
+            "dataType": "string",
+            "id": "serviceName--string--tag--true",
+            "isColumn": true,
+            "isJSON": false,
+            "key": "serviceName",
+            "type": "tag"
+          },
+          {
+            "dataType": "string",
+            "id": "name--string--tag--true",
+            "isColumn": true,
+            "isJSON": false,
+            "key": "name",
+            "type": "tag"
+          },
+          {
+            "dataType": "float64",
+            "id": "durationNano--float64--tag--true",
+            "isColumn": true,
+            "isJSON": false,
+            "key": "durationNano",
+            "type": "tag"
+          },
+          {
+            "dataType": "string",
+            "id": "httpMethod--string--tag--true",
+            "isColumn": true,
+            "isJSON": false,
+            "key": "httpMethod",
+            "type": "tag"
+          },
+          {
+            "dataType": "string",
+            "id": "responseStatusCode--string--tag--true",
+            "isColumn": true,
+            "isJSON": false,
+            "key": "responseStatusCode",
+            "type": "tag"
+          }
+        ],
+        "softMax": 0,
+        "softMin": 0,
+        "stackedBarChart": false,
+        "thresholds": [],
+        "timePreferance": "GLOBAL_TIME",
+        "title": "Average GPU Utilization",
+        "yAxisUnit": "percent"
+      },
+      {
+        "bucketCount": 30,
+        "bucketWidth": 0,
+        "columnUnits": {},
+        "description": "This panel displays the Average GPU Power Draw",
+        "fillSpans": false,
+        "id": "43065f7f-422e-4f0b-a8c9-9752636b0cd6",
+        "isStacked": false,
+        "mergeAllActiveQueries": false,
+        "nullZeroValues": "zero",
+        "opacity": "1",
+        "panelTypes": "value",
+        "query": {
+          "builder": {
+            "queryData": [
+              {
+                "aggregateAttribute": {
+                  "dataType": "float64",
+                  "id": "gpu_power_draw--float64--Gauge--true",
+                  "isColumn": true,
+                  "isJSON": false,
+                  "key": "gpu_power_draw",
+                  "type": "Gauge"
+                },
+                "aggregateOperator": "avg",
+                "dataSource": "metrics",
+                "disabled": false,
+                "expression": "A",
+                "filters": {
+                  "items": [
+                    {
+                      "id": "65a346b3",
+                      "key": {
+                        "dataType": "string",
+                        "id": "telemetry_sdk_name--string--tag--false",
+                        "isColumn": false,
+                        "isJSON": false,
+                        "key": "telemetry_sdk_name",
+                        "type": "tag"
+                      },
+                      "op": "=",
+                      "value": "openlit"
+                    }
+                  ],
+                  "op": "AND"
+                },
+                "functions": [],
+                "groupBy": [],
+                "having": [],
+                "legend": "",
+                "limit": null,
+                "orderBy": [],
+                "queryName": "A",
+                "reduceTo": "avg",
+                "spaceAggregation": "avg",
+                "stepInterval": 60,
+                "timeAggregation": "avg"
+              }
+            ],
+            "queryFormulas": []
+          },
+          "clickhouse_sql": [
+            {
+              "disabled": false,
+              "legend": "",
+              "name": "A",
+              "query": ""
+            }
+          ],
+          "id": "9355e0bd-edb1-431b-b709-2c4e2855d7d5",
+          "promql": [
+            {
+              "disabled": false,
+              "legend": "",
+              "name": "A",
+              "query": ""
+            }
+          ],
+          "queryType": "builder"
+        },
+        "selectedLogFields": [
+          {
+            "dataType": "string",
+            "name": "body",
+            "type": ""
+          },
+          {
+            "dataType": "string",
+            "name": "timestamp",
+            "type": ""
+          }
+        ],
+        "selectedTracesFields": [
+          {
+            "dataType": "string",
+            "id": "serviceName--string--tag--true",
+            "isColumn": true,
+            "isJSON": false,
+            "key": "serviceName",
+            "type": "tag"
+          },
+          {
+            "dataType": "string",
+            "id": "name--string--tag--true",
+            "isColumn": true,
+            "isJSON": false,
+            "key": "name",
+            "type": "tag"
+          },
+          {
+            "dataType": "float64",
+            "id": "durationNano--float64--tag--true",
+            "isColumn": true,
+            "isJSON": false,
+            "key": "durationNano",
+            "type": "tag"
+          },
+          {
+            "dataType": "string",
+            "id": "httpMethod--string--tag--true",
+            "isColumn": true,
+            "isJSON": false,
+            "key": "httpMethod",
+            "type": "tag"
+          },
+          {
+            "dataType": "string",
+            "id": "responseStatusCode--string--tag--true",
+            "isColumn": true,
+            "isJSON": false,
+            "key": "responseStatusCode",
+            "type": "tag"
+          }
+        ],
+        "softMax": 0,
+        "softMin": 0,
+        "stackedBarChart": false,
+        "thresholds": [],
+        "timePreferance": "GLOBAL_TIME",
+        "title": "Average GPU Power Draw",
+        "yAxisUnit": "watt"
+      },
+      {
+        "bucketCount": 30,
+        "bucketWidth": 0,
+        "columnUnits": {},
+        "description": "This panel displays the Average GPU Temperature",
+        "fillSpans": false,
+        "id": "138d3a52-3d30-49cb-9fb7-1536888a1118",
+        "isStacked": false,
+        "mergeAllActiveQueries": false,
+        "nullZeroValues": "zero",
+        "opacity": "1",
+        "panelTypes": "value",
+        "query": {
+          "builder": {
+            "queryData": [
+              {
+                "aggregateAttribute": {
+                  "dataType": "float64",
+                  "id": "gpu_temperature--float64--Gauge--true",
+                  "isColumn": true,
+                  "isJSON": false,
+                  "key": "gpu_temperature",
+                  "type": "Gauge"
+                },
+                "aggregateOperator": "avg",
+                "dataSource": "metrics",
+                "disabled": false,
+                "expression": "A",
+                "filters": {
+                  "items": [
+                    {
+                      "id": "454c9f4f",
+                      "key": {
+                        "dataType": "string",
+                        "id": "telemetry_sdk_name--string--tag--false",
+                        "isColumn": false,
+                        "isJSON": false,
+                        "key": "telemetry_sdk_name",
+                        "type": "tag"
+                      },
+                      "op": "=",
+                      "value": "openlit"
+                    }
+                  ],
+                  "op": "AND"
+                },
+                "functions": [],
+                "groupBy": [],
+                "having": [],
+                "legend": "",
+                "limit": null,
+                "orderBy": [],
+                "queryName": "A",
+                "reduceTo": "avg",
+                "spaceAggregation": "avg",
+                "stepInterval": 60,
+                "timeAggregation": "avg"
+              }
+            ],
+            "queryFormulas": []
+          },
+          "clickhouse_sql": [
+            {
+              "disabled": false,
+              "legend": "",
+              "name": "A",
+              "query": ""
+            }
+          ],
+          "id": "e21aeb62-4fe5-40d1-a957-7f2c76e55290",
+          "promql": [
+            {
+              "disabled": false,
+              "legend": "",
+              "name": "A",
+              "query": ""
+            }
+          ],
+          "queryType": "builder"
+        },
+        "selectedLogFields": [
+          {
+            "dataType": "string",
+            "name": "body",
+            "type": ""
+          },
+          {
+            "dataType": "string",
+            "name": "timestamp",
+            "type": ""
+          }
+        ],
+        "selectedTracesFields": [
+          {
+            "dataType": "string",
+            "id": "serviceName--string--tag--true",
+            "isColumn": true,
+            "isJSON": false,
+            "key": "serviceName",
+            "type": "tag"
+          },
+          {
+            "dataType": "string",
+            "id": "name--string--tag--true",
+            "isColumn": true,
+            "isJSON": false,
+            "key": "name",
+            "type": "tag"
+          },
+          {
+            "dataType": "float64",
+            "id": "durationNano--float64--tag--true",
+            "isColumn": true,
+            "isJSON": false,
+            "key": "durationNano",
+            "type": "tag"
+          },
+          {
+            "dataType": "string",
+            "id": "httpMethod--string--tag--true",
+            "isColumn": true,
+            "isJSON": false,
+            "key": "httpMethod",
+            "type": "tag"
+          },
+          {
+            "dataType": "string",
+            "id": "responseStatusCode--string--tag--true",
+            "isColumn": true,
+            "isJSON": false,
+            "key": "responseStatusCode",
+            "type": "tag"
+          }
+        ],
+        "softMax": 0,
+        "softMin": 0,
+        "stackedBarChart": false,
+        "thresholds": [
+          {
+            "index": "2558f889-cd96-4141-aa06-4a930c072bee",
+            "isEditEnabled": false,
+            "keyIndex": 1,
+            "selectedGraph": "value",
+            "thresholdColor": "Red",
+            "thresholdFormat": "Text",
+            "thresholdLabel": "",
+            "thresholdOperator": ">",
+            "thresholdTableOptions": "",
+            "thresholdUnit": "celsius",
+            "thresholdValue": 100
+          }
+        ],
+        "timePreferance": "GLOBAL_TIME",
+        "title": "Average GPU Temperature",
+        "yAxisUnit": "celsius"
+      },
+      {
+        "bucketCount": 30,
+        "bucketWidth": 0,
+        "columnUnits": {},
+        "description": "This panel displays the Average GPU memory Usage",
+        "fillSpans": false,
+        "id": "b6d2bab2-1b1f-44ce-87fa-51c630869686",
+        "isStacked": false,
+        "mergeAllActiveQueries": false,
+        "nullZeroValues": "zero",
+        "opacity": "1",
+        "panelTypes": "value",
+        "query": {
+          "builder": {
+            "queryData": [
+              {
+                "aggregateAttribute": {
+                  "dataType": "float64",
+                  "id": "gpu_memory_used--float64--Gauge--true",
+                  "isColumn": true,
+                  "isJSON": false,
+                  "key": "gpu_memory_used",
+                  "type": "Gauge"
+                },
+                "aggregateOperator": "avg",
+                "dataSource": "metrics",
+                "disabled": false,
+                "expression": "A",
+                "filters": {
+                  "items": [
+                    {
+                      "id": "7e7ccd23",
+                      "key": {
+                        "dataType": "string",
+                        "id": "telemetry_sdk_name--string--tag--false",
+                        "isColumn": false,
+                        "isJSON": false,
+                        "key": "telemetry_sdk_name",
+                        "type": "tag"
+                      },
+                      "op": "=",
+                      "value": "openlit"
+                    }
+                  ],
+                  "op": "AND"
+                },
+                "functions": [],
+                "groupBy": [],
+                "having": [],
+                "legend": "",
+                "limit": null,
+                "orderBy": [],
+                "queryName": "A",
+                "reduceTo": "avg",
+                "spaceAggregation": "avg",
+                "stepInterval": 60,
+                "timeAggregation": "avg"
+              }
+            ],
+            "queryFormulas": [
+              {
+                "disabled": false,
+                "expression": "/ gpu_memory_available",
+                "legend": "",
+                "queryName": "F1"
+              }
+            ]
+          },
+          "clickhouse_sql": [
+            {
+              "disabled": false,
+              "legend": "",
+              "name": "A",
+              "query": ""
+            }
+          ],
+          "id": "31237c26-565f-4cb3-9507-cfbf860881cb",
+          "promql": [
+            {
+              "disabled": false,
+              "legend": "",
+              "name": "A",
+              "query": "avg(gpu_memory_used{telemetry_sdk_name=\"openlit\"}/gpu_memory_available{telemetry_sdk_name=\"openlit\"})"
+            }
+          ],
+          "queryType": "promql"
+        },
+        "selectedLogFields": [
+          {
+            "dataType": "string",
+            "name": "body",
+            "type": ""
+          },
+          {
+            "dataType": "string",
+            "name": "timestamp",
+            "type": ""
+          }
+        ],
+        "selectedTracesFields": [
+          {
+            "dataType": "string",
+            "id": "serviceName--string--tag--true",
+            "isColumn": true,
+            "isJSON": false,
+            "key": "serviceName",
+            "type": "tag"
+          },
+          {
+            "dataType": "string",
+            "id": "name--string--tag--true",
+            "isColumn": true,
+            "isJSON": false,
+            "key": "name",
+            "type": "tag"
+          },
+          {
+            "dataType": "float64",
+            "id": "durationNano--float64--tag--true",
+            "isColumn": true,
+            "isJSON": false,
+            "key": "durationNano",
+            "type": "tag"
+          },
+          {
+            "dataType": "string",
+            "id": "httpMethod--string--tag--true",
+            "isColumn": true,
+            "isJSON": false,
+            "key": "httpMethod",
+            "type": "tag"
+          },
+          {
+            "dataType": "string",
+            "id": "responseStatusCode--string--tag--true",
+            "isColumn": true,
+            "isJSON": false,
+            "key": "responseStatusCode",
+            "type": "tag"
+          }
+        ],
+        "softMax": 0,
+        "softMin": 0,
+        "stackedBarChart": false,
+        "thresholds": [],
+        "timePreferance": "GLOBAL_TIME",
+        "title": "Average GPU Memory Usage",
+        "yAxisUnit": "percent"
+      },
+      {
+        "bucketCount": 30,
+        "bucketWidth": 0,
+        "columnUnits": {},
+        "description": "This Panel shows the GPU Temperature overtime",
+        "fillSpans": true,
+        "id": "df3f614c-a17a-47b8-9876-b4304e3f6b58",
+        "isStacked": false,
+        "mergeAllActiveQueries": false,
+        "nullZeroValues": "zero",
+        "opacity": "1",
+        "panelTypes": "graph",
+        "query": {
+          "builder": {
+            "queryData": [
+              {
+                "aggregateAttribute": {
+                  "dataType": "float64",
+                  "id": "gpu_temperature--float64--Gauge--true",
+                  "isColumn": true,
+                  "isJSON": false,
+                  "key": "gpu_temperature",
+                  "type": "Gauge"
+                },
+                "aggregateOperator": "latest",
+                "dataSource": "metrics",
+                "disabled": false,
+                "expression": "A",
+                "filters": {
+                  "items": [
+                    {
+                      "id": "2e94954e",
+                      "key": {
+                        "dataType": "string",
+                        "id": "telemetry_sdk_name--string--tag--false",
+                        "isColumn": false,
+                        "isJSON": false,
+                        "key": "telemetry_sdk_name",
+                        "type": "tag"
+                      },
+                      "op": "=",
+                      "value": "openlit"
+                    }
+                  ],
+                  "op": "AND"
+                },
+                "functions": [],
+                "groupBy": [],
+                "having": [],
+                "legend": "Temperature",
+                "limit": null,
+                "orderBy": [],
+                "queryName": "A",
+                "reduceTo": "avg",
+                "spaceAggregation": "avg",
+                "stepInterval": 60,
+                "timeAggregation": "latest"
+              }
+            ],
+            "queryFormulas": []
+          },
+          "clickhouse_sql": [
+            {
+              "disabled": false,
+              "legend": "",
+              "name": "A",
+              "query": ""
+            }
+          ],
+          "id": "bb10b21b-c970-4cc2-acc2-ac4bad22ccc0",
+          "promql": [
+            {
+              "disabled": false,
+              "legend": "",
+              "name": "A",
+              "query": ""
+            }
+          ],
+          "queryType": "builder"
+        },
+        "selectedLogFields": [
+          {
+            "dataType": "string",
+            "name": "body",
+            "type": ""
+          },
+          {
+            "dataType": "string",
+            "name": "timestamp",
+            "type": ""
+          }
+        ],
+        "selectedTracesFields": [
+          {
+            "dataType": "string",
+            "id": "serviceName--string--tag--true",
+            "isColumn": true,
+            "isJSON": false,
+            "key": "serviceName",
+            "type": "tag"
+          },
+          {
+            "dataType": "string",
+            "id": "name--string--tag--true",
+            "isColumn": true,
+            "isJSON": false,
+            "key": "name",
+            "type": "tag"
+          },
+          {
+            "dataType": "float64",
+            "id": "durationNano--float64--tag--true",
+            "isColumn": true,
+            "isJSON": false,
+            "key": "durationNano",
+            "type": "tag"
+          },
+          {
+            "dataType": "string",
+            "id": "httpMethod--string--tag--true",
+            "isColumn": true,
+            "isJSON": false,
+            "key": "httpMethod",
+            "type": "tag"
+          },
+          {
+            "dataType": "string",
+            "id": "responseStatusCode--string--tag--true",
+            "isColumn": true,
+            "isJSON": false,
+            "key": "responseStatusCode",
+            "type": "tag"
+          }
+        ],
+        "softMax": 0,
+        "softMin": 0,
+        "stackedBarChart": false,
+        "thresholds": [],
+        "timePreferance": "GLOBAL_TIME",
+        "title": "GPU Tempertaure",
+        "yAxisUnit": "none"
+      },
+      {
+        "bucketCount": 30,
+        "bucketWidth": 0,
+        "columnUnits": {},
+        "description": "This Panel shows the GPU memory usage overtime",
+        "fillSpans": true,
+        "id": "3b51283a-ec6b-4948-ae08-a0e2682b7a28",
+        "isStacked": false,
+        "mergeAllActiveQueries": false,
+        "nullZeroValues": "zero",
+        "opacity": "1",
+        "panelTypes": "graph",
+        "query": {
+          "builder": {
+            "queryData": [
+              {
+                "aggregateAttribute": {
+                  "dataType": "float64",
+                  "id": "gpu_memory_used--float64--Gauge--true",
+                  "isColumn": true,
+                  "isJSON": false,
+                  "key": "gpu_memory_used",
+                  "type": "Gauge"
+                },
+                "aggregateOperator": "latest",
+                "dataSource": "metrics",
+                "disabled": false,
+                "expression": "A",
+                "filters": {
+                  "items": [
+                    {
+                      "id": "99d83552",
+                      "key": {
+                        "dataType": "string",
+                        "id": "telemetry_sdk_name--string--tag--false",
+                        "isColumn": false,
+                        "isJSON": false,
+                        "key": "telemetry_sdk_name",
+                        "type": "tag"
+                      },
+                      "op": "=",
+                      "value": "openlit"
+                    }
+                  ],
+                  "op": "AND"
+                },
+                "functions": [],
+                "groupBy": [],
+                "having": [],
+                "legend": "Memory Used",
+                "limit": null,
+                "orderBy": [],
+                "queryName": "A",
+                "reduceTo": "avg",
+                "spaceAggregation": "avg",
+                "stepInterval": 60,
+                "timeAggregation": "latest"
+              },
+              {
+                "aggregateAttribute": {
+                  "dataType": "float64",
+                  "id": "gpu_memory_free--float64--Gauge--true",
+                  "isColumn": true,
+                  "isJSON": false,
+                  "key": "gpu_memory_free",
+                  "type": "Gauge"
+                },
+                "aggregateOperator": "latest",
+                "dataSource": "metrics",
+                "disabled": false,
+                "expression": "B",
+                "filters": {
+                  "items": [
+                    {
+                      "id": "473d1864",
+                      "key": {
+                        "dataType": "string",
+                        "id": "telemetry_sdk_name--string--tag--false",
+                        "isColumn": false,
+                        "isJSON": false,
+                        "key": "telemetry_sdk_name",
+                        "type": "tag"
+                      },
+                      "op": "=",
+                      "value": "openlit"
+                    }
+                  ],
+                  "op": "AND"
+                },
+                "functions": [],
+                "groupBy": [],
+                "having": [],
+                "legend": "Memory Free",
+                "limit": null,
+                "orderBy": [],
+                "queryName": "B",
+                "reduceTo": "avg",
+                "spaceAggregation": "avg",
+                "stepInterval": 60,
+                "timeAggregation": "latest"
+              },
+              {
+                "aggregateAttribute": {
+                  "dataType": "float64",
+                  "id": "gpu_memory_available--float64--Gauge--true",
+                  "isColumn": true,
+                  "isJSON": false,
+                  "key": "gpu_memory_available",
+                  "type": "Gauge"
+                },
+                "aggregateOperator": "avg",
+                "dataSource": "metrics",
+                "disabled": false,
+                "expression": "C",
+                "filters": {
+                  "items": [
+                    {
+                      "id": "259720f2",
+                      "key": {
+                        "dataType": "string",
+                        "id": "telemetry_sdk_name--string--tag--false",
+                        "isColumn": false,
+                        "isJSON": false,
+                        "key": "telemetry_sdk_name",
+                        "type": "tag"
+                      },
+                      "op": "=",
+                      "value": "openlit"
+                    }
+                  ],
+                  "op": "AND"
+                },
+                "functions": [],
+                "groupBy": [],
+                "having": [],
+                "legend": "Memory Available",
+                "limit": null,
+                "orderBy": [],
+                "queryName": "C",
+                "reduceTo": "avg",
+                "spaceAggregation": "avg",
+                "stepInterval": 60,
+                "timeAggregation": "avg"
+              }
+            ],
+            "queryFormulas": []
+          },
+          "clickhouse_sql": [
+            {
+              "disabled": false,
+              "legend": "",
+              "name": "A",
+              "query": ""
+            }
+          ],
+          "id": "e56b91d7-2cbb-40e1-8fb1-d5ef2ec54d9c",
+          "promql": [
+            {
+              "disabled": false,
+              "legend": "",
+              "name": "A",
+              "query": ""
+            }
+          ],
+          "queryType": "builder"
+        },
+        "selectedLogFields": [
+          {
+            "dataType": "string",
+            "name": "body",
+            "type": ""
+          },
+          {
+            "dataType": "string",
+            "name": "timestamp",
+            "type": ""
+          }
+        ],
+        "selectedTracesFields": [
+          {
+            "dataType": "string",
+            "id": "serviceName--string--tag--true",
+            "isColumn": true,
+            "isJSON": false,
+            "key": "serviceName",
+            "type": "tag"
+          },
+          {
+            "dataType": "string",
+            "id": "name--string--tag--true",
+            "isColumn": true,
+            "isJSON": false,
+            "key": "name",
+            "type": "tag"
+          },
+          {
+            "dataType": "float64",
+            "id": "durationNano--float64--tag--true",
+            "isColumn": true,
+            "isJSON": false,
+            "key": "durationNano",
+            "type": "tag"
+          },
+          {
+            "dataType": "string",
+            "id": "httpMethod--string--tag--true",
+            "isColumn": true,
+            "isJSON": false,
+            "key": "httpMethod",
+            "type": "tag"
+          },
+          {
+            "dataType": "string",
+            "id": "responseStatusCode--string--tag--true",
+            "isColumn": true,
+            "isJSON": false,
+            "key": "responseStatusCode",
+            "type": "tag"
+          }
+        ],
+        "softMax": 0,
+        "softMin": 0,
+        "stackedBarChart": false,
+        "thresholds": [],
+        "timePreferance": "GLOBAL_TIME",
+        "title": "GPU Memory Usage",
+        "yAxisUnit": "none"
+      },
+      {
+        "bucketCount": 30,
+        "bucketWidth": 0,
+        "columnUnits": {},
+        "description": "This Panel shows the GPU Fan Speed overtime",
+        "fillSpans": true,
+        "id": "b8c1c1d0-92f4-4491-9879-5e66c6440cfb",
+        "isStacked": false,
+        "mergeAllActiveQueries": false,
+        "nullZeroValues": "zero",
+        "opacity": "1",
+        "panelTypes": "graph",
+        "query": {
+          "builder": {
+            "queryData": [
+              {
+                "aggregateAttribute": {
+                  "dataType": "float64",
+                  "id": "gpu_fan_speed--float64--Gauge--true",
+                  "isColumn": true,
+                  "isJSON": false,
+                  "key": "gpu_fan_speed",
+                  "type": "Gauge"
+                },
+                "aggregateOperator": "latest",
+                "dataSource": "metrics",
+                "disabled": false,
+                "expression": "A",
+                "filters": {
+                  "items": [
+                    {
+                      "id": "ad082796",
+                      "key": {
+                        "dataType": "string",
+                        "id": "telemetry_sdk_name--string--tag--false",
+                        "isColumn": false,
+                        "isJSON": false,
+                        "key": "telemetry_sdk_name",
+                        "type": "tag"
+                      },
+                      "op": "=",
+                      "value": "openlit"
+                    }
+                  ],
+                  "op": "AND"
+                },
+                "functions": [],
+                "groupBy": [],
+                "having": [],
+                "legend": "Temperature",
+                "limit": null,
+                "orderBy": [],
+                "queryName": "A",
+                "reduceTo": "avg",
+                "spaceAggregation": "avg",
+                "stepInterval": 60,
+                "timeAggregation": "latest"
+              }
+            ],
+            "queryFormulas": []
+          },
+          "clickhouse_sql": [
+            {
+              "disabled": false,
+              "legend": "",
+              "name": "A",
+              "query": ""
+            }
+          ],
+          "id": "9f9bbfc6-7e4d-4fcd-a94e-84f34945d934",
+          "promql": [
+            {
+              "disabled": false,
+              "legend": "",
+              "name": "A",
+              "query": ""
+            }
+          ],
+          "queryType": "builder"
+        },
+        "selectedLogFields": [
+          {
+            "dataType": "string",
+            "name": "body",
+            "type": ""
+          },
+          {
+            "dataType": "string",
+            "name": "timestamp",
+            "type": ""
+          }
+        ],
+        "selectedTracesFields": [
+          {
+            "dataType": "string",
+            "id": "serviceName--string--tag--true",
+            "isColumn": true,
+            "isJSON": false,
+            "key": "serviceName",
+            "type": "tag"
+          },
+          {
+            "dataType": "string",
+            "id": "name--string--tag--true",
+            "isColumn": true,
+            "isJSON": false,
+            "key": "name",
+            "type": "tag"
+          },
+          {
+            "dataType": "float64",
+            "id": "durationNano--float64--tag--true",
+            "isColumn": true,
+            "isJSON": false,
+            "key": "durationNano",
+            "type": "tag"
+          },
+          {
+            "dataType": "string",
+            "id": "httpMethod--string--tag--true",
+            "isColumn": true,
+            "isJSON": false,
+            "key": "httpMethod",
+            "type": "tag"
+          },
+          {
+            "dataType": "string",
+            "id": "responseStatusCode--string--tag--true",
+            "isColumn": true,
+            "isJSON": false,
+            "key": "responseStatusCode",
+            "type": "tag"
+          }
+        ],
+        "softMax": 0,
+        "softMin": 0,
+        "stackedBarChart": false,
+        "thresholds": [],
+        "timePreferance": "GLOBAL_TIME",
+        "title": "GPU Fan Speed",
+        "yAxisUnit": "none"
+      },
+      {
+        "bucketCount": 30,
+        "bucketWidth": 0,
+        "columnUnits": {},
+        "description": "This Panel shows the GPU Power usage overtime",
+        "fillSpans": true,
+        "id": "dca0badd-d0d8-499b-b549-db5ebfd62e46",
+        "isStacked": false,
+        "mergeAllActiveQueries": false,
+        "nullZeroValues": "zero",
+        "opacity": "1",
+        "panelTypes": "graph",
+        "query": {
+          "builder": {
+            "queryData": [
+              {
+                "aggregateAttribute": {
+                  "dataType": "float64",
+                  "id": "gpu_power_draw--float64--Gauge--true",
+                  "isColumn": true,
+                  "isJSON": false,
+                  "key": "gpu_power_draw",
+                  "type": "Gauge"
+                },
+                "aggregateOperator": "latest",
+                "dataSource": "metrics",
+                "disabled": false,
+                "expression": "A",
+                "filters": {
+                  "items": [
+                    {
+                      "id": "7297bc24",
+                      "key": {
+                        "dataType": "string",
+                        "id": "telemetry_sdk_name--string--tag--false",
+                        "isColumn": false,
+                        "isJSON": false,
+                        "key": "telemetry_sdk_name",
+                        "type": "tag"
+                      },
+                      "op": "=",
+                      "value": "openlit"
+                    }
+                  ],
+                  "op": "AND"
+                },
+                "functions": [],
+                "groupBy": [],
+                "having": [],
+                "legend": "Power Draw",
+                "limit": null,
+                "orderBy": [],
+                "queryName": "A",
+                "reduceTo": "avg",
+                "spaceAggregation": "avg",
+                "stepInterval": 60,
+                "timeAggregation": "latest"
+              },
+              {
+                "aggregateAttribute": {
+                  "dataType": "float64",
+                  "id": "gpu_power_limit--float64--Gauge--true",
+                  "isColumn": true,
+                  "isJSON": false,
+                  "key": "gpu_power_limit",
+                  "type": "Gauge"
+                },
+                "aggregateOperator": "latest",
+                "dataSource": "metrics",
+                "disabled": false,
+                "expression": "B",
+                "filters": {
+                  "items": [
+                    {
+                      "id": "ab46c5cb",
+                      "key": {
+                        "dataType": "string",
+                        "id": "telemetry_sdk_name--string--tag--false",
+                        "isColumn": false,
+                        "isJSON": false,
+                        "key": "telemetry_sdk_name",
+                        "type": "tag"
+                      },
+                      "op": "=",
+                      "value": "openlit"
+                    }
+                  ],
+                  "op": "AND"
+                },
+                "functions": [],
+                "groupBy": [],
+                "having": [],
+                "legend": "Power Limit",
+                "limit": null,
+                "orderBy": [],
+                "queryName": "B",
+                "reduceTo": "avg",
+                "spaceAggregation": "avg",
+                "stepInterval": 60,
+                "timeAggregation": "latest"
+              }
+            ],
+            "queryFormulas": []
+          },
+          "clickhouse_sql": [
+            {
+              "disabled": false,
+              "legend": "",
+              "name": "A",
+              "query": ""
+            }
+          ],
+          "id": "f939fecd-5b87-4d1e-a962-28322b2cec5b",
+          "promql": [
+            {
+              "disabled": false,
+              "legend": "",
+              "name": "A",
+              "query": ""
+            }
+          ],
+          "queryType": "builder"
+        },
+        "selectedLogFields": [
+          {
+            "dataType": "string",
+            "name": "body",
+            "type": ""
+          },
+          {
+            "dataType": "string",
+            "name": "timestamp",
+            "type": ""
+          }
+        ],
+        "selectedTracesFields": [
+          {
+            "dataType": "string",
+            "id": "serviceName--string--tag--true",
+            "isColumn": true,
+            "isJSON": false,
+            "key": "serviceName",
+            "type": "tag"
+          },
+          {
+            "dataType": "string",
+            "id": "name--string--tag--true",
+            "isColumn": true,
+            "isJSON": false,
+            "key": "name",
+            "type": "tag"
+          },
+          {
+            "dataType": "float64",
+            "id": "durationNano--float64--tag--true",
+            "isColumn": true,
+            "isJSON": false,
+            "key": "durationNano",
+            "type": "tag"
+          },
+          {
+            "dataType": "string",
+            "id": "httpMethod--string--tag--true",
+            "isColumn": true,
+            "isJSON": false,
+            "key": "httpMethod",
+            "type": "tag"
+          },
+          {
+            "dataType": "string",
+            "id": "responseStatusCode--string--tag--true",
+            "isColumn": true,
+            "isJSON": false,
+            "key": "responseStatusCode",
+            "type": "tag"
+          }
+        ],
+        "softMax": 0,
+        "softMin": 0,
+        "stackedBarChart": false,
+        "thresholds": [],
+        "timePreferance": "GLOBAL_TIME",
+        "title": "GPU Power Usage",
+        "yAxisUnit": "none"
+      },
+      {
+        "bucketCount": 30,
+        "bucketWidth": 0,
+        "columnUnits": {},
+        "description": "This panel shows the GPU Utilization (Along with Encoder and Decoder) Utilization overtime",
+        "fillSpans": true,
+        "id": "e54dbc22-3159-4c8d-a7f5-6710e2cb37ae",
+        "isStacked": false,
+        "mergeAllActiveQueries": false,
+        "nullZeroValues": "zero",
+        "opacity": "1",
+        "panelTypes": "graph",
+        "query": {
+          "builder": {
+            "queryData": [
+              {
+                "aggregateAttribute": {
+                  "dataType": "float64",
+                  "id": "gpu_utilization--float64--Gauge--true",
+                  "isColumn": true,
+                  "isJSON": false,
+                  "key": "gpu_utilization",
+                  "type": "Gauge"
+                },
+                "aggregateOperator": "latest",
+                "dataSource": "metrics",
+                "disabled": false,
+                "expression": "A",
+                "filters": {
+                  "items": [
+                    {
+                      "id": "a7314055",
+                      "key": {
+                        "dataType": "string",
+                        "id": "telemetry_sdk_name--string--tag--false",
+                        "isColumn": false,
+                        "isJSON": false,
+                        "key": "telemetry_sdk_name",
+                        "type": "tag"
+                      },
+                      "op": "=",
+                      "value": "openlit"
+                    }
+                  ],
+                  "op": "AND"
+                },
+                "functions": [],
+                "groupBy": [],
+                "having": [],
+                "legend": "Total Utilization",
+                "limit": null,
+                "orderBy": [],
+                "queryName": "A",
+                "reduceTo": "avg",
+                "spaceAggregation": "avg",
+                "stepInterval": 60,
+                "timeAggregation": "latest"
+              },
+              {
+                "aggregateAttribute": {
+                  "dataType": "float64",
+                  "id": "gpu_enc_utilization--float64--Gauge--true",
+                  "isColumn": true,
+                  "isJSON": false,
+                  "key": "gpu_enc_utilization",
+                  "type": "Gauge"
+                },
+                "aggregateOperator": "latest",
+                "dataSource": "metrics",
+                "disabled": false,
+                "expression": "B",
+                "filters": {
+                  "items": [
+                    {
+                      "id": "6c8670f6",
+                      "key": {
+                        "dataType": "string",
+                        "id": "telemetry_sdk_name--string--tag--false",
+                        "isColumn": false,
+                        "isJSON": false,
+                        "key": "telemetry_sdk_name",
+                        "type": "tag"
+                      },
+                      "op": "=",
+                      "value": "openlit"
+                    }
+                  ],
+                  "op": "AND"
+                },
+                "functions": [],
+                "groupBy": [],
+                "having": [],
+                "legend": "Encoder Utilization",
+                "limit": null,
+                "orderBy": [],
+                "queryName": "B",
+                "reduceTo": "avg",
+                "spaceAggregation": "avg",
+                "stepInterval": 60,
+                "timeAggregation": "latest"
+              },
+              {
+                "aggregateAttribute": {
+                  "dataType": "float64",
+                  "id": "gpu_dec_utilization--float64--Gauge--true",
+                  "isColumn": true,
+                  "isJSON": false,
+                  "key": "gpu_dec_utilization",
+                  "type": "Gauge"
+                },
+                "aggregateOperator": "latest",
+                "dataSource": "metrics",
+                "disabled": false,
+                "expression": "C",
+                "filters": {
+                  "items": [
+                    {
+                      "id": "945ef163",
+                      "key": {
+                        "dataType": "string",
+                        "id": "telemetry_sdk_name--string--tag--false",
+                        "isColumn": false,
+                        "isJSON": false,
+                        "key": "telemetry_sdk_name",
+                        "type": "tag"
+                      },
+                      "op": "=",
+                      "value": "openlit"
+                    }
+                  ],
+                  "op": "AND"
+                },
+                "functions": [],
+                "groupBy": [],
+                "having": [],
+                "legend": "Decoder Utilization",
+                "limit": null,
+                "orderBy": [],
+                "queryName": "C",
+                "reduceTo": "avg",
+                "spaceAggregation": "avg",
+                "stepInterval": 60,
+                "timeAggregation": "latest"
+              }
+            ],
+            "queryFormulas": []
+          },
+          "clickhouse_sql": [
+            {
+              "disabled": false,
+              "legend": "",
+              "name": "A",
+              "query": ""
+            }
+          ],
+          "id": "56cb259c-aac3-490a-9bfb-1d633bcbac9f",
+          "promql": [
+            {
+              "disabled": false,
+              "legend": "",
+              "name": "A",
+              "query": ""
+            }
+          ],
+          "queryType": "builder"
+        },
+        "selectedLogFields": [
+          {
+            "dataType": "string",
+            "name": "body",
+            "type": ""
+          },
+          {
+            "dataType": "string",
+            "name": "timestamp",
+            "type": ""
+          }
+        ],
+        "selectedTracesFields": [
+          {
+            "dataType": "string",
+            "id": "serviceName--string--tag--true",
+            "isColumn": true,
+            "isJSON": false,
+            "key": "serviceName",
+            "type": "tag"
+          },
+          {
+            "dataType": "string",
+            "id": "name--string--tag--true",
+            "isColumn": true,
+            "isJSON": false,
+            "key": "name",
+            "type": "tag"
+          },
+          {
+            "dataType": "float64",
+            "id": "durationNano--float64--tag--true",
+            "isColumn": true,
+            "isJSON": false,
+            "key": "durationNano",
+            "type": "tag"
+          },
+          {
+            "dataType": "string",
+            "id": "httpMethod--string--tag--true",
+            "isColumn": true,
+            "isJSON": false,
+            "key": "httpMethod",
+            "type": "tag"
+          },
+          {
+            "dataType": "string",
+            "id": "responseStatusCode--string--tag--true",
+            "isColumn": true,
+            "isJSON": false,
+            "key": "responseStatusCode",
+            "type": "tag"
+          }
+        ],
+        "softMax": 100,
+        "softMin": 0,
+        "stackedBarChart": false,
+        "thresholds": [],
+        "timePreferance": "GLOBAL_TIME",
+        "title": "GPU Utilization",
+        "yAxisUnit": "none"
+      }
+    ],
+    "uuid": "ca037991-bd05-4447-9b12-645e840fe0ac"
+  }

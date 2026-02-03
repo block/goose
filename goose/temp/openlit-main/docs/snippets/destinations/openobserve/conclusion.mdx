@@ -1,0 +1,105 @@
+### 3. Import the pre-built Dashboard
+
+1. **Log into your OpenObserve Instance**
+1. **Navigate to Dashboards**:
+   - Click **Dashboards** in the side navigation menu
+   - Click **Import** on the top right corner
+1. **Import Dashboard**:
+   - Copy the dashboard JSON provided in the accordion below
+   - Paste the dashboard JSON text directly under the **Import Dashboard from JSON** section
+   - Click **Import**
+   - Save the dashboard
+
+<Accordion title="Dashboard">
+```json
+{
+  "version": 4,
+  "dashboardId": "7232616793020301352",
+  "title": "GenAI Observability",
+  "description": "This dashboard tracks the performance of LLM and VectorDB, recording metrics like latency, tokens used, and cost. It also logs input and output data, including request IDs, timestamps, user IDs, and model versions. This helps identify how well the systems are working and where improvements can be made.",
+  "role": "",
+  "owner": "",
+  "created": "2024-08-23T05:46:38.299Z",
+  "tabs": [
+    {
+      "tabId": "default",
+      "name": "GenAI",
+      "panels": [
+        {
+          "id": "Panel_ID4678610",
+          "type": "metric",
+          "title": "Total Successful GenAI Requests",
+          "description": "",
+          "config": {
+            "show_legends": true,
+            "legend_position": "bottom",
+            "unit": "short",
+            "unit_custom": "",
+            "decimals": 2
+          },
+          "queryType": "promql",
+          "queries": [
+            {
+              "query": "sum(gen_ai_total_requests{telemetry_sdk_name=\"openlit\"})",
+              "customQuery": true,
+              "fields": {
+                "stream": "default",
+                "stream_type": "metrics",
+                "x": [],
+                "y": [],
+                "z": [],
+                "filter": []
+              }
+            }
+          ],
+          "layout": {
+            "x": 0,
+            "y": 0,
+            "w": 8,
+            "h": 6,
+            "i": 0,
+            "panelType": "metric"
+          }
+        },
+        {
+          "id": "Panel_ID8765432",
+          "type": "metric",
+          "title": "Total VectorDB Requests",
+          "description": "",
+          "config": {
+            "show_legends": true,
+            "legend_position": "bottom",
+            "unit": "short",
+            "unit_custom": "",
+            "decimals": 2
+          },
+          "queryType": "promql",
+          "queries": [
+            {
+              "query": "sum(db_total_requests{telemetry_sdk_name=\"openlit\"})",
+              "customQuery": true,
+              "fields": {
+                "stream": "default",
+                "stream_type": "metrics",
+                "x": [],
+                "y": [],
+                "z": [],
+                "filter": []
+              }
+            }
+          ],
+          "layout": {
+            "x": 8,
+            "y": 0,
+            "w": 8,
+            "h": 6,
+            "i": 1,
+            "panelType": "metric"
+          }
+        }
+      ]
+    }
+  ]
+}
+```
+</Accordion>

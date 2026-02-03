@@ -1,0 +1,134 @@
+site_name: Watchflow
+site_description: Watchflow Documentation
+site_author: Watchflow Team
+site_url: https://watchflow.dev
+
+# Repository
+repo_name: warestack/watchflow
+repo_url: https://github.com/warestack/watchflow
+edit_uri: edit/main/docs/
+
+# Theme configuration
+theme:
+  name: material
+  language: en
+  palette:
+    # Palette toggle for automatic mode
+    - scheme: default
+      primary: indigo
+      accent: indigo
+    # Palette toggle for dark mode
+    - scheme: slate
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/toggle-switch
+        name: Switch to light mode
+  # Hide table of contents
+  toc:
+    toc_include_headings: false
+  # Hide footer
+  footer:
+    content: ""
+  features:
+    - header.autohide
+    - navigation.expand
+    - navigation.instant
+    - navigation.instant.prefetch
+    - navigation.instant.progress
+    - navigation.instant.result
+    - navigation.instant.suggest
+    - navigation.instant.tracking
+    - navigation.instant.worker
+    - navigation.instant.worker.offline
+    - navigation.instant.worker.warmup
+    - navigation.prune
+    - navigation.sections
+    - navigation.tabs
+    - navigation.tabs.sticky
+    - navigation.top
+    - navigation.tracking
+    - navigation.tracking.attribution
+    - navigation.tracking.external
+    - navigation.tracking.fragment
+    - navigation.tracking.instant
+    - navigation.tracking.instant.worker
+    - navigation.tracking.worker
+
+
+# Navigation structure
+nav:
+  - Home: index.md
+  - Getting Started:
+    - Quick Start: getting-started/quick-start.md
+    - Configuration: getting-started/configuration.md
+    - Diff Rule Presets: getting-started/diff-rule-presets.md
+  - Features & Capabilities:
+    - Features: features.md
+    - Comparative Analysis: benchmarks.md
+  - Architecture:
+    - Overview: concepts/overview.md
+  - Case Studies:
+    - Mastra Repository Analysis: reports/mastra-analysis.md
+
+# Plugins
+plugins:
+  - minify:
+      minify_html: true
+
+# Extra CSS (no extra JS - file was not present)
+extra_css:
+  - stylesheets/extra.css
+
+# Markdown extensions
+markdown_extensions:
+  - abbr
+  - admonition
+  - attr_list
+  - def_list
+  - footnotes
+  - md_in_html
+  - toc:
+      permalink: true
+  - pymdownx.arithmatex:
+      generic: true
+  - pymdownx.betterem:
+      smart_enable: all
+  - pymdownx.caret
+  - pymdownx.details
+  - pymdownx.emoji:
+      emoji_generator: !!python/name:material.extensions.emoji.to_svg
+      emoji_index: !!python/name:material.extensions.emoji.twemoji
+  - pymdownx.highlight:
+      anchor_linenums: true
+      line_spans: __span
+      pygments_lang_class: true
+  - pymdownx.inlinehilite
+  - pymdownx.keys
+  - pymdownx.magiclink
+  - pymdownx.mark
+  - pymdownx.smartsymbols
+  - pymdownx.snippets:
+      check_paths: true
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+  - pymdownx.tabbed:
+      alternate_style: true
+      combine_header_slug: true
+      slugify: !!python/object/apply:pymdownx.slugs.slugify
+        kwds:
+          case: lower
+  - pymdownx.tasklist:
+      custom_checkbox: true
+  - pymdownx.tilde
+
+# Extra
+extra:
+  version:
+    provider: mike
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/warestack/watchflow

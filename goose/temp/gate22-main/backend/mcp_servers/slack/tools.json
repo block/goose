@@ -1,0 +1,1774 @@
+[
+  {
+    "name": "SLACK__CONVERSATIONS_LIST",
+    "description": "Lists all channels in a Slack team",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "CONVERSATIONS_LIST",
+      "canonical_tool_description_hash": "842a8bdc14a363c969f21ab23ad6278312e4d4cff9bd57b4be2e01779fdb030b",
+      "canonical_tool_input_schema_hash": "1816310fd840b933515dd54084525c59977c84e8caccb986421e03e995ac1714"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": [],
+      "properties": {
+        "query": {
+          "type": "object",
+          "required": [],
+          "properties": {
+            "limit": {
+              "type": "integer",
+              "default": 100,
+              "description": "The maximum number of items to return. Fewer than the requested number of items may be returned, even if the end of the list hasn't been reached. Must be an integer under 1000."
+            },
+            "types": {
+              "type": "array",
+              "items": {
+                "enum": ["public_channel", "private_channel", "mpim", "im"],
+                "type": "string"
+              },
+              "description": "Mix and match channel types by providing a comma-separated list of any combination of public_channel, private_channel, mpim, im"
+            },
+            "cursor": {
+              "type": "string",
+              "description": "Paginate through collections of data by setting the cursor parameter to a next_cursor attribute returned by a previous request's response_metadata. Default value fetches the first \"page\" of the collection."
+            },
+            "exclude_archived": {
+              "type": "boolean",
+              "default": false,
+              "description": "Exclude archived channels from the list"
+            }
+          },
+          "description": "query parameters",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "SLACK__CONVERSATIONS_MEMBERS",
+    "description": "Retrieve members of a conversation",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "CONVERSATIONS_MEMBERS",
+      "canonical_tool_description_hash": "363ab37e7bc2230465789968e2fd860b0aaa927f3d6381b57854ebd76c0af6d0",
+      "canonical_tool_input_schema_hash": "fecf2169d4867ce32b25a752a0473ce9b3a8f0b83022355c4bc97ef78b213776"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["query"],
+      "properties": {
+        "query": {
+          "type": "object",
+          "required": ["channel"],
+          "properties": {
+            "limit": {
+              "type": "integer",
+              "default": 100,
+              "description": "The maximum number of items to return"
+            },
+            "cursor": {
+              "type": "string",
+              "description": "Pagination cursor for next page"
+            },
+            "channel": {
+              "type": "string",
+              "description": "The ID of the conversation to fetch members for"
+            }
+          },
+          "description": "Query parameters for the http request",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "SLACK__CONVERSATIONS_INFO",
+    "description": "Retrieves information about a conversation (channel)",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "CONVERSATIONS_INFO",
+      "canonical_tool_description_hash": "73d89bfe906a65b70147da3d2aef1b48f0fed3e1b8d6fa1698d2bd6b6cd028bf",
+      "canonical_tool_input_schema_hash": "169081e14e632ee83ee7ce31b6dfd35dc899d2ad642d8499ee4e1a1c726f5081"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["query"],
+      "properties": {
+        "query": {
+          "type": "object",
+          "required": ["channel"],
+          "properties": {
+            "channel": {
+              "type": "string",
+              "description": "Conversation ID of the channel to get information about"
+            },
+            "include_locale": {
+              "type": "boolean",
+              "default": true,
+              "description": "Set to true to receive the locale for this conversation"
+            },
+            "include_num_members": {
+              "type": "boolean",
+              "default": false,
+              "description": "Set to true to include the member count for the specified conversation"
+            }
+          },
+          "description": "Query parameters for the http request",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "SLACK__USERS_CONVERSATIONS",
+    "description": "List conversations the calling user may access",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "USERS_CONVERSATIONS",
+      "canonical_tool_description_hash": "624765768dd77dc68741d2a1ae366cff9333f708d7cc924106807b08e2585205",
+      "canonical_tool_input_schema_hash": "236abe390277bf0c5c4f6084300c262a72c5cc58a395e0aef49cc2544a0ebb49"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": [],
+      "properties": {
+        "query": {
+          "type": "object",
+          "required": [],
+          "properties": {
+            "user": {
+              "type": "string",
+              "description": "Browse conversations by a specific user ID's membership"
+            },
+            "limit": {
+              "type": "integer",
+              "default": 100,
+              "description": "The maximum number of items to return (max value: 999)"
+            },
+            "types": {
+              "type": "string",
+              "default": "public_channel",
+              "description": "Comma-separated list of channel types (public_channel, private_channel, mpim, im)"
+            },
+            "cursor": {
+              "type": "string",
+              "description": "Pagination cursor for navigating through data collections"
+            },
+            "exclude_archived": {
+              "type": "boolean",
+              "default": false,
+              "description": "Set to true to exclude archived channels from the list"
+            }
+          },
+          "description": "Query parameters for the HTTP request",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "SLACK__CONVERSATIONS_HISTORY",
+    "description": "Fetches a conversation's history of messages and events",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "CONVERSATIONS_HISTORY",
+      "canonical_tool_description_hash": "0f9ffac4ef56b864a0bf663034279ff931b75292213ee973545a014d67ca7ed0",
+      "canonical_tool_input_schema_hash": "fb0c8c3078d910a9ae1efd3463750469d9361b3da777c8aff7b89cf1490b6887"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["query"],
+      "properties": {
+        "query": {
+          "type": "object",
+          "required": ["channel"],
+          "properties": {
+            "limit": {
+              "type": "integer",
+              "default": 100,
+              "description": "The maximum number of items to return"
+            },
+            "cursor": {
+              "type": "string",
+              "description": "Pagination cursor for next page"
+            },
+            "latest": {
+              "type": "string",
+              "default": "now",
+              "description": "End of time range of messages to include in results"
+            },
+            "oldest": {
+              "type": "string",
+              "default": "0",
+              "description": "Start of time range of messages to include in results"
+            },
+            "channel": {
+              "type": "string",
+              "description": "Conversation ID to fetch history for"
+            },
+            "inclusive": {
+              "type": "boolean",
+              "default": false,
+              "description": "Include messages with latest or oldest timestamp in results"
+            },
+            "include_all_metadata": {
+              "type": "boolean",
+              "default": false,
+              "description": "Include all metadata in the response"
+            }
+          },
+          "description": "Query parameters for the http request",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "SLACK__CONVERSATIONS_REPLIES",
+    "description": "Retrieve a thread of messages posted to a conversation",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "CONVERSATIONS_REPLIES",
+      "canonical_tool_description_hash": "3606296efc3bc8198ff128620fa02ab2ceadd4072408bf2ce1cd86fd791562c2",
+      "canonical_tool_input_schema_hash": "40c4c20eabf33d0f11753283f7e4f6777525a0068425828fcc7a0c68d56a5a5c"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["query"],
+      "properties": {
+        "query": {
+          "type": "object",
+          "required": ["channel", "ts"],
+          "properties": {
+            "ts": {
+              "type": "string",
+              "description": "Unique identifier of either a thread's parent message or a message in the thread"
+            },
+            "limit": {
+              "type": "integer",
+              "default": 100,
+              "description": "The maximum number of items to return"
+            },
+            "cursor": {
+              "type": "string",
+              "description": "Pagination cursor for navigating through collections of data"
+            },
+            "latest": {
+              "type": "string",
+              "default": "now",
+              "description": "Only messages before this Unix timestamp will be included in results"
+            },
+            "oldest": {
+              "type": "string",
+              "default": "0",
+              "description": "Only messages after this Unix timestamp will be included in results"
+            },
+            "channel": {
+              "type": "string",
+              "description": "Conversation ID to fetch thread from"
+            },
+            "inclusive": {
+              "type": "boolean",
+              "default": false,
+              "description": "Include messages with oldest or latest timestamps in results"
+            },
+            "include_all_metadata": {
+              "type": "boolean",
+              "default": false,
+              "description": "Return all metadata associated with this message"
+            }
+          },
+          "description": "Query parameters for the request",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "SLACK__CONVERSATIONS_CREATE",
+    "description": "Initiates a public or private channel-based conversation",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "CONVERSATIONS_CREATE",
+      "canonical_tool_description_hash": "b4f06e4b5ca2deff95867525fbac32b7f7ccd3eb1ea504fe90580c33817e4340",
+      "canonical_tool_input_schema_hash": "cc599e1bc371e8124d764e7da4c85e288ebeb7385fde8375ac989ad09b53e6de"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["body"],
+      "properties": {
+        "body": {
+          "type": "object",
+          "required": ["name"],
+          "properties": {
+            "name": {
+              "type": "string",
+              "description": "Name of the public or private channel to create"
+            },
+            "is_private": {
+              "type": "boolean",
+              "description": "Create a private channel instead of a public one"
+            }
+          },
+          "description": "Body parameters for the request",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "SLACK__CONVERSATIONS_RENAME",
+    "description": "Renames a conversation",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "CONVERSATIONS_RENAME",
+      "canonical_tool_description_hash": "a5368f159fba2bad91f2fbf4f7675be02a18f8c7e699257f26ab3fe9e138617f",
+      "canonical_tool_input_schema_hash": "dc6459a216bcee2c434ea36c56f6b607bd3c72810cfc4c3b92fc1c5fbbe2b8c8"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["body"],
+      "properties": {
+        "body": {
+          "type": "object",
+          "required": ["channel", "name"],
+          "properties": {
+            "name": {
+              "type": "string",
+              "description": "New name for conversation"
+            },
+            "channel": {
+              "type": "string",
+              "description": "ID of conversation to rename"
+            }
+          },
+          "description": "Body parameters for the request",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "SLACK__CONVERSATIONS_SET_PURPOSE",
+    "description": "Sets the channel description",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "CONVERSATIONS_SET_PURPOSE",
+      "canonical_tool_description_hash": "3748dd75f277a3aec224f26b94c5f762453787421b83d2f34f4a71c407b86722",
+      "canonical_tool_input_schema_hash": "7977f78568ead49f0ca4dd83e620cc9b7f21a6b1cbaee99b98756b1d7acb7723"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["body"],
+      "properties": {
+        "body": {
+          "type": "object",
+          "required": ["channel", "purpose"],
+          "properties": {
+            "channel": {
+              "type": "string",
+              "description": "Channel to set the description of"
+            },
+            "purpose": {
+              "type": "string",
+              "description": "The description to set for the channel"
+            }
+          },
+          "description": "Body parameters for the request",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "SLACK__CONVERSATIONS_SET_TOPIC",
+    "description": "Sets the topic for a conversation",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "CONVERSATIONS_SET_TOPIC",
+      "canonical_tool_description_hash": "71cd70be20d5c487f59403de09331cf78c8d836bbd08ebfc4f355544dcb9f17c",
+      "canonical_tool_input_schema_hash": "80dde8db616acc3ee651cf04b48e64fd2cfe6ee379259e984d78c1168e2ebfd5"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["body"],
+      "properties": {
+        "body": {
+          "type": "object",
+          "required": ["channel", "topic"],
+          "properties": {
+            "topic": {
+              "type": "string",
+              "description": "The new topic string. Does not support formatting or linkification."
+            },
+            "channel": {
+              "type": "string",
+              "description": "Conversation ID to set the topic of"
+            }
+          },
+          "description": "Body parameters for the request",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "SLACK__CONVERSATIONS_ARCHIVE",
+    "description": "Archives a conversation",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "CONVERSATIONS_ARCHIVE",
+      "canonical_tool_description_hash": "a1c08a562527c61ffb9c490f58a53113e75352e30bfc4d7e43ca31d2cefc19df",
+      "canonical_tool_input_schema_hash": "4ac0f9fc0de473afc9a96b060089ea3286943088f769e22f6edfc52fe4132e2c"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["body"],
+      "properties": {
+        "body": {
+          "type": "object",
+          "required": ["channel"],
+          "properties": {
+            "channel": {
+              "type": "string",
+              "description": "ID of conversation to archive"
+            }
+          },
+          "description": "Body parameters for the request",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "SLACK__CONVERSATIONS_UNARCHIVE",
+    "description": "Reverses conversation archival",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "CONVERSATIONS_UNARCHIVE",
+      "canonical_tool_description_hash": "285df793ce99a60ba42bd00fed2bfa9353c7d140ff4e5db2774a48f4875316df",
+      "canonical_tool_input_schema_hash": "e34bc8965fdf9206137073365d4ca527721b92cfdc6b807768bd97e23f7b345a"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["body"],
+      "properties": {
+        "body": {
+          "type": "object",
+          "required": ["channel"],
+          "properties": {
+            "channel": {
+              "type": "string",
+              "description": "ID of conversation to unarchive"
+            }
+          },
+          "description": "Body parameters for the request",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "SLACK__CONVERSATIONS_OPEN",
+    "description": "Opens or resumes a direct message or multi-person direct message",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "CONVERSATIONS_OPEN",
+      "canonical_tool_description_hash": "9ba96902be3a9e9471e3fe59554285986fd5b03c40d14b12949b1466ecae132e",
+      "canonical_tool_input_schema_hash": "3587176bd1bfc0150f2d3bbe5cca2d54322ad06259ff2cf8e6b59621c57793f0"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["body"],
+      "properties": {
+        "body": {
+          "type": "object",
+          "required": [],
+          "properties": {
+            "users": {
+              "type": "string",
+              "description": "Comma separated lists of users. If only one user is included, this creates a 1:1 DM"
+            },
+            "channel": {
+              "type": "string",
+              "description": "Resume a conversation by supplying an 'im' or 'mpim's ID"
+            },
+            "return_im": {
+              "type": "boolean",
+              "description": "Indicates you want the full IM channel definition in the response"
+            }
+          },
+          "description": "Body parameters for the request",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "SLACK__CONVERSATIONS_CLOSE",
+    "description": "Closes a direct message or multi-person direct message",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "CONVERSATIONS_CLOSE",
+      "canonical_tool_description_hash": "f91a91475b46263144351cbbd0b9b57fdbd2ca4c0f8cbc6f9e533956330cb79c",
+      "canonical_tool_input_schema_hash": "33bdce9333766b1f69b497fa15933fd9bb18e509dcce9aec29143a438cdbbfc7"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["body"],
+      "properties": {
+        "body": {
+          "type": "object",
+          "required": ["channel"],
+          "properties": {
+            "channel": {
+              "type": "string",
+              "description": "Conversation ID to close"
+            }
+          },
+          "description": "Body parameters for the request",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "SLACK__CHAT_POST_MESSAGE",
+    "description": "Sends a message to a Slack channel, private group, or direct message",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "CHAT_POST_MESSAGE",
+      "canonical_tool_description_hash": "d5e038bab43c2ffa016ffe47385ffe9bf3b49bc380213100fa1a0154f59ba44b",
+      "canonical_tool_input_schema_hash": "7cba66bb9a482794877d0c9a978e78489e4aafae3af6240666b6e92d41753031"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["body"],
+      "properties": {
+        "body": {
+          "type": "object",
+          "required": ["channel"],
+          "properties": {
+            "text": {
+              "type": "string",
+              "description": "The text of the message. When using blocks or attachments, this is used as fallback text for notifications"
+            },
+            "parse": {
+              "enum": ["none", "full"],
+              "type": "string",
+              "description": "Change how messages are treated. Set to 'none' to remove hyperlinks, 'full' to ignore mrkdwn formatting"
+            },
+            "blocks": {
+              "type": "array",
+              "items": {
+                "type": "object"
+              },
+              "description": "A JSON-based array of structured blocks"
+            },
+            "mrkdwn": {
+              "type": "boolean",
+              "default": true,
+              "description": "Disable Slack markup parsing by setting to false. Enabled by default"
+            },
+            "channel": {
+              "type": "string",
+              "description": "An encoded ID or channel name that represents a channel, private group, or IM channel to send the message to"
+            },
+            "icon_url": {
+              "type": "string",
+              "description": "URL to an image to use as the icon for this message"
+            },
+            "thread_ts": {
+              "type": "string",
+              "description": "Provide another message's ts value to make this message a reply. Avoid using a reply's ts value; use its parent instead"
+            },
+            "icon_emoji": {
+              "type": "string",
+              "description": "Emoji to use as the icon for this message. Overrides icon_url"
+            },
+            "link_names": {
+              "type": "boolean",
+              "description": "Find and link user groups"
+            },
+            "unfurl_links": {
+              "type": "boolean",
+              "description": "Pass true to enable unfurling of primarily text-based content"
+            },
+            "unfurl_media": {
+              "type": "boolean",
+              "description": "Pass false to disable unfurling of media content"
+            },
+            "markdown_text": {
+              "type": "string",
+              "description": "Message text formatted in markdown. Should not be used with blocks or text. Limit to 12,000 characters"
+            },
+            "reply_broadcast": {
+              "type": "boolean",
+              "default": false,
+              "description": "Used with thread_ts to make reply visible to everyone in the channel. Defaults to false"
+            }
+          },
+          "description": "Message content and configuration",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "SLACK__CHAT_POST_EPHEMERAL",
+    "description": "Sends an ephemeral message to a user in a channel",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "CHAT_POST_EPHEMERAL",
+      "canonical_tool_description_hash": "c6396d81c9ac290e1af927ac6fe65e9fa1ceab30a204719c1c06e75e0c637c05",
+      "canonical_tool_input_schema_hash": "c83055a4e71be9e33d89d0e039bdc8bdee75fc8c1eb9b12d8b9e2423139709fa"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["body"],
+      "properties": {
+        "body": {
+          "type": "object",
+          "required": ["channel", "user"],
+          "properties": {
+            "text": {
+              "type": "string",
+              "description": "Text of the message to send. When attachments or blocks are included, text will be used as fallback text for notifications only"
+            },
+            "user": {
+              "type": "string",
+              "description": "ID of the user who will receive the ephemeral message. The user should be in the channel specified by the channel argument"
+            },
+            "parse": {
+              "type": "string",
+              "description": "Change how messages are treated. Defaults to none"
+            },
+            "blocks": {
+              "type": "string",
+              "description": "A JSON-based array of structured blocks, presented as a URL-encoded string"
+            },
+            "channel": {
+              "type": "string",
+              "description": "Channel, private group, or IM channel to send message to. Can be an encoded ID, or a name"
+            },
+            "icon_url": {
+              "type": "string",
+              "description": "URL to an image to use as the icon for this message"
+            },
+            "username": {
+              "type": "string",
+              "description": "Set your bot's user name"
+            },
+            "thread_ts": {
+              "type": "string",
+              "description": "Provide another message's ts value to post this message in a thread. Avoid using a reply's ts value; use its parent's value instead. Ephemeral messages in threads are only shown if there is already an active thread"
+            },
+            "icon_emoji": {
+              "type": "string",
+              "description": "Emoji to use as the icon for this message. Overrides icon_url"
+            },
+            "link_names": {
+              "type": "boolean",
+              "description": "Find and link channel names and usernames"
+            },
+            "markdown_text": {
+              "type": "string",
+              "description": "Accepts message text formatted in markdown. This argument should not be used in conjunction with blocks or text. Limit this field to 12,000 characters"
+            }
+          },
+          "description": "Body parameters for the request",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "SLACK__CHAT_UPDATE",
+    "description": "Updates a message in a Slack channel",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "CHAT_UPDATE",
+      "canonical_tool_description_hash": "6b52b7f344fbba112dcc5f2e587d318c200c863befe4beefa2a35afadffcaf2d",
+      "canonical_tool_input_schema_hash": "ed28e25f125399e8b5d2120969e4a1641ee19ffd9942be7b151832b58e874a97"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["body"],
+      "properties": {
+        "body": {
+          "type": "object",
+          "required": ["channel", "ts"],
+          "properties": {
+            "ts": {
+              "type": "string",
+              "description": "Timestamp of the message to be updated"
+            },
+            "text": {
+              "type": "string",
+              "description": "New text for the message. If not specified and blocks are specified, the message's previous text will be overwritten"
+            },
+            "parse": {
+              "enum": ["none", "full"],
+              "type": "string",
+              "description": "Change how messages are treated. Defaults to client, unlike chat.postMessage. Accepts either none or full"
+            },
+            "blocks": {
+              "type": "string",
+              "description": "A JSON-based array of structured blocks, presented as a URL-encoded string"
+            },
+            "channel": {
+              "type": "string",
+              "description": "Channel containing the message to be updated. For direct messages, ensure that this value is a DM ID (starts with D) instead of a User ID"
+            },
+            "file_ids": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "description": "Array of new file ids that will be sent with this message"
+            },
+            "metadata": {
+              "type": "string",
+              "description": "JSON object with event_type and event_payload fields, presented as a URL-encoded string"
+            },
+            "link_names": {
+              "type": "boolean",
+              "description": "Find and link channel names and usernames. Defaults to none"
+            },
+            "markdown_text": {
+              "type": "string",
+              "description": "Accepts message text formatted in markdown. This argument should not be used in conjunction with blocks or text"
+            },
+            "reply_broadcast": {
+              "type": "boolean",
+              "default": false,
+              "description": "Broadcast an existing thread reply to make it visible to everyone in the channel or conversation"
+            }
+          },
+          "description": "Parameters for updating a message",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "SLACK__CHAT_DELETE",
+    "description": "Deletes a message from a conversation",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "CHAT_DELETE",
+      "canonical_tool_description_hash": "c25a4dcb7322ee421cf3cd003600ce188aa7935a5bf6e5ba766ee5cfa793047c",
+      "canonical_tool_input_schema_hash": "9887245f08d36642ff9c0762089a9c5aaedb3a6fdebf12b365651535545c8a77"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["body"],
+      "properties": {
+        "body": {
+          "type": "object",
+          "required": ["channel", "ts"],
+          "properties": {
+            "ts": {
+              "type": "string",
+              "description": "Timestamp of the message to be deleted"
+            },
+            "channel": {
+              "type": "string",
+              "description": "Channel containing the message to be deleted"
+            }
+          },
+          "description": "Body parameters for the request",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "SLACK__USERS_GET_PRESENCE",
+    "description": "Gets user presence information",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "USERS_GET_PRESENCE",
+      "canonical_tool_description_hash": "c14b3e34954e1a2776313b38eb103f81002b5bd98fbcf63161e990451e5e5380",
+      "canonical_tool_input_schema_hash": "a08d487e69c077d3bdcc40f519319990e9242bf599b32b2b91ada9480500a507"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": [],
+      "properties": {
+        "query": {
+          "type": "object",
+          "required": [],
+          "properties": {
+            "user": {
+              "type": "string",
+              "description": "User to get presence info on. Defaults to the authed user."
+            }
+          },
+          "description": "Query parameters for the HTTP request",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "SLACK__CHAT_SCHEDULE_MESSAGE",
+    "description": "Schedules a message to be sent to a channel at a specified time in the future",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "CHAT_SCHEDULE_MESSAGE",
+      "canonical_tool_description_hash": "330720075c17201993fdee299c434ae916dc9941e90744833384590a5610387b",
+      "canonical_tool_input_schema_hash": "8a3f6927a5347294c66de5bc2f1344f80fce7e18726eb164524970e40a7758b6"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["body"],
+      "properties": {
+        "body": {
+          "type": "object",
+          "required": ["channel", "post_at"],
+          "properties": {
+            "text": {
+              "type": "string",
+              "description": "The text content of the message. When attachments or blocks are included, text will be used as fallback text for notifications only."
+            },
+            "parse": {
+              "enum": ["none", "full"],
+              "type": "string",
+              "description": "Change how messages are treated."
+            },
+            "blocks": {
+              "type": "string",
+              "description": "A JSON-based array of structured blocks, presented as a URL-encoded string."
+            },
+            "channel": {
+              "type": "string",
+              "description": "Channel, private group, or DM channel to send message to. Can be an encoded ID, or a name."
+            },
+            "post_at": {
+              "type": "integer",
+              "description": "Unix timestamp representing the future time the message should post to Slack (up to 120 days in the future)."
+            },
+            "metadata": {
+              "type": "string",
+              "description": "JSON object with event_type and event_payload fields, presented as a URL-encoded string."
+            },
+            "thread_ts": {
+              "type": "string",
+              "description": "Provide another message's ts value to make this message a reply."
+            },
+            "link_names": {
+              "type": "boolean",
+              "description": "Find and link user groups. No longer supports linking individual users."
+            },
+            "unfurl_links": {
+              "type": "boolean",
+              "description": "Pass true to enable unfurling of primarily text-based content."
+            },
+            "unfurl_media": {
+              "type": "boolean",
+              "description": "Pass false to disable unfurling of media content."
+            },
+            "markdown_text": {
+              "type": "string",
+              "description": "Accepts message text formatted in markdown. This argument should not be used with blocks or text. Limit to 12,000 characters."
+            },
+            "reply_broadcast": {
+              "type": "boolean",
+              "description": "Used with thread_ts to make reply visible to everyone in the channel. Defaults to false."
+            }
+          },
+          "description": "Parameters for scheduling a message",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "SLACK__CHAT_SCHEDULED_MESSAGES_LIST",
+    "description": "Returns a list of scheduled messages",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "CHAT_SCHEDULED_MESSAGES_LIST",
+      "canonical_tool_description_hash": "ab4d1599efbd9ca516294837b98f8c4bd48fa5ba37e094c6a117108cc4d11be3",
+      "canonical_tool_input_schema_hash": "73da29e1db11ba74a889f9bcacc1e69a3c1a608e53e1a54d9fde0ba480315474"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": [],
+      "properties": {
+        "body": {
+          "type": "object",
+          "required": [],
+          "properties": {
+            "limit": {
+              "type": "integer",
+              "default": 100,
+              "description": "Maximum number of original entries to return"
+            },
+            "cursor": {
+              "type": "string",
+              "description": "For pagination purposes, this is the cursor value returned from a previous call indicating where you want to start this call from"
+            },
+            "latest": {
+              "type": "string",
+              "description": "A Unix timestamp of the latest value in the time range"
+            },
+            "oldest": {
+              "type": "string",
+              "description": "A Unix timestamp of the oldest value in the time range"
+            },
+            "channel": {
+              "type": "string",
+              "description": "The channel of the scheduled messages"
+            }
+          },
+          "description": "Body parameters for the request",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "SLACK__CHAT_DELETE_SCHEDULED_MESSAGE",
+    "description": "Deletes a pending scheduled message from the queue.",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "CHAT_DELETE_SCHEDULED_MESSAGE",
+      "canonical_tool_description_hash": "4d63854925c410da62a899794ab65382ea571bd5bc50cb66d0e9fcdc0f440da5",
+      "canonical_tool_input_schema_hash": "2a286458cbca6ff33aa290377b99a8f27d9903fe09f54b3eaabde4915dc1daa9"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["body"],
+      "properties": {
+        "body": {
+          "type": "object",
+          "required": ["channel", "scheduled_message_id"],
+          "properties": {
+            "channel": {
+              "type": "string",
+              "description": "The channel the scheduled_message is posting to"
+            },
+            "scheduled_message_id": {
+              "type": "string",
+              "description": "scheduled_message_id returned from call to chat.scheduleMessage"
+            }
+          },
+          "description": "Body parameters for the request",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "SLACK__USERS_LIST",
+    "description": "Lists all users in a Slack team",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "USERS_LIST",
+      "canonical_tool_description_hash": "787672102530d44e7d75ffec36b3048c5b0a9eeda67c31835f84b48fb381eaa6",
+      "canonical_tool_input_schema_hash": "78b73d74ef480c95f7e4e4efc255c2233982e49945a1a9bcbad6de895d7c3c38"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["query"],
+      "properties": {
+        "query": {
+          "type": "object",
+          "required": [],
+          "properties": {
+            "limit": {
+              "type": "integer",
+              "default": 0,
+              "description": "The maximum number of items to return (recommended: no more than 200)"
+            },
+            "cursor": {
+              "type": "string",
+              "description": "Pagination cursor for navigating through collections of data"
+            },
+            "include_locale": {
+              "type": "boolean",
+              "default": false,
+              "description": "Set to true to receive the locale for users"
+            }
+          },
+          "description": "Query parameters for the request",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "SLACK__USERS_INFO",
+    "description": "Gets information about a user",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "USERS_INFO",
+      "canonical_tool_description_hash": "a6a4599d31f7a1826ba4a9552e377874c57109e99e5477ad7ecb515f34686766",
+      "canonical_tool_input_schema_hash": "96a2ec4f655c8c08c3ef8ab7fc3483db3369ac0b3b528307742e0e9c75e0aa17"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["query"],
+      "properties": {
+        "query": {
+          "type": "object",
+          "required": ["user"],
+          "properties": {
+            "user": {
+              "type": "string",
+              "description": "User ID to get information on"
+            }
+          },
+          "description": "Query parameters for the request",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "SLACK__USERS_SET_PRESENCE",
+    "description": "Sets user presence information",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "USERS_SET_PRESENCE",
+      "canonical_tool_description_hash": "01b7bedae090e018d99a044a4482bb2ffd3284bcd0b0334dd928f02696335660",
+      "canonical_tool_input_schema_hash": "0107301414cfcf463b5f0f7bf48d9a3053f6b0afb07d80a36f85ab7003714998"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["body"],
+      "properties": {
+        "body": {
+          "type": "object",
+          "required": ["presence"],
+          "properties": {
+            "presence": {
+              "enum": ["auto", "away"],
+              "type": "string",
+              "description": "Either 'auto' or 'away'"
+            }
+          },
+          "description": "Body parameters for the HTTP request",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "SLACK__EMOJI_LIST",
+    "description": "Lists custom emoji for a team",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "EMOJI_LIST",
+      "canonical_tool_description_hash": "93efe51f27033e30dada4f84ed80eb4f89c7d0e1b7654f18745c01d1a93cb4bd",
+      "canonical_tool_input_schema_hash": "6e31629ac96f94bdcff181d8986034995ca7c25aadd82dc44a9f0527aca10ed4"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": [],
+      "properties": {
+        "query": {
+          "type": "object",
+          "required": [],
+          "properties": {
+            "include_categories": {
+              "type": "boolean",
+              "default": false,
+              "description": "Include a list of categories for Unicode emoji and the emoji in each category"
+            }
+          },
+          "description": "Query parameters for the HTTP request",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "SLACK__BOOKMARKS_LIST",
+    "description": "List bookmarks for a channel in Slack",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "BOOKMARKS_LIST",
+      "canonical_tool_description_hash": "e5bc64a1c9dbe9cfca99d25f8f031c635210f62c06bcaf8cba59e74baa9e6113",
+      "canonical_tool_input_schema_hash": "748028cd9eb584c5e73099760d0652b5f1f22a318d2b47fdfe1309d79bb78a90"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["body"],
+      "properties": {
+        "body": {
+          "type": "object",
+          "required": ["channel_id"],
+          "properties": {
+            "channel_id": {
+              "type": "string",
+              "description": "Channel to list bookmarks in"
+            }
+          },
+          "description": "Body parameters for the request",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "SLACK__BOOKMARKS_ADD",
+    "description": "Add bookmark to a channel",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "BOOKMARKS_ADD",
+      "canonical_tool_description_hash": "a91e5d57be61be95da8aefd6b97808ec7d9334cec15cc0f810040ce3fcfd68f2",
+      "canonical_tool_input_schema_hash": "c73840e7996b4c927eb6afa9c3048f582f2e1258b676cc1f1dba7ffadcaeab61"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["body"],
+      "properties": {
+        "body": {
+          "type": "object",
+          "required": ["channel_id", "title", "type"],
+          "properties": {
+            "link": {
+              "type": "string",
+              "description": "Link to bookmark"
+            },
+            "type": {
+              "type": "string",
+              "default": "link",
+              "description": "Type of the bookmark (currently only 'link' is supported)"
+            },
+            "emoji": {
+              "type": "string",
+              "description": "Emoji tag to apply to the link"
+            },
+            "title": {
+              "type": "string",
+              "description": "Title for the bookmark"
+            },
+            "entity_id": {
+              "type": "string",
+              "description": "ID of the entity being bookmarked. Only applies to message and file types"
+            },
+            "parent_id": {
+              "type": "string",
+              "description": "ID of this bookmark's parent"
+            },
+            "channel_id": {
+              "type": "string",
+              "description": "Channel to add bookmark in"
+            },
+            "access_level": {
+              "enum": ["read", "write"],
+              "type": "string",
+              "description": "The level that we are setting the file's permission to"
+            }
+          },
+          "description": "Body parameters for the request",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "SLACK__BOOKMARKS_EDIT",
+    "description": "Edit bookmark in a Slack channel",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "BOOKMARKS_EDIT",
+      "canonical_tool_description_hash": "fa01f3d25d493e9bf947fdee7df68c9d3f16fa1e733579d702416d91070a7a03",
+      "canonical_tool_input_schema_hash": "ad10caaa58156de7d5d4b37d7511d9b4efa6ee66009fd6d1d7c837cda8ed0a07"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["body"],
+      "properties": {
+        "body": {
+          "type": "object",
+          "required": ["bookmark_id", "channel_id"],
+          "properties": {
+            "link": {
+              "type": "string",
+              "description": "Link to bookmark"
+            },
+            "emoji": {
+              "type": "string",
+              "description": "Emoji tag to apply to the link"
+            },
+            "title": {
+              "type": "string",
+              "description": "Title for the bookmark"
+            },
+            "channel_id": {
+              "type": "string",
+              "description": "Channel to update bookmark in"
+            },
+            "bookmark_id": {
+              "type": "string",
+              "description": "Bookmark to update"
+            }
+          },
+          "description": "Request body parameters",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "SLACK__BOOKMARKS_REMOVE",
+    "description": "Remove bookmark from the channel",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "BOOKMARKS_REMOVE",
+      "canonical_tool_description_hash": "bbf7a923faeeb28d6f4ebd118d2e80e693b429d88bc8b060ddbd665fd90e0acf",
+      "canonical_tool_input_schema_hash": "34784d48c525acf466a8076a8da4b77f05563c4b267a04a8a0443fd47f0be6b3"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["body"],
+      "properties": {
+        "body": {
+          "type": "object",
+          "required": ["bookmark_id", "channel_id"],
+          "properties": {
+            "channel_id": {
+              "type": "string",
+              "description": "Channel to remove bookmark from"
+            },
+            "bookmark_id": {
+              "type": "string",
+              "description": "Bookmark to remove"
+            },
+            "quip_section_id": {
+              "type": "string",
+              "description": "Quip section ID to unbookmark"
+            }
+          },
+          "description": "Body parameters for the request",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "SLACK__PINS_LIST",
+    "description": "Lists items pinned to a channel",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "PINS_LIST",
+      "canonical_tool_description_hash": "b999ca448d4619cad434a9aaa8d5b708b322ed238b74cb84c4324fb0b075aa70",
+      "canonical_tool_input_schema_hash": "9d7386b997508148c245f5e50b890a174b8cee9ba5df37e7e3959edf0c97ab48"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["query"],
+      "properties": {
+        "query": {
+          "type": "object",
+          "required": ["channel"],
+          "properties": {
+            "channel": {
+              "type": "string",
+              "description": "Channel ID to get pinned items for (e.g., C1234567890)"
+            }
+          },
+          "description": "Query parameters for the request",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "SLACK__PINS_ADD",
+    "description": "Pins an item to a channel",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "PINS_ADD",
+      "canonical_tool_description_hash": "e8eaf5e13bb9ca3490b74c64632c36ceb872169bae5af707ed55f54e5863bfc4",
+      "canonical_tool_input_schema_hash": "e3b32cc065979a5e7397e9a1256b1eb2d66c2ad4badf8027df44a219b6f18958"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["body"],
+      "properties": {
+        "body": {
+          "type": "object",
+          "required": ["channel"],
+          "properties": {
+            "channel": {
+              "type": "string",
+              "description": "Channel ID to pin the message to"
+            },
+            "timestamp": {
+              "type": "string",
+              "description": "Timestamp of the message to pin"
+            }
+          },
+          "description": "Body parameters for the request",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "SLACK__PINS_REMOVE",
+    "description": "Un-pins an item from a channel",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "PINS_REMOVE",
+      "canonical_tool_description_hash": "c9f5fe93fd876ab846e826fce4f1d86d6ec817be146452e540a86c0ca90058d8",
+      "canonical_tool_input_schema_hash": "9487ccd038c76712c62411d5825e81cfc00af6706b8b21dec20cc669616e5842"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["body"],
+      "properties": {
+        "body": {
+          "type": "object",
+          "required": ["channel"],
+          "properties": {
+            "channel": {
+              "type": "string",
+              "description": "Channel where the item is pinned to"
+            },
+            "timestamp": {
+              "type": "string",
+              "description": "Timestamp of the message to un-pin"
+            }
+          },
+          "description": "Body parameters for the request",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "SLACK__REACTIONS_LIST",
+    "description": "Lists reactions made by a user",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "REACTIONS_LIST",
+      "canonical_tool_description_hash": "f5b85defa1eed14f7a9f75045ef382a7bacf37b4b3490228524a8f0ccb1b5a62",
+      "canonical_tool_input_schema_hash": "e82e7004dcd1a39e0e06aa5f306b28f0cedc4e674932ad55684cbdd6f0a5d0d2"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["query"],
+      "properties": {
+        "query": {
+          "type": "object",
+          "required": [],
+          "properties": {
+            "full": {
+              "type": "boolean",
+              "description": "If true always return the complete reaction list"
+            },
+            "page": {
+              "type": "integer",
+              "default": 1,
+              "description": "Page number of results to return"
+            },
+            "user": {
+              "type": "string",
+              "description": "Show reactions made by this user. Defaults to the authed user"
+            },
+            "count": {
+              "type": "integer",
+              "default": 100,
+              "description": "Number of items to return per page"
+            },
+            "limit": {
+              "type": "integer",
+              "default": 0,
+              "description": "The maximum number of items to return. Fewer than the requested number of items may be returned, even if the end of the list hasn't been reached"
+            },
+            "cursor": {
+              "type": "string",
+              "description": "Parameter for pagination. Set cursor equal to the next_cursor attribute returned by the previous request's response_metadata"
+            }
+          },
+          "description": "Query parameters for the request",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "SLACK__REACTIONS_GET",
+    "description": "Gets reactions for an item (file, file comment, channel message, group message, or direct message)",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "REACTIONS_GET",
+      "canonical_tool_description_hash": "7c526e2530772cbf5a6e8d9f4d9e5458a2403200675b8d2cc1f2e65b352c7719",
+      "canonical_tool_input_schema_hash": "3771ee417f876b47ad15c7441f449dd708be407f7df0233ef23ea3d85df3d180"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["query"],
+      "properties": {
+        "query": {
+          "type": "object",
+          "required": [],
+          "properties": {
+            "file": {
+              "type": "string",
+              "description": "File to get reactions for"
+            },
+            "full": {
+              "type": "boolean",
+              "description": "If true always return the complete reaction list"
+            },
+            "channel": {
+              "type": "string",
+              "description": "Channel where the message to get reactions for was posted"
+            },
+            "timestamp": {
+              "type": "string",
+              "description": "Timestamp of the message to get reactions for"
+            },
+            "file_comment": {
+              "type": "string",
+              "description": "File comment to get reactions for"
+            }
+          },
+          "description": "Query parameters for the HTTP request",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "SLACK__REACTIONS_ADD",
+    "description": "Adds a reaction (emoji) to a message in a Slack channel",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "REACTIONS_ADD",
+      "canonical_tool_description_hash": "a95911c50a9909726017506ceb94fbeb985d6978326d27028961b47d7c8a7ea4",
+      "canonical_tool_input_schema_hash": "071825128b15744d6c26404a7ecf9ed882f110939586aede6990c70d8ba60473"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["body"],
+      "properties": {
+        "body": {
+          "type": "object",
+          "required": ["channel", "name", "timestamp"],
+          "properties": {
+            "name": {
+              "type": "string",
+              "description": "Reaction (emoji) name, can include skin tone modifiers like 'thumbsup::skin-tone-3'"
+            },
+            "channel": {
+              "type": "string",
+              "description": "Channel where the message to add reaction to was posted"
+            },
+            "timestamp": {
+              "type": "string",
+              "description": "Timestamp of the message to add reaction to"
+            }
+          },
+          "description": "Parameters for adding a reaction",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "SLACK__REACTIONS_REMOVE",
+    "description": "Removes a reaction (emoji) from an item (file, file comment, channel message, group message, or direct message)",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "REACTIONS_REMOVE",
+      "canonical_tool_description_hash": "7b0c7a67d1b6464754bc104d18bd502aa6e49c36994ea3616fce2b9c000357be",
+      "canonical_tool_input_schema_hash": "1b22db7283ac8420a85446454ea6b6d00e09ff350509fabdc6a84defaf7f40b0"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["body"],
+      "properties": {
+        "body": {
+          "type": "object",
+          "required": ["name"],
+          "properties": {
+            "file": {
+              "type": "string",
+              "description": "File to remove reaction from"
+            },
+            "name": {
+              "type": "string",
+              "description": "Reaction (emoji) name"
+            },
+            "channel": {
+              "type": "string",
+              "description": "Channel where the message to remove reaction from was posted"
+            },
+            "timestamp": {
+              "type": "string",
+              "description": "Timestamp of the message to remove reaction from"
+            },
+            "file_comment": {
+              "type": "string",
+              "description": "File comment to remove reaction from"
+            }
+          },
+          "description": "Body parameters for the request",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "SLACK__REMINDERS_LIST",
+    "description": "Lists all reminders created by or for a given user",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "REMINDERS_LIST",
+      "canonical_tool_description_hash": "5a7276d1e213012e3130dcbcdf5b3b976028137918714b9471abde0889328cc8",
+      "canonical_tool_input_schema_hash": "d746974fa9afd5e951f76f9af38954b0ad7f436f2120dc974da65e5ee39f856f"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": [],
+      "properties": {},
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "SLACK__REMINDERS_INFO",
+    "description": "Gets information about a reminder",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "REMINDERS_INFO",
+      "canonical_tool_description_hash": "a67b240be94a369bc232eaa0a8cb7909fedc79e9dccf203261d24279904cb77d",
+      "canonical_tool_input_schema_hash": "dae82e40eea9686d204bbfd1cbe10b9ed05fbec33e04204b41af6eaa294dbc6d"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["query"],
+      "properties": {
+        "query": {
+          "type": "object",
+          "required": ["reminder"],
+          "properties": {
+            "reminder": {
+              "type": "string",
+              "description": "The ID of the reminder"
+            }
+          },
+          "description": "Query parameters for the HTTP request",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "SLACK__SEARCH_ALL",
+    "description": "Searches for messages and files matching a query",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "SEARCH_ALL",
+      "canonical_tool_description_hash": "f1222f88634d7ed458e13c7ea3277e3d27b217fb38b57138cb108f87b47ade83",
+      "canonical_tool_input_schema_hash": "a49d419d7b30b76293f6b93a933896fd94d78f5fc1878d3d37c898ca6d6b32a1"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["query"],
+      "properties": {
+        "query": {
+          "type": "object",
+          "required": ["query"],
+          "properties": {
+            "page": {
+              "type": "integer",
+              "default": 1,
+              "description": "Page number of results to return"
+            },
+            "sort": {
+              "enum": ["score", "timestamp"],
+              "type": "string",
+              "default": "score",
+              "description": "Return matches sorted by either score or timestamp"
+            },
+            "count": {
+              "type": "integer",
+              "default": 20,
+              "description": "Number of items to return per page"
+            },
+            "query": {
+              "type": "string",
+              "description": "Search query. May contains booleans, etc."
+            },
+            "sort_dir": {
+              "enum": ["asc", "desc"],
+              "type": "string",
+              "default": "desc",
+              "description": "Change sort direction to ascending (asc) or descending (desc)"
+            },
+            "highlight": {
+              "type": "boolean",
+              "default": false,
+              "description": "Pass a value of true to enable query highlight markers"
+            }
+          },
+          "description": "Query parameters for the HTTP request",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "SLACK__SEARCH_FILES",
+    "description": "Searches for files matching a query in Slack",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "SEARCH_FILES",
+      "canonical_tool_description_hash": "c1d2d9f54ccafb9fd7611156dfe0053ec696c37c0fb986626d6389f2feb051f9",
+      "canonical_tool_input_schema_hash": "c50b341ac11c2d00be12c6fbc707f851ab54098f31721b1c128b90e047ca8d75"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["query"],
+      "properties": {
+        "query": {
+          "type": "object",
+          "required": ["query"],
+          "properties": {
+            "page": {
+              "type": "integer",
+              "default": 1,
+              "description": "Page number of results to return"
+            },
+            "sort": {
+              "enum": ["score", "timestamp"],
+              "type": "string",
+              "default": "score",
+              "description": "Return matches sorted by either score or timestamp"
+            },
+            "count": {
+              "type": "integer",
+              "default": 20,
+              "description": "Number of items to return per page"
+            },
+            "query": {
+              "type": "string",
+              "description": "Search query to find matching files"
+            },
+            "sort_dir": {
+              "enum": ["asc", "desc"],
+              "type": "string",
+              "default": "desc",
+              "description": "Change sort direction to ascending (asc) or descending (desc)"
+            },
+            "highlight": {
+              "type": "boolean",
+              "description": "Pass a value of true to enable query highlight markers"
+            }
+          },
+          "description": "Query parameters for the http request",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "SLACK__SEARCH_MESSAGES",
+    "description": "Searches for messages matching a query",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "SEARCH_MESSAGES",
+      "canonical_tool_description_hash": "b05d65ed15421a259d0a4d5f23416db713a6c196efb617bb97f2763394aa7949",
+      "canonical_tool_input_schema_hash": "36fd087eb3f9de32808f3c3ce2a8de1924cbe822e21d7dc88d2aa8927998a39b"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["query"],
+      "properties": {
+        "query": {
+          "type": "object",
+          "required": ["query"],
+          "properties": {
+            "page": {
+              "type": "integer",
+              "default": 1,
+              "description": "Page number of results to return"
+            },
+            "sort": {
+              "enum": ["score", "timestamp"],
+              "type": "string",
+              "default": "score",
+              "description": "Return matches sorted by either score or timestamp"
+            },
+            "count": {
+              "type": "integer",
+              "default": 20,
+              "description": "Number of items to return per page"
+            },
+            "query": {
+              "type": "string",
+              "description": "Search query"
+            },
+            "cursor": {
+              "type": "string",
+              "description": "Use this when getting results with cursormark pagination. For first call send `*` for subsequent calls, send the value of `next_cursor` returned in the previous call's results"
+            },
+            "sort_dir": {
+              "enum": ["asc", "desc"],
+              "type": "string",
+              "default": "desc",
+              "description": "Change sort direction to ascending (asc) or descending (desc)"
+            },
+            "highlight": {
+              "type": "boolean",
+              "description": "Pass a value of true to enable query highlight markers"
+            }
+          },
+          "description": "Query parameters for the request",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+]

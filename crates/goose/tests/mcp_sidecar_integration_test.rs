@@ -236,7 +236,7 @@ async fn test_state_graph_with_shell_guard_integration() {
     };
 
     let mut graph = StateGraph::new(config);
-    let guard = ShellGuard::new(ApprovalPreset::Safe);
+    let _guard = ShellGuard::new(ApprovalPreset::Safe);
 
     // Test that StateGraph can work with ShellGuard
     let code_fn = |_task: &str,

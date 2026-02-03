@@ -1,0 +1,138 @@
+---
+title: 'Quickstart'
+description: 'Get started with OpenLIT Operator in 5 minutes'
+icon: "bolt"
+---
+
+import HelmRepoSetup from '/snippets/helm-repo-setup.mdx';
+import PlatformInstall from '/snippets/openlit-platform-install.mdx';
+import OperatorInstall from '/snippets/openlit-operator-install.mdx';
+
+In this 5-minute tutorial, you'll deploy an example AI Agent in Kubernetes and automatically get complete observability with zero code changes. 
+
+Using OpenLIT Operator, you'll capture distributed traces showing LLM costs, token usage, and agent performance metrics - then visualize everything in the OpenLIT dashboard.
+
+## 📋 Prerequisites
+
+- **Kubernetes cluster+** with cluster admin access
+- **Helm** package manager
+- **kubectl** configured for your cluster
+
+<AccordionGroup>
+  <Accordion title="☸️ Don't have a Kubernetes cluster? Create one locally">
+    We recommend using K3d or minikube for trying OpenLIT Operator out in a local environment.
+
+    <Tabs>
+      <Tab title="k3d">
+        1. [Install k3d](https://k3d.io/stable/#installation) following their official guide
+        2. Create cluster:
+        ```bash
+        k3d cluster create openlit-demo
+        ```
+      </Tab>
+
+      <Tab title="minikube">
+        1. [Install minikube](https://minikube.sigs.k8s.io/docs/start/) following their official guide
+        2. Start cluster:
+        ```bash
+        minikube start --cpus=2 --memory=4096mb --driver=docker
+        ```
+      </Tab>
+    </Tabs>
+  </Accordion>
+</AccordionGroup>
+
+<Steps titleSize="h3">
+  <Step title="Deploy OpenLIT Platform">
+    Install the OpenLIT observability platform to collect and monitor your LLM App and AI Agent performance:
+
+    <HelmRepoSetup />
+
+    <PlatformInstall />
+  </Step>
+
+  <Step title="Deploy OpenLIT Operator">
+    Install the OpenLIT Operator to enable zero-code instrumentation:
+
+    <OperatorInstall />
+
+    **Verify the operator is running**
+
+    ```bash
+    # Check operator pod status
+    kubectl get pods -n openlit -l app.kubernetes.io/name=openlit-operator
+    ```
+
+    Expected output:
+    ```bash
+    NAME                                READY   STATUS    RESTARTS   AGE
+    openlit-operator-7b9c8d5f7b-xyz12   1/1     Running   0          30s
+    ```
+  </Step>
+
+  <Step title="Create AutoInstrumentation Custom Resource">
+    Create an AutoInstrumentation resource to define how your AI apps should be instrumented:
+
+    ```bash
+    kubectl apply -f - <<EOF
+    apiVersion: openlit.io/v1alpha1
+    kind: AutoInstrumentation
+    metadata:
+      name: quickstart-instrumentation
+      namespace: default
+    spec:
+      selector:
+        matchLabels:
+          instrumentation: openlit
+      python:
+        instrumentation:
+          enabled: true
+      otlp:
+        endpoint: "http://openlit.openlit.svc.cluster.local:4318"
+    EOF
+    ```
+
+    <Warning>
+    **Already have AI applications running?** You'll need to restart them to enable instrumentation:
+    ```bash
+    kubectl rollout restart deployment <your-deployment-name>
+    ```
+    </Warning>
+  </Step>
+
+  <Step title="Deploy the example AI Agent">
+    Deploy the example AI agent built using CrewAI:
+
+    ```bash
+    kubectl apply -f https://raw.githubusercontent.com/openlit/openlit/main/operator/examples/test-application-deployment.yaml
+    ```
+
+  </Step>
+
+  <Step title="View Traces and metrics in OpenLIT">
+    Access the OpenLIT dashboard to view your AI application traces:
+
+    **Port Forward to OpenLIT**
+
+    ```bash
+    # Forward the OpenLIT dashboard port
+    kubectl port-forward -n openlit svc/openlit 3000:3000
+    ```
+
+    **Access Dashboard**
+
+    1. Open your browser and navigate to `http://localhost:3000`
+    2. Navigate to **Traces** section in the dashboard
+
+    **What You'll See**
+
+    In the OpenLIT dashboard, you'll see:
+
+    - **Service Overview**: Your `openlit-test-app` service with health metrics
+    - **Trace Timeline**: Individual traces for HTTP requests and OpenAI API calls
+    - **LLM Operations**: Detailed spans showing OpenAI API calls with token usage
+    - **Performance Metrics**: Response times, error rates, and throughput
+    - **Cost Tracking**: Token usage and estimated costs
+
+  </Step>
+</Steps>

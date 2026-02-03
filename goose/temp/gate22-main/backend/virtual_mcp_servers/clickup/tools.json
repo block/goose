@@ -1,0 +1,347 @@
+[
+  {
+    "name": "CLICKUP__GET_AUTHORIZED_WORKSPACES",
+    "description": "View the Workspaces available to the authenticated user.",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "GET",
+      "endpoint": "https://api.clickup.com/api/v2/team"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "header": {
+          "type": "object",
+          "description": "Headers for the http request",
+          "properties": {
+            "Content-Type": {
+              "type": "string",
+              "description": "Content-Type header",
+              "default": "application/json"
+            }
+          },
+          "required": [
+            "Content-Type"
+          ],
+          "visible": [],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "header"
+      ],
+      "visible": [],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "CLICKUP__DOCS_SEARCH",
+    "description": "View the Docs in your Workspace. You can only view information of Docs you can access.",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "GET",
+      "endpoint": "https://api.clickup.com/api/v3/workspaces/{workspaceId}/docs"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "header": {
+          "type": "object",
+          "description": "Headers for the http request",
+          "properties": {
+            "Content-Type": {
+              "type": "string",
+              "description": "Content-Type header",
+              "default": "application/json"
+            }
+          },
+          "required": [
+            "Content-Type"
+          ],
+          "visible": [],
+          "additionalProperties": false
+        },
+        "path": {
+          "type": "object",
+          "description": "Path parameters",
+          "properties": {
+            "workspaceId": {
+              "type": "string",
+              "description": "The ID of the workspace to search docs in."
+            }
+          },
+          "required": [
+            "workspaceId"
+          ],
+          "visible": [
+            "workspaceId"
+          ],
+          "additionalProperties": false
+        },
+        "query": {
+          "type": "object",
+          "description": "Query parameters for the request.",
+          "properties": {
+            "id": {
+              "type": "string",
+              "description": "Filter results to a single Doc with the given Doc ID."
+            },
+            "creator": {
+              "type": "number",
+              "description": "Filter results to Docs created by the user with the given user ID."
+            },
+            "deleted": {
+              "type": "boolean",
+              "description": "Filter results to return deleted Docs.",
+              "default": false
+            },
+            "archived": {
+              "type": "boolean",
+              "description": "Filter results to return archived Docs.",
+              "default": false
+            },
+            "parent_id": {
+              "type": "string",
+              "description": "Filter results to children of a parent Doc with the given parent Doc ID."
+            },
+            "parent_type": {
+              "type": "string",
+              "description": "Filter results to children of the given parent Doc type. For example, SPACE, FOLDER, LIST, EVERYTHING, WORKSPACE."
+            },
+            "limit": {
+              "type": "number",
+              "description": "The maximum number of results to retrieve for each page.",
+              "default": 50,
+              "minimum": 10,
+              "maximum": 100
+            },
+            "next_cursor": {
+              "type": "string",
+              "description": "The cursor to use to get the next page of results."
+            }
+          },
+          "visible": [
+            "id",
+            "creator",
+            "deleted",
+            "archived",
+            "parent_id",
+            "parent_type",
+            "limit",
+            "next_cursor"
+          ],
+          "required": [],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "header",
+        "path"
+      ],
+      "visible": [
+        "path",
+        "query"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "CLICKUP__GOALS_GET",
+    "description": "View the Goals available in a Workspace.",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "GET",
+      "endpoint": "https://api.clickup.com/api/v2/team/{team_id}/goal"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "header": {
+          "type": "object",
+          "description": "Headers for the http request",
+          "properties": {
+            "Content-Type": {
+              "type": "string",
+              "description": "Content-Type header",
+              "default": "application/json"
+            }
+          },
+          "required": [
+            "Content-Type"
+          ],
+          "visible": [],
+          "additionalProperties": false
+        },
+        "path": {
+          "type": "object",
+          "description": "Path parameters",
+          "properties": {
+            "team_id": {
+              "type": "string",
+              "description": "Workspace ID"
+            }
+          },
+          "required": [
+            "team_id"
+          ],
+          "visible": [
+            "team_id"
+          ],
+          "additionalProperties": false
+        },
+        "query": {
+          "type": "object",
+          "description": "Query parameters for the request.",
+          "properties": {
+            "include_completed": {
+              "type": "boolean",
+              "description": "Whether to include completed goals in the results.",
+              "default": true
+            }
+          },
+          "visible": [
+            "include_completed"
+          ],
+          "required": [],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "path",
+        "header"
+      ],
+      "visible": [
+        "path",
+        "query"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "CLICKUP__WORKSPACE_SEATS_GET",
+    "description": "View the used, total, and available member and guest seats for a Workspace.",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "GET",
+      "endpoint": "https://api.clickup.com/api/v2/team/{team_id}/seats"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "header": {
+          "type": "object",
+          "description": "Headers for the http request",
+          "properties": {
+            "Content-Type": {
+              "type": "string",
+              "description": "Content-Type header",
+              "default": "application/json"
+            }
+          },
+          "required": [
+            "Content-Type"
+          ],
+          "visible": [],
+          "additionalProperties": false
+        },
+        "path": {
+          "type": "object",
+          "description": "Path parameters",
+          "properties": {
+            "team_id": {
+              "type": "string",
+              "description": "Workspace ID"
+            }
+          },
+          "required": [
+            "team_id"
+          ],
+          "visible": [
+            "team_id"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "header",
+        "path"
+      ],
+      "visible": [
+        "path"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "CLICKUP__SPACES_GET",
+    "description": "View the Spaces available in a Workspace. You can only get member info in private Spaces.",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "GET",
+      "endpoint": "https://api.clickup.com/api/v2/team/{team_id}/space"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "header": {
+          "type": "object",
+          "description": "Headers for the http request",
+          "properties": {
+            "Content-Type": {
+              "type": "string",
+              "description": "Content-Type header",
+              "default": "application/json"
+            }
+          },
+          "required": [
+            "Content-Type"
+          ],
+          "visible": [],
+          "additionalProperties": false
+        },
+        "path": {
+          "type": "object",
+          "description": "Path parameters",
+          "properties": {
+            "team_id": {
+              "type": "string",
+              "description": "Workspace ID"
+            }
+          },
+          "required": [
+            "team_id"
+          ],
+          "visible": [
+            "team_id"
+          ],
+          "additionalProperties": false
+        },
+        "query": {
+          "type": "object",
+          "description": "Query parameters for the request.",
+          "properties": {
+            "archived": {
+              "type": "boolean",
+              "description": "Filter results to return archived Spaces.",
+              "default": false
+            }
+          },
+          "visible": [
+            "archived"
+          ],
+          "required": [],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "header",
+        "path"
+      ],
+      "visible": [
+        "path",
+        "query"
+      ],
+      "additionalProperties": false
+    }
+  }
+]

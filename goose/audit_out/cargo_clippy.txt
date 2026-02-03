@@ -1,0 +1,83 @@
+﻿=== cargo clippy --workspace --all-targets --all-features -- -D warnings ===
+cargo :     Checking aws-lc-rs v1.13.3
+At C:\Users\Admin\Downloads\projects\goose\goose\scripts\run_audit.ps1:168 char:21
++ ... ppyResult = cargo clippy --workspace --all-targets --all-features --  ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (    Checking aws-lc-rs v1.13.3:String) [], RemoteExce 
+   ption
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+   Compiling rustls v0.23.31
+    Checking tokio-rustls v0.24.1
+    Checking compression-codecs v0.4.36
+    Checking zip v0.6.6
+   Compiling sqlx-core v0.8.0
+    Checking jsonwebtoken v9.3.1
+   Compiling tree-sitter v0.21.0
+   Compiling libz-sys v1.1.23
+   Compiling onig_sys v69.9.1
+   Compiling goose-server v1.22.0 (C:\Users\Admin\Downloads\projects\goose\crates\goose-server)
+    Checking goose-test v1.22.0 (C:\Users\Admin\Downloads\projects\goose\crates\goose-test)
+    Checking async-compression v0.4.37
+    Checking hyper-rustls v0.24.2
+    Checking reqwest v0.11.27
+    Checking docx-rs v0.4.18
+    Checking tower-http v0.6.8
+   Compiling libgit2-sys v0.17.0+1.8.1
+    Checking rustls-webpki v0.103.4
+   Compiling tree-sitter-javascript v0.21.4
+   Compiling tree-sitter-python v0.21.0
+   Compiling tree-sitter-ruby v0.21.0
+   Compiling tree-sitter-go v0.21.2
+   Compiling tree-sitter-java v0.21.0
+   Compiling devgen-tree-sitter-swift v0.21.0
+   Compiling tree-sitter-rust v0.21.2
+    Checking posthog-rs v0.3.7
+   Compiling tree-sitter-kotlin v0.3.8
+    Checking onig v6.5.1
+    Checking syntect v5.3.0
+    Checking sqlx-sqlite v0.8.0
+   Compiling sqlx-macros-core v0.8.0
+    Checking tokio-rustls v0.26.4
+    Checking tungstenite v0.28.0
+    Checking hyper-rustls v0.27.7
+    Checking aws-smithy-http-client v1.1.5
+    Checking reqwest v0.12.28
+    Checking tokio-tungstenite v0.28.0
+    Checking axum v0.8.8
+    Checking aws-smithy-runtime v1.9.5
+   Compiling sqlx-macros v0.8.0
+    Checking oauth2 v5.0.0
+    Checking opentelemetry-http v0.27.0
+    Checking jsonschema v0.30.0
+    Checking opentelemetry-otlp v0.27.0
+    Checking sqlx v0.8.0
+    Checking aws-runtime v1.5.17
+    Checking aws-sdk-sso v1.91.0
+    Checking aws-sdk-ssooidc v1.93.0
+    Checking aws-sdk-sts v1.95.0
+    Checking aws-sdk-sagemakerruntime v1.93.0
+    Checking aws-sdk-bedrockruntime v1.120.0
+    Checking rmcp v0.14.0
+    Checking aws-config v1.8.12
+    Checking git2 v0.19.0
+    Checking bat v0.25.0
+    Checking goose v1.22.0 (C:\Users\Admin\Downloads\projects\goose\crates\goose)
+    Checking goose-mcp v1.22.0 (C:\Users\Admin\Downloads\projects\goose\crates\goose-mcp)
+error: unused imports: `Duration` and `Instant`
+    --> crates\goose-mcp\src\developer\rmcp_developer.rs:1489:16
+     |
+1489 |         time::{Duration, Instant},
+     |                ^^^^^^^^  ^^^^^^^
+     |
+     = note: `-D unused-imports` implied by `-D warnings`
+     = help: to override `-D warnings` add `#[allow(unused_imports)]`
+
+error: unused import: `tokio::time::timeout`
+    --> crates\goose-mcp\src\developer\rmcp_developer.rs:1492:9
+     |
+1492 |     use tokio::time::timeout;
+     |         ^^^^^^^^^^^^^^^^^^^^
+
+error: could not compile `goose-mcp` (lib test) due to 2 previous errors
+warning: build failed, waiting for other jobs to finish...

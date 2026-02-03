@@ -1,0 +1,4 @@
+{
+  "name": "SLACK",
+  "description": "Slack is a team communication and collaboration tool. This API allows you to interact with Slack in two ways: as a bot for automated tasks and workflows, or as a user to perform actions on behalf of a real Slack user. Whether you're building chatbots, automating workflows, or integrating Slack with other tools, this API provides the flexibility to suit your needs."
+}

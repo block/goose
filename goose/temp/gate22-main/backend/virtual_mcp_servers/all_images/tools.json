@@ -1,0 +1,389 @@
+[
+  {
+    "name": "ALL_IMAGES__CHECK_API_KEY",
+    "description": "Check if the API key is valid",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "GET",
+      "endpoint": "https://api.all-images.ai/v1/api-keys/check"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "header": {
+          "type": "object",
+          "description": "HTTP request headers",
+          "properties": {
+            "accept": {
+              "type": "string",
+              "description": "Accept header",
+              "default": "application/json"
+            }
+          },
+          "required": [
+            "accept"
+          ],
+          "visible": [],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "header"
+      ],
+      "visible": [],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "ALL_IMAGES__SEARCH_IMAGES",
+    "description": "Search for images using keywords and filters",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "POST",
+      "endpoint": "https://api.all-images.ai/v1/images/search"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "header": {
+          "type": "object",
+          "description": "HTTP request headers",
+          "properties": {
+            "accept": {
+              "type": "string",
+              "description": "Accept header",
+              "default": "application/json"
+            },
+            "content-type": {
+              "type": "string",
+              "description": "Content type",
+              "default": "application/json"
+            }
+          },
+          "required": [
+            "accept",
+            "content-type"
+          ],
+          "visible": [],
+          "additionalProperties": false
+        },
+        "body": {
+          "type": "object",
+          "description": "Search parameters",
+          "properties": {
+            "search": {
+              "type": "string",
+              "description": "Search query keywords"
+            },
+            "limit": {
+              "type": "integer",
+              "description": "Maximum number of results to return",
+              "default": 10,
+              "minimum": 1,
+              "maximum": 100
+            },
+            "offset": {
+              "type": "integer",
+              "description": "Number of results to skip",
+              "default": 0,
+              "minimum": 0
+            },
+            "filterFree": {
+              "type": "boolean",
+              "description": "Filter to show only free images",
+              "default": false
+            },
+            "sort": {
+              "type": "string",
+              "description": "Sort order"
+            }
+          },
+          "required": [
+            "search"
+          ],
+          "visible": [
+            "search",
+            "limit",
+            "offset",
+            "filterFree",
+            "sort"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "header",
+        "body"
+      ],
+      "visible": [
+        "body"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "ALL_IMAGES__DOWNLOAD_IMAGE",
+    "description": "Download an image by its ID",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "POST",
+      "endpoint": "https://api.all-images.ai/v1/images/download"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "header": {
+          "type": "object",
+          "description": "HTTP request headers",
+          "properties": {
+            "accept": {
+              "type": "string",
+              "description": "Accept header",
+              "default": "application/json"
+            },
+            "content-type": {
+              "type": "string",
+              "description": "Content type",
+              "default": "application/json"
+            }
+          },
+          "required": [
+            "accept",
+            "content-type"
+          ],
+          "visible": [],
+          "additionalProperties": false
+        },
+        "body": {
+          "type": "object",
+          "description": "Download parameters",
+          "properties": {
+            "id": {
+              "type": "string",
+              "description": "ID of the image to download"
+            }
+          },
+          "required": [
+            "id"
+          ],
+          "visible": [
+            "id"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "header",
+        "body"
+      ],
+      "visible": [
+        "body"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "ALL_IMAGES__CREATE_GENERATION",
+    "description": "Create an AI image generation task",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "POST",
+      "endpoint": "https://api.all-images.ai/v1/image-generations"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "header": {
+          "type": "object",
+          "description": "HTTP request headers",
+          "properties": {
+            "accept": {
+              "type": "string",
+              "description": "Accept header",
+              "default": "application/json"
+            },
+            "content-type": {
+              "type": "string",
+              "description": "Content type",
+              "default": "application/json"
+            }
+          },
+          "required": [
+            "accept",
+            "content-type"
+          ],
+          "visible": [],
+          "additionalProperties": false
+        },
+        "body": {
+          "type": "object",
+          "description": "Generation parameters",
+          "properties": {
+            "name": {
+              "type": "string",
+              "description": "Name of the generation task"
+            },
+            "mode": {
+              "type": "string",
+              "description": "Generation mode",
+              "enum": [
+                "simple",
+                "advanced"
+              ],
+              "default": "simple"
+            },
+            "prompt": {
+              "type": "string",
+              "description": "Text prompt for image generation",
+              "maxLength": 4096
+            },
+            "additionalPrompt": {
+              "type": "string",
+              "description": "Additional text prompt, not affected by optimization if enabled. Added at the beginning",
+              "maxLength": 1024
+            },
+            "optimizePrompt": {
+              "type": "boolean",
+              "description": "Whether to optimize the prompt",
+              "default": false
+            },
+            "processMode": {
+              "type": "string",
+              "description": "Mode of the image generation (only for 'Dedicated' user)",
+              "enum": [
+                "relax",
+                "fast"
+              ],
+              "default": "fast"
+            },
+            "tags": {
+              "type": "array",
+              "description": "Tags make it easy to find generations",
+              "items": {
+                "type": "string"
+              }
+            },
+            "params": {
+              "type": "array",
+              "description": "List of generation parameters",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "enum": [
+                      "sujetMode",
+                      "templatePrompt",
+                      "angle",
+                      "photographe",
+                      "time",
+                      "weather",
+                      "format",
+                      "camera",
+                      "interdiction",
+                      "version",
+                      "chaos",
+                      "stylize",
+                      "fromImageUrl"
+                    ]
+                  },
+                  "value": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "name",
+                  "value"
+                ],
+                "visible": [
+                  "name",
+                  "value"
+                ],
+                "additionalProperties": false
+              }
+            }
+          },
+          "required": [
+            "name",
+            "mode",
+            "prompt"
+          ],
+          "visible": [
+            "name",
+            "mode",
+            "prompt",
+            "additionalPrompt",
+            "optimizePrompt",
+            "processMode",
+            "tags",
+            "params"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "header",
+        "body"
+      ],
+      "visible": [
+        "body"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "ALL_IMAGES__GET_GENERATION",
+    "description": "Get the status of an image generation task",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "GET",
+      "endpoint": "https://api.all-images.ai/v1/image-generations/{generation_id}"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "header": {
+          "type": "object",
+          "description": "HTTP request headers",
+          "properties": {
+            "accept": {
+              "type": "string",
+              "description": "Accept header",
+              "default": "application/json"
+            }
+          },
+          "required": [
+            "accept"
+          ],
+          "visible": [],
+          "additionalProperties": false
+        },
+        "path": {
+          "type": "object",
+          "description": "URL path parameters",
+          "properties": {
+            "generation_id": {
+              "type": "string",
+              "description": "ID of the generation task"
+            }
+          },
+          "required": [
+            "generation_id"
+          ],
+          "visible": [
+            "generation_id"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "header",
+        "path"
+      ],
+      "visible": [
+        "path"
+      ],
+      "additionalProperties": false
+    }
+  }
+]

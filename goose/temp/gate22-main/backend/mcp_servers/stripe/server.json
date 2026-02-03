@@ -1,0 +1,17 @@
+{
+  "name": "STRIPE",
+  "url": "https://mcp.stripe.com",
+  "transport_type": "streamable_http",
+  "description": "The Stripe Model Context Protocol (MCP) server defines a set of tools that AI agents can use to interact with the Stripe API and search our knowledge base (including documentation and support articles).",
+  "logo": "https://raw.githubusercontent.com/aipotheosis-labs/aipolabs-icons/refs/heads/main/apps/stripe.svg",
+  "categories": ["Dev Tools", "Payments"],
+  "auth_configs": [
+    {
+      "type": "api_key",
+      "location": "header",
+      "name": "Authorization",
+      "prefix": "Bearer"
+    }
+  ],
+  "server_metadata": {}
+}

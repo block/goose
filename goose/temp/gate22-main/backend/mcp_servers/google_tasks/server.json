@@ -1,0 +1,22 @@
+{
+  "name": "GOOGLE_TASKS",
+  "url": "https://mcp.aci.dev/virtual/mcp?server_name=GOOGLE_TASKS",
+  "transport_type": "streamable_http",
+  "description": "The Google Tasks API allows managing tasks and task lists programmatically.",
+  "logo": "https://raw.githubusercontent.com/aipotheosis-labs/aipolabs-icons/refs/heads/main/apps/google_tasks.svg",
+  "categories": ["Productivity"],
+  "auth_configs": [
+    {
+      "type": "oauth2",
+      "client_id": "{{ CLIENT_ID }}",
+      "client_secret": "{{ CLIENT_SECRET }}",
+      "scope": "https://www.googleapis.com/auth/tasks",
+      "authorize_url": "https://accounts.google.com/o/oauth2/v2/auth",
+      "access_token_url": "https://oauth2.googleapis.com/token",
+      "refresh_token_url": "https://oauth2.googleapis.com/token"
+    }
+  ],
+  "server_metadata": {
+    "is_virtual_mcp_server": true
+  }
+}

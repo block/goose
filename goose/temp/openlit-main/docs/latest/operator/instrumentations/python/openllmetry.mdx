@@ -1,0 +1,116 @@
+---
+title: 'OpenLLMetry'
+description: 'LLM-focused observability with OpenLLMetry instrumentation'
+---
+
+The OpenLLMetry provider uses the Traceloop SDK that provides lightweight, LLM-focused observability with minimal overhead and easy integration for existing language model applications.
+
+## Configuration
+
+<Tabs>
+  <Tab title="Basic">
+    ```yaml
+    apiVersion: openlit.io/v1alpha1
+    kind: AutoInstrumentation
+    metadata:
+      name: openllmetry-instrumentation
+    spec:
+      selector:
+        matchLabels:
+          openllmetry.instrument: "true"
+      python:
+        instrumentation:
+          provider: "openllmetry"
+          version: "latest"
+      otlp:
+        endpoint: "http://openlit:4318"
+    ```
+  </Tab>
+  
+  <Tab title="Advanced">
+    ```yaml
+    apiVersion: openlit.io/v1alpha1
+    kind: AutoInstrumentation
+    metadata:
+      name: openllmetry-production
+    spec:
+      selector:
+        matchLabels:
+          environment: "production"
+      python:
+        instrumentation:
+          provider: "openllmetry"
+          version: "latest"
+          customPackages: "openai>=1.0.0,anthropic>=0.8.0,cohere>=4.0.0"
+          env:
+          - name: TRACELOOP_APP_NAME
+            value: "llm-chat-service"
+          - name: OTEL_EXPORTER_OTLP_ENDPOINT
+            value: "http://openlit:4318"
+          - name: TRACELOOP_DISABLE_BATCH
+            value: "false"
+      otlp:
+        endpoint: "http://openlit:4318"
+        timeout: 30
+      resource:
+        environment: "production"
+        serviceName: "llm-chat-service"
+    ```
+  </Tab>
+</Tabs>
+
+## Provider Specific Features
+
+OpenLLMetry offers LLM-specific observability using the Traceloop SDK:
+
+### Custom Package Installation
+
+Install additional LLM provider packages alongside OpenLLMetry:
+
+```yaml
+spec:
+  python:
+    instrumentation:
+      customPackages: "openai>=1.0.0,anthropic>=0.8.0,cohere>=4.0.0"
+```
+
+**Supported LLM Providers:**
+- **OpenAI**: `openai>=1.0.0`
+- **Anthropic**: `anthropic>=0.8.0`
+- **Cohere**: `cohere>=4.0.0`
+- **Google**: `google-generativeai>=0.3.0`
+- **Azure OpenAI**: `openai>=1.0.0` (with Azure configuration)
+
+### Traceloop SDK Integration
+
+Uses the official Traceloop SDK for LLM observability:
+
+```yaml
+# Core dependency (automatically included)
+traceloop-sdk  # Official OpenLLMetry SDK
+```
+
+**Features:**
+- Purpose-built for LLM monitoring
+- Lightweight and minimal overhead  
+- LLM-specific performance metrics
+- Easy integration with existing applications
+
+### LLM Performance Monitoring
+
+Focused on language model specific metrics:
+
+**Capabilities:**
+- LLM request/response latency
+- Token usage and throughput
+- Model performance analytics
+- Error rates and patterns
+
+### Environment Variables
+
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `TRACELOOP_APP_NAME` | Application name for tracing | `"openllmetry-app"` |
+| `OTEL_EXPORTER_OTLP_ENDPOINT` | OTLP endpoint (standard) | Auto-configured |
+| `TRACELOOP_API_ENDPOINT` | Traceloop-specific endpoint | `"http://localhost:4318"` |
+| `TRACELOOP_DISABLE_BATCH` | Disable batch processing | `false` |

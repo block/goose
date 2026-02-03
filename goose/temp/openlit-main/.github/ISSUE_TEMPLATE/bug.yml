@@ -1,0 +1,84 @@
+name: 🐛 Bug Report
+description: Submit a bug report to help us imporve
+title: "Bug: "
+labels: ["bug"]
+body:
+  - type: dropdown
+    id: component
+    attributes:
+      label: Component
+      description: Which part of the OpenLIT ecosystem?
+      options:
+        - OpenLIT
+        - OpenLIT Python SDK
+        - OpenLIT TS SDK
+        - OpenLIT Operator
+        - OpenTelemetry GPU Collector
+    validations:
+      required: true
+
+  - type: textarea
+    id: description
+    attributes:
+      label: What happened?
+      description: A clear description of the bug.
+      placeholder: "The application crashes when..."
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps-to-reproduce
+    attributes:
+      label: Steps to reproduce
+      description: How can we reproduce this bug?
+      placeholder: |
+        1. Install package with...
+        2. Run the following code...
+        3. See error
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected-behavior
+    attributes:
+      label: Expected behavior
+      description: What did you expect to happen?
+      placeholder: "It should..."
+    validations:
+      required: true
+
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: Provide relevant version information.
+      placeholder: |
+        - OpenLIT version: 1.14.0
+        - OpenLIT SDK Version: 1.35.7
+        - Python version: 3.11
+    validations:
+      required: false
+
+  - type: textarea
+    id: additional-context
+    attributes:
+      label: Additional context
+      description: Add screenshots, logs, or any other relevant information.
+      placeholder: "Error logs, screenshots..."
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Pre-submission checklist
+      options:
+        - label: I searched existing issues and didn't find a duplicate
+          required: true
+  - type: dropdown
+    id: willing-to-submit-pr
+    attributes:
+      label: Are you willing to submit PR?
+      description: This is absolutely not required, but we are happy to guide you in the contribution process.
+      options:
+        - "Yes, I am willing to submit a PR!"

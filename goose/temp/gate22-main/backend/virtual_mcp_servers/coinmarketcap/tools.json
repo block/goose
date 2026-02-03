@@ -1,0 +1,3170 @@
+[
+  {
+    "name": "COINMARKETCAP__CRYPTOCURRENCY_AIRDROP",
+    "description": "CoinMarketCap Airdrop API returns information about a single airdrop, including cryptocurrency metadata.",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "GET",
+      "endpoint": "https://pro-api.coinmarketcap.com/v1/cryptocurrency/airdrop"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "query": {
+          "type": "object",
+          "description": "Query parameters",
+          "properties": {
+            "id": {
+              "type": "string",
+              "description": "Airdrop Unique ID. This can be found using the Airdrops API."
+            }
+          },
+          "required": [
+            "id"
+          ],
+          "visible": [
+            "id"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "query"
+      ],
+      "visible": [
+        "query"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "COINMARKETCAP__CRYPTOCURRENCY_AIRDROPS",
+    "description": "CoinMarketCap Airdrops API returns a list of past, present, or future airdrops available on CoinMarketCap.",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "GET",
+      "endpoint": "https://pro-api.coinmarketcap.com/v1/cryptocurrency/airdrops"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "query": {
+          "type": "object",
+          "description": "Query parameters for retrieving airdrops.",
+          "properties": {
+            "start": {
+              "type": "integer",
+              "description": "Optionally offset the start (1-based index) of the paginated list of items to return.",
+              "default": 1,
+              "minimum": 1
+            },
+            "limit": {
+              "type": "integer",
+              "description": "Optionally specify the number of results to return. Range: 1 to 5000.",
+              "default": 100,
+              "minimum": 1,
+              "maximum": 5000
+            },
+            "status": {
+              "type": "string",
+              "description": "Filter airdrops by their status: ONGOING, ENDED, or UPCOMING.",
+              "enum": [
+                "ONGOING",
+                "ENDED",
+                "UPCOMING"
+              ]
+            },
+            "id": {
+              "type": "string",
+              "description": "Filter airdrops by one cryptocurrency CoinMarketCap ID. Example: '1'."
+            },
+            "slug": {
+              "type": "string",
+              "description": "Alternatively filter airdrops by a cryptocurrency slug. Example: 'bitcoin'."
+            },
+            "symbol": {
+              "type": "string",
+              "description": "Alternatively filter airdrops by a cryptocurrency symbol. Example: 'BTC'."
+            }
+          },
+          "required": [],
+          "visible": [
+            "start",
+            "limit",
+            "status",
+            "id",
+            "slug",
+            "symbol"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "query"
+      ],
+      "visible": [
+        "query"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "COINMARKETCAP__CRYPTOCURRENCY_CATEGORIES",
+    "description": "Retrieve information about all coin categories available on CoinMarketCap, including a paginated list of cryptocurrency quotes and metadata for each category.",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "GET",
+      "endpoint": "https://pro-api.coinmarketcap.com/v1/cryptocurrency/categories"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "query": {
+          "type": "object",
+          "description": "Query parameters for retrieving cryptocurrency categories.",
+          "properties": {
+            "start": {
+              "type": "integer",
+              "description": "Optionally offset the start (1-based index) of the paginated list of items to return.",
+              "default": 1,
+              "minimum": 1
+            },
+            "limit": {
+              "type": "integer",
+              "description": "The number of results to return. Use this with the 'start' parameter to paginate.",
+              "default": 100,
+              "minimum": 1,
+              "maximum": 5000
+            },
+            "id": {
+              "type": "string",
+              "description": "Filter categories by one or more comma-separated cryptocurrency CoinMarketCap IDs. Example: 1,2"
+            },
+            "slug": {
+              "type": "string",
+              "description": "Filter categories by a comma-separated list of cryptocurrency slugs. Example: bitcoin,ethereum"
+            },
+            "symbol": {
+              "type": "string",
+              "description": "Filter categories by one or more comma-separated cryptocurrency symbols. Example: BTC,ETH"
+            }
+          },
+          "required": [],
+          "visible": [
+            "start",
+            "limit",
+            "id",
+            "slug",
+            "symbol"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "query"
+      ],
+      "visible": [
+        "query"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "COINMARKETCAP__CRYPTOCURRENCY_CATEGORY",
+    "description": "Returns information about a single coin category available on CoinMarketCap, including a paginated list of the cryptocurrency quotes and detailed metadata for the specified category. This endpoint is available on the Free, Hobbyist, Startup, Standard, Professional, and Enterprise plans, and data is updated only as needed (approximately every 30 seconds). The endpoint uses call credits calculated as 1 API call per request plus additional credits based on the number of cryptocurrencies returned and convert options used.",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "GET",
+      "endpoint": "https://pro-api.coinmarketcap.com/v1/cryptocurrency/category"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "query": {
+          "type": "object",
+          "description": "Query parameters for retrieving a single coin category. This includes the mandatory Category ID (retrieved via the Categories API) and optional pagination and conversion parameters.",
+          "properties": {
+            "id": {
+              "type": "string",
+              "description": "The unique Category ID. This parameter is required and identifies the coin category. The ID can be obtained using the Categories API. (COINMARKETCAP__CRYPTOCURRENCY_CATEGORIES)"
+            },
+            "start": {
+              "type": "integer",
+              "description": "Optionally offset the start (1-based index) of the paginated list of coins returned within the category. Must be an integer greater than or equal to 1. Default is 1.",
+              "default": 1,
+              "minimum": 1
+            },
+            "limit": {
+              "type": "integer",
+              "description": "Optionally specify the number of coins to return for the category. Acceptable values range from 1 to 1000. Use this parameter together with 'start' to control pagination size. Default is 100.",
+              "default": 100,
+              "minimum": 1,
+              "maximum": 1000
+            },
+            "convert": {
+              "type": "string",
+              "description": "Optionally calculate market quotes in up to 120 currencies by passing a comma-separated list of cryptocurrency or fiat currency symbols. Each additional convert option beyond the first may require additional call credits. Defaults to 'USD' if not specified.",
+              "default": "USD"
+            },
+            "convert_id": {
+              "type": "string",
+              "description": "Optionally calculate market quotes by CoinMarketCap ID instead of symbol. This parameter is identical to 'convert' but uses IDs. For example, 'convert_id=1,2781' would replace 'convert=BTC,USD' in your query. Note: This parameter cannot be used simultaneously with 'convert'."
+            }
+          },
+          "required": [
+            "id"
+          ],
+          "visible": [
+            "id",
+            "start",
+            "limit",
+            "convert"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "query"
+      ],
+      "visible": [
+        "query"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "COINMARKETCAP__CRYPTOCURRENCY_ID_MAP",
+    "description": "Returns a mapping of all cryptocurrencies to unique CoinMarketCap IDs. This endpoint provides each cryptocurrency's standard identifiers\u2014such as name, symbol, and token_address\u2014for secure identification in your application. By default, it returns cryptocurrencies with actively tracked markets on supported exchanges. You can also retrieve inactive cryptocurrencies by passing listing_status=inactive or registered but untracked cryptocurrencies by passing listing_status=untracked (multiple comma-separated values are allowed). Additional auxiliary fields (such as platform, first_historical_data, last_historical_data, and is_active) can be included via the aux parameter to slim down the payload or provide extra details. Mapping data is updated as needed (approximately every 30 seconds) and this endpoint is available on Basic, Hobbyist, Startup, Standard, Professional, and Enterprise plans. It consumes 1 API call credit per request regardless of query size.",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "GET",
+      "endpoint": "https://pro-api.coinmarketcap.com/v1/cryptocurrency/map"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "query": {
+          "type": "object",
+          "description": "Query parameters for retrieving a mapping of all cryptocurrencies to their unique CoinMarketCap IDs. By default, only active cryptocurrencies (with tracked markets) are returned. You can modify this behavior with the listing_status parameter. Other parameters allow you to paginate the results, sort them by a specific field, filter by cryptocurrency symbols (which will override other query options), and select additional auxiliary fields to be returned.",
+          "properties": {
+            "listing_status": {
+              "type": "string",
+              "description": "Determines which cryptocurrencies are returned based on their market activity. By default, 'active' is used to return only cryptocurrencies with actively tracked markets. Pass 'inactive' to retrieve cryptocurrencies that are no longer active, or 'untracked' to get those listed but not meeting the methodology requirements for tracked markets. Multiple comma-separated values are allowed.",
+              "default": "active"
+            },
+            "start": {
+              "type": "integer",
+              "description": "Optionally offset the start of the paginated list of items to return. This is a 1-based index and must be an integer greater than or equal to 1. Default is 1.",
+              "default": 1,
+              "minimum": 1
+            },
+            "limit": {
+              "type": "integer",
+              "description": "Optionally specify the number of results to return. Acceptable values range from 1 to 5000. Use this parameter together with 'start' to control the pagination size.",
+              "default": 5000,
+              "minimum": 1,
+              "maximum": 5000
+            },
+            "sort": {
+              "type": "string",
+              "description": "Determines the field by which to sort the list of cryptocurrencies. Acceptable values are 'id' or 'cmc_rank'. Default is 'id'.",
+              "default": "id",
+              "enum": [
+                "id",
+                "cmc_rank"
+              ]
+            },
+            "symbol": {
+              "type": "string",
+              "description": "Optionally pass a comma-separated list of cryptocurrency symbols to specifically return CoinMarketCap IDs for. If this option is provided, all other query parameters (listing_status, start, limit, sort, aux) will be ignored."
+            },
+            "aux": {
+              "type": "string",
+              "description": "Optionally specify a comma-separated list of supplemental data fields to return with each cryptocurrency. By default, the response includes 'platform,first_historical_data,last_historical_data,is_active'. To include all available auxiliary fields, you can pass: 'platform,first_historical_data,last_historical_data,is_active,status'.",
+              "default": "platform,first_historical_data,last_historical_data,is_active"
+            }
+          },
+          "required": [],
+          "visible": [
+            "listing_status",
+            "start",
+            "limit",
+            "sort",
+            "symbol",
+            "aux"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "query"
+      ],
+      "visible": [
+        "query"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "COINMARKETCAP__CRYPTOCURRENCY_METADATA_V2",
+    "description": "Returns all static metadata available for one or more cryptocurrencies. This endpoint provides detailed information such as the cryptocurrency logo, description, official website URL, social links, and links to technical documentation. Identification can be performed using one or more of the following: CoinMarketCap IDs, slugs, symbols, or a contract address. At least one identifier (id, slug, symbol, or address) is required. Note that when requesting by symbol (which is not unique), the response will include an array of objects for each symbol. The skip_invalid flag allows the request to bypass validation errors for invalid cryptocurrencies, and the aux parameter can be used to limit or expand the supplemental data fields returned. This endpoint is available on Basic, Startup, Hobbyist, Standard, Professional, and Enterprise plans. Static data is updated as needed (approximately every 30 seconds), and plan credit use is 1 call credit per 100 cryptocurrencies returned (rounded up).",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "GET",
+      "endpoint": "https://pro-api.coinmarketcap.com/v2/cryptocurrency/info"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "query": {
+          "type": "object",
+          "description": "Query parameters for retrieving static metadata for one or more cryptocurrencies. At least one identifier is required to specify which cryptocurrencies to retrieve. Use the 'id' for unique CoinMarketCap IDs, 'slug' for URL-friendly names, 'symbol' for ticker symbols (note: this may return multiple entries per symbol), or 'address' for a contract address. The skip_invalid flag relaxes validation errors for invalid identifiers, and the aux parameter controls which supplemental fields are included in the response.",
+          "properties": {
+            "id": {
+              "type": "string",
+              "description": "One or more comma-separated CoinMarketCap cryptocurrency IDs. Example: '1,2'. These IDs uniquely identify cryptocurrencies in the CoinMarketCap database."
+            },
+            "slug": {
+              "type": "string",
+              "description": "A comma-separated list of cryptocurrency slugs. Slugs are web-friendly versions of cryptocurrency names. Example: 'bitcoin,ethereum'."
+            },
+            "symbol": {
+              "type": "string",
+              "description": "One or more comma-separated cryptocurrency symbols (ticker symbols). Example: 'BTC,ETH'. When requested by symbol, the response will include an array of objects since symbols are not unique."
+            },
+            "address": {
+              "type": "string",
+              "description": "A contract address for a cryptocurrency token. Example: '0xc40af1e4fecfa05ce6bab79dcd8b373d2e436c4e'. Use this parameter when you want to retrieve metadata for a token deployed on a specific blockchain."
+            },
+            "skip_invalid": {
+              "type": "boolean",
+              "description": "Set to true to relax request validation rules. When true, invalid cryptocurrency identifiers will be skipped rather than causing an error, allowing valid records to be returned. Default is false.",
+              "default": false
+            },
+            "aux": {
+              "type": "string",
+              "description": "A comma-separated list of supplemental data fields to include in the response. The default is 'urls,logo,description,tags,platform,date_added,notice'. To include all auxiliary fields, you can pass 'urls,logo,description,tags,platform,date_added,notice,status'.",
+              "default": "urls,logo,description,tags,platform,date_added,notice"
+            }
+          },
+          "required": [],
+          "visible": [
+            "id",
+            "slug",
+            "symbol",
+            "address",
+            "skip_invalid",
+            "aux"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "query"
+      ],
+      "visible": [
+        "query"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "COINMARKETCAP__CRYPTOCURRENCY_LISTINGS_HISTORICAL",
+    "description": "CoinMarketCap Cryptocurrency Listings Historical API returns a ranked and sorted list of all cryptocurrencies for a historical UTC date. Daily snapshots reflect market data at the end of each UTC day.",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "GET",
+      "endpoint": "https://pro-api.coinmarketcap.com/v1/cryptocurrency/listings/historical"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "query": {
+          "type": "object",
+          "description": "Query parameters for retrieving historical cryptocurrency listings.",
+          "properties": {
+            "date": {
+              "type": "string",
+              "description": "Date (Unix timestamp or ISO 8601) to reference day of snapshot. Recommended format: 'YYYY-MM-DD'."
+            },
+            "start": {
+              "type": "integer",
+              "description": "Optionally offset the start (1-based index) of the paginated list of items to return.",
+              "default": 1,
+              "minimum": 1
+            },
+            "limit": {
+              "type": "integer",
+              "description": "Optionally specify the number of results to return. Range: 1 to 5000.",
+              "default": 100,
+              "minimum": 1,
+              "maximum": 5000
+            },
+            "convert": {
+              "type": "string",
+              "description": "Optionally calculate market quotes in up to 120 currencies by passing a comma-separated list of currency symbols."
+            },
+            "convert_id": {
+              "type": "string",
+              "description": "Optionally calculate market quotes by CoinMarketCap ID instead of symbol."
+            },
+            "sort": {
+              "type": "string",
+              "description": "Field to sort the list of cryptocurrencies by.",
+              "enum": [
+                "cmc_rank",
+                "name",
+                "symbol",
+                "market_cap",
+                "price",
+                "circulating_supply",
+                "total_supply",
+                "max_supply",
+                "num_market_pairs",
+                "volume_24h",
+                "percent_change_1h",
+                "percent_change_24h",
+                "percent_change_7d"
+              ],
+              "default": "cmc_rank"
+            },
+            "sort_dir": {
+              "type": "string",
+              "description": "The direction in which to order cryptocurrencies against the specified sort.",
+              "enum": [
+                "asc",
+                "desc"
+              ],
+              "default": "asc"
+            },
+            "cryptocurrency_type": {
+              "type": "string",
+              "description": "The type of cryptocurrency to include.",
+              "enum": [
+                "all",
+                "coins",
+                "tokens"
+              ],
+              "default": "all"
+            },
+            "aux": {
+              "type": "string",
+              "description": "Optionally specify a comma-separated list of supplemental data fields to return.",
+              "default": "platform,tags,date_added,circulating_supply,total_supply,max_supply,cmc_rank,num_market_pairs"
+            }
+          },
+          "required": [
+            "date"
+          ],
+          "visible": [
+            "date",
+            "start",
+            "limit",
+            "convert",
+            "convert_id",
+            "sort",
+            "sort_dir",
+            "cryptocurrency_type",
+            "aux"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "query"
+      ],
+      "visible": [
+        "query"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "COINMARKETCAP__CRYPTOCURRENCY_LISTINGS_LATEST",
+    "description": "CoinMarketCap Listings Latest API returns a paginated list of all active cryptocurrencies with the latest market data. The default sort by 'market_cap' returns cryptocurrencies in order of CoinMarketCap's market cap rank, but you may configure sorting by other market ranking fields. Use the 'convert' option to return market values in multiple fiat and cryptocurrency conversions in the same call.",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "GET",
+      "endpoint": "https://pro-api.coinmarketcap.com/v1/cryptocurrency/listings/latest"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "query": {
+          "type": "object",
+          "description": "Query parameters for retrieving the latest cryptocurrency listings with market data.",
+          "properties": {
+            "start": {
+              "type": "integer",
+              "description": "Optionally offset the start (1-based index) of the paginated list of items to return.",
+              "default": 1,
+              "minimum": 1
+            },
+            "limit": {
+              "type": "integer",
+              "description": "Optionally specify the number of results to return. Range: 1 to 5000.",
+              "default": 100,
+              "minimum": 1,
+              "maximum": 5000
+            },
+            "price_min": {
+              "type": "number",
+              "description": "Optionally specify a threshold of minimum USD price to filter results by."
+            },
+            "price_max": {
+              "type": "number",
+              "description": "Optionally specify a threshold of maximum USD price to filter results by."
+            },
+            "market_cap_min": {
+              "type": "number",
+              "description": "Optionally specify a threshold of minimum market cap to filter results by."
+            },
+            "market_cap_max": {
+              "type": "number",
+              "description": "Optionally specify a threshold of maximum market cap to filter results by."
+            },
+            "volume_24h_min": {
+              "type": "number",
+              "description": "Optionally specify a threshold of minimum 24 hour USD volume to filter results by."
+            },
+            "volume_24h_max": {
+              "type": "number",
+              "description": "Optionally specify a threshold of maximum 24 hour USD volume to filter results by."
+            },
+            "circulating_supply_min": {
+              "type": "number",
+              "description": "Optionally specify a threshold of minimum circulating supply to filter results by."
+            },
+            "circulating_supply_max": {
+              "type": "number",
+              "description": "Optionally specify a threshold of maximum circulating supply to filter results by."
+            },
+            "percent_change_24h_min": {
+              "type": "number",
+              "description": "Optionally specify a threshold of minimum 24 hour percent change to filter results by.",
+              "minimum": -100
+            },
+            "percent_change_24h_max": {
+              "type": "number",
+              "description": "Optionally specify a threshold of maximum 24 hour percent change to filter results by.",
+              "minimum": -100
+            },
+            "self_reported_circulating_supply_min": {
+              "type": "number",
+              "description": "Optionally specify a threshold of minimum self reported circulating supply to filter results by."
+            },
+            "self_reported_circulating_supply_max": {
+              "type": "number",
+              "description": "Optionally specify a threshold of maximum self reported circulating supply to filter results by."
+            },
+            "self_reported_market_cap_min": {
+              "type": "number",
+              "description": "Optionally specify a threshold of minimum self reported market cap to filter results by."
+            },
+            "self_reported_market_cap_max": {
+              "type": "number",
+              "description": "Optionally specify a threshold of maximum self reported market cap to filter results by."
+            },
+            "unlocked_market_cap_min": {
+              "type": "number",
+              "description": "Optionally specify a threshold of minimum unlocked market cap to filter results by."
+            },
+            "unlocked_market_cap_max": {
+              "type": "number",
+              "description": "Optionally specify a threshold of maximum unlocked market cap to filter results by."
+            },
+            "unlocked_circulating_supply_min": {
+              "type": "number",
+              "description": "Optionally specify a threshold of minimum unlocked circulating supply to filter results by."
+            },
+            "unlocked_circulating_supply_max": {
+              "type": "number",
+              "description": "Optionally specify a threshold of maximum unlocked circulating supply to filter results by."
+            },
+            "convert": {
+              "type": "string",
+              "description": "Optionally calculate market quotes in up to 120 currencies at once by passing a comma-separated list of cryptocurrency or fiat currency symbols. Basic tier users are limited to 1 convert options."
+            },
+            "convert_id": {
+              "type": "string",
+              "description": "Optionally calculate market quotes by CoinMarketCap ID instead of symbol. This parameter cannot be used when convert is used. Basic tier users are limited to 1 convert options."
+            },
+            "sort": {
+              "type": "string",
+              "description": "What field to sort the list of cryptocurrencies by.",
+              "enum": [
+                "market_cap",
+                "name",
+                "symbol",
+                "date_added",
+                "market_cap_strict",
+                "price",
+                "circulating_supply",
+                "total_supply",
+                "max_supply",
+                "num_market_pairs",
+                "volume_24h",
+                "percent_change_1h",
+                "percent_change_24h",
+                "percent_change_7d",
+                "market_cap_by_total_supply_strict",
+                "volume_7d",
+                "volume_30d"
+              ],
+              "default": "market_cap"
+            },
+            "sort_dir": {
+              "type": "string",
+              "description": "The direction in which to order cryptocurrencies against the specified sort.",
+              "enum": [
+                "asc",
+                "desc"
+              ]
+            },
+            "cryptocurrency_type": {
+              "type": "string",
+              "description": "The type of cryptocurrency to include.",
+              "enum": [
+                "all",
+                "coins",
+                "tokens"
+              ],
+              "default": "all"
+            },
+            "tag": {
+              "type": "string",
+              "description": "The tag of cryptocurrency to include.",
+              "enum": [
+                "all",
+                "defi",
+                "filesharing"
+              ],
+              "default": "all"
+            },
+            "aux": {
+              "type": "string",
+              "description": "Optionally specify a comma-separated list of supplemental data fields to return.",
+              "default": "num_market_pairs,cmc_rank,date_added,tags,platform,max_supply,circulating_supply,total_supply"
+            }
+          },
+          "required": [],
+          "visible": [
+            "start",
+            "limit",
+            "price_min",
+            "price_max",
+            "market_cap_min",
+            "market_cap_max",
+            "volume_24h_min",
+            "volume_24h_max",
+            "circulating_supply_min",
+            "circulating_supply_max",
+            "percent_change_24h_min",
+            "percent_change_24h_max",
+            "self_reported_circulating_supply_min",
+            "self_reported_circulating_supply_max",
+            "self_reported_market_cap_min",
+            "self_reported_market_cap_max",
+            "unlocked_market_cap_min",
+            "unlocked_market_cap_max",
+            "unlocked_circulating_supply_min",
+            "unlocked_circulating_supply_max",
+            "convert",
+            "convert_id",
+            "sort",
+            "sort_dir",
+            "cryptocurrency_type",
+            "tag",
+            "aux"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "query"
+      ],
+      "visible": [
+        "query"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "COINMARKETCAP__CRYPTOCURRENCY_LISTINGS_NEW",
+    "description": "CoinMarketCap Cryptocurrency Listings New API returns a paginated list of the most recently added cryptocurrencies.",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "GET",
+      "endpoint": "https://pro-api.coinmarketcap.com/v1/cryptocurrency/listings/new"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "query": {
+          "type": "object",
+          "description": "Query parameters for retrieving recently added cryptocurrencies.",
+          "properties": {
+            "start": {
+              "type": "integer",
+              "description": "Optionally offset the start (1-based index) of the paginated list of items to return.",
+              "default": 1,
+              "minimum": 1
+            },
+            "limit": {
+              "type": "integer",
+              "description": "Optionally specify the number of results to return. Range: 1 to 5000.",
+              "default": 100,
+              "minimum": 1,
+              "maximum": 5000
+            },
+            "convert": {
+              "type": "string",
+              "description": "Optionally calculate market quotes in up to 120 currencies at once by passing a comma-separated list of cryptocurrency or fiat currency symbols."
+            },
+            "convert_id": {
+              "type": "string",
+              "description": "Optionally calculate market quotes by CoinMarketCap ID instead of symbol."
+            },
+            "sort_dir": {
+              "type": "string",
+              "description": "The direction in which to order cryptocurrencies against the specified sort.",
+              "enum": [
+                "asc",
+                "desc"
+              ],
+              "default": "asc"
+            }
+          },
+          "required": [],
+          "visible": [
+            "start",
+            "limit",
+            "convert",
+            "convert_id",
+            "sort_dir"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "query"
+      ],
+      "visible": [
+        "query"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "COINMARKETCAP__CRYPTOCURRENCY_TRENDING_GAINERS_LOSERS",
+    "description": "CoinMarketCap Cryptocurrency Trending Gainers & Losers API returns a paginated list of trending cryptocurrencies sorted by the largest price gains or losses.",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "GET",
+      "endpoint": "https://pro-api.coinmarketcap.com/v1/cryptocurrency/trending/gainers-losers"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "query": {
+          "type": "object",
+          "description": "Query parameters for retrieving trending gainers & losers cryptocurrencies.",
+          "properties": {
+            "start": {
+              "type": "integer",
+              "description": "Optionally offset the start (1-based index) of the paginated list of items to return.",
+              "default": 1,
+              "minimum": 1
+            },
+            "limit": {
+              "type": "integer",
+              "description": "Optionally specify the number of results to return. Range: 1 to 1000.",
+              "default": 100,
+              "minimum": 1,
+              "maximum": 1000
+            },
+            "time_period": {
+              "type": "string",
+              "description": "Adjusts the overall window of time for the biggest gainers and losers.",
+              "enum": [
+                "1h",
+                "24h",
+                "7d",
+                "30d"
+              ],
+              "default": "24h"
+            },
+            "convert": {
+              "type": "string",
+              "description": "Optionally calculate market quotes in up to 120 currencies at once by passing a comma-separated list of cryptocurrency or fiat currency symbols."
+            },
+            "convert_id": {
+              "type": "string",
+              "description": "Optionally calculate market quotes by CoinMarketCap ID instead of symbol."
+            },
+            "sort": {
+              "type": "string",
+              "description": "What field to sort the list of cryptocurrencies by.",
+              "enum": [
+                "percent_change_24h"
+              ],
+              "default": "percent_change_24h"
+            },
+            "sort_dir": {
+              "type": "string",
+              "description": "The direction in which to order cryptocurrencies against the specified sort.",
+              "enum": [
+                "asc",
+                "desc"
+              ],
+              "default": "asc"
+            }
+          },
+          "required": [],
+          "visible": [
+            "start",
+            "limit",
+            "time_period",
+            "convert",
+            "convert_id",
+            "sort",
+            "sort_dir"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "query"
+      ],
+      "visible": [
+        "query"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "COINMARKETCAP__CRYPTOCURRENCY_TRENDING_LATEST",
+    "description": "CoinMarketCap Cryptocurrency Trending Latest API returns a paginated list of all trending cryptocurrency market data, determined and sorted by CoinMarketCap search volume.",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "GET",
+      "endpoint": "https://pro-api.coinmarketcap.com/v1/cryptocurrency/trending/latest"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "query": {
+          "type": "object",
+          "description": "Query parameters for retrieving trending cryptocurrency market data sorted by search volume.",
+          "properties": {
+            "start": {
+              "type": "integer",
+              "description": "Optionally offset the start (1-based index) of the paginated list of items to return.",
+              "default": 1,
+              "minimum": 1
+            },
+            "limit": {
+              "type": "integer",
+              "description": "Optionally specify the number of results to return. Range: 1 to 1000.",
+              "default": 100,
+              "minimum": 1,
+              "maximum": 1000
+            },
+            "time_period": {
+              "type": "string",
+              "description": "Adjusts the overall window of time for the latest trending coins.",
+              "enum": [
+                "24h",
+                "30d",
+                "7d"
+              ],
+              "default": "24h"
+            },
+            "convert": {
+              "type": "string",
+              "description": "Optionally calculate market quotes in up to 120 currencies by passing a comma-separated list of cryptocurrency or fiat currency symbols."
+            },
+            "convert_id": {
+              "type": "string",
+              "description": "Optionally calculate market quotes by CoinMarketCap ID instead of symbol."
+            }
+          },
+          "required": [],
+          "visible": [
+            "start",
+            "limit",
+            "time_period",
+            "convert",
+            "convert_id"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "query"
+      ],
+      "visible": [
+        "query"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "COINMARKETCAP__CRYPTOCURRENCY_TRENDING_MOST_VISITED",
+    "description": "CoinMarketCap Cryptocurrency Trending Most Visited API returns a paginated list of all trending cryptocurrency market data, determined and sorted by traffic to coin detail pages.",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "GET",
+      "endpoint": "https://pro-api.coinmarketcap.com/v1/cryptocurrency/trending/most-visited"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "query": {
+          "type": "object",
+          "description": "Query parameters for retrieving the most visited trending cryptocurrencies.",
+          "properties": {
+            "start": {
+              "type": "integer",
+              "description": "Optionally offset the start (1-based index) of the paginated list of items to return.",
+              "default": 1,
+              "minimum": 1
+            },
+            "limit": {
+              "type": "integer",
+              "description": "Optionally specify the number of results to return. Range: 1 to 1000.",
+              "default": 100,
+              "minimum": 1,
+              "maximum": 1000
+            },
+            "time_period": {
+              "type": "string",
+              "description": "Adjusts the overall window of time for most visited currencies.",
+              "enum": [
+                "24h",
+                "30d",
+                "7d"
+              ],
+              "default": "24h"
+            },
+            "convert": {
+              "type": "string",
+              "description": "Optionally calculate market quotes in up to 120 currencies by passing a comma-separated list of cryptocurrency or fiat currency symbols."
+            },
+            "convert_id": {
+              "type": "string",
+              "description": "Optionally calculate market quotes by CoinMarketCap ID instead of symbol."
+            }
+          },
+          "required": [],
+          "visible": [
+            "start",
+            "limit",
+            "time_period",
+            "convert",
+            "convert_id"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "query"
+      ],
+      "visible": [
+        "query"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "COINMARKETCAP__CRYPTOCURRENCY_MARKET_PAIRS_LATEST",
+    "description": "CoinMarketCap Market Pairs Latest v2 API lists all active market pairs that CoinMarketCap tracks for a given cryptocurrency or fiat currency. It returns the latest price and volume information for each market pair.",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "GET",
+      "endpoint": "https://pro-api.coinmarketcap.com/v2/cryptocurrency/market-pairs/latest"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "query": {
+          "type": "object",
+          "description": "Query parameters for retrieving the latest market pairs.",
+          "properties": {
+            "id": {
+              "type": "string",
+              "description": "A cryptocurrency or fiat currency by CoinMarketCap ID to list market pairs for. Example: \"1\"."
+            },
+            "slug": {
+              "type": "string",
+              "description": "Alternatively pass a cryptocurrency by slug. Example: \"bitcoin\"."
+            },
+            "symbol": {
+              "type": "string",
+              "description": "Alternatively pass a cryptocurrency by symbol. Fiat currencies are not supported by this field. Example: \"BTC\"."
+            },
+            "start": {
+              "type": "integer",
+              "description": "Optionally offset the start (1-based index) of the paginated list of items to return.",
+              "default": 1,
+              "minimum": 1
+            },
+            "limit": {
+              "type": "integer",
+              "description": "Optionally specify the number of results to return. Range: 1 to 5000.",
+              "default": 100,
+              "minimum": 1,
+              "maximum": 5000
+            },
+            "sort_dir": {
+              "type": "string",
+              "description": "Optionally specify the sort direction of markets returned.",
+              "enum": [
+                "asc",
+                "desc"
+              ],
+              "default": "desc"
+            },
+            "sort": {
+              "type": "string",
+              "description": "Optionally specify the sort order of markets returned. By default a strict sort on 24-hour reported volume is applied.",
+              "enum": [
+                "volume_24h_strict",
+                "cmc_rank",
+                "cmc_rank_advanced",
+                "effective_liquidity",
+                "market_score",
+                "market_reputation"
+              ],
+              "default": "volume_24h_strict"
+            },
+            "aux": {
+              "type": "string",
+              "description": "Optionally specify a comma-separated list of supplemental data fields to return. For minimal auxiliary fields, use \"num_market_pairs,category,fee_type\".",
+              "default": "num_market_pairs,category,fee_type"
+            },
+            "matched_id": {
+              "type": "string",
+              "description": "Optionally include one or more fiat or cryptocurrency IDs to filter market pairs by. For example, ?id=1&matched_id=2781 would only return BTC markets that matched: \"BTC/USD\" or \"USD/BTC\". This parameter cannot be used when matched_symbol is used."
+            },
+            "matched_symbol": {
+              "type": "string",
+              "description": "Optionally include one or more fiat or cryptocurrency symbols to filter market pairs by. For example, ?symbol=BTC&matched_symbol=USD would only return BTC markets that matched: \"BTC/USD\" or \"USD/BTC\". This parameter cannot be used when matched_id is used."
+            },
+            "category": {
+              "type": "string",
+              "description": "The category of trading this market falls under.",
+              "enum": [
+                "all",
+                "spot",
+                "derivatives",
+                "otc",
+                "perpetual"
+              ],
+              "default": "all"
+            },
+            "fee_type": {
+              "type": "string",
+              "description": "The fee type the exchange enforces for this market.",
+              "enum": [
+                "all",
+                "percentage",
+                "no-fees",
+                "transactional-mining",
+                "unknown"
+              ],
+              "default": "all"
+            },
+            "convert": {
+              "type": "string",
+              "description": "Optionally calculate market quotes in up to 120 currencies at once by passing a comma-separated list of cryptocurrency or fiat currency symbols."
+            },
+            "convert_id": {
+              "type": "string",
+              "description": "Optionally calculate market quotes by CoinMarketCap ID instead of symbol."
+            }
+          },
+          "required": [],
+          "visible": [
+            "id",
+            "slug",
+            "symbol",
+            "start",
+            "limit",
+            "sort_dir",
+            "sort",
+            "aux",
+            "matched_id",
+            "matched_symbol",
+            "category",
+            "fee_type",
+            "convert",
+            "convert_id"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "query"
+      ],
+      "visible": [
+        "query"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "COINMARKETCAP__CRYPTOCURRENCY_OHLCV_HISTORICAL_V2",
+    "description": "CoinMarketCap OHLCV Historical v2 API returns historical OHLCV data along with market cap for one or more cryptocurrencies using time interval parameters. It supports daily and hourly periods along with flexible interval sampling.",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "GET",
+      "endpoint": "https://pro-api.coinmarketcap.com/v2/cryptocurrency/ohlcv/historical"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "query": {
+          "type": "object",
+          "description": "Query parameters for retrieving historical OHLCV data.",
+          "properties": {
+            "id": {
+              "type": "string",
+              "description": "One or more comma-separated CoinMarketCap cryptocurrency IDs. Example: \"1,1027\"."
+            },
+            "slug": {
+              "type": "string",
+              "description": "Alternatively, a comma-separated list of cryptocurrency slugs. Example: \"bitcoin,ethereum\"."
+            },
+            "symbol": {
+              "type": "string",
+              "description": "Alternatively, one or more comma-separated cryptocurrency symbols. Example: \"BTC,ETH\". At least one of 'id', 'slug', or 'symbol' is required."
+            },
+            "time_period": {
+              "type": "string",
+              "description": "Time period to return OHLCV data for. The default is \"daily\". If hourly, the open will be 01:00 and the close 01:59.",
+              "enum": [
+                "daily",
+                "hourly"
+              ],
+              "default": "daily"
+            },
+            "time_start": {
+              "type": "string",
+              "description": "Timestamp (Unix or ISO 8601) to start returning OHLCV time periods for. For daily data, use a date format like \"2018-09-19\" (without time)."
+            },
+            "time_end": {
+              "type": "string",
+              "description": "Timestamp (Unix or ISO 8601) to stop returning OHLCV time periods for (inclusive). Optional; defaults to current time if not provided. For daily data, use a date format like \"2018-09-19\" (without time)."
+            },
+            "count": {
+              "type": "number",
+              "description": "Limit the number of time periods to return. The default is 10 items. Query limit is between 1 and 10000.",
+              "default": 10,
+              "minimum": 1,
+              "maximum": 10000
+            },
+            "interval": {
+              "type": "string",
+              "description": "Adjust the frequency that 'time_period' is sampled. Supported values include calendar intervals (\"daily\", \"hourly\", \"weekly\", \"monthly\", \"yearly\") and relative intervals (e.g., \"1h\", \"2h\", \"1d\", \"7d\", \"30d\", etc.)."
+            },
+            "convert": {
+              "type": "string",
+              "description": "Optionally calculate market quotes in up to 3 additional fiat or cryptocurrency currencies (comma-separated). Default market quotes are in USD."
+            },
+            "convert_id": {
+              "type": "string",
+              "description": "Optionally calculate market quotes by CoinMarketCap ID instead of symbol. Cannot be used when 'convert' is provided."
+            },
+            "skip_invalid": {
+              "type": "boolean",
+              "description": "Pass true to relax validation rules. When requesting multiple cryptocurrencies, invalid lookups will be skipped. Defaults to true.",
+              "default": true
+            }
+          },
+          "required": [],
+          "visible": [
+            "id",
+            "slug",
+            "symbol",
+            "time_period",
+            "time_start",
+            "time_end",
+            "count",
+            "interval",
+            "convert",
+            "convert_id",
+            "skip_invalid"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "query"
+      ],
+      "visible": [
+        "query"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "COINMARKETCAP__CRYPTOCURRENCY_OHLCV_LATEST_V2",
+    "description": "CoinMarketCap OHLCV Latest v2 API returns the latest OHLCV (Open, High, Low, Close, Volume) market values for one or more cryptocurrencies for the current UTC day. Since the current day is active, these values are updated frequently. For finalized OHLCV data for the previous UTC day and historical values, use the /cryptocurrency/ohlcv/historical endpoint.",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "GET",
+      "endpoint": "https://pro-api.coinmarketcap.com/v2/cryptocurrency/ohlcv/latest"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "query": {
+          "type": "object",
+          "description": "Query parameters for retrieving the latest OHLCV data. At least one of 'id' or 'symbol' is required.",
+          "properties": {
+            "id": {
+              "type": "string",
+              "description": "One or more comma-separated cryptocurrency CoinMarketCap IDs. Example: \"1,2\"."
+            },
+            "symbol": {
+              "type": "string",
+              "description": "Alternatively, one or more comma-separated cryptocurrency symbols. Example: \"BTC,ETH\"."
+            },
+            "convert": {
+              "type": "string",
+              "description": "Optionally calculate market quotes in up to 120 currencies by passing a comma-separated list of currency symbols."
+            },
+            "convert_id": {
+              "type": "string",
+              "description": "Optionally calculate market quotes by CoinMarketCap ID instead of symbol. Cannot be used when 'convert' is provided."
+            },
+            "skip_invalid": {
+              "type": "boolean",
+              "description": "Pass true to relax validation rules. When requesting records on multiple cryptocurrencies, invalid lookups will be skipped. Defaults to true.",
+              "default": true
+            }
+          },
+          "required": [],
+          "visible": [
+            "id",
+            "symbol",
+            "convert",
+            "convert_id",
+            "skip_invalid"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "query"
+      ],
+      "visible": [
+        "query"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "COINMARKETCAP__CRYPTOCURRENCY_PRICE_PERFORMANCE_STATS_LATEST_V2",
+    "description": "CoinMarketCap Price Performance Stats v2 API returns price performance statistics for one or more cryptocurrencies, including launch price ROI and all-time high/low values. By default stats are returned for the 'all_time' period, but additional rolling time periods (e.g., yesterday, 24h, 7d, etc.) can be requested.",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "GET",
+      "endpoint": "https://pro-api.coinmarketcap.com/v2/cryptocurrency/price-performance-stats/latest"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "query": {
+          "type": "object",
+          "description": "Query parameters for retrieving price performance statistics.",
+          "properties": {
+            "id": {
+              "type": "string",
+              "description": "One or more comma-separated cryptocurrency CoinMarketCap IDs. Example: \"1,2\"."
+            },
+            "slug": {
+              "type": "string",
+              "description": "Alternatively pass a comma-separated list of cryptocurrency slugs. Example: \"bitcoin,ethereum\"."
+            },
+            "symbol": {
+              "type": "string",
+              "description": "Alternatively pass one or more comma-separated cryptocurrency symbols. Example: \"BTC,ETH\". At least one of 'id', 'slug', or 'symbol' is required."
+            },
+            "time_period": {
+              "type": "string",
+              "description": "Specify one or more comma-delimited time periods to return stats for. Default is \"all_time\". For example: \"all_time,yesterday,24h,7d,30d,90d,365d\"."
+            },
+            "convert": {
+              "type": "string",
+              "description": "Optionally calculate quotes in up to 120 currencies at once by passing a comma-separated list of cryptocurrency or fiat currency symbols. Each additional convert option beyond the first requires an extra call credit."
+            },
+            "convert_id": {
+              "type": "string",
+              "description": "Optionally calculate quotes by CoinMarketCap ID instead of symbol. Cannot be used when 'convert' is provided."
+            },
+            "skip_invalid": {
+              "type": "boolean",
+              "description": "Pass true to relax request validation rules. If set to true, invalid lookups will be skipped allowing valid cryptocurrencies to still be returned.",
+              "default": true
+            }
+          },
+          "required": [],
+          "visible": [
+            "id",
+            "slug",
+            "symbol",
+            "time_period",
+            "convert",
+            "convert_id",
+            "skip_invalid"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "query"
+      ],
+      "visible": [
+        "query"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "COINMARKETCAP__CRYPTOCURRENCY_QUOTES_HISTORICAL_V2",
+    "description": "CoinMarketCap Quotes Historical v2 API returns an interval of historic market quotes for one or more cryptocurrencies based on provided time and interval parameters. A historic quote for every interval period between time_start and time_end will be returned.",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "GET",
+      "endpoint": "https://pro-api.coinmarketcap.com/v2/cryptocurrency/quotes/historical"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "query": {
+          "type": "object",
+          "description": "Query parameters for retrieving historical market quotes.",
+          "properties": {
+            "id": {
+              "type": "string",
+              "description": "One or more comma-separated CoinMarketCap cryptocurrency IDs. Example: \"1,2\"."
+            },
+            "symbol": {
+              "type": "string",
+              "description": "Alternatively, one or more comma-separated cryptocurrency symbols. Example: \"BTC,ETH\". At least one of 'id' or 'symbol' is required."
+            },
+            "time_start": {
+              "type": "string",
+              "description": "Timestamp (Unix or ISO 8601) to start returning quotes for. Optional; if not provided, quotes are returned in reverse order from time_end."
+            },
+            "time_end": {
+              "type": "string",
+              "description": "Timestamp (Unix or ISO 8601) to stop returning quotes for (inclusive). Optional; if not provided, defaults to the current time."
+            },
+            "count": {
+              "type": "number",
+              "description": "The number of interval periods to return results for. Default is 10. Range: 1 to 10000.",
+              "default": 10,
+              "minimum": 1,
+              "maximum": 10000
+            },
+            "interval": {
+              "type": "string",
+              "description": "Interval of time to return data points for. Supported values include calendar intervals (e.g., \"daily\", \"hourly\", \"weekly\", \"monthly\", \"yearly\") and relative intervals (e.g., \"5m\", \"10m\", \"15m\", \"30m\", \"45m\", \"1h\", \"2h\", \"3h\", \"4h\", \"6h\", \"12h\", \"24h\", \"1d\", \"2d\", \"3d\", \"7d\", \"14d\", \"15d\", \"30d\", \"60d\", \"90d\", \"365d\")."
+            },
+            "convert": {
+              "type": "string",
+              "description": "Optionally calculate market quotes in up to 3 additional fiat currencies or cryptocurrencies by passing a comma-separated list of symbols. Defaults to USD if not provided."
+            },
+            "convert_id": {
+              "type": "string",
+              "description": "Optionally calculate market quotes by CoinMarketCap ID instead of symbol. Cannot be used when 'convert' is provided."
+            },
+            "aux": {
+              "type": "string",
+              "description": "Optionally specify a comma-separated list of supplemental data fields to return. Default: \"price,volume,market_cap,circulating_supply,total_supply,quote_timestamp,is_active,is_fiat\".",
+              "default": "price,volume,market_cap,circulating_supply,total_supply,quote_timestamp,is_active,is_fiat"
+            },
+            "skip_invalid": {
+              "type": "boolean",
+              "description": "Pass true to relax request validation rules. Defaults to true.",
+              "default": true
+            }
+          },
+          "required": [],
+          "visible": [
+            "id",
+            "symbol",
+            "time_start",
+            "time_end",
+            "count",
+            "interval",
+            "convert",
+            "convert_id",
+            "aux",
+            "skip_invalid"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "query"
+      ],
+      "visible": [
+        "query"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "COINMARKETCAP__CRYPTOCURRENCY_QUOTES_LATEST_V2",
+    "description": "CoinMarketCap Quotes Latest v2 API returns the latest market quote for one or more cryptocurrencies. Use the 'convert' option to return market values in multiple fiat and cryptocurrency conversions in the same call.",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "GET",
+      "endpoint": "https://pro-api.coinmarketcap.com/v2/cryptocurrency/quotes/latest"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "query": {
+          "type": "object",
+          "description": "Query parameters for retrieving the latest market quotes.",
+          "properties": {
+            "id": {
+              "type": "string",
+              "description": "One or more comma-separated cryptocurrency CoinMarketCap IDs. Example: \"1,2\"."
+            },
+            "slug": {
+              "type": "string",
+              "description": "Alternatively pass a comma-separated list of cryptocurrency slugs. Example: \"bitcoin,ethereum\"."
+            },
+            "symbol": {
+              "type": "string",
+              "description": "Alternatively pass one or more comma-separated cryptocurrency symbols. Example: \"BTC,ETH\". At least one of 'id', 'slug', or 'symbol' is required."
+            },
+            "convert": {
+              "type": "string",
+              "description": "Optionally calculate market quotes in up to 120 currencies at once by passing a comma-separated list of cryptocurrency or fiat currency symbols. Each additional convert option beyond the first requires an additional call credit. Basic tier users are limited to 1 convert options."
+            },
+            "convert_id": {
+              "type": "string",
+              "description": "Optionally calculate market quotes by CoinMarketCap ID instead of symbol. Ex: \"convert_id=1,2781\" would replace \"convert=BTC,USD\" in your query. This parameter cannot be used when convert is used. Basic tier users are limited to 1 convert options."
+            },
+            "aux": {
+              "type": "string",
+              "description": "Optionally specify a comma-separated list of supplemental data fields to return. Default: \"num_market_pairs,cmc_rank,date_added,tags,platform,max_supply,circulating_supply,total_supply,is_active,is_fiat\". Additional auxiliary fields can also be requested."
+            },
+            "skip_invalid": {
+              "type": "boolean",
+              "description": "Pass true to relax request validation rules. When requesting records on multiple cryptocurrencies, invalid lookups will be skipped allowing valid cryptocurrencies to still be returned.",
+              "default": true
+            }
+          },
+          "required": [],
+          "visible": [
+            "id",
+            "slug",
+            "symbol",
+            "convert",
+            "convert_id",
+            "aux",
+            "skip_invalid"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "query"
+      ],
+      "visible": [
+        "query"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "COINMARKETCAP__CRYPTOCURRENCY_QUOTES_HISTORICAL_V3",
+    "description": "CoinMarketCap Quotes Historical v3 API returns an interval of historic market quotes for one or more cryptocurrencies based on provided time and interval parameters. A historic quote for every interval period between time_start and time_end will be returned.",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "GET",
+      "endpoint": "https://pro-api.coinmarketcap.com/v3/cryptocurrency/quotes/historical"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "query": {
+          "type": "object",
+          "description": "Query parameters for retrieving historical market quotes (v3).",
+          "properties": {
+            "id": {
+              "type": "string",
+              "description": "One or more comma-separated CoinMarketCap cryptocurrency IDs. Example: \"1,2\"."
+            },
+            "symbol": {
+              "type": "string",
+              "description": "Alternatively, one or more comma-separated cryptocurrency symbols. Example: \"BTC,ETH\". At least one of 'id' or 'symbol' is required."
+            },
+            "time_start": {
+              "type": "string",
+              "description": "Timestamp (Unix or ISO 8601) to start returning quotes for. Optional; if not provided, quotes are returned in reverse order from time_end."
+            },
+            "time_end": {
+              "type": "string",
+              "description": "Timestamp (Unix or ISO 8601) to stop returning quotes for (inclusive). Optional; if not provided, defaults to the current time."
+            },
+            "count": {
+              "type": "number",
+              "description": "The number of interval periods to return results for. Default is 10. Range: 1 to 10000.",
+              "default": 10,
+              "minimum": 1,
+              "maximum": 10000
+            },
+            "interval": {
+              "type": "string",
+              "description": "Interval of time to return data points for. Supported values include calendar intervals (e.g., \"daily\", \"hourly\", \"weekly\", \"monthly\", \"yearly\") and relative intervals (e.g., \"5m\", \"10m\", \"15m\", \"30m\", \"45m\", \"1h\", \"2h\", \"3h\", \"4h\", \"6h\", \"12h\", \"24h\", \"1d\", \"2d\", \"3d\", \"7d\", \"14d\", \"15d\", \"30d\", \"60d\", \"90d\", \"365d\")."
+            },
+            "convert": {
+              "type": "string",
+              "description": "By default market quotes are returned in USD. Optionally calculate market quotes in up to 3 other fiat currencies or cryptocurrencies by passing a comma-separated list of symbols."
+            },
+            "convert_id": {
+              "type": "string",
+              "description": "Optionally calculate market quotes by CoinMarketCap ID instead of symbol. This option cannot be used when 'convert' is provided."
+            },
+            "aux": {
+              "type": "string",
+              "description": "Optionally specify a comma-separated list of supplemental data fields to return. Default: \"price,volume,market_cap,circulating_supply,total_supply,quote_timestamp,is_active,is_fiat\".",
+              "default": "price,volume,market_cap,circulating_supply,total_supply,quote_timestamp,is_active,is_fiat"
+            },
+            "skip_invalid": {
+              "type": "boolean",
+              "description": "Pass true to relax request validation rules. When requesting records on multiple cryptocurrencies, invalid lookups will be skipped. Defaults to true.",
+              "default": true
+            }
+          },
+          "required": [],
+          "visible": [
+            "id",
+            "symbol",
+            "time_start",
+            "time_end",
+            "count",
+            "interval",
+            "convert",
+            "convert_id",
+            "aux",
+            "skip_invalid"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "query"
+      ],
+      "visible": [
+        "query"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "COINMARKETCAP__DEX_METADATA",
+    "description": "Returns all static metadata for one or more decentralized exchanges (DEXes) tracked by CoinMarketCap. This endpoint provides details such as the exchange's launch date, logo URL, official website, social links, and market fee documentation URL. You must provide one or more exchange IDs (as a comma-separated string) via the 'id' parameter. Optionally, you can specify additional supplemental data fields using the 'aux' parameter. Valid 'aux' values include: 'urls', 'logo', 'description', 'date_launched', and 'notice'.",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "GET",
+      "endpoint": "https://pro-api.coinmarketcap.com/v4/dex/listings/info"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "query": {
+          "type": "object",
+          "description": "Query parameters for retrieving static metadata for decentralized exchanges. Provide one or more comma-separated CoinMarketCap cryptocurrency exchange IDs using the 'id' parameter. Optionally, specify a comma-separated list of supplemental data fields to return using the 'aux' parameter. Valid values for 'aux' are 'urls', 'logo', 'description', 'date_launched', and 'notice'.",
+          "properties": {
+            "id": {
+              "type": "string",
+              "description": "One or more comma-separated CoinMarketCap cryptocurrency exchange IDs."
+            },
+            "aux": {
+              "type": "string",
+              "description": "Optionally specify a comma-separated list of supplemental data fields to return. Valid values include: 'urls', 'logo', 'description', 'date_launched', and 'notice'. Default is an empty string.",
+              "default": ""
+            }
+          },
+          "required": [
+            "id"
+          ],
+          "visible": [
+            "id",
+            "aux"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "query"
+      ],
+      "visible": [
+        "query"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "COINMARKETCAP__DEX_NETWORKS_LIST",
+    "description": "Returns a list of all networks mapped to unique CoinMarketCap IDs. Per best practices, it is recommended to use the CoinMarketCap ID instead of network symbols for secure identification with other endpoints and within your application logic. Each network returned includes typical identifiers such as name, symbol, and token_address for flexible mapping to an ID.",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "GET",
+      "endpoint": "https://pro-api.coinmarketcap.com/v4/dex/networks/list"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "query": {
+          "type": "object",
+          "description": "Query parameters for retrieving a list of networks with their unique CoinMarketCap IDs. You can optionally offset the start of the paginated list, specify the number of results to return, and sort the list by a specific field. Additionally, you may include a comma-separated list of supplemental data fields using the 'aux' parameter.",
+          "properties": {
+            "start": {
+              "type": "string",
+              "description": "Optionally offset the start (1-based index) of the paginated list of items to return.",
+              "default": "1"
+            },
+            "limit": {
+              "type": "string",
+              "description": "Optionally specify the number of results to return. Use this parameter along with 'start' to control the pagination size.",
+              "default": "100"
+            },
+            "sort": {
+              "type": "string",
+              "description": "Specifies the field by which to sort the list of networks. Valid values are 'id' and 'name'. Default is 'id'.",
+              "default": "id",
+              "enum": [
+                "id",
+                "name"
+              ]
+            },
+            "sort_dir": {
+              "type": "string",
+              "description": "Specifies the direction to order the networks based on the 'sort' field. Valid values are 'desc' and 'asc'. Default is 'desc'.",
+              "default": "desc",
+              "enum": [
+                "desc",
+                "asc"
+              ]
+            },
+            "aux": {
+              "type": "string",
+              "description": "Optionally specify a comma-separated list of supplemental data fields to return. Valid values include: 'alternativeName', 'cryptocurrencyId', 'cryptocurrenySlug', 'wrappedTokenId', 'wrappedTokenSlug', 'tokenExplorerUrl', 'poolExplorerUrl', and 'transactionHashUrl'. Default is an empty string.",
+              "default": ""
+            }
+          },
+          "required": [],
+          "visible": [
+            "start",
+            "limit",
+            "sort",
+            "sort_dir",
+            "aux"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [],
+      "visible": [
+        "query"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "COINMARKETCAP__DEX_LISTINGS_QUOTES",
+    "description": "Returns a paginated list of all decentralized cryptocurrency exchanges along with the latest aggregate market data for each exchange. This endpoint allows you to retrieve market data such as trading volume and market share for DEXes, and you can use the 'convert_id' option to return market values in multiple fiat and cryptocurrency conversions in a single call.",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "GET",
+      "endpoint": "https://pro-api.coinmarketcap.com/v4/dex/listings/quotes"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "query": {
+          "type": "object",
+          "description": "Query parameters for retrieving the latest decentralized exchange listings. These parameters control pagination, sorting, filtering by exchange type, and the inclusion of supplemental data fields. Use 'start' and 'limit' to paginate the results; 'sort' and 'sort_dir' to order the list; 'type' to filter by exchange category; 'aux' to include additional fields (e.g. 'date_launched'); and 'convert_id' to perform market conversions using CoinMarketCap IDs.",
+          "properties": {
+            "start": {
+              "type": "string",
+              "description": "Optionally offset the start (1-based index) of the paginated list of items to return.",
+              "default": "1"
+            },
+            "limit": {
+              "type": "string",
+              "description": "Optionally specify the number of results to return. Use this parameter in combination with 'start' to control pagination size.",
+              "default": "100"
+            },
+            "sort": {
+              "type": "string",
+              "description": "Specifies the field by which to sort the list of exchanges. Valid values are 'name', 'volume_24h', 'market_share', and 'num_markets'. Default is 'volume_24h'.",
+              "default": "volume_24h",
+              "enum": [
+                "name",
+                "volume_24h",
+                "market_share",
+                "num_markets"
+              ]
+            },
+            "sort_dir": {
+              "type": "string",
+              "description": "Specifies the direction in which to order exchanges against the specified sort field. Valid values are 'desc' and 'asc'. Default is 'desc'.",
+              "default": "desc",
+              "enum": [
+                "desc",
+                "asc"
+              ]
+            },
+            "type": {
+              "type": "string",
+              "description": "Specifies the category for the exchange. Valid values are 'all', 'orderbook', 'swap', and 'aggregator'. Default is 'all'.",
+              "default": "all",
+              "enum": [
+                "all",
+                "orderbook",
+                "swap",
+                "aggregator"
+              ]
+            },
+            "aux": {
+              "type": "string",
+              "description": "Optionally specify a comma-separated list of supplemental data fields to return. Valid value is 'date_launched'. Default is an empty string.",
+              "default": ""
+            },
+            "convert_id": {
+              "type": "string",
+              "description": "Optionally calculate market quotes in up to 30 currencies at once by passing a comma-separated list of cryptocurrency or fiat currency IDs. Each additional convert option beyond the first requires an additional call credit. Each conversion is returned in its own 'quote' object."
+            }
+          },
+          "required": [],
+          "visible": [
+            "start",
+            "limit",
+            "sort",
+            "sort_dir",
+            "type",
+            "aux",
+            "convert_id"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "query"
+      ],
+      "visible": [
+        "query"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "COINMARKETCAP__DEX_PAIRS_OHLCV_HISTORICAL",
+    "description": "CoinMarketCap DEX Pairs OHLCV Historical API returns historical OHLCV data along with market cap for any spot pairs using time interval parameters.",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "GET",
+      "endpoint": "https://pro-api.coinmarketcap.com/v4/dex/pairs/ohlcv/historical"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "query": {
+          "type": "object",
+          "description": "Query parameters for retrieving historical OHLCV data for DEX pairs.",
+          "properties": {
+            "contract_address": {
+              "type": "string",
+              "description": "One contract address. Example: \"0x88e6a0c2ddd26feeb64f039a2c41296fcb3f5640\". If network/dex/base asset/quote asset information is passed, contract_address cannot be passed. Note: contract_address is case sensitive for non-EVM chains and not case sensitive for EVM chains."
+            },
+            "network_id": {
+              "type": "string",
+              "description": "One or more CoinMarketCap cryptocurrency network ids."
+            },
+            "network_slug": {
+              "type": "string",
+              "description": "Alternatively, one network name in URL friendly shorthand \"slug\" format (all lowercase, spaces replaced with hyphens). You can only choose either network_id or network_slug, not both."
+            },
+            "time_period": {
+              "type": "string",
+              "description": "Time period to return OHLCV data for. Default: \"daily\". Valid values: \"daily\", \"hourly\", \"1m\", \"5m\", \"15m\", \"30m\", \"4h\", \"8h\", \"12h\", \"weekly\", \"monthly\". If hourly, the open will be 01:00 and the close 01:59. If daily, the open is 00:00:00 and the close is 23:59:99.",
+              "default": "daily"
+            },
+            "time_start": {
+              "type": "string",
+              "description": "Timestamp (Unix or ISO 8601) to start returning OHLCV time periods for. Only the date portion is used for daily OHLCV; it is recommended to use an ISO date format like \"2018-09-19\" without time."
+            },
+            "time_end": {
+              "type": "string",
+              "description": "Timestamp (Unix or ISO 8601) to stop returning OHLCV time periods for (inclusive). Optional; if not passed, defaults to the current time. For daily OHLCV, use an ISO date like \"2018-09-19\" without time."
+            },
+            "count": {
+              "type": "string",
+              "description": "Optionally limit the number of time periods to return results for. Default is 10 items. The current query limit is 500 items.",
+              "default": "10"
+            },
+            "interval": {
+              "type": "string",
+              "description": "Optionally adjust the interval that \"time_period\" is sampled. Default: \"daily\". Valid values: \"1m\", \"5m\", \"15m\", \"30m\", \"1h\", \"4h\", \"8h\", \"12h\", \"daily\", \"weekly\", \"monthly\".",
+              "default": "daily"
+            },
+            "aux": {
+              "type": "string",
+              "description": "Optionally specify a comma-separated list of supplemental data fields to return. Valid values: \"pool_created\", \"percent_pooled_base_asset\", \"num_transactions_24h\", \"pool_base_asset\", \"pool_quote_asset\", \"24h_volume_quote_asset\", \"total_supply_quote_asset\", \"total_supply_base_asset\", \"holders\", \"buy_tax\", \"sell_tax\", \"security_scan\", \"24h_no_of_buys\", \"24h_no_of_sells\", \"24h_buy_volume\", \"24h_sell_volume\". Default: \"\".",
+              "default": ""
+            },
+            "convert_id": {
+              "type": "string",
+              "description": "Optionally calculate market quotes by CoinMarketCap ID instead of symbol. Ex: convert_id=1,2781 would replace convert=BTC,USD in your query. Cannot be used when convert is used."
+            },
+            "skip_invalid": {
+              "type": "string",
+              "description": "Pass true to relax request validation rules. When requesting records on multiple spot pairs, an error is returned if no match is found for one or more requested pairs. If set to true, invalid lookups will be skipped, returning only valid results."
+            },
+            "reverse_order": {
+              "type": "string",
+              "description": "Pass true to invert the order of a spot pair. For example, if a trading pair is set up as Token B/Token A in the contract (commonly referred to as Token A/Token B), reverse_order will return the true Token B/Token A pairing as it exists in the pool."
+            }
+          },
+          "required": [],
+          "visible": [
+            "contract_address",
+            "network_id",
+            "network_slug",
+            "time_period",
+            "time_start",
+            "time_end",
+            "count",
+            "interval",
+            "aux",
+            "convert_id",
+            "skip_invalid",
+            "reverse_order"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "query"
+      ],
+      "visible": [
+        "query"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "COINMARKETCAP__DEX_PAIRS_OHLCV_LATEST",
+    "description": "CoinMarketCap DEX Pairs OHLCV Latest API returns the latest OHLCV (Open, High, Low, Close, Volume) market values for one or more spot pairs for the current UTC day. Since the current UTC day is active, these values are updated frequently.",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "GET",
+      "endpoint": "https://pro-api.coinmarketcap.com/v4/dex/pairs/ohlcv/latest"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "query": {
+          "type": "object",
+          "description": "Query parameters for retrieving the latest OHLCV market values for DEX pairs.",
+          "properties": {
+            "contract_address": {
+              "type": "string",
+              "description": "One or more comma-separated contract addresses. Example: \"0x88e6a0c2ddd26feeb64f039a2c41296fcb3f5640\"."
+            },
+            "network_id": {
+              "type": "string",
+              "description": "One or more CoinMarketCap cryptocurrency network ids."
+            },
+            "network_slug": {
+              "type": "string",
+              "description": "Alternatively, one network name in URL-friendly shorthand 'slug' format (all lowercase, spaces replaced with hyphens). You can only choose either network_id or network_slug, not both."
+            },
+            "aux": {
+              "type": "string",
+              "description": "Optionally specify a comma-separated list of supplemental data fields to return. Valid values: \"pool_created\", \"percent_pooled_base_asset\", \"num_transactions_24h\", \"pool_base_asset\", \"pool_quote_asset\", \"24h_volume_quote_asset\", \"total_supply_quote_asset\", \"total_supply_base_asset\", \"holders\", \"buy_tax\", \"sell_tax\", \"security_scan\", \"24h_no_of_buys\", \"24h_no_of_sells\", \"24h_buy_volume\", \"24h_sell_volume\".",
+              "default": ""
+            },
+            "convert_id": {
+              "type": "string",
+              "description": "Optionally calculate market quotes by CoinMarketCap ID instead of symbol. Example: \"convert_id=1,2781\" would replace convert=BTC,USD in your query. This parameter cannot be used when convert is used."
+            },
+            "skip_invalid": {
+              "type": "string",
+              "description": "Pass true to relax request validation rules. When requesting records on multiple spot pairs, an error is returned if no match is found for one or more pairs. If set to true, invalid lookups will be skipped, returning only valid results."
+            },
+            "reverse_order": {
+              "type": "string",
+              "description": "Pass true to invert the order of a spot pair. For example, if a trading pair is set up as Token B/Token A (commonly referred to as Token A/Token B), using reverse_order would return the true Token B/Token A pairing as it exists in the pool."
+            }
+          },
+          "required": [],
+          "visible": [
+            "contract_address",
+            "network_id",
+            "network_slug",
+            "aux",
+            "convert_id",
+            "skip_invalid",
+            "reverse_order"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "query"
+      ],
+      "visible": [
+        "query"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "COINMARKETCAP__DEX_PAIRS_QUOTES_LATEST",
+    "description": "Returns the latest market quote for one or more spot pairs on decentralized exchanges. This endpoint retrieves up-to-date market data for specified spot pairs, identified by one or more contract addresses. You can also specify the network using either a CoinMarketCap network ID or a URL-friendly network slug. Additionally, supplemental data fields can be requested via the 'aux' parameter. Use 'convert_id' to obtain market quotes in multiple fiat or cryptocurrency conversions (each conversion is returned in its own 'quote' object). The 'skip_invalid' flag relaxes validation errors for unmatched spot pairs, and 'reverse_order' allows inverting the order of a spot pair as defined in the smart contract.",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "GET",
+      "endpoint": "https://pro-api.coinmarketcap.com/v4/dex/pairs/quotes/latest"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "query": {
+          "type": "object",
+          "description": "Query parameters for retrieving the latest market quotes for one or more spot pairs on decentralized exchanges. Specify one or more contract addresses via 'contract_address'. Optionally, use 'network_id' or 'network_slug' to identify the blockchain network. Use 'aux' to request additional supplemental data fields, 'convert_id' to obtain multi-currency market quotes by CoinMarketCap ID, 'skip_invalid' to bypass errors for unmatched pairs, and 'reverse_order' to invert the order of a spot pair as stored in the contract.",
+          "properties": {
+            "contract_address": {
+              "type": "string",
+              "description": "One or more comma-separated contract addresses for the spot pairs. Example: '0xabc123,0xdef456'."
+            },
+            "network_id": {
+              "type": "string",
+              "description": "One or more CoinMarketCap cryptocurrency network IDs associated with the spot pairs."
+            },
+            "network_slug": {
+              "type": "string",
+              "description": "Alternatively, specify a network by its URL-friendly slug (all lowercase, spaces replaced with hyphens). You can only choose either network_id or network_slug, not both."
+            },
+            "aux": {
+              "type": "string",
+              "description": "Optionally specify a comma-separated list of supplemental data fields to return. Valid values include: 'pool_created', 'percent_pooled_base_asset', 'num_transactions_24h', 'pool_base_asset', 'pool_quote_asset', '24h_volume_quote_asset', 'total_supply_quote_asset', 'total_supply_base_asset', 'holders', 'buy_tax', 'sell_tax', 'security_scan', '24h_no_of_buys', '24h_no_of_sells', '24h_buy_volume', and '24h_sell_volume'. Default is an empty string.",
+              "default": ""
+            },
+            "convert_id": {
+              "type": "string",
+              "description": "Optionally calculate market quotes by CoinMarketCap ID instead of symbol. For example, 'convert_id=1,2781' would replace a convert query of 'BTC,USD'. This parameter cannot be used simultaneously with a 'convert' parameter."
+            },
+            "skip_invalid": {
+              "type": "string",
+              "description": "Pass 'true' to relax request validation rules. When requesting records for multiple spot pairs, an error is returned if any requested pair is not found. If set to 'true', invalid lookups will be skipped, and valid spot pairs will still be returned.",
+              "default": "false"
+            },
+            "reverse_order": {
+              "type": "string",
+              "description": "Pass 'true' to invert the order of a spot pair. For example, if a trading pair is defined in the contract as Token B/Token A but is commonly referred to as Token A/Token B, setting this parameter to 'true' will return the pair in its true order (Token B/Token A).",
+              "default": "false"
+            }
+          },
+          "required": [],
+          "visible": [
+            "contract_address",
+            "network_id",
+            "network_slug",
+            "aux",
+            "convert_id",
+            "skip_invalid",
+            "reverse_order"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "query"
+      ],
+      "visible": [
+        "query"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "COINMARKETCAP__DEX_PAIRS_TRADE_LATEST",
+    "description": "Returns up to the latest 100 trades for a single spot pair on decentralized exchanges. This endpoint provides the most recent trade data including pricing and volume details for the specified spot pair. Use the 'convert_id' option to return market quotes in multiple fiat and cryptocurrency conversions in the same call, with each conversion returned in its own 'trade' object. The 'skip_invalid' parameter allows the request to bypass validation errors if no matching records are found for one or more requested spot pairs, and the 'reverse_order' parameter can be used to invert the order of a spot pair as defined in the smart contract.",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "GET",
+      "endpoint": "https://pro-api.coinmarketcap.com/v4/dex/pairs/trade/latest"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "query": {
+          "type": "object",
+          "description": "Query parameters for retrieving the latest trades for a spot pair on decentralized exchanges. Specify one or more contract addresses via 'contract_address' to identify the spot pair. Optionally, include the network identifier using 'network_id' or the network slug using 'network_slug'. Supplemental data fields can be requested using 'aux'. Use 'convert_id' to perform multi-currency market conversions, 'skip_invalid' to bypass errors for unmatched spot pairs, and 'reverse_order' to invert the spot pair order as stored in the contract.",
+          "properties": {
+            "contract_address": {
+              "type": "string",
+              "description": "One or more comma-separated contract addresses for the spot pair. Example: '0xabc123'. This parameter is required to specify the spot pair. Basic tier users are limited to 1 contract_address."
+            },
+            "network_id": {
+              "type": "string",
+              "description": "One CoinMarketCap cryptocurrency network ID associated with the spot pair."
+            },
+            "network_slug": {
+              "type": "string",
+              "description": "Alternatively, specify the network using a URL-friendly slug (all lowercase, spaces replaced with hyphens). Example: 'ethereum'. You can only choose either network_id or network_slug, not both."
+            },
+            "aux": {
+              "type": "string",
+              "description": "Optionally specify a comma-separated list of supplemental data fields to return. Valid values include: 'transaction_hash' and 'blockchain_explorer_link'. Default is an empty string.",
+              "default": ""
+            },
+            "convert_id": {
+              "type": "string",
+              "description": "Optionally calculate market quotes in up to 30 currencies by passing a comma-separated list of cryptocurrency or fiat currency IDs. Each additional convert option beyond the first requires an additional call credit. For example: 'convert_id=1,2781'. This parameter cannot be used when a 'convert' parameter is provided."
+            },
+            "skip_invalid": {
+              "type": "string",
+              "description": "Pass 'true' to relax request validation rules. If no matching records are found for one or more requested spot pairs, setting this parameter to 'true' will skip invalid lookups and return only valid trades.",
+              "default": "false"
+            },
+            "reverse_order": {
+              "type": "string",
+              "description": "Pass 'true' to invert the order of the spot pair. For instance, if the trading pair is stored in the contract as Token B/Token A but commonly referred to as Token A/Token B, setting this to 'true' will return the true order as Token B/Token A.",
+              "default": "false"
+            }
+          },
+          "required": [
+            "contract_address"
+          ],
+          "visible": [
+            "contract_address",
+            "network_id",
+            "network_slug",
+            "aux",
+            "convert_id",
+            "skip_invalid",
+            "reverse_order"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "query"
+      ],
+      "visible": [
+        "query"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "COINMARKETCAP__DEX_SPOT_PAIRS_LATEST",
+    "description": "Returns a paginated list of all active decentralized exchange (DEX) spot pairs along with the latest market data. This endpoint supports filtering by various identifiers for networks, DEX exchanges, base assets, and quote assets. At least one network identifier (network_id or network_slug), one DEX identifier (dex_id or dex_slug), and one base asset identifier (base_asset_id, base_asset_symbol, base_asset_contract_address, or base_asset_ucid) along with one quote asset identifier (quote_asset_id, quote_asset_symbol, quote_asset_contract_address, or quote_asset_ucid) are required.  Additional, you can use various filtering parameters (liquidity, volume, transactions, percent change) to narrow down the results. Sorting is available via the 'sort' and 'sort_dir' parameters, supplemental data fields can be requested using 'aux', 'reverse_order' allows inverting the order of a spot pair, and 'convert_id' enables multi-currency market conversions.",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "GET",
+      "endpoint": "https://pro-api.coinmarketcap.com/v4/dex/spot-pairs/latest"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "query": {
+          "type": "object",
+          "description": "Query parameters for retrieving the latest listings of DEX spot pairs. Use one or more identifiers to filter results by network, DEX, base asset, and quote asset. You may also use 'scroll_id' for pagination, 'limit' to control result count, and additional filtering parameters for liquidity, volume, number of transactions, and percent change. Sorting options are available with 'sort' and 'sort_dir', while 'aux' can request supplemental data fields. The 'reverse_order' parameter inverts the pair order as defined in the smart contract, and 'convert_id' returns market quotes in additional currencies using CoinMarketCap IDs.",
+          "properties": {
+            "network_id": {
+              "type": "string",
+              "description": "One or more comma-separated CoinMarketCap cryptocurrency network IDs to filter results by."
+            },
+            "network_slug": {
+              "type": "string",
+              "description": "Alternatively, one or more comma-separated network names in URL-friendly slug format (all lowercase, spaces replaced with hyphens). At least one network identifier (id or slug) is required. You can only choose either network_id or network_slug, not both."
+            },
+            "dex_id": {
+              "type": "string",
+              "description": "One or more comma-separated CoinMarketCap DEX exchange IDs to filter results by."
+            },
+            "dex_slug": {
+              "type": "string",
+              "description": "Alternatively, one or more comma-separated DEX exchange names in URL-friendly slug format (all lowercase, spaces replaced with hyphens). At least one DEX identifier (id or slug) is required."
+            },
+            "base_asset_id": {
+              "type": "string",
+              "description": "One or more comma-separated CoinMarketCap cryptocurrency IDs for the base asset."
+            },
+            "base_asset_symbol": {
+              "type": "string",
+              "description": "Alternatively, one or more comma-separated base asset symbols in URL-friendly slug format (all lowercase, spaces replaced with hyphens). At least one base asset identifier (id or symbol) is required."
+            },
+            "base_asset_contract_address": {
+              "type": "string",
+              "description": "Alternatively, a base asset contract address in URL-friendly slug format (all lowercase, spaces replaced with hyphens). At least one base asset identifier is required."
+            },
+            "base_asset_ucid": {
+              "type": "string",
+              "description": "One or more comma-separated unique CoinMarketCap cryptocurrency IDs for the base asset."
+            },
+            "quote_asset_id": {
+              "type": "string",
+              "description": "One or more comma-separated CoinMarketCap cryptocurrency IDs for the quote asset."
+            },
+            "quote_asset_symbol": {
+              "type": "string",
+              "description": "Alternatively, one or more comma-separated quote asset symbols in URL-friendly slug format (all lowercase, spaces replaced with hyphens). At least one quote asset identifier (id or symbol) is required."
+            },
+            "quote_asset_contract_address": {
+              "type": "string",
+              "description": "Alternatively, a quote asset contract address in URL-friendly slug format (all lowercase, spaces replaced with hyphens). At least one quote asset identifier is required."
+            },
+            "quote_asset_ucid": {
+              "type": "string",
+              "description": "One or more comma-separated unique CoinMarketCap cryptocurrency IDs for the quote asset."
+            },
+            "scroll_id": {
+              "type": "string",
+              "description": "After your initial query, the API returns a scroll_id with the result set. Use this scroll_id in subsequent requests to retrieve the next set of results as an alternative to traditional pagination.",
+              "default": ""
+            },
+            "limit": {
+              "type": "string",
+              "description": "Optionally specify the number of results to return. Use this parameter along with 'scroll_id' to control pagination. Default is '100'.",
+              "default": "100"
+            },
+            "liquidity_min": {
+              "type": "string",
+              "description": "Optionally specify a threshold for the minimum liquidity to filter results by."
+            },
+            "liquidity_max": {
+              "type": "string",
+              "description": "Optionally specify a threshold for the maximum liquidity to filter results by."
+            },
+            "volume_24h_min": {
+              "type": "string",
+              "description": "Optionally specify a threshold for the minimum 24-hour USD volume to filter results by."
+            },
+            "volume_24h_max": {
+              "type": "string",
+              "description": "Optionally specify a threshold for the maximum 24-hour USD volume to filter results by."
+            },
+            "no_of_transactions_24h_min": {
+              "type": "string",
+              "description": "Optionally specify a threshold for the minimum number of transactions in the last 24 hours to filter results by."
+            },
+            "no_of_transactions_24h_max": {
+              "type": "string",
+              "description": "Optionally specify a threshold for the maximum number of transactions in the last 24 hours to filter results by."
+            },
+            "percent_change_24h_min": {
+              "type": "string",
+              "description": "Optionally specify a threshold for the minimum 24-hour percent change to filter results by."
+            },
+            "percent_change_24h_max": {
+              "type": "string",
+              "description": "Optionally specify a threshold for the maximum 24-hour percent change to filter results by."
+            },
+            "sort": {
+              "type": "string",
+              "description": "Specifies the field by which to sort the list of DEX spot pairs. Valid values include 'name', 'date_added', 'price', 'volume_24h', 'percent_change_1h', 'percent_change_24h', 'liquidity', 'fully_diluted_value', and 'no_of_transactions_24h'. Default is 'volume_24h'.",
+              "default": "volume_24h",
+              "enum": [
+                "name",
+                "date_added",
+                "price",
+                "volume_24h",
+                "percent_change_1h",
+                "percent_change_24h",
+                "liquidity",
+                "fully_diluted_value",
+                "no_of_transactions_24h"
+              ]
+            },
+            "sort_dir": {
+              "type": "string",
+              "description": "Specifies the direction in which to order DEX spot pairs based on the 'sort' field. Valid values are 'desc' and 'asc'. Default is 'desc'.",
+              "default": "desc",
+              "enum": [
+                "desc",
+                "asc"
+              ]
+            },
+            "aux": {
+              "type": "string",
+              "description": "Optionally specify a comma-separated list of supplemental data fields to return. Valid values include: 'pool_created', 'percent_pooled_base_asset', 'num_transactions_24h', 'pool_base_asset', 'pool_quote_asset', '24h_volume_quote_asset', 'total_supply_quote_asset', 'total_supply_base_asset', 'holders', 'buy_tax', 'sell_tax', 'security_scan', '24h_no_of_buys', '24h_no_of_sells', '24h_buy_volume', and '24h_sell_volume'. Default is an empty string.",
+              "default": ""
+            },
+            "reverse_order": {
+              "type": "string",
+              "description": "Pass 'true' to invert the order of a spot pair. For example, if a trading pair is stored as Token B/Token A in the contract but commonly referred to as Token A/Token B, setting this parameter to 'true' will return the true order as Token B/Token A.",
+              "default": "false"
+            },
+            "convert_id": {
+              "type": "string",
+              "description": "Optionally calculate market quotes by CoinMarketCap ID instead of symbol. For example, 'convert_id=1,2781' would replace a convert query of 'BTC,USD'. This parameter cannot be used when a 'convert' parameter is provided."
+            }
+          },
+          "required": [],
+          "visible": [
+            "network_id",
+            "network_slug",
+            "dex_id",
+            "dex_slug",
+            "base_asset_id",
+            "base_asset_symbol",
+            "base_asset_contract_address",
+            "base_asset_ucid",
+            "quote_asset_id",
+            "quote_asset_symbol",
+            "quote_asset_contract_address",
+            "quote_asset_ucid",
+            "scroll_id",
+            "limit",
+            "liquidity_min",
+            "liquidity_max",
+            "volume_24h_min",
+            "volume_24h_max",
+            "no_of_transactions_24h_min",
+            "no_of_transactions_24h_max",
+            "percent_change_24h_min",
+            "percent_change_24h_max",
+            "sort",
+            "sort_dir",
+            "aux",
+            "reverse_order",
+            "convert_id"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "query"
+      ],
+      "visible": [
+        "query"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "COINMARKETCAP__EXCHANGE_ASSETS",
+    "description": "Returns the exchange assets in the form of token holdings. This endpoint provides detailed information such as the wallet address, associated cryptocurrency, blockchain platform, balance, and related data for an exchange's asset holdings. Note that only wallets containing at least 100,000 USD in balance are shown and that wallet balances may be delayed. Disclaimer: All information and data regarding the holdings in third-party wallet addresses are provided by those third parties to CoinMarketCap. CoinMarketCap does not verify or confirm the accuracy or timeliness of this information; it is provided 'as is' without warranty. CoinMarketCap shall have no responsibility or liability for these third parties\u2019 data or any inquiries into its completeness, accuracy, sufficiency, or timeliness.",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "GET",
+      "endpoint": "https://pro-api.coinmarketcap.com/v1/exchange/assets"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "query": {
+          "type": "object",
+          "description": "Query parameters for retrieving the exchange assets. You must provide a CoinMarketCap exchange ID to specify which exchange's asset holdings to retrieve. Example: '270'.",
+          "properties": {
+            "id": {
+              "type": "string",
+              "description": "A CoinMarketCap exchange ID. Example: '270'."
+            }
+          },
+          "required": [
+            "id"
+          ],
+          "visible": [
+            "id"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "query"
+      ],
+      "visible": [
+        "query"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "COINMARKETCAP__EXCHANGE_INFO",
+    "description": "Returns all static metadata for one or more cryptocurrency exchanges. This endpoint provides detailed information such as the exchange's launch date, logo, official website URL, social links, and market fee documentation URL. You can identify exchanges by providing one or more comma-separated exchange IDs (using the 'id' parameter) or by exchange slugs (using the 'slug' parameter in URL-friendly format). At least one identifier is required. Optionally, you may include supplemental data fields using the 'aux' parameter. Valid supplemental fields include 'urls', 'logo', 'description', 'date_launched', and 'notice'. To return all available auxiliary fields, use 'urls,logo,description,date_launched,notice,status'.",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "GET",
+      "endpoint": "https://pro-api.coinmarketcap.com/v1/exchange/info"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "query": {
+          "type": "object",
+          "description": "Query parameters for retrieving static metadata for one or more exchanges. Provide either one or more comma-separated exchange IDs via the 'id' parameter or exchange slugs via the 'slug' parameter. Optionally, specify supplemental data fields using 'aux'.",
+          "properties": {
+            "id": {
+              "type": "string",
+              "description": "One or more comma-separated CoinMarketCap cryptocurrency exchange IDs."
+            },
+            "slug": {
+              "type": "string",
+              "description": "Alternatively, one or more comma-separated exchange slugs in URL-friendly format (all lowercase, spaces replaced with hyphens). Example: 'binance,gdax'. At least one of 'id' or 'slug' is required."
+            },
+            "aux": {
+              "type": "string",
+              "description": "Optionally specify a comma-separated list of supplemental data fields to return. The default is 'urls,logo,description,date_launched,notice'. To include all auxiliary fields, pass 'urls,logo,description,date_launched,notice,status'.",
+              "default": "urls,logo,description,date_launched,notice"
+            }
+          },
+          "required": [],
+          "visible": [
+            "id",
+            "slug",
+            "aux"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "query"
+      ],
+      "visible": [
+        "query"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "COINMARKETCAP__EXCHANGE_MAP",
+    "description": "Returns a paginated list of all active cryptocurrency exchanges by their unique CoinMarketCap IDs. This convenience endpoint is designed to help you lookup and utilize our unique exchange ID across all endpoints, ensuring reliable identification even if typical exchange identifiers change over time. By default, only exchanges with at least one actively tracked market are returned (listing_status = 'active'). You can also filter for inactive exchanges (listing_status = 'inactive') or for exchanges that are registered but not meeting the tracking methodology (listing_status = 'untracked'). Optionally, you may pass a comma-separated list of exchange slugs to restrict the list or use the 'aux' parameter to slim down the payload. Additionally, you can filter exchanges by a fiat or cryptocurrency ID using the 'crypto_id' parameter.",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "GET",
+      "endpoint": "https://pro-api.coinmarketcap.com/v1/exchange/map"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "query": {
+          "type": "object",
+          "description": "Query parameters for retrieving the CoinMarketCap ID map for cryptocurrency exchanges. By default, only active exchanges (listing_status = 'active') are returned. You may optionally specify a comma-separated list of listing statuses (e.g. 'active,inactive,untracked'). If you provide the 'slug' parameter, it will filter the results to only include the specified exchanges and ignore other query filters. The 'start' and 'limit' parameters enable pagination, 'sort' allows sorting by either 'id' or 'volume_24h', 'aux' lets you include supplemental fields, and 'crypto_id' filters the exchanges by the presence of a specific cryptocurrency in their markets.",
+          "properties": {
+            "listing_status": {
+              "type": "string",
+              "description": "Filter exchanges by their listing status. By default, 'active' is used to return only exchanges with at least one actively tracked market. You can also pass 'inactive' to get exchanges that are no longer active or 'untracked' to get exchanges registered but not meeting methodology requirements. Multiple comma-separated values are allowed.",
+              "default": "active"
+            },
+            "slug": {
+              "type": "string",
+              "description": "Optionally, provide a comma-separated list of exchange slugs (URL-friendly, all lowercase with spaces replaced by dashes) to filter the results. If specified, all other query options will be ignored."
+            },
+            "start": {
+              "type": "integer",
+              "description": "Optionally offset the start (1-based index) of the paginated list of items to return. Default is 1.",
+              "default": 1,
+              "minimum": 1
+            },
+            "limit": {
+              "type": "integer",
+              "description": "Optionally specify the number of results to return. Valid values range from 1 to 5000. Use this together with 'start' to control the pagination size.",
+              "default": 100,
+              "minimum": 1,
+              "maximum": 5000
+            },
+            "sort": {
+              "type": "string",
+              "description": "Specifies the field by which to sort the list of exchanges. Valid values are 'id' and 'volume_24h'. Default is 'id'.",
+              "default": "id",
+              "enum": [
+                "id",
+                "volume_24h"
+              ]
+            },
+            "aux": {
+              "type": "string",
+              "description": "Optionally specify a comma-separated list of supplemental data fields to return. The default is 'first_historical_data,last_historical_data,is_active'. To include all available auxiliary fields, pass 'first_historical_data,last_historical_data,is_active,status'.",
+              "default": "first_historical_data,last_historical_data,is_active"
+            },
+            "crypto_id": {
+              "type": "string",
+              "description": "Optionally, pass one fiat or cryptocurrency ID to filter the exchanges. For example, 'crypto_id=1' will return only exchanges that have BTC in their market pairs."
+            }
+          },
+          "required": [],
+          "visible": [
+            "listing_status",
+            "slug",
+            "start",
+            "limit",
+            "sort",
+            "aux",
+            "crypto_id"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "query"
+      ],
+      "visible": [
+        "query"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "COINMARKETCAP__EXCHANGE_LISTINGS_LATEST",
+    "description": "CoinMarketCap Listings Latest API returns a paginated list of all cryptocurrency exchanges including the latest aggregate market data for each exchange. Use the 'convert' option to return market values in multiple fiat and cryptocurrency conversions in the same call. NOTE: Use this endpoint for a sorted and paginated list of exchanges. For market data on specific exchanges, use /v1/exchange/quotes/latest. The response data between these endpoints is otherwise the same. 'exchange_score' will be deprecated on 4 November 2024 and will return null after that date.",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "GET",
+      "endpoint": "https://pro-api.coinmarketcap.com/v1/exchange/listings/latest"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "query": {
+          "type": "object",
+          "description": "Query parameters for retrieving the latest cryptocurrency exchange listings with market data.",
+          "properties": {
+            "start": {
+              "type": "integer",
+              "description": "Optionally offset the start (1-based index) of the paginated list of items to return.",
+              "default": 1,
+              "minimum": 1
+            },
+            "limit": {
+              "type": "integer",
+              "description": "Optionally specify the number of results to return. Range: 1 to 5000.",
+              "default": 100,
+              "minimum": 1,
+              "maximum": 5000
+            },
+            "sort": {
+              "type": "string",
+              "description": "What field to sort the list of exchanges by.",
+              "enum": [
+                "volume_24h",
+                "name",
+                "volume_24h_adjusted",
+                "exchange_score"
+              ],
+              "default": "volume_24h"
+            },
+            "sort_dir": {
+              "type": "string",
+              "description": "The direction in which to order exchanges against the specified sort.",
+              "enum": [
+                "asc",
+                "desc"
+              ]
+            },
+            "market_type": {
+              "type": "string",
+              "description": "The type of exchange markets to include in rankings. This field is deprecated. Please use 'all' for accurate sorting.",
+              "enum": [
+                "all",
+                "fees",
+                "no_fees"
+              ],
+              "default": "all"
+            },
+            "category": {
+              "type": "string",
+              "description": "The category for this exchange.",
+              "enum": [
+                "all",
+                "spot",
+                "derivatives",
+                "dex",
+                "lending"
+              ],
+              "default": "all"
+            },
+            "aux": {
+              "type": "string",
+              "description": "Optionally specify a comma-separated list of supplemental data fields to return. Default: \"num_market_pairs,traffic_score,rank,exchange_score,effective_liquidity_24h\".",
+              "default": "num_market_pairs,traffic_score,rank,exchange_score,effective_liquidity_24h"
+            },
+            "convert": {
+              "type": "string",
+              "description": "Optionally calculate market quotes in up to 120 currencies at once by passing a comma-separated list of cryptocurrency or fiat currency symbols. Each additional convert option beyond the first requires an additional call credit."
+            },
+            "convert_id": {
+              "type": "string",
+              "description": "Optionally calculate market quotes by CoinMarketCap ID instead of symbol. Ex: convert_id=1,2781 would replace convert=BTC,USD in your query. This parameter cannot be used when convert is used."
+            }
+          },
+          "required": [],
+          "visible": [
+            "start",
+            "limit",
+            "sort",
+            "sort_dir",
+            "market_type",
+            "category",
+            "aux",
+            "convert",
+            "convert_id"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [],
+      "visible": [
+        "query"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "COINMARKETCAP__EXCHANGE_MARKET_PAIRS_LATEST",
+    "description": "CoinMarketCap Market Pairs Latest API returns all active market pairs tracked for a given exchange, including the latest price and volume data for each market. Use the 'convert' option to return market values in multiple fiat and cryptocurrency conversions in the same call.",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "GET",
+      "endpoint": "https://pro-api.coinmarketcap.com/v1/exchange/market-pairs/latest"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "query": {
+          "type": "object",
+          "description": "Query parameters for retrieving market pairs for a given exchange.",
+          "properties": {
+            "id": {
+              "type": "string",
+              "description": "A CoinMarketCap exchange ID. Example: \"1\"."
+            },
+            "slug": {
+              "type": "string",
+              "description": "Alternatively, an exchange slug (URL-friendly lowercase shorthand version of the name with spaces replaced with hyphens). Example: \"binance\". One of 'id' or 'slug' is required."
+            },
+            "start": {
+              "type": "integer",
+              "description": "Optionally offset the start (1-based index) of the paginated list.",
+              "default": 1,
+              "minimum": 1
+            },
+            "limit": {
+              "type": "integer",
+              "description": "Optionally specify the number of results to return. Range: 1 to 5000.",
+              "default": 100,
+              "minimum": 1,
+              "maximum": 5000
+            },
+            "aux": {
+              "type": "string",
+              "description": "Optionally specify a comma-separated list of supplemental data fields to return. Default is \"num_market_pairs,category,fee_type\". Additional fields such as \"market_url\", \"currency_name\", \"currency_slug\", \"price_quote\", \"effective_liquidity\", \"market_score\", \"market_reputation\" may be included.",
+              "default": "num_market_pairs,category,fee_type"
+            },
+            "matched_id": {
+              "type": "string",
+              "description": "Optionally include one or more comma-delimited fiat or cryptocurrency IDs to filter market pairs. For example, ?matched_id=2781 returns only BTC markets matching \"BTC/USD\" or \"USD/BTC\". Cannot be used with matched_symbol."
+            },
+            "matched_symbol": {
+              "type": "string",
+              "description": "Optionally include one or more comma-delimited fiat or cryptocurrency symbols to filter market pairs. For example, ?matched_symbol=USD returns only BTC markets matching \"BTC/USD\" or \"USD/BTC\". Cannot be used with matched_id."
+            },
+            "category": {
+              "type": "string",
+              "description": "The category of trading the market falls under.",
+              "enum": [
+                "all",
+                "spot",
+                "derivatives",
+                "otc",
+                "futures",
+                "perpetual"
+              ],
+              "default": "all"
+            },
+            "fee_type": {
+              "type": "string",
+              "description": "The fee type enforced by the exchange for this market.",
+              "enum": [
+                "all",
+                "percentage",
+                "no-fees",
+                "transactional-mining",
+                "unknown"
+              ],
+              "default": "all"
+            },
+            "convert": {
+              "type": "string",
+              "description": "Optionally calculate market quotes in up to 120 currencies by passing a comma-separated list of cryptocurrency or fiat currency symbols. Each additional convert option beyond the first requires an additional call credit."
+            },
+            "convert_id": {
+              "type": "string",
+              "description": "Optionally calculate market quotes by CoinMarketCap ID instead of symbol. Example: \"convert_id=1,2781\" would replace convert=BTC,USD. Cannot be used when convert is provided."
+            }
+          },
+          "required": [],
+          "visible": [
+            "id",
+            "slug",
+            "start",
+            "limit",
+            "aux",
+            "matched_id",
+            "matched_symbol",
+            "category",
+            "fee_type",
+            "convert",
+            "convert_id"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "query"
+      ],
+      "visible": [
+        "query"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "COINMARKETCAP__EXCHANGE_QUOTES_HISTORICAL",
+    "description": "CoinMarketCap Exchange Quotes Historical API returns an interval of historic quotes for one or more exchanges based on provided time and interval parameters. A historic quote for every interval period between time_start and time_end will be returned.",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "GET",
+      "endpoint": "https://pro-api.coinmarketcap.com/v1/exchange/quotes/historical"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "query": {
+          "type": "object",
+          "description": "Query parameters for retrieving historical quotes for exchanges.",
+          "properties": {
+            "id": {
+              "type": "string",
+              "description": "One or more comma-separated exchange CoinMarketCap ids. Example: \"24,270\"."
+            },
+            "slug": {
+              "type": "string",
+              "description": "Alternatively, one or more comma-separated exchange slugs in URL-friendly shorthand (all lowercase, spaces replaced with hyphens). Example: \"binance,kraken\". At least one of 'id' or 'slug' is required."
+            },
+            "time_start": {
+              "type": "string",
+              "description": "Timestamp (Unix or ISO 8601) to start returning quotes for. Optional; if not provided, quotes are returned in reverse from time_end."
+            },
+            "time_end": {
+              "type": "string",
+              "description": "Timestamp (Unix or ISO 8601) to stop returning quotes for (inclusive). Optional; if not provided, defaults to the current time."
+            },
+            "count": {
+              "type": "number",
+              "description": "The number of interval periods to return results for. Default is 10. Range: 1 to 10000.",
+              "default": 10,
+              "minimum": 1,
+              "maximum": 10000
+            },
+            "interval": {
+              "type": "string",
+              "description": "Interval of time to return data points for. Supported values include calendar intervals (e.g., \"hourly\", \"daily\", \"weekly\", \"monthly\", \"yearly\") and relative intervals (e.g., \"5m\", \"10m\", \"15m\", \"30m\", \"45m\", \"1h\", \"2h\", \"3h\", \"4h\", \"6h\", \"12h\", \"24h\", \"1d\", \"2d\", \"3d\", \"7d\", \"14d\", \"15d\", \"30d\", \"60d\", \"90d\", \"365d\")."
+            },
+            "convert": {
+              "type": "string",
+              "description": "By default market quotes are returned in USD. Optionally calculate market quotes in up to 3 other fiat currencies or cryptocurrencies by passing a comma-separated list of symbols."
+            },
+            "convert_id": {
+              "type": "string",
+              "description": "Optionally calculate market quotes by CoinMarketCap ID instead of symbol. Example: \"convert_id=1,2781\" would replace convert=BTC,USD in your query. This parameter cannot be used when convert is provided."
+            }
+          },
+          "required": [],
+          "visible": [
+            "id",
+            "slug",
+            "time_start",
+            "time_end",
+            "count",
+            "interval",
+            "convert",
+            "convert_id"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "query"
+      ],
+      "visible": [
+        "query"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "COINMARKETCAP__EXCHANGE_QUOTES_LATEST",
+    "description": "CoinMarketCap Quotes Latest API returns the latest aggregate market data for one or more exchanges. Use the 'convert' option to return market values in multiple fiat and cryptocurrency conversions in the same call. NOTE: 'exchange_score' will be deprecated on 4 November 2024.",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "GET",
+      "endpoint": "https://pro-api.coinmarketcap.com/v1/exchange/quotes/latest"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "query": {
+          "type": "object",
+          "description": "Query parameters for retrieving the latest aggregate market data for exchanges.",
+          "properties": {
+            "id": {
+              "type": "string",
+              "description": "One or more comma-separated CoinMarketCap exchange IDs. Example: \"1,2\"."
+            },
+            "slug": {
+              "type": "string",
+              "description": "Alternatively, pass a comma-separated list of exchange slugs (URL-friendly, all lowercase with spaces replaced by hyphens). Example: \"binance,gdax\". At least one of 'id' or 'slug' is required."
+            },
+            "convert": {
+              "type": "string",
+              "description": "Optionally calculate market quotes in up to 120 currencies at once by passing a comma-separated list of cryptocurrency or fiat currency symbols. Each additional convert option beyond the first requires an additional call credit."
+            },
+            "convert_id": {
+              "type": "string",
+              "description": "Optionally calculate market quotes by CoinMarketCap ID instead of symbol. Ex: \"convert_id=1,2781\" would replace \"convert=BTC,USD\" in your query. This parameter cannot be used when 'convert' is provided."
+            },
+            "aux": {
+              "type": "string",
+              "description": "Optionally specify a comma-separated list of supplemental data fields to return. Default: \"num_market_pairs,traffic_score,rank,exchange_score,liquidity_score,effective_liquidity_24h\"."
+            }
+          },
+          "required": [],
+          "visible": [
+            "id",
+            "slug",
+            "convert",
+            "convert_id",
+            "aux"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "query"
+      ],
+      "visible": [
+        "query"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "COINMARKETCAP__GLOBAL_METRICS_QUOTES_HISTORICAL",
+    "description": "CoinMarketCap Global Metrics Quotes Historical API returns an interval of historical global cryptocurrency market metrics based on provided time and interval parameters. A historic quote for every interval period between time_start and time_end will be returned.",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "GET",
+      "endpoint": "https://pro-api.coinmarketcap.com/v1/global-metrics/quotes/historical"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "query": {
+          "type": "object",
+          "description": "Query parameters for retrieving historical global cryptocurrency market metrics.",
+          "properties": {
+            "time_start": {
+              "type": "string",
+              "description": "Timestamp (Unix or ISO 8601) to start returning quotes for. Optional; if not supplied, quotes are returned in reverse order from time_end."
+            },
+            "time_end": {
+              "type": "string",
+              "description": "Timestamp (Unix or ISO 8601) to stop returning quotes for (inclusive). Optional; if not supplied, defaults to the current time."
+            },
+            "count": {
+              "type": "number",
+              "description": "The number of interval periods to return results for. Optional; default is 10. Range: 1 to 10000.",
+              "default": 10,
+              "minimum": 1,
+              "maximum": 10000
+            },
+            "interval": {
+              "type": "string",
+              "description": "Interval of time to return data points for. Default is \"1d\". Valid values include calendar intervals (e.g., \"hourly\", \"daily\", \"weekly\", \"monthly\", \"yearly\") and relative intervals (e.g., \"5m\", \"10m\", \"15m\", \"30m\", \"45m\", \"1h\", \"2h\", \"3h\", \"4h\", \"6h\", \"12h\", \"24h\", \"1d\", \"2d\", \"3d\", \"7d\", \"14d\", \"15d\", \"30d\", \"60d\", \"90d\", \"365d\").",
+              "default": "1d"
+            },
+            "convert": {
+              "type": "string",
+              "description": "By default market quotes are returned in USD. Optionally calculate market quotes in up to 3 other fiat currencies or cryptocurrencies by passing a comma-separated list of symbols."
+            },
+            "convert_id": {
+              "type": "string",
+              "description": "Optionally calculate market quotes by CoinMarketCap ID instead of symbol. Ex: \"convert_id=1,2781\" replaces convert=BTC,USD in your query. This parameter cannot be used when convert is provided."
+            },
+            "aux": {
+              "type": "string",
+              "description": "Optionally specify a comma-separated list of supplemental data fields to return. Default: \"btc_dominance,eth_dominance,active_cryptocurrencies,active_exchanges,active_market_pairs,total_volume_24h,total_volume_24h_reported,altcoin_market_cap,altcoin_volume_24h,altcoin_volume_24h_reported\".",
+              "default": "btc_dominance,eth_dominance,active_cryptocurrencies,active_exchanges,active_market_pairs,total_volume_24h,total_volume_24h_reported,altcoin_market_cap,altcoin_volume_24h,altcoin_volume_24h_reported"
+            }
+          },
+          "required": [],
+          "visible": [
+            "time_start",
+            "time_end",
+            "count",
+            "interval",
+            "convert",
+            "convert_id",
+            "aux"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [],
+      "visible": [
+        "query"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "COINMARKETCAP__GLOBAL_METRICS_QUOTES_LATEST",
+    "description": "CoinMarketCap Global Metrics Quotes Latest API returns the latest global cryptocurrency market metrics. Use the 'convert' option to return market values in multiple fiat and cryptocurrency conversions in the same call.",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "GET",
+      "endpoint": "https://pro-api.coinmarketcap.com/v1/global-metrics/quotes/latest"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "query": {
+          "type": "object",
+          "description": "Query parameters for retrieving the latest global cryptocurrency market metrics.",
+          "properties": {
+            "convert": {
+              "type": "string",
+              "description": "Optionally calculate market quotes in up to 120 currencies by passing a comma-separated list of cryptocurrency or fiat currency symbols. Each additional convert option beyond the first requires an additional call credit."
+            },
+            "convert_id": {
+              "type": "string",
+              "description": "Optionally calculate market quotes by CoinMarketCap ID instead of symbol. Ex: \"convert_id=1,2781\" would replace convert=BTC,USD in your query. This parameter cannot be used when convert is used."
+            }
+          },
+          "required": [],
+          "visible": [
+            "convert",
+            "convert_id"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [],
+      "visible": [
+        "query"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "COINMARKETCAP__CMC100_INDEX_HISTORICAL",
+    "description": "Returns an interval of historic CoinMarketCap 100 Index values based on the interval parameter. This endpoint retrieves historical index data for the CoinMarketCap 100 Index. You may specify the starting timestamp (time_start) and ending timestamp (time_end) to define the period for which to return data. If time_start is not provided, the API returns quotes in reverse order starting from time_end. The 'count' parameter specifies the number of interval periods to return (default is 5 items; if time_start and time_end are supplied, the limit is 10 with count starting from time_start). The 'interval' parameter allows you to adjust the granularity of the data (valid values are '5m', '15m', or 'daily').\n\nData provided by CoinMarketCap.com. For commercial agreement details, please refer to https://pro.coinmarketcap.com/user-agreement-commercial/.",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "GET",
+      "endpoint": "https://pro-api.coinmarketcap.com/v3/index/cmc100-historical"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "query": {
+          "type": "object",
+          "description": "Query parameters for retrieving historical CoinMarketCap 100 Index data. 'time_start' is the timestamp (Unix or ISO 8601) to begin returning index data. 'time_end' is the timestamp (Unix or ISO 8601) to stop returning data (inclusive). If 'time_start' is omitted, the endpoint returns quotes in reverse order starting from 'time_end'. The 'count' parameter specifies the number of interval periods to return (default is 5 items, or up to 10 if both 'time_start' and 'time_end' are provided). The 'interval' parameter adjusts the data granularity; valid values are '5m', '15m', and 'daily'.",
+          "properties": {
+            "time_start": {
+              "type": "string",
+              "description": "Timestamp (Unix or ISO 8601) to start returning CoinMarketCap 100 Index data for. Optional; if not provided, results are returned in reverse order from time_end."
+            },
+            "time_end": {
+              "type": "string",
+              "description": "Timestamp (Unix or ISO 8601) to stop returning CoinMarketCap 100 Index data for (inclusive). Optional; if not provided, defaults to the current time. When omitted with time_start, results are returned in reverse order from this time."
+            },
+            "count": {
+              "type": "string",
+              "description": "The number of interval periods to return. Optional; required if neither time_start nor time_end is supplied. The default is 5 items. If both time_start and time_end are provided, the query limit is 10 and the count starts from time_start.",
+              "default": "5"
+            },
+            "interval": {
+              "type": "string",
+              "description": "Optionally adjust the interval of the returned data. Valid values are '5m' for 5 minutes, '15m' for 15 minutes, or 'daily' for daily intervals."
+            }
+          },
+          "required": [],
+          "visible": [
+            "time_start",
+            "time_end",
+            "count",
+            "interval"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [],
+      "visible": [
+        "query"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "COINMARKETCAP__CMC100_INDEX_LATEST",
+    "description": "Returns the latest CoinMarketCap 100 Index value along with its current constituents and their respective weights. This endpoint is updated every 5 minutes and is available on the Basic, Startup, Hobbyist, Standard, Professional, and Enterprise plans. Data provided by CoinMarketCap.com. Your product must display the attribution: 'Data provided by CoinMarketCap.com' with a hyperlink to https://coinmarketcap.com.",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "GET",
+      "endpoint": "https://pro-api.coinmarketcap.com/v3/index/cmc100-latest"
+    },
+    "input_schema": {}
+  },
+  {
+    "name": "COINMARKETCAP__CMC_CRYPTO_FEAR_GREED_HISTORICAL",
+    "description": "Returns a paginated list of all CMC Crypto Fear and Greed Index values recorded at 12am UTC. This endpoint provides historical index data along with its classification (e.g., 'Fear' or 'Greed'). It is available on the Basic, Startup, Hobbyist, Standard, Professional, and Enterprise plans and is updated every 15 seconds. Plan credit use is 1 call credit per request. Data provided by CoinMarketCap.com. Your product must display the attribution 'Data provided by CoinMarketCap.com' with a hyperlink to https://coinmarketcap.com.",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "GET",
+      "endpoint": "https://pro-api.coinmarketcap.com/v3/fear-and-greed/historical"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "query": {
+          "type": "object",
+          "description": "Query parameters for retrieving historical CMC Crypto Fear and Greed Index data recorded at 12am UTC. Use 'start' to specify the 1-based index offset of the paginated list and 'limit' to define the number of results to return. If not provided, 'start' defaults to 1 and 'limit' defaults to 50.",
+          "properties": {
+            "start": {
+              "type": "integer",
+              "description": "Optionally offset the start (1-based index) of the historical data records to return. Must be at least 1. Default is 1.",
+              "default": 1,
+              "minimum": 1
+            },
+            "limit": {
+              "type": "integer",
+              "description": "Optionally specify the number of historical data records to return. Valid range is 1 to 500. Default is 50.",
+              "default": 50,
+              "minimum": 1,
+              "maximum": 500
+            }
+          },
+          "required": [],
+          "visible": [
+            "start",
+            "limit"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [],
+      "visible": [
+        "query"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "COINMARKETCAP__CMC_CRYPTO_FEAR_GREED_LATEST",
+    "description": "Returns the latest CMC Crypto Fear and Greed Index value along with its classification. This endpoint is updated every 15 minutes and is available on the Basic, Startup, Hobbyist, Standard, Professional, and Enterprise plans. Data provided by CoinMarketCap.com. Your product must display the attribution 'Data provided by CoinMarketCap.com' with a hyperlink to https://coinmarketcap.com.",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "GET",
+      "endpoint": "https://pro-api.coinmarketcap.com/v3/fear-and-greed/latest"
+    },
+    "input_schema": {}
+  },
+  {
+    "name": "COINMARKETCAP__FIAT_MAP",
+    "description": "Returns a mapping of all supported fiat currencies to unique CoinMarketCap IDs. This endpoint is designed to help you reliably identify fiat assets using their CMC ID rather than currency symbols, which may change over time. By default, it returns data for fiat currencies with updated mapping data every 30 seconds. Optionally, you can include precious metals by setting 'include_metals' to true. This endpoint is available on Basic, Hobbyist, Startup, Standard, Professional, and Enterprise plans.",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "GET",
+      "endpoint": "https://pro-api.coinmarketcap.com/v1/fiat/map"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "query": {
+          "type": "object",
+          "description": "Query parameters for retrieving the CoinMarketCap ID map for fiat currencies. 'start' specifies the 1-based index offset for pagination. 'limit' defines the number of results to return. 'sort' determines the field by which to sort the list (either by 'id' or 'name'), and 'include_metals' specifies whether to include precious metals in the response.",
+          "properties": {
+            "start": {
+              "type": "integer",
+              "description": "Optionally offset the start (1-based index) of the paginated list of items to return. Must be at least 1.",
+              "default": 1,
+              "minimum": 1
+            },
+            "limit": {
+              "type": "integer",
+              "description": "Optionally specify the number of results to return. Valid values range from 1 to 5000.",
+              "default": 100,
+              "minimum": 1,
+              "maximum": 5000
+            },
+            "sort": {
+              "type": "string",
+              "description": "Specifies the field by which to sort the list of fiat currencies. Valid values are 'id' and 'name'. Default is 'id'.",
+              "default": "id",
+              "enum": [
+                "id",
+                "name"
+              ]
+            },
+            "include_metals": {
+              "type": "boolean",
+              "description": "Pass true to include precious metals in the response.",
+              "default": false
+            }
+          },
+          "required": [],
+          "visible": [
+            "start",
+            "limit",
+            "sort",
+            "include_metals"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [],
+      "visible": [
+        "query"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "COINMARKETCAP__PRICE_CONVERSION_V2",
+    "description": "Converts an amount of a base cryptocurrency or fiat currency into one or more target currencies using the latest market rates (or historical rates if a timestamp is provided). Basic tier users are limited to 1 convert symbol/id. Specify the amount to convert along with either the CoinMarketCap currency ID (id) or its symbol (symbol) as the source. Optionally, provide a timestamp (time) to retrieve historical conversion values. You can convert the source amount into up to 120 different fiat or cryptocurrency symbols by using the 'convert' parameter. Alternatively, you can use 'convert_id' to obtain market quotes by CoinMarketCap IDs instead of symbols; note that 'convert' and 'convert_id' cannot be used together. Latest market rate conversions are accurate to within 1 minute, while historical conversions are similarly precise (with non-USD fiat conversions having a 5-minute specificity).",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "GET",
+      "endpoint": "https://pro-api.coinmarketcap.com/v2/tools/price-conversion"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "query": {
+          "type": "object",
+          "description": "Query parameters for converting a specified amount from one currency to one or more target currencies. 'amount' is required along with either 'id' (the CoinMarketCap currency ID) or 'symbol' (the currency symbol) for the base currency. Optionally, 'time' can be provided for historical conversions, 'convert' for target currency symbols, and 'convert_id' for target currency IDs (mutually exclusive with 'convert').",
+          "properties": {
+            "amount": {
+              "type": "number",
+              "description": "The amount of the base currency to convert. Must be between 1e-8 and 1000000000000. Example: 10.43."
+            },
+            "id": {
+              "type": "string",
+              "description": "The CoinMarketCap currency ID of the base cryptocurrency or fiat to convert from. Example: \"1\". (Either 'id' or 'symbol' is required.)"
+            },
+            "symbol": {
+              "type": "string",
+              "description": "Alternatively, the currency symbol of the base cryptocurrency or fiat to convert from. Example: \"BTC\". (Either 'id' or 'symbol' is required; note that if requested by symbol, the response may include an array of objects.)"
+            },
+            "time": {
+              "type": "string",
+              "description": "Optional timestamp (Unix or ISO 8601) to reference historical pricing during conversion. If not provided, the current time will be used."
+            },
+            "convert": {
+              "type": "string",
+              "description": "Comma-separated list of fiat or cryptocurrency symbols to convert the base amount into. Up to 120 symbols may be provided, but basic tier users are limited to 1 convert symbol. Each conversion is returned in its own 'quote' object."
+            },
+            "convert_id": {
+              "type": "string",
+              "description": "Optionally calculate market quotes by CoinMarketCap ID instead of symbol. For example, 'convert_id=1' would replace a convert query of 'BTC'. But basic tier users are limited to 1 convert_id. This parameter cannot be used when 'convert' is provided."
+            }
+          },
+          "required": [
+            "amount"
+          ],
+          "visible": [
+            "amount",
+            "id",
+            "symbol",
+            "time",
+            "convert",
+            "convert_id"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "query"
+      ],
+      "visible": [
+        "query"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "COINMARKETCAP__BLOCKCHAIN_STATISTICS_LATEST",
+    "description": "CoinMarketCap Statistics Latest API returns the latest blockchain statistics data for one or more blockchains. Bitcoin, Litecoin, and Ethereum are currently supported. Additional blockchains will be made available on a regular basis.",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "GET",
+      "endpoint": "https://pro-api.coinmarketcap.com/v1/blockchain/statistics/latest"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "query": {
+          "type": "object",
+          "description": "Query parameters for retrieving the latest blockchain statistics.",
+          "properties": {
+            "id": {
+              "type": "string",
+              "description": "One or more comma-separated cryptocurrency CoinMarketCap IDs to return blockchain data for. Pass 1,2,1027 to request all currently supported blockchains."
+            },
+            "symbol": {
+              "type": "string",
+              "description": "Alternatively, pass one or more comma-separated cryptocurrency symbols. Pass BTC,LTC,ETH to request all currently supported blockchains."
+            },
+            "slug": {
+              "type": "string",
+              "description": "Alternatively, pass a comma-separated list of cryptocurrency slugs. Pass bitcoin,litecoin,ethereum to request all currently supported blockchains."
+            }
+          },
+          "required": [],
+          "visible": [
+            "id",
+            "symbol",
+            "slug"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "query"
+      ],
+      "visible": [
+        "query"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "COINMARKETCAP__KEY_INFO",
+    "description": "Returns API key details and usage statistics, including your current rate limit and daily/monthly credit usage for your API plan. Use this endpoint to programmatically monitor your key usage and ensure you remain within the allowed limits. This endpoint updates in real time with each request and does not consume any API call credits, though it does count toward your minute-based rate limit. You may also view your API key details in the Developer Portal dashboard at https://pro.coinmarketcap.com/account. Data provided by CoinMarketCap.com.",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "GET",
+      "endpoint": "https://pro-api.coinmarketcap.com/v1/key/info"
+    },
+    "input_schema": {}
+  }
+]

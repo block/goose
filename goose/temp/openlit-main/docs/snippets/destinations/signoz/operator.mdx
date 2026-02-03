@@ -1,0 +1,33 @@
+### 2. Instrument your application
+**For Kubernetes deployments with zero-code instrumentation:**
+
+```yaml
+apiVersion: openlit.io/v1alpha1
+kind: AutoInstrumentation
+metadata:
+  name: signoz-instrumentation
+  namespace: default
+spec:
+  selector:
+    matchLabels:
+      instrument: "true"
+  python:
+    instrumentation:
+      provider: "openlit"
+      version: "latest"
+  otlp:
+    endpoint: "SIGNOZ_ENDPOINT"
+    headers: "signoz-access-token=SIGNOZ_INGESTION_KEY"
+    timeout: 30
+  resource:
+    environment: "production"
+    serviceName: "my-ai-service"
+```
+
+Replace:
+1. `SIGNOZ_ENDPOINT` with your SigNoz endpoint URL.
+   * Example: `https://ingest.{region}.signoz.cloud:443`
+1. `SIGNOZ_INGESTION_KEY` with the access token provided by SigNoz.
+   * Example: `896cc137-xxxx-xxxx-b8a0-a6d7ab65f274`
+
+Refer to the [OpenLIT Operator Documentation](/latest/operator/overview) for more advanced configurations and use cases.

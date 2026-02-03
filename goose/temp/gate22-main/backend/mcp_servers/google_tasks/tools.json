@@ -1,0 +1,277 @@
+[
+  {
+    "name": "GOOGLE_TASKS__TASKLIST_GET",
+    "description": "Returns a specific task list by ID.",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "TASKLIST_GET",
+      "canonical_tool_description_hash": "d2590fae9db4d4ce207c98bf3c355c099fa2aab03bd4ddaa90687551f352e98e",
+      "canonical_tool_input_schema_hash": "d7180b63e441272108fa25403348071a5bd7ab8e475bebc6f7127f8d6a231919"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["path"],
+      "properties": {
+        "path": {
+          "type": "object",
+          "required": ["tasklist"],
+          "properties": {
+            "tasklist": {
+              "type": "string",
+              "description": "ID of the task list to retrieve."
+            }
+          },
+          "description": "Path parameters.",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "GOOGLE_TASKS__TASKLIST_LIST",
+    "description": "Returns all task lists for the authenticated user. A user can have up to 2000 lists at a time.",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "TASKLIST_LIST",
+      "canonical_tool_description_hash": "e49efcfeec6de91cce2a9b99365751eaf9b5b6e45abc4632629625f59c6cc714",
+      "canonical_tool_input_schema_hash": "c3468bc73a6c55068b19da8e6d0cc51e8b6215f4fc90d22c608ee1ffb908d8c3"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": [],
+      "properties": {
+        "query": {
+          "type": "object",
+          "required": [],
+          "properties": {
+            "pageToken": {
+              "type": "string",
+              "description": "Token specifying the result page to return. Optional."
+            },
+            "maxResults": {
+              "type": "integer",
+              "default": 1000,
+              "maximum": 1000,
+              "minimum": 1,
+              "description": "Maximum number of task lists returned on one page. Optional. The default is 1000 (max allowed: 1000)."
+            }
+          },
+          "description": "Query parameters for pagination and filtering.",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "GOOGLE_TASKS__TASKS_LIST",
+    "description": "Returns all tasks in the specified task list. Doesn't return assigned tasks by default (from Docs, Chat Spaces). A user can have up to 20,000 non-hidden tasks per list and up to 100,000 tasks in total at a time.",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "TASKS_LIST",
+      "canonical_tool_description_hash": "932e5d44b801f7ba88bf7cdad68481b0d5b68116ab21f76432abcc887a86891c",
+      "canonical_tool_input_schema_hash": "2439e55727d82b97d4f1302d80fb28d1a9c0e5266b813136e6b87c078a9a7f8b"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["path"],
+      "properties": {
+        "path": {
+          "type": "object",
+          "required": ["tasklist"],
+          "properties": {
+            "tasklist": {
+              "type": "string",
+              "description": "Task list identifier."
+            }
+          },
+          "description": "Path parameters.",
+          "additionalProperties": false
+        },
+        "query": {
+          "type": "object",
+          "required": [],
+          "properties": {
+            "dueMax": {
+              "type": "string",
+              "format": "date-time",
+              "description": "Upper bound for a task's due date (as a RFC 3339 timestamp) to filter by. Optional. The default is not to filter by due date."
+            },
+            "dueMin": {
+              "type": "string",
+              "format": "date-time",
+              "description": "Lower bound for a task's due date (as a RFC 3339 timestamp) to filter by. Optional. The default is not to filter by due date."
+            },
+            "pageToken": {
+              "type": "string",
+              "description": "Token specifying the result page to return. Optional."
+            },
+            "maxResults": {
+              "type": "integer",
+              "default": 20,
+              "maximum": 100,
+              "minimum": 1,
+              "description": "Maximum number of tasks returned on one page. Optional. The default is 20 (max allowed: 100)."
+            },
+            "showHidden": {
+              "type": "boolean",
+              "default": false,
+              "description": "Flag indicating whether hidden tasks are returned in the result. Optional. The default is False."
+            },
+            "updatedMin": {
+              "type": "string",
+              "format": "date-time",
+              "description": "Lower bound for a task's last modification time (as a RFC 3339 timestamp) to filter by. Optional. The default is not to filter by last modification time."
+            },
+            "showDeleted": {
+              "type": "boolean",
+              "default": false,
+              "description": "Flag indicating whether deleted tasks are returned in the result. Optional. The default is False."
+            },
+            "completedMax": {
+              "type": "string",
+              "format": "date-time",
+              "description": "Upper bound for a task's completion date (as a RFC 3339 timestamp) to filter by. Optional. The default is not to filter by completion date."
+            },
+            "completedMin": {
+              "type": "string",
+              "format": "date-time",
+              "description": "Lower bound for a task's completion date (as a RFC 3339 timestamp) to filter by. Optional. The default is not to filter by completion date."
+            },
+            "showAssigned": {
+              "type": "boolean",
+              "default": false,
+              "description": "Flag indicating whether tasks assigned to the current user are returned in the result. Optional. The default is False."
+            },
+            "showCompleted": {
+              "type": "boolean",
+              "default": true,
+              "description": "Flag indicating whether completed tasks are returned in the result. Note that showHidden must also be True to show tasks completed in first party clients, such as the web UI and Google's mobile apps. Optional. The default is True."
+            }
+          },
+          "description": "Query parameters for filtering tasks.",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "GOOGLE_TASKS__TASKS_INSERT",
+    "description": "Creates a new task in the specified task list. Tasks assigned through Google Docs or Chat Spaces cannot be inserted through the Tasks public API; they can only be created through Google Docs or Chat Spaces assignments. A user can have up to 20,000 non-hidden tasks per list and up to 100,000 tasks in total at a time.",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "TASKS_INSERT",
+      "canonical_tool_description_hash": "570895753b6c95064a59151fe86f48c96297efc78de0f0fc637b55ff072ccc2a",
+      "canonical_tool_input_schema_hash": "5c6739b8e4216b13e589c5774c2dc176e5978213061d0662f90f5a5c882b4557"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["path", "body"],
+      "properties": {
+        "body": {
+          "type": "object",
+          "required": [],
+          "properties": {
+            "due": {
+              "type": "string",
+              "format": "date-time",
+              "description": "Due date of the task (as a RFC 3339 timestamp). Optional. The due date only records date information; the time portion of the timestamp is discarded when setting the due date. It isn't possible to read or write the time that a task is due via the API."
+            },
+            "notes": {
+              "type": "string",
+              "description": "Notes describing the task. Tasks assigned from Google Docs cannot have notes. Optional. Maximum length allowed: 8192 characters."
+            },
+            "title": {
+              "type": "string",
+              "description": "Title of the task. Maximum length allowed: 1024 characters."
+            },
+            "hidden": {
+              "type": "boolean",
+              "description": "Flag indicating whether the task is hidden. This is the case if the task had been marked completed when the task list was last cleared. The default is False. This field is read-only."
+            },
+            "status": {
+              "enum": ["needsAction", "completed"],
+              "type": "string",
+              "description": "Status of the task. This is either \"needsAction\" or \"completed\"."
+            },
+            "deleted": {
+              "type": "boolean",
+              "description": "Flag indicating whether the task has been deleted. For assigned tasks this field is read-only. They can only be deleted by calling tasks.delete, in which case both the assigned task and the original task (in Docs or Chat Spaces) are deleted. To delete the assigned task only, navigate to the assignment surface and unassign the task from there. The default is False."
+            },
+            "completed": {
+              "type": "string",
+              "format": "date-time",
+              "description": "Completion date of the task (as a RFC 3339 timestamp). This field is omitted if the task has not been completed."
+            }
+          },
+          "description": "Task properties to create.",
+          "additionalProperties": false
+        },
+        "path": {
+          "type": "object",
+          "required": ["tasklist"],
+          "properties": {
+            "tasklist": {
+              "type": "string",
+              "description": "Task list identifier."
+            }
+          },
+          "description": "Path parameters.",
+          "additionalProperties": false
+        },
+        "query": {
+          "type": "object",
+          "required": [],
+          "properties": {
+            "parent": {
+              "type": "string",
+              "description": "Parent task identifier. If the task is created at the top level, omit this parameter. Assigned tasks cannot be parent tasks or have parent tasks. Setting the parent to an assigned task will cause the request to fail. Optional."
+            },
+            "previous": {
+              "type": "string",
+              "description": "Previous sibling task identifier. If the task is created at the first position among its siblings, omit this parameter. Optional."
+            }
+          },
+          "description": "Query parameters for task insertion.",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "GOOGLE_TASKS__TASKS_DELETE",
+    "description": "Deletes a task from the specified task list.",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "TASKS_DELETE",
+      "canonical_tool_description_hash": "91f303627d21a5cb0eea4696592dace5ec801e8e389e0a9325b961ade60271ca",
+      "canonical_tool_input_schema_hash": "7a74e461b68ea74e92f9c611077ee6a1cff2280df035f13cbc88ba861576557d"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["path"],
+      "properties": {
+        "path": {
+          "type": "object",
+          "required": ["tasklist", "task"],
+          "properties": {
+            "task": {
+              "type": "string",
+              "description": "ID of the task to delete."
+            },
+            "tasklist": {
+              "type": "string",
+              "description": "ID of the task list containing the task."
+            }
+          },
+          "description": "Path parameters.",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+]

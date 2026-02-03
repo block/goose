@@ -1,0 +1,126 @@
+name: "Deploy to EKS"
+on:
+  push:
+    branches:
+      - "main"
+  release:
+    types:
+      - "created"
+
+jobs:
+  deploy:
+    name: "Setup, Build, Publish, and Deploy"
+    runs-on: ubuntu-latest
+    environment: "preview"
+    env:
+      # Infrastructure configuration
+      EKS_CLUSTER: "${{ vars.EKS_CLUSTER }}"
+      EKS_NAMESPACE: "${{ vars.EKS_NAMESPACE }}"
+      AWS_REGION: "${{ vars.AWS_REGION }}"
+      RELEASE_NAME: "${{ vars.RELEASE_NAME }}"
+      PUBLIC_DOMAIN: "${{ vars.PUBLIC_DOMAIN }}"
+      ECR_REPOSITORY: "${{ vars.ECR_REPOSITORY }}"
+
+      # Certificate configuration
+      CERT_ISSUER_NAME: "${{ vars.CERT_ISSUER_NAME }}"
+
+      # Application configuration
+      PORT: "8000"
+      HELM_PATH: "helm-chart"
+      JOB_STATUS: "succeeded"
+
+      # AWS credentials
+      AWS_ACCESS_KEY_ID: "${{ secrets.AWS_ACCESS_KEY_ID }}"
+      AWS_SECRET_ACCESS_KEY: "${{ secrets.AWS_SECRET_ACCESS_KEY }}"
+
+      # GitHub OAuth secrets
+      APP_NAME_GITHUB: "${{ secrets.APP_NAME_GITHUB }}"
+      CLIENT_ID_GITHUB: "${{ secrets.CLIENT_ID_GITHUB }}"
+      APP_CLIENT_SECRET: "${{ secrets.APP_CLIENT_SECRET }}"
+      PRIVATE_KEY_BASE64_GITHUB: "${{ secrets.PRIVATE_KEY_BASE64_GITHUB }}"
+      WEBHOOK_SECRET_GITHUB: "${{ secrets.WEBHOOK_SECRET_GITHUB }}"
+
+      # AI service secrets
+      OPENAI_API_KEY: "${{ secrets.OPENAI_API_KEY }}"
+      LANGCHAIN_API_KEY: "${{ secrets.LANGCHAIN_API_KEY }}"
+      LANGCHAIN_PROJECT: "${{ secrets.LANGCHAIN_PROJECT }}"
+
+    permissions:
+      contents: "read"
+      id-token: "write"
+      packages: "write"
+
+    steps:
+      # Checkout the repository code
+      - name: "Checkout"
+        uses: actions/checkout@v4
+
+      # Configure AWS credentials for EKS and ECR access
+      - name: "Configure AWS credentials"
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: "${{ env.AWS_ACCESS_KEY_ID }}"
+          aws-secret-access-key: "${{ env.AWS_SECRET_ACCESS_KEY }}"
+          aws-region: "${{ env.AWS_REGION }}"
+
+      # Login to Amazon ECR to push Docker images
+      - name: "Login to Amazon ECR"
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      # Build and push Docker image to ECR
+      - name: "Build, tag, and push image to Amazon ECR"
+        id: ecr-push
+        env:
+          ECR_REGISTRY: "${{ steps.login-ecr.outputs.registry }}"
+          ECR_REPOSITORY: "${{ env.ECR_REPOSITORY }}"
+          IMAGE_TAG: "${{ github.sha }}"
+        run: |
+          docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+          echo "image_repository=$ECR_REGISTRY/$ECR_REPOSITORY" >> $GITHUB_OUTPUT
+
+      # Update kubeconfig to connect to EKS cluster
+      - name: "Update kubeconfig"
+        run: aws eks update-kubeconfig --region "${{ env.AWS_REGION }}" --name "${{ env.EKS_CLUSTER }}"
+
+      # Deploy application using Helm chart
+      - name: "Install or upgrade helm chart"
+        env:
+          IMAGE_TAG: "${{ github.sha }}"
+          IMAGE_REPOSITORY: "${{ steps.ecr-push.outputs.image_repository }}"
+        run: |-
+          helm upgrade "${{ env.RELEASE_NAME }}" "${{ env.HELM_PATH }}" --namespace "${{ env.EKS_NAMESPACE }}" \
+            --values "${{ env.HELM_PATH }}/values.yaml" \
+            --set image.repository=${{ env.IMAGE_REPOSITORY }} \
+            --set image.tag=${{ env.IMAGE_TAG }} \
+            --set secrets.APP_NAME_GITHUB=${{ env.APP_NAME_GITHUB }} \
+            --set secrets.CLIENT_ID_GITHUB=${{ env.CLIENT_ID_GITHUB }} \
+            --set secrets.APP_CLIENT_SECRET=${{ env.APP_CLIENT_SECRET }} \
+            --set secrets.PRIVATE_KEY_BASE64_GITHUB=${{ env.PRIVATE_KEY_BASE64_GITHUB }} \
+            --set secrets.WEBHOOK_SECRET_GITHUB=${{ env.WEBHOOK_SECRET_GITHUB }} \
+            --set secrets.OPENAI_API_KEY=${{ env.OPENAI_API_KEY }} \
+            --set secrets.LANGCHAIN_API_KEY=${{ env.LANGCHAIN_API_KEY }} \
+            --set secrets.LANGCHAIN_PROJECT=${{ env.LANGCHAIN_PROJECT }} \
+            --set ingress.hosts[0].host=${{ env.PUBLIC_DOMAIN }} \
+            --set ingress.tls[0].secretName=${{ env.RELEASE_NAME }}-tls \
+            --set ingress.tls[0].hosts[0]=${{ env.PUBLIC_DOMAIN }} \
+            --set cert.enabled=true \
+            --set cert.tls.secretName=${{ env.RELEASE_NAME }}-tls \
+            --set cert.issuerRef.name=${{ env.CERT_ISSUER_NAME }} \
+            --set cert.issuerRef.kind=ClusterIssuer \
+            --set cert.commonName=${{ env.PUBLIC_DOMAIN }} \
+            --set cert.dnsNames.hosts[0]=${{ env.PUBLIC_DOMAIN }} \
+            --set service.port=${{ env.PORT }} \
+            --install
+        shell: bash
+
+      # Set status to failed on any's step failure
+      - name: "Set status to failed on any's step failure"
+        if: ${{ failure() }}
+        run: echo "JOB_STATUS=failed" >> $GITHUB_ENV
+
+      # Exit with error on failure
+      - name: "Exit with error on failure"
+        if: ${{ failure() }}
+        run: exit 1

@@ -1,0 +1,103 @@
+[
+    {
+        "name": "NOTION__SEARCH",
+        "description": "Perform a search.",
+        "tags": [],
+        "tool_metadata": {
+            "canonical_tool_name": "search",
+            "canonical_tool_description_hash": "dummy_canonical_tool_description_hash",
+            "canonical_tool_input_schema_hash": "dummy_canonical_tool_input_schema_hash"
+        },
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "query": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "Semantic search query"
+                },
+                "query_type": {
+                    "type": "string",
+                    "enum": [
+                        "internal",
+                        "user"
+                    ],
+                    "description": "Specify type of the query."
+                },
+                "data_source_url": {
+                    "type": "string",
+                    "description": "Optionally, provide the URL of a Data source to search."
+                },
+                "page_url": {
+                    "type": "string",
+                    "description": "Optionally, provide the URL or ID of a page to search within."
+                },
+                "teamspace_id": {
+                    "type": "string",
+                    "description": "Optionally, provide the ID of a teamspace to restrict search results to."
+                }
+            },
+            "required": [
+                "query"
+            ],
+            "additionalProperties": false,
+            "$schema": "http://json-schema.org/draft-07/schema#"
+        }
+    },
+    {
+        "name": "NOTION__FETCH",
+        "description": "Retrieves details about a Notion entity by its URL or ID.",
+        "tags": [],
+        "tool_metadata": {
+            "canonical_tool_name": "fetch",
+            "canonical_tool_description_hash": "dummy_canonical_tool_description_hash",
+            "canonical_tool_input_schema_hash": "dummy_canonical_tool_input_schema_hash"
+        },
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "id": {
+                    "type": "string",
+                    "description": "The ID or URL of the Notion page to fetch"
+                }
+            },
+            "required": [
+                "id"
+            ],
+            "additionalProperties": false,
+            "$schema": "http://json-schema.org/draft-07/schema#"
+        }
+    },
+    {
+        "name": "NOTION__GET_USER",
+        "description": "Retrieve a user",
+        "tags": [],
+        "tool_metadata": {
+            "canonical_tool_name": "get-user",
+            "canonical_tool_description_hash": "dummy_canonical_tool_description_hash",
+            "canonical_tool_input_schema_hash": "dummy_canonical_tool_input_schema_hash"
+        },
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "path": {
+                    "type": "object",
+                    "properties": {
+                        "user_id": {
+                            "type": "string"
+                        }
+                    },
+                    "required": [
+                        "user_id"
+                    ],
+                    "additionalProperties": false
+                }
+            },
+            "required": [
+                "path"
+            ],
+            "additionalProperties": false,
+            "$schema": "http://json-schema.org/draft-07/schema#"
+        }
+    }
+]

@@ -53,11 +53,23 @@ crates/
 │   │   │   ├── deploy_agent.rs   # Deployment specialist
 │   │   │   ├── docs_agent.rs     # Documentation specialist
 │   │   │   └── security_agent.rs # Security analysis specialist
+│   │   ├── persistence/       # LangGraph-style checkpointing
+│   │   ├── reasoning.rs       # ReAct, CoT, ToT patterns
+│   │   ├── reflexion.rs       # Self-improvement via verbal reinforcement
 │   │   ├── critic.rs          # Self-critique system
 │   │   ├── planner.rs         # Multi-step planning system
 │   │   ├── state_graph/       # Self-correcting execution loops
 │   │   ├── shell_guard.rs     # Security and approval system
 │   │   └── done_gate.rs       # Task completion verification
+│   ├── prompts/      # Advanced prompt engineering
+│   │   ├── mod.rs             # PromptManager for pattern coordination
+│   │   ├── patterns.rs        # 20+ reusable patterns (ReAct, CoT, etc.)
+│   │   ├── templates.rs       # Template engine with variable validation
+│   │   └── errors.rs          # Error types for prompt operations
+│   ├── observability/# Token tracking, cost estimation, tracing
+│   ├── policies/     # Rule engine and policy management
+│   ├── guardrails/   # Safety constraints and validation
+│   └── mcp_gateway/  # MCP protocol gateway
 ├── goose-bench       # benchmarking
 ├── goose-cli         # CLI entry with workflow management
 ├── goose-server      # backend (binary: goosed)
@@ -126,3 +138,6 @@ Never: Comment self-evident operations (`// Initialize`, `// Return result`), ge
 - Orchestrator: crates/goose/src/agents/orchestrator.rs
 - WorkflowEngine: crates/goose/src/agents/workflow_engine.rs
 - Specialists: crates/goose/src/agents/specialists/mod.rs
+- Prompts: crates/goose/src/prompts/mod.rs
+- Observability: crates/goose/src/observability/mod.rs
+- Policies: crates/goose/src/policies/mod.rs

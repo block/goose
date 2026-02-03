@@ -1,0 +1,209 @@
+### 3. Import the pre-built Dashboard
+
+1. Log into your Grafana Cloud Instance.
+1. Click **Dashboards** in the primary menu.
+1. Click **New** and select **Import** in the drop-down menu.
+1. Copy the dashboard JSON provided in the accordion named [`Dashboard`](#dashboard) below.
+    1. To get the GPU Monitoring dashboard, Copy the dashboard JSON provided in the accordion named [`GPU Dashboard`](#gpu-dashboard)
+1. Paste the dashboard JSON text directly into the text area.
+1. Click **Import**.
+1. Save the dashboard.
+
+<Accordion title="Dashboard">
+    ```json
+    {
+        "annotations": {
+        "list": [
+            {
+            "builtIn": 1,
+            "datasource": {
+                "type": "grafana",
+                "uid": "-- Grafana --"
+            },
+            "enable": true,
+            "hide": true,
+            "iconColor": "rgba(0, 211, 255, 1)",
+            "name": "Annotations & Alerts",
+            "type": "dashboard"
+            }
+        ]
+        },
+        "editable": true,
+        "fiscalYearStartMonth": 0,
+        "graphTooltip": 1,
+        "id": 0,
+        "links": [
+        {
+            "asDropdown": false,
+            "icon": "external link",
+            "includeVars": false,
+            "keepTime": false,
+            "tags": [],
+            "targetBlank": true,
+            "title": "OpenLIT GitHub",
+            "tooltip": "",
+            "type": "link",
+            "url": "https://github.com/openlit/openlit"
+        }
+        ],
+        "liveNow": false,
+        "panels": [
+        {
+            "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+            },
+            "description": "This dashboard displays the usage of Large Language Models (LLM) and Vector Databases, tracking OpenTelemetry Traces and Metrics sent using [OpenLIT](https://github.com/openlit/openlit).",
+            "fieldConfig": {
+            "defaults": {
+                "color": {
+                "mode": "palette-classic"
+                },
+                "custom": {
+                "hideFrom": {
+                    "legend": false,
+                    "tooltip": false,
+                    "vis": false
+                }
+                },
+                "mappings": []
+            },
+            "overrides": []
+            },
+            "gridPos": {
+            "h": 3,
+            "w": 24,
+            "x": 0,
+            "y": 0
+            },
+            "id": 1,
+            "options": {
+            "code": {
+                "language": "plaintext",
+                "showLineNumbers": false,
+                "showMiniMap": false
+            },
+            "content": "# GenAI Observability Dashboard\nThis dashboard displays the usage of Large Language Models (LLM) and Vector Databases, tracking OpenTelemetry Traces and Metrics sent using [OpenLIT](https://github.com/openlit/openlit).",
+            "mode": "markdown"
+            },
+            "pluginVersion": "10.1.2",
+            "targets": [
+            {
+                "datasource": {
+                "type": "prometheus",
+                "uid": "${DS_PROMETHEUS}"
+                },
+                "refId": "A"
+            }
+            ],
+            "title": "GenAI Observability Dashboard",
+            "type": "text"
+        }
+        ],
+        "refresh": "30s",
+        "schemaVersion": 38,
+        "style": "dark",
+        "tags": [
+        "openlit",
+        "genai",
+        "observability"
+        ],
+        "templating": {
+        "list": [
+            {
+            "current": {
+                "selected": false,
+                "text": "Prometheus",
+                "value": "P1809F7CD0C75ACF3"
+            },
+            "hide": 0,
+            "includeAll": false,
+            "label": "Data Source",
+            "multi": false,
+            "name": "DS_PROMETHEUS",
+            "options": [],
+            "query": "prometheus",
+            "refresh": 1,
+            "regex": "",
+            "skipUrlSync": false,
+            "type": "datasource"
+            }
+        ]
+        },
+        "time": {
+        "from": "now-1h",
+        "to": "now"
+        },
+        "timepicker": {},
+        "timezone": "",
+        "title": "GenAI Observability",
+        "uid": "genai-observability",
+        "version": 1,
+        "weekStart": ""
+    }
+    ```
+</Accordion>
+
+<Accordion title="GPU Dashboard">
+    ```json
+    {
+        "annotations": {
+        "list": [
+            {
+            "builtIn": 1,
+            "datasource": {
+                "type": "grafana",
+                "uid": "-- Grafana --"
+            },
+            "enable": true,
+            "hide": true,
+            "iconColor": "rgba(0, 211, 255, 1)",
+            "name": "Annotations & Alerts",
+            "type": "dashboard"
+            }
+        ]
+        },
+        "editable": true,
+        "fiscalYearStartMonth": 0,
+        "graphTooltip": 1,
+        "id": 0,
+        "links": [
+        {
+            "asDropdown": false,
+            "icon": "external link",
+            "includeVars": false,
+            "keepTime": false,
+            "tags": [],
+            "targetBlank": true,
+            "title": "OpenLIT GitHub",
+            "tooltip": "",
+            "type": "link",
+            "url": "https://github.com/openlit/openlit"
+        }
+        ],
+        "liveNow": false,
+        "panels": [],
+        "refresh": "30s",
+        "schemaVersion": 38,
+        "style": "dark",
+        "tags": [
+        "openlit",
+        "gpu",
+        "monitoring"
+        ],
+        "templating": {
+        "list": []
+        },
+        "time": {
+        "from": "now-1h",
+        "to": "now"
+        },
+        "timepicker": {},
+        "timezone": "",
+        "title": "GPU Monitoring",
+        "uid": "gpu-monitoring",
+        "version": 1,
+        "weekStart": ""
+    }
+    ```
+</Accordion>

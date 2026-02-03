@@ -1,0 +1,101 @@
+define user express greeting
+  "Hello"
+  "Hi"
+
+define bot express greeting
+  "Hello world!"
+
+define bot ask how are you
+  "How are you doing?"
+  "How's it going?"
+  "How are you feeling today?"
+
+define user express feeling good
+  "I'm feeling good"
+  "Good"
+  "Perfect"
+
+define user express feeling bad
+  "Not so good"
+  "Bad"
+  "Sad"
+
+define flow
+  user express greeting
+  bot express greeting
+  bot ask how are you
+
+  when user express feeling good
+    bot express positive emotion
+
+  else when user express feeling bad
+    bot express empathy
+
+# SingleStore specific queries
+define user ask movie recommendations
+  "Can you recommend some movies?"
+  "What movies should I watch?"
+  "Give me movie recommendations"
+  "Find movies similar to"
+  "Suggest movies like"
+  "Movie recommendations"
+  "I want to watch a movie"
+  "Looking for movie suggestions"
+
+define bot inform using singlestore
+  "Let me search our movie database for recommendations."
+  "I'll check our movie database for some suggestions."
+  "Searching our movie database for recommendations."
+
+define bot delegate to agent
+  "Here are some movie recommendations from our database."
+
+define flow movie recommendations
+  user ask movie recommendations
+  bot inform using singlestore
+  bot delegate to agent
+
+# General queries that don't need SingleStore
+define user ask general question
+  "What's the weather like?"
+  "Tell me a joke"
+  "What's the capital of France?"
+  "How do I make pasta?"
+  "What time is it?"
+  "Who won the world cup?"
+  "Tell me about history"
+
+define bot use direct llm
+  "Let me help you with that question."
+  "I can answer that for you."
+  "Here's what I know about that."
+
+define flow general queries
+  user ask general question
+  bot use direct llm
+
+# Off-topic queries
+define user ask about politics
+  "What do you think about the government?"
+  "Which party should I vote for?"
+  "Who should I vote for?"
+  "What's your political opinion?"
+
+define user ask about stock market
+  "Which stock should I invest in?"
+  "Would this stock 10x over the next year?"
+  "Should I buy this stock?"
+  "Give me stock tips"
+
+define bot refuse to respond
+  "I apologize, but I cannot provide advice on that topic."
+  "That topic is outside of my scope. I cannot provide advice on it."
+  "I'm not able to provide recommendations on that subject."
+
+define flow politics
+  user ask about politics
+  bot refuse to respond
+
+define flow stock market
+  user ask about stock market
+  bot refuse to respond

@@ -1,0 +1,162 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 500" width="900" height="500">
+  <defs>
+    <linearGradient id="attemptGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#4facfe;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#00f2fe;stop-opacity:1" />
+    </linearGradient>
+    <linearGradient id="evalGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#f093fb;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#f5576c;stop-opacity:1" />
+    </linearGradient>
+    <linearGradient id="reflectGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#667eea;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#764ba2;stop-opacity:1" />
+    </linearGradient>
+    <linearGradient id="memoryGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#43e97b;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#38f9d7;stop-opacity:1" />
+    </linearGradient>
+    <linearGradient id="bgGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#1a1a2e;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#16213e;stop-opacity:1" />
+    </linearGradient>
+    <filter id="shadow">
+      <feDropShadow dx="0" dy="4" stdDeviation="6" flood-color="#000" flood-opacity="0.4"/>
+    </filter>
+    <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+      <polygon points="0 0, 10 3.5, 0 7" fill="rgba(255,255,255,0.5)"/>
+    </marker>
+    <marker id="arrowBlue" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+      <polygon points="0 0, 10 3.5, 0 7" fill="#4facfe"/>
+    </marker>
+    <marker id="arrowGreen" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+      <polygon points="0 0, 10 3.5, 0 7" fill="#43e97b"/>
+    </marker>
+  </defs>
+
+  <!-- Background -->
+  <rect width="900" height="500" fill="url(#bgGradient)"/>
+
+  <!-- Grid -->
+  <pattern id="grid" width="30" height="30" patternUnits="userSpaceOnUse">
+    <path d="M 30 0 L 0 0 0 30" fill="none" stroke="rgba(255,255,255,0.02)" stroke-width="1"/>
+  </pattern>
+  <rect width="900" height="500" fill="url(#grid)"/>
+
+  <!-- Title -->
+  <text x="450" y="35" text-anchor="middle" font-family="'Segoe UI', Arial, sans-serif" font-size="24" font-weight="700" fill="#FFF">
+    Reflexion: Self-Improvement Pattern
+  </text>
+  <text x="450" y="55" text-anchor="middle" font-family="'Segoe UI', Arial, sans-serif" font-size="12" fill="rgba(255,255,255,0.6)">
+    Learning from Past Failures via Verbal Reinforcement (Shinn et al., 2023)
+  </text>
+
+  <!-- Main Loop -->
+  <!-- ATTEMPT Node -->
+  <g transform="translate(60, 150)" filter="url(#shadow)">
+    <rect width="150" height="120" rx="12" fill="url(#attemptGrad)"/>
+    <text x="75" y="35" text-anchor="middle" font-family="'Segoe UI', Arial, sans-serif" font-size="18" font-weight="700" fill="#FFF">ATTEMPT</text>
+    <text x="75" y="55" text-anchor="middle" font-family="'Segoe UI', Arial, sans-serif" font-size="11" fill="rgba(255,255,255,0.8)">Execute Task</text>
+    <text x="75" y="70" text-anchor="middle" font-family="'Segoe UI', Arial, sans-serif" font-size="11" fill="rgba(255,255,255,0.8)">Record Actions</text>
+    <!-- Actions list icon -->
+    <g transform="translate(55, 80)">
+      <rect width="40" height="30" rx="3" fill="rgba(255,255,255,0.2)"/>
+      <line x1="8" y1="10" x2="32" y2="10" stroke="rgba(255,255,255,0.6)" stroke-width="1.5"/>
+      <line x1="8" y1="17" x2="28" y2="17" stroke="rgba(255,255,255,0.6)" stroke-width="1.5"/>
+      <line x1="8" y1="24" x2="24" y2="24" stroke="rgba(255,255,255,0.6)" stroke-width="1.5"/>
+    </g>
+  </g>
+
+  <!-- Arrow to EVALUATE -->
+  <path d="M210,210 L270,210" fill="none" stroke="rgba(255,255,255,0.5)" stroke-width="2" marker-end="url(#arrowhead)"/>
+
+  <!-- EVALUATE Node -->
+  <g transform="translate(275, 150)" filter="url(#shadow)">
+    <rect width="150" height="120" rx="12" fill="url(#evalGrad)"/>
+    <text x="75" y="35" text-anchor="middle" font-family="'Segoe UI', Arial, sans-serif" font-size="18" font-weight="700" fill="#FFF">EVALUATE</text>
+    <text x="75" y="55" text-anchor="middle" font-family="'Segoe UI', Arial, sans-serif" font-size="11" fill="rgba(255,255,255,0.8)">Check Outcome</text>
+    <text x="75" y="70" text-anchor="middle" font-family="'Segoe UI', Arial, sans-serif" font-size="11" fill="rgba(255,255,255,0.8)">Success/Failure</text>
+    <!-- Check icon -->
+    <g transform="translate(55, 80)">
+      <circle cx="20" cy="15" r="12" fill="none" stroke="rgba(255,255,255,0.6)" stroke-width="2"/>
+      <text x="20" y="20" text-anchor="middle" font-family="'Segoe UI', Arial, sans-serif" font-size="14" fill="rgba(255,255,255,0.8)">?</text>
+    </g>
+  </g>
+
+  <!-- Success path (up and out) -->
+  <path d="M350,150 L350,110 L750,110" fill="none" stroke="#43e97b" stroke-width="2" marker-end="url(#arrowGreen)"/>
+  <text x="450" y="100" text-anchor="middle" font-family="'Segoe UI', Arial, sans-serif" font-size="12" fill="#43e97b">SUCCESS</text>
+
+  <!-- Success endpoint -->
+  <g transform="translate(750, 90)">
+    <rect width="100" height="40" rx="8" fill="#43e97b"/>
+    <text x="50" y="26" text-anchor="middle" font-family="'Segoe UI', Arial, sans-serif" font-size="14" font-weight="600" fill="#1a1a2e">DONE</text>
+  </g>
+
+  <!-- Arrow to REFLECT (failure path) -->
+  <path d="M425,210 L485,210" fill="none" stroke="#FF6B6B" stroke-width="2" marker-end="url(#arrowhead)"/>
+  <text x="455" y="200" font-family="'Segoe UI', Arial, sans-serif" font-size="12" fill="#FF6B6B">FAIL</text>
+
+  <!-- REFLECT Node -->
+  <g transform="translate(490, 150)" filter="url(#shadow)">
+    <rect width="150" height="120" rx="12" fill="url(#reflectGrad)"/>
+    <text x="75" y="35" text-anchor="middle" font-family="'Segoe UI', Arial, sans-serif" font-size="18" font-weight="700" fill="#FFF">REFLECT</text>
+    <text x="75" y="55" text-anchor="middle" font-family="'Segoe UI', Arial, sans-serif" font-size="11" fill="rgba(255,255,255,0.8)">Analyze Failure</text>
+    <text x="75" y="70" text-anchor="middle" font-family="'Segoe UI', Arial, sans-serif" font-size="11" fill="rgba(255,255,255,0.8)">Generate Insights</text>
+    <!-- Brain icon -->
+    <g transform="translate(55, 80)">
+      <ellipse cx="20" cy="15" rx="15" ry="12" fill="none" stroke="rgba(255,255,255,0.6)" stroke-width="2"/>
+      <path d="M12,15 Q20,8 28,15" fill="none" stroke="rgba(255,255,255,0.4)" stroke-width="1"/>
+      <path d="M12,18 Q20,25 28,18" fill="none" stroke="rgba(255,255,255,0.4)" stroke-width="1"/>
+    </g>
+  </g>
+
+  <!-- Arrow to STORE -->
+  <path d="M640,210 L700,210" fill="none" stroke="rgba(255,255,255,0.5)" stroke-width="2" marker-end="url(#arrowhead)"/>
+
+  <!-- STORE Node -->
+  <g transform="translate(705, 150)" filter="url(#shadow)">
+    <rect width="150" height="120" rx="12" fill="url(#memoryGrad)"/>
+    <text x="75" y="35" text-anchor="middle" font-family="'Segoe UI', Arial, sans-serif" font-size="18" font-weight="700" fill="#1a1a2e">STORE</text>
+    <text x="75" y="55" text-anchor="middle" font-family="'Segoe UI', Arial, sans-serif" font-size="11" fill="rgba(26,26,46,0.8)">Save to Memory</text>
+    <text x="75" y="70" text-anchor="middle" font-family="'Segoe UI', Arial, sans-serif" font-size="11" fill="rgba(26,26,46,0.8)">Index Keywords</text>
+    <!-- Database icon -->
+    <g transform="translate(55, 80)">
+      <ellipse cx="20" cy="8" rx="15" ry="5" fill="none" stroke="rgba(26,26,46,0.6)" stroke-width="2"/>
+      <path d="M5,8 L5,22 Q5,27 20,27 Q35,27 35,22 L35,8" fill="none" stroke="rgba(26,26,46,0.6)" stroke-width="2"/>
+      <ellipse cx="20" cy="22" rx="15" ry="5" fill="none" stroke="rgba(26,26,46,0.6)" stroke-width="2"/>
+    </g>
+  </g>
+
+  <!-- Arrow back to ATTEMPT (learning loop) -->
+  <path d="M780,270 L780,340 L135,340 L135,270" fill="none" stroke="#4facfe" stroke-width="2" stroke-dasharray="8,4" marker-end="url(#arrowBlue)"/>
+  <text x="450" y="360" text-anchor="middle" font-family="'Segoe UI', Arial, sans-serif" font-size="12" fill="#4facfe">RETRIEVE RELEVANT REFLECTIONS</text>
+
+  <!-- Episodic Memory Box -->
+  <g transform="translate(280, 380)">
+    <rect width="340" height="100" rx="10" fill="rgba(67,233,123,0.1)" stroke="rgba(67,233,123,0.4)" stroke-width="1.5"/>
+    <text x="170" y="25" text-anchor="middle" font-family="'Segoe UI', Arial, sans-serif" font-size="14" font-weight="600" fill="#43e97b">Episodic Memory</text>
+
+    <!-- Memory entry example -->
+    <g transform="translate(15, 35)">
+      <rect width="310" height="55" rx="4" fill="rgba(255,255,255,0.05)"/>
+      <text x="10" y="18" font-family="'Segoe UI Mono', monospace" font-size="10" fill="rgba(255,255,255,0.7)">Task: "Fix authentication bug"</text>
+      <text x="10" y="32" font-family="'Segoe UI Mono', monospace" font-size="10" fill="rgba(255,255,255,0.6)">Diagnosis: "Token expiry not validated"</text>
+      <text x="10" y="46" font-family="'Segoe UI Mono', monospace" font-size="10" fill="#43e97b">Lesson: "Always check token timestamps"</text>
+    </g>
+  </g>
+
+  <!-- Stats -->
+  <g transform="translate(60, 430)">
+    <rect width="180" height="50" rx="6" fill="rgba(102,126,234,0.15)" stroke="rgba(102,126,234,0.4)" stroke-width="1"/>
+    <text x="90" y="25" text-anchor="middle" font-family="'Segoe UI', Arial, sans-serif" font-size="18" font-weight="700" fill="#667eea">715</text>
+    <text x="90" y="42" text-anchor="middle" font-family="'Segoe UI', Arial, sans-serif" font-size="10" fill="rgba(255,255,255,0.6)">Lines of Reflexion Code</text>
+  </g>
+
+  <g transform="translate(660, 430)">
+    <rect width="180" height="50" rx="6" fill="rgba(67,233,123,0.15)" stroke="rgba(67,233,123,0.4)" stroke-width="1"/>
+    <text x="90" y="25" text-anchor="middle" font-family="'Segoe UI', Arial, sans-serif" font-size="14" font-weight="600" fill="#43e97b">Keyword Indexing</text>
+    <text x="90" y="42" text-anchor="middle" font-family="'Segoe UI', Arial, sans-serif" font-size="10" fill="rgba(255,255,255,0.6)">Fast Reflection Retrieval</text>
+  </g>
+</svg>

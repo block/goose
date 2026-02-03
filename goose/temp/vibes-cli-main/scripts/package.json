@@ -1,0 +1,28 @@
+{
+  "name": "vibes-scripts",
+  "version": "1.0.0",
+  "type": "module",
+  "description": "Sync scripts for vibes-cli plugin",
+  "scripts": {
+    "sync": "node sync.js",
+    "sync:force": "node sync.js --force",
+    "registry": "bun run registry-server.ts",
+    "test": "vitest",
+    "test:unit": "vitest run __tests__/unit",
+    "test:integration": "vitest run __tests__/integration",
+    "test:e2e:server": "node __tests__/e2e/local-server.js"
+  },
+  "dependencies": {
+    "esbuild": "^0.24.0",
+    "jsonwebtoken": "^9.0.2",
+    "ssh2": "^1.15.0",
+    "svix": "^1.44.0"
+  },
+  "devDependencies": {
+    "@ipld/dag-json": "^10.2.6",
+    "@types/jsonwebtoken": "^9.0.7",
+    "@vitest/coverage-v8": "^3.2.4",
+    "multiformats": "^13.4.2",
+    "vitest": "^3.0.0"
+  }
+}

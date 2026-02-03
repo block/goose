@@ -77,9 +77,10 @@ async fn test_critic_manager_core() {
     assert!(result.is_ok());
 
     if let Ok(critique) = result {
-        assert!(critique.total_issues >= 0);
-        assert!(critique.blocking_issues >= 0);
-        assert!(critique.results.len() >= 0);
+        // Verify critique structure exists and can be accessed
+        let _total = critique.total_issues;
+        let _blocking = critique.blocking_issues;
+        let _results_count = critique.results.len();
     }
 }
 

@@ -1,0 +1,288 @@
+[
+  {
+    "name": "ZENROWS__DISCOVER_AMAZON_PRODUCTS",
+    "description": "Navigate through Amazon search results or category pages to collect product information such as titles, prices, and URLs using ZenRows Amazon Discovery API.",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "GET",
+      "endpoint": "https://ecommerce.api.zenrows.com/v1/targets/amazon/discovery/{search_term}"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "header": {
+          "type": "object",
+          "description": "Headers for the HTTP request",
+          "properties": {
+            "Content-Type": {
+              "type": "string",
+              "description": "Content-Type header",
+              "default": "application/json"
+            }
+          },
+          "required": [
+            "Content-Type"
+          ],
+          "visible": [],
+          "additionalProperties": false
+        },
+        "path": {
+          "type": "object",
+          "description": "Path parameters for Amazon discovery",
+          "properties": {
+            "search_term": {
+              "type": "string",
+              "description": "The search term for Amazon products (e.g., 'Echo Dot')",
+              "pattern": "^[\\w\\s\\+]+$"
+            }
+          },
+          "required": [
+            "search_term"
+          ],
+          "visible": [
+            "search_term"
+          ],
+          "additionalProperties": false
+        },
+        "query": {
+          "type": "object",
+          "description": "Query parameters for discovering Amazon product information",
+          "properties": {
+            "tld": {
+              "type": "string",
+              "description": "Amazon top-level domain (e.g., '.com', '.de', '.it')",
+              "default": ".com"
+            },
+            "country": {
+              "type": "string",
+              "description": "Country code for Amazon site (e.g., 'us', 'es')",
+              "default": "us"
+            }
+          },
+          "required": [],
+          "visible": [
+            "tld",
+            "country"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "header",
+        "path"
+      ],
+      "visible": [
+        "path",
+        "query"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "ZENROWS__GOOGLE_SEARCH_RESULTS",
+    "description": "Extract search results from a Google search query using ZenRows Google Search Results API. Returns structured JSON data containing titles, URLs, and snippets.",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "GET",
+      "endpoint": "https://serp.api.zenrows.com/v1/targets/google/search"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "header": {
+          "type": "object",
+          "description": "Headers for the HTTP request",
+          "properties": {
+            "Content-Type": {
+              "type": "string",
+              "description": "Content-Type header",
+              "default": "application/json"
+            },
+            "Accept": {
+              "type": "string",
+              "description": "Accept header specifying the response format",
+              "default": "application/json"
+            }
+          },
+          "required": [
+            "Content-Type"
+          ],
+          "visible": [],
+          "additionalProperties": false
+        },
+        "query": {
+          "type": "object",
+          "description": "Query parameters for retrieving Google search results",
+          "properties": {
+            "url": {
+              "type": "string",
+              "description": "The full Google search URL (e.g., 'https://www.google.com/search?q=web+scraping')",
+              "format": "uri"
+            },
+            "tld": {
+              "type": "string",
+              "description": "Google top-level domain (e.g., '.com', '.ca', '.co.uk')",
+              "default": ".com"
+            },
+            "country": {
+              "type": "string",
+              "description": "Country code for the Google search (e.g., 'us', 'es')"
+            }
+          },
+          "required": [
+            "url"
+          ],
+          "visible": [
+            "url",
+            "tld",
+            "country"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "header",
+        "query"
+      ],
+      "visible": [
+        "query"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "ZENROWS__ZILLOW_PROPERTY_DATA",
+    "description": "Retrieve detailed property information for a specified Zillow property using ZenRows Zillow Property Data API. Returns structured data including address, price, and specifications based on the provided ZPID.",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "GET",
+      "endpoint": "https://realestate.api.zenrows.com/v1/targets/zillow/properties/{zpid}"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "header": {
+          "type": "object",
+          "description": "Headers for the HTTP request",
+          "properties": {
+            "Content-Type": {
+              "type": "string",
+              "description": "Content-Type header",
+              "default": "application/json"
+            }
+          },
+          "required": [
+            "Content-Type"
+          ],
+          "visible": [],
+          "additionalProperties": false
+        },
+        "path": {
+          "type": "object",
+          "description": "Path parameters for retrieving Zillow property information",
+          "properties": {
+            "zpid": {
+              "type": "string",
+              "description": "The Zillow Property ID (ZPID) for the property, a 7-10 digit number (e.g., '2081512050')",
+              "pattern": "^[0-9]{7,10}$"
+            }
+          },
+          "required": [
+            "zpid"
+          ],
+          "visible": [
+            "zpid"
+          ],
+          "additionalProperties": false
+        },
+        "query": {
+          "type": "object",
+          "description": "Query parameters for retrieving Zillow property information",
+          "properties": {
+            "url": {
+              "type": "string",
+              "description": "The URL of the Zillow property page (e.g., 'https://www.zillow.com/homedetails/2081512050_zpid')",
+              "format": "uri"
+            },
+            "country": {
+              "type": "string",
+              "description": "Country code for the Zillow site (e.g., 'us')",
+              "default": "us"
+            }
+          },
+          "required": [],
+          "visible": [
+            "url",
+            "country"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "header",
+        "path"
+      ],
+      "visible": [
+        "path",
+        "query"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "ZENROWS__ZILLOW_DISCOVERY",
+    "description": "Retrieve property listings from Zillow search results using ZenRows Zillow Discovery API. Returns structured data based on the provided search URL.",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "GET",
+      "endpoint": "https://realestate.api.zenrows.com/v1/targets/zillow/discovery"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "header": {
+          "type": "object",
+          "description": "Headers for the HTTP request",
+          "properties": {
+            "Content-Type": {
+              "type": "string",
+              "description": "Content-Type header",
+              "default": "application/json"
+            }
+          },
+          "required": [
+            "Content-Type"
+          ],
+          "visible": [],
+          "additionalProperties": false
+        },
+        "query": {
+          "type": "object",
+          "description": "Query parameters for retrieving Zillow search results",
+          "properties": {
+            "url": {
+              "type": "string",
+              "description": "The URL-encoded Zillow search URL (e.g., 'https://www.zillow.com/ks/?searchQueryState=%7B%7D')",
+              "format": "uri"
+            }
+          },
+          "required": [
+            "url"
+          ],
+          "visible": [
+            "url"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "header",
+        "query"
+      ],
+      "visible": [
+        "query"
+      ],
+      "additionalProperties": false
+    }
+  }
+]

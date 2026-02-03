@@ -1,0 +1,675 @@
+<script type="text/babel" data-type="module">
+      import React, { createContext, useContext, useState, useEffect, useRef, useCallback, useMemo } from "react";
+      import ReactDOMClient from "react-dom/client";
+      import { useFireproof } from "use-fireproof";
+
+      // === Menu Components from window (defined in module script above) ===
+      const HiddenMenuWrapper = window.HiddenMenuWrapper;
+      const VibesPanel = window.VibesPanel;
+      const VibesSwitch = window.VibesSwitch;
+      const VibesButton = window.VibesButton;
+      const BrutalistCard = window.BrutalistCard;
+      const LabelContainer = window.LabelContainer;
+
+      // === Configuration ===
+      const CONFIG = {
+        clerkPublishableKey: "__CLERK_PUBLISHABLE_KEY__",
+        appName: "__APP_NAME__",
+        appTitle: "__APP_TITLE__",
+        domain: "__APP_DOMAIN__",
+        billingMode: "__BILLING_MODE__",
+        features: __FEATURES__,
+        tagline: "__APP_TAGLINE__",
+        adminUserIds: __ADMIN_USER_IDS__,
+        reservedSubdomains: __RESERVED_SUBDOMAINS__
+      };
+
+      // Convenience aliases
+      const CLERK_PUBLISHABLE_KEY = CONFIG.clerkPublishableKey;
+      const APP_NAME = CONFIG.appName;
+      const APP_DOMAIN = CONFIG.domain;
+      const BILLING_MODE = CONFIG.billingMode;
+      const FEATURES = CONFIG.features;
+      const APP_TAGLINE = CONFIG.tagline;
+      const ADMIN_USER_IDS = CONFIG.adminUserIds;
+      const RESERVED_SUBDOMAINS = CONFIG.reservedSubdomains;
+
+      // Also use window config for Clerk (same pattern as vibes)
+      const vibesConfig = window.__VIBES_CONFIG__ || {};
+
+      // === Registry API Helpers ===
+      const registryCache = { data: null, fetchedAt: 0 };
+      const REGISTRY_CACHE_TTL = 5000;
+      let registryServerAvailable = null;
+
+      async function fetchRegistry() {
+        const now = Date.now();
+        if (registryCache.data && (now - registryCache.fetchedAt) < REGISTRY_CACHE_TTL) {
+          return registryCache.data;
+        }
+        try {
+          const res = await fetch('/registry.json');
+          if (!res.ok) throw new Error('Failed to fetch registry');
+          registryCache.data = await res.json();
+          registryCache.fetchedAt = now;
+          registryServerAvailable = true;
+          return registryCache.data;
+        } catch (e) {
+          console.warn('Registry fetch failed, using empty defaults:', e);
+          registryServerAvailable = false;
+          return { claims: {}, reserved: RESERVED_SUBDOMAINS, preallocated: {} };
+        }
+      }
+
+      function isRegistryAvailable() {
+        return registryServerAvailable === true;
+      }
+
+      async function checkSubdomainAvailability(subdomain) {
+        if (!subdomain || subdomain.length < 3) {
+          return { available: false, reason: 'too_short' };
+        }
+        const normalized = subdomain.toLowerCase().trim();
+        if (RESERVED_SUBDOMAINS.includes(normalized)) {
+          return { available: false, reason: 'reserved' };
+        }
+        try {
+          const res = await fetch(`/check/${normalized}`);
+          if (!res.ok) throw new Error('Check failed');
+          return await res.json();
+        } catch (e) {
+          const registry = await fetchRegistry();
+          if (registry.reserved?.includes(normalized)) {
+            return { available: false, reason: 'reserved' };
+          }
+          if (normalized in (registry.preallocated || {})) {
+            return { available: false, reason: 'preallocated', ownerId: registry.preallocated[normalized] };
+          }
+          if (normalized in (registry.claims || {})) {
+            return { available: false, reason: 'claimed', ownerId: registry.claims[normalized].userId };
+          }
+          return { available: true };
+        }
+      }
+
+      async function claimSubdomain(subdomain, token) {
+        if (registryServerAvailable === false) {
+          return {
+            success: false,
+            error: 'Subdomain claiming is not available. The app can be used directly via URL.',
+            status: 503
+          };
+        }
+        try {
+          const res = await fetch('/claim', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify({ subdomain: subdomain.toLowerCase().trim() })
+          });
+          const data = await res.json();
+          return { ...data, status: res.status };
+        } catch (e) {
+          return {
+            success: false,
+            error: 'Subdomain claiming is not available.',
+            status: 503
+          };
+        }
+      }
+
+      async function getSubdomainOwner(subdomain) {
+        const registry = await fetchRegistry();
+        const normalized = subdomain.toLowerCase().trim();
+        return registry.claims?.[normalized]?.userId || registry.preallocated?.[normalized] || null;
+      }
+
+      // === Route Detection ===
+      function getRouteInfo() {
+        const hostname = window.location.hostname;
+        const parts = hostname.split('.');
+        const params = new URLSearchParams(window.location.search);
+        const testSubdomain = params.get('subdomain');
+
+        // Handle localhost for testing
+        if (hostname === 'localhost' || hostname === '127.0.0.1') {
+          if (testSubdomain === 'admin') return { route: 'admin', subdomain: null };
+          if (testSubdomain) return { route: 'tenant', subdomain: testSubdomain };
+          return { route: 'landing', subdomain: null };
+        }
+
+        // Handle exe.xyz for testing
+        if (hostname.endsWith('.exe.xyz')) {
+          if (testSubdomain === 'admin') return { route: 'admin', subdomain: null };
+          if (testSubdomain) return { route: 'tenant', subdomain: testSubdomain };
+          return { route: 'landing', subdomain: null };
+        }
+
+        // Production: detect subdomain from hostname
+        if (parts.length <= 2 || parts[0] === 'www') {
+          return { route: 'landing', subdomain: null };
+        }
+        if (parts[0] === 'admin') {
+          return { route: 'admin', subdomain: null };
+        }
+        return { route: 'tenant', subdomain: parts[0] };
+      }
+
+      const routeInfo = getRouteInfo();
+
+      // === Tenant Context ===
+      const TenantContext = createContext(null);
+
+      function useTenant() {
+        const context = useContext(TenantContext);
+        if (!context) throw new Error("useTenant must be used within TenantProvider");
+        return context;
+      }
+      window.useTenant = useTenant;
+
+      function TenantProvider({ children, subdomain }) {
+        const dbName = `${APP_NAME}-${subdomain}`;
+        return (
+          <TenantContext.Provider value={{ subdomain, dbName, appName: APP_NAME, domain: APP_DOMAIN }}>
+            {children}
+          </TenantContext.Provider>
+        );
+      }
+
+      // === Subdomain Checker Hook ===
+      function useSubdomainChecker(subdomain) {
+        const [state, setState] = useState({ available: false, checking: false, error: null });
+
+        useEffect(() => {
+          if (!subdomain || subdomain.length < 3) {
+            setState({ available: false, checking: false, error: null });
+            return;
+          }
+
+          setState(prev => ({ ...prev, checking: true, error: null }));
+          const timer = setTimeout(async () => {
+            try {
+              const result = await checkSubdomainAvailability(subdomain);
+              setState({ available: result.available, checking: false, error: null });
+            } catch (e) {
+              setState({ available: false, checking: false, error: 'Check failed' });
+            }
+          }, 300);
+
+          return () => clearTimeout(timer);
+        }, [subdomain]);
+
+        return state;
+      }
+
+      // __VIBES_APP_CODE__
+
+      // === Error UI Components ===
+      function ConfigError({ message }) {
+        return (
+          <div className="min-h-screen flex items-center justify-center bg-gray-50">
+            <div className="text-center p-8 bg-white rounded-xl shadow-lg max-w-md border border-red-200">
+              <div className="text-red-500 text-4xl mb-4">⚠️</div>
+              <h1 className="text-xl font-bold text-red-700 mb-4">Configuration Error</h1>
+              <p className="text-gray-600 mb-4">{message}</p>
+              <p className="text-sm text-gray-500">
+                Run Connect setup to configure Clerk credentials.
+              </p>
+            </div>
+          </div>
+        );
+      }
+
+      function LoadingError({ error }) {
+        return (
+          <div className="min-h-screen flex items-center justify-center bg-gray-50">
+            <div className="text-center p-8 bg-white rounded-xl shadow-lg max-w-md border border-amber-200">
+              <div className="text-amber-500 text-4xl mb-4">⚡</div>
+              <h1 className="text-xl font-bold text-amber-700 mb-4">Loading Failed</h1>
+              <p className="text-gray-600 mb-4">Failed to load authentication components.</p>
+              <details className="text-left text-xs text-gray-400">
+                <summary className="cursor-pointer">Technical details</summary>
+                <pre className="mt-2 p-2 bg-gray-100 rounded overflow-auto">{error}</pre>
+              </details>
+            </div>
+          </div>
+        );
+      }
+
+      // === Auth Gate (for signed-out users) ===
+      function AuthGate({ onSignUp }) {
+        const { SignInButton, SignUpButton } = window.ClerkComponents;
+        return (
+          <div className="min-h-screen flex items-center justify-center bg-gray-50">
+            <div className="text-center p-8 bg-white rounded-xl shadow-lg max-w-md">
+              <h1 className="text-2xl font-bold mb-4">Welcome to {APP_NAME}</h1>
+              <p className="text-gray-600 mb-6">Sign in to access your space.</p>
+              <div className="flex flex-col gap-3">
+                <SignInButton mode="modal">
+                  <button className="w-full px-6 py-3 bg-black text-white rounded-lg font-medium hover:bg-gray-800 transition-colors">
+                    Sign In
+                  </button>
+                </SignInButton>
+                {onSignUp && (
+                  <button
+                    onClick={onSignUp}
+                    className="w-full px-6 py-3 border-2 border-black text-black rounded-lg font-medium hover:bg-gray-100 transition-colors"
+                  >
+                    Create Account
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+        );
+      }
+
+      // === Claim Prompt (for signed-in users on unclaimed subdomains) ===
+      function ClaimPrompt({ subdomain, onClaim, onCancel }) {
+        const [claiming, setClaiming] = useState(false);
+        const [error, setError] = useState(null);
+
+        const handleClaim = async () => {
+          setClaiming(true);
+          setError(null);
+          try {
+            const token = await window.Clerk?.session?.getToken();
+            if (!token) throw new Error('Not authenticated');
+            const result = await claimSubdomain(subdomain, token);
+            if (result.success) {
+              onClaim?.();
+            } else {
+              setError(result.error || 'Failed to claim subdomain');
+            }
+          } catch (e) {
+            setError(e.message);
+          } finally {
+            setClaiming(false);
+          }
+        };
+
+        return (
+          <div className="min-h-screen flex items-center justify-center bg-gray-50">
+            <div className="text-center p-8 bg-white rounded-xl shadow-lg max-w-md">
+              <h1 className="text-2xl font-bold mb-4">Claim {subdomain}.{APP_DOMAIN}</h1>
+              <p className="text-gray-600 mb-6">This subdomain is available! Would you like to claim it?</p>
+              {error && (
+                <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">
+                  {error}
+                </div>
+              )}
+              <div className="flex flex-col gap-3">
+                <button
+                  onClick={handleClaim}
+                  disabled={claiming}
+                  className="w-full px-6 py-3 bg-black text-white rounded-lg font-medium hover:bg-gray-800 disabled:opacity-50 transition-colors"
+                >
+                  {claiming ? 'Claiming...' : 'Claim This Subdomain'}
+                </button>
+                {onCancel && (
+                  <button
+                    onClick={onCancel}
+                    className="w-full px-6 py-3 text-gray-600 hover:text-gray-800 transition-colors"
+                  >
+                    Cancel
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+        );
+      }
+
+      // === Not Owner Redirect ===
+      function NotOwnerRedirect({ subdomain }) {
+        return (
+          <div className="min-h-screen flex items-center justify-center bg-gray-50">
+            <div className="text-center p-8 bg-white rounded-xl shadow-lg max-w-md">
+              <h1 className="text-2xl font-bold mb-4">Access Denied</h1>
+              <p className="text-gray-600 mb-6">
+                {subdomain}.{APP_DOMAIN} belongs to another user.
+              </p>
+              <a
+                href={`https://${APP_DOMAIN}`}
+                className="inline-block px-6 py-3 bg-black text-white rounded-lg font-medium hover:bg-gray-800 transition-colors"
+              >
+                Get Your Own
+              </a>
+            </div>
+          </div>
+        );
+      }
+
+      // === Tenant App Wrapper ===
+      function TenantApp({ subdomain }) {
+        const [claimState, setClaimState] = useState({ loading: true, owner: null });
+        const { SignedIn, SignedOut } = window.ClerkComponents;
+
+        useEffect(() => {
+          getSubdomainOwner(subdomain).then(owner => {
+            setClaimState({ loading: false, owner });
+          });
+        }, [subdomain]);
+
+        if (claimState.loading) {
+          return (
+            <div className="min-h-screen flex items-center justify-center">
+              <div className="text-gray-500">Loading...</div>
+            </div>
+          );
+        }
+
+        const onClaimSuccess = (userId) => {
+          setClaimState({ loading: false, owner: userId });
+        };
+
+        // Event handlers for VibesPanel
+        useEffect(() => {
+          const handleLogout = () => {
+            if (window.Clerk) window.Clerk.signOut();
+          };
+          const handleSyncDisable = () => {
+            console.log('[Sell] Sync disabled');
+          };
+          const handleShareRequest = (e) => {
+            const { email } = e.detail;
+            console.log('[Sell] Share request:', email);
+            setTimeout(() => {
+              document.dispatchEvent(new CustomEvent('vibes-share-success', {
+                detail: { email, message: `Invitation sent to ${email}!` }
+              }));
+            }, 1000);
+          };
+
+          document.addEventListener('vibes-logout-request', handleLogout);
+          document.addEventListener('vibes-sync-disable', handleSyncDisable);
+          document.addEventListener('vibes-share-request', handleShareRequest);
+          return () => {
+            document.removeEventListener('vibes-logout-request', handleLogout);
+            document.removeEventListener('vibes-sync-disable', handleSyncDisable);
+            document.removeEventListener('vibes-share-request', handleShareRequest);
+          };
+        }, []);
+
+        // Subdomain is unclaimed
+        if (!claimState.owner) {
+          return (
+            <>
+              <SignedIn>
+                {({ user }) => (
+                  <ClaimPrompt
+                    subdomain={subdomain}
+                    onClaim={() => onClaimSuccess(user?.id)}
+                  />
+                )}
+              </SignedIn>
+              <SignedOut>
+                <AuthGate />
+              </SignedOut>
+            </>
+          );
+        }
+
+        // Subdomain is claimed - check if user is owner
+        return (
+          <>
+            <SignedIn>
+              {({ user }) => {
+                if (user?.id === claimState.owner) {
+                  // Owner - show app with admin panel
+                  return (
+                    <TenantProvider subdomain={subdomain}>
+                      <HiddenMenuWrapper menuContent={<VibesPanel />}>
+                        <App />
+                      </HiddenMenuWrapper>
+                    </TenantProvider>
+                  );
+                }
+                // Not owner
+                return <NotOwnerRedirect subdomain={subdomain} />;
+              }}
+            </SignedIn>
+            <SignedOut>
+              <AuthGate />
+            </SignedOut>
+          </>
+        );
+      }
+
+      // === Admin Dashboard (placeholder) ===
+      function AdminApp() {
+        const { SignedIn, SignedOut, UserButton } = window.ClerkComponents;
+
+        return (
+          <>
+            <SignedIn>
+              {({ user }) => {
+                if (!ADMIN_USER_IDS.includes(user?.id)) {
+                  return (
+                    <div className="min-h-screen flex items-center justify-center bg-gray-50">
+                      <div className="text-center p-8">
+                        <h1 className="text-2xl font-bold mb-4">Admin Access Required</h1>
+                        <p className="text-gray-600">You don't have admin privileges.</p>
+                      </div>
+                    </div>
+                  );
+                }
+                return (
+                  <div className="min-h-screen bg-gray-50 p-8">
+                    <div className="max-w-4xl mx-auto">
+                      <div className="flex justify-between items-center mb-8">
+                        <h1 className="text-3xl font-bold">Admin Dashboard</h1>
+                        <UserButton />
+                      </div>
+                      <div className="bg-white rounded-xl shadow p-6">
+                        <p className="text-gray-600">Admin dashboard coming soon...</p>
+                      </div>
+                    </div>
+                  </div>
+                );
+              }}
+            </SignedIn>
+            <SignedOut>
+              <AuthGate />
+            </SignedOut>
+          </>
+        );
+      }
+
+      // === Landing Page Components ===
+      function SellHero({ onGetStarted }) {
+        const [subdomain, setSubdomain] = useState('');
+        const [registryStatus, setRegistryStatus] = useState('checking');
+        const { available, checking, error } = useSubdomainChecker(subdomain);
+
+        useEffect(() => {
+          fetchRegistry().then(() => {
+            setRegistryStatus(isRegistryAvailable() ? 'available' : 'unavailable');
+          });
+        }, []);
+
+        const handleGetStarted = () => {
+          if (subdomain && available) {
+            onGetStarted(subdomain);
+          }
+        };
+
+        const getStatusIndicator = () => {
+          if (!subdomain) return null;
+          if (checking) return <span className="text-gray-400 text-sm">Checking...</span>;
+          if (error) return <span className="text-red-500 text-sm">{error}</span>;
+          if (available) return <span className="text-green-600 text-sm">Available!</span>;
+          return <span className="text-red-500 text-sm">Taken</span>;
+        };
+
+        const getBorderColor = () => {
+          if (!subdomain || checking) return 'border-gray-200';
+          if (available) return 'border-green-400';
+          return 'border-red-400';
+        };
+
+        return (
+          <section className="max-w-4xl mx-auto px-6 pt-16 pb-20">
+            <div className="max-w-2xl">
+              <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold text-[var(--landing-accent)] leading-[1.1] tracking-tight mb-6">
+                {APP_TAGLINE}
+              </h1>
+              <p className="text-lg text-gray-500 mb-10 leading-relaxed">
+                Your own subdomain. Your own space. Get started in seconds.
+              </p>
+
+              {registryStatus === 'unavailable' && (
+                <div className="mb-6 p-4 bg-amber-50 border border-amber-200 rounded-xl text-amber-800 text-sm">
+                  <strong>Note:</strong> Subdomain claiming is currently unavailable.
+                  You can still try the app by adding <code className="bg-amber-100 px-1 rounded">?subdomain=yourname</code> to the URL.
+                </div>
+              )}
+
+              <div className="flex flex-col gap-2 max-w-xl">
+                <div className="flex flex-col sm:flex-row gap-3">
+                  <div className={`flex-1 flex items-center bg-white rounded-xl border ${getBorderColor()} overflow-hidden shadow-sm transition-colors`}>
+                    <input
+                      type="text"
+                      placeholder="yourname"
+                      value={subdomain}
+                      onChange={(e) => setSubdomain(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ''))}
+                      onKeyDown={(e) => e.key === 'Enter' && handleGetStarted()}
+                      className="flex-1 px-4 py-3.5 bg-transparent text-gray-800 placeholder-gray-400 focus:outline-none"
+                      disabled={registryStatus === 'unavailable'}
+                    />
+                    <span className="pr-4 text-gray-400 text-sm whitespace-nowrap">.{APP_DOMAIN}</span>
+                  </div>
+                  <button
+                    onClick={handleGetStarted}
+                    disabled={!subdomain || !available || checking || registryStatus === 'unavailable'}
+                    className="px-6 py-3.5 bg-[var(--landing-accent)] text-white font-medium rounded-xl hover:bg-[var(--landing-accent-hover)] disabled:opacity-40 disabled:cursor-not-allowed transition-all shadow-sm"
+                  >
+                    Get Started
+                  </button>
+                </div>
+                <div className="h-5 pl-1">
+                  {registryStatus !== 'unavailable' && getStatusIndicator()}
+                </div>
+              </div>
+            </div>
+          </section>
+        );
+      }
+
+      function SellFeaturesSection() {
+        return (
+          <section className="py-16 px-6 max-w-4xl mx-auto">
+            <h2 className="text-2xl font-bold text-center text-gray-900 mb-10">Everything you need</h2>
+            <div className="grid md:grid-cols-3 gap-6">
+              {FEATURES.slice(0, 6).map((feature, i) => (
+                <div key={i} className="p-5 bg-white rounded-xl border border-gray-200">
+                  <div className="w-10 h-10 bg-[var(--landing-accent)]/10 rounded-lg flex items-center justify-center mb-3">
+                    <svg className="w-5 h-5 text-[var(--landing-accent)]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                    </svg>
+                  </div>
+                  <p className="text-gray-700 font-medium">{feature}</p>
+                </div>
+              ))}
+            </div>
+          </section>
+        );
+      }
+
+      function SellLandingPage() {
+        const handleGetStarted = (subdomain) => {
+          // Navigate to subdomain
+          const url = new URL(window.location.href);
+          if (url.hostname === 'localhost' || url.hostname === '127.0.0.1' || url.hostname.endsWith('.exe.xyz')) {
+            url.searchParams.set('subdomain', subdomain);
+          } else {
+            url.hostname = `${subdomain}.${APP_DOMAIN}`;
+          }
+          window.location.href = url.toString();
+        };
+
+        return (
+          <div className="min-h-screen bg-gray-50">
+            <header className="flex justify-between items-center px-6 py-4 max-w-6xl mx-auto">
+              <div className="font-semibold text-lg text-gray-900">
+                {APP_NAME.replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}
+              </div>
+            </header>
+            <SellHero onGetStarted={handleGetStarted} />
+            <SellFeaturesSection />
+            <footer className="py-8 px-6 text-center text-gray-400 border-t border-gray-200 mt-16">
+              <p>Built with <a href="https://vibes.diy" className="text-[var(--landing-accent)] hover:underline">Vibes DIY</a></p>
+            </footer>
+          </div>
+        );
+      }
+
+      // === Main Router ===
+      function AppRouter() {
+        if (routeInfo.route === 'admin') {
+          return <AdminApp />;
+        }
+        if (routeInfo.route === 'tenant') {
+          return <TenantApp subdomain={routeInfo.subdomain} />;
+        }
+        return <SellLandingPage />;
+      }
+
+      // === App Wrapper with Clerk ===
+      function AppWrapper() {
+        // Check for configuration errors
+        const publishableKey = CLERK_PUBLISHABLE_KEY || vibesConfig.clerkPublishableKey;
+        if (!publishableKey || publishableKey.startsWith('__')) {
+          return <ConfigError message="Missing Clerk publishable key." />;
+        }
+
+        if (!window.ClerkFireproofProvider) {
+          return <LoadingError error={window.__CLERK_LOAD_ERROR__ || 'Clerk components not available'} />;
+        }
+
+        const { ClerkFireproofProvider } = window.ClerkComponents;
+
+        return (
+          <ClerkFireproofProvider
+            publishableKey={publishableKey}
+            config={{
+              apiUrl: vibesConfig.tokenApiUri,
+              cloudUrl: vibesConfig.cloudBackendUrl
+            }}
+          >
+            <AppRouter />
+          </ClerkFireproofProvider>
+        );
+      }
+
+      // === Initialize App ===
+      async function initApp() {
+        try {
+          const clerkModule = await import("@fireproof/clerk");
+          window.ClerkFireproofProvider = clerkModule.ClerkFireproofProvider;
+          window.ClerkComponents = {
+            ClerkFireproofProvider: clerkModule.ClerkFireproofProvider,
+            SignedIn: clerkModule.SignedIn,
+            SignedOut: clerkModule.SignedOut,
+            SignInButton: clerkModule.SignInButton,
+            SignUpButton: clerkModule.SignUpButton,
+            UserButton: clerkModule.UserButton
+          };
+          window.SignedIn = clerkModule.SignedIn;
+          window.SignedOut = clerkModule.SignedOut;
+          window.SignInButton = clerkModule.SignInButton;
+          window.SignUpButton = clerkModule.SignUpButton;
+          window.UserButton = clerkModule.UserButton;
+        } catch (err) {
+          console.error('Failed to load Clerk components:', err);
+          window.__CLERK_LOAD_ERROR__ = err.message || String(err);
+        }
+
+        const rootElement = document.getElementById("container");
+        ReactDOMClient.createRoot(rootElement).render(<AppWrapper />);
+      }
+
+      initApp();
+    </script>

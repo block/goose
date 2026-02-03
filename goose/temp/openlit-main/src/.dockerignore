@@ -1,0 +1,54 @@
+# Git
+.git
+.gitignore
+.gitattributes
+
+# CI/CD
+.github
+
+# Documentation
+*.md
+docs/
+README*
+
+# Node modules (will be installed in container)
+client/node_modules
+client/.next
+client/.env*.local
+
+# Python
+client/**/__pycache__
+client/**/*.pyc
+client/**/*.pyo
+client/**/*.pyd
+client/.Python
+
+# IDE
+.vscode
+.idea
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Testing
+client/**/*.test.ts
+client/**/*.test.tsx
+client/**/*.spec.ts
+client/**/*.spec.tsx
+client/coverage
+client/.coverage
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# OS
+Thumbs.db
+
+# Misc
+.env.example
+docker-compose.yml
+dev-docker-compose.yml

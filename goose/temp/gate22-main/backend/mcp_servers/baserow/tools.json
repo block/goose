@@ -1,0 +1,323 @@
+[
+  {
+    "name": "BASEROW__LIST_TEAMS_FIELDS",
+    "description": "List all fields in the Teams table",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "LIST_TEAMS_FIELDS",
+      "canonical_tool_description_hash": "93ddb7b49629edbda0a67af48fd0aeecaa06014ff07a0b385f224f08237b921c",
+      "canonical_tool_input_schema_hash": "2c05bd87d9c5f8b90b014ed438ad070e1e1201464efffcf4166145ab5d0ef6fb"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["path"],
+      "properties": {
+        "path": {
+          "type": "object",
+          "required": ["table_id"],
+          "properties": {
+            "table_id": {
+              "type": "integer",
+              "description": "The unique identifier of the table"
+            }
+          },
+          "description": "Path parameters",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "BASEROW__LIST_TEAMS_ROWS",
+    "description": "List all rows in the Teams table with pagination and filtering options",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "LIST_TEAMS_ROWS",
+      "canonical_tool_description_hash": "aa8ca9e570016be13a69a0f6076e63dc94769d52f96a4dcff18d64752499fa82",
+      "canonical_tool_input_schema_hash": "86b7dface25b04d880b0f9de03cd939d16569c93fd57de18fed2068c50c6517b"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["path"],
+      "properties": {
+        "path": {
+          "type": "object",
+          "required": ["table_id"],
+          "properties": {
+            "table_id": {
+              "type": "integer",
+              "description": "The unique identifier of the table"
+            }
+          },
+          "description": "Path parameters",
+          "additionalProperties": false
+        },
+        "query": {
+          "type": "object",
+          "required": [],
+          "properties": {
+            "page": {
+              "type": "integer",
+              "default": 1,
+              "description": "Defines which page of rows should be returned"
+            },
+            "size": {
+              "type": "integer",
+              "default": 100,
+              "description": "Defines how many rows should be returned per page"
+            },
+            "search": {
+              "type": "string",
+              "description": "If provided, only rows matching the search query are returned"
+            },
+            "exclude": {
+              "type": "string",
+              "description": "Comma-separated list of fields to exclude from results"
+            },
+            "filters": {
+              "type": "string",
+              "description": "JSON serialized string containing the filter tree to apply"
+            },
+            "include": {
+              "type": "string",
+              "description": "Comma-separated list of fields to include in results"
+            },
+            "view_id": {
+              "type": "integer",
+              "description": "ID of the view to apply its filters and sorts"
+            },
+            "order_by": {
+              "type": "string",
+              "description": "Comma-separated list of fields to order by. Prepend with '-' for descending order"
+            },
+            "filter_type": {
+              "enum": ["AND", "OR"],
+              "type": "string",
+              "default": "AND",
+              "description": "Type of filter combination (AND/OR)"
+            },
+            "field_filters": {
+              "type": "object",
+              "required": ["field_name", "filter_type", "value"],
+              "properties": {
+                "value": {
+                  "type": "string",
+                  "description": "Value to filter by"
+                },
+                "field_name": {
+                  "type": "string",
+                  "description": "Field name or field ID (e.g., 'Name' or 'field_1')"
+                },
+                "filter_type": {
+                  "enum": [
+                    "equal",
+                    "not_equal",
+                    "contains",
+                    "not_contains",
+                    "empty",
+                    "not_empty",
+                    "before",
+                    "after",
+                    "higher_than",
+                    "lower_than"
+                  ],
+                  "type": "string",
+                  "description": "Type of filter to apply"
+                }
+              },
+              "description": "Field-specific filters using the format filter__{field}__{filter}=value",
+              "additionalProperties": true
+            },
+            "user_field_names": {
+              "enum": ["y", "yes", "true", "t", "on", "1", ""],
+              "type": "string",
+              "description": "When provided, returns field names instead of field IDs"
+            },
+            "link_row_field__join": {
+              "type": "string",
+              "description": "Comma-separated list of fields to lookup from linked tables. Format: {link_field_name}__join={target_field1},{target_field2}"
+            }
+          },
+          "description": "Query parameters for filtering and pagination",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "BASEROW__GET_TEAMS_ROW",
+    "description": "Get a single row from the Teams table",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "GET_TEAMS_ROW",
+      "canonical_tool_description_hash": "e0c58d8a0a8d8e3a55f70a895c259bd0784def0053f9d970466022dd4653ef11",
+      "canonical_tool_input_schema_hash": "b64a855b998214075818bd9243cd8f628e9209fcdb56e3e10ec592a768a7fd24"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["path"],
+      "properties": {
+        "path": {
+          "type": "object",
+          "required": ["table_id", "row_id"],
+          "properties": {
+            "row_id": {
+              "type": "integer",
+              "description": "The unique identifier of the row that is requested"
+            },
+            "table_id": {
+              "type": "integer",
+              "description": "The unique identifier of the table"
+            }
+          },
+          "description": "Path parameters",
+          "additionalProperties": false
+        },
+        "query": {
+          "type": "object",
+          "required": [],
+          "properties": {
+            "user_field_names": {
+              "enum": ["y", "yes", "true", "t", "on", "1", ""],
+              "type": "string",
+              "description": "When provided, returns field names instead of field IDs"
+            }
+          },
+          "description": "Query parameters",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "BASEROW__CREATE_TEAMS_ROW",
+    "description": "Create a new row in the Teams table",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "CREATE_TEAMS_ROW",
+      "canonical_tool_description_hash": "dca36abbe22f117c525a8ebcaf8f50eee1fda56c6c87f818791ce27110f13162",
+      "canonical_tool_input_schema_hash": "e31c40766a7b92a4e401b06945cca79f35be5c33ac4c85dca21e66a1587af471"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["path", "body"],
+      "properties": {
+        "body": {
+          "type": "object",
+          "required": ["Name"],
+          "properties": {
+            "Name": {
+              "type": "string",
+              "description": "Team name"
+            }
+          },
+          "description": "Row data to create",
+          "additionalProperties": true
+        },
+        "path": {
+          "type": "object",
+          "required": ["table_id"],
+          "properties": {
+            "table_id": {
+              "type": "integer",
+              "description": "The unique identifier of the table"
+            }
+          },
+          "description": "Path parameters",
+          "additionalProperties": false
+        },
+        "query": {
+          "type": "object",
+          "required": [],
+          "properties": {
+            "before": {
+              "type": "integer",
+              "description": "If provided, the new row will be positioned before the row with this ID"
+            },
+            "user_field_names": {
+              "enum": ["y", "yes", "true", "t", "on", "1", ""],
+              "type": "string",
+              "description": "When provided, returns field names instead of field IDs"
+            },
+            "send_webhook_events": {
+              "enum": ["y", "yes", "true", "t", "on", "1", ""],
+              "type": "string",
+              "default": "true",
+              "description": "Trigger webhooks after the operation"
+            }
+          },
+          "description": "Query parameters",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "BASEROW__UPDATE_TEAMS_ROW",
+    "description": "Update an existing row in the Teams table",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "UPDATE_TEAMS_ROW",
+      "canonical_tool_description_hash": "3dbc858a7412fc55a1b1519dd455502009d0c26b3552c4c5cfd940d372949eae",
+      "canonical_tool_input_schema_hash": "4435e4c2a8504542d3674fb1a0ab362420ad80170183b7c3e371e56984db4b5b"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["path", "body"],
+      "properties": {
+        "body": {
+          "type": "object",
+          "required": [],
+          "properties": {
+            "Name": {
+              "type": "string",
+              "description": "Team name"
+            }
+          },
+          "description": "Row data to update",
+          "additionalProperties": true
+        },
+        "path": {
+          "type": "object",
+          "required": ["table_id", "row_id"],
+          "properties": {
+            "row_id": {
+              "type": "integer",
+              "description": "The unique identifier of the row that needs to be updated"
+            },
+            "table_id": {
+              "type": "integer",
+              "description": "The unique identifier of the table"
+            }
+          },
+          "description": "Path parameters",
+          "additionalProperties": false
+        },
+        "query": {
+          "type": "object",
+          "required": [],
+          "properties": {
+            "user_field_names": {
+              "enum": ["y", "yes", "true", "t", "on", "1", ""],
+              "type": "string",
+              "description": "When provided, returns field names instead of field IDs"
+            },
+            "send_webhook_events": {
+              "enum": ["y", "yes", "true", "t", "on", "1", ""],
+              "type": "string",
+              "default": "true",
+              "description": "Trigger webhooks after the operation"
+            }
+          },
+          "description": "Query parameters",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+]

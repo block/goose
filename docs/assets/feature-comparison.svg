@@ -1,0 +1,214 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 1000" width="1200" height="1000">
+  <defs>
+    <linearGradient id="headerGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" style="stop-color:#667eea;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#764ba2;stop-opacity:1" />
+    </linearGradient>
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#0f0f23;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#1a1a3e;stop-opacity:1" />
+    </linearGradient>
+    <filter id="shadow">
+      <feDropShadow dx="0" dy="4" stdDeviation="8" flood-color="#000" flood-opacity="0.3"/>
+    </filter>
+  </defs>
+
+  <!-- Background -->
+  <rect width="1200" height="1000" fill="url(#bgGrad)"/>
+
+  <!-- Title -->
+  <text x="600" y="50" text-anchor="middle" font-family="'Segoe UI', Arial, sans-serif" font-size="36" font-weight="700" fill="#FFF">
+    Enterprise Goose vs Stock Goose
+  </text>
+  <text x="600" y="80" text-anchor="middle" font-family="'Segoe UI', Arial, sans-serif" font-size="16" fill="rgba(255,255,255,0.6)">
+    Comprehensive Feature Comparison
+  </text>
+
+  <!-- Table Container -->
+  <g transform="translate(50, 110)">
+    <!-- Header Row -->
+    <rect x="0" y="0" width="1100" height="50" rx="8" fill="url(#headerGradient)" filter="url(#shadow)"/>
+    <text x="300" y="32" text-anchor="middle" font-family="'Segoe UI', Arial, sans-serif" font-size="16" font-weight="600" fill="#FFF">Feature</text>
+    <text x="650" y="32" text-anchor="middle" font-family="'Segoe UI', Arial, sans-serif" font-size="16" font-weight="600" fill="#FFF">Stock Goose</text>
+    <text x="950" y="32" text-anchor="middle" font-family="'Segoe UI', Arial, sans-serif" font-size="16" font-weight="600" fill="#FFF">Enterprise Goose</text>
+
+    <!-- Divider lines -->
+    <line x1="500" y1="10" x2="500" y2="40" stroke="rgba(255,255,255,0.3)" stroke-width="1"/>
+    <line x1="800" y1="10" x2="800" y2="40" stroke="rgba(255,255,255,0.3)" stroke-width="1"/>
+
+    <!-- Data Rows -->
+    <!-- Row 1: Multi-Agent Orchestration -->
+    <rect x="0" y="60" width="1100" height="45" rx="4" fill="rgba(255,255,255,0.03)"/>
+    <text x="20" y="88" font-family="'Segoe UI', Arial, sans-serif" font-size="14" font-weight="500" fill="#FFF">Multi-Agent Orchestration</text>
+    <text x="650" y="88" text-anchor="middle" font-family="'Segoe UI', Arial, sans-serif" font-size="14" fill="#FF6B6B">Single Agent Only</text>
+    <text x="950" y="88" text-anchor="middle" font-family="'Segoe UI', Arial, sans-serif" font-size="14" fill="#43e97b">5 Specialist Agents + Coordinator</text>
+    <circle cx="580" cy="82" r="8" fill="#FF6B6B"/>
+    <text x="580" y="86" text-anchor="middle" font-family="'Segoe UI', Arial, sans-serif" font-size="10" fill="#FFF">✗</text>
+    <circle cx="880" cy="82" r="8" fill="#43e97b"/>
+    <text x="880" y="86" text-anchor="middle" font-family="'Segoe UI', Arial, sans-serif" font-size="10" fill="#FFF">✓</text>
+
+    <!-- Row 2: StateGraph Engine -->
+    <rect x="0" y="115" width="1100" height="45" rx="4" fill="rgba(255,255,255,0.06)"/>
+    <text x="20" y="143" font-family="'Segoe UI', Arial, sans-serif" font-size="14" font-weight="500" fill="#FFF">Self-Correcting StateGraph</text>
+    <text x="650" y="143" text-anchor="middle" font-family="'Segoe UI', Arial, sans-serif" font-size="14" fill="#FF6B6B">No State Machine</text>
+    <text x="950" y="143" text-anchor="middle" font-family="'Segoe UI', Arial, sans-serif" font-size="14" fill="#43e97b">CODE→TEST→FIX Loops (909 lines)</text>
+    <circle cx="580" cy="137" r="8" fill="#FF6B6B"/>
+    <text x="580" y="141" text-anchor="middle" font-family="'Segoe UI', Arial, sans-serif" font-size="10" fill="#FFF">✗</text>
+    <circle cx="880" cy="137" r="8" fill="#43e97b"/>
+    <text x="880" y="141" text-anchor="middle" font-family="'Segoe UI', Arial, sans-serif" font-size="10" fill="#FFF">✓</text>
+
+    <!-- Row 3: LangGraph Checkpointing -->
+    <rect x="0" y="170" width="1100" height="45" rx="4" fill="rgba(255,255,255,0.03)"/>
+    <text x="20" y="198" font-family="'Segoe UI', Arial, sans-serif" font-size="14" font-weight="500" fill="#FFF">LangGraph-Style Checkpointing</text>
+    <text x="650" y="198" text-anchor="middle" font-family="'Segoe UI', Arial, sans-serif" font-size="14" fill="#FF6B6B">No Persistence</text>
+    <text x="950" y="198" text-anchor="middle" font-family="'Segoe UI', Arial, sans-serif" font-size="14" fill="#43e97b">SQLite + Memory (1,130 lines)</text>
+    <circle cx="580" cy="192" r="8" fill="#FF6B6B"/>
+    <text x="580" y="196" text-anchor="middle" font-family="'Segoe UI', Arial, sans-serif" font-size="10" fill="#FFF">✗</text>
+    <circle cx="880" cy="192" r="8" fill="#43e97b"/>
+    <text x="880" y="196" text-anchor="middle" font-family="'Segoe UI', Arial, sans-serif" font-size="10" fill="#FFF">✓</text>
+
+    <!-- Row 4: ReAct Reasoning -->
+    <rect x="0" y="225" width="1100" height="45" rx="4" fill="rgba(255,255,255,0.06)"/>
+    <text x="20" y="253" font-family="'Segoe UI', Arial, sans-serif" font-size="14" font-weight="500" fill="#FFF">ReAct Reasoning Pattern</text>
+    <text x="650" y="253" text-anchor="middle" font-family="'Segoe UI', Arial, sans-serif" font-size="14" fill="#FF6B6B">Basic Prompting</text>
+    <text x="950" y="253" text-anchor="middle" font-family="'Segoe UI', Arial, sans-serif" font-size="14" fill="#43e97b">Thought-Action-Observation Traces</text>
+    <circle cx="580" cy="247" r="8" fill="#FF6B6B"/>
+    <text x="580" y="251" text-anchor="middle" font-family="'Segoe UI', Arial, sans-serif" font-size="10" fill="#FFF">✗</text>
+    <circle cx="880" cy="247" r="8" fill="#43e97b"/>
+    <text x="880" y="251" text-anchor="middle" font-family="'Segoe UI', Arial, sans-serif" font-size="10" fill="#FFF">✓</text>
+
+    <!-- Row 5: Chain of Thought -->
+    <rect x="0" y="280" width="1100" height="45" rx="4" fill="rgba(255,255,255,0.03)"/>
+    <text x="20" y="308" font-family="'Segoe UI', Arial, sans-serif" font-size="14" font-weight="500" fill="#FFF">Chain-of-Thought Reasoning</text>
+    <text x="650" y="308" text-anchor="middle" font-family="'Segoe UI', Arial, sans-serif" font-size="14" fill="#FF6B6B">Not Implemented</text>
+    <text x="950" y="308" text-anchor="middle" font-family="'Segoe UI', Arial, sans-serif" font-size="14" fill="#43e97b">Step-by-Step Decomposition</text>
+    <circle cx="580" cy="302" r="8" fill="#FF6B6B"/>
+    <text x="580" y="306" text-anchor="middle" font-family="'Segoe UI', Arial, sans-serif" font-size="10" fill="#FFF">✗</text>
+    <circle cx="880" cy="302" r="8" fill="#43e97b"/>
+    <text x="880" y="306" text-anchor="middle" font-family="'Segoe UI', Arial, sans-serif" font-size="10" fill="#FFF">✓</text>
+
+    <!-- Row 6: Tree of Thoughts -->
+    <rect x="0" y="335" width="1100" height="45" rx="4" fill="rgba(255,255,255,0.06)"/>
+    <text x="20" y="363" font-family="'Segoe UI', Arial, sans-serif" font-size="14" font-weight="500" fill="#FFF">Tree-of-Thoughts (ToT)</text>
+    <text x="650" y="363" text-anchor="middle" font-family="'Segoe UI', Arial, sans-serif" font-size="14" fill="#FF6B6B">Not Implemented</text>
+    <text x="950" y="363" text-anchor="middle" font-family="'Segoe UI', Arial, sans-serif" font-size="14" fill="#43e97b">Branching Exploration + Evaluation</text>
+    <circle cx="580" cy="357" r="8" fill="#FF6B6B"/>
+    <text x="580" y="361" text-anchor="middle" font-family="'Segoe UI', Arial, sans-serif" font-size="10" fill="#FFF">✗</text>
+    <circle cx="880" cy="357" r="8" fill="#43e97b"/>
+    <text x="880" y="361" text-anchor="middle" font-family="'Segoe UI', Arial, sans-serif" font-size="10" fill="#FFF">✓</text>
+
+    <!-- Row 7: Reflexion -->
+    <rect x="0" y="390" width="1100" height="45" rx="4" fill="rgba(255,255,255,0.03)"/>
+    <text x="20" y="418" font-family="'Segoe UI', Arial, sans-serif" font-size="14" font-weight="500" fill="#FFF">Reflexion Self-Improvement</text>
+    <text x="650" y="418" text-anchor="middle" font-family="'Segoe UI', Arial, sans-serif" font-size="14" fill="#FF6B6B">No Learning System</text>
+    <text x="950" y="418" text-anchor="middle" font-family="'Segoe UI', Arial, sans-serif" font-size="14" fill="#43e97b">Episodic Memory + Verbal RL</text>
+    <circle cx="580" cy="412" r="8" fill="#FF6B6B"/>
+    <text x="580" y="416" text-anchor="middle" font-family="'Segoe UI', Arial, sans-serif" font-size="10" fill="#FFF">✗</text>
+    <circle cx="880" cy="412" r="8" fill="#43e97b"/>
+    <text x="880" y="416" text-anchor="middle" font-family="'Segoe UI', Arial, sans-serif" font-size="10" fill="#FFF">✓</text>
+
+    <!-- Row 8: Planning System -->
+    <rect x="0" y="445" width="1100" height="45" rx="4" fill="rgba(255,255,255,0.06)"/>
+    <text x="20" y="473" font-family="'Segoe UI', Arial, sans-serif" font-size="14" font-weight="500" fill="#FFF">Multi-Step Planning System</text>
+    <text x="650" y="473" text-anchor="middle" font-family="'Segoe UI', Arial, sans-serif" font-size="14" fill="#FF6B6B">Ad-hoc Execution</text>
+    <text x="950" y="473" text-anchor="middle" font-family="'Segoe UI', Arial, sans-serif" font-size="14" fill="#43e97b">Structured Plans + Dependencies</text>
+    <circle cx="580" cy="467" r="8" fill="#FF6B6B"/>
+    <text x="580" y="471" text-anchor="middle" font-family="'Segoe UI', Arial, sans-serif" font-size="10" fill="#FFF">✗</text>
+    <circle cx="880" cy="467" r="8" fill="#43e97b"/>
+    <text x="880" y="471" text-anchor="middle" font-family="'Segoe UI', Arial, sans-serif" font-size="10" fill="#FFF">✓</text>
+
+    <!-- Row 9: Self-Critique -->
+    <rect x="0" y="500" width="1100" height="45" rx="4" fill="rgba(255,255,255,0.03)"/>
+    <text x="20" y="528" font-family="'Segoe UI', Arial, sans-serif" font-size="14" font-weight="500" fill="#FFF">Self-Critique System</text>
+    <text x="650" y="528" text-anchor="middle" font-family="'Segoe UI', Arial, sans-serif" font-size="14" fill="#FF6B6B">No Quality Assessment</text>
+    <text x="950" y="528" text-anchor="middle" font-family="'Segoe UI', Arial, sans-serif" font-size="14" fill="#43e97b">8 Categories + 4 Severity Levels</text>
+    <circle cx="580" cy="522" r="8" fill="#FF6B6B"/>
+    <text x="580" y="526" text-anchor="middle" font-family="'Segoe UI', Arial, sans-serif" font-size="10" fill="#FFF">✗</text>
+    <circle cx="880" cy="522" r="8" fill="#43e97b"/>
+    <text x="880" y="526" text-anchor="middle" font-family="'Segoe UI', Arial, sans-serif" font-size="10" fill="#FFF">✓</text>
+
+    <!-- Row 10: Approval Policies -->
+    <rect x="0" y="555" width="1100" height="45" rx="4" fill="rgba(255,255,255,0.06)"/>
+    <text x="20" y="583" font-family="'Segoe UI', Arial, sans-serif" font-size="14" font-weight="500" fill="#FFF">Security Approval Policies</text>
+    <text x="650" y="583" text-anchor="middle" font-family="'Segoe UI', Arial, sans-serif" font-size="14" fill="#FFD700">Basic Prompting</text>
+    <text x="950" y="583" text-anchor="middle" font-family="'Segoe UI', Arial, sans-serif" font-size="14" fill="#43e97b">SAFE / PARANOID / AUTOPILOT</text>
+    <circle cx="580" cy="577" r="8" fill="#FFD700"/>
+    <text x="580" y="581" text-anchor="middle" font-family="'Segoe UI', Arial, sans-serif" font-size="10" fill="#333">~</text>
+    <circle cx="880" cy="577" r="8" fill="#43e97b"/>
+    <text x="880" y="581" text-anchor="middle" font-family="'Segoe UI', Arial, sans-serif" font-size="10" fill="#FFF">✓</text>
+
+    <!-- Row 11: Cost Tracking -->
+    <rect x="0" y="610" width="1100" height="45" rx="4" fill="rgba(255,255,255,0.03)"/>
+    <text x="20" y="638" font-family="'Segoe UI', Arial, sans-serif" font-size="14" font-weight="500" fill="#FFF">Token & Cost Tracking</text>
+    <text x="650" y="638" text-anchor="middle" font-family="'Segoe UI', Arial, sans-serif" font-size="14" fill="#FF6B6B">Not Tracked</text>
+    <text x="950" y="638" text-anchor="middle" font-family="'Segoe UI', Arial, sans-serif" font-size="14" fill="#43e97b">Real-Time + 7 Model Presets</text>
+    <circle cx="580" cy="632" r="8" fill="#FF6B6B"/>
+    <text x="580" y="636" text-anchor="middle" font-family="'Segoe UI', Arial, sans-serif" font-size="10" fill="#FFF">✗</text>
+    <circle cx="880" cy="632" r="8" fill="#43e97b"/>
+    <text x="880" y="636" text-anchor="middle" font-family="'Segoe UI', Arial, sans-serif" font-size="10" fill="#FFF">✓</text>
+
+    <!-- Row 12: Workflow Templates -->
+    <rect x="0" y="665" width="1100" height="45" rx="4" fill="rgba(255,255,255,0.06)"/>
+    <text x="20" y="693" font-family="'Segoe UI', Arial, sans-serif" font-size="14" font-weight="500" fill="#FFF">Enterprise Workflow Templates</text>
+    <text x="650" y="693" text-anchor="middle" font-family="'Segoe UI', Arial, sans-serif" font-size="14" fill="#FF6B6B">None</text>
+    <text x="950" y="693" text-anchor="middle" font-family="'Segoe UI', Arial, sans-serif" font-size="14" fill="#43e97b">10 Categories (FullStack, DevOps...)</text>
+    <circle cx="580" cy="687" r="8" fill="#FF6B6B"/>
+    <text x="580" y="691" text-anchor="middle" font-family="'Segoe UI', Arial, sans-serif" font-size="10" fill="#FFF">✗</text>
+    <circle cx="880" cy="687" r="8" fill="#43e97b"/>
+    <text x="880" y="691" text-anchor="middle" font-family="'Segoe UI', Arial, sans-serif" font-size="10" fill="#FFF">✓</text>
+
+    <!-- Row 13: Done Gate -->
+    <rect x="0" y="720" width="1100" height="45" rx="4" fill="rgba(255,255,255,0.03)"/>
+    <text x="20" y="748" font-family="'Segoe UI', Arial, sans-serif" font-size="14" font-weight="500" fill="#FFF">Done Gate Verification</text>
+    <text x="650" y="748" text-anchor="middle" font-family="'Segoe UI', Arial, sans-serif" font-size="14" fill="#FF6B6B">Manual Check</text>
+    <text x="950" y="748" text-anchor="middle" font-family="'Segoe UI', Arial, sans-serif" font-size="14" fill="#43e97b">Automated Build/Test/Lint</text>
+    <circle cx="580" cy="742" r="8" fill="#FF6B6B"/>
+    <text x="580" y="746" text-anchor="middle" font-family="'Segoe UI', Arial, sans-serif" font-size="10" fill="#FFF">✗</text>
+    <circle cx="880" cy="742" r="8" fill="#43e97b"/>
+    <text x="880" y="746" text-anchor="middle" font-family="'Segoe UI', Arial, sans-serif" font-size="10" fill="#FFF">✓</text>
+
+    <!-- Row 14: Test Framework Integration -->
+    <rect x="0" y="775" width="1100" height="45" rx="4" fill="rgba(255,255,255,0.06)"/>
+    <text x="20" y="803" font-family="'Segoe UI', Arial, sans-serif" font-size="14" font-weight="500" fill="#FFF">Test Framework Parsing</text>
+    <text x="650" y="803" text-anchor="middle" font-family="'Segoe UI', Arial, sans-serif" font-size="14" fill="#FF6B6B">Text Output Only</text>
+    <text x="950" y="803" text-anchor="middle" font-family="'Segoe UI', Arial, sans-serif" font-size="14" fill="#43e97b">Pytest / Jest / Cargo / Go Parsing</text>
+    <circle cx="580" cy="797" r="8" fill="#FF6B6B"/>
+    <text x="580" y="801" text-anchor="middle" font-family="'Segoe UI', Arial, sans-serif" font-size="10" fill="#FFF">✗</text>
+    <circle cx="880" cy="797" r="8" fill="#43e97b"/>
+    <text x="880" y="801" text-anchor="middle" font-family="'Segoe UI', Arial, sans-serif" font-size="10" fill="#FFF">✓</text>
+  </g>
+
+  <!-- Summary Stats -->
+  <g transform="translate(50, 940)">
+    <rect width="350" height="45" rx="8" fill="rgba(255,107,107,0.2)" stroke="#FF6B6B" stroke-width="1"/>
+    <text x="175" y="28" text-anchor="middle" font-family="'Segoe UI', Arial, sans-serif" font-size="14" font-weight="600" fill="#FF6B6B">
+      Stock Goose: Basic Agent Execution
+    </text>
+
+    <rect x="375" y="0" width="350" height="45" rx="8" fill="rgba(67,233,123,0.2)" stroke="#43e97b" stroke-width="1"/>
+    <text x="550" y="28" text-anchor="middle" font-family="'Segoe UI', Arial, sans-serif" font-size="14" font-weight="600" fill="#43e97b">
+      Enterprise: +17,000 Lines of Code
+    </text>
+
+    <rect x="750" y="0" width="350" height="45" rx="8" fill="rgba(102,126,234,0.2)" stroke="#667eea" stroke-width="1"/>
+    <text x="925" y="28" text-anchor="middle" font-family="'Segoe UI', Arial, sans-serif" font-size="14" font-weight="600" fill="#667eea">
+      672 Tests | 0 Warnings | 6 Phases
+    </text>
+  </g>
+
+  <!-- Legend -->
+  <g transform="translate(50, 895)">
+    <circle cx="10" cy="10" r="8" fill="#43e97b"/>
+    <text x="10" y="14" text-anchor="middle" font-family="'Segoe UI', Arial, sans-serif" font-size="10" fill="#FFF">✓</text>
+    <text x="30" y="14" font-family="'Segoe UI', Arial, sans-serif" font-size="12" fill="rgba(255,255,255,0.8)">Full Feature</text>
+
+    <circle cx="140" cy="10" r="8" fill="#FFD700"/>
+    <text x="140" y="14" text-anchor="middle" font-family="'Segoe UI', Arial, sans-serif" font-size="10" fill="#333">~</text>
+    <text x="160" y="14" font-family="'Segoe UI', Arial, sans-serif" font-size="12" fill="rgba(255,255,255,0.8)">Partial/Basic</text>
+
+    <circle cx="280" cy="10" r="8" fill="#FF6B6B"/>
+    <text x="280" y="14" text-anchor="middle" font-family="'Segoe UI', Arial, sans-serif" font-size="10" fill="#FFF">✗</text>
+    <text x="300" y="14" font-family="'Segoe UI', Arial, sans-serif" font-size="12" fill="rgba(255,255,255,0.8)">Not Available</text>
+  </g>
+</svg>

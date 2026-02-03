@@ -1,0 +1,74 @@
+<?xml version="1.0"?>
+<clickhouse>
+    <logger>
+        <!-- Set console log level to warning (only critical messages) -->
+        <level>warning</level>
+        <console>true</console>
+    </logger>
+    
+    <!-- Configure trace_log table settings -->
+    <trace_log>
+        <!-- Only log critical trace events (level 6 and above - more restrictive) -->
+        <level>6</level>
+        <!-- Reduce the frequency of trace log flushing -->
+        <flush_interval_milliseconds>120000</flush_interval_milliseconds>
+        <!-- Set table TTL to reduce storage (7 days) -->
+        <table_ttl>604800</table_ttl>
+    </trace_log>
+    
+    <!-- Configure text_log table settings (also large in your case) -->
+    <text_log>
+        <!-- Only log warning level and above -->
+        <level>warning</level>
+        <!-- Set TTL to 7 days -->
+        <table_ttl>604800</table_ttl>
+        <!-- Reduce flush frequency -->
+        <flush_interval_milliseconds>120000</flush_interval_milliseconds>
+    </text_log>
+    
+    <!-- Reduce other system table logging -->
+    <query_log>
+        <!-- Only log slow queries (over 1 second) -->
+        <log_queries_min_query_duration_ms>1000</log_queries_min_query_duration_ms>
+        <!-- Reduce flush frequency -->
+        <flush_interval_milliseconds>60000</flush_interval_milliseconds>
+        <!-- Set TTL to 7 days -->
+        <table_ttl>604800</table_ttl>
+    </query_log>
+    
+    <!-- Configure system log levels -->
+    <system_log>
+        <level>warning</level>
+    </system_log>
+    
+    <!-- Reduce metric log verbosity -->
+    <metric_log>
+        <collect_interval_milliseconds>60000</collect_interval_milliseconds>
+        <flush_interval_milliseconds>120000</flush_interval_milliseconds>
+        <!-- Set TTL to 7 days -->
+        <table_ttl>604800</table_ttl>
+    </metric_log>
+    
+    <!-- Configure asynchronous metric log (reduce storage) -->
+    <asynchronous_metric_log>
+        <collect_interval_milliseconds>60000</collect_interval_milliseconds>
+        <flush_interval_milliseconds>120000</flush_interval_milliseconds>
+        <!-- Set TTL to 7 days -->
+        <table_ttl>604800</table_ttl>
+    </asynchronous_metric_log>
+    
+    <!-- Configure part log (reduce verbosity) -->
+    <part_log>
+        <level>warning</level>
+        <flush_interval_milliseconds>120000</flush_interval_milliseconds>
+        <!-- Set TTL to 7 days -->
+        <table_ttl>604800</table_ttl>
+    </part_log>
+    
+    <!-- Configure latency log (reduce storage) -->
+    <latency_log>
+        <flush_interval_milliseconds>120000</flush_interval_milliseconds>
+        <!-- Set TTL to 7 days -->
+        <table_ttl>604800</table_ttl>
+    </latency_log>
+</clickhouse> 

@@ -1,0 +1,22 @@
+{
+  "name": "MICROSOFT_ONEDRIVE",
+  "url": "https://mcp.aci.dev/virtual/mcp?server_name=MICROSOFT_ONEDRIVE",
+  "transport_type": "streamable_http",
+  "description": "The Microsoft Graph OneDrive API enables access to files and folders stored in OneDrive. This integration allows reading, managing, and searching OneDrive content on behalf of the user.",
+  "logo": "https://raw.githubusercontent.com/aipotheosis-labs/aipolabs-icons/refs/heads/main/apps/onedrive.svg",
+  "categories": ["Productivity", "File Storage"],
+  "auth_configs": [
+    {
+      "type": "oauth2",
+      "client_id": "{{ CLIENT_ID }}",
+      "client_secret": "{{ CLIENT_SECRET }}",
+      "scope": "Files.ReadWrite User.Read offline_access",
+      "authorize_url": "https://login.microsoftonline.com/common/oauth2/v2.0/authorize",
+      "access_token_url": "https://login.microsoftonline.com/common/oauth2/v2.0/token",
+      "refresh_token_url": "https://login.microsoftonline.com/common/oauth2/v2.0/token"
+    }
+  ],
+  "server_metadata": {
+    "is_virtual_mcp_server": true
+  }
+}

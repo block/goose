@@ -1,0 +1,128 @@
+# Complete OpenLIT AutoInstrumentation Configuration
+# This example shows all available configuration options for OpenLIT zero-code instrumentation
+# with detailed comments indicating default values where applicable.
+
+apiVersion: openlit.io/v1alpha1
+kind: AutoInstrumentation
+metadata:
+  name: openlit-instrumentation
+  namespace: default
+  labels:
+    app: openlit-operator
+    provider: openlit
+spec:
+  # Pod Selection Configuration
+  # Defines which pods should be instrumented based on labels and expressions
+  selector:
+    # Simple label matching - pods with these exact labels will be instrumented
+    matchLabels:
+      instrumentation: "openlit"
+      app.type: "ai-application"
+    
+    # Advanced expression-based matching for more complex selection criteria
+    matchExpressions:
+      - key: "environment"
+        operator: In
+        values: ["production", "staging"]
+      - key: "framework"
+        operator: In
+        values: ["django", "fastapi", "flask"]
+
+  # Ignore Configuration (Optional)
+  # Defines which pods should be skipped even if they match the selector
+  ignore:
+    matchLabels:
+      skip-instrumentation: "true"
+      openlit.ignore: "true"
+
+  # Python Instrumentation Settings
+  python:
+    instrumentation:
+      # Enable/disable instrumentation (default: true)
+      enabled: true
+      
+      # Instrumentation version (default: "latest")
+      # Can be "latest" or specific version like "1.0.0"
+      version: "latest"
+      
+      # Instrumentation provider (default: "openlit")
+      # Options: "openlit", "openinference", "openllmetry", "custom"
+      provider: "openlit"
+      
+      # Image pull policy for init containers (default: "IfNotPresent")
+      # Options: "Always", "IfNotPresent", "Never"
+      imagePullPolicy: "IfNotPresent"
+      
+      # Custom packages to install (comma-separated, optional)
+      # Example: "requests==2.28.0,numpy>=1.21.0"
+      customPackages: "langchain>=0.1.0,chromadb>=0.4.0"
+      
+      # Custom init container image (optional)
+      # Use this to specify a custom instrumentation image
+      # customInitImage: "my-registry.com/custom-openlit:v1.0.0"
+      
+      # Environment variables to inject into instrumented containers
+      env:
+        # Value from secret
+        - name: OPENLIT_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: openlit-secret
+              key: api-key
+
+  # OTLP (OpenTelemetry Protocol) Configuration
+  # Required: Defines where to send telemetry data
+  otlp:
+    # OTLP endpoint URL (required)
+    # Should point to your OpenTelemetry collector or backend
+    endpoint: "http://openlit.default.svc.cluster.local:4318"
+    
+    # Additional headers for OTLP requests (optional)
+    # Format: "key=value,key2=value2"
+    # headers: "authorization=Bearer your-token,x-custom-header=value"
+    
+    # Timeout for OTLP requests in seconds (default: 30)
+    # Range: 1-300 seconds
+    timeout: 30
+
+  # Resource Configuration (Optional)
+  # Defines resource attributes attached to all telemetry data
+  resource:
+    # Deployment environment (optional)
+    # Examples: "production", "staging", "development"
+    environment: "production"
+    
+    # Service name for resource attributes (optional)
+    # serviceName: "ai-chat-service"
+    
+    # Service namespace for resource attributes (optional)
+    # serviceNamespace: "ai-platform"
+
+---
+# Example of a minimal OpenLIT instrumentation configuration
+# This shows the simplest possible configuration using mostly defaults
+
+apiVersion: openlit.io/v1alpha1
+kind: AutoInstrumentation
+metadata:
+  name: simple-openlit
+  namespace: default
+spec:
+  # Minimal selector - instrument all pods with this label
+  selector:
+    matchLabels:
+      ai.framework: "enabled"
+
+  # Required OTLP configuration
+  otlp:
+    endpoint: "http://openlit.default.svc.cluster.local:4318"
+  
+  # Optional: Override default provider settings
+  python:
+    instrumentation:
+      # All other fields use defaults:
+      # enabled: true (default)
+      # version: "latest" (default)
+      # provider: "openlit" (default)
+      # imagePullPolicy: "IfNotPresent" (default)
+      provider: "openlit"

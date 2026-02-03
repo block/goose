@@ -1,0 +1,22 @@
+{
+  "name": "CALENDLY",
+  "url": "https://mcp.aci.dev/virtual/mcp?server_name=CALENDLY",
+  "transport_type": "streamable_http",
+  "description": "Calendly integration for scheduling and managing meetings. This app allows you to automate your scheduling process, embed Calendly on your website, and manage your availability.",
+  "logo": "https://raw.githubusercontent.com/aipotheosis-labs/aipolabs-icons/refs/heads/main/apps/calendly.svg",
+  "categories": ["Productivity"],
+  "auth_configs": [
+    {
+      "type": "oauth2",
+      "client_id": "{{ CLIENT_ID }}",
+      "client_secret": "{{ CLIENT_SECRET }}",
+      "scope": "default",
+      "authorize_url": "https://auth.calendly.com/oauth/authorize",
+      "access_token_url": "https://auth.calendly.com/oauth/token",
+      "refresh_token_url": "https://auth.calendly.com/oauth/token"
+    }
+  ],
+  "server_metadata": {
+    "is_virtual_mcp_server": true
+  }
+}

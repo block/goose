@@ -1,0 +1,83 @@
+### 3. Configure Collector Exporters
+
+Once your LLM application is sending data to the OpenTelemetry Collector, configure exporters to send data to your preferred observability backends:
+
+**Popular Exporter Configurations**:
+
+<Accordion title="Jaeger (Traces)">
+```yaml
+exporters:
+  jaeger:
+    endpoint: http://jaeger-collector:14250
+    tls:
+      insecure: false
+
+service:
+  pipelines:
+    traces:
+      receivers: [otlp]
+      processors: [batch]
+      exporters: [jaeger]
+```
+</Accordion>
+
+<Accordion title="Prometheus (Metrics)">
+```yaml
+exporters:
+  prometheus:
+    endpoint: "0.0.0.0:8889"
+    metric_expiration: 180m
+
+service:
+  pipelines:
+    metrics:
+      receivers: [otlp]
+      processors: [batch]
+      exporters: [prometheus]
+```
+</Accordion>
+
+<Accordion title="Multiple Backends">
+```yaml
+exporters:
+  otlp/backend1:
+    endpoint: http://backend1:4317
+  otlp/backend2:
+    endpoint: http://backend2:4317
+  logging:
+    loglevel: debug
+
+service:
+  pipelines:
+    traces:
+      receivers: [otlp]
+      processors: [batch]
+      exporters: [otlp/backend1, otlp/backend2, logging]
+    metrics:
+      receivers: [otlp]
+      processors: [batch]
+      exporters: [otlp/backend1, otlp/backend2]
+```
+</Accordion>
+
+**Monitor Collector Health**:
+```bash
+# Check collector logs
+docker logs <collector-container-id>
+
+# Or for Kubernetes
+kubectl logs -l app.kubernetes.io/name=opentelemetry-collector
+
+# Health check endpoint (if enabled)
+curl http://localhost:13133/
+```
+
+**Benefits of Using OpenTelemetry Collector**:
+- **Vendor Agnostic**: Route data to multiple backends simultaneously
+- **Data Processing**: Apply transformations, filtering, and sampling
+- **Protocol Translation**: Convert between different telemetry formats
+- **Buffering & Reliability**: Handle network issues and backend outages
+- **Cost Optimization**: Sample and filter data to reduce costs
+- **Security**: Add authentication, encryption, and data anonymization
+
+Your OpenLIT-instrumented AI applications will send telemetry data to the Collector, which can then process and route it to any number of observability backends, providing flexibility and powerful data processing capabilities for your LLM monitoring infrastructure.

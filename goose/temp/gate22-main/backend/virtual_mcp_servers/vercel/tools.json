@@ -1,0 +1,1452 @@
+[
+  {
+    "name": "VERCEL__GET_URL_TO_INSTALL_VERCEL_APP_IN_GITHUB",
+    "description": "Installs the Vercel app in a GitHub repository. It will return a URL that user can follow to install the Vercel app in their GitHub repository.",
+    "tool_metadata": {
+      "type": "connector"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {},
+      "required": [],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "VERCEL__CREATE_PROJECT",
+    "description": "Creates a new project on Vercel.",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "POST",
+      "endpoint": "https://api.vercel.com/v11/projects"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "body": {
+          "type": "object",
+          "description": "Request body parameters",
+          "properties": {
+            "name": {
+              "type": "string",
+              "description": "The desired name for the project"
+            },
+            "framework": {
+              "description": "The framework that is being used for this project. When null is used no framework is selected",
+              "oneOf": [
+                {
+                  "type": "string",
+                  "enum": [
+                    "blitzjs",
+                    "nextjs",
+                    "gatsby",
+                    "remix",
+                    "react-router",
+                    "astro",
+                    "hexo",
+                    "eleventy",
+                    "docusaurus-2",
+                    "docusaurus",
+                    "preact",
+                    "solidstart-1",
+                    "solidstart",
+                    "dojo",
+                    "ember",
+                    "vue",
+                    "scully",
+                    "ionic-angular",
+                    "angular",
+                    "polymer",
+                    "svelte",
+                    "sveltekit",
+                    "sveltekit-1",
+                    "ionic-react",
+                    "create-react-app",
+                    "gridsome",
+                    "umijs",
+                    "sapper",
+                    "saber",
+                    "stencil",
+                    "nuxtjs",
+                    "redwoodjs",
+                    "hugo",
+                    "jekyll",
+                    "brunch",
+                    "middleman",
+                    "zola",
+                    "hydrogen",
+                    "vite",
+                    "vitepress",
+                    "vuepress",
+                    "parcel",
+                    "fasthtml",
+                    "sanity-v3",
+                    "sanity",
+                    "storybook"
+                  ]
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "gitRepository": {
+              "type": "object",
+              "description": "The Git Repository that will be connected to the project. When this is defined, any pushes to the specified connected Git Repository will be automatically deployed. The Vercel app must be installed first to use this feature.",
+              "properties": {
+                "repo": {
+                  "type": "string",
+                  "description": "The name of the git repository."
+                },
+                "type": {
+                  "type": "string",
+                  "enum": ["github", "gitlab", "bitbucket"],
+                  "default": "github",
+                  "description": "The Git Provider of the repository"
+                }
+              },
+              "required": ["repo", "type"],
+              "visible": ["repo", "type"],
+              "additionalProperties": false
+            },
+            "rootDirectory": {
+              "type": "string",
+              "description": "The name of a directory or relative path to the source code of your project. When null is used it will default to the project root. Maximum length: 256."
+            },
+            "environmentVariables": {
+              "type": "array",
+              "description": "Environment variables to be applied to the project",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "key": {
+                    "type": "string",
+                    "description": "Name of the ENV variable"
+                  },
+                  "target": {
+                    "type": "string",
+                    "enum": ["production", "preview", "development"],
+                    "description": "Deployment Target or Targets in which the ENV variable will be used"
+                  },
+                  "value": {
+                    "type": "string",
+                    "description": "Value for the ENV variable"
+                  },
+                  "gitBranch": {
+                    "type": "string",
+                    "description": "If defined, the git branch of the environment variable (must have target=preview). Maximum length: 250."
+                  },
+                  "type": {
+                    "type": "string",
+                    "enum": ["system", "secret", "encrypted", "plain", "sensitive"],
+                    "description": "Type of the ENV variable"
+                  }
+                },
+                "required": ["key", "target", "value", "type"],
+                "visible": ["key", "target", "value", "gitBranch", "type"],
+                "additionalProperties": false
+              }
+            }
+          },
+          "required": ["name"],
+          "visible": [
+            "name",
+            "framework",
+            "gitRepository",
+            "rootDirectory",
+            "environmentVariables"
+          ],
+          "additionalProperties": false
+        },
+        "query": {
+          "type": "object",
+          "description": "Optional query parameters for the http request",
+          "properties": {
+            "teamId": {
+              "type": "string",
+              "description": "The Team identifier to perform the request on behalf of."
+            },
+            "slug": {
+              "type": "string",
+              "description": "The Team slug to perform the request on behalf of."
+            }
+          },
+          "required": [],
+          "visible": ["teamId", "slug"],
+          "additionalProperties": false
+        }
+      },
+      "required": ["body"],
+      "visible": ["body", "query"],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "VERCEL__UPDATE_PROJECT",
+    "description": "Updates an existing project on Vercel using either its name or id.",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "PATCH",
+      "endpoint": "https://api.vercel.com/v9/projects/{idOrName}"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "path": {
+          "type": "object",
+          "description": "Path parameters for the http request",
+          "properties": {
+            "idOrName": {
+              "type": "string",
+              "description": "The unique project identifier or the project name."
+            }
+          },
+          "required": ["idOrName"],
+          "visible": ["idOrName"],
+          "additionalProperties": false
+        },
+        "body": {
+          "type": "object",
+          "description": "Request body parameters for updating the project",
+          "properties": {
+            "buildCommand": {
+              "type": "string",
+              "description": "The build command for this project. When null is used this value will be automatically detected. Maximum length: 256."
+            },
+            "devCommand": {
+              "type": "string",
+              "description": "The dev command for this project. When null is used this value will be automatically detected. Maximum length: 256."
+            },
+            "framework": {
+              "type": "string",
+              "description": "The framework that is being used for this project. When null is used no framework is selected",
+              "enum": [
+                "blitzjs",
+                "nextjs",
+                "gatsby",
+                "remix",
+                "react-router",
+                "astro",
+                "hexo",
+                "eleventy",
+                "docusaurus-2",
+                "docusaurus",
+                "preact",
+                "solidstart-1",
+                "solidstart",
+                "dojo",
+                "ember",
+                "vue",
+                "scully",
+                "ionic-angular",
+                "angular",
+                "polymer",
+                "svelte",
+                "sveltekit",
+                "sveltekit-1",
+                "ionic-react",
+                "create-react-app",
+                "gridsome",
+                "umijs",
+                "sapper",
+                "saber",
+                "stencil",
+                "nuxtjs",
+                "redwoodjs",
+                "hugo",
+                "jekyll",
+                "brunch",
+                "middleman",
+                "zola",
+                "hydrogen",
+                "vite",
+                "vitepress",
+                "vuepress",
+                "parcel",
+                "fasthtml",
+                "sanity-v3",
+                "sanity",
+                "storybook",
+                null
+              ]
+            },
+            "installCommand": {
+              "type": "string",
+              "description": "The install command for this project. When null is used this value will be automatically detected. Maximum length: 256."
+            },
+            "name": {
+              "type": "string",
+              "description": "The desired name for the project. Maximum length: 100."
+            },
+            "rootDirectory": {
+              "type": "string",
+              "description": "The name of a directory or relative path to the source code of your project. When null is used it will default to the project root. Maximum length: 256."
+            }
+          },
+          "required": [],
+          "visible": [
+            "buildCommand",
+            "devCommand",
+            "framework",
+            "installCommand",
+            "name",
+            "rootDirectory"
+          ],
+          "additionalProperties": false
+        },
+        "query": {
+          "type": "object",
+          "description": "Optional query parameters for the http request",
+          "properties": {
+            "teamId": {
+              "type": "string",
+              "description": "The Team identifier to perform the request on behalf of."
+            },
+            "slug": {
+              "type": "string",
+              "description": "The Team slug to perform the request on behalf of."
+            }
+          },
+          "required": [],
+          "visible": ["teamId", "slug"],
+          "additionalProperties": false
+        }
+      },
+      "required": ["path"],
+      "visible": ["path", "body", "query"],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "VERCEL__LIST_PROJECTS",
+    "description": "Lists all projects for the authenticated user.",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "GET",
+      "endpoint": "https://api.vercel.com/v10/projects"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "query": {
+          "type": "object",
+          "description": "Optional query parameters for the http request",
+          "properties": {
+            "limit": {
+              "type": "string",
+              "description": "Limits the number of projects returned in the response."
+            },
+            "search": {
+              "type": "string",
+              "description": "Search for projects by their name. Maximum length: 100 characters."
+            },
+            "repo": {
+              "type": "string",
+              "description": "Filter results to only include projects belonging to the specified repository."
+            },
+            "repoId": {
+              "type": "string",
+              "description": "Filter results by the unique Repository ID."
+            },
+            "repoUrl": {
+              "type": "string",
+              "description": "Filter results by the full Repository URL."
+            },
+            "teamId": {
+              "type": "string",
+              "description": "The Team identifier to perform the request on behalf of."
+            },
+            "slug": {
+              "type": "string",
+              "description": "The team slug to perform the request on behalf of a specific team."
+            }
+          },
+          "required": [],
+          "visible": ["limit", "search", "repo", "repoId", "repoUrl", "teamId", "slug"],
+          "additionalProperties": false
+        }
+      },
+      "required": [],
+      "visible": ["query"],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "VERCEL__FIND_PROJECT_BY_ID_OR_NAME",
+    "description": "Get the information for a specific project by passing either the project id or name in the URL.",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "GET",
+      "endpoint": "https://api.vercel.com/v9/projects/{idOrName}"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "path": {
+          "type": "object",
+          "description": "Path parameters for the http request",
+          "properties": {
+            "idOrName": {
+              "type": "string",
+              "description": "The unique project identifier or the project name."
+            }
+          },
+          "required": ["idOrName"],
+          "visible": ["idOrName"],
+          "additionalProperties": false
+        },
+        "query": {
+          "type": "object",
+          "description": "Optional query parameters for the http request",
+          "properties": {
+            "teamId": {
+              "type": "string",
+              "description": "The Team identifier to perform the request on behalf of."
+            },
+            "slug": {
+              "type": "string",
+              "description": "The Team slug to perform the request on behalf of."
+            }
+          },
+          "required": [],
+          "visible": ["teamId", "slug"],
+          "additionalProperties": false
+        }
+      },
+      "required": ["path"],
+      "visible": ["path", "query"],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "VERCEL__DELETE_PROJECT",
+    "description": "Deletes a specific project by its id or name on Vercel.",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "DELETE",
+      "endpoint": "https://api.vercel.com/v9/projects/{idOrName}"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "path": {
+          "type": "object",
+          "description": "Path parameters for the http request",
+          "properties": {
+            "idOrName": {
+              "type": "string",
+              "description": "The unique project identifier or the project name."
+            }
+          },
+          "required": ["idOrName"],
+          "visible": ["idOrName"],
+          "additionalProperties": false
+        },
+        "query": {
+          "type": "object",
+          "description": "Optional query parameters for the http request",
+          "properties": {
+            "teamId": {
+              "type": "string",
+              "description": "The Team identifier to perform the request on behalf of."
+            },
+            "slug": {
+              "type": "string",
+              "description": "The Team slug to perform the request on behalf of."
+            }
+          },
+          "required": [],
+          "visible": ["teamId", "slug"],
+          "additionalProperties": false
+        }
+      },
+      "required": ["path"],
+      "visible": ["path", "query"],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "VERCEL__DEPLOY",
+    "description": "Creates a new deployment on Vercel. A vercel project must be created first.",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "POST",
+      "endpoint": "https://api.vercel.com/v13/deployments"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "body": {
+          "type": "object",
+          "description": "Request body parameters for deployment creation.",
+          "properties": {
+            "name": {
+              "type": "string",
+              "description": "A string with the project name used in the deployment URL."
+            },
+            "customEnvironmentSlugOrId": {
+              "type": "string",
+              "description": "Deploy to a custom environment, which will override the default environment."
+            },
+            "deploymentId": {
+              "type": "string",
+              "description": "A deployment id for an existing deployment to redeploy."
+            },
+            "gitSource": {
+              "type": "object",
+              "description": "Defines the Git Repository source to be deployed. Required for git deployments.",
+              "properties": {
+                "org": {
+                  "type": "string",
+                  "description": "The organization/user of the repo."
+                },
+                "ref": {
+                  "type": "string",
+                  "description": "The branch or ref to deploy."
+                },
+                "repo": {
+                  "type": "string",
+                  "description": "The repository name."
+                },
+                "type": {
+                  "type": "string",
+                  "enum": ["github"],
+                  "description": "The Git provider type. Only 'github' is supported."
+                },
+                "sha": {
+                  "type": "string",
+                  "description": "The commit SHA to deploy."
+                }
+              },
+              "required": ["org", "ref", "repo", "type"],
+              "visible": ["org", "ref", "repo", "type", "sha"],
+              "additionalProperties": false
+            },
+            "project": {
+              "type": "string",
+              "description": "The target project identifier in which the deployment will be created. Overrides name if defined."
+            },
+            "target": {
+              "type": "string",
+              "description": "Either not defined, 'staging', 'production', or a custom environment identifier. If omitted, the target will be preview."
+            },
+            "withLatestCommit": {
+              "type": "boolean",
+              "description": "When true and deploymentId is passed in, the sha from the previous deployment's gitSource is removed forcing the latest commit to be used."
+            }
+          },
+          "required": ["name", "gitSource", "project"],
+          "visible": [
+            "name",
+            "customEnvironmentSlugOrId",
+            "deploymentId",
+            "gitSource",
+            "project",
+            "target",
+            "withLatestCommit"
+          ],
+          "additionalProperties": false
+        },
+        "query": {
+          "type": "object",
+          "description": "Optional query parameters for the http request.",
+          "properties": {
+            "forceNew": {
+              "type": "string",
+              "enum": ["0", "1"],
+              "description": "Forces a new deployment even if there is a previous similar deployment."
+            },
+            "skipAutoDetectionConfirmation": {
+              "type": "string",
+              "enum": ["0", "1"],
+              "description": "Allows to skip framework detection so the API would not fail to ask for confirmation."
+            },
+            "teamId": {
+              "type": "string",
+              "description": "The Team identifier to perform the request on behalf of."
+            },
+            "slug": {
+              "type": "string",
+              "description": "The Team slug to perform the request on behalf of."
+            }
+          },
+          "required": [],
+          "visible": ["forceNew", "skipAutoDetectionConfirmation", "teamId", "slug"],
+          "additionalProperties": false
+        }
+      },
+      "required": ["body"],
+      "visible": ["body", "query"],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "VERCEL__LIST_DEPLOYMENTS",
+    "description": "List deployments under the authenticated user or team. If a deployment hasn't finished uploading (is incomplete), the url property will have a value of null.",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "GET",
+      "endpoint": "https://api.vercel.com/v6/deployments"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "query": {
+          "type": "object",
+          "description": "Optional query parameters for filtering deployments",
+          "properties": {
+            "app": {
+              "type": "string",
+              "description": "Name of the deployment."
+            },
+            "limit": {
+              "type": "number",
+              "description": "Maximum number of deployments to list from a request."
+            },
+            "projectId": {
+              "type": "string",
+              "description": "Filter deployments from the given ID or name."
+            },
+            "target": {
+              "type": "string",
+              "description": "Filter deployments based on the environment."
+            },
+            "users": {
+              "type": "string",
+              "description": "Filter out deployments based on users who have created the deployment."
+            },
+            "since": {
+              "type": "number",
+              "description": "Get Deployments created after this JavaScript timestamp."
+            },
+            "until": {
+              "type": "number",
+              "description": "Get Deployments created before this JavaScript timestamp."
+            },
+            "state": {
+              "type": "string",
+              "description": "Filter deployments based on their state (BUILDING, ERROR, INITIALIZING, QUEUED, READY, CANCELED)"
+            },
+            "rollbackCandidate": {
+              "type": "boolean",
+              "description": "Filter deployments based on their rollback candidacy"
+            },
+            "branch": {
+              "type": "string",
+              "description": "Filter deployments based on the branch name"
+            },
+            "sha": {
+              "type": "string",
+              "description": "Filter deployments based on the SHA"
+            },
+            "teamId": {
+              "type": "string",
+              "description": "The Team identifier to perform the request on behalf of."
+            },
+            "slug": {
+              "type": "string",
+              "description": "The Team slug to perform the request on behalf of."
+            }
+          },
+          "required": [],
+          "visible": [
+            "app",
+            "limit",
+            "projectId",
+            "target",
+            "users",
+            "since",
+            "until",
+            "state",
+            "rollbackCandidate",
+            "branch",
+            "sha",
+            "teamId",
+            "slug"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [],
+      "visible": ["query"],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "VERCEL__GET_DEPLOYMENT",
+    "description": "Retrieves information for a deployment either by supplying its ID (id property) or Hostname (url property). Additional details will be included when the authenticated user or team is an owner of the deployment.",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "GET",
+      "endpoint": "https://api.vercel.com/v13/deployments/{idOrUrl}"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "path": {
+          "type": "object",
+          "description": "Path parameters for the http request",
+          "properties": {
+            "idOrUrl": {
+              "type": "string",
+              "description": "The unique identifier or hostname of the deployment."
+            }
+          },
+          "required": ["idOrUrl"],
+          "visible": ["idOrUrl"],
+          "additionalProperties": false
+        },
+        "query": {
+          "type": "object",
+          "description": "Optional query parameters for the http request",
+          "properties": {
+            "withGitRepoInfo": {
+              "type": "string",
+              "description": "Whether to add in gitRepo information."
+            },
+            "teamId": {
+              "type": "string",
+              "description": "The Team identifier to perform the request on behalf of."
+            },
+            "slug": {
+              "type": "string",
+              "description": "The Team slug to perform the request on behalf of."
+            }
+          },
+          "required": [],
+          "visible": ["withGitRepoInfo", "teamId", "slug"],
+          "additionalProperties": false
+        }
+      },
+      "required": ["path"],
+      "visible": ["path", "query"],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "VERCEL__GET_DEPLOYMENT_EVENTS",
+    "description": "Get the build logs of a deployment by deployment ID and build ID. It can work as an infinite stream of logs or as a JSON endpoint depending on the input parameters.",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "GET",
+      "endpoint": "https://api.vercel.com/v3/deployments/{idOrUrl}/events"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "path": {
+          "type": "object",
+          "description": "Path parameters for the http request",
+          "properties": {
+            "idOrUrl": {
+              "type": "string",
+              "description": "The unique identifier or hostname of the deployment."
+            }
+          },
+          "required": ["idOrUrl"],
+          "visible": ["idOrUrl"],
+          "additionalProperties": false
+        },
+        "query": {
+          "type": "object",
+          "description": "Optional query parameters for filtering and controlling event output",
+          "properties": {
+            "direction": {
+              "type": "string",
+              "enum": ["backward", "forward"],
+              "default": "forward",
+              "description": "Order of the returned events based on the timestamp."
+            },
+            "follow": {
+              "type": "number",
+              "enum": [0, 1],
+              "description": "When enabled, this endpoint will return live events as they happen."
+            },
+            "limit": {
+              "type": "number",
+              "description": "Maximum number of events to return. Provide -1 to return all available logs."
+            },
+            "name": {
+              "type": "string",
+              "description": "Deployment build ID."
+            },
+            "since": {
+              "type": "number",
+              "description": "Timestamp for when build logs should be pulled from."
+            },
+            "until": {
+              "type": "number",
+              "description": "Timestamp for when the build logs should be pulled up until."
+            },
+            "statusCode": {
+              "type": "number",
+              "description": "HTTP status code range to filter events by."
+            },
+            "delimiter": {
+              "type": "number",
+              "enum": [0, 1],
+              "description": "Whether to include delimiter in the response."
+            },
+            "builds": {
+              "type": "number",
+              "enum": [0, 1],
+              "description": "Whether to include build information in the response."
+            },
+            "teamId": {
+              "type": "string",
+              "description": "The Team identifier to perform the request on behalf of."
+            },
+            "slug": {
+              "type": "string",
+              "description": "The Team slug to perform the request on behalf of."
+            }
+          },
+          "required": [],
+          "visible": [
+            "direction",
+            "follow",
+            "limit",
+            "name",
+            "since",
+            "until",
+            "statusCode",
+            "delimiter",
+            "builds",
+            "teamId",
+            "slug"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": ["path"],
+      "visible": ["path", "query"],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "VERCEL__ADD_DOMAIN_TO_PROJECT",
+    "description": "Adds a domain to a Vercel project by project id or name.",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "POST",
+      "endpoint": "https://api.vercel.com/v10/projects/{idOrName}/domains"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "path": {
+          "type": "object",
+          "description": "Path parameters for the http request",
+          "properties": {
+            "idOrName": {
+              "type": "string",
+              "description": "The unique project identifier or the project name."
+            }
+          },
+          "required": ["idOrName"],
+          "visible": ["idOrName"],
+          "additionalProperties": false
+        },
+        "query": {
+          "type": "object",
+          "description": "Optional query parameters for the http request",
+          "properties": {
+            "teamId": {
+              "type": "string",
+              "description": "The Team identifier to perform the request on behalf of."
+            },
+            "slug": {
+              "type": "string",
+              "description": "The Team slug to perform the request on behalf of."
+            }
+          },
+          "required": [],
+          "visible": ["teamId", "slug"],
+          "additionalProperties": false
+        },
+        "body": {
+          "type": "object",
+          "description": "Request body parameters for adding a domain to a project.",
+          "properties": {
+            "name": {
+              "type": "string",
+              "description": "The project domain name."
+            }
+          },
+          "required": ["name"],
+          "visible": ["name"],
+          "additionalProperties": false
+        }
+      },
+      "required": ["path", "body"],
+      "visible": ["path", "body", "query"],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "VERCEL__RETRIEVE_PROJECT_DOMAINS",
+    "description": "Retrieves the domains associated with a Vercel project by project id or name. Supports filtering by production, target, gitBranch, redirects, verified, limit, teamId, and slug.",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "GET",
+      "endpoint": "https://api.vercel.com/v9/projects/{idOrName}/domains"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "path": {
+          "type": "object",
+          "description": "Path parameters for the http request",
+          "properties": {
+            "idOrName": {
+              "type": "string",
+              "description": "The unique project identifier or the project name."
+            }
+          },
+          "required": ["idOrName"],
+          "visible": ["idOrName"],
+          "additionalProperties": false
+        },
+        "query": {
+          "type": "object",
+          "description": "Optional query parameters for filtering domains.",
+          "properties": {
+            "production": {
+              "type": "string",
+              "enum": ["true", "false"],
+              "description": "Filters only production domains when set to true."
+            },
+            "target": {
+              "type": "string",
+              "enum": ["production", "preview"],
+              "description": "Filters on the target of the domain."
+            },
+            "gitBranch": {
+              "type": "string",
+              "description": "Filters domains based on specific branch."
+            },
+            "redirects": {
+              "type": "string",
+              "enum": ["true", "false"],
+              "description": "Includes or excludes redirect project domains."
+            },
+            "verified": {
+              "type": "string",
+              "enum": ["true", "false"],
+              "description": "Filters domains based on their verification status."
+            },
+            "limit": {
+              "type": "number",
+              "description": "Maximum number of domains to list from a request (max 100)."
+            },
+            "teamId": {
+              "type": "string",
+              "description": "The Team identifier to perform the request on behalf of."
+            },
+            "slug": {
+              "type": "string",
+              "description": "The Team slug to perform the request on behalf of."
+            }
+          },
+          "required": [],
+          "visible": [
+            "production",
+            "target",
+            "gitBranch",
+            "redirects",
+            "verified",
+            "limit",
+            "teamId",
+            "slug"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": ["path"],
+      "visible": ["path", "query"],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "VERCEL__GET_A_PROJECT_DOMAIN",
+    "description": "Gets a project domain by project id or name and domain name.",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "GET",
+      "endpoint": "https://api.vercel.com/v9/projects/{idOrName}/domains/{domain}"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "path": {
+          "type": "object",
+          "description": "Path parameters for the http request",
+          "properties": {
+            "idOrName": {
+              "type": "string",
+              "description": "The unique project identifier or the project name."
+            },
+            "domain": {
+              "type": "string",
+              "description": "The project domain name."
+            }
+          },
+          "required": ["idOrName", "domain"],
+          "visible": ["idOrName", "domain"],
+          "additionalProperties": false
+        },
+        "query": {
+          "type": "object",
+          "description": "Optional query parameters for the http request",
+          "properties": {
+            "teamId": {
+              "type": "string",
+              "description": "The Team identifier to perform the request on behalf of."
+            },
+            "slug": {
+              "type": "string",
+              "description": "The Team slug to perform the request on behalf of."
+            }
+          },
+          "required": [],
+          "visible": ["teamId", "slug"],
+          "additionalProperties": false
+        }
+      },
+      "required": ["path"],
+      "visible": ["path", "query"],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "VERCEL__REMOVE_DOMAIN_FROM_PROJECT",
+    "description": "Removes a domain from a Vercel project by project id or name and domain name. Optionally removes all redirects to the domain.",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "DELETE",
+      "endpoint": "https://api.vercel.com/v9/projects/{idOrName}/domains/{domain}"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "path": {
+          "type": "object",
+          "description": "Path parameters for the http request",
+          "properties": {
+            "idOrName": {
+              "type": "string",
+              "description": "The unique project identifier or the project name."
+            },
+            "domain": {
+              "type": "string",
+              "description": "The project domain name."
+            }
+          },
+          "required": ["idOrName", "domain"],
+          "visible": ["idOrName", "domain"],
+          "additionalProperties": false
+        },
+        "query": {
+          "type": "object",
+          "description": "Optional query parameters for the http request",
+          "properties": {
+            "teamId": {
+              "type": "string",
+              "description": "The Team identifier to perform the request on behalf of."
+            },
+            "slug": {
+              "type": "string",
+              "description": "The Team slug to perform the request on behalf of."
+            }
+          },
+          "required": [],
+          "visible": ["teamId", "slug"],
+          "additionalProperties": false
+        },
+        "body": {
+          "type": "object",
+          "description": "Optional body parameters for removing a domain from a project.",
+          "properties": {
+            "removeRedirects": {
+              "type": "boolean",
+              "description": "Whether to remove all domains from this project that redirect to the domain being removed."
+            }
+          },
+          "required": [],
+          "visible": ["removeRedirects"],
+          "additionalProperties": false
+        }
+      },
+      "required": ["path"],
+      "visible": ["path", "body", "query"],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "VERCEL__CREATE_ENVIRONMENT_VARIABLES",
+    "description": "Create one or more environment variables for a project by passing its key, value, type and target and by specifying the project by either passing the project id or name in the URL. If you include upsert=true as a query parameter, a new environment variable will not be created if it already exists but, the existing variable's value will be updated.",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "POST",
+      "endpoint": "https://api.vercel.com/v10/projects/{idOrName}/env"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "path": {
+          "type": "object",
+          "description": "Path parameters for the http request",
+          "properties": {
+            "idOrName": {
+              "type": "string",
+              "description": "The unique project identifier or the project name."
+            }
+          },
+          "required": ["idOrName"],
+          "visible": ["idOrName"],
+          "additionalProperties": false
+        },
+        "query": {
+          "type": "object",
+          "description": "Optional query parameters for the http request",
+          "properties": {
+            "upsert": {
+              "type": "string",
+              "description": "Allow override of environment variable if it already exists."
+            },
+            "teamId": {
+              "type": "string",
+              "description": "The Team identifier to perform the request on behalf of."
+            },
+            "slug": {
+              "type": "string",
+              "description": "The Team slug to perform the request on behalf of."
+            }
+          },
+          "required": [],
+          "visible": ["upsert", "teamId", "slug"],
+          "additionalProperties": false
+        },
+        "body": {
+          "type": "object",
+          "description": "Request body parameters for creating environment variables.",
+          "properties": {
+            "key": {
+              "type": "string",
+              "description": "Name of the ENV variable."
+            },
+            "value": {
+              "type": "string",
+              "description": "Value for the ENV variable."
+            },
+            "type": {
+              "type": "string",
+              "enum": ["system", "secret", "encrypted", "plain", "sensitive"],
+              "description": "Type of the ENV variable."
+            },
+            "target": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "description": "available options: production, preview, development"
+              },
+              "description": "Deployment Target or Targets in which the ENV variable will be used."
+            }
+          },
+          "required": ["key", "value", "type", "target"],
+          "visible": ["key", "value", "type", "target"],
+          "additionalProperties": false
+        }
+      },
+      "required": ["path", "body"],
+      "visible": ["path", "query", "body"],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "VERCEL__EDIT_ENVIRONMENT_VARIABLE",
+    "description": "Edit a specific environment variable for a given project by passing the environment variable identifier and either passing the project id or name in the URL.",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "PATCH",
+      "endpoint": "https://api.vercel.com/v9/projects/{idOrName}/env/{id}"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "path": {
+          "type": "object",
+          "description": "Path parameters for the http request",
+          "properties": {
+            "idOrName": {
+              "type": "string",
+              "description": "The unique project identifier or the project name."
+            },
+            "id": {
+              "type": "string",
+              "description": "The unique environment variable identifier."
+            }
+          },
+          "required": ["idOrName", "id"],
+          "visible": ["idOrName", "id"],
+          "additionalProperties": false
+        },
+        "query": {
+          "type": "object",
+          "description": "Optional query parameters for the http request",
+          "properties": {
+            "teamId": {
+              "type": "string",
+              "description": "The Team identifier to perform the request on behalf of."
+            },
+            "slug": {
+              "type": "string",
+              "description": "The Team slug to perform the request on behalf of."
+            }
+          },
+          "required": [],
+          "visible": ["teamId", "slug"],
+          "additionalProperties": false
+        },
+        "body": {
+          "type": "object",
+          "description": "Request body parameters for editing an environment variable.",
+          "properties": {
+            "key": {
+              "type": "string",
+              "description": "The name of the environment variable."
+            },
+            "target": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "enum": ["production", "preview", "development"]
+              },
+              "description": "The target environment of the environment variable."
+            },
+            "gitBranch": {
+              "type": "string",
+              "description": "If defined, the git branch of the environment variable (must have target=preview). Maximum length: 250."
+            },
+            "type": {
+              "type": "string",
+              "enum": ["plain", "sensitive"],
+              "description": "The type of environment variable."
+            },
+            "value": {
+              "type": "string",
+              "description": "The value of the environment variable."
+            },
+            "customEnvironmentIds": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "description": "The custom environments that the environment variable should be synced to."
+            },
+            "comment": {
+              "type": "string",
+              "description": "A comment to add context on what this env var is for. Maximum length: 500."
+            }
+          },
+          "required": [],
+          "visible": [
+            "key",
+            "target",
+            "gitBranch",
+            "type",
+            "value",
+            "customEnvironmentIds",
+            "comment"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": ["path", "body"],
+      "visible": ["path", "query", "body"],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "VERCEL__REMOVE_ENVIRONMENT_VARIABLE",
+    "description": "Delete a specific environment variable for a given project by passing the environment variable identifier and either passing the project id or name in the URL.",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "DELETE",
+      "endpoint": "https://api.vercel.com/v9/projects/{idOrName}/env/{id}"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "path": {
+          "type": "object",
+          "description": "Path parameters for the http request",
+          "properties": {
+            "idOrName": {
+              "type": "string",
+              "description": "The unique project identifier or the project name."
+            },
+            "id": {
+              "type": "string",
+              "description": "The unique environment variable identifier."
+            }
+          },
+          "required": ["idOrName", "id"],
+          "visible": ["idOrName", "id"],
+          "additionalProperties": false
+        },
+        "query": {
+          "type": "object",
+          "description": "Optional query parameters for the http request",
+          "properties": {
+            "customEnvironmentId": {
+              "type": "string",
+              "description": "The unique custom environment identifier within the project."
+            },
+            "teamId": {
+              "type": "string",
+              "description": "The Team identifier to perform the request on behalf of."
+            },
+            "slug": {
+              "type": "string",
+              "description": "The Team slug to perform the request on behalf of."
+            }
+          },
+          "required": [],
+          "visible": ["customEnvironmentId", "teamId", "slug"],
+          "additionalProperties": false
+        }
+      },
+      "required": ["path"],
+      "visible": ["path", "query"],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "VERCEL__RETRIEVE_ENVIRONMENT_VARIABLES",
+    "description": "Retrieve the environment variables for a given project by passing either the project id or name in the URL.",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "GET",
+      "endpoint": "https://api.vercel.com/v10/projects/{idOrName}/env"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "path": {
+          "type": "object",
+          "description": "Path parameters for the http request",
+          "properties": {
+            "idOrName": {
+              "type": "string",
+              "description": "The unique project identifier or the project name."
+            }
+          },
+          "required": ["idOrName"],
+          "visible": ["idOrName"],
+          "additionalProperties": false
+        },
+        "query": {
+          "type": "object",
+          "description": "Optional query parameters for the http request",
+          "properties": {
+            "gitBranch": {
+              "type": "string",
+              "description": "If defined, the git branch of the environment variable to filter the results (must have target=preview). Maximum length: 250."
+            },
+            "decrypt": {
+              "type": "string",
+              "enum": ["true", "false"],
+              "description": "If true, the environment variable value will be decrypted. (deprecated)"
+            },
+            "source": {
+              "type": "string",
+              "description": "The source that is calling the endpoint."
+            },
+            "customEnvironmentId": {
+              "type": "string",
+              "description": "The unique custom environment identifier within the project."
+            },
+            "customEnvironmentSlug": {
+              "type": "string",
+              "description": "The custom environment slug (name) within the project."
+            },
+            "teamId": {
+              "type": "string",
+              "description": "The Team identifier to perform the request on behalf of."
+            },
+            "slug": {
+              "type": "string",
+              "description": "The Team slug to perform the request on behalf of."
+            }
+          },
+          "required": [],
+          "visible": [
+            "gitBranch",
+            "decrypt",
+            "source",
+            "customEnvironmentId",
+            "customEnvironmentSlug",
+            "teamId",
+            "slug"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": ["path"],
+      "visible": ["path", "query"],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "VERCEL__RETRIEVE_DECRYPTED_ENVIRONMENT_VARIABLE",
+    "description": "Retrieve the decrypted value of an environment variable for a given project.",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "GET",
+      "endpoint": "https://api.vercel.com/v1/projects/{idOrName}/env/{id}"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "path": {
+          "type": "object",
+          "description": "Path parameters for the http request",
+          "properties": {
+            "idOrName": {
+              "type": "string",
+              "description": "The unique project identifier or the project name."
+            },
+            "id": {
+              "type": "string",
+              "description": "The unique ID for the environment variable to get the decrypted value."
+            }
+          },
+          "required": ["idOrName", "id"],
+          "visible": ["idOrName", "id"],
+          "additionalProperties": false
+        },
+        "query": {
+          "type": "object",
+          "description": "Optional query parameters for the http request",
+          "properties": {
+            "teamId": {
+              "type": "string",
+              "description": "The Team identifier to perform the request on behalf of."
+            },
+            "slug": {
+              "type": "string",
+              "description": "The Team slug to perform the request on behalf of."
+            }
+          },
+          "required": [],
+          "visible": ["teamId", "slug"],
+          "additionalProperties": false
+        }
+      },
+      "required": ["path"],
+      "visible": ["path", "query"],
+      "additionalProperties": false
+    }
+  }
+]

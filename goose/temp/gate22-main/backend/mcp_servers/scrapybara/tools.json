@@ -1,0 +1,1271 @@
+[
+  {
+    "name": "SCRAPYBARA__GET_STREAM_URL",
+    "description": "Get the stream URL for a running Scrapybara instance",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "GET_STREAM_URL",
+      "canonical_tool_description_hash": "f511f9579e50f4830382ed112fb0b45f4c32b5752c4d4da1c63d0cc903ac2965",
+      "canonical_tool_input_schema_hash": "926a100a4e6e0399a854155d7e610ad90c2b4fa30457b1a0fcf2ef40f8a471c9"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["path"],
+      "properties": {
+        "path": {
+          "type": "object",
+          "required": ["instance_id"],
+          "properties": {
+            "instance_id": {
+              "type": "string",
+              "description": "The ID of the Scrapybara instance to get the stream URL for"
+            }
+          },
+          "description": "path parameters",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "SCRAPYBARA__ENV_GET",
+    "description": "Get environment variables from a Scrapybara instance",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "ENV_GET",
+      "canonical_tool_description_hash": "1399ec5623c0dfdcb956fe2c4ff3df294eb7fb10583ca0f09434b9fd66f6201a",
+      "canonical_tool_input_schema_hash": "5e6a7db273ae2e2a32113b2dfa8dc6888185b5ae6d360dd835cb2543952bd2e7"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["path"],
+      "properties": {
+        "path": {
+          "type": "object",
+          "required": ["instance_id"],
+          "properties": {
+            "instance_id": {
+              "type": "string",
+              "description": "The ID of the Scrapybara instance to get environment variables from"
+            }
+          },
+          "description": "path parameters",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "SCRAPYBARA__START_INSTANCE",
+    "description": "Start a new instance of Scrapybara for web scraping",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "START_INSTANCE",
+      "canonical_tool_description_hash": "b44a78da9686ca776207d179bb04b8881f68cb2b44df39058a8e42c0cbc73a72",
+      "canonical_tool_input_schema_hash": "9fd423f4ca03eaa2a67b19f35926ad0913725424db3a9b863bc5c7f2f543a6cf"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["body"],
+      "properties": {
+        "body": {
+          "type": "object",
+          "required": [],
+          "properties": {
+            "instance_type": {
+              "enum": ["ubuntu", "browser", "windows"],
+              "type": "string",
+              "default": "ubuntu",
+              "description": "The type of instance to launch."
+            },
+            "timeout_hours": {
+              "type": "number",
+              "maximum": 24,
+              "minimum": 0.01,
+              "description": "Number of hours before the instance times out."
+            },
+            "blocked_domains": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "description": "List of domains to block during scraping."
+            }
+          },
+          "description": "body parameters",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "SCRAPYBARA__GET_INSTANCE_BY_ID",
+    "description": "Get details of a Scrapybara instance by its ID",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "GET_INSTANCE_BY_ID",
+      "canonical_tool_description_hash": "273aec3b428953f13e0ec54f8a0936c5e82cabdeba8a2bb84a8a1335c2f8fe3a",
+      "canonical_tool_input_schema_hash": "75e8d34b316ca4884abd9214868dd8c1e83831b12de103df3121fac52d913ac1"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["path"],
+      "properties": {
+        "path": {
+          "type": "object",
+          "required": ["instance_id"],
+          "properties": {
+            "instance_id": {
+              "type": "string",
+              "description": "The ID of the Scrapybara instance to retrieve"
+            }
+          },
+          "description": "path parameters",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "SCRAPYBARA__LIST_ALL_INSTANCES",
+    "description": "List all Scrapybara instances",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "LIST_ALL_INSTANCES",
+      "canonical_tool_description_hash": "7e05075eb6d2c24a9ae3a48fc6d10afc74dc0e6e2444d1705ae0a6d0e3d9123d",
+      "canonical_tool_input_schema_hash": "d746974fa9afd5e951f76f9af38954b0ad7f436f2120dc974da65e5ee39f856f"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": [],
+      "properties": {},
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "SCRAPYBARA__LIST_ALL_BROWSER_AUTH_STATES",
+    "description": "List all browser authentication states",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "LIST_ALL_BROWSER_AUTH_STATES",
+      "canonical_tool_description_hash": "d64c50556472bec7e3223419c55a9c0f5061794cc7d4fdab77943bbdf3ad5b2f",
+      "canonical_tool_input_schema_hash": "d746974fa9afd5e951f76f9af38954b0ad7f436f2120dc974da65e5ee39f856f"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": [],
+      "properties": {},
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "SCRAPYBARA__TAKE_SCREENSHOT",
+    "description": "Take a screenshot of a running Scrapybara instance",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "TAKE_SCREENSHOT",
+      "canonical_tool_description_hash": "8710d80d132b3f3f48cd79725c34dadc9e8ccf079cf7cd84b7775dfe18b8e479",
+      "canonical_tool_input_schema_hash": "806d8779cee2fffe3b1558ae903238cf5beac67f5c8e66c5a975e1dd76b5bc0c"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["path"],
+      "properties": {
+        "path": {
+          "type": "object",
+          "required": ["instance_id"],
+          "properties": {
+            "instance_id": {
+              "type": "string",
+              "description": "The ID of the Scrapybara instance to take a screenshot of"
+            }
+          },
+          "description": "path parameters",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "SCRAPYBARA__RUN_COMPUTER_ACTIONS",
+    "description": "Run computer actions on a Scrapybara instance",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "RUN_COMPUTER_ACTIONS",
+      "canonical_tool_description_hash": "ddfc4caa27d08428c3fb5369257a0df5853e465005f864da10a963c3c2a3040d",
+      "canonical_tool_input_schema_hash": "76d9ecf68127c6a71a250c62cbfd65ba7e445a2a591159e0985ee8ff0e1a7a65"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["path", "body"],
+      "properties": {
+        "body": {
+          "type": "object",
+          "required": ["action"],
+          "properties": {
+            "keys": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "description": "Keys to press"
+            },
+            "path": {
+              "type": "array",
+              "items": {
+                "type": "array",
+                "items": {
+                  "type": "integer"
+                }
+              },
+              "description": "Path for drag mouse action [[x1, y1], [x2, y2], ...]"
+            },
+            "text": {
+              "type": "string",
+              "description": "Text to type"
+            },
+            "action": {
+              "enum": [
+                "move_mouse",
+                "click_mouse",
+                "drag_mouse",
+                "scroll",
+                "press_key",
+                "type_text",
+                "wait",
+                "take_screenshot",
+                "get_cursor_position"
+              ],
+              "type": "string",
+              "description": "The type of action to perform"
+            },
+            "button": {
+              "enum": ["left", "right", "middle", "back", "forward"],
+              "type": "string",
+              "description": "Mouse button to use for click actions"
+            },
+            "delta_x": {
+              "type": "number",
+              "description": "Horizontal scroll amount"
+            },
+            "delta_y": {
+              "type": "number",
+              "description": "Vertical scroll amount"
+            },
+            "duration": {
+              "type": "number",
+              "description": "Duration in seconds for wait or key press actions"
+            },
+            "hold_keys": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "description": "Keys to hold during the action"
+            },
+            "click_type": {
+              "enum": ["down", "up", "click"],
+              "type": "string",
+              "description": "Type of click to perform"
+            },
+            "num_clicks": {
+              "type": "integer",
+              "description": "Number of clicks to perform"
+            },
+            "coordinates": {
+              "type": "array",
+              "items": {
+                "type": "integer"
+              },
+              "description": "Coordinates for mouse actions [x, y]"
+            }
+          },
+          "description": "body parameters",
+          "additionalProperties": false
+        },
+        "path": {
+          "type": "object",
+          "required": ["instance_id"],
+          "properties": {
+            "instance_id": {
+              "type": "string",
+              "description": "The ID of the Scrapybara instance to run actions on"
+            }
+          },
+          "description": "path parameters",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "SCRAPYBARA__RUN_BASH_ACTIONS",
+    "description": "Run bash commands on a Scrapybara instance",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "RUN_BASH_ACTIONS",
+      "canonical_tool_description_hash": "1abb5548460e071f7575ede3c388024d57366b08f16e83139a77aab905063e4a",
+      "canonical_tool_input_schema_hash": "a851ff99b4417c649319126da0a27459cdd3fcf212d3945f8e0880a97266e6f3"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["path", "body"],
+      "properties": {
+        "body": {
+          "type": "object",
+          "required": [],
+          "properties": {
+            "command": {
+              "type": "string",
+              "description": "The bash command to execute"
+            },
+            "restart": {
+              "type": "boolean",
+              "description": "Whether to restart the instance after executing the command"
+            }
+          },
+          "description": "body parameters",
+          "additionalProperties": false
+        },
+        "path": {
+          "type": "object",
+          "required": ["instance_id"],
+          "properties": {
+            "instance_id": {
+              "type": "string",
+              "description": "The ID of the Scrapybara instance to run bash commands on"
+            }
+          },
+          "description": "path parameters",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "SCRAPYBARA__RUN_EDIT_ACTIONS",
+    "description": "Run file editing actions on a Scrapybara instance",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "RUN_EDIT_ACTIONS",
+      "canonical_tool_description_hash": "3e9ca8eaa3fd5fdf0ce0f3d12a7faf7100c736f08c4989e612b653d75d40dfca",
+      "canonical_tool_input_schema_hash": "32eabd27bf84acfe61fb8ea0be36e7a3cb6637b9ccfdc3aa73de6f81424cb8ab"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["path", "body"],
+      "properties": {
+        "body": {
+          "type": "object",
+          "required": ["command", "path"],
+          "properties": {
+            "path": {
+              "type": "string",
+              "description": "The file path to edit"
+            },
+            "command": {
+              "enum": ["view", "create", "str_replace", "insert", "undo_edit"],
+              "type": "string",
+              "description": "The type of edit action to perform"
+            },
+            "new_str": {
+              "type": "string",
+              "description": "The new string in str_replace action"
+            },
+            "old_str": {
+              "type": "string",
+              "description": "The string to replace in str_replace action"
+            },
+            "file_text": {
+              "type": "string",
+              "description": "The text content for file creation"
+            },
+            "view_range": {
+              "type": "array",
+              "items": {
+                "type": "integer"
+              },
+              "description": "Line range to view [start_line, end_line]"
+            },
+            "insert_line": {
+              "type": "integer",
+              "description": "The line number to insert text at"
+            }
+          },
+          "description": "body parameters",
+          "additionalProperties": false
+        },
+        "path": {
+          "type": "object",
+          "required": ["instance_id"],
+          "properties": {
+            "instance_id": {
+              "type": "string",
+              "description": "The ID of the Scrapybara instance to run edit actions on"
+            }
+          },
+          "description": "path parameters",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "SCRAPYBARA__RUN_FILE_ACTIONS",
+    "description": "Run file operations on a Scrapybara instance",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "RUN_FILE_ACTIONS",
+      "canonical_tool_description_hash": "b54c49ec002942d8aaf7ffc6cfbd2d7bd83c0373254574f650cdc4ea7a13bdd2",
+      "canonical_tool_input_schema_hash": "dda75a31c40f79a0575be3555c51a4f5b7de2c449027c61ac8c39a14bf76bf10"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["path", "body"],
+      "properties": {
+        "body": {
+          "type": "object",
+          "required": ["command"],
+          "properties": {
+            "dst": {
+              "type": "string",
+              "description": "Destination path for copy or move operations"
+            },
+            "src": {
+              "type": "string",
+              "description": "Source path for copy or move operations"
+            },
+            "line": {
+              "type": "integer",
+              "description": "Line number for operations that work on specific lines"
+            },
+            "mode": {
+              "type": "string",
+              "description": "File access mode (e.g., 'r', 'w', 'a')"
+            },
+            "path": {
+              "type": "string",
+              "description": "The path of the file or directory to operate on"
+            },
+            "text": {
+              "type": "string",
+              "description": "Text content for operations like insertion"
+            },
+            "lines": {
+              "type": "array",
+              "items": {
+                "type": "integer"
+              },
+              "description": "Specific line numbers to operate on"
+            },
+            "command": {
+              "enum": ["read", "write", "copy", "delete", "list", "find", "move", "search", "view"],
+              "type": "string",
+              "description": "The type of file operation to perform (e.g., 'read', 'write', 'copy', 'delete', 'list', 'find')"
+            },
+            "content": {
+              "type": "string",
+              "description": "The content to write to a file when using 'write' command"
+            },
+            "new_str": {
+              "type": "string",
+              "description": "Replacement string for search and replace operations"
+            },
+            "old_str": {
+              "type": "string",
+              "description": "String to replace in search and replace operations"
+            },
+            "pattern": {
+              "type": "string",
+              "description": "Pattern to match in search operations, can be regex"
+            },
+            "encoding": {
+              "type": "string",
+              "description": "Encoding to use for file operations (e.g., 'utf-8', 'base64')"
+            },
+            "recursive": {
+              "type": "boolean",
+              "description": "Whether to perform operations recursively on directories"
+            },
+            "view_range": {
+              "type": "array",
+              "items": {
+                "type": "integer"
+              },
+              "description": "Line range for viewing file content [start_line, end_line]"
+            },
+            "line_numbers": {
+              "type": "boolean",
+              "description": "Whether to include line numbers in output"
+            },
+            "case_sensitive": {
+              "type": "boolean",
+              "description": "Whether searches should be case sensitive"
+            },
+            "all_occurrences": {
+              "type": "boolean",
+              "description": "Whether to replace all occurrences in search and replace operations"
+            }
+          },
+          "description": "body parameters",
+          "additionalProperties": false
+        },
+        "path": {
+          "type": "object",
+          "required": ["instance_id"],
+          "properties": {
+            "instance_id": {
+              "type": "string",
+              "description": "The ID of the Scrapybara instance to perform file operations on"
+            }
+          },
+          "description": "path parameters",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "SCRAPYBARA__STOP_INSTANCE",
+    "description": "Stop a running Scrapybara instance",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "STOP_INSTANCE",
+      "canonical_tool_description_hash": "3217822a3b8bf32c037f3c63754f95ef7e3ca5430a43eac223c5e85d37efcfa7",
+      "canonical_tool_input_schema_hash": "2771a6cc4209538580d7f7b9928b6c405f216db909c8bc269e01b1042ba89f9f"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["path"],
+      "properties": {
+        "path": {
+          "type": "object",
+          "required": ["instance_id"],
+          "properties": {
+            "instance_id": {
+              "type": "string",
+              "description": "The ID of the Scrapybara instance to stop"
+            }
+          },
+          "description": "path parameters",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "SCRAPYBARA__PAUSE_INSTANCE",
+    "description": "Pause a running Scrapybara instance",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "PAUSE_INSTANCE",
+      "canonical_tool_description_hash": "900d0c531dce956a1d0a11cefe4314dd6e0fd94253fd84dfc7b93838c0bb8ab9",
+      "canonical_tool_input_schema_hash": "c355cd32bcc64661ef5325edcfb8ca6ea5a865c5477b0bb2e9a671e25849989e"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["path"],
+      "properties": {
+        "path": {
+          "type": "object",
+          "required": ["instance_id"],
+          "properties": {
+            "instance_id": {
+              "type": "string",
+              "description": "The ID of the Scrapybara instance to pause"
+            }
+          },
+          "description": "path parameters",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "SCRAPYBARA__RESUME_INSTANCE",
+    "description": "Resume a paused Scrapybara instance",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "RESUME_INSTANCE",
+      "canonical_tool_description_hash": "4d73459f1841f111a9656e496e7063e321ebca8564ec02c312d4238e118f1915",
+      "canonical_tool_input_schema_hash": "539d74878af45b057b87cc3713b7ea7b106efaceb0bd1566a685fbb3800aa9bb"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["path"],
+      "properties": {
+        "path": {
+          "type": "object",
+          "required": ["instance_id"],
+          "properties": {
+            "instance_id": {
+              "type": "string",
+              "description": "The ID of the Scrapybara instance to resume"
+            }
+          },
+          "description": "path parameters",
+          "additionalProperties": false
+        },
+        "query": {
+          "type": "object",
+          "required": [],
+          "properties": {
+            "timeout_hours": {
+              "type": "number",
+              "description": "Number of hours before the instance times out (defaults to 1)"
+            }
+          },
+          "description": "query parameters",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "SCRAPYBARA__BROWSER_START",
+    "description": "Start a browser on a Scrapybara instance",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "BROWSER_START",
+      "canonical_tool_description_hash": "837d35406857c58f7b2ac4e5dbe038323d2c1d9e4f16fe6d2766b5c72e4c04eb",
+      "canonical_tool_input_schema_hash": "50f756f5dded85293f04ab0db6d9a94321428d42be5a60180a1d8bb670181c40"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["path"],
+      "properties": {
+        "path": {
+          "type": "object",
+          "required": ["instance_id"],
+          "properties": {
+            "instance_id": {
+              "type": "string",
+              "description": "The ID of the Scrapybara instance to start a browser on"
+            }
+          },
+          "description": "path parameters",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "SCRAPYBARA__BROWSER_GET_CDP_URL",
+    "description": "Get the Chrome DevTools Protocol URL for a browser on a Scrapybara instance",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "BROWSER_GET_CDP_URL",
+      "canonical_tool_description_hash": "64e5e888ebb3333f23081f25fcd0d7605c135ff7cc973ec4b067b739391b00f7",
+      "canonical_tool_input_schema_hash": "7113fa90deb11b53b0db991b0c1c1fb2b6abfaacf345f5e15cd0a8a006264abc"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["path"],
+      "properties": {
+        "path": {
+          "type": "object",
+          "required": ["instance_id"],
+          "properties": {
+            "instance_id": {
+              "type": "string",
+              "description": "The ID of the Scrapybara instance to get the CDP URL for"
+            }
+          },
+          "description": "path parameters",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "SCRAPYBARA__BROWSER_GET_CURRENT_URL",
+    "description": "Get the current URL of the browser on a Scrapybara instance",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "BROWSER_GET_CURRENT_URL",
+      "canonical_tool_description_hash": "3179171a81399f8a957ab2603f3ab0c4d74872f919e557e9dcb04318c2a887df",
+      "canonical_tool_input_schema_hash": "dacce3bb8c2f63d2e032fe818a137a31c0cfa29f72f0eaad66598a7c405d7dfa"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["path"],
+      "properties": {
+        "path": {
+          "type": "object",
+          "required": ["instance_id"],
+          "properties": {
+            "instance_id": {
+              "type": "string",
+              "description": "The ID of the Scrapybara instance to get the current URL for"
+            }
+          },
+          "description": "path parameters",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "SCRAPYBARA__BROWSER_SAVE_AUTH",
+    "description": "Save the browser authentication state from a Scrapybara instance",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "BROWSER_SAVE_AUTH",
+      "canonical_tool_description_hash": "6a981e9f0b03cbd0ed344b489742cd0a90a35952faa64963f1196d1bb74f87b3",
+      "canonical_tool_input_schema_hash": "7dcd925b4f0396ac426957f2e4889a0e9573b99ac2572da84487414f66bd9274"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["path"],
+      "properties": {
+        "path": {
+          "type": "object",
+          "required": ["instance_id"],
+          "properties": {
+            "instance_id": {
+              "type": "string",
+              "description": "The ID of the Scrapybara instance to save authentication state from"
+            }
+          },
+          "description": "path parameters",
+          "additionalProperties": false
+        },
+        "query": {
+          "type": "object",
+          "required": [],
+          "properties": {
+            "name": {
+              "type": "string",
+              "description": "Optional name for the saved authentication state"
+            }
+          },
+          "description": "query parameters",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "SCRAPYBARA__BROWSER_MODIFY_AUTH",
+    "description": "Modify a browser authentication state on a Scrapybara instance",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "BROWSER_MODIFY_AUTH",
+      "canonical_tool_description_hash": "0a024e1943c1e345d8cf8cab61df49e341e86c5789bd461dfa875f4f750f4538",
+      "canonical_tool_input_schema_hash": "cb4898446d40a3ef53bb4a5fa525c5e4bfbbf68845bf25a96e14d351033c8d75"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["path", "query"],
+      "properties": {
+        "path": {
+          "type": "object",
+          "required": ["instance_id"],
+          "properties": {
+            "instance_id": {
+              "type": "string",
+              "description": "The ID of the Scrapybara instance to modify authentication state on"
+            }
+          },
+          "description": "path parameters",
+          "additionalProperties": false
+        },
+        "query": {
+          "type": "object",
+          "required": ["auth_state_id"],
+          "properties": {
+            "name": {
+              "type": "string",
+              "description": "Optional new name for the authentication state"
+            },
+            "auth_state_id": {
+              "type": "string",
+              "description": "The ID of the authentication state to modify"
+            }
+          },
+          "description": "query parameters",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "SCRAPYBARA__BROWSER_AUTHENTICATE",
+    "description": "Authenticate browser using a saved authentication state",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "BROWSER_AUTHENTICATE",
+      "canonical_tool_description_hash": "07445a1a4753b40248d03c33460104c5898995b28ef845f8b6ada244ee17d378",
+      "canonical_tool_input_schema_hash": "0a4af8247f1dc5c02d044c2028c66fa384ce98a6ce3d090030a137c2f0ee7388"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["path", "query"],
+      "properties": {
+        "path": {
+          "type": "object",
+          "required": ["instance_id"],
+          "properties": {
+            "instance_id": {
+              "type": "string",
+              "description": "The ID of the Scrapybara instance to authenticate the browser on"
+            }
+          },
+          "description": "path parameters",
+          "additionalProperties": false
+        },
+        "query": {
+          "type": "object",
+          "required": ["auth_state_id"],
+          "properties": {
+            "auth_state_id": {
+              "type": "string",
+              "description": "The ID of the saved authentication state to use"
+            }
+          },
+          "description": "query parameters",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "SCRAPYBARA__BROWSER_STOP",
+    "description": "Stop a browser on a Scrapybara instance",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "BROWSER_STOP",
+      "canonical_tool_description_hash": "0c13191cb423048698cd5c7c41cfff9fde42e3a2c96482808bc164ea5e098b81",
+      "canonical_tool_input_schema_hash": "8e55e8f2338811a48750e91f35d6205c9dec9aee7220c26cf01fcbfa68a2c67f"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["path"],
+      "properties": {
+        "path": {
+          "type": "object",
+          "required": ["instance_id"],
+          "properties": {
+            "instance_id": {
+              "type": "string",
+              "description": "The ID of the Scrapybara instance to stop the browser on"
+            }
+          },
+          "description": "path parameters",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "SCRAPYBARA__CODE_EXECUTE",
+    "description": "Execute code on a Scrapybara instance without using a notebook",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "CODE_EXECUTE",
+      "canonical_tool_description_hash": "0b3e8e9822ac3d9e82cdf7c9fcf82dcebad32626b00a3d1c0f5125fbab034164",
+      "canonical_tool_input_schema_hash": "0f54a95508151bb57449739ccac3233461a76f98cb1effba57f76aeb9e065371"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["path", "body"],
+      "properties": {
+        "body": {
+          "type": "object",
+          "required": ["code"],
+          "properties": {
+            "code": {
+              "type": "string",
+              "description": "The code to execute"
+            },
+            "timeout": {
+              "type": "integer",
+              "description": "Timeout in seconds for code execution"
+            },
+            "kernel_name": {
+              "type": "string",
+              "default": "python3",
+              "description": "The kernel to use for execution (defaults to python3)"
+            }
+          },
+          "description": "body parameters",
+          "additionalProperties": false
+        },
+        "path": {
+          "type": "object",
+          "required": ["instance_id"],
+          "properties": {
+            "instance_id": {
+              "type": "string",
+              "description": "The ID of the Scrapybara instance to execute code on"
+            }
+          },
+          "description": "path parameters",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "SCRAPYBARA__LIST_NOTEBOOK_KERNELS",
+    "description": "List available notebook kernels on a Scrapybara instance",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "LIST_NOTEBOOK_KERNELS",
+      "canonical_tool_description_hash": "aefafcab9632e934eba75cda86e2d87ef3d70cbafbde4b5b3a0013fbb0311ecc",
+      "canonical_tool_input_schema_hash": "6a9d78c4977fc185c39ea2504236d149ed2df8ab092ce54b9197a50671f4691f"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["path"],
+      "properties": {
+        "path": {
+          "type": "object",
+          "required": ["instance_id"],
+          "properties": {
+            "instance_id": {
+              "type": "string",
+              "description": "The ID of the Scrapybara instance to list notebook kernels for"
+            }
+          },
+          "description": "path parameters",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "SCRAPYBARA__NOTEBOOK_CREATE",
+    "description": "Create a new notebook on a Scrapybara instance",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "NOTEBOOK_CREATE",
+      "canonical_tool_description_hash": "ac169db6a2be92a996ca54c76839db0cf25676166472566717d262645a7135dc",
+      "canonical_tool_input_schema_hash": "128bb90c089f9290a5cbb244cfb607de42b73fb7a3416f2cb166f87a03be123b"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["path", "body"],
+      "properties": {
+        "body": {
+          "type": "object",
+          "required": ["name"],
+          "properties": {
+            "name": {
+              "type": "string",
+              "description": "Name for the new notebook"
+            },
+            "kernel_name": {
+              "type": "string",
+              "default": "python3",
+              "description": "The kernel to use for the notebook (defaults to python3)"
+            }
+          },
+          "description": "body parameters",
+          "additionalProperties": false
+        },
+        "path": {
+          "type": "object",
+          "required": ["instance_id"],
+          "properties": {
+            "instance_id": {
+              "type": "string",
+              "description": "The ID of the Scrapybara instance to create a notebook on"
+            }
+          },
+          "description": "path parameters",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "SCRAPYBARA__NOTEBOOK_GET",
+    "description": "Get a notebook by ID from a Scrapybara instance",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "NOTEBOOK_GET",
+      "canonical_tool_description_hash": "4efb148c56a5242c36dacea8b20d0fe81ad9c60d7307db711149814c6cc832f5",
+      "canonical_tool_input_schema_hash": "e1705629346056a9be521e559fc68213481fd555b44218ef6c8f623f807c4cf0"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["path"],
+      "properties": {
+        "path": {
+          "type": "object",
+          "required": ["instance_id", "notebook_id"],
+          "properties": {
+            "instance_id": {
+              "type": "string",
+              "description": "The ID of the Scrapybara instance that contains the notebook"
+            },
+            "notebook_id": {
+              "type": "string",
+              "description": "The ID of the notebook to retrieve"
+            }
+          },
+          "description": "path parameters",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "SCRAPYBARA__NOTEBOOK_DELETE",
+    "description": "Delete a notebook from a Scrapybara instance",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "NOTEBOOK_DELETE",
+      "canonical_tool_description_hash": "25c226c442ba5d23ceca28fa5d55096b2eaa338cc1407f16718c320b61daa008",
+      "canonical_tool_input_schema_hash": "a37348954513b972ed987d83d577bd2d9e8b37f602d3c1ef9c9503f432c0c400"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["path"],
+      "properties": {
+        "path": {
+          "type": "object",
+          "required": ["instance_id", "notebook_id"],
+          "properties": {
+            "instance_id": {
+              "type": "string",
+              "description": "The ID of the Scrapybara instance that contains the notebook"
+            },
+            "notebook_id": {
+              "type": "string",
+              "description": "The ID of the notebook to delete"
+            }
+          },
+          "description": "path parameters",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "SCRAPYBARA__NOTEBOOK_ADD_CELL",
+    "description": "Add a cell to a notebook on a Scrapybara instance",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "NOTEBOOK_ADD_CELL",
+      "canonical_tool_description_hash": "3b8609ee364dc1d63e2bdd235bfa925de25a0ea7a5ee2ae36aba62913ea44b6c",
+      "canonical_tool_input_schema_hash": "3922dc2c65c0b524640b22756581a7a131034f3edf5a391d523c3f2a90f68760"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["path", "body"],
+      "properties": {
+        "body": {
+          "type": "object",
+          "required": ["type", "content"],
+          "properties": {
+            "type": {
+              "enum": ["code", "markdown", "raw"],
+              "type": "string",
+              "description": "The type of cell to add (code, markdown, or raw)"
+            },
+            "content": {
+              "type": "string",
+              "description": "The content of the cell"
+            },
+            "metadata": {
+              "type": "object",
+              "required": [],
+              "properties": {},
+              "description": "Optional metadata for the cell",
+              "additionalProperties": true
+            }
+          },
+          "description": "body parameters",
+          "additionalProperties": false
+        },
+        "path": {
+          "type": "object",
+          "required": ["instance_id", "notebook_id"],
+          "properties": {
+            "instance_id": {
+              "type": "string",
+              "description": "The ID of the Scrapybara instance that contains the notebook"
+            },
+            "notebook_id": {
+              "type": "string",
+              "description": "The ID of the notebook to add a cell to"
+            }
+          },
+          "description": "path parameters",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "SCRAPYBARA__NOTEBOOK_EXECUTE_CELL",
+    "description": "Execute a cell in a notebook on a Scrapybara instance",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "NOTEBOOK_EXECUTE_CELL",
+      "canonical_tool_description_hash": "3dd97561c76fd5a264bf58b5de5ffdfd836865b9b4c842766adb2a4d82814282",
+      "canonical_tool_input_schema_hash": "00549b4c4e7ab6fb99d8791d5cf395f3b92e5aee355f0392b67eff0acb66d61e"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["path"],
+      "properties": {
+        "body": {
+          "type": "object",
+          "required": [],
+          "properties": {
+            "timeout": {
+              "type": "integer",
+              "description": "Optional timeout in seconds for cell execution"
+            }
+          },
+          "description": "body parameters",
+          "additionalProperties": false
+        },
+        "path": {
+          "type": "object",
+          "required": ["instance_id", "notebook_id", "cell_id"],
+          "properties": {
+            "cell_id": {
+              "type": "string",
+              "description": "The ID of the cell to execute"
+            },
+            "instance_id": {
+              "type": "string",
+              "description": "The ID of the Scrapybara instance that contains the notebook"
+            },
+            "notebook_id": {
+              "type": "string",
+              "description": "The ID of the notebook that contains the cell"
+            }
+          },
+          "description": "path parameters",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "SCRAPYBARA__ENV_SET",
+    "description": "Set environment variables on a Scrapybara instance",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "ENV_SET",
+      "canonical_tool_description_hash": "58650b965570780d644b824b980599d1a7272e7ce745bc3fc8309fb24c432af2",
+      "canonical_tool_input_schema_hash": "0ec34d2a852f5125e88588a45c0c33f8908cdf65b47abbeb768cc609e466385e"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["path", "body"],
+      "properties": {
+        "body": {
+          "type": "object",
+          "required": ["variables"],
+          "properties": {
+            "variables": {
+              "type": "object",
+              "required": [],
+              "properties": {
+                "EXAMPLE_KEY": {
+                  "type": "string",
+                  "description": "Example environment variable"
+                }
+              },
+              "description": "Key-value pairs of environment variables to set.",
+              "additionalProperties": {
+                "type": "string"
+              }
+            }
+          },
+          "description": "Body parameter: environment variable key-value pairs",
+          "additionalProperties": false
+        },
+        "path": {
+          "type": "object",
+          "required": ["instance_id"],
+          "properties": {
+            "instance_id": {
+              "type": "string",
+              "description": "The ID of the instance to configure."
+            }
+          },
+          "description": "Path parameter: instance ID",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "SCRAPYBARA__ENV_DELETE",
+    "description": "Delete environment variables from a Scrapybara instance",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "ENV_DELETE",
+      "canonical_tool_description_hash": "bc691124c22b6401bfbb6269988e50655ffc24a55b5e7c64997a192832c5b80a",
+      "canonical_tool_input_schema_hash": "aad1cc2ae8110fe4718e08d92919229310837a4f253f207c9f2a50a83d5d9846"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["path", "body"],
+      "properties": {
+        "body": {
+          "type": "object",
+          "required": ["keys"],
+          "properties": {
+            "keys": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "description": "List of environment variable names to delete"
+            }
+          },
+          "description": "body parameters",
+          "additionalProperties": false
+        },
+        "path": {
+          "type": "object",
+          "required": ["instance_id"],
+          "properties": {
+            "instance_id": {
+              "type": "string",
+              "description": "The ID of the Scrapybara instance to delete environment variables from"
+            }
+          },
+          "description": "path parameters",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+]

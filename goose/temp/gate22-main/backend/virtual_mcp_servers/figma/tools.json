@@ -1,0 +1,547 @@
+[
+  {
+    "name": "FIGMA__GET_FILE",
+    "description": "Retrieves the document structure of a Figma file based on the given file key. Returns the entire document as JSON including nodes, their names, and types.",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "GET",
+      "endpoint": "https://api.figma.com/v1/files/{file_key}"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "path": {
+          "type": "object",
+          "description": "Path parameters",
+          "properties": {
+            "file_key": {
+              "type": "string",
+              "description": "The key of the file to retrieve."
+            }
+          },
+          "required": [
+            "file_key"
+          ],
+          "visible": [
+            "file_key"
+          ],
+          "additionalProperties": false
+        },
+        "query": {
+          "type": "object",
+          "description": "Optional query parameters",
+          "properties": {
+            "version": {
+              "type": "string",
+              "description": "Specific version ID to retrieve. If not provided, the latest version is returned."
+            },
+            "ids": {
+              "type": "string",
+              "description": "Comma-separated list of node IDs to include in the response."
+            },
+            "depth": {
+              "type": "integer",
+              "description": "Depth to traverse the node tree. Default is 1."
+            },
+            "geometry": {
+              "type": "string",
+              "description": "Set to 'paths' to include vector geometry data."
+            },
+            "plugin_data": {
+              "type": "string",
+              "description": "Comma-separated list of plugin IDs to retrieve plugin data for."
+            },
+            "branch_data": {
+              "type": "boolean",
+              "description": "Whether to include metadata about branches. Default is false."
+            }
+          },
+          "required": [],
+          "visible": [
+            "version",
+            "ids",
+            "depth",
+            "geometry",
+            "plugin_data",
+            "branch_data"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "path"
+      ],
+      "visible": [
+        "path",
+        "query"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "FIGMA__GET_FILE_NODES",
+    "description": "Retrieves the nodes present in a Figma file based on the given file key and node IDs.",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "GET",
+      "endpoint": "https://api.figma.com/v1/files/{file_key}/nodes"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "path": {
+          "type": "object",
+          "description": "Path parameters",
+          "properties": {
+            "file_key": {
+              "type": "string",
+              "description": "The key of the file containing the nodes."
+            }
+          },
+          "required": [
+            "file_key"
+          ],
+          "visible": [
+            "file_key"
+          ],
+          "additionalProperties": false
+        },
+        "query": {
+          "type": "object",
+          "description": "Query parameters",
+          "properties": {
+            "ids": {
+              "type": "string",
+              "description": "Comma-separated list of node IDs to retrieve."
+            }
+          },
+          "required": [
+            "ids"
+          ],
+          "visible": [
+            "ids"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "path",
+        "query"
+      ],
+      "visible": [
+        "path",
+        "query"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "FIGMA__GET_IMAGE",
+    "description": "Retrieves images rendered from a Figma file based on the given file key and node IDs.",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "GET",
+      "endpoint": "https://api.figma.com/v1/images/{file_key}"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "path": {
+          "type": "object",
+          "description": "Path parameters",
+          "properties": {
+            "file_key": {
+              "type": "string",
+              "description": "The key of the file containing the images."
+            }
+          },
+          "required": [
+            "file_key"
+          ],
+          "visible": [
+            "file_key"
+          ],
+          "additionalProperties": false
+        },
+        "query": {
+          "type": "object",
+          "description": "Query parameters",
+          "properties": {
+            "ids": {
+              "type": "string",
+              "description": "Comma-separated list of node IDs to render."
+            },
+            "scale": {
+              "type": "number",
+              "description": "Scale factor for the rendered images. Defaults to 1."
+            },
+            "format": {
+              "type": "string",
+              "description": "Image format to return. Options are 'jpg', 'png', 'svg', etc."
+            }
+          },
+          "required": [
+            "ids"
+          ],
+          "visible": [
+            "ids",
+            "scale",
+            "format"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "path",
+        "query"
+      ],
+      "visible": [
+        "path",
+        "query"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "FIGMA__GET_FILE_VERSIONS",
+    "description": "Retrieves the version history of a Figma file based on the given file key.",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "GET",
+      "endpoint": "https://api.figma.com/v1/files/{file_key}/versions"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "path": {
+          "type": "object",
+          "description": "Path parameters",
+          "properties": {
+            "file_key": {
+              "type": "string",
+              "description": "The key of the file whose versions are to be retrieved."
+            }
+          },
+          "required": [
+            "file_key"
+          ],
+          "visible": [
+            "file_key"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "path"
+      ],
+      "visible": [
+        "path"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "FIGMA__GET_TEAM_PROJECTS",
+    "description": "Retrieves a list of projects within a team based on the given team ID.",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "GET",
+      "endpoint": "https://api.figma.com/v1/teams/{team_id}/projects"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "path": {
+          "type": "object",
+          "description": "Path parameters",
+          "properties": {
+            "team_id": {
+              "type": "string",
+              "description": "The ID of the team to retrieve projects from."
+            }
+          },
+          "required": [
+            "team_id"
+          ],
+          "visible": [
+            "team_id"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "path"
+      ],
+      "visible": [
+        "path"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "FIGMA__GET_PROJECT_FILES",
+    "description": "Lists the files in a given project based on the project ID.",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "GET",
+      "endpoint": "https://api.figma.com/v1/projects/{project_id}/files"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "path": {
+          "type": "object",
+          "description": "Path parameters",
+          "properties": {
+            "project_id": {
+              "type": "string",
+              "description": "The ID of the project whose files should be listed."
+            }
+          },
+          "required": [
+            "project_id"
+          ],
+          "visible": [
+            "project_id"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "path"
+      ],
+      "visible": [
+        "path"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "FIGMA__GET_COMMENTS",
+    "description": "Retrieves all comments from a Figma file, including their content and author information.",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "GET",
+      "endpoint": "https://api.figma.com/v1/files/{file_key}/comments"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "path": {
+          "type": "object",
+          "description": "Path parameters",
+          "properties": {
+            "file_key": {
+              "type": "string",
+              "description": "The key of the file whose comments are to be retrieved."
+            }
+          },
+          "required": [
+            "file_key"
+          ],
+          "visible": [
+            "file_key"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "path"
+      ],
+      "visible": [
+        "path"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "FIGMA__GET_IMAGE_FILLS",
+    "description": "Returns download links for all images present in image fills in a document.",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "GET",
+      "endpoint": "https://api.figma.com/v1/files/{file_key}/images"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "path": {
+          "type": "object",
+          "description": "Path parameters",
+          "properties": {
+            "file_key": {
+              "type": "string",
+              "description": "The key of the file to get image fills from."
+            }
+          },
+          "required": [
+            "file_key"
+          ],
+          "visible": [
+            "file_key"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "path"
+      ],
+      "visible": [
+        "path"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "FIGMA__GET_FILE_COMPONENT_SETS",
+    "description": "Returns a list of component sets in a file, indicating which components belong to which component set.",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "GET",
+      "endpoint": "https://api.figma.com/v1/files/{file_key}/component_sets"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "path": {
+          "type": "object",
+          "description": "Path parameters",
+          "properties": {
+            "file_key": {
+              "type": "string",
+              "description": "The key of the file to get component sets from."
+            }
+          },
+          "required": [
+            "file_key"
+          ],
+          "visible": [
+            "file_key"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "path"
+      ],
+      "visible": [
+        "path"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "FIGMA__GET_STYLE",
+    "description": "Retrieves a specific style node from a Figma file based on the given file key and node ID. Returns detailed information about the style, including its properties and metadata.",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "GET",
+      "endpoint": "https://api.figma.com/v1/files/{file_key}/styles"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "path": {
+          "type": "object",
+          "description": "Path parameters",
+          "properties": {
+            "file_key": {
+              "type": "string",
+              "description": "The key of the file containing the style."
+            }
+          },
+          "required": [
+            "file_key"
+          ],
+          "visible": [
+            "file_key"
+          ],
+          "additionalProperties": false
+        },
+        "query": {
+          "type": "object",
+          "description": "Query parameters",
+          "properties": {
+            "ids": {
+              "type": "string",
+              "description": "The ID of the style node to retrieve."
+            }
+          },
+          "required": [
+            "ids"
+          ],
+          "visible": [
+            "ids"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "path",
+        "query"
+      ],
+      "visible": [
+        "path",
+        "query"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "FIGMA__GET_COMPONENT",
+    "description": "Retrieves a specific component node from a Figma file based on the given file key and node ID. Returns detailed information about the component, including its properties and metadata.",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "GET",
+      "endpoint": "https://api.figma.com/v1/files/{file_key}/components"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "path": {
+          "type": "object",
+          "description": "Path parameters",
+          "properties": {
+            "file_key": {
+              "type": "string",
+              "description": "The key of the file containing the component."
+            }
+          },
+          "required": [
+            "file_key"
+          ],
+          "visible": [
+            "file_key"
+          ],
+          "additionalProperties": false
+        },
+        "query": {
+          "type": "object",
+          "description": "Query parameters",
+          "properties": {
+            "ids": {
+              "type": "string",
+              "description": "The ID of the component node to retrieve."
+            }
+          },
+          "required": [
+            "ids"
+          ],
+          "visible": [
+            "ids"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "path",
+        "query"
+      ],
+      "visible": [
+        "path",
+        "query"
+      ],
+      "additionalProperties": false
+    }
+  }
+]

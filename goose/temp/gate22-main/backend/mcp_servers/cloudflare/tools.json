@@ -1,0 +1,269 @@
+[
+  {
+    "name": "CLOUDFLARE__GET_ZONE_DETAILS",
+    "description": "Get details about a zone",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "GET_ZONE_DETAILS",
+      "canonical_tool_description_hash": "3b14d9b43c14c1d7099f3a888317768257861d1466b11cb1e6884db8b9378cc9",
+      "canonical_tool_input_schema_hash": "b1c3a510621022b78422f468b81829415780c77c2a02e6aa65181f9134b3ea34"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["path"],
+      "properties": {
+        "path": {
+          "type": "object",
+          "required": ["zone_id"],
+          "properties": {
+            "zone_id": {
+              "type": "string",
+              "description": "The zone ID to get details about"
+            }
+          },
+          "description": "Path parameters for the http request",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "CLOUDFLARE__LIST_ZONES",
+    "description": "Lists, searches, sorts, and filters your zones. Listing zones across more than 500 accounts is currently not allowed.",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "LIST_ZONES",
+      "canonical_tool_description_hash": "3c6815cc268db6488e2145ebacf9c7705c7cdd7608e2cbfecd99d2e9d626dc8f",
+      "canonical_tool_input_schema_hash": "d746974fa9afd5e951f76f9af38954b0ad7f436f2120dc974da65e5ee39f856f"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": [],
+      "properties": {},
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "CLOUDFLARE__LIST_ZONE_DNS_RECORDS",
+    "description": "List, search, sort, and filter a zones' DNS records.",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "LIST_ZONE_DNS_RECORDS",
+      "canonical_tool_description_hash": "3be6d4176f2a16ee5887ebcb161c57aa77071eae83afc43ab224c0cc0141fbe2",
+      "canonical_tool_input_schema_hash": "6647fcdbe3477934194df7791e1f5bd7728df63c3f3f8f6ab86b40f210b6f72f"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["path"],
+      "properties": {
+        "path": {
+          "type": "object",
+          "required": ["zone_id"],
+          "properties": {
+            "zone_id": {
+              "type": "string",
+              "description": "The zone ID to get DNS records for"
+            }
+          },
+          "description": "Path parameters for the http request",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "CLOUDFLARE__CREATE_ZONE_DNS_RECORD",
+    "description": "Create a new DNS record in a zone",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "CREATE_ZONE_DNS_RECORD",
+      "canonical_tool_description_hash": "9ef0b01988c59d8b864d5d71c247e4c7d4d97b94ba6acc4d5b9601bfdc322d4c",
+      "canonical_tool_input_schema_hash": "3685429711731e2d0bf688f0a974b286964dcc2f60f0f85165ae4f70eb75e86f"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["path", "body"],
+      "properties": {
+        "body": {
+          "type": "object",
+          "required": [],
+          "properties": {
+            "ttl": {
+              "type": "integer",
+              "default": 1,
+              "description": "Time To Live (TTL) of the DNS record in seconds. Setting to 1 means 'automatic'. Value must be between 60 and 86400, with the minimum reduced to 30 for Enterprise zones."
+            },
+            "name": {
+              "type": "string",
+              "description": "DNS record name (or @ for the zone apex) in Punycode."
+            },
+            "type": {
+              "type": "string",
+              "description": "Record type. A, AAAA, CNAME, MX, TXT, NS, PTR, SRV, SPF, CAA."
+            },
+            "comment": {
+              "type": "string",
+              "description": "Comments or notes about the DNS record. This field has no effect on DNS responses."
+            },
+            "content": {
+              "type": "string",
+              "description": "A valid IPv4/IPv6 address for A/AAAA record or a valid hostname for CNAME record."
+            },
+            "proxied": {
+              "type": "boolean",
+              "description": "Whether the record is receiving the performance and security benefits of Cloudflare."
+            }
+          },
+          "description": "Request body parameters for DNS record creation.",
+          "additionalProperties": false
+        },
+        "path": {
+          "type": "object",
+          "required": ["zone_id"],
+          "properties": {
+            "zone_id": {
+              "type": "string",
+              "description": "The zone ID to create the DNS record for"
+            }
+          },
+          "description": "Path parameters for the http request",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "CLOUDFLARE__DELETE_ZONE_DNS_RECORD",
+    "description": "Delete a DNS record in a zone by zone_id and dns_record_id.",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "DELETE_ZONE_DNS_RECORD",
+      "canonical_tool_description_hash": "51a3165e3bd02e217933ec8ab5391b2b456b4eacbe9cc6db6e7a08bd810687b9",
+      "canonical_tool_input_schema_hash": "d23f90f7a1c22eab1860a931be5b81e443432a777b6c712cfdd5b9980f401c4a"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["path"],
+      "properties": {
+        "path": {
+          "type": "object",
+          "required": ["zone_id", "dns_record_id"],
+          "properties": {
+            "zone_id": {
+              "type": "string",
+              "description": "The zone ID to delete the DNS record from."
+            },
+            "dns_record_id": {
+              "type": "string",
+              "description": "The DNS record ID to delete."
+            }
+          },
+          "description": "Path parameters for the http request",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "CLOUDFLARE__GET_ZONE_DNS_RECORD_DETAILS",
+    "description": "Get details of a DNS record in a zone by zone_id and dns_record_id.",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "GET_ZONE_DNS_RECORD_DETAILS",
+      "canonical_tool_description_hash": "1e7eedea08df5af96fbf8f70e6c656ae8cd297f59fd5f53dabee387dae665ba8",
+      "canonical_tool_input_schema_hash": "4120bc1a9b091970741145a8fde0bcb6bb391d0fa59ccb5dd45d1ce6f2d5496a"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["path"],
+      "properties": {
+        "path": {
+          "type": "object",
+          "required": ["zone_id", "dns_record_id"],
+          "properties": {
+            "zone_id": {
+              "type": "string",
+              "description": "The zone ID to get the DNS record details from."
+            },
+            "dns_record_id": {
+              "type": "string",
+              "description": "The DNS record ID to get details for."
+            }
+          },
+          "description": "Path parameters for the http request",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "CLOUDFLARE__UPDATE_ZONE_DNS_RECORD",
+    "description": "Update an existing DNS record in a zone by zone_id and dns_record_id.",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "UPDATE_ZONE_DNS_RECORD",
+      "canonical_tool_description_hash": "0d2d06c6f9865cfe515f964270a688fd5bc2925593838fa9f8fd64ce44ad3fc5",
+      "canonical_tool_input_schema_hash": "9689f04fc23715a2fccc54190652aedf740c868d426b3abb11825cc9d9bffde8"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["path", "body"],
+      "properties": {
+        "body": {
+          "type": "object",
+          "required": [],
+          "properties": {
+            "ttl": {
+              "type": "integer",
+              "description": "Time To Live (TTL) of the DNS record in seconds. Setting to 1 means 'automatic'. Value must be between 60 and 86400, with the minimum reduced to 30 for Enterprise zones."
+            },
+            "name": {
+              "type": "string",
+              "description": "DNS record name (or @ for the zone apex) in Punycode."
+            },
+            "type": {
+              "type": "string",
+              "description": "Record type. A, AAAA, CNAME, MX, TXT, NS, PTR, SRV, SPF, CAA."
+            },
+            "comment": {
+              "type": "string",
+              "description": "Comments or notes about the DNS record. This field has no effect on DNS responses."
+            },
+            "content": {
+              "type": "string",
+              "description": "A valid IPv4/IPv6 address for A/AAAA record or a valid hostname for CNAME record."
+            },
+            "proxied": {
+              "type": "boolean",
+              "description": "Whether the record is receiving the performance and security benefits of Cloudflare."
+            }
+          },
+          "description": "Request body parameters for DNS record update.",
+          "additionalProperties": false
+        },
+        "path": {
+          "type": "object",
+          "required": ["zone_id", "dns_record_id"],
+          "properties": {
+            "zone_id": {
+              "type": "string",
+              "description": "The zone ID to update the DNS record in."
+            },
+            "dns_record_id": {
+              "type": "string",
+              "description": "The DNS record ID to update."
+            }
+          },
+          "description": "Path parameters for the http request",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+]

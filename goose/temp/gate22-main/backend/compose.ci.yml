@@ -1,0 +1,13 @@
+services:
+  # Override the runner service in compose.yml to use the CI environment variables
+  # to run tests
+  control_plane:
+    environment:
+      - CONTROL_PLANE_OPENAI_API_KEY=${CONTROL_PLANE_OPENAI_API_KEY?}
+      - CLI_OPENAI_API_KEY=${CLI_OPENAI_API_KEY?}
+  test-runner:
+    environment:
+      - CONTROL_PLANE_OPENAI_API_KEY=${CONTROL_PLANE_OPENAI_API_KEY?}
+      - CLI_OPENAI_API_KEY=${CLI_OPENAI_API_KEY?}
+    command: >
+      /bin/sh -c "alembic upgrade head && uv run pytest"

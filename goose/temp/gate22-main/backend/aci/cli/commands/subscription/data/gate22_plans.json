@@ -1,0 +1,20 @@
+[
+  {
+    "plan_code": "GATE22_FREE_PLAN",
+    "display_name": "Free",
+    "is_public": true,
+    "stripe_price_id": null,
+    "max_seats_for_subscription": 2,
+    "max_custom_mcp_servers": 1,
+    "log_retention_days": 3
+  },
+  {
+    "plan_code": "GATE22_TEAM_PLAN",
+    "display_name": "Team",
+    "is_public": true,
+    "stripe_price_id": "<REAPLCE_WITH_STRIPE_PRICE_ID>",
+    "max_seats_for_subscription": null,
+    "max_custom_mcp_servers": 5,
+    "log_retention_days": 7
+  }
+]

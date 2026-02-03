@@ -1,0 +1,479 @@
+[
+  {
+    "name": "ROCKETREACH__ACCOUNT_INFO",
+    "description": "Retrieve & manage RocketReach API account details, view usage metrics, and access account configuration.",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "ACCOUNT_INFO",
+      "canonical_tool_description_hash": "01c0b525d2ce868dbd004769a67ef49f070f520da3fb99afe0ed4fb22953ccc2",
+      "canonical_tool_input_schema_hash": "d746974fa9afd5e951f76f9af38954b0ad7f436f2120dc974da65e5ee39f856f"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": [],
+      "properties": {},
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "ROCKETREACH__CREATE_API_KEY",
+    "description": "Create a new API key for your RocketReach account. Your previous API key will immediately be invalidated.",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "CREATE_API_KEY",
+      "canonical_tool_description_hash": "439267793db73bc5a57070f91f4e928426dd9f74ba056afe78510ad516df4459",
+      "canonical_tool_input_schema_hash": "d5147ca549cb2a0c5bc5406be8b44bbe60facb080cea2c18b7bad5ea25f42a88"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["body"],
+      "properties": {
+        "body": {
+          "type": "object",
+          "required": ["api_key"],
+          "properties": {
+            "api_key": {
+              "type": "string",
+              "description": "The API key for your account"
+            }
+          },
+          "description": "request body",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "ROCKETREACH__PEOPLE_LOOKUP",
+    "description": "Person Enrichment API. Provide identifiers such as name, employer, or location to quickly retrieve matching professional profiles.",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "PEOPLE_LOOKUP",
+      "canonical_tool_description_hash": "c68cfbb3bc663e817c9c3cfe116ecdb25be19436f4d7d756728d37ebd72b11f9",
+      "canonical_tool_input_schema_hash": "cb7a407e59780fbc2242e102d913a1f2882dc731b84c0c36f6f8a6b0d3dda23d"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": [],
+      "properties": {
+        "query": {
+          "type": "object",
+          "required": [],
+          "properties": {
+            "id": {
+              "type": "integer",
+              "description": "RocketReach internal unique profile ID"
+            },
+            "name": {
+              "type": "string",
+              "description": "Name of the desired profile. Must specify along with current_employer (minimum length: 1)"
+            },
+            "email": {
+              "type": "string",
+              "description": "An email address for the desired profile (minimum length: 1)"
+            },
+            "title": {
+              "type": "string",
+              "description": "Job title of the desired profile (minimum length: 1)"
+            },
+            "npi_number": {
+              "type": "integer",
+              "description": "An NPI number for the desired profile (US healthcare professional)"
+            },
+            "lookup_type": {
+              "enum": [
+                "standard",
+                "premium",
+                "premium (feeds disabled)",
+                "bulk",
+                "phone",
+                "enrich"
+              ],
+              "type": "string",
+              "description": "Lookup type for the request"
+            },
+            "linkedin_url": {
+              "type": "string",
+              "description": "LinkedIn URL of the desired profile (minimum length: 1)"
+            },
+            "current_employer": {
+              "type": "string",
+              "description": "Current employer of the desired profile. Must specify along with name (minimum length: 1)"
+            }
+          },
+          "description": "query parameters",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "ROCKETREACH__PEOPLE_SEARCH",
+    "description": "Search for people by criteria such as name, company, title, location, and more. Discover and filter over 700M professional profiles. Returns a list of possible matches without contact information.",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "PEOPLE_SEARCH",
+      "canonical_tool_description_hash": "de0bb6bea88637990a1cda60f713c4c184bfe9329d03f2c959ba4eb52444d5b1",
+      "canonical_tool_input_schema_hash": "fd6307a3a0d98958b68bc68284712383ecf4272bdb8db9592ce801d97997b583"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["body"],
+      "properties": {
+        "body": {
+          "type": "object",
+          "required": [],
+          "properties": {
+            "query": {
+              "type": "object",
+              "required": [],
+              "properties": {
+                "name": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "description": "Include profiles with these names"
+                },
+                "skills": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "description": "Include profiles listed with these skills"
+                },
+                "keyword": {
+                  "type": "string",
+                  "description": "Include results matching keyword"
+                },
+                "industry": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "description": "Include profiles employed in these industries"
+                },
+                "location": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "description": "Include profiles located in these locations. You can add radius: 'San Francisco::~50mi'"
+                },
+                "company_name": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "description": "Include profiles employed by these company names"
+                },
+                "company_size": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "description": "Include profiles with employers with these sizes"
+                },
+                "current_title": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "description": "Include profiles with these current job titles"
+                },
+                "current_employer": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "description": "Include profiles employed by these companies"
+                },
+                "management_levels": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "description": "Include profiles at these management levels"
+                }
+              },
+              "description": "Search query object containing search criteria",
+              "additionalProperties": false
+            },
+            "order_by": {
+              "enum": ["relevance", "popularity"],
+              "type": "string",
+              "default": "relevance",
+              "description": "Specifies the ordering of search results"
+            },
+            "page_size": {
+              "type": "integer",
+              "default": 10,
+              "description": "Maximum number of results to return per page (minimum: 1, maximum: 100)"
+            }
+          },
+          "description": "request body",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "ROCKETREACH__CHECK_LOOKUP_STATUS",
+    "description": "Check the status of person lookup requests. Returns complete, failed, waiting, searching, or in progress status with available profile data.",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "CHECK_LOOKUP_STATUS",
+      "canonical_tool_description_hash": "6cff574ea7f2cd763860f50c024e6d6a5d07d148baf6b7dbcb968caa57c3a0d8",
+      "canonical_tool_input_schema_hash": "a2f70239b6aa738f3690c537a2ae0616d57542c98f22ab7ec9049a7edc4b1e3a"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["query"],
+      "properties": {
+        "query": {
+          "type": "object",
+          "required": ["ids"],
+          "properties": {
+            "ids": {
+              "type": "array",
+              "items": {
+                "type": "integer"
+              },
+              "description": "List of Profile IDs to check status for"
+            }
+          },
+          "description": "query parameters",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "ROCKETREACH__PROFILE_COMPANY_LOOKUP",
+    "description": "Person and Company Lookup API. Retrieve both profile data and company data for a person in a single request. Provides comprehensive professional and organizational information.",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "PROFILE_COMPANY_LOOKUP",
+      "canonical_tool_description_hash": "d25ec25f03b85e6d0a576ce3636e7d68758e8642b1b325673a52325a311b2ca1",
+      "canonical_tool_input_schema_hash": "cb7a407e59780fbc2242e102d913a1f2882dc731b84c0c36f6f8a6b0d3dda23d"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": [],
+      "properties": {
+        "query": {
+          "type": "object",
+          "required": [],
+          "properties": {
+            "id": {
+              "type": "integer",
+              "description": "RocketReach internal unique profile ID"
+            },
+            "name": {
+              "type": "string",
+              "description": "Name of the desired profile. Must specify along with current_employer (minimum length: 1)"
+            },
+            "email": {
+              "type": "string",
+              "description": "An email address for the desired profile (minimum length: 1)"
+            },
+            "title": {
+              "type": "string",
+              "description": "Job title of the desired profile (minimum length: 1)"
+            },
+            "npi_number": {
+              "type": "integer",
+              "description": "An NPI number for the desired profile (US healthcare professional)"
+            },
+            "lookup_type": {
+              "enum": [
+                "standard",
+                "premium",
+                "premium (feeds disabled)",
+                "bulk",
+                "phone",
+                "enrich"
+              ],
+              "type": "string",
+              "description": "Lookup type for the request"
+            },
+            "linkedin_url": {
+              "type": "string",
+              "description": "LinkedIn URL of the desired profile (minimum length: 1)"
+            },
+            "current_employer": {
+              "type": "string",
+              "description": "Current employer of the desired profile. Must specify along with name (minimum length: 1)"
+            }
+          },
+          "description": "query parameters",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "ROCKETREACH__COMPANY_SEARCH",
+    "description": "Search Companies by Criteria. Find and filter millions of business records with fast name, domain, industry, and location queries for any size company.",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "COMPANY_SEARCH",
+      "canonical_tool_description_hash": "b00bf1d48d8bff181601c5127ecffdb5ebeccf8a1162b528605c52ea97864577",
+      "canonical_tool_input_schema_hash": "fd24bf188263c1f09557522c17822b21a2ca9455371cec0a027dfd3558b6ef22"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["body"],
+      "properties": {
+        "body": {
+          "type": "object",
+          "required": [],
+          "properties": {
+            "query": {
+              "type": "object",
+              "required": [],
+              "properties": {
+                "name": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "description": "Include companies with these names"
+                },
+                "domain": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "description": "Include companies with these domains"
+                },
+                "keyword": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "description": "Include companies matching these keywords"
+                },
+                "revenue": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "description": "Include companies with these revenue values"
+                },
+                "industry": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "description": "Include companies focused in these industries"
+                },
+                "location": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "description": "Include companies located in these locations"
+                },
+                "employees": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "description": "Include companies with this number of employees"
+                },
+                "website_url": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "description": "Include companies with these website URLs"
+                },
+                "total_funding": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "description": "Include companies who have raised this amount of capital"
+                },
+                "publicly_traded": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "description": "Include companies that are publicly traded"
+                }
+              },
+              "description": "Search query object containing company search criteria",
+              "additionalProperties": false
+            },
+            "order_by": {
+              "enum": ["relevance", "popularity"],
+              "type": "string",
+              "default": "relevance",
+              "description": "Specifies the ordering of search results"
+            },
+            "page_size": {
+              "type": "integer",
+              "default": 10,
+              "description": "Maximum number of results to return per page (minimum: 1, maximum: 100)"
+            }
+          },
+          "description": "request body",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "ROCKETREACH__COMPANY_LOOKUP",
+    "description": "Company Lookup API. Retrieve detailed metadata information for a specific company using domain, name, LinkedIn URL, ID, or ticker symbol. Provides comprehensive company profile data.",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "COMPANY_LOOKUP",
+      "canonical_tool_description_hash": "26c9e8f53c4841ee9f32c013ba9de9065b8886a3259d2c3e055f0b1989ab48d0",
+      "canonical_tool_input_schema_hash": "bfbe3e6d65c0ee62fc62ac4e07a5cd06caf57bfbcddc0b3dc1d5c18169cf5195"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": [],
+      "properties": {
+        "query": {
+          "type": "object",
+          "required": [],
+          "properties": {
+            "id": {
+              "type": "integer",
+              "description": "RocketReach internal unique company ID"
+            },
+            "name": {
+              "type": "string",
+              "description": "Name of the desired company to lookup (minimum length: 1)"
+            },
+            "domain": {
+              "type": "string",
+              "description": "Domain of the desired company to lookup (preferred) (minimum length: 1)"
+            },
+            "ticker": {
+              "type": "string",
+              "description": "Stock ticker of the desired company to lookup (minimum length: 1)"
+            },
+            "linkedin_url": {
+              "type": "string",
+              "description": "LinkedIn URL of the desired company to lookup (minimum length: 1)"
+            }
+          },
+          "description": "query parameters",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+]

@@ -1,0 +1,606 @@
+[
+  {
+    "name": "ONE_SIGNAL__ADD_DEVICE",
+    "description": "Registers a new device with OneSignal. If a device with the specified identifier already exists, it updates the existing device record instead of creating a new one. Note: Using this endpoint directly without the OneSignal SDK may limit certain features such as conversion tracking, timezone detection, language detection, and rich push notifications.",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "POST",
+      "endpoint": "https://onesignal.com/api/v1/players"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "header": {
+          "type": "object",
+          "description": "Header parameters",
+          "properties": {
+            "Content-Type": {
+              "type": "string",
+              "description": "Media type of the request body",
+              "default": "application/json"
+            }
+          },
+          "required": [],
+          "visible": [],
+          "additionalProperties": false
+        },
+        "body": {
+          "type": "object",
+          "description": "Request body parameters",
+          "properties": {
+            "app_id": {
+              "type": "string",
+              "description": "Your OneSignal App ID."
+            },
+            "device_type": {
+              "type": "integer",
+              "description": "The device's platform. 0 = iOS, 1 = Android, 2 = Amazon, 3 = WindowsPhone (MPNS), 4 = Chrome Apps / Extensions, 5 = Chrome Web Push, 6 = Windows (WNS), 7 = Safari, 8 = Firefox, 9 = MacOS, 10 = Alexa, 11 = Email, 12 = Huawei, 13 = SMS, 14 = Chrome Web Push (Deprecated)."
+            },
+            "identifier": {
+              "type": "string",
+              "description": "Push token identifier for the device."
+            },
+            "language": {
+              "type": "string",
+              "description": "Language code (ISO 639-1) of the device's locale."
+            },
+            "timezone": {
+              "type": "integer",
+              "description": "Number of seconds away from UTC. Example: -28800 for PST."
+            },
+            "game_version": {
+              "type": "string",
+              "description": "Version of your app."
+            },
+            "device_model": {
+              "type": "string",
+              "description": "Device model."
+            },
+            "device_os": {
+              "type": "string",
+              "description": "Device operating system version."
+            },
+            "ad_id": {
+              "type": "string",
+              "description": "Ad ID for the device."
+            },
+            "sdk": {
+              "type": "string",
+              "description": "OneSignal SDK version used in your app."
+            },
+            "session_count": {
+              "type": "integer",
+              "description": "Number of times the user has opened the app."
+            },
+            "tags": {
+              "type": "object",
+              "description": "Custom tags for the device.",
+              "additionalProperties": {
+                "type": "string"
+              },
+              "properties": {
+                "first_name": {
+                  "type": "string",
+                  "description": "The first name of the user."
+                },
+                "last_name": {
+                  "type": "string",
+                  "description": "The last name of the user."
+                },
+                "level": {
+                  "type": "string",
+                  "description": "The level of the user."
+                },
+                "amount_spent": {
+                  "type": "number",
+                  "description": "The amount of money spent by the user."
+                },
+                "account_type": {
+                  "type": "string",
+                  "description": "The type of account the user has."
+                }
+              },
+              "required": [],
+              "visible": [
+                "first_name",
+                "last_name",
+                "level",
+                "amount_spent",
+                "account_type"
+              ]
+            },
+            "external_user_id": {
+              "type": "string",
+              "description": "An external user ID to associate with the device."
+            }
+          },
+          "required": [
+            "app_id",
+            "device_type"
+          ],
+          "visible": [
+            "app_id",
+            "device_type",
+            "identifier",
+            "language",
+            "timezone",
+            "game_version",
+            "device_model",
+            "device_os",
+            "ad_id",
+            "sdk",
+            "session_count",
+            "tags",
+            "external_user_id"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "body"
+      ],
+      "visible": [
+        "body"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "ONE_SIGNAL__CREATE_PUSH_NOTIFICATION",
+    "description": "Sends a push notification to users via the OneSignal API. Supports targeting by segments, filters, or specific device identifiers. Allows customization of message content, scheduling, and platform-specific options.",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "POST",
+      "endpoint": "https://onesignal.com/api/v1/notifications"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "body": {
+          "type": "object",
+          "description": "Request body parameters",
+          "properties": {
+            "app_id": {
+              "type": "string",
+              "description": "Your OneSignal App ID."
+            },
+            "contents": {
+              "type": "object",
+              "description": "Notification content per language. At least 'en' (English) is required.",
+              "properties": {
+                "en": {
+                  "type": "string",
+                  "description": "English message content."
+                }
+              },
+              "required": [
+                "en"
+              ],
+              "visible": [
+                "en"
+              ],
+              "additionalProperties": true
+            },
+            "headings": {
+              "type": "object",
+              "description": "Notification title per language.",
+              "properties": {
+                "en": {
+                  "type": "string",
+                  "description": "English title."
+                }
+              },
+              "required": [
+                "en"
+              ],
+              "visible": [
+                "en"
+              ],
+              "additionalProperties": true
+            },
+            "included_segments": {
+              "type": "array",
+              "description": "Segments to send the notification to.",
+              "items": {
+                "type": "string"
+              }
+            },
+            "excluded_segments": {
+              "type": "array",
+              "description": "Segments to exclude from receiving the notification.",
+              "items": {
+                "type": "string"
+              }
+            },
+            "include_player_ids": {
+              "type": "array",
+              "description": "Specific device identifiers to send the notification to.",
+              "items": {
+                "type": "string"
+              }
+            },
+            "filters": {
+              "type": "array",
+              "description": "Advanced targeting filters.",
+              "items": {
+                "type": "object"
+              }
+            },
+            "send_after": {
+              "type": "string",
+              "description": "Schedule the notification for future delivery. Format: 'YYYY-MM-DD HH:MM:SS GMT-0700'."
+            },
+            "data": {
+              "type": "object",
+              "description": "Custom key-value pairs to include with the notification.",
+              "properties": {
+                "exampleKey1": {
+                  "type": "string"
+                },
+                "exampleKey2": {
+                  "type": "integer"
+                }
+              },
+              "required": [],
+              "visible": [
+                "exampleKey1",
+                "exampleKey2"
+              ],
+              "additionalProperties": true
+            },
+            "url": {
+              "type": "string",
+              "description": "URL to open when the notification is clicked."
+            }
+          },
+          "required": [
+            "app_id",
+            "contents",
+            "included_segments"
+          ],
+          "visible": [
+            "app_id",
+            "contents",
+            "headings",
+            "included_segments",
+            "excluded_segments",
+            "include_player_ids",
+            "filters",
+            "send_after",
+            "data",
+            "url"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "body"
+      ],
+      "visible": [
+        "body"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "ONE_SIGNAL__EDIT_DEVICE",
+    "description": "Updates an existing device (player) in a OneSignal app. This endpoint allows modification of device attributes such as language, timezone, app version, device model, operating system, and custom tags. Note: This is a legacy endpoint; it's recommended to use 'Update User' or 'Update Subscription' instead.",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "PUT",
+      "endpoint": "https://onesignal.com/api/v1/players/{player_id}"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "path": {
+          "type": "object",
+          "description": "Path parameters",
+          "properties": {
+            "player_id": {
+              "type": "string",
+              "description": "The unique identifier of the device (player) to update."
+            }
+          },
+          "required": [
+            "player_id"
+          ],
+          "visible": [
+            "player_id"
+          ],
+          "additionalProperties": false
+        },
+        "body": {
+          "type": "object",
+          "description": "Request body parameters",
+          "properties": {
+            "app_id": {
+              "type": "string",
+              "description": "Your OneSignal App ID."
+            },
+            "language": {
+              "type": "string",
+              "description": "Language code (ISO 639-1) of the device's locale."
+            },
+            "timezone": {
+              "type": "integer",
+              "description": "Number of seconds away from UTC. Example: -28800 for PST."
+            },
+            "game_version": {
+              "type": "string",
+              "description": "Version of your app."
+            },
+            "device_os": {
+              "type": "string",
+              "description": "Device operating system version."
+            },
+            "device_type": {
+              "type": "integer",
+              "description": "The device's platform. 0 = iOS, 1 = Android, etc."
+            },
+            "device_model": {
+              "type": "string",
+              "description": "Device model."
+            },
+            "tags": {
+              "type": "object",
+              "description": "Custom tags for the device.",
+              "additionalProperties": {
+                "type": "string"
+              },
+              "properties": {
+                "first_name": {
+                  "type": "string",
+                  "description": "The first name of the user."
+                },
+                "last_name": {
+                  "type": "string",
+                  "description": "The last name of the user."
+                },
+                "level": {
+                  "type": "string",
+                  "description": "The level of the user."
+                }
+              },
+              "required": [],
+              "visible": [
+                "first_name",
+                "last_name",
+                "level"
+              ]
+            }
+          },
+          "required": [
+            "app_id"
+          ],
+          "visible": [
+            "app_id",
+            "language",
+            "timezone",
+            "game_version",
+            "device_os",
+            "device_type",
+            "device_model",
+            "tags"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "path",
+        "body"
+      ],
+      "visible": [
+        "path",
+        "body"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "ONE_SIGNAL__VIEW_MESSAGES",
+    "description": "Retrieves a list of up to 50 messages (push, email, or SMS) sent via OneSignal. Supports filtering by message type, template ID, and time offset. Pagination is handled via limit and offset parameters. Note: Messages sent through the API and Automated Messages are only accessible for 30 days after creation; messages sent using the OneSignal dashboard are accessible for the app's lifetime.",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "GET",
+      "endpoint": "https://onesignal.com/api/v1/notifications"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "query": {
+          "type": "object",
+          "description": "Query parameters",
+          "properties": {
+            "app_id": {
+              "type": "string",
+              "description": "Your OneSignal App ID."
+            },
+            "limit": {
+              "type": "integer",
+              "description": "Number of messages to return (max 50).",
+              "default": 50
+            },
+            "offset": {
+              "type": "integer",
+              "description": "Pagination offset."
+            },
+            "kind": {
+              "type": "integer",
+              "description": "Filter by message type: 0 = Push, 1 = Email, 2 = SMS."
+            },
+            "template_id": {
+              "type": "string",
+              "description": "Filter by template ID."
+            },
+            "time_offset": {
+              "type": "integer",
+              "description": "Time offset for optimized pagination (in seconds)."
+            }
+          },
+          "required": [
+            "app_id"
+          ],
+          "visible": [
+            "app_id",
+            "limit",
+            "offset",
+            "kind",
+            "template_id",
+            "time_offset"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "query"
+      ],
+      "visible": [
+        "query"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "ONE_SIGNAL__CREATE_SUBSCRIPTION_BY_ALIAS",
+    "description": "Adds a new subscription to an existing user identified by alias. Subscriptions represent a user's intent to receive messages through a given channel (e.g., push, email, SMS). Requires the user to be pre-created. If the subscription (type + token) already exists, it will be transferred to the specified user.",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "POST",
+      "endpoint": "https://api.onesignal.com/apps/{app_id}/users/by/external_id/{alias_id}/subscriptions"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "path": {
+          "type": "object",
+          "description": "Path parameters",
+          "properties": {
+            "app_id": {
+              "type": "string",
+              "description": "Your OneSignal App ID."
+            },
+            "alias_id": {
+              "type": "string",
+              "description": "Value of the alias used to identify the user."
+            }
+          },
+          "required": [
+            "app_id",
+            "alias_id"
+          ],
+          "visible": [
+            "app_id",
+            "alias_id"
+          ],
+          "additionalProperties": false
+        },
+        "body": {
+          "type": "object",
+          "description": "Request body parameters",
+          "properties": {
+            "subscription": {
+              "type": "object",
+              "description": "Subscription data",
+              "properties": {
+                "type": {
+                  "type": "string",
+                  "description": "Type of the subscription device. Must be one of: 'Email', 'SMS', 'iOSPush', 'AndroidPush', 'HuaweiPush'."
+                },
+                "token": {
+                  "type": "string",
+                  "description": "The push token, email address, or phone number associated with the subscription."
+                },
+                "enabled": {
+                  "type": "boolean",
+                  "description": "Indicates if the subscription is enabled."
+                },
+                "notification_types": {
+                  "type": "integer",
+                  "description": "Bitmask of notification types the subscription is opted into."
+                },
+                "session_time": {
+                  "type": "integer",
+                  "description": "Total duration of sessions in seconds."
+                },
+                "session_count": {
+                  "type": "integer",
+                  "description": "Number of sessions."
+                },
+                "app_version": {
+                  "type": "string",
+                  "description": "Version of your app."
+                },
+                "device_model": {
+                  "type": "string",
+                  "description": "Device model."
+                },
+                "device_os": {
+                  "type": "string",
+                  "description": "Device operating system version."
+                },
+                "test_type": {
+                  "type": "integer",
+                  "description": "Indicates if the subscription is a test type."
+                },
+                "sdk": {
+                  "type": "string",
+                  "description": "SDK version used."
+                },
+                "rooted": {
+                  "type": "boolean",
+                  "description": "Indicates if the device is rooted or jailbroken."
+                },
+                "web_auth": {
+                  "type": "string",
+                  "description": "Web authentication key (for web push)."
+                },
+                "web_p256": {
+                  "type": "string",
+                  "description": "Web P256 key (for web push)."
+                }
+              },
+              "required": [
+                "type",
+                "token"
+              ],
+              "visible": [
+                "type",
+                "token",
+                "enabled",
+                "notification_types",
+                "session_time",
+                "session_count",
+                "app_version",
+                "device_model",
+                "device_os",
+                "test_type",
+                "sdk",
+                "rooted",
+                "web_auth",
+                "web_p256"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "required": [
+            "subscription"
+          ],
+          "visible": [
+            "subscription"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "path",
+        "body"
+      ],
+      "visible": [
+        "path",
+        "body"
+      ],
+      "additionalProperties": false
+    }
+  }
+]

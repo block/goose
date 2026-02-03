@@ -1,0 +1,24 @@
+### 3. Exploring Telemetry in DataDog
+
+Once your AI application is sending telemetry data to DataDog, you can explore and analyze it using DataDog's powerful observability features:
+
+#### Software Catalog
+View all your AI services and their connections:
+- Go to **APM** → **Software Catalog**
+- Select **Map** to see how services are connected
+- Change **Map layout** to **Cluster** or **Flow** for different views
+- Select **Catalog** view, then click a service for performance summary
+
+#### Trace Explorer  
+Explore traces from your AI applications:
+- Navigate to **Performance** → **Setup Guidance** → **View Traces**
+- Select an indexed span to view full trace details
+- View correlated data across tabs:
+  - Infrastructure metrics for services with Host Metrics
+  - Runtime metrics for implemented services  
+  - Log entries correlated with traces
+  - Span links connected to traces
+
+<Note>
+After your OpenLIT-instrumented AI application starts sending data, it may take a few minutes for traces and metrics to appear in DataDog. The built-in telemetry generation will begin automatically once your application processes AI requests.
+</Note>

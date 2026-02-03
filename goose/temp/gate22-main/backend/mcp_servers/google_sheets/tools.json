@@ -1,0 +1,824 @@
+[
+  {
+    "name": "GOOGLE_SHEETS__SPREADSHEET_CREATE",
+    "description": "Creates a new spreadsheet with specified properties and sheets",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "SPREADSHEET_CREATE",
+      "canonical_tool_description_hash": "984d83c406c94a2fe4f927e2595123c7df4d05b851a28c3fac89caad3918ca63",
+      "canonical_tool_input_schema_hash": "9989dd80ebd729342f574f31eab962b7e24cdbd5ab1707e0a3d9308d807462f7"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["body"],
+      "properties": {
+        "body": {
+          "type": "object",
+          "required": ["properties"],
+          "properties": {
+            "sheets": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "visible": ["properties"],
+                "required": ["properties"],
+                "properties": {
+                  "properties": {
+                    "type": "object",
+                    "visible": ["title", "index", "sheetId", "sheetType", "gridProperties"],
+                    "required": [],
+                    "properties": {
+                      "index": {
+                        "type": "integer",
+                        "description": "The index of the sheet within the spreadsheet"
+                      },
+                      "title": {
+                        "type": "string",
+                        "description": "The title of the sheet"
+                      },
+                      "sheetId": {
+                        "type": "integer",
+                        "description": "The ID of the sheet"
+                      },
+                      "sheetType": {
+                        "enum": ["GRID", "OBJECT"],
+                        "type": "string",
+                        "description": "The type of sheet"
+                      },
+                      "gridProperties": {
+                        "type": "object",
+                        "visible": [
+                          "rowCount",
+                          "columnCount",
+                          "frozenRowCount",
+                          "frozenColumnCount",
+                          "hideGridlines"
+                        ],
+                        "required": [],
+                        "properties": {
+                          "rowCount": {
+                            "type": "integer",
+                            "description": "The number of rows in the grid"
+                          },
+                          "columnCount": {
+                            "type": "integer",
+                            "description": "The number of columns in the grid"
+                          },
+                          "hideGridlines": {
+                            "type": "boolean",
+                            "description": "True if the gridlines are hidden"
+                          },
+                          "frozenRowCount": {
+                            "type": "integer",
+                            "description": "The number of rows that are frozen in the grid"
+                          },
+                          "frozenColumnCount": {
+                            "type": "integer",
+                            "description": "The number of columns that are frozen in the grid"
+                          }
+                        },
+                        "additionalProperties": false
+                      }
+                    },
+                    "additionalProperties": false
+                  }
+                },
+                "additionalProperties": false
+              },
+              "description": "The sheets in this spreadsheet"
+            },
+            "properties": {
+              "type": "object",
+              "required": [],
+              "properties": {
+                "title": {
+                  "type": "string",
+                  "description": "The title of the spreadsheet"
+                },
+                "locale": {
+                  "type": "string",
+                  "description": "The locale of the spreadsheet in one of the following formats: an ISO 639-1 language code such as 'en', or an ISO 639-1 language code plus an ISO 3166-1 alpha-2 country code, such as 'en_US'"
+                },
+                "timeZone": {
+                  "type": "string",
+                  "description": "The time zone of the spreadsheet, in CLDR format such as 'America/New_York'"
+                },
+                "autoRecalc": {
+                  "enum": ["ON_CHANGE", "MINUTE", "HOUR"],
+                  "type": "string",
+                  "description": "The amount of time to wait before volatile functions are recalculated"
+                },
+                "iterativeCalculationSettings": {
+                  "type": "object",
+                  "required": [],
+                  "properties": {
+                    "maxIterations": {
+                      "type": "integer",
+                      "description": "When iterative calculation is enabled and the results differ between attempts, the maximum number of times to recalculate"
+                    },
+                    "convergenceThreshold": {
+                      "type": "number",
+                      "description": "When iterative calculation is enabled, the minimum change between iterative calculations for the calculation to converge"
+                    }
+                  },
+                  "description": "Settings to control how iterative calculations are performed",
+                  "additionalProperties": false
+                }
+              },
+              "description": "Properties of the spreadsheet",
+              "additionalProperties": false
+            },
+            "dataSources": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "visible": ["dataSourceId", "spec"],
+                "required": ["dataSourceId", "spec"],
+                "properties": {
+                  "spec": {
+                    "type": "object",
+                    "visible": ["parameters"],
+                    "required": [],
+                    "properties": {
+                      "parameters": {
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "visible": ["name", "value"],
+                          "required": ["name", "value"],
+                          "properties": {
+                            "name": {
+                              "type": "string",
+                              "description": "The name of the parameter"
+                            },
+                            "value": {
+                              "type": "string",
+                              "description": "The value of the parameter"
+                            }
+                          },
+                          "additionalProperties": false
+                        },
+                        "description": "Parameters for the data source"
+                      }
+                    },
+                    "description": "The specification of the data source",
+                    "additionalProperties": false
+                  },
+                  "dataSourceId": {
+                    "type": "string",
+                    "description": "The ID of the data source"
+                  }
+                },
+                "additionalProperties": false
+              },
+              "description": "Data sources associated with the spreadsheet"
+            },
+            "namedRanges": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "visible": ["namedRangeId", "name", "range"],
+                "required": ["name", "range"],
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "description": "The name of the named range"
+                  },
+                  "range": {
+                    "type": "object",
+                    "visible": [
+                      "sheetId",
+                      "startRowIndex",
+                      "endRowIndex",
+                      "startColumnIndex",
+                      "endColumnIndex"
+                    ],
+                    "required": ["sheetId"],
+                    "properties": {
+                      "sheetId": {
+                        "type": "integer",
+                        "description": "The sheet this range is on"
+                      },
+                      "endRowIndex": {
+                        "type": "integer",
+                        "description": "The end row (exclusive) of the range, or not set if unbounded"
+                      },
+                      "startRowIndex": {
+                        "type": "integer",
+                        "description": "The start row (inclusive) of the range, or not set if unbounded"
+                      },
+                      "endColumnIndex": {
+                        "type": "integer",
+                        "description": "The end column (exclusive) of the range, or not set if unbounded"
+                      },
+                      "startColumnIndex": {
+                        "type": "integer",
+                        "description": "The start column (inclusive) of the range, or not set if unbounded"
+                      }
+                    },
+                    "additionalProperties": false
+                  },
+                  "namedRangeId": {
+                    "type": "string",
+                    "description": "The ID of the named range"
+                  }
+                },
+                "additionalProperties": false
+              },
+              "description": "Named ranges in the spreadsheet"
+            },
+            "spreadsheetUrl": {
+              "type": "string",
+              "description": "The URL of the spreadsheet"
+            },
+            "developerMetadata": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "visible": ["metadataId", "metadataKey", "metadataValue", "visibility", "location"],
+                "required": ["metadataKey", "metadataValue", "visibility", "location"],
+                "properties": {
+                  "location": {
+                    "type": "object",
+                    "visible": ["sheetId", "dimensionRange"],
+                    "required": ["sheetId"],
+                    "properties": {
+                      "sheetId": {
+                        "type": "integer",
+                        "description": "The sheet ID"
+                      },
+                      "dimensionRange": {
+                        "type": "object",
+                        "visible": ["sheetId", "dimension", "startIndex", "endIndex"],
+                        "required": ["sheetId", "dimension", "startIndex", "endIndex"],
+                        "properties": {
+                          "sheetId": {
+                            "type": "integer",
+                            "description": "The sheet ID"
+                          },
+                          "endIndex": {
+                            "type": "integer",
+                            "description": "The end index"
+                          },
+                          "dimension": {
+                            "enum": ["ROWS", "COLUMNS"],
+                            "type": "string",
+                            "description": "The dimension"
+                          },
+                          "startIndex": {
+                            "type": "integer",
+                            "description": "The start index"
+                          }
+                        },
+                        "description": "The dimension range",
+                        "additionalProperties": false
+                      }
+                    },
+                    "description": "The location of the developer metadata",
+                    "additionalProperties": false
+                  },
+                  "metadataId": {
+                    "type": "integer",
+                    "description": "The ID of the developer metadata"
+                  },
+                  "visibility": {
+                    "enum": ["DEVELOPER_STRING", "DOCUMENT", "PROJECT"],
+                    "type": "string",
+                    "description": "The visibility of the developer metadata"
+                  },
+                  "metadataKey": {
+                    "type": "string",
+                    "description": "The key of the developer metadata"
+                  },
+                  "metadataValue": {
+                    "type": "string",
+                    "description": "The value of the developer metadata"
+                  }
+                },
+                "additionalProperties": false
+              },
+              "description": "Developer metadata associated with the spreadsheet"
+            },
+            "dataSourceSchedules": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "visible": ["dataSourceId", "refreshSchedule"],
+                "required": ["dataSourceId", "refreshSchedule"],
+                "properties": {
+                  "dataSourceId": {
+                    "type": "string",
+                    "description": "The ID of the data source"
+                  },
+                  "refreshSchedule": {
+                    "type": "object",
+                    "visible": ["dailySchedule", "weeklySchedule", "monthlySchedule"],
+                    "required": [],
+                    "properties": {
+                      "dailySchedule": {
+                        "type": "object",
+                        "visible": ["startTime"],
+                        "required": ["startTime"],
+                        "properties": {
+                          "startTime": {
+                            "type": "object",
+                            "visible": ["hours", "minutes", "seconds", "nanos"],
+                            "required": [],
+                            "properties": {
+                              "hours": {
+                                "type": "integer",
+                                "description": "Hours of day in 24 hour format"
+                              },
+                              "nanos": {
+                                "type": "integer",
+                                "description": "Fractions of seconds in nanoseconds"
+                              },
+                              "minutes": {
+                                "type": "integer",
+                                "description": "Minutes of hour"
+                              },
+                              "seconds": {
+                                "type": "integer",
+                                "description": "Seconds of minute"
+                              }
+                            },
+                            "description": "The start time",
+                            "additionalProperties": false
+                          }
+                        },
+                        "description": "Daily refresh schedule",
+                        "additionalProperties": false
+                      },
+                      "weeklySchedule": {
+                        "type": "object",
+                        "visible": ["startTime", "daysOfWeek"],
+                        "required": ["startTime", "daysOfWeek"],
+                        "properties": {
+                          "startTime": {
+                            "type": "object",
+                            "visible": ["hours", "minutes", "seconds", "nanos"],
+                            "required": [],
+                            "properties": {
+                              "hours": {
+                                "type": "integer",
+                                "description": "Hours of day in 24 hour format"
+                              },
+                              "nanos": {
+                                "type": "integer",
+                                "description": "Fractions of seconds in nanoseconds"
+                              },
+                              "minutes": {
+                                "type": "integer",
+                                "description": "Minutes of hour"
+                              },
+                              "seconds": {
+                                "type": "integer",
+                                "description": "Seconds of minute"
+                              }
+                            },
+                            "description": "The start time",
+                            "additionalProperties": false
+                          },
+                          "daysOfWeek": {
+                            "type": "array",
+                            "items": {
+                              "enum": [
+                                "DAY_OF_WEEK_UNSPECIFIED",
+                                "MONDAY",
+                                "TUESDAY",
+                                "WEDNESDAY",
+                                "THURSDAY",
+                                "FRIDAY",
+                                "SATURDAY",
+                                "SUNDAY"
+                              ],
+                              "type": "string"
+                            },
+                            "description": "Days of the week to refresh"
+                          }
+                        },
+                        "description": "Weekly refresh schedule",
+                        "additionalProperties": false
+                      },
+                      "monthlySchedule": {
+                        "type": "object",
+                        "visible": ["startTime", "daysOfMonth"],
+                        "required": ["startTime", "daysOfMonth"],
+                        "properties": {
+                          "startTime": {
+                            "type": "object",
+                            "visible": ["hours", "minutes", "seconds", "nanos"],
+                            "required": [],
+                            "properties": {
+                              "hours": {
+                                "type": "integer",
+                                "description": "Hours of day in 24 hour format"
+                              },
+                              "nanos": {
+                                "type": "integer",
+                                "description": "Fractions of seconds in nanoseconds"
+                              },
+                              "minutes": {
+                                "type": "integer",
+                                "description": "Minutes of hour"
+                              },
+                              "seconds": {
+                                "type": "integer",
+                                "description": "Seconds of minute"
+                              }
+                            },
+                            "description": "The start time",
+                            "additionalProperties": false
+                          },
+                          "daysOfMonth": {
+                            "type": "array",
+                            "items": {
+                              "type": "integer"
+                            },
+                            "description": "Days of the month to refresh"
+                          }
+                        },
+                        "description": "Monthly refresh schedule",
+                        "additionalProperties": false
+                      }
+                    },
+                    "description": "The refresh schedule",
+                    "additionalProperties": false
+                  }
+                },
+                "additionalProperties": false
+              },
+              "description": "Data source refresh schedules"
+            }
+          },
+          "description": "Request body parameters for creating a spreadsheet",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "GOOGLE_SHEETS__VALUES_GET",
+    "description": "Retrieves data from specified range in a spreadsheet",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "VALUES_GET",
+      "canonical_tool_description_hash": "2994ebe9dbde95a3ef0b795f5b179c96497fd46f1c5bfaf8980bff6107d61fef",
+      "canonical_tool_input_schema_hash": "114e08139dffd8d0ae9b874e9ffaa722343b6197cd131d4c90f159dde66ecdaf"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["path"],
+      "properties": {
+        "path": {
+          "type": "object",
+          "required": ["spreadsheetId", "range"],
+          "properties": {
+            "range": {
+              "type": "string",
+              "description": "The A1 notation or R1C1 notation of the range to retrieve values from"
+            },
+            "spreadsheetId": {
+              "type": "string",
+              "description": "The ID of the spreadsheet to retrieve data from"
+            }
+          },
+          "additionalProperties": false
+        },
+        "query": {
+          "type": "object",
+          "required": [],
+          "properties": {
+            "majorDimension": {
+              "enum": ["ROWS", "COLUMNS"],
+              "type": "string",
+              "description": "The major dimension that results should use"
+            },
+            "valueRenderOption": {
+              "enum": ["FORMATTED_VALUE", "UNFORMATTED_VALUE", "FORMULA"],
+              "type": "string",
+              "default": "FORMATTED_VALUE",
+              "description": "How values should be rendered in the output"
+            },
+            "dateTimeRenderOption": {
+              "enum": ["SERIAL_NUMBER", "FORMATTED_STRING"],
+              "type": "string",
+              "default": "SERIAL_NUMBER",
+              "description": "How dates, times, and durations should be represented in the output"
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "GOOGLE_SHEETS__VALUES_UPDATE",
+    "description": "Sets values in a range of a spreadsheet. The caller must specify the spreadsheet ID, range, and a valueInputOption.",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "VALUES_UPDATE",
+      "canonical_tool_description_hash": "c9f6a855d4e8d6736947f8cc7a01f6f21ff5596b1f134f2fd2250a8e80bf9d80",
+      "canonical_tool_input_schema_hash": "337fbe6521174946ed27099584fe12f58b515c0b888a470e82aa33870681218b"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["path", "query", "body"],
+      "properties": {
+        "body": {
+          "type": "object",
+          "required": ["values"],
+          "properties": {
+            "range": {
+              "type": "string",
+              "description": "The range the values cover, in A1 notation. For output, this range indicates the entire requested range, even though the values will exclude trailing rows and columns. When appending values, this field represents the range to search for a table, after which values will be appended."
+            },
+            "values": {
+              "type": "array",
+              "items": {
+                "type": "array",
+                "items": {
+                  "oneOf": [
+                    {
+                      "type": "boolean",
+                      "description": "Boolean value"
+                    },
+                    {
+                      "type": "string",
+                      "description": "String value. To set a cell to an empty value, use an empty string."
+                    },
+                    {
+                      "type": "number",
+                      "description": "Numeric value (double)"
+                    }
+                  ]
+                }
+              },
+              "description": "The data that was read or to be written. This is an array of arrays, the outer array representing all the data and each inner array representing a major dimension. Each item in the inner array corresponds with one cell. For output, empty trailing rows and columns will not be included. For input, supported value types are: bool, string, and double. Null values will be skipped."
+            },
+            "majorDimension": {
+              "enum": ["DIMENSION_UNSPECIFIED", "ROWS", "COLUMNS"],
+              "type": "string",
+              "description": "Indicates which dimension an operation should apply to. ROWS: Operates on the rows of a sheet. COLUMNS: Operates on the columns of a sheet. DIMENSION_UNSPECIFIED: The default value, do not use."
+            }
+          },
+          "description": "The request body contains an instance of ValueRange",
+          "additionalProperties": false
+        },
+        "path": {
+          "type": "object",
+          "required": ["spreadsheetId", "range"],
+          "properties": {
+            "range": {
+              "type": "string",
+              "description": "The A1 notation of the values to update"
+            },
+            "spreadsheetId": {
+              "type": "string",
+              "description": "The ID of the spreadsheet to update"
+            }
+          },
+          "additionalProperties": false
+        },
+        "query": {
+          "type": "object",
+          "required": ["valueInputOption"],
+          "properties": {
+            "valueInputOption": {
+              "enum": ["INPUT_VALUE_OPTION_UNSPECIFIED", "RAW", "USER_ENTERED"],
+              "type": "string",
+              "description": "How the input data should be interpreted"
+            },
+            "includeValuesInResponse": {
+              "type": "boolean",
+              "description": "Determines if the update response should include the values of the cells that were updated. By default, responses do not include the updated values. If the range to write was larger than the range actually written, the response includes all values in the requested range (excluding trailing empty rows and columns)."
+            },
+            "responseValueRenderOption": {
+              "enum": ["FORMATTED_VALUE", "UNFORMATTED_VALUE", "FORMULA"],
+              "type": "string",
+              "default": "FORMATTED_VALUE",
+              "description": "Determines how values in the response should be rendered. The default render option is FORMATTED_VALUE."
+            },
+            "responseDateTimeRenderOption": {
+              "enum": ["SERIAL_NUMBER", "FORMATTED_STRING"],
+              "type": "string",
+              "default": "SERIAL_NUMBER",
+              "description": "Determines how dates, times, and durations in the response should be rendered. This is ignored if responseValueRenderOption is FORMATTED_VALUE. The default dateTime render option is SERIAL_NUMBER."
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "GOOGLE_SHEETS__VALUES_BATCH_UPDATE",
+    "description": "Sets values in one or more ranges of a spreadsheet. The caller must specify the spreadsheet ID, a valueInputOption, and one or more ValueRanges.",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "VALUES_BATCH_UPDATE",
+      "canonical_tool_description_hash": "81f55858d0d5cd2d7ccf003a2c14b6d2b2fb2fa023bf76d78fcc83ed908333d5",
+      "canonical_tool_input_schema_hash": "879d8849ad405ec62324c91d9d476e11a541b89bad7c299533b23d9f20e6bd58"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["path", "body"],
+      "properties": {
+        "body": {
+          "type": "object",
+          "required": ["valueInputOption"],
+          "properties": {
+            "data": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "visible": ["range", "values", "majorDimension"],
+                "required": ["range", "values"],
+                "properties": {
+                  "range": {
+                    "type": "string",
+                    "description": "The range the values cover, in A1 notation. For output, this range indicates the entire requested range, even though the values will exclude trailing rows and columns."
+                  },
+                  "values": {
+                    "type": "array",
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "oneOf": [
+                          {
+                            "type": "boolean",
+                            "description": "Boolean value"
+                          },
+                          {
+                            "type": "string",
+                            "description": "String value. To set a cell to an empty value, use an empty string."
+                          },
+                          {
+                            "type": "number",
+                            "description": "Numeric value (double)"
+                          }
+                        ]
+                      }
+                    },
+                    "description": "The data that was read or to be written. This is an array of arrays, the outer array representing all the data and each inner array representing a major dimension. Each item in the inner array corresponds with one cell. For output, empty trailing rows and columns will not be included. For input, supported value types are: bool, string, and double. Null values will be skipped."
+                  },
+                  "majorDimension": {
+                    "enum": ["DIMENSION_UNSPECIFIED", "ROWS", "COLUMNS"],
+                    "type": "string",
+                    "description": "Indicates which dimension an operation should apply to. ROWS: Operates on the rows of a sheet. COLUMNS: Operates on the columns of a sheet. DIMENSION_UNSPECIFIED: The default value, do not use."
+                  }
+                },
+                "additionalProperties": false
+              },
+              "description": "The new values to apply to the spreadsheet"
+            },
+            "valueInputOption": {
+              "enum": ["INPUT_VALUE_OPTION_UNSPECIFIED", "RAW", "USER_ENTERED"],
+              "type": "string",
+              "description": "How the input data should be interpreted"
+            },
+            "includeValuesInResponse": {
+              "type": "boolean",
+              "description": "Determines if the update response should include the values of the cells that were updated. By default, responses do not include the updated values. The updatedData field within each of the BatchUpdateValuesResponse.responses contains the updated values. If the range to write was larger than the range actually written, the response includes all values in the requested range (excluding trailing empty rows and columns)."
+            },
+            "responseValueRenderOption": {
+              "enum": ["FORMATTED_VALUE", "UNFORMATTED_VALUE", "FORMULA"],
+              "type": "string",
+              "default": "FORMATTED_VALUE",
+              "description": "Determines how values in the response should be rendered. The default render option is FORMATTED_VALUE."
+            },
+            "responseDateTimeRenderOption": {
+              "enum": ["SERIAL_NUMBER", "FORMATTED_STRING"],
+              "type": "string",
+              "default": "SERIAL_NUMBER",
+              "description": "Determines how dates, times, and durations in the response should be rendered. This is ignored if responseValueRenderOption is FORMATTED_VALUE. The default dateTime render option is SERIAL_NUMBER."
+            }
+          },
+          "description": "The request body contains data with the following structure",
+          "additionalProperties": false
+        },
+        "path": {
+          "type": "object",
+          "required": ["spreadsheetId"],
+          "properties": {
+            "spreadsheetId": {
+              "type": "string",
+              "description": "The ID of the spreadsheet to update"
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "GOOGLE_SHEETS__VALUES_APPEND",
+    "description": "Appends values to a spreadsheet. The input range is used to search for existing data and find a 'table' within that range. Values will be appended to the next row of the table, starting from the first column of the table. The caller must specify the spreadsheet ID, range, and a valueInputOption. The valueInputOption only controls how the input data will be added to the sheet (column-wise or row-wise), it does not influence what cell the data starts being written to.",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "VALUES_APPEND",
+      "canonical_tool_description_hash": "fe270cd043bec1754e6aff43f958adb0b189c12ab475c382ae3a8321ea99fb98",
+      "canonical_tool_input_schema_hash": "394021cbaced1c3b062fbdf62c635347570f99efaabf92189d89daa3a7f7ac3a"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["path", "query", "body"],
+      "properties": {
+        "body": {
+          "type": "object",
+          "required": ["range", "values"],
+          "properties": {
+            "range": {
+              "type": "string",
+              "description": "The range the values cover, in A1 notation. For output, this range indicates the entire requested range, even though the values will exclude trailing rows and columns. When appending values, this field represents the range to search for a table, after which values will be appended."
+            },
+            "values": {
+              "type": "array",
+              "items": {
+                "type": "array",
+                "items": {
+                  "oneOf": [
+                    {
+                      "type": "boolean",
+                      "description": "Boolean value"
+                    },
+                    {
+                      "type": "string",
+                      "description": "String value. To set a cell to an empty value, use an empty string."
+                    },
+                    {
+                      "type": "number",
+                      "description": "Numeric value (double)"
+                    }
+                  ]
+                }
+              },
+              "description": "The data that was read or to be written. This is an array of arrays, the outer array representing all the data and each inner array representing a major dimension. Each item in the inner array corresponds with one cell. For output, empty trailing rows and columns will not be included. For input, supported value types are: bool, string, and double. Null values will be skipped."
+            },
+            "majorDimension": {
+              "enum": ["DIMENSION_UNSPECIFIED", "ROWS", "COLUMNS"],
+              "type": "string",
+              "description": "Indicates which dimension an operation should apply to. ROWS: Operates on the rows of a sheet. COLUMNS: Operates on the columns of a sheet. DIMENSION_UNSPECIFIED: The default value, do not use."
+            }
+          },
+          "description": "The request body contains an instance of ValueRange",
+          "additionalProperties": false
+        },
+        "path": {
+          "type": "object",
+          "required": ["spreadsheetId", "range"],
+          "properties": {
+            "range": {
+              "type": "string",
+              "description": "The A1 notation of a range to search for a logical table of data. Values are appended after the last row of the table."
+            },
+            "spreadsheetId": {
+              "type": "string",
+              "description": "The ID of the spreadsheet to update"
+            }
+          },
+          "additionalProperties": false
+        },
+        "query": {
+          "type": "object",
+          "required": ["valueInputOption"],
+          "properties": {
+            "insertDataOption": {
+              "enum": ["OVERWRITE", "INSERT_ROWS"],
+              "type": "string",
+              "default": "OVERWRITE",
+              "description": "How the input data should be inserted"
+            },
+            "valueInputOption": {
+              "enum": ["INPUT_VALUE_OPTION_UNSPECIFIED", "RAW", "USER_ENTERED"],
+              "type": "string",
+              "description": "How the input data should be interpreted. This only controls how the input data will be added to the sheet (column-wise or row-wise), it does not influence what cell the data starts being written to."
+            },
+            "includeValuesInResponse": {
+              "type": "boolean",
+              "description": "Determines if the update response should include the values of the cells that were appended. By default, responses do not include the updated values."
+            },
+            "responseValueRenderOption": {
+              "enum": ["FORMATTED_VALUE", "UNFORMATTED_VALUE", "FORMULA"],
+              "type": "string",
+              "default": "FORMATTED_VALUE",
+              "description": "Determines how values in the response should be rendered. The default render option is FORMATTED_VALUE."
+            },
+            "responseDateTimeRenderOption": {
+              "enum": ["SERIAL_NUMBER", "FORMATTED_STRING"],
+              "type": "string",
+              "default": "SERIAL_NUMBER",
+              "description": "Determines how dates, times, and durations in the response should be rendered. This is ignored if responseValueRenderOption is FORMATTED_VALUE. The default dateTime render option is SERIAL_NUMBER."
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+]

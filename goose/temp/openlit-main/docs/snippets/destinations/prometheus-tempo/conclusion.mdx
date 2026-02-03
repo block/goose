@@ -1,0 +1,168 @@
+### 3. Import the pre-built Dashboard
+
+1. **Log into your Grafana Instance**. To install Grafana, refer to the [Official documentation](https://grafana.com/docs/grafana/latest/#installing-grafana).
+1. **Add Data Sources**: Make sure Prometheus and Tempo are added as data sources in Grafana. To add a new data source, follow the steps in the [Official documentation](https://grafana.com/docs/grafana/latest/datasources/#add-a-data-source).
+1. **Import Dashboard**: Once Prometheus and Tempo are available as data sources in Grafana:
+   - Click **Dashboards** in the primary menu
+   - Click **New** and select **Import** in the drop-down menu
+   - Copy the dashboard JSON provided in the accordion below
+   - Paste the dashboard JSON text directly into the text area
+   - Click **Import**
+   - Save the dashboard
+
+<Accordion title="Dashboard">
+```json
+{
+  "annotations": {
+    "list": [
+      {
+        "builtIn": 1,
+        "datasource": {
+          "type": "grafana",
+          "uid": "-- Grafana --"
+        },
+        "enable": true,
+        "hide": true,
+        "iconColor": "rgba(0, 211, 255, 1)",
+        "name": "Annotations & Alerts",
+        "type": "dashboard"
+      }
+    ]
+  },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "id": 0,
+  "links": [
+    {
+      "asDropdown": false,
+      "icon": "bolt",
+      "includeVars": false,
+      "keepTime": false,
+      "tags": [],
+      "targetBlank": true,
+      "title": "OpenLIT Github",
+      "tooltip": "Github",
+      "type": "link",
+      "url": "https://github.com/openlit/openlit"
+    }
+  ],
+  "panels": [
+    {
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 5,
+        "w": 12,
+        "x": 0,
+        "y": 0
+      },
+      "id": 2,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "limit": 80,
+          "noValue": "N/A",
+          "values": false
+        },
+        "text": "Total LLM Requests",
+        "textMode": "value"
+      },
+      "plugin": {
+        "id": "stat",
+        "name": "Stat"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "editorMode": "builder",
+          "expr": "sum(gen_ai_total_requests)",
+          "legendFormat": "__auto",
+          "range": true,
+          "refId": "A"
+        }
+      ],
+      "type": "stat"
+    },
+    {
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 5,
+        "w": 12,
+        "x": 12,
+        "y": 0
+      },
+      "id": 3,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "limit": 80,
+          "noValue": "N/A",
+          "values": false
+        },
+        "text": "Total VectorDB Requests",
+        "textMode": "value"
+      },
+      "plugin": {
+        "id": "stat",
+        "name": "Stat"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "editorMode": "builder",
+          "expr": "sum(db_total_requests)",
+          "legendFormat": "__auto",
+          "range": true,
+          "refId": "A"
+        }
+      ],
+      "type": "stat"
+    }
+  ],
+  "schemaVersion": 38,
+  "tags": [
+    "openlit",
+    "genai",
+    "observability"
+  ],
+  "templating": {
+    "list": []
+  },
+  "time": {
+    "from": "now-6h",
+    "to": "now"
+  },
+  "timepicker": {},
+  "timezone": "",
+  "title": "GenAI Observability - Prometheus + Tempo",
+  "uid": "openlit-prometheus-tempo",
+  "version": 1
+}
+```
+</Accordion>

@@ -1,0 +1,217 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 600" width="900" height="600">
+  <defs>
+    <linearGradient id="codeGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#667eea;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#764ba2;stop-opacity:1" />
+    </linearGradient>
+    <linearGradient id="testGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#f093fb;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#f5576c;stop-opacity:1" />
+    </linearGradient>
+    <linearGradient id="fixGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#FFD93D;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#FF6B6B;stop-opacity:1" />
+    </linearGradient>
+    <linearGradient id="validateGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#43e97b;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#38f9d7;stop-opacity:1" />
+    </linearGradient>
+    <linearGradient id="bgGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#1a1a2e;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#16213e;stop-opacity:1" />
+    </linearGradient>
+    <filter id="glow">
+      <feGaussianBlur stdDeviation="4" result="coloredBlur"/>
+      <feMerge>
+        <feMergeNode in="coloredBlur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+    <filter id="shadow">
+      <feDropShadow dx="0" dy="4" stdDeviation="8" flood-color="#000" flood-opacity="0.4"/>
+    </filter>
+    <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+      <polygon points="0 0, 10 3.5, 0 7" fill="rgba(255,255,255,0.6)"/>
+    </marker>
+    <marker id="arrowheadRed" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+      <polygon points="0 0, 10 3.5, 0 7" fill="#FF6B6B"/>
+    </marker>
+    <marker id="arrowheadGreen" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+      <polygon points="0 0, 10 3.5, 0 7" fill="#43e97b"/>
+    </marker>
+  </defs>
+
+  <!-- Background -->
+  <rect width="900" height="600" fill="url(#bgGradient)"/>
+
+  <!-- Grid -->
+  <pattern id="grid" width="30" height="30" patternUnits="userSpaceOnUse">
+    <path d="M 30 0 L 0 0 0 30" fill="none" stroke="rgba(255,255,255,0.02)" stroke-width="1"/>
+  </pattern>
+  <rect width="900" height="600" fill="url(#grid)"/>
+
+  <!-- Title -->
+  <text x="450" y="40" text-anchor="middle" font-family="'Segoe UI', Arial, sans-serif" font-size="28" font-weight="700" fill="#FFF">
+    Self-Correcting StateGraph Engine
+  </text>
+  <text x="450" y="65" text-anchor="middle" font-family="'Segoe UI', Arial, sans-serif" font-size="14" fill="rgba(255,255,255,0.6)">
+    Autonomous CODE → TEST → FIX Development Loop
+  </text>
+
+  <!-- Entry Point -->
+  <g transform="translate(60, 250)">
+    <circle cx="0" cy="0" r="25" fill="rgba(255,255,255,0.1)" stroke="#FFF" stroke-width="2"/>
+    <text x="0" y="5" text-anchor="middle" font-family="'Segoe UI', Arial, sans-serif" font-size="12" font-weight="600" fill="#FFF">
+      START
+    </text>
+  </g>
+
+  <!-- Arrow from START to CODE -->
+  <path d="M85,250 L145,250" fill="none" stroke="rgba(255,255,255,0.6)" stroke-width="2" marker-end="url(#arrowhead)"/>
+
+  <!-- CODE Node -->
+  <g transform="translate(150, 180)" filter="url(#shadow)">
+    <rect width="140" height="140" rx="16" fill="url(#codeGrad)"/>
+    <text x="70" y="45" text-anchor="middle" font-family="'Segoe UI', Arial, sans-serif" font-size="24" font-weight="700" fill="#FFF">
+      CODE
+    </text>
+    <text x="70" y="70" text-anchor="middle" font-family="'Segoe UI', Arial, sans-serif" font-size="12" fill="rgba(255,255,255,0.8)">
+      Generate
+    </text>
+    <text x="70" y="85" text-anchor="middle" font-family="'Segoe UI', Arial, sans-serif" font-size="12" fill="rgba(255,255,255,0.8)">
+      Implementation
+    </text>
+    <!-- Icon -->
+    <g transform="translate(50, 95)">
+      <rect x="0" y="0" width="40" height="30" rx="3" fill="rgba(255,255,255,0.2)"/>
+      <line x1="5" y1="8" x2="25" y2="8" stroke="rgba(255,255,255,0.6)" stroke-width="2"/>
+      <line x1="5" y1="15" x2="35" y2="15" stroke="rgba(255,255,255,0.6)" stroke-width="2"/>
+      <line x1="5" y1="22" x2="20" y2="22" stroke="rgba(255,255,255,0.6)" stroke-width="2"/>
+    </g>
+  </g>
+
+  <!-- Arrow from CODE to TEST -->
+  <path d="M290,250 L350,250" fill="none" stroke="rgba(255,255,255,0.6)" stroke-width="2" marker-end="url(#arrowhead)"/>
+
+  <!-- TEST Node -->
+  <g transform="translate(355, 180)" filter="url(#shadow)">
+    <rect width="140" height="140" rx="16" fill="url(#testGrad)"/>
+    <text x="70" y="45" text-anchor="middle" font-family="'Segoe UI', Arial, sans-serif" font-size="24" font-weight="700" fill="#FFF">
+      TEST
+    </text>
+    <text x="70" y="70" text-anchor="middle" font-family="'Segoe UI', Arial, sans-serif" font-size="12" fill="rgba(255,255,255,0.8)">
+      Run Tests
+    </text>
+    <text x="70" y="85" text-anchor="middle" font-family="'Segoe UI', Arial, sans-serif" font-size="12" fill="rgba(255,255,255,0.8)">
+      & Validate
+    </text>
+    <!-- Icon -->
+    <g transform="translate(50, 95)">
+      <circle cx="20" cy="15" r="12" fill="none" stroke="rgba(255,255,255,0.6)" stroke-width="2"/>
+      <path d="M14,15 L18,19 L26,11" fill="none" stroke="rgba(255,255,255,0.8)" stroke-width="2"/>
+    </g>
+  </g>
+
+  <!-- Decision point after TEST -->
+  <g transform="translate(560, 250)">
+    <polygon points="0,-30 30,0 0,30 -30,0" fill="rgba(255,255,255,0.1)" stroke="#FFF" stroke-width="2"/>
+    <text x="0" y="5" text-anchor="middle" font-family="'Segoe UI', Arial, sans-serif" font-size="10" font-weight="600" fill="#FFF">
+      PASS?
+    </text>
+  </g>
+
+  <!-- Arrow from TEST to Decision -->
+  <path d="M495,250 L525,250" fill="none" stroke="rgba(255,255,255,0.6)" stroke-width="2" marker-end="url(#arrowhead)"/>
+
+  <!-- FIX Node -->
+  <g transform="translate(490, 380)" filter="url(#shadow)">
+    <rect width="140" height="140" rx="16" fill="url(#fixGrad)"/>
+    <text x="70" y="45" text-anchor="middle" font-family="'Segoe UI', Arial, sans-serif" font-size="24" font-weight="700" fill="#FFF">
+      FIX
+    </text>
+    <text x="70" y="70" text-anchor="middle" font-family="'Segoe UI', Arial, sans-serif" font-size="12" fill="rgba(255,255,255,0.8)">
+      Analyze Errors
+    </text>
+    <text x="70" y="85" text-anchor="middle" font-family="'Segoe UI', Arial, sans-serif" font-size="12" fill="rgba(255,255,255,0.8)">
+      & Apply Fixes
+    </text>
+    <!-- Icon -->
+    <g transform="translate(50, 95)">
+      <path d="M5,25 L15,5 L25,25 L15,20 Z" fill="none" stroke="rgba(255,255,255,0.6)" stroke-width="2"/>
+      <line x1="15" y1="12" x2="15" y2="17" stroke="rgba(255,255,255,0.8)" stroke-width="2"/>
+      <circle cx="35" cy="15" r="3" fill="rgba(255,255,255,0.6)"/>
+    </g>
+  </g>
+
+  <!-- Arrow from Decision to FIX (fail path) -->
+  <path d="M560,280 L560,375" fill="none" stroke="#FF6B6B" stroke-width="2" marker-end="url(#arrowheadRed)"/>
+  <text x="575" y="330" font-family="'Segoe UI', Arial, sans-serif" font-size="12" fill="#FF6B6B">FAIL</text>
+
+  <!-- Arrow from FIX back to TEST -->
+  <path d="M490,450 L425,450 L425,325" fill="none" stroke="rgba(255,255,255,0.4)" stroke-width="2" stroke-dasharray="5,5" marker-end="url(#arrowhead)"/>
+  <text x="400" y="390" font-family="'Segoe UI', Arial, sans-serif" font-size="11" fill="rgba(255,255,255,0.6)">retry</text>
+
+  <!-- VALIDATE Node -->
+  <g transform="translate(680, 180)" filter="url(#shadow)">
+    <rect width="140" height="140" rx="16" fill="url(#validateGrad)"/>
+    <text x="70" y="40" text-anchor="middle" font-family="'Segoe UI', Arial, sans-serif" font-size="20" font-weight="700" fill="#1a1a2e">
+      VALIDATE
+    </text>
+    <text x="70" y="65" text-anchor="middle" font-family="'Segoe UI', Arial, sans-serif" font-size="12" fill="rgba(26,26,46,0.8)">
+      Done Gate
+    </text>
+    <text x="70" y="80" text-anchor="middle" font-family="'Segoe UI', Arial, sans-serif" font-size="12" fill="rgba(26,26,46,0.8)">
+      Verification
+    </text>
+    <!-- Icon -->
+    <g transform="translate(50, 90)">
+      <rect x="0" y="0" width="40" height="30" rx="3" fill="rgba(26,26,46,0.2)"/>
+      <path d="M10,15 L16,21 L30,7" fill="none" stroke="rgba(26,26,46,0.8)" stroke-width="3"/>
+    </g>
+  </g>
+
+  <!-- Arrow from Decision to VALIDATE (pass path) -->
+  <path d="M590,250 L675,250" fill="none" stroke="#43e97b" stroke-width="2" marker-end="url(#arrowheadGreen)"/>
+  <text x="630" y="240" font-family="'Segoe UI', Arial, sans-serif" font-size="12" fill="#43e97b">PASS</text>
+
+  <!-- DONE endpoint -->
+  <g transform="translate(840, 250)">
+    <circle cx="0" cy="0" r="25" fill="#43e97b" filter="url(#glow)"/>
+    <text x="0" y="5" text-anchor="middle" font-family="'Segoe UI', Arial, sans-serif" font-size="12" font-weight="700" fill="#1a1a2e">
+      DONE
+    </text>
+  </g>
+
+  <!-- Arrow from VALIDATE to DONE -->
+  <path d="M820,250 L810,250" fill="none" stroke="#43e97b" stroke-width="2" marker-end="url(#arrowheadGreen)"/>
+
+  <!-- Info boxes -->
+  <g transform="translate(60, 100)">
+    <rect width="180" height="60" rx="8" fill="rgba(102,126,234,0.2)" stroke="rgba(102,126,234,0.5)" stroke-width="1"/>
+    <text x="90" y="25" text-anchor="middle" font-family="'Segoe UI', Arial, sans-serif" font-size="12" font-weight="600" fill="#667eea">Max Iterations: 10</text>
+    <text x="90" y="45" text-anchor="middle" font-family="'Segoe UI', Arial, sans-serif" font-size="11" fill="rgba(255,255,255,0.6)">Configurable limit</text>
+  </g>
+
+  <g transform="translate(660, 100)">
+    <rect width="180" height="60" rx="8" fill="rgba(67,233,123,0.2)" stroke="rgba(67,233,123,0.5)" stroke-width="1"/>
+    <text x="90" y="25" text-anchor="middle" font-family="'Segoe UI', Arial, sans-serif" font-size="12" font-weight="600" fill="#43e97b">Done Gate Checks</text>
+    <text x="90" y="45" text-anchor="middle" font-family="'Segoe UI', Arial, sans-serif" font-size="11" fill="rgba(255,255,255,0.6)">Build | Test | Lint</text>
+  </g>
+
+  <!-- Stats at bottom -->
+  <g transform="translate(60, 540)">
+    <rect width="780" height="45" rx="8" fill="rgba(255,255,255,0.03)" stroke="rgba(255,255,255,0.1)" stroke-width="1"/>
+    <text x="130" y="28" text-anchor="middle" font-family="'Segoe UI', Arial, sans-serif" font-size="14" font-weight="600" fill="#667eea">909 Lines</text>
+    <text x="130" y="40" text-anchor="middle" font-family="'Segoe UI', Arial, sans-serif" font-size="10" fill="rgba(255,255,255,0.5)">StateGraph Code</text>
+
+    <text x="320" y="28" text-anchor="middle" font-family="'Segoe UI', Arial, sans-serif" font-size="14" font-weight="600" fill="#f093fb">4 Frameworks</text>
+    <text x="320" y="40" text-anchor="middle" font-family="'Segoe UI', Arial, sans-serif" font-size="10" fill="rgba(255,255,255,0.5)">Cargo|Pytest|Jest|Go</text>
+
+    <text x="510" y="28" text-anchor="middle" font-family="'Segoe UI', Arial, sans-serif" font-size="14" font-weight="600" fill="#FFD93D">Event System</text>
+    <text x="510" y="40" text-anchor="middle" font-family="'Segoe UI', Arial, sans-serif" font-size="10" fill="rgba(255,255,255,0.5)">Real-time callbacks</text>
+
+    <text x="700" y="28" text-anchor="middle" font-family="'Segoe UI', Arial, sans-serif" font-size="14" font-weight="600" fill="#43e97b">Auto-Detection</text>
+    <text x="700" y="40" text-anchor="middle" font-family="'Segoe UI', Arial, sans-serif" font-size="10" fill="rgba(255,255,255,0.5)">Project type inference</text>
+  </g>
+</svg>

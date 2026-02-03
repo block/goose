@@ -1,0 +1,4 @@
+{
+  "name": "MICROSOFT_TEAMS",
+  "description": "The Microsoft Graph Teams API enables access to Microsoft Teams data including teams, channels, messages, and team settings. This integration allows managing Teams content and collaboration on behalf of the user."
+}

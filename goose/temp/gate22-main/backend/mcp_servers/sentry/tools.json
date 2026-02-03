@@ -1,0 +1,765 @@
+[
+  {
+    "name": "SENTRY__WHOAMI",
+    "description": "Identify the authenticated user in Sentry.\n\nUse this tool when you need to:\n- Get the user's name and email address.",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "whoami",
+      "canonical_tool_description_hash": "a23590aab2c9a54f327054f9c7a4eec4c781b44c50d0d915a6b4967fb372ca8a",
+      "canonical_tool_input_schema_hash": "f973399805c1c233633f5196cf8e2ad40ee100b94996d711dcd030813b671bc5"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {},
+      "additionalProperties": false,
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    }
+  },
+  {
+    "name": "SENTRY__FIND_ORGANIZATIONS",
+    "description": "Find organizations that the user has access to in Sentry.\n\nUse this tool when you need to:\n- View all organizations in Sentry\n- Find an organization's slug to aid other tool requests",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "find_organizations",
+      "canonical_tool_description_hash": "ec65c6cdd5451ee82f97aefd7d21ab1993a82e1191191cf932c34ac846c1272b",
+      "canonical_tool_input_schema_hash": "f973399805c1c233633f5196cf8e2ad40ee100b94996d711dcd030813b671bc5"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {},
+      "additionalProperties": false,
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    }
+  },
+  {
+    "name": "SENTRY__FIND_TEAMS",
+    "description": "Find teams in an organization in Sentry.\n\nUse this tool when you need to:\n- View all teams in a Sentry organization\n- Find a team's slug to aid other tool requests",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "find_teams",
+      "canonical_tool_description_hash": "2c16f3d89a4a04e48bfb7bb50cb67aa7db0346cbe7acec82c3eb721536525f48",
+      "canonical_tool_input_schema_hash": "68d8df4bc90e41d2b4bce8a0c78e9134a7f597e3396a2a9751b4625e9ae8264a"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "organizationSlug": {
+          "type": "string",
+          "description": "The organization's slug. You can find a existing list of organizations you have access to using the `find_organizations()` tool."
+        },
+        "regionUrl": {
+          "type": "string",
+          "description": "The region URL for the organization you're querying, if known. For Sentry's Cloud Service (sentry.io), this is typically the region-specific URL like 'https://us.sentry.io'. For self-hosted Sentry installations, this parameter is usually not needed and should be omitted. You can find the correct regionUrl from the organization details using the `find_organizations()` tool."
+        }
+      },
+      "required": ["organizationSlug"],
+      "additionalProperties": false,
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    }
+  },
+  {
+    "name": "SENTRY__FIND_PROJECTS",
+    "description": "Find projects in Sentry.\n\nUse this tool when you need to:\n- View all projects in a Sentry organization\n- Find a project's slug to aid other tool requests",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "find_projects",
+      "canonical_tool_description_hash": "c7fe0e8675fef9ad2ac896a54cbf9539fe49d17a77fa3317c4d6354130c7dc4f",
+      "canonical_tool_input_schema_hash": "68d8df4bc90e41d2b4bce8a0c78e9134a7f597e3396a2a9751b4625e9ae8264a"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "organizationSlug": {
+          "type": "string",
+          "description": "The organization's slug. You can find a existing list of organizations you have access to using the `find_organizations()` tool."
+        },
+        "regionUrl": {
+          "type": "string",
+          "description": "The region URL for the organization you're querying, if known. For Sentry's Cloud Service (sentry.io), this is typically the region-specific URL like 'https://us.sentry.io'. For self-hosted Sentry installations, this parameter is usually not needed and should be omitted. You can find the correct regionUrl from the organization details using the `find_organizations()` tool."
+        }
+      },
+      "required": ["organizationSlug"],
+      "additionalProperties": false,
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    }
+  },
+  {
+    "name": "SENTRY__FIND_RELEASES",
+    "description": "Find releases in Sentry.\n\nUse this tool when you need to:\n- Find recent releases in a Sentry organization\n- Find the most recent version released of a specific project\n- Determine when a release was deployed to an environment\n\n<examples>\n### Find the most recent releases in the 'my-organization' organization\n\n```\nfind_releases(organizationSlug='my-organization')\n```\n\n### Find releases matching '2ce6a27' in the 'my-organization' organization\n\n```\nfind_releases(organizationSlug='my-organization', query='2ce6a27')\n```\n</examples>\n\n<hints>\n- If the user passes a parameter in the form of name/otherName, its likely in the format of <organizationSlug>/<projectSlug>.\n</hints>",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "find_releases",
+      "canonical_tool_description_hash": "c2d60b8b3eee686adb9019040587861cc46b470a462e7d7310d5e0284c04b9de",
+      "canonical_tool_input_schema_hash": "13ef954090c5eea77c00820a204116a8e6980a931ff55f660afac57dbd9a86d3"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "organizationSlug": {
+          "type": "string",
+          "description": "The organization's slug. You can find a existing list of organizations you have access to using the `find_organizations()` tool."
+        },
+        "regionUrl": {
+          "type": "string",
+          "description": "The region URL for the organization you're querying, if known. For Sentry's Cloud Service (sentry.io), this is typically the region-specific URL like 'https://us.sentry.io'. For self-hosted Sentry installations, this parameter is usually not needed and should be omitted. You can find the correct regionUrl from the organization details using the `find_organizations()` tool."
+        },
+        "projectSlug": {
+          "type": "string",
+          "description": "The project's slug. This will default to all projects you have access to. It is encouraged to specify this when possible."
+        },
+        "query": {
+          "type": "string",
+          "description": "Search for versions which contain the provided string."
+        }
+      },
+      "required": ["organizationSlug"],
+      "additionalProperties": false,
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    }
+  },
+  {
+    "name": "SENTRY__GET_ISSUE_DETAILS",
+    "description": "Get detailed information about a specific Sentry issue by ID.\n\n\ud83d\udd0d USE THIS TOOL WHEN USERS:\n- Provide a specific issue ID (e.g., 'CLOUDFLARE-MCP-41', 'PROJECT-123')\n- Ask to 'explain [ISSUE-ID]', 'tell me about [ISSUE-ID]'\n- Want details/stacktrace/analysis for a known issue\n- Provide a Sentry issue URL\n\n\u274c DO NOT USE for:\n- General searching or listing issues (use search_issues)\n- Root cause analysis (use analyze_issue_with_seer)\n\nTRIGGER PATTERNS:\n- 'Explain ISSUE-123' \u2192 use get_issue_details\n- 'Tell me about PROJECT-456' \u2192 use get_issue_details\n- 'What happened in [issue URL]' \u2192 use get_issue_details\n\n<examples>\n### Explain specific issue\n```\nget_issue_details(organizationSlug='my-organization', issueId='CLOUDFLARE-MCP-41')\n```\n\n### Get details for event ID\n```\nget_issue_details(organizationSlug='my-organization', eventId='c49541c747cb4d8aa3efb70ca5aba243')\n```\n</examples>\n\n<hints>\n- If the user provides the `issueUrl`, you can ignore the other parameters.\n- If the user provides `issueId` or `eventId` (only one is needed), `organizationSlug` is required.\n</hints>",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "get_issue_details",
+      "canonical_tool_description_hash": "1f49564a1688e29478899fc5ff8e575ee495de6462bf561110c7a7b6c176bfd0",
+      "canonical_tool_input_schema_hash": "9e19b6c7ec574c4394d1f6ee2c96c3093d683a9406fe7e9e04c99ab5ca884cb2"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "organizationSlug": {
+          "type": "string",
+          "description": "The organization's slug. You can find a existing list of organizations you have access to using the `find_organizations()` tool."
+        },
+        "regionUrl": {
+          "type": "string",
+          "description": "The region URL for the organization you're querying, if known. For Sentry's Cloud Service (sentry.io), this is typically the region-specific URL like 'https://us.sentry.io'. For self-hosted Sentry installations, this parameter is usually not needed and should be omitted. You can find the correct regionUrl from the organization details using the `find_organizations()` tool."
+        },
+        "issueId": {
+          "type": "string",
+          "description": "The Issue ID. e.g. `PROJECT-1Z43`"
+        },
+        "eventId": {
+          "type": "string",
+          "description": "The ID of the event."
+        },
+        "issueUrl": {
+          "type": "string",
+          "format": "uri",
+          "description": "The URL of the issue. e.g. https://my-organization.sentry.io/issues/PROJECT-1Z43"
+        }
+      },
+      "additionalProperties": false,
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    }
+  },
+  {
+    "name": "SENTRY__GET_TRACE_DETAILS",
+    "description": "Get detailed information about a specific Sentry trace by ID.\n\n\ud83d\udd0d USE THIS TOOL WHEN USERS:\n- Provide a specific trace ID (e.g., 'a4d1aae7216b47ff8117cf4e09ce9d0a')\n- Ask to 'show me trace [TRACE-ID]', 'explain trace [TRACE-ID]'\n- Want high-level overview and link to view trace details in Sentry\n- Need trace statistics and span breakdown\n\n\u274c DO NOT USE for:\n- General searching for traces (use search_events with trace queries)\n- Individual span details (this shows trace overview)\n\nTRIGGER PATTERNS:\n- 'Show me trace abc123' \u2192 use get_trace_details\n- 'Explain trace a4d1aae7216b47ff8117cf4e09ce9d0a' \u2192 use get_trace_details\n- 'What is trace [trace-id]' \u2192 use get_trace_details\n\n<examples>\n### Get trace overview\n```\nget_trace_details(organizationSlug='my-organization', traceId='a4d1aae7216b47ff8117cf4e09ce9d0a')\n```\n</examples>\n\n<hints>\n- Trace IDs are 32-character hexadecimal strings\n</hints>",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "get_trace_details",
+      "canonical_tool_description_hash": "f3c41288ba04c1c6e12c499e03063d4051c4eb5a523f21bfcfec3b7063430a17",
+      "canonical_tool_input_schema_hash": "ee3cd330f9cb964f7b42c3acb8c15aa4a77075e7c8626f1f5939cc0faa66585f"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "organizationSlug": {
+          "type": "string",
+          "description": "The organization's slug. You can find a existing list of organizations you have access to using the `find_organizations()` tool."
+        },
+        "regionUrl": {
+          "type": "string",
+          "description": "The region URL for the organization you're querying, if known. For Sentry's Cloud Service (sentry.io), this is typically the region-specific URL like 'https://us.sentry.io'. For self-hosted Sentry installations, this parameter is usually not needed and should be omitted. You can find the correct regionUrl from the organization details using the `find_organizations()` tool."
+        },
+        "traceId": {
+          "type": "string",
+          "pattern": "^[0-9a-fA-F]{32}$",
+          "description": "The trace ID. e.g. `a4d1aae7216b47ff8117cf4e09ce9d0a`"
+        }
+      },
+      "required": ["organizationSlug", "traceId"],
+      "additionalProperties": false,
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    }
+  },
+  {
+    "name": "SENTRY__GET_EVENT_ATTACHMENT",
+    "description": "Download attachments from a Sentry event.\n\nUse this tool when you need to:\n- Download files attached to a specific event\n- Access screenshots, log files, or other attachments uploaded with an error report\n- Retrieve attachment metadata and download URLs\n\n<examples>\n### Download a specific attachment by ID\n\n```\nget_event_attachment(organizationSlug='my-organization', projectSlug='my-project', eventId='c49541c747cb4d8aa3efb70ca5aba243', attachmentId='12345')\n```\n\n### List all attachments for an event\n\n```\nget_event_attachment(organizationSlug='my-organization', projectSlug='my-project', eventId='c49541c747cb4d8aa3efb70ca5aba243')\n```\n\n</examples>\n\n<hints>\n- If `attachmentId` is provided, the specific attachment will be downloaded as an embedded resource\n- If `attachmentId` is omitted, all attachments for the event will be listed with download information\n- The `projectSlug` is required to identify which project the event belongs to\n</hints>",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "get_event_attachment",
+      "canonical_tool_description_hash": "bf39c5ac8d6d52e8423a3120759a95793bcf69449f632c6ef5d36d418d5f7ac5",
+      "canonical_tool_input_schema_hash": "afa4545c929cd4e06ffe0b95cd4393f4403d1f64a3178bb237136f36352af23e"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "organizationSlug": {
+          "type": "string",
+          "description": "The organization's slug. You can find a existing list of organizations you have access to using the `find_organizations()` tool."
+        },
+        "projectSlug": {
+          "type": "string",
+          "description": "The project's slug. You can find a list of existing projects in an organization using the `find_projects()` tool."
+        },
+        "eventId": {
+          "type": "string",
+          "description": "The ID of the event."
+        },
+        "attachmentId": {
+          "type": "string",
+          "description": "The ID of the attachment to download."
+        },
+        "regionUrl": {
+          "type": "string",
+          "description": "The region URL for the organization you're querying, if known. For Sentry's Cloud Service (sentry.io), this is typically the region-specific URL like 'https://us.sentry.io'. For self-hosted Sentry installations, this parameter is usually not needed and should be omitted. You can find the correct regionUrl from the organization details using the `find_organizations()` tool."
+        }
+      },
+      "required": ["organizationSlug", "projectSlug", "eventId"],
+      "additionalProperties": false,
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    }
+  },
+  {
+    "name": "SENTRY__UPDATE_ISSUE",
+    "description": "Update an issue's status or assignment in Sentry. This allows you to resolve, ignore, or reassign issues.\n\nUse this tool when you need to:\n- Resolve an issue that has been fixed\n- Assign an issue to a team member or team for investigation\n- Mark an issue as ignored to reduce noise\n- Reopen a resolved issue by setting status to 'unresolved'\n\n<examples>\n### Resolve an issue\n\n```\nupdate_issue(organizationSlug='my-organization', issueId='PROJECT-123', status='resolved')\n```\n\n### Assign an issue to a user (use whoami to get your user ID)\n\n```\nupdate_issue(organizationSlug='my-organization', issueId='PROJECT-123', assignedTo='user:123456')\n```\n\n### Assign an issue to a team\n\n```\nupdate_issue(organizationSlug='my-organization', issueId='PROJECT-123', assignedTo='team:789')\n```\n\n### Mark an issue as ignored\n\n```\nupdate_issue(organizationSlug='my-organization', issueId='PROJECT-123', status='ignored')\n```\n\n</examples>\n\n<hints>\n- If the user provides the `issueUrl`, you can ignore the other required parameters and extract them from the URL.\n- At least one of `status` or `assignedTo` must be provided to update the issue.\n- assignedTo format: Use 'user:ID' for users (e.g., 'user:123456') or 'team:ID' for teams (e.g., 'team:789')\n- To find your user ID, first use the whoami tool which returns your numeric user ID\n- Valid status values are: 'resolved', 'resolvedInNextRelease', 'unresolved', 'ignored'.\n</hints>",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "update_issue",
+      "canonical_tool_description_hash": "776f31de04a2e287ba319dd1dc8690cf5217845631ee9b31bf2bb8a3dec1c73b",
+      "canonical_tool_input_schema_hash": "d0faef2d3de6cfaa63b1b1743fddf274f737c213fe39ba2b2acb276b394d1cc8"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "organizationSlug": {
+          "type": "string",
+          "description": "The organization's slug. You can find a existing list of organizations you have access to using the `find_organizations()` tool."
+        },
+        "regionUrl": {
+          "type": "string",
+          "description": "The region URL for the organization you're querying, if known. For Sentry's Cloud Service (sentry.io), this is typically the region-specific URL like 'https://us.sentry.io'. For self-hosted Sentry installations, this parameter is usually not needed and should be omitted. You can find the correct regionUrl from the organization details using the `find_organizations()` tool."
+        },
+        "issueId": {
+          "type": "string",
+          "description": "The Issue ID. e.g. `PROJECT-1Z43`"
+        },
+        "issueUrl": {
+          "type": "string",
+          "format": "uri",
+          "description": "The URL of the issue. e.g. https://my-organization.sentry.io/issues/PROJECT-1Z43"
+        },
+        "status": {
+          "type": "string",
+          "enum": ["resolved", "resolvedInNextRelease", "unresolved", "ignored"],
+          "description": "The new status for the issue. Valid values are 'resolved', 'resolvedInNextRelease', 'unresolved', and 'ignored'."
+        },
+        "assignedTo": {
+          "type": "string",
+          "description": "The assignee in format 'user:ID' or 'team:ID' where ID is numeric. Example: 'user:123456' or 'team:789'. Use the whoami tool to find your user ID."
+        }
+      },
+      "additionalProperties": false,
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    }
+  },
+  {
+    "name": "SENTRY__SEARCH_EVENTS",
+    "description": "Search for events AND perform counts/aggregations - the ONLY tool for statistics and counts.\n\nSupports TWO query types:\n1. AGGREGATIONS (counts, sums, averages): 'how many errors', 'count of issues', 'total tokens'\n2. Individual events with timestamps: 'show me error logs from last hour'\n\n\ud83d\udd22 USE THIS FOR ALL COUNTS/STATISTICS:\n- 'how many errors today' \u2192 returns count\n- 'count of database failures' \u2192 returns count\n- 'total number of issues' \u2192 returns count\n- 'average response time' \u2192 returns avg()\n- 'sum of tokens used' \u2192 returns sum()\n\n\ud83d\udccb ALSO USE FOR INDIVIDUAL EVENTS:\n- 'error logs from last hour' \u2192 returns event list\n- 'database errors with timestamps' \u2192 returns event list\n- 'trace spans for slow API calls' \u2192 returns span list\n\nDataset Selection (AI automatically chooses):\n- errors: Exception/crash events\n- logs: Log entries\n- spans: Performance data, AI/LLM calls, token usage\n\n\u274c DO NOT USE for grouped issue lists \u2192 use search_issues\n\n<examples>\nsearch_events(organizationSlug='my-org', naturalLanguageQuery='how many errors today')\nsearch_events(organizationSlug='my-org', naturalLanguageQuery='count of database failures this week')\nsearch_events(organizationSlug='my-org', naturalLanguageQuery='total tokens used by model')\nsearch_events(organizationSlug='my-org', naturalLanguageQuery='error logs from the last hour')\n</examples>\n\n<hints>\n- If the user passes a parameter in the form of name/otherName, it's likely in the format of <organizationSlug>/<projectSlug>.\n- Parse org/project notation directly without calling find_organizations or find_projects.\n</hints>",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "search_events",
+      "canonical_tool_description_hash": "528482f45364e4d6b096367a863384960dbda96823a2650faf16ae6eb69eac69",
+      "canonical_tool_input_schema_hash": "49b2c55dac719b00f66321909adac1cb74559740bc2b21d9312c17e7c7535763"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "organizationSlug": {
+          "type": "string",
+          "description": "The organization's slug. You can find a existing list of organizations you have access to using the `find_organizations()` tool."
+        },
+        "naturalLanguageQuery": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Natural language description of what you want to search for"
+        },
+        "projectSlug": {
+          "type": "string",
+          "description": "The project's slug. You can find a list of existing projects in an organization using the `find_projects()` tool."
+        },
+        "regionUrl": {
+          "type": "string",
+          "description": "The region URL for the organization you're querying, if known. For Sentry's Cloud Service (sentry.io), this is typically the region-specific URL like 'https://us.sentry.io'. For self-hosted Sentry installations, this parameter is usually not needed and should be omitted. You can find the correct regionUrl from the organization details using the `find_organizations()` tool."
+        },
+        "limit": {
+          "type": "number",
+          "minimum": 1,
+          "maximum": 100,
+          "default": 10,
+          "description": "Maximum number of results to return"
+        },
+        "includeExplanation": {
+          "type": "boolean",
+          "default": false,
+          "description": "Include explanation of how the query was translated"
+        }
+      },
+      "required": ["organizationSlug", "naturalLanguageQuery"],
+      "additionalProperties": false,
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    }
+  },
+  {
+    "name": "SENTRY__CREATE_TEAM",
+    "description": "Create a new team in Sentry.\n\n\ud83d\udd0d USE THIS TOOL WHEN USERS WANT TO:\n- 'Create a new team'\n- 'Set up a team called [X]'\n- 'I need a team for my project'\n\nBe careful when using this tool!\n\n<examples>\n### Create a new team\n```\ncreate_team(organizationSlug='my-organization', name='the-goats')\n```\n</examples>\n\n<hints>\n- If any parameter is ambiguous, you should clarify with the user what they meant.\n</hints>",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "create_team",
+      "canonical_tool_description_hash": "31749acd418c7a6f163b798f3fda5e1c93042455246e42bb2fdbab7678de7c4c",
+      "canonical_tool_input_schema_hash": "dcce3d8b53649cb26c221244e9f77e80a84d48e789c5de465171d8d8532f814e"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "organizationSlug": {
+          "type": "string",
+          "description": "The organization's slug. You can find a existing list of organizations you have access to using the `find_organizations()` tool."
+        },
+        "regionUrl": {
+          "type": "string",
+          "description": "The region URL for the organization you're querying, if known. For Sentry's Cloud Service (sentry.io), this is typically the region-specific URL like 'https://us.sentry.io'. For self-hosted Sentry installations, this parameter is usually not needed and should be omitted. You can find the correct regionUrl from the organization details using the `find_organizations()` tool."
+        },
+        "name": {
+          "type": "string",
+          "description": "The name of the team to create."
+        }
+      },
+      "required": ["organizationSlug", "name"],
+      "additionalProperties": false,
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    }
+  },
+  {
+    "name": "SENTRY__CREATE_PROJECT",
+    "description": "Create a new project in Sentry (includes DSN automatically).\n\n\ud83d\udd0d USE THIS TOOL WHEN USERS WANT TO:\n- 'Create a new project'\n- 'Set up a project for [app/service] with team [X]'\n- 'I need a new Sentry project'\n- Create project AND need DSN in one step\n\n\u274c DO NOT USE create_dsn after this - DSN is included in output.\n\nBe careful when using this tool!\n\n<examples>\n### Create new project with team\n```\ncreate_project(organizationSlug='my-organization', teamSlug='my-team', name='my-project', platform='javascript')\n```\n</examples>\n\n<hints>\n- If the user passes a parameter in the form of name/otherName, its likely in the format of <organizationSlug>/<teamSlug>.\n- If any parameter is ambiguous, you should clarify with the user what they meant.\n</hints>",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "create_project",
+      "canonical_tool_description_hash": "53c7bdd32f12a092c75556a1269f5df22ae1753eb33aaa77018f255c8a1bc78f",
+      "canonical_tool_input_schema_hash": "e6b0335cad42dc464ff428016634b44ccaecd7099289fb511a3f2fe0514135d7"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "organizationSlug": {
+          "type": "string",
+          "description": "The organization's slug. You can find a existing list of organizations you have access to using the `find_organizations()` tool."
+        },
+        "regionUrl": {
+          "type": "string",
+          "description": "The region URL for the organization you're querying, if known. For Sentry's Cloud Service (sentry.io), this is typically the region-specific URL like 'https://us.sentry.io'. For self-hosted Sentry installations, this parameter is usually not needed and should be omitted. You can find the correct regionUrl from the organization details using the `find_organizations()` tool."
+        },
+        "teamSlug": {
+          "type": "string",
+          "description": "The team's slug. You can find a list of existing teams in an organization using the `find_teams()` tool."
+        },
+        "name": {
+          "type": "string",
+          "description": "The name of the project to create. Typically this is commonly the name of the repository or service. It is only used as a visual label in Sentry."
+        },
+        "platform": {
+          "type": "string",
+          "description": "The platform for the project. e.g., python, javascript, react, etc."
+        }
+      },
+      "required": ["organizationSlug", "teamSlug", "name"],
+      "additionalProperties": false,
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    }
+  },
+  {
+    "name": "SENTRY__UPDATE_PROJECT",
+    "description": "Update project settings in Sentry, such as name, slug, platform, and team assignment.\n\nBe careful when using this tool!\n\nUse this tool when you need to:\n- Update a project's name or slug to fix onboarding mistakes\n- Change the platform assigned to a project\n- Update team assignment for a project\n\n<examples>\n### Update a project's name and slug\n\n```\nupdate_project(organizationSlug='my-organization', projectSlug='old-project', name='New Project Name', slug='new-project-slug')\n```\n\n### Assign a project to a different team\n\n```\nupdate_project(organizationSlug='my-organization', projectSlug='my-project', teamSlug='backend-team')\n```\n\n### Update platform\n\n```\nupdate_project(organizationSlug='my-organization', projectSlug='my-project', platform='python')\n```\n\n</examples>\n\n<hints>\n- If the user passes a parameter in the form of name/otherName, it's likely in the format of <organizationSlug>/<projectSlug>.\n- Team assignment is handled separately from other project settings\n- If any parameter is ambiguous, you should clarify with the user what they meant.\n- When updating the slug, the project will be accessible at the new slug after the update\n</hints>",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "update_project",
+      "canonical_tool_description_hash": "4945030dfb78206cb7b854e7621790cc85c346bf601ff86dde4d6a2da5949aa6",
+      "canonical_tool_input_schema_hash": "6b6eccd243677092bb60878a363276b198a8c06873694b3009d148b9cebf7be5"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "organizationSlug": {
+          "type": "string",
+          "description": "The organization's slug. You can find a existing list of organizations you have access to using the `find_organizations()` tool."
+        },
+        "regionUrl": {
+          "type": "string",
+          "description": "The region URL for the organization you're querying, if known. For Sentry's Cloud Service (sentry.io), this is typically the region-specific URL like 'https://us.sentry.io'. For self-hosted Sentry installations, this parameter is usually not needed and should be omitted. You can find the correct regionUrl from the organization details using the `find_organizations()` tool."
+        },
+        "projectSlug": {
+          "type": "string",
+          "description": "The project's slug. You can find a list of existing projects in an organization using the `find_projects()` tool."
+        },
+        "name": {
+          "type": "string",
+          "description": "The new name for the project"
+        },
+        "slug": {
+          "type": "string",
+          "description": "The new slug for the project (must be unique)"
+        },
+        "platform": {
+          "type": "string",
+          "description": "The platform for the project. e.g., python, javascript, react, etc."
+        },
+        "teamSlug": {
+          "type": "string",
+          "description": "The team to assign this project to. Note: this will replace the current team assignment."
+        }
+      },
+      "required": ["organizationSlug", "projectSlug"],
+      "additionalProperties": false,
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    }
+  },
+  {
+    "name": "SENTRY__CREATE_DSN",
+    "description": "Create an additional DSN for an EXISTING project.\n\n\ud83d\udd0d USE THIS TOOL WHEN:\n- Project already exists and needs additional DSN\n- 'Create another DSN for project X'\n- 'I need a production DSN for existing project'\n\n\u274c DO NOT USE for new projects (use create_project instead)\n\nBe careful when using this tool!\n\n<examples>\n### Create additional DSN for existing project\n```\ncreate_dsn(organizationSlug='my-organization', projectSlug='my-project', name='Production')\n```\n</examples>\n\n<hints>\n- If the user passes a parameter in the form of name/otherName, its likely in the format of <organizationSlug>/<projectSlug>.\n- If any parameter is ambiguous, you should clarify with the user what they meant.\n</hints>",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "create_dsn",
+      "canonical_tool_description_hash": "ead14bdde7f7c876564119d826ae599135290302f2131e77cebb5d3339f38a88",
+      "canonical_tool_input_schema_hash": "c5452ad1717a3eadf6632732ccc85ecfd9347156bed70c54b6b018a1182a3ae0"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "organizationSlug": {
+          "type": "string",
+          "description": "The organization's slug. You can find a existing list of organizations you have access to using the `find_organizations()` tool."
+        },
+        "regionUrl": {
+          "type": "string",
+          "description": "The region URL for the organization you're querying, if known. For Sentry's Cloud Service (sentry.io), this is typically the region-specific URL like 'https://us.sentry.io'. For self-hosted Sentry installations, this parameter is usually not needed and should be omitted. You can find the correct regionUrl from the organization details using the `find_organizations()` tool."
+        },
+        "projectSlug": {
+          "type": "string",
+          "description": "The project's slug. You can find a list of existing projects in an organization using the `find_projects()` tool."
+        },
+        "name": {
+          "type": "string",
+          "description": "The name of the DSN to create, for example 'Production'."
+        }
+      },
+      "required": ["organizationSlug", "projectSlug", "name"],
+      "additionalProperties": false,
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    }
+  },
+  {
+    "name": "SENTRY__FIND_DSNS",
+    "description": "List all Sentry DSNs for a specific project.\n\nUse this tool when you need to:\n- Retrieve a SENTRY_DSN for a specific project\n\n<hints>\n- If the user passes a parameter in the form of name/otherName, its likely in the format of <organizationSlug>/<projectSlug>.\n- If only one parameter is provided, and it could be either `organizationSlug` or `projectSlug`, its probably `organizationSlug`, but if you're really uncertain you might want to call `find_organizations()` first.\n</hints>",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "find_dsns",
+      "canonical_tool_description_hash": "41cc1756726816a438906bf1857ba7564bc011fe1b8db153c6f8dca2ce24a2a4",
+      "canonical_tool_input_schema_hash": "3d05e3128971aa4d85ed4f069ef9832419cc90cb249a47fcdf8f17ee6a7f153f"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "organizationSlug": {
+          "type": "string",
+          "description": "The organization's slug. You can find a existing list of organizations you have access to using the `find_organizations()` tool."
+        },
+        "regionUrl": {
+          "type": "string",
+          "description": "The region URL for the organization you're querying, if known. For Sentry's Cloud Service (sentry.io), this is typically the region-specific URL like 'https://us.sentry.io'. For self-hosted Sentry installations, this parameter is usually not needed and should be omitted. You can find the correct regionUrl from the organization details using the `find_organizations()` tool."
+        },
+        "projectSlug": {
+          "type": "string",
+          "description": "The project's slug. You can find a list of existing projects in an organization using the `find_projects()` tool."
+        }
+      },
+      "required": ["organizationSlug", "projectSlug"],
+      "additionalProperties": false,
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    }
+  },
+  {
+    "name": "SENTRY__ANALYZE_ISSUE_WITH_SEER",
+    "description": "Use Seer AI to analyze production errors and get detailed root cause analysis with specific code fixes.\n\nUse this tool when you need:\n- Detailed AI-powered root cause analysis\n- Specific code fixes and implementation guidance\n- Step-by-step troubleshooting for complex issues\n- Understanding why an error is happening in production\n\nWhat this tool provides:\n- Root cause analysis with code-level explanations\n- Specific file locations and line numbers where errors occur\n- Concrete code fixes you can apply\n- Step-by-step implementation guidance\n\nThis tool automatically:\n1. Checks if analysis already exists (instant results)\n2. Starts new AI analysis if needed (~2-5 minutes)\n3. Returns complete fix recommendations\n\n<examples>\n### User: \"What's causing this error? https://my-org.sentry.io/issues/PROJECT-1Z43\"\n\n```\nanalyze_issue_with_seer(issueUrl='https://my-org.sentry.io/issues/PROJECT-1Z43')\n```\n\n### User: \"Can you help me understand why this is failing in production?\"\n\n```\nanalyze_issue_with_seer(organizationSlug='my-organization', issueId='ERROR-456')\n```\n</examples>\n\n<hints>\n- Use this tool when you need deeper analysis beyond basic issue details\n- If the user provides an issueUrl, extract it and use that parameter alone\n- The analysis includes actual code snippets and fixes, not just error descriptions\n- Results are cached - subsequent calls return instantly\n</hints>",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "analyze_issue_with_seer",
+      "canonical_tool_description_hash": "8cb94563bc9e88ca6af47bd91484a33c59b822842a0bac08a6d30b01f8ce9bb4",
+      "canonical_tool_input_schema_hash": "4ad5fa730e4e926197ee16c63cd7fb109a376ed106c513045a4afc5cef647466"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "organizationSlug": {
+          "type": "string",
+          "description": "The organization's slug. You can find a existing list of organizations you have access to using the `find_organizations()` tool."
+        },
+        "regionUrl": {
+          "type": "string",
+          "description": "The region URL for the organization you're querying, if known. For Sentry's Cloud Service (sentry.io), this is typically the region-specific URL like 'https://us.sentry.io'. For self-hosted Sentry installations, this parameter is usually not needed and should be omitted. You can find the correct regionUrl from the organization details using the `find_organizations()` tool."
+        },
+        "issueId": {
+          "type": "string",
+          "description": "The Issue ID. e.g. `PROJECT-1Z43`"
+        },
+        "issueUrl": {
+          "type": "string",
+          "format": "uri",
+          "description": "The URL of the issue. e.g. https://my-organization.sentry.io/issues/PROJECT-1Z43"
+        },
+        "instruction": {
+          "type": "string",
+          "description": "Optional custom instruction for the AI analysis"
+        }
+      },
+      "additionalProperties": false,
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    }
+  },
+  {
+    "name": "SENTRY__SEARCH_DOCS",
+    "description": "Search Sentry documentation for SDK setup, instrumentation, and configuration guidance.\n\nUse this tool when you need to:\n- Set up Sentry SDK in any language (Python, JavaScript, Go, Ruby, etc.)\n- Configure specific features like performance monitoring, error sampling, or release tracking\n- Implement custom instrumentation (spans, transactions, breadcrumbs)\n- Set up integrations with frameworks (Django, Flask, Express, Next.js, etc.)\n- Configure data scrubbing, filtering, or sampling rules\n- Troubleshoot SDK issues or find best practices\n\nThis tool searches technical documentation, NOT general information about Sentry as a company.\n\n<examples>\n### Setting up Sentry in a Python Django app\n\n```\nsearch_docs(query='Django setup configuration SENTRY_DSN', guide='python/django')\n```\n\n### Setting up source maps for Next.js\n\n```\nsearch_docs(query='source maps webpack upload', guide='javascript/nextjs')\n```\n\n### Configuring release tracking\n\n```\nsearch_docs(query='release tracking deployment integration CI/CD')\n```\n</examples>\n\n<hints>\n- Use guide parameter to filter results to specific technologies (e.g., 'javascript' or 'javascript/nextjs')\n- Include the programming language/framework in your query for SDK-specific results\n- Use technical terms like 'instrumentation', 'spans', 'transactions' for performance docs\n- Include specific feature names like 'beforeSend', 'tracesSampleRate', 'SENTRY_DSN'\n</hints>",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "search_docs",
+      "canonical_tool_description_hash": "1c42042a14010060ee97ba1200ab3327b015525a4b03bbc9a3a6fea832128522",
+      "canonical_tool_input_schema_hash": "8b103213fa0e1ccafa9c5c13d5f98efaacb19d561cd4c65db89f99d0e08fbab1"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "query": {
+          "type": "string",
+          "minLength": 2,
+          "maxLength": 200,
+          "description": "The search query in natural language. Be specific about what you're looking for."
+        },
+        "maxResults": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 10,
+          "default": 3,
+          "description": "Maximum number of results to return (1-10)"
+        },
+        "guide": {
+          "type": "string",
+          "enum": [
+            "javascript",
+            "python",
+            "java",
+            "dotnet",
+            "go",
+            "php",
+            "ruby",
+            "android",
+            "apple",
+            "unity",
+            "unreal",
+            "rust",
+            "elixir",
+            "kotlin",
+            "native",
+            "dart",
+            "godot",
+            "nintendo-switch",
+            "playstation",
+            "powershell",
+            "react-native",
+            "xbox",
+            "javascript/nextjs",
+            "javascript/react",
+            "javascript/gatsby",
+            "javascript/remix",
+            "javascript/vue",
+            "javascript/angular",
+            "javascript/hono",
+            "javascript/svelte",
+            "javascript/express",
+            "javascript/fastify",
+            "javascript/astro",
+            "javascript/bun",
+            "javascript/capacitor",
+            "javascript/cloudflare",
+            "javascript/connect",
+            "javascript/cordova",
+            "javascript/deno",
+            "javascript/electron",
+            "javascript/ember",
+            "javascript/nuxt",
+            "javascript/solid",
+            "javascript/solidstart",
+            "javascript/sveltekit",
+            "javascript/tanstack-react",
+            "javascript/wasm",
+            "javascript/node",
+            "javascript/koa",
+            "javascript/nestjs",
+            "javascript/hapi",
+            "python/django",
+            "python/flask",
+            "python/fastapi",
+            "python/celery",
+            "python/tornado",
+            "python/pyramid",
+            "python/aiohttp",
+            "python/anthropic",
+            "python/airflow",
+            "python/aws-lambda",
+            "python/boto3",
+            "python/bottle",
+            "python/chalice",
+            "python/dramatiq",
+            "python/falcon",
+            "python/langchain",
+            "python/litestar",
+            "python/logging",
+            "python/loguru",
+            "python/openai",
+            "python/quart",
+            "python/ray",
+            "python/redis",
+            "python/rq",
+            "python/sanic",
+            "python/sqlalchemy",
+            "python/starlette",
+            "dart/flutter",
+            "dotnet/aspnetcore",
+            "dotnet/maui",
+            "dotnet/wpf",
+            "dotnet/winforms",
+            "dotnet/aspnet",
+            "dotnet/aws-lambda",
+            "dotnet/azure-functions",
+            "dotnet/blazor-webassembly",
+            "dotnet/entityframework",
+            "dotnet/google-cloud-functions",
+            "dotnet/extensions-logging",
+            "dotnet/log4net",
+            "dotnet/nlog",
+            "dotnet/serilog",
+            "dotnet/uwp",
+            "dotnet/xamarin",
+            "java/spring",
+            "java/spring-boot",
+            "java/android",
+            "java/jul",
+            "java/log4j2",
+            "java/logback",
+            "java/servlet",
+            "go/echo",
+            "go/fasthttp",
+            "go/fiber",
+            "go/gin",
+            "go/http",
+            "go/iris",
+            "go/logrus",
+            "go/negroni",
+            "go/slog",
+            "go/zerolog",
+            "php/laravel",
+            "php/symfony",
+            "ruby/delayed_job",
+            "ruby/rack",
+            "ruby/rails",
+            "ruby/resque",
+            "ruby/sidekiq",
+            "android/kotlin",
+            "apple/ios",
+            "apple/macos",
+            "apple/watchos",
+            "apple/tvos",
+            "apple/visionos",
+            "kotlin/multiplatform"
+          ],
+          "description": "Optional guide filter to limit search results to specific documentation sections. Use either a platform (e.g., 'javascript', 'python') or platform/guide combination (e.g., 'javascript/nextjs', 'python/django')."
+        }
+      },
+      "required": ["query"],
+      "additionalProperties": false,
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    }
+  },
+  {
+    "name": "SENTRY__GET_DOC",
+    "description": "Fetch the full markdown content of a Sentry documentation page.\n\nUse this tool when you need to:\n- Read the complete documentation for a specific topic\n- Get detailed implementation examples or code snippets\n- Access the full context of a documentation page\n- Extract specific sections from documentation\n\n<examples>\n### Get the Next.js integration guide\n\n```\nget_doc(path='/platforms/javascript/guides/nextjs.md')\n```\n</examples>\n\n<hints>\n- Use the path from search_docs results for accurate fetching\n- Paths should end with .md extension\n</hints>",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "get_doc",
+      "canonical_tool_description_hash": "396a16b914c276b1820f14f9d12a343919f63c623836caa4460a09f34e384247",
+      "canonical_tool_input_schema_hash": "74fff93ad4608bdcb4bfb72d5bde62204d64dfff30a89924318a05b92f6144de"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "path": {
+          "type": "string",
+          "description": "The documentation path (e.g., '/platforms/javascript/guides/nextjs.md'). Get this from search_docs results."
+        }
+      },
+      "required": ["path"],
+      "additionalProperties": false,
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    }
+  },
+  {
+    "name": "SENTRY__SEARCH_ISSUES",
+    "description": "Search for grouped issues/problems in Sentry - returns a LIST of issues, NOT counts or aggregations.\n\nUses AI to translate natural language queries into Sentry issue search syntax.\nReturns grouped issues with metadata like title, status, and user count.\n\n\ud83d\udd0d USE THIS TOOL WHEN USERS WANT:\n- A LIST of issues: 'show me issues', 'what problems do we have'\n- Filtered issue lists: 'unresolved issues', 'critical bugs'\n- Issues by impact: 'errors affecting more than 100 users'\n- Issues by assignment: 'issues assigned to me'\n\n\u274c DO NOT USE FOR COUNTS/AGGREGATIONS:\n- 'how many errors' \u2192 use search_events\n- 'count of issues' \u2192 use search_events\n- 'total number of errors today' \u2192 use search_events\n- 'sum/average/statistics' \u2192 use search_events\n\n\u274c ALSO DO NOT USE FOR:\n- Individual error events with timestamps \u2192 use search_events\n- Details about a specific issue ID \u2192 use get_issue_details\n\nREMEMBER: This tool returns a LIST of issues, not counts or statistics!\n\n<examples>\nsearch_issues(organizationSlug='my-org', naturalLanguageQuery='critical bugs from last week')\nsearch_issues(organizationSlug='my-org', naturalLanguageQuery='unhandled errors affecting 100+ users')\nsearch_issues(organizationSlug='my-org', naturalLanguageQuery='issues assigned to me')\n</examples>\n\n<hints>\n- If the user passes a parameter in the form of name/otherName, it's likely in the format of <organizationSlug>/<projectSlugOrId>.\n- Parse org/project notation directly without calling find_organizations or find_projects.\n- The projectSlugOrId parameter accepts both project slugs (e.g., 'my-project') and numeric IDs (e.g., '123456').\n</hints>",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "search_issues",
+      "canonical_tool_description_hash": "28e247eb1d69350d5a5767767554667af1d73a8af4a16f4cb591e5ea7555efc8",
+      "canonical_tool_input_schema_hash": "d94b34d3ff05628428cbf10fa21141bb66d123bf2382d8d6ac851c70ca8ef780"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "organizationSlug": {
+          "type": "string",
+          "description": "The organization's slug. You can find a existing list of organizations you have access to using the `find_organizations()` tool."
+        },
+        "naturalLanguageQuery": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Natural language description of issues to search for"
+        },
+        "projectSlugOrId": {
+          "type": "string",
+          "description": "The project's slug or numeric ID (optional)"
+        },
+        "regionUrl": {
+          "type": "string",
+          "description": "The region URL for the organization you're querying, if known. For Sentry's Cloud Service (sentry.io), this is typically the region-specific URL like 'https://us.sentry.io'. For self-hosted Sentry installations, this parameter is usually not needed and should be omitted. You can find the correct regionUrl from the organization details using the `find_organizations()` tool."
+        },
+        "limit": {
+          "type": "number",
+          "minimum": 1,
+          "maximum": 100,
+          "default": 10,
+          "description": "Maximum number of issues to return"
+        },
+        "includeExplanation": {
+          "type": "boolean",
+          "default": false,
+          "description": "Include explanation of how the query was translated"
+        }
+      },
+      "required": ["organizationSlug", "naturalLanguageQuery"],
+      "additionalProperties": false,
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    }
+  }
+]

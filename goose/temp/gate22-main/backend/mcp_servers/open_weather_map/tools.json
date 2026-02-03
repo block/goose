@@ -1,0 +1,285 @@
+[
+  {
+    "name": "OPEN_WEATHER_MAP__CURRENT_WEATHER",
+    "description": "Get current weather data for a specific location by latitude and longitude.",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "CURRENT_WEATHER",
+      "canonical_tool_description_hash": "a5fa846c38dd3ede8c49a8553a056721b22b315ff2542c01d2e2adc7df8e1cf9",
+      "canonical_tool_input_schema_hash": "74704961ba506bc6ec8a806c036481fcdc69e5e2aafd944ff43ba50e728c5cf8"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["query"],
+      "properties": {
+        "query": {
+          "type": "object",
+          "required": ["lat", "lon"],
+          "properties": {
+            "lat": {
+              "type": "number",
+              "description": "Latitude, decimal (-90; 90)"
+            },
+            "lon": {
+              "type": "number",
+              "description": "Longitude, decimal (-180; 180)"
+            },
+            "lang": {
+              "enum": [
+                "af",
+                "al",
+                "ar",
+                "az",
+                "bg",
+                "ca",
+                "cz",
+                "da",
+                "de",
+                "el",
+                "en",
+                "eu",
+                "fa",
+                "fi",
+                "fr",
+                "gl",
+                "he",
+                "hi",
+                "hr",
+                "hu",
+                "id",
+                "it",
+                "ja",
+                "kr",
+                "la",
+                "lt",
+                "mk",
+                "no",
+                "nl",
+                "pl",
+                "pt",
+                "pt_br",
+                "ro",
+                "ru",
+                "sv",
+                "sk",
+                "sl",
+                "sp",
+                "sr",
+                "th",
+                "tr",
+                "ua",
+                "vi",
+                "zh_cn",
+                "zh_tw",
+                "zu"
+              ],
+              "type": "string",
+              "description": "Language to get the output in. Default is English (en)."
+            },
+            "units": {
+              "enum": ["standard", "metric", "imperial"],
+              "type": "string",
+              "description": "Units of measurement. standard, metric and imperial units are available. If not specified, standard units will be applied by default."
+            }
+          },
+          "description": "Query parameters for the request",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "OPEN_WEATHER_MAP__FORECAST",
+    "description": "Get 5-day/3-hour forecast data for a specific location by latitude and longitude.",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "FORECAST",
+      "canonical_tool_description_hash": "6a93bddc9bb2856692baf68d8747ac29dd5ee9ed7dbc5ce61ffd1584835329a9",
+      "canonical_tool_input_schema_hash": "68f249f01fa569b2b303dacbd2b9bdf1651c1c4ef4b208fe328a65bc56ee72c0"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["query"],
+      "properties": {
+        "query": {
+          "type": "object",
+          "required": ["lat", "lon"],
+          "properties": {
+            "cnt": {
+              "type": "integer",
+              "maximum": 40,
+              "minimum": 1,
+              "description": "A number of timestamps, which will be returned in the API response. If not specified, all 40 timestamps will be returned."
+            },
+            "lat": {
+              "type": "number",
+              "description": "Latitude, decimal (-90; 90)"
+            },
+            "lon": {
+              "type": "number",
+              "description": "Longitude, decimal (-180; 180)"
+            },
+            "lang": {
+              "enum": [
+                "af",
+                "al",
+                "ar",
+                "az",
+                "bg",
+                "ca",
+                "cz",
+                "da",
+                "de",
+                "el",
+                "en",
+                "eu",
+                "fa",
+                "fi",
+                "fr",
+                "gl",
+                "he",
+                "hi",
+                "hr",
+                "hu",
+                "id",
+                "it",
+                "ja",
+                "kr",
+                "la",
+                "lt",
+                "mk",
+                "no",
+                "nl",
+                "pl",
+                "pt",
+                "pt_br",
+                "ro",
+                "ru",
+                "sv",
+                "sk",
+                "sl",
+                "sp",
+                "sr",
+                "th",
+                "tr",
+                "ua",
+                "vi",
+                "zh_cn",
+                "zh_tw",
+                "zu"
+              ],
+              "type": "string",
+              "description": "Language to get the output in. Default is English (en)."
+            },
+            "units": {
+              "enum": ["standard", "metric", "imperial"],
+              "type": "string",
+              "description": "Units of measurement. standard, metric and imperial units are available. If not specified, standard units will be applied by default."
+            }
+          },
+          "description": "Query parameters for the request",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "OPEN_WEATHER_MAP__CURRENT_AND_FORECAST",
+    "description": "Get current weather data for a location. The function extracts location information from your prompt and returns detailed weather data including temperature, humidity, wind, and more.",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "CURRENT_AND_FORECAST",
+      "canonical_tool_description_hash": "e5cf7f5c00e0a86f74a18c7b6bbd44f3b8a1c00257a395860d907338e67bfe89",
+      "canonical_tool_input_schema_hash": "15ab278e19d57547e6c1dd2b30d579be9e2af90824b30f6372479e9a6ff3c358"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["query"],
+      "properties": {
+        "query": {
+          "type": "object",
+          "required": ["lat", "lon"],
+          "properties": {
+            "lat": {
+              "type": "number",
+              "description": "Latitude, decimal (-90; 90)"
+            },
+            "lon": {
+              "type": "number",
+              "description": "Longitude, decimal (-180; 180)"
+            },
+            "lang": {
+              "enum": [
+                "af",
+                "al",
+                "ar",
+                "az",
+                "bg",
+                "ca",
+                "cz",
+                "da",
+                "de",
+                "el",
+                "en",
+                "eu",
+                "fa",
+                "fi",
+                "fr",
+                "gl",
+                "he",
+                "hi",
+                "hr",
+                "hu",
+                "id",
+                "it",
+                "ja",
+                "kr",
+                "la",
+                "lt",
+                "mk",
+                "no",
+                "nl",
+                "pl",
+                "pt",
+                "pt_br",
+                "ro",
+                "ru",
+                "sv",
+                "sk",
+                "sl",
+                "sp",
+                "sr",
+                "th",
+                "tr",
+                "ua",
+                "vi",
+                "zh_cn",
+                "zh_tw",
+                "zu"
+              ],
+              "type": "string",
+              "default": "en",
+              "description": "Language to get the output in. Default is English (en)."
+            },
+            "units": {
+              "enum": ["standard", "metric", "imperial"],
+              "type": "string",
+              "default": "metric",
+              "description": "Units of measurement. standard, metric and imperial units are available. If not specified, standard units will be applied by default."
+            },
+            "exclude": {
+              "type": "string",
+              "default": "minutely,hourly,alerts",
+              "description": "Parts of weather data to exclude. Multiple values can be separated by commas."
+            }
+          },
+          "description": "Query parameters for the request",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+]

@@ -1,0 +1,1348 @@
+[
+  {
+    "name": "X__GET_POST_BY_ID",
+    "description": "Retrieve a specific post by its ID. Returns detailed post information including metrics and context.",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "GET",
+      "endpoint": "https://api.twitter.com/2/tweets/{id}"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "path": {
+          "type": "object",
+          "description": "Path parameters",
+          "properties": {
+            "id": {
+              "type": "string",
+              "description": "The ID of the post to retrieve"
+            }
+          },
+          "required": [
+            "id"
+          ],
+          "visible": [
+            "id"
+          ],
+          "additionalProperties": false
+        },
+        "query": {
+          "type": "object",
+          "description": "Query parameters",
+          "properties": {
+            "tweet.fields": {
+              "type": "string",
+              "description": "Comma-separated list of tweet fields to include",
+              "default": "id,text,author_id,created_at,public_metrics,context_annotations"
+            },
+            "user.fields": {
+              "type": "string",
+              "description": "Comma-separated list of user fields to include",
+              "default": "id,name,username,verified"
+            },
+            "expansions": {
+              "type": "string",
+              "description": "Comma-separated list of expansion fields",
+              "default": "author_id"
+            }
+          },
+          "required": [],
+          "visible": [
+            "tweet.fields",
+            "user.fields"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "path"
+      ],
+      "visible": [
+        "path",
+        "query"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "X__GET_POSTS_BY_IDS",
+    "description": "Retrieve multiple posts by their IDs. Returns detailed information for up to 100 posts.",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "GET",
+      "endpoint": "https://api.twitter.com/2/tweets"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "query": {
+          "type": "object",
+          "description": "Query parameters",
+          "properties": {
+            "ids": {
+              "type": "string",
+              "description": "Comma-separated list of post IDs (up to 100)"
+            },
+            "tweet.fields": {
+              "type": "string",
+              "description": "Comma-separated list of tweet fields to include",
+              "default": "id,text,author_id,created_at,public_metrics"
+            },
+            "user.fields": {
+              "type": "string",
+              "description": "Comma-separated list of user fields to include",
+              "default": "id,name,username"
+            },
+            "expansions": {
+              "type": "string",
+              "description": "Comma-separated list of expansion fields",
+              "default": "author_id"
+            }
+          },
+          "required": [
+            "ids"
+          ],
+          "visible": [
+            "ids",
+            "tweet.fields",
+            "user.fields"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "query"
+      ],
+      "visible": [
+        "query"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "X__SEARCH_POSTS",
+    "description": "Search for posts published in the last 7 days using a query. Returns matching posts with comprehensive metadata.",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "GET",
+      "endpoint": "https://api.twitter.com/2/tweets/search/recent"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "query": {
+          "type": "object",
+          "description": "Query parameters for the search",
+          "properties": {
+            "query": {
+              "type": "string",
+              "description": "Search query string. Supports boolean operators, hashtags, mentions, and advanced search syntax."
+            },
+            "max_results": {
+              "type": "integer",
+              "description": "Maximum number of results to return (10-100, default: 10)",
+              "default": 10,
+              "minimum": 10,
+              "maximum": 100
+            },
+            "tweet.fields": {
+              "type": "string",
+              "description": "Comma-separated list of tweet fields to include",
+              "default": "id,text,author_id,created_at,public_metrics"
+            },
+            "user.fields": {
+              "type": "string",
+              "description": "Comma-separated list of user fields to include",
+              "default": "id,name,username"
+            },
+            "expansions": {
+              "type": "string",
+              "description": "Comma-separated list of expansion fields",
+              "default": "author_id"
+            }
+          },
+          "required": [
+            "query"
+          ],
+          "visible": [
+            "query",
+            "max_results",
+            "tweet.fields",
+            "user.fields"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "query"
+      ],
+      "visible": [
+        "query"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "X__GET_USER_POSTS",
+    "description": "Get posts from a specific user's timeline. Returns the user's recent posts with engagement metrics.",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "GET",
+      "endpoint": "https://api.twitter.com/2/users/{id}/tweets"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "path": {
+          "type": "object",
+          "description": "Path parameters",
+          "properties": {
+            "id": {
+              "type": "string",
+              "description": "The ID of the user whose posts to retrieve"
+            }
+          },
+          "required": [
+            "id"
+          ],
+          "visible": [
+            "id"
+          ],
+          "additionalProperties": false
+        },
+        "query": {
+          "type": "object",
+          "description": "Query parameters",
+          "properties": {
+            "max_results": {
+              "type": "integer",
+              "description": "Maximum number of posts to return (5-100, default: 10)",
+              "default": 10,
+              "minimum": 5,
+              "maximum": 100
+            },
+            "tweet.fields": {
+              "type": "string",
+              "description": "Comma-separated list of tweet fields to include",
+              "default": "id,text,created_at,public_metrics,context_annotations"
+            }
+          },
+          "required": [],
+          "visible": [
+            "max_results",
+            "tweet.fields"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "path"
+      ],
+      "visible": [
+        "path",
+        "query"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "X__GET_POST_RETWEETS",
+    "description": "Get users who have retweeted a specific post. Returns user information for those who retweeted.",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "GET",
+      "endpoint": "https://api.twitter.com/2/tweets/{id}/retweeted_by"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "path": {
+          "type": "object",
+          "description": "Path parameters",
+          "properties": {
+            "id": {
+              "type": "string",
+              "description": "The ID of the post to get retweets for"
+            }
+          },
+          "required": [
+            "id"
+          ],
+          "visible": [
+            "id"
+          ],
+          "additionalProperties": false
+        },
+        "query": {
+          "type": "object",
+          "description": "Query parameters",
+          "properties": {
+            "max_results": {
+              "type": "integer",
+              "description": "Maximum number of users to return (1-100, default: 100)",
+              "default": 100,
+              "minimum": 1,
+              "maximum": 100
+            },
+            "user.fields": {
+              "type": "string",
+              "description": "Comma-separated list of user fields to include",
+              "default": "id,name,username,public_metrics"
+            }
+          },
+          "required": [],
+          "visible": [
+            "max_results",
+            "user.fields"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "path"
+      ],
+      "visible": [
+        "path",
+        "query"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "X__GET_USER_BY_ID",
+    "description": "Retrieve user information by user ID. Returns detailed user profile data including metrics and verification status.",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "GET",
+      "endpoint": "https://api.twitter.com/2/users/{id}"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "path": {
+          "type": "object",
+          "description": "Path parameters",
+          "properties": {
+            "id": {
+              "type": "string",
+              "description": "The ID of the user to retrieve"
+            }
+          },
+          "required": [
+            "id"
+          ],
+          "visible": [
+            "id"
+          ],
+          "additionalProperties": false
+        },
+        "query": {
+          "type": "object",
+          "description": "Query parameters",
+          "properties": {
+            "user.fields": {
+              "type": "string",
+              "description": "Comma-separated list of user fields to include",
+              "default": "id,name,username,description,public_metrics,verified,created_at"
+            }
+          },
+          "required": [],
+          "visible": [
+            "user.fields"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "path"
+      ],
+      "visible": [
+        "path",
+        "query"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "X__GET_USERS_BY_IDS",
+    "description": "Retrieve multiple users by their IDs. Returns detailed user profile data for up to 100 users.",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "GET",
+      "endpoint": "https://api.twitter.com/2/users"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "query": {
+          "type": "object",
+          "description": "Query parameters",
+          "properties": {
+            "ids": {
+              "type": "string",
+              "description": "Comma-separated list of user IDs (up to 100)"
+            },
+            "user.fields": {
+              "type": "string",
+              "description": "Comma-separated list of user fields to include",
+              "default": "id,name,username,description,public_metrics,verified"
+            }
+          },
+          "required": [
+            "ids"
+          ],
+          "visible": [
+            "ids",
+            "user.fields"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "query"
+      ],
+      "visible": [
+        "query"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "X__GET_USER_BY_USERNAME",
+    "description": "Retrieve user information by username. Returns detailed user profile data including metrics and verification status.",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "GET",
+      "endpoint": "https://api.twitter.com/2/users/by/username/{username}"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "path": {
+          "type": "object",
+          "description": "Path parameters",
+          "properties": {
+            "username": {
+              "type": "string",
+              "description": "The username (handle) of the user to retrieve, without the @ symbol"
+            }
+          },
+          "required": [
+            "username"
+          ],
+          "visible": [
+            "username"
+          ],
+          "additionalProperties": false
+        },
+        "query": {
+          "type": "object",
+          "description": "Query parameters",
+          "properties": {
+            "user.fields": {
+              "type": "string",
+              "description": "Comma-separated list of user fields to include",
+              "default": "id,name,username,description,public_metrics,verified,created_at"
+            }
+          },
+          "required": [],
+          "visible": [
+            "user.fields"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "path"
+      ],
+      "visible": [
+        "path",
+        "query"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "X__GET_USERS_BY_USERNAMES",
+    "description": "Retrieve multiple users by their usernames. Returns detailed user profile data for up to 100 users.",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "GET",
+      "endpoint": "https://api.twitter.com/2/users/by"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "query": {
+          "type": "object",
+          "description": "Query parameters",
+          "properties": {
+            "usernames": {
+              "type": "string",
+              "description": "Comma-separated list of usernames (up to 100, without @ symbol)"
+            },
+            "user.fields": {
+              "type": "string",
+              "description": "Comma-separated list of user fields to include",
+              "default": "id,name,username,description,public_metrics,verified"
+            }
+          },
+          "required": [
+            "usernames"
+          ],
+          "visible": [
+            "usernames",
+            "user.fields"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "query"
+      ],
+      "visible": [
+        "query"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "X__GET_LIST_BY_ID",
+    "description": "Retrieve detailed information about a specific list by its ID. Returns list metadata and settings.",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "GET",
+      "endpoint": "https://api.twitter.com/2/lists/{id}"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "path": {
+          "type": "object",
+          "description": "Path parameters",
+          "properties": {
+            "id": {
+              "type": "string",
+              "description": "The ID of the list to retrieve"
+            }
+          },
+          "required": [
+            "id"
+          ],
+          "visible": [
+            "id"
+          ],
+          "additionalProperties": false
+        },
+        "query": {
+          "type": "object",
+          "description": "Query parameters",
+          "properties": {
+            "list.fields": {
+              "type": "string",
+              "description": "Comma-separated list of list fields to include",
+              "default": "id,name,description,member_count,private,owner_id"
+            },
+            "user.fields": {
+              "type": "string",
+              "description": "Comma-separated list of user fields to include",
+              "default": "id,name,username"
+            },
+            "expansions": {
+              "type": "string",
+              "description": "Comma-separated list of expansion fields",
+              "default": "owner_id"
+            }
+          },
+          "required": [],
+          "visible": [
+            "list.fields",
+            "user.fields"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "path"
+      ],
+      "visible": [
+        "path",
+        "query"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "X__GET_USER_OWNED_LISTS",
+    "description": "Get lists owned by a specific user. Returns list information for lists they created.",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "GET",
+      "endpoint": "https://api.twitter.com/2/users/{id}/owned_lists"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "path": {
+          "type": "object",
+          "description": "Path parameters",
+          "properties": {
+            "id": {
+              "type": "string",
+              "description": "The ID of the user whose owned lists to retrieve"
+            }
+          },
+          "required": [
+            "id"
+          ],
+          "visible": [
+            "id"
+          ],
+          "additionalProperties": false
+        },
+        "query": {
+          "type": "object",
+          "description": "Query parameters",
+          "properties": {
+            "max_results": {
+              "type": "integer",
+              "description": "Maximum number of lists to return (1-100, default: 100)",
+              "default": 100,
+              "minimum": 1,
+              "maximum": 100
+            },
+            "list.fields": {
+              "type": "string",
+              "description": "Comma-separated list of list fields to include",
+              "default": "id,name,description,member_count,private"
+            }
+          },
+          "required": [],
+          "visible": [
+            "max_results",
+            "list.fields"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "path"
+      ],
+      "visible": [
+        "path",
+        "query"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "X__GET_LIST_POSTS",
+    "description": "Get posts from a specific list. Returns recent posts from list members.",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "GET",
+      "endpoint": "https://api.twitter.com/2/lists/{id}/tweets"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "path": {
+          "type": "object",
+          "description": "Path parameters",
+          "properties": {
+            "id": {
+              "type": "string",
+              "description": "The ID of the list whose posts to retrieve"
+            }
+          },
+          "required": [
+            "id"
+          ],
+          "visible": [
+            "id"
+          ],
+          "additionalProperties": false
+        },
+        "query": {
+          "type": "object",
+          "description": "Query parameters",
+          "properties": {
+            "max_results": {
+              "type": "integer",
+              "description": "Maximum number of posts to return (5-100, default: 100)",
+              "default": 100,
+              "minimum": 5,
+              "maximum": 100
+            },
+            "tweet.fields": {
+              "type": "string",
+              "description": "Comma-separated list of tweet fields to include",
+              "default": "id,text,author_id,created_at,public_metrics"
+            },
+            "user.fields": {
+              "type": "string",
+              "description": "Comma-separated list of user fields to include",
+              "default": "id,name,username"
+            },
+            "expansions": {
+              "type": "string",
+              "description": "Comma-separated list of expansion fields",
+              "default": "author_id"
+            }
+          },
+          "required": [],
+          "visible": [
+            "max_results",
+            "tweet.fields",
+            "user.fields"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "path"
+      ],
+      "visible": [
+        "path",
+        "query"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "X__GET_LIST_MEMBERS",
+    "description": "Get members of a specific list. Returns user information for list members.",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "GET",
+      "endpoint": "https://api.twitter.com/2/lists/{id}/members"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "path": {
+          "type": "object",
+          "description": "Path parameters",
+          "properties": {
+            "id": {
+              "type": "string",
+              "description": "The ID of the list whose members to retrieve"
+            }
+          },
+          "required": [
+            "id"
+          ],
+          "visible": [
+            "id"
+          ],
+          "additionalProperties": false
+        },
+        "query": {
+          "type": "object",
+          "description": "Query parameters",
+          "properties": {
+            "max_results": {
+              "type": "integer",
+              "description": "Maximum number of members to return (1-100, default: 100)",
+              "default": 100,
+              "minimum": 1,
+              "maximum": 100
+            },
+            "user.fields": {
+              "type": "string",
+              "description": "Comma-separated list of user fields to include",
+              "default": "id,name,username,description,public_metrics"
+            }
+          },
+          "required": [],
+          "visible": [
+            "max_results",
+            "user.fields"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "path"
+      ],
+      "visible": [
+        "path",
+        "query"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "X__GET_USER_LIST_MEMBERSHIPS",
+    "description": "Get lists that a specific user is a member of. Returns list information for their memberships.",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "GET",
+      "endpoint": "https://api.twitter.com/2/users/{id}/list_memberships"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "path": {
+          "type": "object",
+          "description": "Path parameters",
+          "properties": {
+            "id": {
+              "type": "string",
+              "description": "The ID of the user whose list memberships to retrieve"
+            }
+          },
+          "required": [
+            "id"
+          ],
+          "visible": [
+            "id"
+          ],
+          "additionalProperties": false
+        },
+        "query": {
+          "type": "object",
+          "description": "Query parameters",
+          "properties": {
+            "max_results": {
+              "type": "integer",
+              "description": "Maximum number of lists to return (1-100, default: 100)",
+              "default": 100,
+              "minimum": 1,
+              "maximum": 100
+            },
+            "list.fields": {
+              "type": "string",
+              "description": "Comma-separated list of list fields to include",
+              "default": "id,name,description,member_count,private,owner_id"
+            },
+            "user.fields": {
+              "type": "string",
+              "description": "Comma-separated list of user fields to include",
+              "default": "id,name,username"
+            },
+            "expansions": {
+              "type": "string",
+              "description": "Comma-separated list of expansion fields",
+              "default": "owner_id"
+            }
+          },
+          "required": [],
+          "visible": [
+            "max_results",
+            "list.fields",
+            "user.fields"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "path"
+      ],
+      "visible": [
+        "path",
+        "query"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "X__GET_USER_FOLLOWED_LISTS",
+    "description": "Get lists that a specific user follows. Returns list information for lists they follow.",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "GET",
+      "endpoint": "https://api.twitter.com/2/users/{id}/followed_lists"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "path": {
+          "type": "object",
+          "description": "Path parameters",
+          "properties": {
+            "id": {
+              "type": "string",
+              "description": "The ID of the user whose followed lists to retrieve"
+            }
+          },
+          "required": [
+            "id"
+          ],
+          "visible": [
+            "id"
+          ],
+          "additionalProperties": false
+        },
+        "query": {
+          "type": "object",
+          "description": "Query parameters",
+          "properties": {
+            "max_results": {
+              "type": "integer",
+              "description": "Maximum number of lists to return (1-100, default: 100)",
+              "default": 100,
+              "minimum": 1,
+              "maximum": 100
+            },
+            "list.fields": {
+              "type": "string",
+              "description": "Comma-separated list of list fields to include",
+              "default": "id,name,description,member_count,private,owner_id"
+            },
+            "user.fields": {
+              "type": "string",
+              "description": "Comma-separated list of user fields to include",
+              "default": "id,name,username"
+            },
+            "expansions": {
+              "type": "string",
+              "description": "Comma-separated list of expansion fields",
+              "default": "owner_id"
+            }
+          },
+          "required": [],
+          "visible": [
+            "max_results",
+            "list.fields",
+            "user.fields"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "path"
+      ],
+      "visible": [
+        "path",
+        "query"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "X__GET_SPACE_BY_ID",
+    "description": "Retrieve detailed information about a specific Space by its ID. Returns Space metadata and settings.",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "GET",
+      "endpoint": "https://api.twitter.com/2/spaces/{id}"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "path": {
+          "type": "object",
+          "description": "Path parameters",
+          "properties": {
+            "id": {
+              "type": "string",
+              "description": "The ID of the Space to retrieve"
+            }
+          },
+          "required": [
+            "id"
+          ],
+          "visible": [
+            "id"
+          ],
+          "additionalProperties": false
+        },
+        "query": {
+          "type": "object",
+          "description": "Query parameters",
+          "properties": {
+            "space.fields": {
+              "type": "string",
+              "description": "Comma-separated list of Space fields to include",
+              "default": "id,state,created_at,title,host_ids,speaker_ids,participant_count"
+            },
+            "user.fields": {
+              "type": "string",
+              "description": "Comma-separated list of user fields to include",
+              "default": "id,name,username"
+            },
+            "expansions": {
+              "type": "string",
+              "description": "Comma-separated list of expansion fields",
+              "default": "host_ids,speaker_ids"
+            }
+          },
+          "required": [],
+          "visible": [
+            "space.fields",
+            "user.fields"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "path"
+      ],
+      "visible": [
+        "path",
+        "query"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "X__GET_SPACES_BY_IDS",
+    "description": "Retrieve multiple Spaces by their IDs. Returns detailed information for up to 100 Spaces.",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "GET",
+      "endpoint": "https://api.twitter.com/2/spaces"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "query": {
+          "type": "object",
+          "description": "Query parameters",
+          "properties": {
+            "ids": {
+              "type": "string",
+              "description": "Comma-separated list of Space IDs (up to 100)"
+            },
+            "space.fields": {
+              "type": "string",
+              "description": "Comma-separated list of Space fields to include",
+              "default": "id,state,created_at,title,host_ids,participant_count"
+            },
+            "user.fields": {
+              "type": "string",
+              "description": "Comma-separated list of user fields to include",
+              "default": "id,name,username"
+            },
+            "expansions": {
+              "type": "string",
+              "description": "Comma-separated list of expansion fields",
+              "default": "host_ids,speaker_ids"
+            }
+          },
+          "required": [
+            "ids"
+          ],
+          "visible": [
+            "ids",
+            "space.fields",
+            "user.fields"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "query"
+      ],
+      "visible": [
+        "query"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "X__GET_SPACES_BY_CREATOR_IDS",
+    "description": "Get Spaces created by specific users. Returns Space information for Spaces they created.",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "GET",
+      "endpoint": "https://api.twitter.com/2/spaces/by/creator_ids"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "query": {
+          "type": "object",
+          "description": "Query parameters",
+          "properties": {
+            "user_ids": {
+              "type": "string",
+              "description": "Comma-separated list of user IDs whose created Spaces to retrieve (up to 100)"
+            },
+            "space.fields": {
+              "type": "string",
+              "description": "Comma-separated list of Space fields to include",
+              "default": "id,state,created_at,title,host_ids,participant_count"
+            },
+            "user.fields": {
+              "type": "string",
+              "description": "Comma-separated list of user fields to include",
+              "default": "id,name,username"
+            },
+            "expansions": {
+              "type": "string",
+              "description": "Comma-separated list of expansion fields",
+              "default": "host_ids,speaker_ids"
+            }
+          },
+          "required": [
+            "user_ids"
+          ],
+          "visible": [
+            "user_ids",
+            "space.fields",
+            "user.fields"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "query"
+      ],
+      "visible": [
+        "query"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "X__SEARCH_SPACES",
+    "description": "Search for live or scheduled Spaces matching specified search terms. Returns matching Spaces.",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "GET",
+      "endpoint": "https://api.twitter.com/2/spaces/search"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "query": {
+          "type": "object",
+          "description": "Query parameters",
+          "properties": {
+            "query": {
+              "type": "string",
+              "description": "Search query for Spaces"
+            },
+            "max_results": {
+              "type": "integer",
+              "description": "Maximum number of Spaces to return (1-100, default: 10)",
+              "default": 10,
+              "minimum": 1,
+              "maximum": 100
+            },
+            "space.fields": {
+              "type": "string",
+              "description": "Comma-separated list of Space fields to include",
+              "default": "id,state,created_at,title,host_ids,participant_count"
+            },
+            "user.fields": {
+              "type": "string",
+              "description": "Comma-separated list of user fields to include",
+              "default": "id,name,username"
+            },
+            "expansions": {
+              "type": "string",
+              "description": "Comma-separated list of expansion fields",
+              "default": "host_ids,speaker_ids"
+            }
+          },
+          "required": [
+            "query"
+          ],
+          "visible": [
+            "query",
+            "max_results",
+            "space.fields",
+            "user.fields"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "query"
+      ],
+      "visible": [
+        "query"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "X__PUBLISH_POST",
+    "description": "Creates and publishes a text post on X.com with optional poll support. For basic text posts, only provide the 'text' field. To create a poll, include both 'text' and 'poll' fields. The poll field should only be included when creating a poll with valid options (2-4 options) and duration.",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "POST",
+      "endpoint": "https://api.x.com/2/tweets"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "header": {
+          "type": "object",
+          "description": "HTTP headers",
+          "properties": {
+            "Content-Type": {
+              "type": "string",
+              "default": "application/json"
+            }
+          },
+          "required": [
+            "Content-Type"
+          ],
+          "visible": [],
+          "additionalProperties": false
+        },
+        "body": {
+          "type": "object",
+          "description": "Request body for creating a post",
+          "properties": {
+            "text": {
+              "type": "string",
+              "description": "The content of the Tweet."
+            },
+            "card_uri": {
+              "type": "string",
+              "description": "Card URI parameter for attaching a card to the tweet. Only provide this if specifically requested. This is mutually exclusive from Quote Tweet Id, Poll, Media, and Direct Message Deep Link. Omit this field if not needed."
+            },
+            "community_id": {
+              "type": "string",
+              "description": "The unique identifier of this Community. Only provide this if posting to a specific community. Must be a valid community ID (19-digit number). Omit this field for regular tweets."
+            },
+            "direct_message_deep_link": {
+              "type": "string",
+              "description": "Link to take the conversation from the public timeline to a private Direct Message. Only provide this if specifically requested. Omit this field for regular tweets."
+            },
+            "for_super_followers_only": {
+              "type": "boolean",
+              "description": "Exclusive Tweet for super followers.",
+              "default": false
+            },
+            "geo": {
+              "type": "object",
+              "description": "Geographic location information. Only provide this object if adding location to the tweet. Omit this entire object for tweets without location.",
+              "properties": {
+                "place_id": {
+                  "type": "string",
+                  "description": "Valid place ID for the location. Must be obtained from the geo search endpoint. Required when using geo object."
+                }
+              },
+              "required": [],
+              "visible": [
+                "place_id"
+              ],
+              "additionalProperties": false
+            },
+            "media": {
+              "type": "object",
+              "description": "Media information for attaching images, videos, etc. IMPORTANT: Only include this object if you have actual media to attach. If not attaching media, completely omit this field from the request. Do NOT send empty arrays or this will cause validation errors.",
+              "properties": {
+                "media_ids": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "description": "Array of valid media IDs to attach. Each media ID must be obtained from the media upload endpoint. IMPORTANT: Only provide this array if you have actual media IDs. Do NOT send an empty array."
+                },
+                "tagged_user_ids": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "description": "Array of user IDs to tag in the media. Each must be a valid user ID (19-digit number). Optional when using media object."
+                }
+              },
+              "required": [],
+              "visible": [
+                "media_ids",
+                "tagged_user_ids"
+              ],
+              "additionalProperties": false
+            },
+            "nullcast": {
+              "type": "boolean",
+              "description": "Nullcasted (promoted-only) Posts do not appear in the public timeline and are not served to followers.",
+              "default": false
+            },
+            "poll": {
+              "type": "object",
+              "description": "Poll options for a Tweet with a poll. IMPORTANT: Only include this object if you want to create a poll. If not creating a poll, completely omit this field from the request. This is mutually exclusive from Media, Quote Tweet Id, and Card URI.",
+              "properties": {
+                "options": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "minItems": 2,
+                  "maxItems": 4,
+                  "description": "Poll options (2-4 options required)"
+                },
+                "duration_minutes": {
+                  "type": "integer",
+                  "minimum": 5,
+                  "maximum": 10080,
+                  "description": "Poll duration in minutes (5 minutes to 7 days)"
+                }
+              },
+              "required": [],
+              "visible": [
+                "options",
+                "duration_minutes"
+              ],
+              "additionalProperties": false
+            },
+            "quote_tweet_id": {
+              "type": "string",
+              "description": "Unique identifier of the tweet to quote. Only provide this if creating a quote tweet. Must be a valid tweet ID (19-digit number). Omit this field for regular tweets."
+            },
+            "reply": {
+              "type": "object",
+              "description": "Reply information. IMPORTANT: Only include this object if you are replying to a specific tweet and have a valid tweet ID. If not replying to a tweet, completely omit this field from the request. Do NOT send empty strings or this will cause validation errors.",
+              "properties": {
+                "in_reply_to_tweet_id": {
+                  "type": "string",
+                  "description": "Unique identifier of the tweet being replied to. Must be a valid tweet ID (19-digit number). IMPORTANT: Only provide this if you have a valid tweet ID. Do NOT send empty strings."
+                },
+                "exclude_reply_user_ids": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "description": "List of user IDs to exclude from reply notifications. Each must be a valid user ID (19-digit number). Optional when creating a reply."
+                }
+              },
+              "required": [],
+              "visible": [
+                "in_reply_to_tweet_id",
+                "exclude_reply_user_ids"
+              ],
+              "additionalProperties": false
+            },
+            "reply_settings": {
+              "type": "string",
+              "enum": [
+                "following",
+                "mentionedUsers",
+                "subscribers",
+                "verified"
+              ],
+              "description": "Settings to indicate who can reply to the Tweet. Optional field - only include if you want to restrict replies. Valid values: 'following', 'mentionedUsers', 'subscribers', 'verified'. Omit this field for default reply settings."
+            },
+            "share_with_followers": {
+              "type": "boolean",
+              "description": "Share community post with followers too.",
+              "default": false
+            }
+          },
+          "required": [],
+          "visible": [
+            "text",
+            "poll"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "header",
+        "body"
+      ],
+      "visible": [
+        "body"
+      ],
+      "additionalProperties": false
+    }
+  }
+]

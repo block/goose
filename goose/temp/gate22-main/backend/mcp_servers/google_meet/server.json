@@ -1,0 +1,22 @@
+{
+  "name": "GOOGLE_MEET",
+  "url": "https://mcp.aci.dev/virtual/mcp?server_name=GOOGLE_MEET",
+  "transport_type": "streamable_http",
+  "description": "The Google Meet API allows developers to access and manage Google Meet resources programmatically. It provides information about meetings, participants, and recordings through RESTful HTTP calls including listing conference records, participants, and meeting spaces.",
+  "logo": "https://raw.githubusercontent.com/aipotheosis-labs/aipolabs-icons/refs/heads/main/apps/google_meet.svg",
+  "categories": ["Video Conferencing"],
+  "auth_configs": [
+    {
+      "type": "oauth2",
+      "client_id": "{{ CLIENT_ID }}",
+      "client_secret": "{{ CLIENT_SECRET }}",
+      "scope": "https://www.googleapis.com/auth/meetings.space.readonly https://www.googleapis.com/auth/meetings.space.created https://www.googleapis.com/auth/drive.readonly",
+      "authorize_url": "https://accounts.google.com/o/oauth2/v2/auth",
+      "access_token_url": "https://oauth2.googleapis.com/token",
+      "refresh_token_url": "https://oauth2.googleapis.com/token"
+    }
+  ],
+  "server_metadata": {
+    "is_virtual_mcp_server": true
+  }
+}

@@ -1,0 +1,4 @@
+{
+  "name": "GOOGLE_DOCS",
+  "description": "The Google Docs API allows developers to create, read, and update Google Docs documents programmatically. It provides access to Google Docs through RESTful HTTP calls, including create, read and update the Google Docs document."
+}

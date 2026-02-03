@@ -1,0 +1,35 @@
+### 3. Instrument your application
+**For Kubernetes deployments with zero-code instrumentation:**
+
+```yaml
+apiVersion: openlit.io/v1alpha1
+kind: AutoInstrumentation
+metadata:
+  name: hyperdx-instrumentation
+  namespace: default
+spec:
+  selector:
+    matchLabels:
+      instrument: "true"
+  python:
+    instrumentation:
+      provider: "openlit"
+      version: "latest"
+  otlp:
+    endpoint: "YOUR_OTELCOL_URL:4318"
+    timeout: 30
+  resource:
+    environment: "production"
+    serviceName: "my-ai-service"
+```
+
+Replace:
+1. `YOUR_OTELCOL_URL:4318` with the URL HTTP endpoint of your OpenTelemetry Collector.
+   * Example: `http://otel-collector.default.svc.cluster.local:4318` (for in-cluster collector)
+   * Example: `http://127.0.0.1:4318` (for local development)
+
+<Note>
+Ensure your OpenTelemetry Collector is properly deployed in your Kubernetes cluster and configured to forward data to HyperDX using your API key.
+</Note>
+
+Refer to the [OpenLIT Operator Documentation](/latest/operator/overview) for more advanced configurations and use cases.

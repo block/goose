@@ -1,0 +1,67 @@
+# Workflow name
+name: "Run pre-commit hooks"
+
+# Trigger the workflow on pull requests and pushes to the "main" branch
+on:
+  pull_request:
+    branches:
+      - "main"
+  push:
+    branches:
+      - "main"
+
+# Define the jobs for the workflow
+jobs:
+  # Job name
+  pre-commit:
+    # Readable name for the job
+    name: Lint code and README files
+    # Runner environment for the job
+    runs-on: ubuntu-latest
+
+    # Steps to be executed in the job
+    steps:
+      # Checkout the repository
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # Set up Python (must match requires-python in pyproject.toml)
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      # Verify Python version matches project requirements
+      - name: Verify Python version
+        run: |
+          python --version
+          python -c "import sys; assert sys.version_info >= (3, 12), f'Python 3.12+ required, got {sys.version}'"
+
+      # Set up a Python virtual environment
+      - name: Set up Python and Virtual Environment
+        run: |
+          python3 -m venv venv  # Create a virtual environment
+          source venv/bin/activate  # Activate the virtual environment
+          pip install --upgrade pip  # Upgrade pip to the latest version
+          pip install pre-commit  # Install pre-commit in the virtual environment
+
+      # Install pre-commit hooks
+      - name: Install pre-commit hooks
+        run: |
+          source venv/bin/activate
+          pre-commit install
+
+      # Run pre-commit hooks on all files
+      # This includes:
+      # - Python syntax validation (check-ast)
+      # - Code formatting (ruff-format)
+      # - Linting and import sorting (ruff)
+      # - Python version compatibility checks (pyupgrade for Python 3.12+)
+      # - YAML/JSON validation
+      # - Trailing whitespace and end-of-file fixes
+      - name: Run pre-commit hooks
+        run: |
+          source venv/bin/activate
+          pre-commit run --all-files --show-diff-on-failure

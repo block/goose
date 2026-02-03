@@ -1,0 +1,51 @@
+# Global owners - these users will be the default owners for everything in the repo
+* @dkargatzis
+
+# Core application code
+/src/ @dkargatzis
+
+# Agentic system
+/src/agents/ @dkargatzis
+
+# Rules engine and validators
+/src/rules/ @dkargatzis
+
+# API and webhook handlers
+/src/api/ @dkargatzis
+/src/webhooks/ @dkargatzis
+
+# Event processors
+/src/event_processors/ @dkargatzis
+
+# Task scheduling and background processing
+/src/tasks/ @dkargatzis
+
+# Core configuration and models
+/src/core/ @dkargatzis
+
+# Documentation
+/docs/ @dkargatzis
+*.md @dkargatzis
+
+# Configuration files
+/.watchflow/ @dkargatzis
+/pyproject.toml @dkargatzis
+
+# GitHub-specific files
+/.github/ @dkargatzis
+
+# Docker and deployment
+/Dockerfile* @dkargatzis
+/docker-compose.yaml @dkargatzis
+
+# Helm charts for Kubernetes deployment
+/helm-chart/ @dkargatzis
+
+# Tests
+/tests/ @dkargatzis
+
+# Scripts and utilities
+/scripts/ @dkargatzis
+
+# CI/CD workflows
+/.github/workflows/ @dkargatzis

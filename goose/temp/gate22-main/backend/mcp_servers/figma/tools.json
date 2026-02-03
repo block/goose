@@ -1,0 +1,409 @@
+[
+  {
+    "name": "FIGMA__GET_FILE",
+    "description": "Retrieves the document structure of a Figma file based on the given file key. Returns the entire document as JSON including nodes, their names, and types.",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "GET_FILE",
+      "canonical_tool_description_hash": "e7bfdda68715e4cfacb4115d33a05d7d595a261d231e875c893c8a1d0c820cf8",
+      "canonical_tool_input_schema_hash": "604072b6d518e674a3fb27c1207bb06e3348c331215631102cf5d7754f1aabcd"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["path"],
+      "properties": {
+        "path": {
+          "type": "object",
+          "required": ["file_key"],
+          "properties": {
+            "file_key": {
+              "type": "string",
+              "description": "The key of the file to retrieve."
+            }
+          },
+          "description": "Path parameters",
+          "additionalProperties": false
+        },
+        "query": {
+          "type": "object",
+          "required": [],
+          "properties": {
+            "ids": {
+              "type": "string",
+              "description": "Comma-separated list of node IDs to include in the response."
+            },
+            "depth": {
+              "type": "integer",
+              "description": "Depth to traverse the node tree. Default is 1."
+            },
+            "version": {
+              "type": "string",
+              "description": "Specific version ID to retrieve. If not provided, the latest version is returned."
+            },
+            "geometry": {
+              "type": "string",
+              "description": "Set to 'paths' to include vector geometry data."
+            },
+            "branch_data": {
+              "type": "boolean",
+              "description": "Whether to include metadata about branches. Default is false."
+            },
+            "plugin_data": {
+              "type": "string",
+              "description": "Comma-separated list of plugin IDs to retrieve plugin data for."
+            }
+          },
+          "description": "Optional query parameters",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "FIGMA__GET_FILE_NODES",
+    "description": "Retrieves the nodes present in a Figma file based on the given file key and node IDs.",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "GET_FILE_NODES",
+      "canonical_tool_description_hash": "a91594b56409f4c9ef875f788b85bd4452907c0027975940d6189ce55339e28e",
+      "canonical_tool_input_schema_hash": "ff06220cf226a0b08d68930d36a289b682720081ea47400ad3cba9241656adac"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["path", "query"],
+      "properties": {
+        "path": {
+          "type": "object",
+          "required": ["file_key"],
+          "properties": {
+            "file_key": {
+              "type": "string",
+              "description": "The key of the file containing the nodes."
+            }
+          },
+          "description": "Path parameters",
+          "additionalProperties": false
+        },
+        "query": {
+          "type": "object",
+          "required": ["ids"],
+          "properties": {
+            "ids": {
+              "type": "string",
+              "description": "Comma-separated list of node IDs to retrieve."
+            }
+          },
+          "description": "Query parameters",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "FIGMA__GET_IMAGE",
+    "description": "Retrieves images rendered from a Figma file based on the given file key and node IDs.",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "GET_IMAGE",
+      "canonical_tool_description_hash": "1f77cad21fa6fc3aeb508c0a07b830417bc1bdee35f08a2bc0a9c67edae36dc6",
+      "canonical_tool_input_schema_hash": "dfe9c04dd601c415eb9d10138aec3160fb4208a44e3c29f8021174bf21d7e3d9"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["path", "query"],
+      "properties": {
+        "path": {
+          "type": "object",
+          "required": ["file_key"],
+          "properties": {
+            "file_key": {
+              "type": "string",
+              "description": "The key of the file containing the images."
+            }
+          },
+          "description": "Path parameters",
+          "additionalProperties": false
+        },
+        "query": {
+          "type": "object",
+          "required": ["ids"],
+          "properties": {
+            "ids": {
+              "type": "string",
+              "description": "Comma-separated list of node IDs to render."
+            },
+            "scale": {
+              "type": "number",
+              "description": "Scale factor for the rendered images. Defaults to 1."
+            },
+            "format": {
+              "type": "string",
+              "description": "Image format to return. Options are 'jpg', 'png', 'svg', etc."
+            }
+          },
+          "description": "Query parameters",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "FIGMA__GET_FILE_VERSIONS",
+    "description": "Retrieves the version history of a Figma file based on the given file key.",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "GET_FILE_VERSIONS",
+      "canonical_tool_description_hash": "a0570a5781825158126d5f117d01ffbb29ee1eef75f60bfdfd54d395ee7f90a5",
+      "canonical_tool_input_schema_hash": "b0e79392362f8df725afd63b444b33424b7a810c32efd4e26385021abe7d96f5"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["path"],
+      "properties": {
+        "path": {
+          "type": "object",
+          "required": ["file_key"],
+          "properties": {
+            "file_key": {
+              "type": "string",
+              "description": "The key of the file whose versions are to be retrieved."
+            }
+          },
+          "description": "Path parameters",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "FIGMA__GET_TEAM_PROJECTS",
+    "description": "Retrieves a list of projects within a team based on the given team ID.",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "GET_TEAM_PROJECTS",
+      "canonical_tool_description_hash": "0a077e3d95e32ea39ff6bc1eb304f10b5c4d303ce4630e591b18ca76c3acb7b0",
+      "canonical_tool_input_schema_hash": "f2ba1c98c0e00a2133566513a66385a64998ab492cbcd2a8c1e81eceda22f2ff"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["path"],
+      "properties": {
+        "path": {
+          "type": "object",
+          "required": ["team_id"],
+          "properties": {
+            "team_id": {
+              "type": "string",
+              "description": "The ID of the team to retrieve projects from."
+            }
+          },
+          "description": "Path parameters",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "FIGMA__GET_PROJECT_FILES",
+    "description": "Lists the files in a given project based on the project ID.",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "GET_PROJECT_FILES",
+      "canonical_tool_description_hash": "87643a2b04ba86ec2bacc697f321f0c1d2298c71e2f5b2204c90a73662d17f8b",
+      "canonical_tool_input_schema_hash": "068762ab360d11b8868989057708bb785af09d00c00d43fb8591c8b4e0388a4b"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["path"],
+      "properties": {
+        "path": {
+          "type": "object",
+          "required": ["project_id"],
+          "properties": {
+            "project_id": {
+              "type": "string",
+              "description": "The ID of the project whose files should be listed."
+            }
+          },
+          "description": "Path parameters",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "FIGMA__GET_COMMENTS",
+    "description": "Retrieves all comments from a Figma file, including their content and author information.",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "GET_COMMENTS",
+      "canonical_tool_description_hash": "8ae2652cc2a4544b15ab5e8fb7a54d8d217bc793b4f04c067ff0970667f247e0",
+      "canonical_tool_input_schema_hash": "9b2799b2c69193f6df28c1c7923723c697f4662aa2690e17aef2d0bc516f6fd7"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["path"],
+      "properties": {
+        "path": {
+          "type": "object",
+          "required": ["file_key"],
+          "properties": {
+            "file_key": {
+              "type": "string",
+              "description": "The key of the file whose comments are to be retrieved."
+            }
+          },
+          "description": "Path parameters",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "FIGMA__GET_IMAGE_FILLS",
+    "description": "Returns download links for all images present in image fills in a document.",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "GET_IMAGE_FILLS",
+      "canonical_tool_description_hash": "49b672fefe87f92913546241d201ac0aa10595e3b7116bf00654e06a96230aab",
+      "canonical_tool_input_schema_hash": "9a05b499010900a6edea57f85acc531e2c7532bce6a30ebe07979315e35e244c"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["path"],
+      "properties": {
+        "path": {
+          "type": "object",
+          "required": ["file_key"],
+          "properties": {
+            "file_key": {
+              "type": "string",
+              "description": "The key of the file to get image fills from."
+            }
+          },
+          "description": "Path parameters",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "FIGMA__GET_FILE_COMPONENT_SETS",
+    "description": "Returns a list of component sets in a file, indicating which components belong to which component set.",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "GET_FILE_COMPONENT_SETS",
+      "canonical_tool_description_hash": "2b5c3f1f58a371e91ce23aaa022de4a0bce6f539c2013c52bdf22355dc635f65",
+      "canonical_tool_input_schema_hash": "195fcb5fbf16192dec89f42e6c33026f7cb76fe969cad1f8adcf138b44875128"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["path"],
+      "properties": {
+        "path": {
+          "type": "object",
+          "required": ["file_key"],
+          "properties": {
+            "file_key": {
+              "type": "string",
+              "description": "The key of the file to get component sets from."
+            }
+          },
+          "description": "Path parameters",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "FIGMA__GET_STYLE",
+    "description": "Retrieves a specific style node from a Figma file based on the given file key and node ID. Returns detailed information about the style, including its properties and metadata.",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "GET_STYLE",
+      "canonical_tool_description_hash": "29e5494244a439b522ac97307ad5e616d1534a70c315593dac03696d39ed5284",
+      "canonical_tool_input_schema_hash": "437dcad053bbd405fad514b6dc36fc0083107a56d6a248863ff7fb3d84ca5505"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["path", "query"],
+      "properties": {
+        "path": {
+          "type": "object",
+          "required": ["file_key"],
+          "properties": {
+            "file_key": {
+              "type": "string",
+              "description": "The key of the file containing the style."
+            }
+          },
+          "description": "Path parameters",
+          "additionalProperties": false
+        },
+        "query": {
+          "type": "object",
+          "required": ["ids"],
+          "properties": {
+            "ids": {
+              "type": "string",
+              "description": "The ID of the style node to retrieve."
+            }
+          },
+          "description": "Query parameters",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "FIGMA__GET_COMPONENT",
+    "description": "Retrieves a specific component node from a Figma file based on the given file key and node ID. Returns detailed information about the component, including its properties and metadata.",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "GET_COMPONENT",
+      "canonical_tool_description_hash": "e536b07ae03af7bfa360fb11be7be5fbfc8c98b0b75adaab24b5099bfc4cb82a",
+      "canonical_tool_input_schema_hash": "b2a5eb2d46842f78fa345e85c45902469eb1f35a5d3c27640860b3d584480af8"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["path", "query"],
+      "properties": {
+        "path": {
+          "type": "object",
+          "required": ["file_key"],
+          "properties": {
+            "file_key": {
+              "type": "string",
+              "description": "The key of the file containing the component."
+            }
+          },
+          "description": "Path parameters",
+          "additionalProperties": false
+        },
+        "query": {
+          "type": "object",
+          "required": ["ids"],
+          "properties": {
+            "ids": {
+              "type": "string",
+              "description": "The ID of the component node to retrieve."
+            }
+          },
+          "description": "Query parameters",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+]

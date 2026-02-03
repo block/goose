@@ -1,0 +1,214 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 600" width="1000" height="600">
+  <defs>
+    <linearGradient id="codeAgentGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#667eea;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#764ba2;stop-opacity:1" />
+    </linearGradient>
+    <linearGradient id="testAgentGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#43e97b;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#38f9d7;stop-opacity:1" />
+    </linearGradient>
+    <linearGradient id="deployAgentGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#f093fb;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#f5576c;stop-opacity:1" />
+    </linearGradient>
+    <linearGradient id="securityAgentGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#FF6B6B;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#ee5a24;stop-opacity:1" />
+    </linearGradient>
+    <linearGradient id="docsAgentGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#4facfe;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#00f2fe;stop-opacity:1" />
+    </linearGradient>
+    <linearGradient id="orchestratorGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#FFD93D;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#FF9500;stop-opacity:1" />
+    </linearGradient>
+    <linearGradient id="bgGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#1a1a2e;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#16213e;stop-opacity:1" />
+    </linearGradient>
+    <filter id="shadow">
+      <feDropShadow dx="0" dy="4" stdDeviation="8" flood-color="#000" flood-opacity="0.4"/>
+    </filter>
+    <filter id="glow">
+      <feGaussianBlur stdDeviation="3" result="coloredBlur"/>
+      <feMerge>
+        <feMergeNode in="coloredBlur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+
+  <!-- Background -->
+  <rect width="1000" height="600" fill="url(#bgGradient)"/>
+
+  <!-- Grid -->
+  <pattern id="grid" width="30" height="30" patternUnits="userSpaceOnUse">
+    <path d="M 30 0 L 0 0 0 30" fill="none" stroke="rgba(255,255,255,0.02)" stroke-width="1"/>
+  </pattern>
+  <rect width="1000" height="600" fill="url(#grid)"/>
+
+  <!-- Title -->
+  <text x="500" y="40" text-anchor="middle" font-family="'Segoe UI', Arial, sans-serif" font-size="28" font-weight="700" fill="#FFF">
+    5 Specialist Agents
+  </text>
+  <text x="500" y="65" text-anchor="middle" font-family="'Segoe UI', Arial, sans-serif" font-size="14" fill="rgba(255,255,255,0.6)">
+    Enterprise Multi-Agent Platform | 3,440 Lines of Code
+  </text>
+
+  <!-- Orchestrator (Central) -->
+  <g transform="translate(400, 130)" filter="url(#shadow)">
+    <rect width="200" height="100" rx="12" fill="url(#orchestratorGrad)"/>
+    <text x="100" y="35" text-anchor="middle" font-family="'Segoe UI', Arial, sans-serif" font-size="18" font-weight="700" fill="#1a1a2e">ORCHESTRATOR</text>
+    <text x="100" y="55" text-anchor="middle" font-family="'Segoe UI', Arial, sans-serif" font-size="11" fill="rgba(26,26,46,0.8)">Multi-Agent Coordination</text>
+    <text x="100" y="70" text-anchor="middle" font-family="'Segoe UI', Arial, sans-serif" font-size="11" fill="rgba(26,26,46,0.8)">Task Dependencies & Priority</text>
+    <text x="100" y="90" text-anchor="middle" font-family="'Segoe UI', Arial, sans-serif" font-size="10" fill="rgba(26,26,46,0.6)">1,022 lines</text>
+  </g>
+
+  <!-- Connection lines from Orchestrator to Agents -->
+  <g stroke="rgba(255,255,255,0.3)" stroke-width="2" fill="none">
+    <!-- To Code Agent -->
+    <path d="M420,230 L180,300"/>
+    <!-- To Test Agent -->
+    <path d="M480,230 L370,300"/>
+    <!-- To Deploy Agent -->
+    <path d="M520,230 L630,300"/>
+    <!-- To Security Agent -->
+    <path d="M560,230 L820,300"/>
+    <!-- To Docs Agent -->
+    <path d="M500,230 L500,300"/>
+  </g>
+
+  <!-- Code Agent -->
+  <g transform="translate(60, 300)" filter="url(#shadow)">
+    <rect width="170" height="180" rx="12" fill="url(#codeAgentGrad)"/>
+    <text x="85" y="30" text-anchor="middle" font-family="'Segoe UI', Arial, sans-serif" font-size="16" font-weight="700" fill="#FFF">CODE AGENT</text>
+    <text x="85" y="50" text-anchor="middle" font-family="'Segoe UI', Arial, sans-serif" font-size="10" fill="rgba(255,255,255,0.8)">568 lines</text>
+
+    <!-- Languages -->
+    <text x="85" y="75" text-anchor="middle" font-family="'Segoe UI', Arial, sans-serif" font-size="10" font-weight="600" fill="rgba(255,255,255,0.9)">Languages:</text>
+    <text x="85" y="90" text-anchor="middle" font-family="'Segoe UI', Arial, sans-serif" font-size="9" fill="rgba(255,255,255,0.7)">Rust | Python | JS | TS</text>
+    <text x="85" y="103" text-anchor="middle" font-family="'Segoe UI', Arial, sans-serif" font-size="9" fill="rgba(255,255,255,0.7)">Go | Java | C++ | C</text>
+
+    <!-- Frameworks -->
+    <text x="85" y="125" text-anchor="middle" font-family="'Segoe UI', Arial, sans-serif" font-size="10" font-weight="600" fill="rgba(255,255,255,0.9)">Frameworks:</text>
+    <text x="85" y="140" text-anchor="middle" font-family="'Segoe UI', Arial, sans-serif" font-size="9" fill="rgba(255,255,255,0.7)">React | Vue | Django</text>
+    <text x="85" y="153" text-anchor="middle" font-family="'Segoe UI', Arial, sans-serif" font-size="9" fill="rgba(255,255,255,0.7)">FastAPI | Express | Spring</text>
+
+    <!-- Icon -->
+    <g transform="translate(65, 160)">
+      <rect width="40" height="15" rx="2" fill="rgba(255,255,255,0.2)"/>
+      <text x="20" y="11" text-anchor="middle" font-family="'Segoe UI Mono', monospace" font-size="8" fill="rgba(255,255,255,0.6)">&lt;/&gt;</text>
+    </g>
+  </g>
+
+  <!-- Test Agent -->
+  <g transform="translate(255, 300)" filter="url(#shadow)">
+    <rect width="170" height="180" rx="12" fill="url(#testAgentGrad)"/>
+    <text x="85" y="30" text-anchor="middle" font-family="'Segoe UI', Arial, sans-serif" font-size="16" font-weight="700" fill="#1a1a2e">TEST AGENT</text>
+    <text x="85" y="50" text-anchor="middle" font-family="'Segoe UI', Arial, sans-serif" font-size="10" fill="rgba(26,26,46,0.8)">695 lines</text>
+
+    <!-- Frameworks -->
+    <text x="85" y="75" text-anchor="middle" font-family="'Segoe UI', Arial, sans-serif" font-size="10" font-weight="600" fill="rgba(26,26,46,0.9)">Test Frameworks:</text>
+    <text x="85" y="90" text-anchor="middle" font-family="'Segoe UI', Arial, sans-serif" font-size="9" fill="rgba(26,26,46,0.7)">Jest | Mocha | Pytest</text>
+    <text x="85" y="103" text-anchor="middle" font-family="'Segoe UI', Arial, sans-serif" font-size="9" fill="rgba(26,26,46,0.7)">Cargo Test | Go Test</text>
+
+    <!-- Test Types -->
+    <text x="85" y="125" text-anchor="middle" font-family="'Segoe UI', Arial, sans-serif" font-size="10" font-weight="600" fill="rgba(26,26,46,0.9)">Test Types:</text>
+    <text x="85" y="140" text-anchor="middle" font-family="'Segoe UI', Arial, sans-serif" font-size="9" fill="rgba(26,26,46,0.7)">Unit | Integration | E2E</text>
+    <text x="85" y="153" text-anchor="middle" font-family="'Segoe UI', Arial, sans-serif" font-size="9" fill="rgba(26,26,46,0.7)">Load | Performance</text>
+
+    <!-- Icon -->
+    <g transform="translate(65, 160)">
+      <circle cx="20" cy="8" r="6" fill="none" stroke="rgba(26,26,46,0.6)" stroke-width="1.5"/>
+      <path d="M16,8 L19,11 L25,5" fill="none" stroke="rgba(26,26,46,0.8)" stroke-width="1.5"/>
+    </g>
+  </g>
+
+  <!-- Docs Agent -->
+  <g transform="translate(450, 300)" filter="url(#shadow)">
+    <rect width="170" height="180" rx="12" fill="url(#docsAgentGrad)"/>
+    <text x="85" y="30" text-anchor="middle" font-family="'Segoe UI', Arial, sans-serif" font-size="16" font-weight="700" fill="#FFF">DOCS AGENT</text>
+    <text x="85" y="50" text-anchor="middle" font-family="'Segoe UI', Arial, sans-serif" font-size="10" fill="rgba(255,255,255,0.8)">69 lines</text>
+
+    <!-- Capabilities -->
+    <text x="85" y="75" text-anchor="middle" font-family="'Segoe UI', Arial, sans-serif" font-size="10" font-weight="600" fill="rgba(255,255,255,0.9)">Capabilities:</text>
+    <text x="85" y="95" text-anchor="middle" font-family="'Segoe UI', Arial, sans-serif" font-size="9" fill="rgba(255,255,255,0.7)">API Documentation</text>
+    <text x="85" y="110" text-anchor="middle" font-family="'Segoe UI', Arial, sans-serif" font-size="9" fill="rgba(255,255,255,0.7)">README Generation</text>
+    <text x="85" y="125" text-anchor="middle" font-family="'Segoe UI', Arial, sans-serif" font-size="9" fill="rgba(255,255,255,0.7)">Changelog Updates</text>
+    <text x="85" y="140" text-anchor="middle" font-family="'Segoe UI', Arial, sans-serif" font-size="9" fill="rgba(255,255,255,0.7)">Code Comments</text>
+
+    <!-- Icon -->
+    <g transform="translate(65, 155)">
+      <rect width="40" height="25" rx="2" fill="rgba(255,255,255,0.2)"/>
+      <line x1="70" y1="163" x2="95" y2="163" stroke="rgba(255,255,255,0.5)" stroke-width="1.5"/>
+      <line x1="70" y1="169" x2="90" y2="169" stroke="rgba(255,255,255,0.5)" stroke-width="1.5"/>
+      <line x1="70" y1="175" x2="85" y2="175" stroke="rgba(255,255,255,0.5)" stroke-width="1.5"/>
+    </g>
+  </g>
+
+  <!-- Deploy Agent -->
+  <g transform="translate(640, 300)" filter="url(#shadow)">
+    <rect width="170" height="180" rx="12" fill="url(#deployAgentGrad)"/>
+    <text x="85" y="30" text-anchor="middle" font-family="'Segoe UI', Arial, sans-serif" font-size="16" font-weight="700" fill="#FFF">DEPLOY AGENT</text>
+    <text x="85" y="50" text-anchor="middle" font-family="'Segoe UI', Arial, sans-serif" font-size="10" fill="rgba(255,255,255,0.8)">972 lines</text>
+
+    <!-- Platforms -->
+    <text x="85" y="75" text-anchor="middle" font-family="'Segoe UI', Arial, sans-serif" font-size="10" font-weight="600" fill="rgba(255,255,255,0.9)">Platforms:</text>
+    <text x="85" y="90" text-anchor="middle" font-family="'Segoe UI', Arial, sans-serif" font-size="9" fill="rgba(255,255,255,0.7)">Kubernetes | Docker</text>
+    <text x="85" y="103" text-anchor="middle" font-family="'Segoe UI', Arial, sans-serif" font-size="9" fill="rgba(255,255,255,0.7)">AWS | GCP | Azure</text>
+
+    <!-- Strategies -->
+    <text x="85" y="125" text-anchor="middle" font-family="'Segoe UI', Arial, sans-serif" font-size="10" font-weight="600" fill="rgba(255,255,255,0.9)">Strategies:</text>
+    <text x="85" y="140" text-anchor="middle" font-family="'Segoe UI', Arial, sans-serif" font-size="9" fill="rgba(255,255,255,0.7)">Blue-Green | Canary</text>
+    <text x="85" y="153" text-anchor="middle" font-family="'Segoe UI', Arial, sans-serif" font-size="9" fill="rgba(255,255,255,0.7)">Rolling | Shadow</text>
+
+    <!-- Icon -->
+    <g transform="translate(65, 160)">
+      <path d="M10,8 L20,0 L30,8 L20,16 Z" fill="none" stroke="rgba(255,255,255,0.6)" stroke-width="1.5"/>
+      <line x1="20" y1="16" x2="20" y2="12" stroke="rgba(255,255,255,0.6)" stroke-width="1.5"/>
+    </g>
+  </g>
+
+  <!-- Security Agent -->
+  <g transform="translate(830, 300)" filter="url(#shadow)">
+    <rect width="155" height="180" rx="12" fill="url(#securityAgentGrad)"/>
+    <text x="77" y="30" text-anchor="middle" font-family="'Segoe UI', Arial, sans-serif" font-size="14" font-weight="700" fill="#FFF">SECURITY</text>
+    <text x="77" y="45" text-anchor="middle" font-family="'Segoe UI', Arial, sans-serif" font-size="14" font-weight="700" fill="#FFF">AGENT</text>
+    <text x="77" y="62" text-anchor="middle" font-family="'Segoe UI', Arial, sans-serif" font-size="10" fill="rgba(255,255,255,0.8)">817 lines</text>
+
+    <!-- Capabilities -->
+    <text x="77" y="85" text-anchor="middle" font-family="'Segoe UI', Arial, sans-serif" font-size="10" font-weight="600" fill="rgba(255,255,255,0.9)">Capabilities:</text>
+    <text x="77" y="102" text-anchor="middle" font-family="'Segoe UI', Arial, sans-serif" font-size="9" fill="rgba(255,255,255,0.7)">Vuln Scanning</text>
+    <text x="77" y="117" text-anchor="middle" font-family="'Segoe UI', Arial, sans-serif" font-size="9" fill="rgba(255,255,255,0.7)">Dep Auditing</text>
+    <text x="77" y="132" text-anchor="middle" font-family="'Segoe UI', Arial, sans-serif" font-size="9" fill="rgba(255,255,255,0.7)">SAST/DAST</text>
+    <text x="77" y="147" text-anchor="middle" font-family="'Segoe UI', Arial, sans-serif" font-size="9" fill="rgba(255,255,255,0.7)">Policy Enforce</text>
+
+    <!-- Icon -->
+    <g transform="translate(57, 155)">
+      <path d="M20,5 L30,10 L30,20 Q30,25 20,30 Q10,25 10,20 L10,10 Z" fill="none" stroke="rgba(255,255,255,0.6)" stroke-width="1.5"/>
+    </g>
+  </g>
+
+  <!-- Stats bar at bottom -->
+  <g transform="translate(60, 530)">
+    <rect width="880" height="50" rx="8" fill="rgba(255,255,255,0.03)" stroke="rgba(255,255,255,0.1)" stroke-width="1"/>
+
+    <text x="110" y="32" text-anchor="middle" font-family="'Segoe UI', Arial, sans-serif" font-size="20" font-weight="700" fill="#FFD93D">5</text>
+    <text x="110" y="45" text-anchor="middle" font-family="'Segoe UI', Arial, sans-serif" font-size="10" fill="rgba(255,255,255,0.6)">Specialist Agents</text>
+
+    <text x="290" y="32" text-anchor="middle" font-family="'Segoe UI', Arial, sans-serif" font-size="20" font-weight="700" fill="#667eea">8</text>
+    <text x="290" y="45" text-anchor="middle" font-family="'Segoe UI', Arial, sans-serif" font-size="10" fill="rgba(255,255,255,0.6)">Languages</text>
+
+    <text x="470" y="32" text-anchor="middle" font-family="'Segoe UI', Arial, sans-serif" font-size="20" font-weight="700" fill="#43e97b">11</text>
+    <text x="470" y="45" text-anchor="middle" font-family="'Segoe UI', Arial, sans-serif" font-size="10" fill="rgba(255,255,255,0.6)">Frameworks</text>
+
+    <text x="650" y="32" text-anchor="middle" font-family="'Segoe UI', Arial, sans-serif" font-size="20" font-weight="700" fill="#f093fb">7</text>
+    <text x="650" y="45" text-anchor="middle" font-family="'Segoe UI', Arial, sans-serif" font-size="10" fill="rgba(255,255,255,0.6)">Cloud Platforms</text>
+
+    <text x="830" y="32" text-anchor="middle" font-family="'Segoe UI', Arial, sans-serif" font-size="20" font-weight="700" fill="#4facfe">10</text>
+    <text x="830" y="45" text-anchor="middle" font-family="'Segoe UI', Arial, sans-serif" font-size="10" fill="rgba(255,255,255,0.6)">Workflow Categories</text>
+  </g>
+</svg>

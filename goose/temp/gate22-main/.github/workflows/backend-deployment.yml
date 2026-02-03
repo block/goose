@@ -1,0 +1,93 @@
+name: Backend ECS Deployment
+on:
+  workflow_dispatch: # For manual deployment
+  push:
+    tags:
+      - "[0-9]+.[0-9]+.[0-9]+" # 1.2.3
+      - "[0-9]+.[0-9]+.[0-9]+-*" # 1.2.3-beta.1 / -hotfix
+    # TODO: consider only trigger on main branch?
+
+jobs:
+  build-control-plane:
+    name: Build Control Plane
+    uses: ./.github/workflows/ecs-build-image.yml
+    secrets: inherit
+    with:
+      ecr_repository_url: ${{ vars.CICD_ECR_REPOSITORY_URL_CONTROL_PLANE }}
+      image_tag: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || github.sha }}
+      dockerfile: Dockerfile.control_plane
+
+  build-virtual-mcp:
+    name: Build Virtual MCP
+    uses: ./.github/workflows/ecs-build-image.yml
+    secrets: inherit
+    with:
+      ecr_repository_url: ${{ vars.CICD_ECR_REPOSITORY_URL_VIRTUAL_MCP }}
+      image_tag: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || github.sha }}
+      dockerfile: Dockerfile.virtual_mcp
+
+  build-mcp:
+    name: Build MCP
+    uses: ./.github/workflows/ecs-build-image.yml
+    secrets: inherit
+    with:
+      ecr_repository_url: ${{ vars.CICD_ECR_REPOSITORY_URL_MCP }}
+      image_tag: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || github.sha }}
+      dockerfile: Dockerfile.mcp
+
+  build-migration:
+    name: Build Migration
+    uses: ./.github/workflows/ecs-build-image.yml
+    secrets: inherit
+    with:
+      ecr_repository_url: ${{ vars.CICD_ECR_REPOSITORY_URL_MIGRATION }}
+      image_tag: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || github.sha }}
+      dockerfile: Dockerfile.migration
+
+  db-migration:
+    name: Database Migration
+    needs: [build-control-plane, build-virtual-mcp, build-mcp, build-migration] # Make sure all images are prepared before running migrations
+    uses: ./.github/workflows/ecs-db-migration.yml
+    secrets: inherit
+    with:
+      ecs_task_definition: ${{ vars.CICD_ECS_TASK_DEFINITION_MIGRATION }}
+      ecs_cluster: ${{ vars.CICD_ECS_CLUSTER }}
+      ecr_repository_url: ${{ vars.CICD_ECR_REPOSITORY_URL_MIGRATION }}
+      image_tag: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || github.sha }}
+      referenced_network_config_ecs_service: ${{ vars.CICD_ECS_SERVICE_CONTROL_PLANE }} # Use Contorol Plane Service network configuration for DB Migration Task
+
+  deploy-control-plane:
+    name: Deploy Control Plane
+    needs: [build-control-plane, db-migration]
+    uses: ./.github/workflows/ecs-deploy-service.yml
+    secrets: inherit
+    with:
+      ecs_task_definition: ${{ vars.CICD_ECS_TASK_DEFINITION_CONTROL_PLANE }}
+      ecs_service: ${{ vars.CICD_ECS_SERVICE_CONTROL_PLANE }}
+      ecs_cluster: ${{ vars.CICD_ECS_CLUSTER }}
+      ecr_repository_url: ${{ vars.CICD_ECR_REPOSITORY_URL_CONTROL_PLANE }}
+      image_tag: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || github.sha }}
+
+  deploy-virtual-mcp:
+    name: Deploy Virtual MCP
+    needs: [build-virtual-mcp, db-migration]
+    uses: ./.github/workflows/ecs-deploy-service.yml
+    secrets: inherit
+    with:
+      ecs_task_definition: ${{ vars.CICD_ECS_TASK_DEFINITION_VIRTUAL_MCP }}
+      ecs_service: ${{ vars.CICD_ECS_SERVICE_VIRTUAL_MCP }}
+      ecs_cluster: ${{ vars.CICD_ECS_CLUSTER }}
+      ecr_repository_url: ${{ vars.CICD_ECR_REPOSITORY_URL_VIRTUAL_MCP }}
+      image_tag: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || github.sha }}
+
+  deploy-mcp:
+    name: Deploy MCP
+    needs: [build-mcp, db-migration]
+    uses: ./.github/workflows/ecs-deploy-service.yml
+    secrets: inherit
+    with:
+      ecs_task_definition: ${{ vars.CICD_ECS_TASK_DEFINITION_MCP }}
+      ecs_service: ${{ vars.CICD_ECS_SERVICE_MCP }}
+      ecs_cluster: ${{ vars.CICD_ECS_CLUSTER }}
+      ecr_repository_url: ${{ vars.CICD_ECR_REPOSITORY_URL_MCP }}
+      image_tag: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || github.sha }}

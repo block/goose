@@ -1,0 +1,101 @@
+### 2. Instrument your application
+    <Tabs>
+      <Tab title="SDK">
+        **For direct integration into your Python applications:**
+        
+        <Tabs>
+          <Tab title="Function Arguments">
+          ```python
+          import openlit
+
+          openlit.init(
+            otlp_endpoint="MW_TARGET",
+            application_name="YOUR_APPLICATION_NAME",
+            otlp_headers={
+                "Authorization": "MW_API_KEY",
+                "X-Trace-Source": "openlit",
+            }
+          )
+          ```
+
+          Replace:
+          1. `MW_TARGET` with your Middleware target URL from Step 1.
+             * Example: `https://abcd.middleware.io:443`
+          2. `MW_API_KEY` with your Middleware API key from Step 1.
+             * Example: `dxyxsdojzrgpsvizzzcsvhrwnmzqdsdsd`
+          3. `YOUR_APPLICATION_NAME` with your application name.
+          </Tab>
+          
+          <Tab title="Environment Variables">
+          ```python
+          import openlit
+
+          openlit.init()
+          ```
+
+          Set these environment variables:
+          ```shell
+          export OTEL_EXPORTER_OTLP_ENDPOINT="MW_TARGET"
+          export OTEL_SERVICE_NAME="YOUR_APPLICATION_NAME"
+          export OTEL_EXPORTER_OTLP_HEADERS="Authorization=MW_API_KEY,X-Trace-Source=openlit"
+          ```
+
+          Replace:
+          1. `MW_TARGET` with your Middleware target URL from Step 1.
+             * Example: `https://abcd.middleware.io:443`
+          2. `MW_API_KEY` with your Middleware API key from Step 1.
+             * Example: `dxyxsdojzrgpsvizzzcsvhrwnmzqdsdsd`
+          3. `YOUR_APPLICATION_NAME` with your application name.
+          </Tab>
+        </Tabs>
+
+        Refer to the OpenLIT [Python SDK repository](https://github.com/openlit/openlit/tree/main/sdk/python) for more advanced configurations and use cases.
+      </Tab>
+      
+      <Tab title="CLI">
+        **For zero-code auto-instrumentation via command line:**
+        
+        <Tabs>
+          <Tab title="CLI Arguments">
+          ```shell
+          # Using CLI arguments
+          openlit-instrument \
+            --otlp-endpoint "MW_TARGET" \
+            --otlp-headers "Authorization=MW_API_KEY,X-Trace-Source=openlit" \
+            --service-name "YOUR_APPLICATION_NAME" \
+            --deployment-environment "production" \
+            python app.py
+          ```
+          
+          Replace:
+          1. `MW_TARGET` with your Middleware target URL from Step 1.
+             * Example: `https://abcd.middleware.io:443`
+          2. `MW_API_KEY` with your Middleware API key from Step 1.
+             * Example: `dxyxsdojzrgpsvizzzcsvhrwnmzqdsdsd`
+          3. `YOUR_APPLICATION_NAME` with your application name.
+          </Tab>
+          
+          <Tab title="Environment Variables">
+          ```shell
+          # Set environment variables (takes precedence over CLI args)
+          export OTEL_EXPORTER_OTLP_ENDPOINT="MW_TARGET"
+          export OTEL_EXPORTER_OTLP_HEADERS="Authorization=MW_API_KEY,X-Trace-Source=openlit"
+          export OTEL_SERVICE_NAME="YOUR_APPLICATION_NAME"
+          export OTEL_DEPLOYMENT_ENVIRONMENT="production"
+          
+          # Run your application
+          openlit-instrument python app.py
+          ```
+          
+          Replace:
+          1. `MW_TARGET` with your Middleware target URL from Step 1.
+             * Example: `https://abcd.middleware.io:443`
+          2. `MW_API_KEY` with your Middleware API key from Step 1.
+             * Example: `dxyxsdojzrgpsvizzzcsvhrwnmzqdsdsd`
+          3. `YOUR_APPLICATION_NAME` with your application name.
+          </Tab>
+        </Tabs>
+
+        Refer to the OpenLIT [Python SDK repository](https://github.com/openlit/openlit/tree/main/sdk/python) for more advanced configurations and use cases.
+      </Tab>
+    </Tabs>

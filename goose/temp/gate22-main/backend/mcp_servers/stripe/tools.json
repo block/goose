@@ -1,0 +1,690 @@
+[
+  {
+    "name": "STRIPE__SEARCH_STRIPE_DOCUMENTATION",
+    "description": "Search the Stripe documentation for the given question and language.\n\nIt takes two arguments:\n- question (str): The user question to search an answer for in the Stripe documentation.\n- language (str, optional): The programming language to search for in the the documentation.\n",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "search_stripe_documentation",
+      "canonical_tool_description_hash": "73878a0be4c123429272d0942618ffd544baf136fee6ac42e3a4ee4fff67d4ee",
+      "canonical_tool_input_schema_hash": "d4c69e938571ddd04853c1fe45f4f843f7d9a8b9b8544d4641db52e85fe95409"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "question": {
+          "type": "string",
+          "description": "The user question about integrating with Stripe will be used to search the documentation."
+        },
+        "language": {
+          "type": "string",
+          "description": "The programming language to search for in the the documentation.",
+          "enum": ["dotnet", "go", "java", "node", "php", "ruby", "python", "curl"]
+        },
+        "search_only_api_ref": {
+          "type": "boolean",
+          "description": "When set to true, search only in the Stripe API reference documentation instead of the full documentation set. Use true when users need specific API implementation details, code examples, or parameter references. Use false (default) for conceptual explanations, best practices, integration guides, or troubleshooting help."
+        }
+      },
+      "required": ["question"]
+    }
+  },
+  {
+    "name": "STRIPE__GET_STRIPE_ACCOUNT_INFO",
+    "description": "This will get the account info for the logged in Stripe account.\n",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "get_stripe_account_info",
+      "canonical_tool_description_hash": "f65d70f303cf652900ee2cb281ee595e3fafabcebc0d7ff99ee24696872c8b93",
+      "canonical_tool_input_schema_hash": "efddc7bd8bbcef73a14eb1ace1ffdaec81e518ef1e13c1e9271d0b8acb694a49"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {}
+    }
+  },
+  {
+    "name": "STRIPE__CREATE_CUSTOMER",
+    "description": "This tool will create a customer in Stripe.\n\nIt takes two arguments:\n- name (str): The name of the customer.\n- email (str, optional): The email of the customer.\n",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "create_customer",
+      "canonical_tool_description_hash": "e759cd3047d0e7ad4ae99f1dfa2726890b1a834cb5c2287c8fec95ed9e1729b2",
+      "canonical_tool_input_schema_hash": "39778da6668ca3e39e73f98aeee01da54c2fed2d65837a979cbf3f12e604df11"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "description": "The name of the customer",
+          "type": "string"
+        },
+        "email": {
+          "description": "The email of the customer",
+          "format": "email",
+          "type": "string"
+        }
+      },
+      "required": ["name"]
+    }
+  },
+  {
+    "name": "STRIPE__LIST_CUSTOMERS",
+    "description": "This tool will fetch a list of Customers from Stripe.\n\nIt takes two arguments:\n- limit (int, optional): The number of customers to return.\n- email (str, optional): A case-sensitive filter on the list based on the customer's email field.\n",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "list_customers",
+      "canonical_tool_description_hash": "e8d36c984ff141dda1e184924d0bb6feacbb9f39238b21618c677061e1c1d455",
+      "canonical_tool_input_schema_hash": "247edd63bdc1bca484bb735f6c3bb8f4279df84972c940b154cfad58c9f32cb6"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "limit": {
+          "description": "A limit on the number of objects to be returned. Limit can range between 1 and 100.",
+          "minimum": 1,
+          "maximum": 100,
+          "type": "integer"
+        },
+        "email": {
+          "description": "A case-sensitive filter on the list based on the customer's email field. The value must be a string.",
+          "type": "string"
+        }
+      }
+    }
+  },
+  {
+    "name": "STRIPE__CREATE_PRODUCT",
+    "description": "This tool will create a product in Stripe.\n\nIt takes two arguments:\n- name (str): The name of the product.\n- description (str, optional): The description of the product.\n",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "create_product",
+      "canonical_tool_description_hash": "d5b90984d49646f4d2e6f4140dad91eca2cd992f2359c01aa9420c3c22f6c39a",
+      "canonical_tool_input_schema_hash": "272c7beef94a86c9f448faece884235a52a1e52aaa3e64cad04501efb4ff2420"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "description": "The name of the product.",
+          "type": "string"
+        },
+        "description": {
+          "description": "The description of the product.",
+          "type": "string"
+        }
+      },
+      "required": ["name"]
+    }
+  },
+  {
+    "name": "STRIPE__LIST_PRODUCTS",
+    "description": "This tool will fetch a list of Products from Stripe.\n\nIt takes one optional argument:\n- limit (int, optional): The number of products to return.\n",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "list_products",
+      "canonical_tool_description_hash": "b04ba59c30c0880ecd3f9551728f8eab18648e6fd6161b4eca217dbb434da733",
+      "canonical_tool_input_schema_hash": "22354d2d0ed25b27cd6725b7657632617b9c5c3fec3dad19f448c8daeeb4adec"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "limit": {
+          "description": "A limit on the number of objects to be returned. Limit can range between 1 and 100, and the default is 10.",
+          "minimum": 1,
+          "maximum": 100,
+          "type": "integer"
+        }
+      }
+    }
+  },
+  {
+    "name": "STRIPE__CREATE_PRICE",
+    "description": "This tool will create a price in Stripe. If a product has not already been specified, a product should be created first.\n\nIt takes three arguments:\n- product (str): The ID of the product to create the price for.\n- unit_amount (int): The unit amount of the price in currency minor units, e.g. cents for USD and yen for JPY.\n- currency (str): The currency of the price.\n",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "create_price",
+      "canonical_tool_description_hash": "24c2107f14bd7441f16c761ede757415962183c3f7e6997cac5c8be47b2a14a6",
+      "canonical_tool_input_schema_hash": "368e078b57497182af4349e180e7f0dbc6b2d46118c9a0712b98f980f8143397"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "product": {
+          "description": "The ID of the product to create the price for.",
+          "type": "string"
+        },
+        "unit_amount": {
+          "description": "The unit amount of the price in cents.",
+          "type": "number"
+        },
+        "currency": {
+          "description": "The currency of the price.",
+          "type": "string"
+        },
+        "recurring": {
+          "description": "The recurring components of a price such as its interval.",
+          "type": "object",
+          "properties": {
+            "interval": {
+              "description": "Specifies billing frequency. Either day, week, month or year.",
+              "enum": ["day", "month", "week", "year"],
+              "type": "string"
+            },
+            "interval_count": {
+              "description": "The number of intervals between subscription billings. For example, interval=month and interval_count=3 bills every 3 months. Maximum of three years interval allowed (3 years, 36 months, or 156 weeks).",
+              "type": "integer"
+            }
+          },
+          "additionalProperties": false,
+          "required": ["interval"]
+        }
+      },
+      "required": ["currency", "product", "unit_amount"]
+    }
+  },
+  {
+    "name": "STRIPE__LIST_PRICES",
+    "description": "This tool will fetch a list of Prices from Stripe.\n\nIt takes two arguments.\n- product (str, optional): The ID of the product to list prices for.\n- limit (int, optional): The number of prices to return.\n\nNote that the price unit_amount returned is in currency minor units, e.g. cents for USD and yen for JPY.\n",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "list_prices",
+      "canonical_tool_description_hash": "a1f5c95cc8fe7fbde860429662c47a8b8e6e5d1561c7a32a59d5b1b603d77c27",
+      "canonical_tool_input_schema_hash": "fa80e5c22755e6ceb4cfb4b5ecba4c9e7bd31e0c685aaaaa73bfd8d11452ff09"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "product": {
+          "description": "The ID of the product to list prices for.",
+          "type": "string"
+        },
+        "limit": {
+          "description": "A limit on the number of objects to be returned. Limit can range between 1 and 100, and the default is 10.",
+          "minimum": 1,
+          "maximum": 100,
+          "type": "integer"
+        }
+      }
+    }
+  },
+  {
+    "name": "STRIPE__CREATE_PAYMENT_LINK",
+    "description": "This tool will create a payment link in Stripe.\n\nIt takes two arguments:\n- price (str): The ID of the price to create the payment link for.\n- quantity (int): The quantity of the product to include in the payment link.\n",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "create_payment_link",
+      "canonical_tool_description_hash": "e2f0687050ec885f36d644c1e516cdb9d6d733e2f049f63674b54c285ab964f0",
+      "canonical_tool_input_schema_hash": "0c4140cdb0cc379cdd0df6ad0fe4eba9338f41f0ee6bc875d5d4344befe87d5a"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "price": {
+          "description": "The ID of the price to create the payment link for.",
+          "type": "string"
+        },
+        "quantity": {
+          "description": "The quantity of the product to include.",
+          "type": "number"
+        }
+      },
+      "required": ["price", "quantity"]
+    }
+  },
+  {
+    "name": "STRIPE__CREATE_INVOICE",
+    "description": "  This tool will create an invoice in Stripe.\n\n  It takes two arguments:\n  - customer (str): The ID of the customer to create the invoice for.\n\n  - days_until_due (int, optional): The number of days until the invoice is due.\n",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "create_invoice",
+      "canonical_tool_description_hash": "dea8175e2b2711fdcf0110b25de7ded80cf3adf4fcbc1c13425c5e24bafcf451",
+      "canonical_tool_input_schema_hash": "4266c47b81841e5f73d2d60d9764fdbedb796d8da5e38db5efa137370d6fd08f"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "customer": {
+          "description": "The ID of the customer to create the invoice for.",
+          "type": "string"
+        },
+        "days_until_due": {
+          "description": "The number of days until the invoice is due.",
+          "type": "number"
+        }
+      },
+      "required": ["customer"]
+    }
+  },
+  {
+    "name": "STRIPE__LIST_INVOICES",
+    "description": "This tool will fetch a list of Invoices from Stripe.\n\nIt takes two arguments:\n- customer (str, optional): The ID of the customer to list invoices for.\n\n- limit (int, optional): The number of invoices to return.\n",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "list_invoices",
+      "canonical_tool_description_hash": "96328cecfde448024bc42793888f2d94fc4730672f52be25ca2b6ff60d98d7fb",
+      "canonical_tool_input_schema_hash": "99ae221a7132647c313535b5a623c9a39060c26d7ab146b1066f31dd1513e24f"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "customer": {
+          "description": "The ID of the customer to list invoices for.",
+          "type": "string"
+        },
+        "limit": {
+          "description": "A limit on the number of objects to be returned. Limit can range between 1 and 100, and the default is 10.",
+          "minimum": 1,
+          "maximum": 100,
+          "type": "integer"
+        }
+      }
+    }
+  },
+  {
+    "name": "STRIPE__CREATE_INVOICE_ITEM",
+    "description": "This tool will create an invoice item in Stripe.\n\nIt takes three arguments:\n- customer (str): The ID of the customer to create the invoice item for.\n- price (str): The ID of the price to create the invoice item for.\n- invoice (str): The ID of the invoice to create the invoice item for.\n",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "create_invoice_item",
+      "canonical_tool_description_hash": "78d46e04dae83398fa075eb7acbd725bc32ba2e2d51d89d3407d5a74288cf98e",
+      "canonical_tool_input_schema_hash": "50c531df435769c272164e739eb2ab51daf14ebfd8a52989ab4bf7e7c15e49ae"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "customer": {
+          "description": "The ID of the customer to create the invoice item for.",
+          "type": "string"
+        },
+        "price": {
+          "description": "The ID of the price for the item.",
+          "type": "string"
+        },
+        "invoice": {
+          "description": "The ID of the invoice to create the item for.",
+          "type": "string"
+        }
+      },
+      "required": ["customer", "invoice", "price"]
+    }
+  },
+  {
+    "name": "STRIPE__FINALIZE_INVOICE",
+    "description": "This tool will finalize an invoice in Stripe.\n\nIt takes one argument:\n- invoice (str): The ID of the invoice to finalize.\n",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "finalize_invoice",
+      "canonical_tool_description_hash": "09440d91e9c48e59e82392b5ca395fd7444a2be524d2e0c897ec0d8e5296b73d",
+      "canonical_tool_input_schema_hash": "7681c6e276ca43e477cb756ad3298e42ae51acb41f65ea2617fe89603cef93b5"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "invoice": {
+          "description": "The ID of the invoice to finalize.",
+          "type": "string"
+        }
+      },
+      "required": ["invoice"]
+    }
+  },
+  {
+    "name": "STRIPE__RETRIEVE_BALANCE",
+    "description": "This tool will retrieve the balance from Stripe. It takes no input.\n",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "retrieve_balance",
+      "canonical_tool_description_hash": "2d3d94e342b03c80765029b02e87a4ce74f26b2044cc5b1de6694932f39ba000",
+      "canonical_tool_input_schema_hash": "efddc7bd8bbcef73a14eb1ace1ffdaec81e518ef1e13c1e9271d0b8acb694a49"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {}
+    }
+  },
+  {
+    "name": "STRIPE__CREATE_REFUND",
+    "description": "This tool will refund a payment intent in Stripe.\n\nIt takes three arguments:\n- payment_intent (str): The ID of the payment intent to refund.\n- amount (int, optional): The amount to refund in currency minor units, e.g. cents for USD and yen for JPY.\n- reason (str, optional): The reason for the refund. Options: \"duplicate\", \"fraudulent\", \"requested_by_customer\".\n",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "create_refund",
+      "canonical_tool_description_hash": "46257a7c08fc958ff3e8df0269b71a60d423aff098b555e283651909f36c9f58",
+      "canonical_tool_input_schema_hash": "e1635c36c1f9242e0252e77e7d2cff4003d788c2ac1baa9bb7a15ee54a062487"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "payment_intent": {
+          "description": "The ID of the PaymentIntent to refund.",
+          "type": "string"
+        },
+        "amount": {
+          "description": "The amount to refund in cents.",
+          "type": "integer"
+        },
+        "reason": {
+          "description": "The reason for the refund.",
+          "enum": ["duplicate", "fraudulent", "requested_by_customer"],
+          "type": "string"
+        }
+      },
+      "required": ["payment_intent"]
+    }
+  },
+  {
+    "name": "STRIPE__LIST_PAYMENT_INTENTS",
+    "description": "This tool will list payment intents in Stripe.\n\nIt takes two arguments:\n- customer (str, optional): The ID of the customer to list payment intents for.\n- limit (int, optional): The number of payment intents to return.\n\nNote that the payment intent amount returned is in currency minor units, e.g. cents for USD and yen for JPY.\n",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "list_payment_intents",
+      "canonical_tool_description_hash": "62b7df7eb8e6cd2ae30194d347806ec4fe7e0cc8620a3f08a65e77ad5c6a997d",
+      "canonical_tool_input_schema_hash": "8011b60cdde9f1231f00c7f7af75d9b2c0dc55716dda540a020847d26977b9e4"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "customer": {
+          "description": "The ID of the customer to list payment intents for.",
+          "type": "string"
+        },
+        "limit": {
+          "description": "A limit on the number of objects to be returned. Limit can range between 1 and 100.",
+          "minimum": 1,
+          "maximum": 100,
+          "type": "integer"
+        }
+      }
+    }
+  },
+  {
+    "name": "STRIPE__LIST_SUBSCRIPTIONS",
+    "description": "This tool will list all subscriptions in Stripe.\n\nIt takes four arguments:\n- customer (str, optional): The ID of the customer to list subscriptions for.\n\n- price (str, optional): The ID of the price to list subscriptions for.\n- status (str, optional): The status of the subscriptions to list.\n- limit (int, optional): The number of subscriptions to return.\n",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "list_subscriptions",
+      "canonical_tool_description_hash": "1015630bb6f2e9a68eca2cd3cba3798ca4a85c0c9d0906366b6d5f5732512638",
+      "canonical_tool_input_schema_hash": "5e4b240b9888f43f6e05900a74c7be7fd98404dd977cbbef0bbe8712f6a709c8"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "customer": {
+          "description": "The ID of the customer to list subscriptions for.",
+          "type": "string"
+        },
+        "price": {
+          "description": "The ID of the price to list subscriptions for.",
+          "type": "string"
+        },
+        "status": {
+          "description": "The status of the subscriptions to retrieve.",
+          "enum": [
+            "active",
+            "all",
+            "canceled",
+            "incomplete",
+            "incomplete_expired",
+            "past_due",
+            "trialing",
+            "unpaid"
+          ],
+          "type": "string"
+        },
+        "limit": {
+          "description": "A limit on the number of objects to be returned. Limit can range between 1 and 100.",
+          "minimum": 1,
+          "maximum": 100,
+          "type": "integer"
+        }
+      }
+    }
+  },
+  {
+    "name": "STRIPE__CANCEL_SUBSCRIPTION",
+    "description": "This tool will cancel a subscription in Stripe.\n\nIt takes the following arguments:\n- subscription (str, required): The ID of the subscription to cancel.\n",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "cancel_subscription",
+      "canonical_tool_description_hash": "9398434d300edb5b5b96cb316f746c7285d58859ca468dc4c9842937bd45fd74",
+      "canonical_tool_input_schema_hash": "2ba36da97217a06d11761b50e16be9cfa5e701c23d3b8e7014e49cab668af895"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "subscription": {
+          "description": "The ID of the subscription to cancel.",
+          "type": "string"
+        }
+      },
+      "required": ["subscription"]
+    }
+  },
+  {
+    "name": "STRIPE__UPDATE_SUBSCRIPTION",
+    "description": "  This tool will update an existing subscription in Stripe. If changing an existing subscription item, the existing subscription item has to be set to deleted and the new one has to be added.\n\n  It takes the following arguments:\n  - subscription (str, required): The ID of the subscription to update.\n  - proration_behavior (str, optional): Determines how to handle prorations when the subscription items change. Options: 'create_prorations', 'none', 'always_invoice', 'none_implicit'.\n  - items (array, optional): A list of subscription items to update, add, or remove. Each item can have the following properties:\n    - id (str, optional): The ID of the subscription item to modify.\n    - price (str, optional): The ID of the price to switch to.\n    - quantity (int, optional): The quantity of the plan to subscribe to.\n    - deleted (bool, optional): Whether to delete this item.\n",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "update_subscription",
+      "canonical_tool_description_hash": "243aef453979609fbc488d121e853397b8467ad0a23d4eb8942788129a12f367",
+      "canonical_tool_input_schema_hash": "5895ec6dcc83cbbdeaf5d70c4291e8575363c640ab88e7a29c8ca1a8dac5f646"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "subscription": {
+          "description": "The ID of the subscription to update.",
+          "type": "string"
+        },
+        "proration_behavior": {
+          "description": "Determines how to handle prorations when the subscription items change.",
+          "enum": ["always_invoice", "create_prorations", "none", "none_implicit"],
+          "type": "string"
+        },
+        "items": {
+          "description": "A list of subscription items to update, add, or remove.",
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "description": "The ID of the subscription item to modify.",
+                "type": "string"
+              },
+              "price": {
+                "description": "The ID of the price to switch to.",
+                "type": "string"
+              },
+              "quantity": {
+                "description": "The quantity of the plan to subscribe to.",
+                "type": "number"
+              },
+              "deleted": {
+                "description": "Whether to delete this item.",
+                "type": "boolean"
+              }
+            },
+            "additionalProperties": false
+          }
+        }
+      },
+      "required": ["subscription"]
+    }
+  },
+  {
+    "name": "STRIPE__LIST_COUPONS",
+    "description": "This tool will fetch a list of Coupons from Stripe.\n\nIt takes one optional argument:\n- limit (int, optional): The number of coupons to return.\n",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "list_coupons",
+      "canonical_tool_description_hash": "cf6a71322d4c5639977f46063d05b1e164d9a044f66566071c762ac29a4c7769",
+      "canonical_tool_input_schema_hash": "4347fb06d872f44f7d1b960fb804c58c84d1366cc64ffcb37454587a1fc12bd1"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "limit": {
+          "description": "A limit on the number of objects to be returned. Limit can range between 1 and 100.",
+          "minimum": 1,
+          "maximum": 100,
+          "type": "integer"
+        }
+      }
+    }
+  },
+  {
+    "name": "STRIPE__CREATE_COUPON",
+    "description": "This tool will create a coupon in Stripe.\n\nIt takes several arguments:\n- name (str): The name of the coupon.\n\nOnly use one of percent_off or amount_off, not both:\n- percent_off (number, optional): The percentage discount to apply (between 0 and 100).\n- amount_off (number, optional): The amount to subtract from an invoice (in currency minor units, e.g. cents for USD and yen for JPY).\n\nOptional arguments for duration. Use if specific duration is desired, otherwise default to 'once'.\n- duration (str, optional): How long the discount will last ('once', 'repeating', or 'forever'). Defaults to 'once'.\n- duration_in_months (number, optional): The number of months the discount will last if duration is repeating.\n",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "create_coupon",
+      "canonical_tool_description_hash": "92ad4ae536390c2fe79efe08a274c1fcdb471e6c403a84d79203c0e62ea3f1eb",
+      "canonical_tool_input_schema_hash": "311b1c5a0c966355fc3152f4abbbfa7b4221c9ef93be45e0c97affa192cfe3a4"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "description": "Name of the coupon displayed to customers on invoices or receipts",
+          "type": "string"
+        },
+        "percent_off": {
+          "description": "A positive float larger than 0, and smaller or equal to 100, that represents the discount the coupon will apply (required if amount_off is not passed)",
+          "type": "number"
+        },
+        "amount_off": {
+          "description": "A positive integer representing the amount to subtract from an invoice total (required if percent_off is not passed)",
+          "type": "number"
+        },
+        "currency": {
+          "description": "Three-letter ISO code for the currency of the amount_off parameter (required if amount_off is passed). Infer based on the amount_off. For example, if a coupon is $2 off, set currency to be USD.",
+          "type": "string",
+          "default": "USD"
+        },
+        "duration": {
+          "description": "How long the discount will last. Defaults to \"once\"",
+          "enum": ["forever", "once", "repeating"],
+          "type": "string",
+          "default": "once"
+        },
+        "duration_in_months": {
+          "description": "The number of months the discount will last if duration is repeating",
+          "type": "number"
+        }
+      },
+      "required": ["name"]
+    }
+  },
+  {
+    "name": "STRIPE__UPDATE_DISPUTE",
+    "description": "When you receive a dispute, contacting your customer is always the best first step. If that doesn't work, you can submit evidence to help resolve the dispute in your favor. This tool helps.\n\nIt takes the following arguments:\n- dispute (string): The ID of the dispute to update\n- evidence (object, optional): Evidence to upload for the dispute.\n    - cancellation_policy_disclosure (string)\n    - cancellation_rebuttal (string)\n    - duplicate_charge_explanation (string)\n    - uncategorized_text (string, optional): Any additional evidence or statements.\n- submit (boolean, optional): Whether to immediately submit evidence to the bank. If false, evidence is staged on the dispute.\n",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "update_dispute",
+      "canonical_tool_description_hash": "8ecd04eed46cd95c83a10994111a9bfc7ea9d45756d4115a745f4584cdf3a7a3",
+      "canonical_tool_input_schema_hash": "5b6663b5e1eac8a8e63ae417fe97391773bf3ba28b0a6a67693c73b454ab131a"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "dispute": {
+          "description": "The ID of the dispute to update",
+          "type": "string"
+        },
+        "evidence": {
+          "description": "Evidence to upload, to respond to a dispute. Updating any field in the hash will submit all fields in the hash for review.",
+          "type": "object",
+          "properties": {
+            "cancellation_policy_disclosure": {
+              "description": "An explanation of how and when the customer was shown your refund policy prior to purchase.",
+              "type": "string"
+            },
+            "duplicate_charge_explanation": {
+              "description": "An explanation of the difference between the disputed charge versus the prior charge that appears to be a duplicate.",
+              "type": "string"
+            },
+            "uncategorized_text": {
+              "description": "Any additional evidence or statements.",
+              "type": "string"
+            }
+          },
+          "additionalProperties": false
+        },
+        "submit": {
+          "description": "Whether to immediately submit evidence to the bank. If false, evidence is staged on the dispute.",
+          "type": "boolean"
+        }
+      },
+      "required": ["dispute"]
+    }
+  },
+  {
+    "name": "STRIPE__LIST_DISPUTES",
+    "description": "This tool will fetch a list of disputes in Stripe.\n\nIt takes the following arguments:\n- charge (string, optional): Only return disputes associated to the charge specified by this charge ID.\n- payment_intent (string, optional): Only return disputes associated to the PaymentIntent specified by this PaymentIntent ID.\n",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "list_disputes",
+      "canonical_tool_description_hash": "2b3f0fd030032064a97186fb95bfbfcb3061896e3c114d8ede3e9e26807d00e1",
+      "canonical_tool_input_schema_hash": "44fd7659b63541be157be1d62676025aeb48315acda89cf3df37207767c93e96"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "charge": {
+          "description": "Only return disputes associated to the charge specified by this charge ID.",
+          "type": "string"
+        },
+        "payment_intent": {
+          "description": "Only return disputes associated to the PaymentIntent specified by this PaymentIntent ID.",
+          "type": "string"
+        },
+        "limit": {
+          "description": "A limit on the number of objects to be returned. Limit can range between 1 and 100, and the default is 10.",
+          "minimum": 1,
+          "maximum": 100,
+          "default": 10,
+          "type": "integer"
+        }
+      }
+    }
+  },
+  {
+    "name": "STRIPE__SEARCH_STRIPE_RESOURCES",
+    "description": "This tool can be used to search for specific Stripe resources using a custom Stripe query syntax.\nIt is only able to search for the following resources: customers, payment_intents, charges, invoices, prices, products, subscriptions. It returns a maximum of 100 results.\n\nIMPORTANT: For most use cases, prefer using the specific `list_` tools (e.g., `list_customers`, `list_payment_intents`) when you know the resource type you need. Only use this search tool when you need to:\n- Search across multiple resource types simultaneously\n- Search by field values that aren't supported by list tools\n- Use complex query syntax that isn't supported by list tools\n\nIt takes one argument:\n- query (str): The query consisting of the Stripe resource to query for and the query clause in Stripe's custom query syntax to query metadata for.\n\nNote that any amount returned is in currency minor units, e.g. cents for USD and yen for JPY.\n",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "search_stripe_resources",
+      "canonical_tool_description_hash": "e3fc5ea092b25cd0e3dbf023fdc63186450222172b9461955cdce3a76c9b0a51",
+      "canonical_tool_input_schema_hash": "29e00328063fbb3f3f5c4363196ded0985012eaf7670a2cb0f906883817a3194"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "query": {
+          "description": "This query string should be formatted as 'resource:query_clause', where 'resource' is one of (customers, payment_intents, charges, invoices, prices, products, subscriptions), and 'query_clause' is the actual query in Stripe's custom query syntax to query metadata for that resource.\n\nFor example, for the query: customers:email:\"jenny.rosen@example.com\"\nresource: `customers`\nquery_clause: `email:\"jenny.rosen@example.com\"`\n\nA query clause consists of a field, operator, and value.\n\n## Query Fields for customers\n* created\n* email\n* metadata\n* name\n* phone\n\n## Query Fields for payment_intents\n* amount\n* created\n* currency\n* customer\n* metadata\n* status\n\n## Query Fields for charges\n* amount\n* billing_details.address.postal_code\n* created\n* currency\n* customer\n* disputed\n* metadata\n* payment_method_details.{{SOURCE}}.last4\n* payment_method_details.{{SOURCE}}.exp_month\n* payment_method_details.{{SOURCE}}.exp_year\n* payment_method_details.{{SOURCE}}.brand\n* payment_method_details.{{SOURCE}}.fingerprint\n* refunded\n* status\n\n## Query Fields for invoices\n* created\n* currency\n* customer\n* last_finalization_error_code\n* last_finalization_error_type\n* metadata\n* number\n* receipt_number\n* status\n* subscription\n* total\n\n## Query Fields for prices\n* active\n* currency\n* lookup_key\n* metadata\n* product\n* type\n\n## Query Fields for products\n* active\n* description\n* metadata\n* name\n* shippable\n* url\n\n## Query Fields for subscriptions\n* created\n* metadata\n* status\n* canceled_at\n\n## Search Operators\nThe following table lists the syntax that you can use to construct a query:\n\n| Syntax | Usage | Description | When to Use | Examples |\n|--------|-------|-------------|-------------|----------|\n| `:` | `field:value` | Exact match operator (case insensitive) | **ONLY when you know the exact complete value** | `currency:\"eur\"` returns records where the currency is exactly \"EUR\" |\n| `~` | `field~value` | Substring match operator (minimum 3 characters) | **ALWAYS use for domain searches, partial names, email parts** | `email~\"foo.com\"` returns emails containing \"foo.com\" |\n| `AND`, `and` | `field:value1 AND field:value2` | Returns records that match both clauses | Combining multiple conditions | `status:\"active\" AND amount:500` |\n| `OR`, `or` | `field:value1 OR field:value2` | Returns records that match either clause | Alternative conditions | `currency:\"usd\" OR currency:\"eur\"` |\n| `-` | `-field:value` | Returns records that don't match the clause | Excluding specific values | `-currency:\"jpy\"` returns records not in JPY |\n| `NULL`, `null` | `field:null` | Checks for field presence (empty/null values) | Finding empty fields | `url:null` returns records where URL field is empty |\n| `>`, `<`, `>=`, `<=`, `=` | `field>value`, `field<value`, etc. | Numeric comparison operators | Amount ranges, dates | `amount>=\"10\"` returns records with amount >= 10 |\n| `` | `\" \"\"\"` | Escape quotes within quotes | When quotes are in the search value | `description:\"the story called \"The Sky and the Sea.\"\"` |\n\n## Query Rules\n* You can combine up to 10 query clauses in a search by separating them with a space or using AND/OR keywords (case insensitive)\n* You cannot combine AND and OR in the same query\n* No parentheses are supported for operator precedence\n* By default, the API combines clauses with AND logic\n* You must use quotation marks around string values (optional for numeric values)\n* You can escape quotes inside quotes with a backslash (\\)\n\n## Examples\n\nInput: Look up charges matching a custom metadata value.\nOutput: charges:metadata['order_id']:'1234567890'\n\nInput: Look up charges matching the last 4 digits of the card used for the payment.\nOutput: charges:payment_method_details.card.last4:4242\n\nInput: Look up customers matching an email.\nOutput: customers:email:'jenny.rosen@example.com'\n\nInput: Look up PaymentIntents not in the USD currency.\nOutput: payment_intents:-currency:'usd'\n\nInput: Filter invoice objects with a total greater than 1000.\nOutput: invoices:total>1000\n\nInput: Filter payments with a amount over $100.\nReasoning: Stripe \"amount\" field is in cents, so we use 1000 instead of 100\nOutput: payment_intents:amount>1000\n\nInput: Look up charges matching a combination of metadata and currency.\nOutput: charges:metadata['key']:'value' AND currency:'usd'\n\nInput: Search for customers with email containing \"john\".\nOutput: customers:email~\"john\"\n\nInput: Find products where the description field is empty.\nOutput: products:description:null\n\nInput: Search for payments with amounts greater than or equal to 5000.\nOutput: payment_intents:amount>=5000\n\nInput: Search for products with description with escaped quotes.\nOutput: products:description:\"The story called \"The Sky and the Sea\".\"\n",
+          "type": "string"
+        }
+      },
+      "required": ["query"]
+    }
+  },
+  {
+    "name": "STRIPE__FETCH_STRIPE_RESOURCES",
+    "description": "Retrieve Stripe object details by ID.\n\nThis tool fetches the object information from Stripe including all available fields. It is only able to fetch the following resources (prefixes):\n- Payment Intents (pi_)\n- Charges (ch_)\n- Invoices (in_)\n- Prices (price_)\n- Products (prod_)\n- Subscriptions (sub_)\n- Customers (cus_)\n\nIt takes one argument:\n- id (str): The unique identifier for the Stripe object (e.g. cus_123, pi_123).\n\nNote that any amount returned is in currency minor units, e.g. cents for USD and yen for JPY.\n",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "fetch_stripe_resources",
+      "canonical_tool_description_hash": "3538103ab340f47f74948b5a39725ef51b50794b0bd19c59671da7fffd864bff",
+      "canonical_tool_input_schema_hash": "62b30f1b87b66ffa4b36cf235eace6781c9b336ce665d6d214c8f48973590147"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "description": "The unique identifier for the Stripe object (e.g. cus_123, pi_123).",
+          "type": "string"
+        }
+      },
+      "required": ["id"]
+    }
+  }
+]

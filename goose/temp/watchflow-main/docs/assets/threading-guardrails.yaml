@@ -1,0 +1,18 @@
+rules:
+  - description: "Avoid raw threading.Thread; prefer ThreadPoolExecutor"
+    enabled: true
+    severity: "medium"
+    event_types: ["pull_request"]
+    parameters:
+      file_patterns: ["**/*.py"]
+      forbidden_patterns:
+        - "threading\\.Thread"
+
+  - description: "Warn when ThreadPoolExecutor max_workers is greater than 10"
+    enabled: true
+    severity: "medium"
+    event_types: ["pull_request"]
+    parameters:
+      file_patterns: ["**/*.py"]
+      forbidden_patterns:
+        - "ThreadPoolExecutor\\(max_workers\\s*=\\s*(1[1-9]|[2-9][0-9]|\\d{3,})"

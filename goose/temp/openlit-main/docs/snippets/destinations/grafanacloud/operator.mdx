@@ -1,0 +1,35 @@
+### 2. Instrument your application
+
+**For Kubernetes deployments with zero-code instrumentation:**
+
+```yaml
+apiVersion: openlit.io/v1alpha1
+kind: AutoInstrumentation
+metadata:
+  name: autoinstrumentation-cr-name
+  namespace: default
+spec:
+  selector:
+    matchLabels:
+      instrument: "true"
+  python:
+    instrumentation:
+      provider: "openlit"
+      version: "latest"
+  otlp:
+    endpoint: "YOUR_GRAFANA_OTEL_GATEWAY_URL"
+    headers: "YOUR_GRAFANA_OTEL_GATEWAY_AUTH"
+    timeout: 30
+  resource:
+    environment: "production"
+    serviceName: "my-ai-service"
+```
+
+Replace:
+1. `YOUR_GRAFANA_OTEL_GATEWAY_URL` with the `OTEL_EXPORTER_OTLP_ENDPOINT` value you copied in Step 1.
+    * Example: `https://otlp-gateway-<zone>.grafana.net/otlp`
+1. `YOUR_GRAFANA_OTEL_GATEWAY_AUTH` with the `OTEL_EXPORTER_OTLP_HEADERS` value you copied in Step 1.
+    * Example: `Authorization=Basic%20<base64 encoded Instance ID and API Token>`
+
+Refer to the [OpenLIT Operator Documentation](/latest/operator/overview) for more advanced configurations and use cases.
+

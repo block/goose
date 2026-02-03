@@ -1,0 +1,149 @@
+[
+  {
+    "name": "AGENT_MAIL__GET_INBOX",
+    "description": "Retrieve information about a specific inbox by its ID (email address)",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "GET_INBOX",
+      "canonical_tool_description_hash": "0092c5f47fd55f6c3bfcbc8f8ce5296131512e79b64191572e3a6503aad8bb6a",
+      "canonical_tool_input_schema_hash": "22805971b071e3c84b5d23966dfa2dd7d99481b378185f6e1a37daca29fdf05a"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["path"],
+      "properties": {
+        "path": {
+          "type": "object",
+          "required": ["inbox_id"],
+          "properties": {
+            "inbox_id": {
+              "type": "string",
+              "description": "ID (email address) of the inbox"
+            }
+          },
+          "description": "Path parameters for the request",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "AGENT_MAIL__CREATE_INBOX",
+    "description": "Create a new inbox with a specified username and display name",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "CREATE_INBOX",
+      "canonical_tool_description_hash": "39d345b129873b52a9a6e862d2e44883c51567683cce9625b00395f6c128b6de",
+      "canonical_tool_input_schema_hash": "88da6e027087bc07c91b60e48a92de467bc7f68367935819281d890d5d2aa645"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["body"],
+      "properties": {
+        "body": {
+          "type": "object",
+          "required": ["username", "display_name"],
+          "properties": {
+            "domain": {
+              "type": "string",
+              "description": "Domain of address. Must be verified domain. Defaults to agentmail.to"
+            },
+            "username": {
+              "type": "string",
+              "description": "Username of address. Randomly generated if not specified."
+            },
+            "display_name": {
+              "type": "string",
+              "description": "Display name for address: Display Name <username@domain.com>"
+            }
+          },
+          "description": "Body parameters for creating the inbox",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "AGENT_MAIL__LIST_THREADS",
+    "description": "List threads from a specific inbox with pagination support",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "LIST_THREADS",
+      "canonical_tool_description_hash": "55bf6ab4baf0c7421226edd7decd5aff0f16f8d0dc06e9e3b6ee47476d681dca",
+      "canonical_tool_input_schema_hash": "87f73a01fe3e94a12c5229ca909fd602fd5b0bd1706ff6376af90d461df4d494"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["path"],
+      "properties": {
+        "path": {
+          "type": "object",
+          "required": ["inbox_id"],
+          "properties": {
+            "inbox_id": {
+              "type": "string",
+              "description": "ID (email address) of the inbox"
+            }
+          },
+          "description": "Path parameters for the request",
+          "additionalProperties": false
+        },
+        "query": {
+          "type": "object",
+          "required": [],
+          "properties": {
+            "limit": {
+              "type": "integer",
+              "description": "Limit of number of items returned"
+            },
+            "labels": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "description": "Labels to filter threads by"
+            },
+            "last_key": {
+              "type": "string",
+              "description": "Key of last item for pagination"
+            }
+          },
+          "description": "Query parameters for the request",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "AGENT_MAIL__LIST_MESSAGES",
+    "description": "List messages from a specific inbox",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "LIST_MESSAGES",
+      "canonical_tool_description_hash": "58cda03a7dacaae7fe479e18029643eee8aeef9c096b7e82dc2246f0a6528a23",
+      "canonical_tool_input_schema_hash": "22805971b071e3c84b5d23966dfa2dd7d99481b378185f6e1a37daca29fdf05a"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["path"],
+      "properties": {
+        "path": {
+          "type": "object",
+          "required": ["inbox_id"],
+          "properties": {
+            "inbox_id": {
+              "type": "string",
+              "description": "ID (email address) of the inbox"
+            }
+          },
+          "description": "Path parameters for the request",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+]

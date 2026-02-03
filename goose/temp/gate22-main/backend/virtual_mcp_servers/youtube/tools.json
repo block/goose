@@ -1,0 +1,499 @@
+[
+  {
+    "name": "YOUTUBE__SEARCH",
+    "description": "Search for YouTube resources including videos, channels, and playlists using various criteria. Quota impact: 100 units per call.",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "GET",
+      "endpoint": "https://www.googleapis.com/youtube/v3/search"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "query": {
+          "type": "object",
+          "description": "Query parameters for the YouTube search request",
+          "properties": {
+            "part": {
+              "type": "string",
+              "description": "The part parameter specifies a comma-separated list of one or more search resource properties that the API response will include. The part names that you can include: id, snippet.",
+              "default": "snippet",
+              "enum": [
+                "id",
+                "snippet"
+              ]
+            },
+            "forContentOwner": {
+              "type": "boolean",
+              "description": "This parameter can only be used in a properly authorized request, and it is intended exclusively for YouTube content partners. The forContentOwner parameter restricts the search to only retrieve videos owned by the content owner identified by the onBehalfOfContentOwner parameter. If set to true, the request must also include the onBehalfOfContentOwner parameter, be associated with a content owner account, set the type parameter value to video, and cannot use certain video parameters."
+            },
+            "forDeveloper": {
+              "type": "boolean",
+              "description": "This parameter can only be used in a properly authorized request. The forDeveloper parameter restricts the search to only retrieve videos uploaded via the developer's application or website. The API server uses the request's authorization credentials to identify the developer."
+            },
+            "forMine": {
+              "type": "boolean",
+              "description": "This parameter can only be used in a properly authorized request. The forMine parameter restricts the search to only retrieve videos owned by the authenticated user. If set to true, the request must also set the type parameter value to video and cannot use certain video parameters."
+            },
+            "q": {
+              "type": "string",
+              "description": "The q parameter specifies the query term to search for. Your request can also use the Boolean NOT (-) and OR (|) operators to exclude videos or to find videos that are associated with one of several search terms."
+            },
+            "maxResults": {
+              "type": "integer",
+              "description": "The maxResults parameter specifies the maximum number of items that should be returned in the result set.",
+              "default": 5,
+              "minimum": 0,
+              "maximum": 50
+            },
+            "pageToken": {
+              "type": "string",
+              "description": "The pageToken parameter identifies a specific page in the result set that should be returned."
+            },
+            "type": {
+              "type": "string",
+              "description": "The type parameter restricts a search query to only retrieve a particular type of resource.",
+              "default": "video,channel,playlist",
+              "enum": [
+                "video",
+                "channel",
+                "playlist",
+                "video,channel",
+                "video,playlist",
+                "channel,playlist",
+                "video,channel,playlist"
+              ]
+            },
+            "videoDefinition": {
+              "type": "string",
+              "description": "The videoDefinition parameter lets you restrict a search to only include either high definition (HD) or standard definition (SD) videos. HD videos are available for playback in at least 720p, though higher resolutions, like 1080p, might also be available.",
+              "enum": [
+                "any",
+                "high",
+                "standard"
+              ],
+              "default": "any"
+            },
+            "videoCategoryId": {
+              "type": "string",
+              "description": "The videoCategoryId parameter filters video search results based on their category. Use YOUTUBE__GET_VIDEO_CATEGORIES to get the list of available categories."
+            },
+            "order": {
+              "type": "string",
+              "description": "The order parameter specifies the method that will be used to order resources in the API response. date \u2013 Resources are sorted in reverse chronological order based on the date they were created. rating \u2013 Resources are sorted from highest to lowest rating. relevance \u2013 Resources are sorted based on their relevance to the search query. This is the default value for this parameter. title \u2013 Resources are sorted alphabetically by title. videoCount \u2013 Channels are sorted in descending order of their number of uploaded videos. viewCount \u2013 Resources are sorted from highest to lowest number of views.",
+              "default": "relevance",
+              "enum": [
+                "date",
+                "rating",
+                "relevance",
+                "title",
+                "videoCount",
+                "viewCount"
+              ]
+            },
+            "channelId": {
+              "type": "string",
+              "description": "The channelId parameter indicates that the API response should only contain resources created by the channel."
+            },
+            "channelType": {
+              "type": "string",
+              "description": "The channelType parameter lets you restrict a search to a particular type of channel.",
+              "enum": [
+                "any",
+                "show"
+              ],
+              "default": "any"
+            },
+            "eventType": {
+              "type": "string",
+              "description": "The eventType parameter restricts a search to broadcast events. If you specify a value for this parameter, you must also set the type parameter's value to video.",
+              "enum": [
+                "completed",
+                "live",
+                "upcoming"
+              ]
+            },
+            "location": {
+              "type": "string",
+              "description": "The location parameter restricts a search to videos that have a geographical location specified in their metadata. The value is a string that specifies geographic coordinates in the format latitude,longitude (e.g., 37.42307,-122.08427). If you specify a value for this parameter, you must also set the locationRadius parameter."
+            },
+            "locationRadius": {
+              "type": "string",
+              "description": "The locationRadius parameter specifies the geographic area to search within for videos. The value must be a floating point number followed by a measurement unit (e.g., 5km). Valid measurement units are m, km, ft, and mi. The API does not support locationRadius values larger than 1000 kilometers."
+            },
+            "publishedAfter": {
+              "type": "string",
+              "description": "The publishedAfter parameter indicates that the API response should only contain resources created at or after the specified time (RFC 3339 format, e.g., 1970-01-01T00:00:00Z)."
+            },
+            "publishedBefore": {
+              "type": "string",
+              "description": "The publishedBefore parameter indicates that the API response should only contain resources created before or at the specified time (RFC 3339 format, e.g., 2025-12-31T23:59:59Z)."
+            },
+            "regionCode": {
+              "type": "string",
+              "description": "The regionCode parameter instructs the API to return search results for videos that can be viewed in the specified country. The parameter value is an ISO 3166-1 alpha-2 country code.",
+              "default": "US"
+            },
+            "relevanceLanguage": {
+              "type": "string",
+              "description": "The relevanceLanguage parameter instructs the API to return search results that are most relevant to the specified language. The parameter value is typically an ISO 639-1 two-letter language code. However, you should use the values zh-Hans for simplified Chinese and zh-Hant for traditional Chinese."
+            },
+            "safeSearch": {
+              "type": "string",
+              "description": "The safeSearch parameter indicates whether the search results should include restricted content as well as standard content.",
+              "enum": [
+                "moderate",
+                "none",
+                "strict"
+              ],
+              "default": "moderate"
+            },
+            "videoCaption": {
+              "type": "string",
+              "description": "The videoCaption parameter indicates whether the API should filter video search results based on whether they have captions. If you specify a value for this parameter, you must also set the type parameter's value to video.",
+              "enum": [
+                "any",
+                "closedCaption",
+                "none"
+              ],
+              "default": "any"
+            },
+            "videoDimension": {
+              "type": "string",
+              "description": "The videoDimension parameter lets you restrict a search to only retrieve 2D or 3D videos. If you specify a value for this parameter, you must also set the type parameter's value to video.",
+              "enum": [
+                "2d",
+                "3d",
+                "any"
+              ],
+              "default": "any"
+            },
+            "videoDuration": {
+              "type": "string",
+              "description": "The videoDuration parameter filters video search results based on their duration. If you specify a value for this parameter, you must also set the type parameter's value to video.",
+              "enum": [
+                "any",
+                "long",
+                "medium",
+                "short"
+              ],
+              "default": "any"
+            },
+            "videoEmbeddable": {
+              "type": "string",
+              "description": "The videoEmbeddable parameter lets you to restrict a search to only videos that can be embedded into a webpage. If you specify a value for this parameter, you must also set the type parameter's value to video.",
+              "enum": [
+                "any",
+                "true"
+              ],
+              "default": "any"
+            },
+            "videoLicense": {
+              "type": "string",
+              "description": "The videoLicense parameter filters search results to only include videos with a particular license. If you specify a value for this parameter, you must also set the type parameter's value to video.",
+              "enum": [
+                "any",
+                "creativeCommon",
+                "youtube"
+              ],
+              "default": "any"
+            },
+            "videoSyndicated": {
+              "type": "string",
+              "description": "The videoSyndicated parameter lets you to restrict a search to only videos that can be played outside youtube.com. If you specify a value for this parameter, you must also set the type parameter's value to video.",
+              "enum": [
+                "any",
+                "true"
+              ],
+              "default": "any"
+            },
+            "videoType": {
+              "type": "string",
+              "description": "The videoType parameter lets you restrict a search to a particular type of videos. If you specify a value for this parameter, you must also set the type parameter's value to video.",
+              "enum": [
+                "any",
+                "episode",
+                "movie"
+              ],
+              "default": "any"
+            }
+          },
+          "required": [
+            "part"
+          ],
+          "visible": [
+            "forContentOwner",
+            "forDeveloper",
+            "forMine",
+            "q",
+            "maxResults",
+            "pageToken",
+            "type",
+            "videoDefinition",
+            "videoCategoryId",
+            "order",
+            "channelId",
+            "channelType",
+            "eventType",
+            "location",
+            "locationRadius",
+            "publishedAfter",
+            "publishedBefore",
+            "regionCode",
+            "relevanceLanguage",
+            "safeSearch",
+            "videoCaption",
+            "videoDimension",
+            "videoDuration",
+            "videoEmbeddable",
+            "videoLicense",
+            "videoSyndicated",
+            "videoType"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "query"
+      ],
+      "visible": [
+        "query"
+      ]
+    }
+  },
+  {
+    "name": "YOUTUBE__GET_VIDEO_DETAILS",
+    "description": "Get detailed information about specific YouTube videos by ID. Quota impact: 1 unit per call.",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "GET",
+      "endpoint": "https://www.googleapis.com/youtube/v3/videos"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "query": {
+          "type": "object",
+          "description": "Query parameters for the YouTube video details request",
+          "properties": {
+            "part": {
+              "type": "string",
+              "description": "The part parameter specifies a comma-separated list of one or more video resource properties that the API response will include. If a property contains child properties, they will be included in the response. For example, if you set part=snippet, the response will include all properties that the snippet contains (channelId, title, description, tags, categoryId, etc.).",
+              "default": "snippet",
+              "enum": [
+                "contentDetails",
+                "fileDetails",
+                "id",
+                "liveStreamingDetails",
+                "localizations",
+                "paidProductPlacementDetails",
+                "player",
+                "processingDetails",
+                "recordingDetails",
+                "snippet",
+                "statistics",
+                "status",
+                "suggestions",
+                "topicDetails"
+              ]
+            },
+            "id": {
+              "type": "string",
+              "description": "The id parameter specifies a comma-separated list of YouTube video IDs."
+            },
+            "chart": {
+              "type": "string",
+              "description": "The chart parameter identifies the chart that you want to retrieve.",
+              "enum": [
+                "mostPopular"
+              ],
+              "default": "mostPopular"
+            },
+            "myRating": {
+              "type": "string",
+              "description": "This parameter can only be used in a properly authorized request. Set this parameter's value to like or dislike to instruct the API to only return videos liked or disliked by the authenticated user.",
+              "enum": [
+                "like",
+                "dislike"
+              ]
+            },
+            "maxHeight": {
+              "type": "integer",
+              "description": "The maxHeight parameter specifies the maximum height of the embedded player returned in the player.embedHtml property.",
+              "minimum": 72,
+              "maximum": 8192
+            },
+            "maxWidth": {
+              "type": "integer",
+              "description": "The maxWidth parameter specifies the maximum width of the embedded player returned in the player.embedHtml property.",
+              "minimum": 72,
+              "maximum": 8192
+            },
+            "maxResults": {
+              "type": "integer",
+              "description": "The maxResults parameter specifies the maximum number of items that should be returned in the result set. Only supported with myRating parameter.",
+              "minimum": 1,
+              "maximum": 50,
+              "default": 5
+            },
+            "pageToken": {
+              "type": "string",
+              "description": "The pageToken parameter identifies a specific page in the result set that should be returned."
+            },
+            "regionCode": {
+              "type": "string",
+              "description": "The regionCode parameter instructs the API to select a video chart available in the specified region. This parameter can only be used in conjunction with the chart parameter. ISO 3166-1 alpha-2 country code."
+            },
+            "videoCategoryId": {
+              "type": "string",
+              "description": "The videoCategoryId parameter identifies the video category for which the chart should be retrieved. This parameter can only be used in conjunction with the chart parameter.",
+              "default": "0"
+            },
+            "hl": {
+              "type": "string",
+              "description": "The hl parameter instructs the API to retrieve localized resource metadata for a specific application language that the YouTube website supports.",
+              "default": "en_US"
+            },
+            "onBehalfOfContentOwner": {
+              "type": "string",
+              "description": "This parameter can only be used in a properly authorized request. Note: This parameter is intended exclusively for YouTube content partners."
+            }
+          },
+          "required": [
+            "part"
+          ],
+          "visible": [
+            "id",
+            "chart",
+            "myRating",
+            "maxHeight",
+            "maxWidth",
+            "maxResults",
+            "pageToken",
+            "regionCode",
+            "videoCategoryId",
+            "hl",
+            "onBehalfOfContentOwner"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "query"
+      ],
+      "visible": [
+        "query"
+      ]
+    }
+  },
+  {
+    "name": "YOUTUBE__RATE_VIDEO",
+    "description": "Add a like or dislike rating to a video or remove a rating from a video.",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "POST",
+      "endpoint": "https://www.googleapis.com/youtube/v3/videos/rate"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "query": {
+          "type": "object",
+          "description": "Query parameters for the YouTube video rating request",
+          "properties": {
+            "id": {
+              "type": "string",
+              "description": "The id parameter specifies the YouTube video ID of the video that is being rated or having its rating removed."
+            },
+            "rating": {
+              "type": "string",
+              "description": "Specifies the rating to record.",
+              "enum": [
+                "like",
+                "dislike",
+                "none"
+              ],
+              "default": "like"
+            }
+          },
+          "required": [
+            "id",
+            "rating"
+          ],
+          "visible": [
+            "id",
+            "rating"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "query"
+      ],
+      "visible": [
+        "query"
+      ]
+    }
+  },
+  {
+    "name": "YOUTUBE__GET_VIDEO_CATEGORIES",
+    "description": "Retrieve a list of video categories that can be associated with YouTube videos. Quota impact: 1 unit per call.",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "GET",
+      "endpoint": "https://www.googleapis.com/youtube/v3/videoCategories"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "query": {
+          "type": "object",
+          "description": "Query parameters for the YouTube video categories request",
+          "properties": {
+            "part": {
+              "type": "string",
+              "description": "The part parameter specifies the videoCategory resource properties that the API response will include.",
+              "default": "snippet",
+              "enum": [
+                "snippet"
+              ]
+            },
+            "id": {
+              "type": "string",
+              "description": "The id parameter specifies a comma-separated list of video category IDs for the resources that you are retrieving. This parameter cannot be used with the regionCode parameter."
+            },
+            "regionCode": {
+              "type": "string",
+              "description": "The regionCode parameter instructs the API to return the list of video categories available in the specified country. The parameter value is an ISO 3166-1 alpha-2 country code. This parameter cannot be used with the id parameter."
+            },
+            "hl": {
+              "type": "string",
+              "description": "The hl parameter specifies the language that should be used for text values in the API response.",
+              "default": "en_US"
+            }
+          },
+          "required": [
+            "part"
+          ],
+          "visible": [
+            "part",
+            "id",
+            "regionCode",
+            "hl"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "query"
+      ],
+      "visible": [
+        "query"
+      ]
+    }
+  }
+]

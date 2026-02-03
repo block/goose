@@ -1,0 +1,19 @@
+{
+  "name": "CONTEXT7",
+  "url": "https://mcp.context7.com/mcp",
+  "transport_type": "streamable_http",
+  "description": "Context7 MCP pulls up-to-date, version-specific documentation and code examples straight from the source",
+  "logo": "https://raw.githubusercontent.com/aipotheosis-labs/aipolabs-icons/refs/heads/main/apps/context7.svg",
+  "categories": ["Developer Tools"],
+  "auth_configs": [
+    {
+      "type": "no_auth"
+    },
+    {
+      "type": "api_key",
+      "location": "header",
+      "name": "CONTEXT7_API_KEY"
+    }
+  ],
+  "server_metadata": {}
+}

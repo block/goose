@@ -1,0 +1,357 @@
+name: Release Operator
+
+on:
+  push:
+    tags: [ 'operator-*.*.*' ]
+
+env:
+  REGISTRY: ghcr.io
+
+permissions:
+  contents: write
+
+jobs:
+  operator:
+    name: Build and Release Operator Image
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      packages: write
+      id-token: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+
+      - name: Install cosign
+        uses: sigstore/cosign-installer@d7543c93d881b35a8faa02e8e3605f69b7a1ce62 #v3.10.0
+        with:
+          cosign-release: 'v2.2.2'
+      
+      - name: Extract version from tag
+        id: extract_version
+        run: echo "version=${GITHUB_REF#refs/tags/operator-}" >> $GITHUB_ENV
+        env:
+          GITHUB_REF: ${{ github.ref }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@988b5a0280414f521da01fcc63a27aeeb4b104db # v3.6.1
+
+      - name: Log into registry ${{ env.REGISTRY }}
+        uses: docker/login-action@9780b0c442fbb1117ed29e0efdff1e18412f7567 # v3.3.0
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract operator metadata
+        id: operator-meta
+        uses: docker/metadata-action@8e5442c4ef9f78752691e2d8f8d19755c6f78e81 # v5.5.1
+        with:
+          images: ${{ env.REGISTRY }}/openlit/openlit-operator
+          tags: |
+            type=semver,pattern={{version}},value=${{ env.version }}
+        env:
+          DOCKER_METADATA_ANNOTATIONS_LEVELS: manifest,index
+
+      - name: Build and push operator image
+        id: build-and-push-operator
+        uses: docker/build-push-action@1a162644f9a7e87d8f4b053101d1d9a712edc18c # v6.3.0
+        with:
+          context: ./operator/
+          provenance: false
+          file: ./operator/Dockerfile
+          push: ${{ github.event_name != 'pull_request' }}
+          tags: ${{ steps.operator-meta.outputs.tags }}
+          labels: ${{ steps.operator-meta.outputs.labels }}
+          platforms: linux/amd64,linux/arm64/v8
+          annotations: |
+            ${{ steps.operator-meta.outputs.annotations }},
+            io.artifacthub.package.logo-url=https://github.com/openlit/.github/blob/main/profile/assets/favicon.png?raw=true,
+            io.artifacthub.package.readme-url=https://raw.githubusercontent.com/openlit/openlit/main/operator/README.md,
+            io.artifacthub.package.license=Apache-2.0,
+            org.opencontainers.image.vendor=OpenLIT,
+            io.artifacthub.package.maintainers=[{'name':'OpenLIT','email':'developers@openlit.io'}],
+            io.artifacthub.package.keywords='Kubernetes, Operator, OpenTelemetry, LLM, Instrumentation, Zero-code'
+      
+      - name: Sign the operator image
+        env:
+          TAGS: ${{ steps.operator-meta.outputs.tags }}
+          DIGEST: ${{ steps.build-and-push-operator.outputs.digest }}
+        run: echo "${TAGS}" | xargs -I {} cosign sign --yes {}@${DIGEST}
+
+  base-ai-instrumentation:
+    name: Build and Release Base Provider Image
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      packages: write
+      id-token: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+
+      - name: Install cosign
+        uses: sigstore/cosign-installer@d7543c93d881b35a8faa02e8e3605f69b7a1ce62 #v3.10.0
+        with:
+          cosign-release: 'v2.2.2'
+      
+      - name: Extract version from tag
+        id: extract_version
+        run: echo "version=${GITHUB_REF#refs/tags/operator-}" >> $GITHUB_ENV
+        env:
+          GITHUB_REF: ${{ github.ref }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@988b5a0280414f521da01fcc63a27aeeb4b104db # v3.6.1
+
+      - name: Log into registry ${{ env.REGISTRY }}
+        uses: docker/login-action@9780b0c442fbb1117ed29e0efdff1e18412f7567 # v3.3.0
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract base provider metadata
+        id: base-provider-meta
+        uses: docker/metadata-action@8e5442c4ef9f78752691e2d8f8d19755c6f78e81 # v5.5.1
+        with:
+          images: ${{ env.REGISTRY }}/openlit/base-ai-instrumentation
+          tags: |
+            type=semver,pattern={{version}},value=${{ env.version }}
+        env:
+          DOCKER_METADATA_ANNOTATIONS_LEVELS: manifest,index
+
+      - name: Build and push base provider image
+        id: build-and-push-base-provider
+        uses: docker/build-push-action@1a162644f9a7e87d8f4b053101d1d9a712edc18c # v6.3.0
+        with:
+          context: ./operator/providers/base/
+          provenance: false
+          file: ./operator/providers/base/Dockerfile
+          push: ${{ github.event_name != 'pull_request' }}
+          tags: ${{ steps.base-provider-meta.outputs.tags }}
+          labels: ${{ steps.base-provider-meta.outputs.labels }}
+          platforms: linux/amd64,linux/arm64/v8
+          annotations: |
+            ${{ steps.base-provider-meta.outputs.annotations }},
+            io.artifacthub.package.logo-url=https://github.com/openlit/.github/blob/main/profile/assets/favicon.png?raw=true,
+            io.artifacthub.package.readme-url=https://raw.githubusercontent.com/openlit/openlit/main/operator/README.md,
+            io.artifacthub.package.license=Apache-2.0,
+            org.opencontainers.image.vendor=OpenLIT,
+            io.artifacthub.package.maintainers=[{'name':'OpenLIT','email':'developers@openlit.io'}],
+            io.artifacthub.package.keywords='Base, Python, Instrumentation, OpenTelemetry, LLM, AI, Zero-code'
+      
+      - name: Sign the base provider image
+        env:
+          TAGS: ${{ steps.base-provider-meta.outputs.tags }}
+          DIGEST: ${{ steps.build-and-push-base-provider.outputs.digest }}
+        run: echo "${TAGS}" | xargs -I {} cosign sign --yes {}@${DIGEST}
+
+  openlit-ai-instrumentation:
+    name: Build and Release OpenLIT Provider Image
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      packages: write
+      id-token: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+
+      - name: Install cosign
+        uses: sigstore/cosign-installer@d7543c93d881b35a8faa02e8e3605f69b7a1ce62 #v3.10.0
+        with:
+          cosign-release: 'v2.2.2'
+      
+      - name: Extract version from tag
+        id: extract_version
+        run: echo "version=${GITHUB_REF#refs/tags/operator-}" >> $GITHUB_ENV
+        env:
+          GITHUB_REF: ${{ github.ref }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@988b5a0280414f521da01fcc63a27aeeb4b104db # v3.6.1
+
+      - name: Log into registry ${{ env.REGISTRY }}
+        uses: docker/login-action@9780b0c442fbb1117ed29e0efdff1e18412f7567 # v3.3.0
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract OpenLIT provider metadata
+        id: openlit-provider-meta
+        uses: docker/metadata-action@8e5442c4ef9f78752691e2d8f8d19755c6f78e81 # v5.5.1
+        with:
+          images: ${{ env.REGISTRY }}/openlit/openlit-ai-instrumentation
+          tags: |
+            type=semver,pattern={{version}},value=${{ env.version }}
+        env:
+          DOCKER_METADATA_ANNOTATIONS_LEVELS: manifest,index
+
+      - name: Build and push OpenLIT provider image
+        id: build-and-push-openlit-provider
+        uses: docker/build-push-action@1a162644f9a7e87d8f4b053101d1d9a712edc18c # v6.3.0
+        with:
+          context: ./operator/providers/openlit/
+          provenance: false
+          file: ./operator/providers/openlit/Dockerfile
+          push: ${{ github.event_name != 'pull_request' }}
+          tags: ${{ steps.openlit-provider-meta.outputs.tags }}
+          labels: ${{ steps.openlit-provider-meta.outputs.labels }}
+          platforms: linux/amd64,linux/arm64/v8
+          annotations: |
+            ${{ steps.openlit-provider-meta.outputs.annotations }},
+            io.artifacthub.package.logo-url=https://github.com/openlit/.github/blob/main/profile/assets/favicon.png?raw=true,
+            io.artifacthub.package.readme-url=https://raw.githubusercontent.com/openlit/openlit/main/operator/README.md,
+            io.artifacthub.package.license=Apache-2.0,
+            org.opencontainers.image.vendor=OpenLIT,
+            io.artifacthub.package.maintainers=[{'name':'OpenLIT','email':'developers@openlit.io'}],
+            io.artifacthub.package.keywords='OpenLIT, Python, Instrumentation, OpenTelemetry, LLM, AI, Zero-code'
+      
+      - name: Sign the OpenLIT provider image
+        env:
+          TAGS: ${{ steps.openlit-provider-meta.outputs.tags }}
+          DIGEST: ${{ steps.build-and-push-openlit-provider.outputs.digest }}
+        run: echo "${TAGS}" | xargs -I {} cosign sign --yes {}@${DIGEST}
+
+  openinference-ai-instrumentation:
+    name: Build and Release OpenInference Provider Image
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      packages: write
+      id-token: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+
+      - name: Install cosign
+        uses: sigstore/cosign-installer@d7543c93d881b35a8faa02e8e3605f69b7a1ce62 #v3.10.0
+        with:
+          cosign-release: 'v2.2.2'
+      
+      - name: Extract version from tag
+        id: extract_version
+        run: echo "version=${GITHUB_REF#refs/tags/operator-}" >> $GITHUB_ENV
+        env:
+          GITHUB_REF: ${{ github.ref }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@988b5a0280414f521da01fcc63a27aeeb4b104db # v3.6.1
+
+      - name: Log into registry ${{ env.REGISTRY }}
+        uses: docker/login-action@9780b0c442fbb1117ed29e0efdff1e18412f7567 # v3.3.0
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract OpenInference provider metadata
+        id: openinference-provider-meta
+        uses: docker/metadata-action@8e5442c4ef9f78752691e2d8f8d19755c6f78e81 # v5.5.1
+        with:
+          images: ${{ env.REGISTRY }}/openlit/openinference-ai-instrumentation
+          tags: |
+            type=semver,pattern={{version}},value=${{ env.version }}
+        env:
+          DOCKER_METADATA_ANNOTATIONS_LEVELS: manifest,index
+
+      - name: Build and push OpenInference provider image
+        id: build-and-push-openinference-provider
+        uses: docker/build-push-action@1a162644f9a7e87d8f4b053101d1d9a712edc18c # v6.3.0
+        with:
+          context: ./operator/providers/openinference/
+          provenance: false
+          file: ./operator/providers/openinference/Dockerfile
+          push: ${{ github.event_name != 'pull_request' }}
+          tags: ${{ steps.openinference-provider-meta.outputs.tags }}
+          labels: ${{ steps.openinference-provider-meta.outputs.labels }}
+          platforms: linux/amd64,linux/arm64/v8
+          annotations: |
+            ${{ steps.openinference-provider-meta.outputs.annotations }},
+            io.artifacthub.package.logo-url=https://github.com/openlit/.github/blob/main/profile/assets/favicon.png?raw=true,
+            io.artifacthub.package.readme-url=https://raw.githubusercontent.com/openlit/openlit/main/operator/README.md,
+            io.artifacthub.package.license=Apache-2.0,
+            org.opencontainers.image.vendor=OpenLIT,
+            io.artifacthub.package.maintainers=[{'name':'OpenLIT','email':'developers@openlit.io'}],
+            io.artifacthub.package.keywords='OpenInference, Python, Instrumentation, OpenTelemetry, LLM, AI, Zero-code'
+      
+      - name: Sign the OpenInference provider image
+        env:
+          TAGS: ${{ steps.openinference-provider-meta.outputs.tags }}
+          DIGEST: ${{ steps.build-and-push-openinference-provider.outputs.digest }}
+        run: echo "${TAGS}" | xargs -I {} cosign sign --yes {}@${DIGEST}
+
+  openllmetry-ai-instrumentation:
+    name: Build and Release OpenLLMetry Provider Image
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      packages: write
+      id-token: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+
+      - name: Install cosign
+        uses: sigstore/cosign-installer@d7543c93d881b35a8faa02e8e3605f69b7a1ce62 #v3.10.0
+        with:
+          cosign-release: 'v2.2.2'
+      
+      - name: Extract version from tag
+        id: extract_version
+        run: echo "version=${GITHUB_REF#refs/tags/operator-}" >> $GITHUB_ENV
+        env:
+          GITHUB_REF: ${{ github.ref }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@988b5a0280414f521da01fcc63a27aeeb4b104db # v3.6.1
+
+      - name: Log into registry ${{ env.REGISTRY }}
+        uses: docker/login-action@9780b0c442fbb1117ed29e0efdff1e18412f7567 # v3.3.0
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract OpenLLMetry provider metadata
+        id: openllmetry-provider-meta
+        uses: docker/metadata-action@8e5442c4ef9f78752691e2d8f8d19755c6f78e81 # v5.5.1
+        with:
+          images: ${{ env.REGISTRY }}/openlit/openllmetry-ai-instrumentation
+          tags: |
+            type=semver,pattern={{version}},value=${{ env.version }}
+        env:
+          DOCKER_METADATA_ANNOTATIONS_LEVELS: manifest,index
+
+      - name: Build and push OpenLLMetry provider image
+        id: build-and-push-openllmetry-provider
+        uses: docker/build-push-action@1a162644f9a7e87d8f4b053101d1d9a712edc18c # v6.3.0
+        with:
+          context: ./operator/providers/openllmetry/
+          provenance: false
+          file: ./operator/providers/openllmetry/Dockerfile
+          push: ${{ github.event_name != 'pull_request' }}
+          tags: ${{ steps.openllmetry-provider-meta.outputs.tags }}
+          labels: ${{ steps.openllmetry-provider-meta.outputs.labels }}
+          platforms: linux/amd64,linux/arm64/v8
+          annotations: |
+            ${{ steps.openllmetry-provider-meta.outputs.annotations }},
+            io.artifacthub.package.logo-url=https://github.com/openlit/.github/blob/main/profile/assets/favicon.png?raw=true,
+            io.artifacthub.package.readme-url=https://raw.githubusercontent.com/openlit/openlit/main/operator/README.md,
+            io.artifacthub.package.license=Apache-2.0,
+            org.opencontainers.image.vendor=OpenLIT,
+            io.artifacthub.package.maintainers=[{'name':'OpenLIT','email':'developers@openlit.io'}],
+            io.artifacthub.package.keywords='OpenLLMetry, Python, Instrumentation, OpenTelemetry, LLM, AI, Zero-code'
+      
+      - name: Sign the OpenLLMetry provider image
+        env:
+          TAGS: ${{ steps.openllmetry-provider-meta.outputs.tags }}
+          DIGEST: ${{ steps.build-and-push-openllmetry-provider.outputs.digest }}
+        run: echo "${TAGS}" | xargs -I {} cosign sign --yes {}@${DIGEST}

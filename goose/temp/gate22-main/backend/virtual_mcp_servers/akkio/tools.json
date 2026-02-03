@@ -1,0 +1,283 @@
+[
+  {
+    "name": "AKKIO__LIST_DATASETS",
+    "description": "Get all datasets in your organization, or optionally get a specific dataset",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "GET",
+      "endpoint": "https://api.akkio.com/v1/datasets"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "query": {
+          "type": "object",
+          "description": "Query parameters",
+          "properties": {
+            "id": {
+              "type": "string",
+              "description": "(Optional): If dataset ID is included, only the specific dataset is returned"
+            }
+          },
+          "required": [],
+          "visible": [
+            "id"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [],
+      "visible": [
+        "query"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "AKKIO__CREATE_DATASET",
+    "description": "Creates a dataset with a given name",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "POST",
+      "endpoint": "https://api.akkio.com/v1/datasets"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "header": {
+          "type": "object",
+          "description": "Headers for the HTTP request",
+          "properties": {
+            "Content-Type": {
+              "type": "string",
+              "description": "Content type of the request",
+              "default": "application/json"
+            }
+          },
+          "required": [
+            "Content-Type"
+          ],
+          "visible": [],
+          "additionalProperties": false
+        },
+        "body": {
+          "type": "object",
+          "description": "The request body",
+          "properties": {
+            "name": {
+              "type": "string",
+              "description": "The name of the dataset to be created"
+            }
+          },
+          "required": [
+            "name"
+          ],
+          "visible": [
+            "name"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "header",
+        "body"
+      ],
+      "visible": [
+        "body"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "AKKIO__ADD_ROWS_TO_DATASET",
+    "description": "Add rows to an existing dataset",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "POST",
+      "endpoint": "https://api.akkio.com/v1/datasets"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "header": {
+          "type": "object",
+          "description": "Headers for the HTTP request",
+          "properties": {
+            "Content-Type": {
+              "type": "string",
+              "description": "Content type of the request",
+              "default": "application/json"
+            }
+          },
+          "required": [
+            "Content-Type"
+          ],
+          "visible": [],
+          "additionalProperties": false
+        },
+        "body": {
+          "type": "object",
+          "description": "The request body",
+          "properties": {
+            "id": {
+              "type": "string",
+              "description": "The ID of the dataset to add rows to"
+            },
+            "rows": {
+              "type": "array",
+              "description": "An array of objects, each representing a row of data. Example: [{\"name\": \"John\", \"age\": 30}]",
+              "items": {
+                "type": "object",
+                "description": "A row of data with field names and values",
+                "additionalProperties": true
+              }
+            }
+          },
+          "required": [
+            "id",
+            "rows"
+          ],
+          "visible": [
+            "id",
+            "rows"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "header",
+        "body"
+      ],
+      "visible": [
+        "body"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "AKKIO__DELETE_DATASET",
+    "description": "Deletes a given dataset from a given ID",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "DELETE",
+      "endpoint": "https://api.akkio.com/v1/datasets"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "header": {
+          "type": "object",
+          "description": "Headers for the HTTP request",
+          "properties": {
+            "Content-Type": {
+              "type": "string",
+              "description": "Content type of the request",
+              "default": "application/json"
+            }
+          },
+          "required": [
+            "Content-Type"
+          ],
+          "visible": [],
+          "additionalProperties": false
+        },
+        "body": {
+          "type": "object",
+          "description": "The request body",
+          "properties": {
+            "id": {
+              "type": "string",
+              "description": "The ID of the dataset to delete"
+            }
+          },
+          "required": [
+            "id"
+          ],
+          "visible": [
+            "id"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "header",
+        "body"
+      ],
+      "visible": [
+        "body"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "AKKIO__LIST_MODELS",
+    "description": "Get all models in your organization",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "GET",
+      "endpoint": "https://api.akkio.com/v1/models"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {},
+      "required": [],
+      "visible": [],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "AKKIO__DELETE_MODEL",
+    "description": "Deletes a specific model by ID",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "DELETE",
+      "endpoint": "https://api.akkio.com/v1/models"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "header": {
+          "type": "object",
+          "description": "Headers for the HTTP request",
+          "properties": {
+            "Content-Type": {
+              "type": "string",
+              "description": "Content type of the request",
+              "default": "application/json"
+            }
+          },
+          "required": [
+            "Content-Type"
+          ],
+          "visible": [],
+          "additionalProperties": false
+        },
+        "body": {
+          "type": "object",
+          "description": "The request body",
+          "properties": {
+            "id": {
+              "type": "string",
+              "description": "The ID of the model to delete"
+            }
+          },
+          "required": [
+            "id"
+          ],
+          "visible": [
+            "id"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "header",
+        "body"
+      ],
+      "visible": [
+        "body"
+      ],
+      "additionalProperties": false
+    }
+  }
+]

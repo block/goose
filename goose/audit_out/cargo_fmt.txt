@@ -1,0 +1,16 @@
+﻿=== LAYER 2: Build Correctness ===
+Goal: Clean compilation with zero warnings
+
+cargo fmt --all -- --check:
+Diff in \\?\C:\Users\Admin\Downloads\projects\goose\crates\goose\tests\workflow_performance_benchmarks.rs:216:
+     println!("   Average Duration: {:?}", final_stats.average_duration);
+ 
+     // Performance assertions
+[31m-    assert!(!workflow_ids.is_empty(), "Should start at least one workflow");
+[0m[32m+    assert!(
+[0m[32m+        !workflow_ids.is_empty(),
+[0m[32m+        "Should start at least one workflow"
+[0m[32m+    );
+[0m     assert!(
+         startup_time < Duration::from_secs(10),
+         "Concurrent startup should be under 10 seconds"

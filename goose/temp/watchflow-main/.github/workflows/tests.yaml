@@ -1,0 +1,57 @@
+name: "Unit and Integration Tests"
+
+on:
+  push:
+    branches:
+      - "main"
+  pull_request:
+    branches:
+      - "main"
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.12"]
+
+    steps:
+      # Checkout code
+      - name: "Checkout"
+        uses: actions/checkout@v4
+
+      # Install UV
+      - name: "Install uv"
+        uses: astral-sh/setup-uv@v3
+        with:
+          version: "latest"
+
+      # Set up Python
+      - name: "Set up Python ${{ matrix.python-version }}"
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      # Install dependencies
+      - name: "Install dependencies"
+        run: uv sync --all-extras
+
+      # Run all tests with coverage
+      - name: "Run all tests"
+        env:
+          OPENAI_API_KEY: "mock-key-for-ci"
+          USE_MOCK_DATA: "True"
+        run: |
+          echo "Running unit and integration tests with coverage..."
+          uv run pytest tests/unit/ tests/integration/ \
+            --cov=. --cov-report=xml -v --tb=short
+
+      # Upload coverage reports
+      - name: "Upload coverage reports"
+        uses: codecov/codecov-action@v4
+        if: matrix.python-version == '3.12'
+        with:
+          file: ./coverage.xml
+          fail_ci_if_error: false
+          token: ${{ secrets.CODECOV_TOKEN }}
+          verbose: true

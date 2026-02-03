@@ -1,0 +1,28 @@
+{
+  "name": "vibes-cli",
+  "owner": {
+    "name": "Marcus Estes",
+    "email": "marcus@vibes.diy"
+  },
+  "metadata": {
+    "description": "Vibes is the vibe coding web stack made for AI agents.",
+    "version": "0.1.44"
+  },
+  "plugins": [
+    {
+      "name": "vibes",
+      "source": "./",
+      "description": "Vibes is the vibe coding web stack made for AI agents.",
+      "version": "0.1.44",
+      "author": {
+        "name": "Marcus Estes",
+        "email": "marcus@vibes.diy"
+      },
+      "homepage": "https://vibes.diy",
+      "repository": "https://github.com/popmechanic/vibes-cli",
+      "license": "MIT",
+      "keywords": ["react", "fireproof", "web-app", "prototyping", "no-build"],
+      "category": "development"
+    }
+  ]
+}

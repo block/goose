@@ -1,0 +1,581 @@
+[
+  {
+    "name": "APALEO__GET_PROPERTIES",
+    "description": "Retrieves a list of properties with optional filters",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "GET",
+      "endpoint": "https://api.apaleo.com/inventory/v1/properties"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "query": {
+          "type": "object",
+          "description": "query parameters",
+          "properties": {
+            "status": {
+              "type": "string",
+              "description": "Filter properties by status"
+            },
+            "includeArchived": {
+              "type": "boolean",
+              "description": "Include archived properties"
+            },
+            "countryCode": {
+              "type": "string",
+              "description": "Filter by country code"
+            },
+            "pageNumber": {
+              "type": "integer",
+              "description": "Page number"
+            },
+            "expand": {
+              "type": "string",
+              "description": "Expand related entities"
+            }
+          },
+          "required": [],
+          "visible": [
+            "status",
+            "includeArchived",
+            "countryCode",
+            "pageNumber",
+            "expand"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [],
+      "visible": [
+        "query"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "APALEO__CREATE_BOOKING",
+    "description": "Creates a new booking with reservations",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "POST",
+      "endpoint": "https://api.apaleo.com/booking/v1/bookings"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "body": {
+          "type": "object",
+          "description": "Request body",
+          "properties": {
+            "paymentAccount": {
+              "type": "object",
+              "properties": {
+                "accountNumber": {
+                  "type": "string"
+                },
+                "accountHolder": {
+                  "type": "string"
+                },
+                "expiryMonth": {
+                  "type": "string"
+                },
+                "expiryYear": {
+                  "type": "string"
+                },
+                "paymentMethod": {
+                  "type": "string"
+                },
+                "payerEmail": {
+                  "type": "string"
+                },
+                "payerReference": {
+                  "type": "string"
+                },
+                "isVirtual": {
+                  "type": "boolean"
+                }
+              },
+              "required": [
+                "accountNumber",
+                "accountHolder",
+                "paymentMethod"
+              ],
+              "visible": [
+                "accountNumber",
+                "accountHolder",
+                "paymentMethod"
+              ],
+              "additionalProperties": false
+            },
+            "booker": {
+              "type": "object",
+              "properties": {
+                "title": {
+                  "type": "string"
+                },
+                "gender": {
+                  "type": "string"
+                },
+                "firstName": {
+                  "type": "string"
+                },
+                "middleInitial": {
+                  "type": "string"
+                },
+                "lastName": {
+                  "type": "string"
+                },
+                "email": {
+                  "type": "string"
+                },
+                "phone": {
+                  "type": "string"
+                },
+                "address": {
+                  "type": "object",
+                  "properties": {
+                    "addressLine1": {
+                      "type": "string"
+                    },
+                    "postalCode": {
+                      "type": "string"
+                    },
+                    "city": {
+                      "type": "string"
+                    },
+                    "countryCode": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "addressLine1",
+                    "city",
+                    "countryCode"
+                  ],
+                  "visible": [
+                    "addressLine1",
+                    "city",
+                    "countryCode"
+                  ],
+                  "additionalProperties": false
+                }
+              },
+              "required": [
+                "firstName",
+                "lastName",
+                "email"
+              ],
+              "visible": [
+                "firstName",
+                "lastName",
+                "email",
+                "address"
+              ],
+              "additionalProperties": false
+            },
+            "reservations": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "arrival": {
+                    "type": "string",
+                    "format": "date"
+                  },
+                  "departure": {
+                    "type": "string",
+                    "format": "date"
+                  },
+                  "adults": {
+                    "type": "integer"
+                  },
+                  "childrenAges": {
+                    "type": "array",
+                    "items": {
+                      "type": "integer"
+                    }
+                  },
+                  "guestComment": {
+                    "type": "string"
+                  },
+                  "channelCode": {
+                    "type": "string"
+                  },
+                  "primaryGuest": {
+                    "type": "object",
+                    "properties": {
+                      "title": {
+                        "type": "string"
+                      },
+                      "gender": {
+                        "type": "string"
+                      },
+                      "firstName": {
+                        "type": "string"
+                      },
+                      "middleInitial": {
+                        "type": "string"
+                      },
+                      "lastName": {
+                        "type": "string"
+                      },
+                      "email": {
+                        "type": "string"
+                      },
+                      "phone": {
+                        "type": "string"
+                      },
+                      "address": {
+                        "type": "object",
+                        "properties": {
+                          "addressLine1": {
+                            "type": "string"
+                          },
+                          "postalCode": {
+                            "type": "string"
+                          },
+                          "city": {
+                            "type": "string"
+                          },
+                          "countryCode": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "addressLine1",
+                          "city",
+                          "countryCode"
+                        ],
+                        "visible": [
+                          "addressLine1",
+                          "city",
+                          "countryCode"
+                        ],
+                        "additionalProperties": false
+                      },
+                      "vehicleRegistration": {
+                        "type": "object",
+                        "properties": {
+                          "number": {
+                            "type": "string"
+                          },
+                          "countryCode": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "number",
+                          "countryCode"
+                        ],
+                        "visible": [
+                          "number",
+                          "countryCode"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "required": [
+                      "firstName",
+                      "lastName",
+                      "email"
+                    ],
+                    "visible": [
+                      "firstName",
+                      "lastName",
+                      "email",
+                      "address",
+                      "vehicleRegistration"
+                    ],
+                    "additionalProperties": false
+                  },
+                  "guaranteeType": {
+                    "type": "string"
+                  },
+                  "travelPurpose": {
+                    "type": "string"
+                  },
+                  "timeSlices": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "ratePlanId": {
+                          "type": "string"
+                        },
+                        "totalAmount": {
+                          "type": "object",
+                          "properties": {
+                            "amount": {
+                              "type": "number"
+                            },
+                            "currency": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "amount",
+                            "currency"
+                          ],
+                          "visible": [
+                            "amount",
+                            "currency"
+                          ],
+                          "additionalProperties": false
+                        }
+                      },
+                      "required": [
+                        "ratePlanId"
+                      ],
+                      "visible": [
+                        "ratePlanId",
+                        "totalAmount"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "services": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "serviceId": {
+                          "type": "string"
+                        },
+                        "dates": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "serviceDate": {
+                                "type": "string",
+                                "format": "date"
+                              },
+                              "amount": {
+                                "type": "object",
+                                "properties": {
+                                  "amount": {
+                                    "type": "number"
+                                  },
+                                  "currency": {
+                                    "type": "string"
+                                  }
+                                },
+                                "required": [
+                                  "amount",
+                                  "currency"
+                                ],
+                                "visible": [
+                                  "amount",
+                                  "currency"
+                                ],
+                                "additionalProperties": false
+                              }
+                            },
+                            "required": [
+                              "serviceDate"
+                            ],
+                            "visible": [
+                              "serviceDate",
+                              "amount"
+                            ],
+                            "additionalProperties": false
+                          }
+                        }
+                      },
+                      "required": [
+                        "serviceId"
+                      ],
+                      "visible": [
+                        "serviceId",
+                        "dates"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "prePaymentAmount": {
+                    "type": "object",
+                    "properties": {
+                      "amount": {
+                        "type": "number"
+                      },
+                      "currency": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "amount",
+                      "currency"
+                    ],
+                    "visible": [
+                      "amount",
+                      "currency"
+                    ],
+                    "additionalProperties": false
+                  }
+                },
+                "required": [
+                  "arrival",
+                  "departure",
+                  "adults",
+                  "primaryGuest",
+                  "timeSlices"
+                ],
+                "visible": [
+                  "arrival",
+                  "departure",
+                  "adults",
+                  "primaryGuest",
+                  "timeSlices",
+                  "services",
+                  "prePaymentAmount"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "transactionReference": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "reservations"
+          ],
+          "visible": [
+            "paymentAccount",
+            "booker",
+            "reservations",
+            "transactionReference"
+          ],
+          "additionalProperties": false
+        },
+        "header": {
+          "type": "object",
+          "properties": {
+            "Content-Type": {
+              "type": "string",
+              "default": "application/json"
+            }
+          },
+          "required": [
+            "Content-Type"
+          ],
+          "visible": [
+            "Content-Type"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "body",
+        "header"
+      ],
+      "visible": [
+        "body",
+        "header"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "APALEO__GET_RATE_PLANS",
+    "description": "Retrieves a list of rate plans",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "GET",
+      "endpoint": "https://api.apaleo.com/rateplan/v1/rate-plans"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "query": {
+          "type": "object",
+          "description": "query parameters",
+          "properties": {
+            "pageNumber": {
+              "type": "integer",
+              "description": "Page number"
+            }
+          },
+          "required": [],
+          "visible": [
+            "pageNumber"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [],
+      "visible": [
+        "query"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "APALEO__GET_UNITS",
+    "description": "Retrieves a list of units",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "GET",
+      "endpoint": "https://api.apaleo.com/inventory/v1/units"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "query": {
+          "type": "object",
+          "description": "query parameters",
+          "properties": {
+            "pageNumber": {
+              "type": "integer",
+              "description": "Page number"
+            }
+          },
+          "required": [],
+          "visible": [
+            "pageNumber"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [],
+      "visible": [
+        "query"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "APALEO__GET_RESERVATIONS",
+    "description": "Retrieves a list of reservations",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "GET",
+      "endpoint": "https://api.apaleo.com/booking/v1/reservations"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "query": {
+          "type": "object",
+          "description": "query parameters",
+          "properties": {
+            "pageNumber": {
+              "type": "integer",
+              "description": "Page number"
+            }
+          },
+          "required": [],
+          "visible": [
+            "pageNumber"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [],
+      "visible": [
+        "query"
+      ],
+      "additionalProperties": false
+    }
+  }
+]

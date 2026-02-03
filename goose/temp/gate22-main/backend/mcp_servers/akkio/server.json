@@ -1,0 +1,18 @@
+{
+  "name": "AKKIO",
+  "url": "https://mcp.aci.dev/virtual/mcp?server_name=AKKIO",
+  "transport_type": "streamable_http",
+  "description": "Akkio is a no-code AI platform that enables businesses to build, deploy, and maintain AI solutions for predictive analytics, forecasting, and classification without requiring data science expertise.",
+  "logo": "https://raw.githubusercontent.com/aipotheosis-labs/aipolabs-icons/refs/heads/main/apps/akkio.svg",
+  "categories": ["Data & Analytics", "Automation"],
+  "auth_configs": [
+    {
+      "type": "api_key",
+      "location": "query",
+      "name": "api_key"
+    }
+  ],
+  "server_metadata": {
+    "is_virtual_mcp_server": true
+  }
+}

@@ -1,0 +1,188 @@
+---
+title: 'Installation and Maintenance'
+description: 'Deploy OpenLIT Operator in Kubernetes Cluster'
+icon: 'circle-down'
+
+---
+
+import HelmRepoSetup from '/snippets/helm-repo-setup.mdx';
+import PlatformInstall from '/snippets/openlit-platform-install.mdx';
+import OperatorInstall from '/snippets/openlit-operator-install.mdx';
+
+This installation guide covers everything you need to deploy the OpenLIT Operator in Kubernetes environments, from cluster setup to advanced configuration options.
+
+## Kubernetes Setup
+
+### Prerequisites
+
+Before installing the OpenLIT Operator, ensure your Kubernetes cluster meets these requirements:
+
+#### Cluster Requirements
+
+| Requirement | Minimum | Recommended | Notes |
+|-------------|---------|-------------|-------|
+| Kubernetes Version | 1.19+ | 1.25+ | For webhook support |
+| RBAC | Enabled | Enabled | Required for operator permissions |
+| Admin Access | Enabled | Enabled | To create Custom Resources |
+
+#### Resource Requirements
+
+| Component | CPU | Memory | Notes |
+|-----------|-----|--------|-------|
+| OpenLIT Operator | 100m | 128Mi | Per replica |
+| Instrumentation Init Container | 100m | 128Mi | Per instrumented pod |
+
+### Cluster Verification
+
+Verify your cluster is ready for OpenLIT Operator installation:
+
+  ```bash
+  # Check cluster connection and version
+  kubectl cluster-info
+  kubectl version
+  
+  # Verify cluster admin access
+  kubectl auth can-i create customresourcedefinitions
+  kubectl auth can-i create clusterroles
+  ```
+
+### Helm Installation
+
+OpenLIT Operator requires Helm for installation. If you don't have Helm installed:
+
+👉 **[Install Helm](https://helm.sh/docs/intro/install/)** following the official guide for your platform
+
+**Verify Helm installation:**
+```bash
+helm version
+```
+
+## Operator Installation
+
+<HelmRepoSetup />
+
+<OperatorInstall />
+
+## Upgrade and Maintenance
+
+Keep your OpenLIT Operator up-to-date to get the latest features, bug fixes, and security patches.
+
+### Upgrading the Operator
+
+#### Check for Available Updates
+
+Before upgrading, check what versions are available:
+
+```bash
+# Update Helm repository
+helm repo update
+
+# Check available versions
+helm search repo openlit/openlit-operator --versions
+
+# Check current installed version
+helm list -n openlit
+```
+
+#### Upgrade to Latest Version
+
+For most use cases, upgrade to the latest stable release:
+
+```bash
+# Upgrade to latest version
+helm upgrade openlit-operator openlit/openlit-operator \
+  --namespace openlit \
+  --reuse-values
+```
+
+#### Upgrade to Specific Version
+
+For production environments, pin to specific versions:
+
+```bash
+# Upgrade to specific version
+helm upgrade openlit-operator openlit/openlit-operator \
+  --namespace openlit \
+  --version 1.2.0 \
+  --reuse-values
+```
+
+#### Verify Upgrade
+
+After upgrading, verify the operator is running correctly:
+
+```bash
+# Check pod status
+kubectl get pods -n openlit -l app.kubernetes.io/name=openlit-operator
+
+# Check operator logs
+kubectl logs -n openlit deployment/openlit-operator
+
+# Verify CRDs are updated
+kubectl get crd autoinstrumentations.openlit.io -o yaml | grep version
+```
+
+## Uninstallation
+
+```bash
+# Remove operator
+helm uninstall openlit-operator -n openlit
+
+# Remove CRDs (this will delete all AutoInstrumentation resources)
+kubectl delete crd autoinstrumentations.openlit.io
+
+# Remove namespace (optional)
+kubectl delete namespace openlit
+```
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="CRD installation failures">
+    **Symptoms:** Error creating CustomResourceDefinitions
+    
+    **Solutions:**
+    ```bash
+    # Check RBAC permissions
+    kubectl auth can-i create customresourcedefinitions
+    
+    # Manually install CRDs if needed
+    kubectl apply -f https://raw.githubusercontent.com/openlit/openlit/main/operator/deploy/openlit.io_autoinstrumentations.yaml
+    
+    # Check cluster version compatibility
+    kubectl version
+    ```
+  </Accordion>
+  
+  <Accordion title="Webhook certificate errors">
+    **Symptoms:** Webhook registration fails or returns certificate errors
+    
+    **Solutions:**
+    ```bash
+    # Check certificate secret
+    kubectl get secrets -n openlit | grep webhook
+    
+    # Restart operator to regenerate certificates
+    kubectl rollout restart deployment/openlit-operator -n openlit
+    
+    # Check webhook configuration
+    kubectl describe mutatingwebhookconfigurations openlit-operator
+    ```
+  </Accordion>
+  
+  <Accordion title="Image pull failures">
+    **Symptoms:** Operator pods stuck in ImagePullBackOff
+    
+    **Solutions:**
+    ```bash
+    # Check image availability
+    docker pull ghcr.io/openlit/openlit-operator:latest
+    
+    # Verify image pull secrets
+    kubectl get secrets -n openlit
+    
+    # Check pod events
+    kubectl describe pod -n openlit -l app.kubernetes.io/name=openlit-operator
+    ```
+  </Accordion>
+</AccordionGroup>

@@ -1,0 +1,68 @@
+---
+title: Stats Widget
+description: Learn how to use the Statistics Widget in OpenLIT to display key metrics, KPIs, and summary values with real-time ClickHouse data.
+---
+
+The **Statistics Widget** (or stat card) is designed to highlight your most important metrics in a clean, bold format. It’s ideal for surfacing KPIs, real-time values, or summary statistics at a glance.
+
+## When to use
+
+- Display total signups, revenue, or active users  
+- Show conversion rates, success percentages, or API error counts  
+- Track live values on operational dashboards  
+
+## How to add a stat card
+
+<iframe className="w-full aspect-video" src="https://www.youtube.com/embed/_XY28a192Io?list=PLgErWFh-dyiGp9yUDnnx67wHEeNqzzMXZ" title="How to Use the Stat Widget in OpenLIT – Visualize Trends Over Time" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" referrerpolicy="strict-origin-when-cross-origin" allowfullscreen></iframe>
+
+Example:
+
+```sql
+WITH
+	parseDateTimeBestEffort('{{filter.timeLimit.start}}') AS start_time,
+	parseDateTimeBestEffort('{{filter.timeLimit.end}}') AS end_time,
+	(end_time - start_time) AS duration,
+	(start_time - duration) AS prev_start_time,
+	(end_time - duration) AS prev_end_time\n\nSELECT
+	round(sumIf(toFloat64OrZero(SpanAttributes['gen_ai.usage.cost']),
+	    Timestamp >= start_time AND Timestamp <= end_time), 7) AS total_usage_cost,\n
+	round(sumIf(toFloat64OrZero(SpanAttributes['gen_ai.usage.cost']),
+	    Timestamp >= prev_start_time AND Timestamp <= prev_end_time), 7) AS total_usage_cost_previous,\n
+	round(
+	    if(
+	        sumIf(toFloat64OrZero(SpanAttributes['gen_ai.usage.cost']),
+	            Timestamp >= prev_start_time AND Timestamp <= prev_end_time) = 0,
+	        sumIf(toFloat64OrZero(SpanAttributes['gen_ai.usage.cost']),
+	            Timestamp >= start_time AND Timestamp <= end_time) * 100.0,
+	        (
+	            sumIf(toFloat64OrZero(SpanAttributes['gen_ai.usage.cost']),
+	                Timestamp >= start_time AND Timestamp <= end_time)
+	            -
+	            sumIf(toFloat64OrZero(SpanAttributes['gen_ai.usage.cost']),
+	                Timestamp >= prev_start_time AND Timestamp <= prev_end_time)
+	        )
+	        /
+	        sumIf(toFloat64OrZero(SpanAttributes['gen_ai.usage.cost']),
+	            Timestamp >= prev_start_time AND Timestamp <= prev_end_time) * 100.0
+	    ), 4
+	) AS rate\nFROM otel_traces\nWHERE
+	SpanAttributes['gen_ai.operation.name'] != 'vectordb'
+	AND StatusCode IN ('STATUS_CODE_OK', 'STATUS_CODE_UNSET', 'Ok', 'Unset')
+	AND Timestamp >= prev_start_time AND Timestamp <= end_time\n
+````
+
+## Configuration options
+
+* Set **prefix/suffix** (e.g. `$`, `%`, `ms`)
+* Choose **colors**
+* Add **trend indicators**
+
+<Tip>
+Use dynamic filters like `{{filter.timeLimit.start}}`, `{{filter.timeLimit.end}}` to make the stat card responsive to dashboard-level controls.
+</Tip>
+ 
+## Best practices
+
+* Combine stat cards with charts for more context
+* Use consistent units (e.g., %, \$, MB)
+* Avoid overloading the dashboard with too many KPIs—focus on what matters

@@ -1,0 +1,588 @@
+[
+  {
+    "name": "GOOGLE_MEET__CONFERENCE_RECORDS_LIST",
+    "description": "Lists the conference records. By default, ordered by start time and in descending order.",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "GET",
+      "endpoint": "https://meet.googleapis.com/v2/conferenceRecords"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "query": {
+          "type": "object",
+          "description": "Query parameters for the request",
+          "properties": {
+            "pageSize": {
+              "type": "integer",
+              "description": "Maximum number of conference records to return. The service might return fewer than this value. If unspecified, at most 25 conference records are returned. The maximum value is 100.",
+              "default": 25
+            },
+            "pageToken": {
+              "type": "string",
+              "description": "Page token returned from previous List Call."
+            },
+            "filter": {
+              "type": "string",
+              "description": "User specified filtering condition. For example: 'space.name = \"spaces/NAME\"', 'space.meeting_code = \"abc-mnop-xyz\"', 'start_time>=\"2024-01-01T00:00:00.000Z\" AND start_time<=\"2024-01-02T00:00:00.000Z\"', 'end_time IS NULL'"
+            }
+          },
+          "required": [],
+          "visible": [
+            "pageSize",
+            "pageToken",
+            "filter"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [],
+      "visible": [
+        "query"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "GOOGLE_MEET__CONFERENCE_RECORDS_GET",
+    "description": "Gets a conference record by conference ID.",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "GET",
+      "endpoint": "https://meet.googleapis.com/v2/{name}"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "path": {
+          "type": "object",
+          "description": "Path parameters",
+          "properties": {
+            "name": {
+              "type": "string",
+              "description": "The resource name of the conference record, format: conferenceRecords/{conference_record}",
+              "pattern": "^conferenceRecords/[^/]+$"
+            }
+          },
+          "required": [
+            "name"
+          ],
+          "visible": [
+            "name"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "path"
+      ],
+      "visible": [
+        "path"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "GOOGLE_MEET__PARTICIPANTS_LIST",
+    "description": "Lists the participants in a conference record.",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "GET",
+      "endpoint": "https://meet.googleapis.com/v2/{parent}/participants"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "path": {
+          "type": "object",
+          "description": "Path parameters",
+          "properties": {
+            "parent": {
+              "type": "string",
+              "description": "Conference record ID. Format: conferenceRecords/{conference_record}",
+              "pattern": "^conferenceRecords/[^/]+$"
+            }
+          },
+          "required": [
+            "parent"
+          ],
+          "visible": [
+            "parent"
+          ],
+          "additionalProperties": false
+        },
+        "query": {
+          "type": "object",
+          "description": "Query parameters",
+          "properties": {
+            "pageSize": {
+              "type": "integer",
+              "description": "Maximum number of participants to return per page. Default 100, maximum 250.",
+              "default": 100
+            },
+            "pageToken": {
+              "type": "string",
+              "description": "Page token for pagination"
+            },
+            "filter": {
+              "type": "string",
+              "description": "Filter condition. Example: latest_end_time IS NULL returns active participants"
+            }
+          },
+          "required": [],
+          "visible": [
+            "pageSize",
+            "pageToken",
+            "filter"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "path"
+      ],
+      "visible": [
+        "path",
+        "query"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "GOOGLE_MEET__PARTICIPANTS_GET",
+    "description": "Gets a participant by participant ID.",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "GET",
+      "endpoint": "https://meet.googleapis.com/v2/{name}"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "path": {
+          "type": "object",
+          "description": "Path parameters",
+          "properties": {
+            "name": {
+              "type": "string",
+              "description": "Participant resource name. Format: conferenceRecords/{conference_record}/participants/{participant}",
+              "pattern": "^conferenceRecords/[^/]+/participants/[^/]+$"
+            }
+          },
+          "required": [
+            "name"
+          ],
+          "visible": [
+            "name"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "path"
+      ],
+      "visible": [
+        "path"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "GOOGLE_MEET__PARTICIPANT_SESSIONS_LIST",
+    "description": "Lists the participant sessions of a participant in a conference record.",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "GET",
+      "endpoint": "https://meet.googleapis.com/v2/{parent}/participantSessions"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "path": {
+          "type": "object",
+          "description": "Path parameters",
+          "properties": {
+            "parent": {
+              "type": "string",
+              "description": "Participant resource name. Format: conferenceRecords/{conference_record}/participants/{participant}",
+              "pattern": "^conferenceRecords/[^/]+/participants/[^/]+$"
+            }
+          },
+          "required": [
+            "parent"
+          ],
+          "visible": [
+            "parent"
+          ],
+          "additionalProperties": false
+        },
+        "query": {
+          "type": "object",
+          "description": "Query parameters",
+          "properties": {
+            "pageSize": {
+              "type": "integer",
+              "description": "Maximum number of sessions to return per page",
+              "default": 100
+            },
+            "pageToken": {
+              "type": "string",
+              "description": "Page token for pagination"
+            },
+            "filter": {
+              "type": "string",
+              "description": "Filter condition. Example: end_time IS NULL returns active sessions"
+            }
+          },
+          "required": [],
+          "visible": [
+            "pageSize",
+            "pageToken",
+            "filter"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "path"
+      ],
+      "visible": [
+        "path",
+        "query"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "GOOGLE_MEET__SPACES_GET",
+    "description": "Gets details about a meeting space.",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "GET",
+      "endpoint": "https://meet.googleapis.com/v2/{name}"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "path": {
+          "type": "object",
+          "description": "Path parameters",
+          "properties": {
+            "name": {
+              "type": "string",
+              "description": "Resource name of the space. Format: spaces/{space}",
+              "pattern": "^spaces/[^/]+$"
+            }
+          },
+          "required": [
+            "name"
+          ],
+          "visible": [
+            "name"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "path"
+      ],
+      "visible": [
+        "path"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "GOOGLE_MEET__SPACES_CREATE",
+    "description": "Creates a space.",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "POST",
+      "endpoint": "https://meet.googleapis.com/v2/spaces"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "body": {
+          "type": "object",
+          "description": "Request body parameters",
+          "properties": {
+            "config": {
+              "type": "object",
+              "description": "Configuration pertaining to the meeting space",
+              "properties": {
+                "moderation": {
+                  "type": "string",
+                  "description": "The pre-configured moderation mode for the Meeting",
+                  "enum": [
+                    "MODERATION_UNSPECIFIED",
+                    "OFF",
+                    "ON"
+                  ]
+                },
+                "artifactConfig": {
+                  "type": "object",
+                  "description": "Configuration related to meeting artifacts potentially generated by this meeting space",
+                  "properties": {
+                    "smartNotesConfig": {
+                      "type": "object",
+                      "description": "Configuration related to smart notes in a meeting space",
+                      "properties": {
+                        "autoSmartNotesGeneration": {
+                          "type": "string",
+                          "description": "Defines whether to automatically generate a summary and recap",
+                          "enum": [
+                            "AUTO_GENERATION_TYPE_UNSPECIFIED",
+                            "ON",
+                            "OFF"
+                          ]
+                        }
+                      },
+                      "required": [],
+                      "visible": [
+                        "autoSmartNotesGeneration"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [],
+                  "visible": [
+                    "smartNotesConfig"
+                  ],
+                  "additionalProperties": false
+                }
+              },
+              "required": [],
+              "visible": [
+                "moderation",
+                "artifactConfig"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "required": [],
+          "visible": [
+            "config"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [],
+      "visible": [
+        "body"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "GOOGLE_MEET__RECORDINGS_LIST",
+    "description": "Lists recordings from a conference record.",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "GET",
+      "endpoint": "https://meet.googleapis.com/v2/{parent}/recordings"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "path": {
+          "type": "object",
+          "description": "Path parameters",
+          "properties": {
+            "parent": {
+              "type": "string",
+              "description": "Conference record ID. Format: conferenceRecords/{conference_record}",
+              "pattern": "^conferenceRecords/[^/]+$"
+            }
+          },
+          "required": [
+            "parent"
+          ],
+          "visible": [
+            "parent"
+          ],
+          "additionalProperties": false
+        },
+        "query": {
+          "type": "object",
+          "description": "Query parameters",
+          "properties": {
+            "pageSize": {
+              "type": "integer",
+              "description": "Maximum number of recordings to return per page",
+              "default": 25
+            },
+            "pageToken": {
+              "type": "string",
+              "description": "Page token for pagination"
+            }
+          },
+          "required": [],
+          "visible": [
+            "pageSize",
+            "pageToken"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "path"
+      ],
+      "visible": [
+        "path",
+        "query"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "GOOGLE_MEET__RECORDINGS_GET",
+    "description": "Gets details of a specific recording including Google Drive links.",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "GET",
+      "endpoint": "https://meet.googleapis.com/v2/{name}"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "path": {
+          "type": "object",
+          "description": "Path parameters",
+          "properties": {
+            "name": {
+              "type": "string",
+              "description": "Recording resource name. Format: conferenceRecords/{conference_record}/recordings/{recording}",
+              "pattern": "^conferenceRecords/[^/]+/recordings/[^/]+$"
+            }
+          },
+          "required": [
+            "name"
+          ],
+          "visible": [
+            "name"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "path"
+      ],
+      "visible": [
+        "path"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "GOOGLE_MEET__SPACES_CONFIGURE_SMART_NOTES",
+    "description": "Configures smart notes settings for a meeting space.",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "PATCH",
+      "endpoint": "https://meet.googleapis.com/v2/{name}"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "path": {
+          "type": "object",
+          "description": "Path parameters",
+          "properties": {
+            "name": {
+              "type": "string",
+              "description": "Resource name of the space. Format: spaces/{space}",
+              "pattern": "^spaces/[^/]+$"
+            }
+          },
+          "required": [
+            "name"
+          ],
+          "visible": [
+            "name"
+          ],
+          "additionalProperties": false
+        },
+        "query": {
+          "type": "object",
+          "description": "Query parameters",
+          "properties": {
+            "updateMask": {
+              "type": "string",
+              "description": "Fields to be updated. For example: config.artifactConfig.smartNotesConfig.autoSmartNotesGeneration"
+            }
+          },
+          "required": [],
+          "visible": [
+            "updateMask"
+          ],
+          "additionalProperties": false
+        },
+        "body": {
+          "type": "object",
+          "description": "Request body parameters",
+          "properties": {
+            "config": {
+              "type": "object",
+              "description": "Configuration pertaining to the meeting space",
+              "properties": {
+                "artifactConfig": {
+                  "type": "object",
+                  "description": "Configuration related to meeting artifacts potentially generated by this meeting space",
+                  "properties": {
+                    "smartNotesConfig": {
+                      "type": "object",
+                      "description": "Configuration related to smart notes in a meeting space",
+                      "properties": {
+                        "autoSmartNotesGeneration": {
+                          "type": "string",
+                          "description": "Defines whether to automatically generate a summary and recap of the meeting",
+                          "enum": [
+                            "AUTO_GENERATION_TYPE_UNSPECIFIED",
+                            "ON",
+                            "OFF"
+                          ]
+                        }
+                      },
+                      "required": [],
+                      "visible": [
+                        "autoSmartNotesGeneration"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [],
+                  "visible": [
+                    "smartNotesConfig"
+                  ],
+                  "additionalProperties": false
+                }
+              },
+              "required": [],
+              "visible": [
+                "artifactConfig"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "required": [],
+          "visible": [
+            "config"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "path",
+        "body"
+      ],
+      "visible": [
+        "path",
+        "query",
+        "body"
+      ],
+      "additionalProperties": false
+    }
+  }
+]

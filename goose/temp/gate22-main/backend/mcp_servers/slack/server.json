@@ -1,0 +1,23 @@
+{
+  "name": "SLACK",
+  "url": "https://mcp.aci.dev/virtual/mcp?server_name=SLACK",
+  "transport_type": "streamable_http",
+  "description": "Slack is a team communication and collaboration tool. This API allows you to interact with Slack in two ways: as a bot for automated tasks and workflows, or as a user to perform actions on behalf of a real Slack user. Whether you're building chatbots, automating workflows, or integrating Slack with other tools, this API provides the flexibility to suit your needs.",
+  "logo": "https://raw.githubusercontent.com/aipotheosis-labs/aipolabs-icons/refs/heads/main/apps/slack.svg",
+  "categories": ["Communication"],
+  "auth_configs": [
+    {
+      "type": "oauth2",
+      "client_id": "{{ CLIENT_ID }}",
+      "client_secret": "{{ CLIENT_SECRET }}",
+      "scope": "users:read users:write channels:read groups:read groups:write im:read im:write mpim:read chat:write channels:history groups:history mpim:history im:history bookmarks:write bookmarks:read pins:write pins:read reactions:read reactions:write reminders:write reminders:read emoji:read search:read team:read",
+      "authorize_url": "https://slack.com/oauth/v2/authorize",
+      "access_token_url": "https://slack.com/api/oauth.v2.access",
+      "refresh_token_url": "https://slack.com/api/oauth.v2.access",
+      "token_endpoint_auth_method": "client_secret_post"
+    }
+  ],
+  "server_metadata": {
+    "is_virtual_mcp_server": true
+  }
+}

@@ -1,0 +1,14 @@
+{
+  "name": "COINGECKO",
+  "url": "https://mcp.api.coingecko.com/mcp",
+  "transport_type": "streamable_http",
+  "description": "CoinGecko is a comprehensive API for accessing cryptocurrency data and market information. It provides real-time market data, historical prices, and comprehensive market analysis tools.",
+  "logo": "https://raw.githubusercontent.com/aipotheosis-labs/aipolabs-icons/refs/heads/main/apps/coingecko.svg",
+  "categories": ["Finance", "Blockchain"],
+  "auth_configs": [
+    {
+      "type": "no_auth"
+    }
+  ],
+  "server_metadata": {}
+}

@@ -1,0 +1,54 @@
+[
+  {
+    "name": "CONTEXT7__RESOLVE_LIBRARY_ID",
+    "description": "Resolves a package/product name to a Context7-compatible library ID and returns a list of matching libraries.\n\nYou MUST call this function before 'get-library-docs' to obtain a valid Context7-compatible library ID UNLESS the user explicitly provides a library ID in the format '/org/project' or '/org/project/version' in their query.\n\nSelection Process:\n1. Analyze the query to understand what library/package the user is looking for\n2. Return the most relevant match based on:\n- Name similarity to the query (exact matches prioritized)\n- Description relevance to the query's intent\n- Documentation coverage (prioritize libraries with higher Code Snippet counts)\n- Trust score (consider libraries with scores of 7-10 more authoritative)\n\nResponse Format:\n- Return the selected library ID in a clearly marked section\n- Provide a brief explanation for why this library was chosen\n- If multiple good matches exist, acknowledge this but proceed with the most relevant one\n- If no good matches exist, clearly state this and suggest query refinements\n\nFor ambiguous queries, request clarification before proceeding with a best-guess match.",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "resolve-library-id",
+      "canonical_tool_description_hash": "308239a25ce3f2e4438e4a47439715134aab32b3e2fe11271b847e492104c05b",
+      "canonical_tool_input_schema_hash": "e891546dbc2c24e20d39a2decb117be4ab29da31e9574a652dfa56d39e77d551"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "libraryName": {
+          "type": "string",
+          "description": "Library name to search for and retrieve a Context7-compatible library ID."
+        }
+      },
+      "required": ["libraryName"],
+      "additionalProperties": false,
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    }
+  },
+  {
+    "name": "CONTEXT7__GET_LIBRARY_DOCS",
+    "description": "Fetches up-to-date documentation for a library. You must call 'resolve-library-id' first to obtain the exact Context7-compatible library ID required to use this tool, UNLESS the user explicitly provides a library ID in the format '/org/project' or '/org/project/version' in their query.",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "get-library-docs",
+      "canonical_tool_description_hash": "6e64868956b88af26af42c0f481168171a91dd9d576ea8b810eff61bb47eeae5",
+      "canonical_tool_input_schema_hash": "7a2afa14d6d590c4000774ff3403808fb64da26a25bb51a143374de029522b47"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "context7CompatibleLibraryID": {
+          "type": "string",
+          "description": "Exact Context7-compatible library ID (e.g., '/mongodb/docs', '/vercel/next.js', '/supabase/supabase', '/vercel/next.js/v14.3.0-canary.87') retrieved from 'resolve-library-id' or directly from user query in the format '/org/project' or '/org/project/version'."
+        },
+        "topic": {
+          "type": "string",
+          "description": "Topic to focus documentation on (e.g., 'hooks', 'routing')."
+        },
+        "tokens": {
+          "type": "number",
+          "description": "Maximum number of tokens of documentation to retrieve (default: 10000). Higher values provide more context but consume more tokens."
+        }
+      },
+      "required": ["context7CompatibleLibraryID"],
+      "additionalProperties": false,
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    }
+  }
+]

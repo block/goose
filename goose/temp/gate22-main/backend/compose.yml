@@ -1,0 +1,152 @@
+name: mcp-gateway
+services:
+  # OpenTelemetry Collector - receives telemetry from services and forwards to Dash0
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:0.136.0
+    command: ["--config=/etc/otel-collector-config.yml"]
+    volumes:
+      - ./otel-collector-config.yml:/etc/otel-collector-config.yml
+    ports:
+      - "4317:4317" # OTLP gRPC receiver
+      - "4318:4318" # OTLP HTTP receiver
+    env_file:
+      - .env.local
+    restart: no
+    profiles: ["otel"]
+
+  db:
+    # Note: we need to use the pgvector/pgvector:pg17 image to use the pgvector extension, instead of the official postgres image
+    image: pgvector/pgvector:pg17
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U user -d local_db"]
+      interval: 1s
+      retries: 5
+      start_period: 1s
+      timeout: 10s
+    environment:
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: local_db
+    ports:
+      - "5432:5432"
+    restart: no
+
+  test-db:
+    image: pgvector/pgvector:pg17
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U user -d local_db"]
+      interval: 1s
+      retries: 5
+      start_period: 1s
+      timeout: 10s
+    environment:
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: local_db
+    restart: no
+
+  control_plane:
+    build:
+      context: .
+      dockerfile: Dockerfile.control_plane
+    healthcheck:
+      test: ["CMD-SHELL", "curl localhost:8000/v1/control-plane/health"]
+      interval: 10s
+      retries: 5
+      start_period: 3s
+      timeout: 10s
+    env_file:
+      - .env.local
+    volumes:
+      - ./aci/control_plane:/workdir/aci/control_plane
+      - ./aci/common:/workdir/aci/common
+    ports:
+      - "8000:8000"
+    command: uvicorn aci.control_plane.main:app --reload --proxy-headers --forwarded-allow-ips=* --host 0.0.0.0 --port 8000 --no-access-log
+    depends_on:
+      db:
+        condition: service_healthy
+
+  mcp:
+    build:
+      context: .
+      dockerfile: Dockerfile.mcp
+    healthcheck:
+      test: ["CMD-SHELL", "curl localhost:8001/gateway/mcp/health"]
+      interval: 10s
+      retries: 5
+      start_period: 3s
+      timeout: 10s
+    env_file:
+      - .env.local
+    volumes:
+      - ./aci/mcp:/workdir/aci/mcp
+      - ./aci/common:/workdir/aci/common
+    ports:
+      - "8001:8000"
+    command: uvicorn aci.mcp.main:app --reload --proxy-headers --forwarded-allow-ips=* --host 0.0.0.0 --port 8000 --no-access-log
+    depends_on:
+      db:
+        condition: service_healthy
+
+  virtual_mcp:
+    build:
+      context: .
+      dockerfile: Dockerfile.virtual_mcp
+    healthcheck:
+      test: ["CMD-SHELL", "curl localhost:8002/virtual/mcp/health"]
+      interval: 10s
+      retries: 5
+      start_period: 3s
+      timeout: 10s
+    env_file:
+      - .env.local
+    volumes:
+      - ./aci/virtual_mcp:/workdir/aci/virtual_mcp
+      - ./aci/common:/workdir/aci/common
+    ports:
+      - "8002:8000"
+    command: uvicorn aci.virtual_mcp.main:app --reload --proxy-headers --forwarded-allow-ips=* --host 0.0.0.0 --port 8000 --no-access-log
+    depends_on:
+      db:
+        condition: service_healthy
+
+  # can think of runner as an staging host for executing any commands
+  # e.g., run cli commands and scripts such as seed db etc.
+  runner:
+    build:
+      context: .
+      dockerfile: Dockerfile.runner
+    env_file:
+      - .env.local
+    # Mount the local code into the container so you can run scripts / Alembic
+    volumes:
+      - ./aci/:/workdir/aci
+      - ./mcp_servers/:/workdir/mcp_servers
+      - ./virtual_mcp_servers/:/workdir/virtual_mcp_servers
+      - ./alembic.ini:/workdir/alembic.ini
+    command: >
+      /bin/sh -c "alembic upgrade head && tail -f /dev/null"
+    depends_on:
+      db:
+        condition: service_healthy
+
+  test-runner:
+    build:
+      context: .
+      dockerfile: Dockerfile.runner
+    env_file:
+      - .env.local
+    environment:
+      - ALEMBIC_DB_HOST=test-db
+      - CONTROL_PLANE_DB_HOST=test-db
+      - MCP_DB_HOST=test-db
+    # Mount the local code into the container so you can run scripts / Alembic
+    volumes:
+      - ./aci/:/workdir/aci
+      - ./alembic.ini:/workdir/alembic.ini
+    command: >
+      /bin/sh -c "alembic upgrade head && tail -f /dev/null"
+    depends_on:
+      test-db:
+        condition: service_healthy

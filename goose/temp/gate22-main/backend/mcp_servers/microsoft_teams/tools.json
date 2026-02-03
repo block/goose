@@ -1,0 +1,1889 @@
+[
+  {
+    "name": "MICROSOFT_TEAMS__ARCHIVE_TEAM",
+    "description": "Archive a team. Archived teams are read-only and members cannot add new content, but existing content remains accessible.",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "ARCHIVE_TEAM",
+      "canonical_tool_description_hash": "c6a42b2339d04ac8072ffb32eac9662e7ba386f9a44c536100f33749b8c4d9b3",
+      "canonical_tool_input_schema_hash": "e620e4ce19c1ae5626bee4459ea25d091dc40a3c7d6f74bfef56e09fc55ee249"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["path"],
+      "properties": {
+        "body": {
+          "type": "object",
+          "required": [],
+          "properties": {
+            "shouldSetSpoSiteReadOnlyForMembers": {
+              "type": "boolean",
+              "default": false,
+              "description": "Whether to make the SharePoint site read-only for members"
+            }
+          },
+          "description": "Archive options",
+          "additionalProperties": false
+        },
+        "path": {
+          "type": "object",
+          "required": ["team_id"],
+          "properties": {
+            "team_id": {
+              "type": "string",
+              "description": "The unique identifier of the team to archive"
+            }
+          },
+          "description": "The path parameters",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "MICROSOFT_TEAMS__LIST_JOINED_TEAMS",
+    "description": "Get the teams in Microsoft Teams that the user is a direct member of. This API doesn't return the host team of the shared channel that the user is a direct member of.",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "LIST_JOINED_TEAMS",
+      "canonical_tool_description_hash": "a994cfd9ed0871b1555f15bf53257184296b3b1c693bf15a1538f91132fdb257",
+      "canonical_tool_input_schema_hash": "45a3a326b8413807a06278beb025e7c3f485540a955963a978b103dc573c7770"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": [],
+      "properties": {
+        "query": {
+          "type": "object",
+          "required": [],
+          "properties": {
+            "$top": {
+              "type": "integer",
+              "description": "Maximum number of teams to return (default 20, max 999)"
+            },
+            "$skip": {
+              "type": "integer",
+              "description": "Number of teams to skip for pagination"
+            },
+            "$filter": {
+              "type": "string",
+              "description": "Filter expression to limit teams (e.g., \"displayName eq 'Project Team'\")"
+            },
+            "$select": {
+              "type": "string",
+              "description": "Comma-separated list of properties to include (e.g., 'id,displayName,description')"
+            }
+          },
+          "description": "Query parameters for customizing the response",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "MICROSOFT_TEAMS__GET_TEAM",
+    "description": "Get the properties and relationships of the specified team. This returns more detailed information about a team than the basic joined teams list.",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "GET_TEAM",
+      "canonical_tool_description_hash": "dff7fd51419a0d2b4b6418fe712ee6b0d5902a053e42471b87aff246234809c3",
+      "canonical_tool_input_schema_hash": "cbb71cf3c7295ecff25b94b062269d96de1c6d26cd7c6d2681c370be268cdf16"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["path"],
+      "properties": {
+        "path": {
+          "type": "object",
+          "required": ["team_id"],
+          "properties": {
+            "team_id": {
+              "type": "string",
+              "description": "The unique identifier of the team"
+            }
+          },
+          "description": "The path parameters",
+          "additionalProperties": false
+        },
+        "query": {
+          "type": "object",
+          "required": [],
+          "properties": {
+            "$expand": {
+              "type": "string",
+              "description": "Expand related entities like 'channels' or 'members'"
+            },
+            "$select": {
+              "type": "string",
+              "description": "Select specific properties like 'id,displayName,description,settings'"
+            }
+          },
+          "description": "Query parameters for customizing the team details",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "MICROSOFT_TEAMS__LIST_TEAM_CHANNELS",
+    "description": "Get the list of channels in a team. This allows you to see all channels within a specific team.",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "LIST_TEAM_CHANNELS",
+      "canonical_tool_description_hash": "2b6703165669434a9744a19eb4e8e9a510431aecd2d0943bb3d415adbdeb303c",
+      "canonical_tool_input_schema_hash": "b36b3fb4fe93be6510d7b4307ae4d2819fe24613d37fa46ec4a0b9ccbce607e7"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["path"],
+      "properties": {
+        "path": {
+          "type": "object",
+          "required": ["team_id"],
+          "properties": {
+            "team_id": {
+              "type": "string",
+              "description": "The unique identifier of the team"
+            }
+          },
+          "description": "The path parameters",
+          "additionalProperties": false
+        },
+        "query": {
+          "type": "object",
+          "required": [],
+          "properties": {
+            "$top": {
+              "type": "integer",
+              "description": "Maximum number of channels to return"
+            },
+            "$skip": {
+              "type": "integer",
+              "description": "Number of channels to skip for pagination"
+            },
+            "$filter": {
+              "type": "string",
+              "description": "Filter expression to limit channels (e.g., \"membershipType eq 'standard'\")"
+            },
+            "$select": {
+              "type": "string",
+              "description": "Comma-separated list of properties to include (e.g., 'id,displayName,description,membershipType')"
+            },
+            "$orderby": {
+              "type": "string",
+              "description": "Property to sort by with direction (e.g., 'displayName asc')"
+            }
+          },
+          "description": "Query parameters for filtering and customizing the channel list",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "MICROSOFT_TEAMS__LIST_TEAM_MEMBERS",
+    "description": "Get the members of a team. This returns all users who are part of the specified team.",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "LIST_TEAM_MEMBERS",
+      "canonical_tool_description_hash": "289dea79a3eb07277f70326bb79654c622196debb7cd715dba7a7148ac7fdf1a",
+      "canonical_tool_input_schema_hash": "c1dfa50289cb0357dd45f9edd44ba52e572dc5065aa50dd1168438e9c6ab4086"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["path"],
+      "properties": {
+        "path": {
+          "type": "object",
+          "required": ["team_id"],
+          "properties": {
+            "team_id": {
+              "type": "string",
+              "description": "The unique identifier of the team"
+            }
+          },
+          "description": "The path parameters",
+          "additionalProperties": false
+        },
+        "query": {
+          "type": "object",
+          "required": [],
+          "properties": {
+            "$top": {
+              "type": "integer",
+              "description": "Maximum number of members to return"
+            },
+            "$skip": {
+              "type": "integer",
+              "description": "Number of members to skip for pagination"
+            },
+            "$filter": {
+              "type": "string",
+              "description": "Filter expression to limit members (e.g., \"roles/any(r:r eq 'owner')\")"
+            },
+            "$select": {
+              "type": "string",
+              "description": "Comma-separated list of properties to include (e.g., 'id,displayName,email,roles')"
+            }
+          },
+          "description": "Query parameters for filtering and customizing the member list",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "MICROSOFT_TEAMS__LIST_CHANNEL_MESSAGES",
+    "description": "Get the list of messages in a channel. This allows you to retrieve conversation messages from a specific team channel.",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "LIST_CHANNEL_MESSAGES",
+      "canonical_tool_description_hash": "a351266b7c04d9c2fc376b651883b4c264cc45d452f0407c940207bf15ab7d0c",
+      "canonical_tool_input_schema_hash": "270ab788347082fe81530edfe62f5bebce4a3197d6aa941e51d9c734c228178c"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["path"],
+      "properties": {
+        "path": {
+          "type": "object",
+          "required": ["team_id", "channel_id"],
+          "properties": {
+            "team_id": {
+              "type": "string",
+              "description": "The unique identifier of the team"
+            },
+            "channel_id": {
+              "type": "string",
+              "description": "The unique identifier of the channel"
+            }
+          },
+          "description": "The path parameters",
+          "additionalProperties": false
+        },
+        "query": {
+          "type": "object",
+          "required": [],
+          "properties": {
+            "$top": {
+              "type": "integer",
+              "description": "Maximum number of messages to return (default 20, max 50)"
+            },
+            "$skip": {
+              "type": "integer",
+              "description": "Number of messages to skip for pagination"
+            },
+            "$filter": {
+              "type": "string",
+              "description": "Filter expression to limit messages (e.g., \"from/user/displayName eq 'John Doe'\")"
+            },
+            "$select": {
+              "type": "string",
+              "description": "Comma-separated list of properties to include (e.g., 'id,body,from,createdDateTime')"
+            },
+            "$orderby": {
+              "type": "string",
+              "description": "Property to sort by with direction (e.g., 'createdDateTime desc')"
+            }
+          },
+          "description": "Query parameters for filtering and customizing the message list",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "MICROSOFT_TEAMS__SEND_CHANNEL_MESSAGE",
+    "description": "Send a new message to a channel in a team. This allows posting messages to team channels.",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "SEND_CHANNEL_MESSAGE",
+      "canonical_tool_description_hash": "f8012c21723cba03b44ab48ab38e817ac45223e9c9ded108b1f33becf8ad4afd",
+      "canonical_tool_input_schema_hash": "6063a5705d0ee00fcbdc323b25cd74070ce2a36971730b72753f47d706bae9e0"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["path", "body"],
+      "properties": {
+        "body": {
+          "type": "object",
+          "required": ["body"],
+          "properties": {
+            "body": {
+              "type": "object",
+              "required": ["content"],
+              "properties": {
+                "content": {
+                  "type": "string",
+                  "description": "The actual content of the message"
+                },
+                "contentType": {
+                  "enum": ["text", "html"],
+                  "type": "string",
+                  "default": "text",
+                  "description": "The content type of the message body"
+                }
+              },
+              "description": "The message body",
+              "additionalProperties": false
+            },
+            "subject": {
+              "type": "string",
+              "description": "The subject of the message (optional)"
+            }
+          },
+          "description": "The message content to send",
+          "additionalProperties": false
+        },
+        "path": {
+          "type": "object",
+          "required": ["team_id", "channel_id"],
+          "properties": {
+            "team_id": {
+              "type": "string",
+              "description": "The unique identifier of the team"
+            },
+            "channel_id": {
+              "type": "string",
+              "description": "The unique identifier of the channel"
+            }
+          },
+          "description": "The path parameters",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "MICROSOFT_TEAMS__GET_CHANNEL",
+    "description": "Get the properties and relationships of a channel in a team. This provides detailed information about a specific channel.",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "GET_CHANNEL",
+      "canonical_tool_description_hash": "45b6ba86676bae0a3eb6b72dd095169eeff41ce9a5ff90635169b52869d63dee",
+      "canonical_tool_input_schema_hash": "27ee8c24ca702459b9ffaa7441a7d05cab7873a196f7428acd2efd4a437ca4d3"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["path"],
+      "properties": {
+        "path": {
+          "type": "object",
+          "required": ["team_id", "channel_id"],
+          "properties": {
+            "team_id": {
+              "type": "string",
+              "description": "The unique identifier of the team"
+            },
+            "channel_id": {
+              "type": "string",
+              "description": "The unique identifier of the channel"
+            }
+          },
+          "description": "The path parameters",
+          "additionalProperties": false
+        },
+        "query": {
+          "type": "object",
+          "required": [],
+          "properties": {
+            "$expand": {
+              "type": "string",
+              "description": "Expand related entities like 'members' or 'tabs'"
+            },
+            "$select": {
+              "type": "string",
+              "description": "Select specific properties like 'id,displayName,description,membershipType'"
+            }
+          },
+          "description": "Query parameters for customizing the channel details",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "MICROSOFT_TEAMS__CREATE_TEAM",
+    "description": "Create a new team in Microsoft Teams. This allows creating a team with specified settings including name, description, visibility, and member permissions.",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "CREATE_TEAM",
+      "canonical_tool_description_hash": "a1d4f1ea7ab062ff13bd45a72c56acce87e43eeb23ac9392dd7565ef953598ac",
+      "canonical_tool_input_schema_hash": "affc7dbc9b31df291f095e4eaf9acc30d1db374b92285e24398a87faead25ccc"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["body"],
+      "properties": {
+        "body": {
+          "type": "object",
+          "required": ["template@odata.bind", "displayName"],
+          "properties": {
+            "visibility": {
+              "enum": ["private", "public"],
+              "type": "string",
+              "default": "private",
+              "description": "Team visibility - private or public"
+            },
+            "description": {
+              "type": "string",
+              "description": "The description of the team (optional)"
+            },
+            "displayName": {
+              "type": "string",
+              "description": "The name of the team"
+            },
+            "template@odata.bind": {
+              "type": "string",
+              "default": "https://graph.microsoft.com/v1.0/teamsTemplates('standard')",
+              "description": "The team template to use"
+            }
+          },
+          "description": "The team configuration",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "MICROSOFT_TEAMS__ADD_TEAM_MEMBER",
+    "description": "Add a member to a team. This allows adding users to an existing team with specified roles.",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "ADD_TEAM_MEMBER",
+      "canonical_tool_description_hash": "c87eeb416597f4706976715af73e739aa7475ccb5fedd8ecb8852fa993034724",
+      "canonical_tool_input_schema_hash": "7a500f1c1c9e75488623f5a2ebee0bd434c591a6426f78c460c6752af9e39f1f"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["path", "body"],
+      "properties": {
+        "body": {
+          "type": "object",
+          "required": ["user@odata.bind"],
+          "properties": {
+            "roles": {
+              "type": "array",
+              "items": {
+                "enum": ["owner", "guest"],
+                "type": "string"
+              },
+              "default": [],
+              "description": "The roles for the member. Use [] for basic members, ['owner'] for owners, ['guest'] for in-tenant guests. Out-of-tenant external members are assigned ['owner']."
+            },
+            "user@odata.bind": {
+              "type": "string",
+              "description": "The user to add (format: https://graph.microsoft.com/v1.0/users/user-id or https://graph.microsoft.com/v1.0/users/user-email)"
+            }
+          },
+          "description": "The member to add",
+          "additionalProperties": false
+        },
+        "path": {
+          "type": "object",
+          "required": ["team_id"],
+          "properties": {
+            "team_id": {
+              "type": "string",
+              "description": "The unique identifier of the team"
+            }
+          },
+          "description": "The path parameters",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "MICROSOFT_TEAMS__CREATE_CHANNEL",
+    "description": "Create a new channel in a team. This allows creating standard or private channels within an existing team.",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "CREATE_CHANNEL",
+      "canonical_tool_description_hash": "ee886a705ee7a394252c0f6cd8be51b94f738db655454593b7a5892041688173",
+      "canonical_tool_input_schema_hash": "94f68781fbfb25e9deeec13a7dc61eec17692347e9d0e7556bb83eb9e507b4bb"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["path", "body"],
+      "properties": {
+        "body": {
+          "type": "object",
+          "required": ["displayName"],
+          "properties": {
+            "description": {
+              "type": "string",
+              "description": "The description of the channel (optional)"
+            },
+            "displayName": {
+              "type": "string",
+              "description": "The name of the channel"
+            },
+            "membershipType": {
+              "enum": ["standard", "private"],
+              "type": "string",
+              "default": "standard",
+              "description": "The type of channel - standard or private"
+            }
+          },
+          "description": "The channel to create",
+          "additionalProperties": false
+        },
+        "path": {
+          "type": "object",
+          "required": ["team_id"],
+          "properties": {
+            "team_id": {
+              "type": "string",
+              "description": "The unique identifier of the team"
+            }
+          },
+          "description": "The path parameters",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "MICROSOFT_TEAMS__SEND_MESSAGE_REPLY",
+    "description": "Send a reply to a message in a channel. This allows responding to existing messages in team channels.",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "SEND_MESSAGE_REPLY",
+      "canonical_tool_description_hash": "e217c2bedb88eb14f7eb944c4dd76f4079662af53161c697c504d44fc8dbaa8a",
+      "canonical_tool_input_schema_hash": "77ae13c6c1cd9689a964f39106e6ed629c40da032db7d0693496e2475732428e"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["path", "body"],
+      "properties": {
+        "body": {
+          "type": "object",
+          "required": ["body"],
+          "properties": {
+            "body": {
+              "type": "object",
+              "required": ["content"],
+              "properties": {
+                "content": {
+                  "type": "string",
+                  "description": "The actual content of the reply"
+                },
+                "contentType": {
+                  "enum": ["text", "html"],
+                  "type": "string",
+                  "default": "text",
+                  "description": "The content type of the message body"
+                }
+              },
+              "description": "The message body",
+              "additionalProperties": false
+            }
+          },
+          "description": "The reply message content",
+          "additionalProperties": false
+        },
+        "path": {
+          "type": "object",
+          "required": ["team_id", "channel_id", "message_id"],
+          "properties": {
+            "team_id": {
+              "type": "string",
+              "description": "The unique identifier of the team"
+            },
+            "channel_id": {
+              "type": "string",
+              "description": "The unique identifier of the channel"
+            },
+            "message_id": {
+              "type": "string",
+              "description": "The unique identifier of the message to reply to"
+            }
+          },
+          "description": "The path parameters",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "MICROSOFT_TEAMS__SEND_CHAT_MESSAGE",
+    "description": "Send a direct message to a team member or in a chat. This allows sending private messages between team members.",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "SEND_CHAT_MESSAGE",
+      "canonical_tool_description_hash": "c5956f5b6ef61988a91d120bb5441851a8d72c105bdadc7705301d531ca4d3a0",
+      "canonical_tool_input_schema_hash": "38dfea64cb3d15a168409afaa982d67f4871469a06519b0c4d95bd0c40563aea"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["path", "body"],
+      "properties": {
+        "body": {
+          "type": "object",
+          "required": ["body"],
+          "properties": {
+            "body": {
+              "type": "object",
+              "required": ["content"],
+              "properties": {
+                "content": {
+                  "type": "string",
+                  "description": "The actual content of the message"
+                },
+                "contentType": {
+                  "enum": ["text", "html"],
+                  "type": "string",
+                  "default": "text",
+                  "description": "The content type of the message body"
+                }
+              },
+              "description": "The message body",
+              "additionalProperties": false
+            }
+          },
+          "description": "The message content to send",
+          "additionalProperties": false
+        },
+        "path": {
+          "type": "object",
+          "required": ["chat_id"],
+          "properties": {
+            "chat_id": {
+              "type": "string",
+              "description": "The unique identifier of the chat"
+            }
+          },
+          "description": "The path parameters",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "MICROSOFT_TEAMS__UNARCHIVE_TEAM",
+    "description": "Unarchive a team. This restores the team to an active state where members can add new content.",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "UNARCHIVE_TEAM",
+      "canonical_tool_description_hash": "c40742c41e13b8545b6307e66e487ed0613bcb27ae3299f133e828a2ff4a1e02",
+      "canonical_tool_input_schema_hash": "bba1aabd574b76b425ff748322668e17f8b2ab36e97db2c81eabcdbc94f2d89c"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["path"],
+      "properties": {
+        "path": {
+          "type": "object",
+          "required": ["team_id"],
+          "properties": {
+            "team_id": {
+              "type": "string",
+              "description": "The unique identifier of the team to unarchive"
+            }
+          },
+          "description": "The path parameters",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "MICROSOFT_TEAMS__LIST_MESSAGE_REPLIES",
+    "description": "List all replies to a specific message in a channel. This allows viewing conversation threads and discussions.",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "LIST_MESSAGE_REPLIES",
+      "canonical_tool_description_hash": "d175ac5a2da146deb04f6ea437979b0ee7312066d4c1a015ad721bb71d28d2d5",
+      "canonical_tool_input_schema_hash": "75798b07c70e4a31d02626e5c2d8b4849b8a5be09cafabfd252dc08190ce8b10"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["path"],
+      "properties": {
+        "path": {
+          "type": "object",
+          "required": ["team_id", "channel_id", "message_id"],
+          "properties": {
+            "team_id": {
+              "type": "string",
+              "description": "The unique identifier of the team"
+            },
+            "channel_id": {
+              "type": "string",
+              "description": "The unique identifier of the channel"
+            },
+            "message_id": {
+              "type": "string",
+              "description": "The unique identifier of the message"
+            }
+          },
+          "description": "The path parameters",
+          "additionalProperties": false
+        },
+        "query": {
+          "type": "object",
+          "required": [],
+          "properties": {
+            "$top": {
+              "type": "integer",
+              "description": "Maximum number of replies to return"
+            },
+            "$skip": {
+              "type": "integer",
+              "description": "Number of replies to skip for pagination"
+            },
+            "$select": {
+              "type": "string",
+              "description": "Comma-separated list of properties to include (e.g., 'id,body,from,createdDateTime')"
+            }
+          },
+          "description": "Query parameters for customizing the response",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "MICROSOFT_TEAMS__LIST_USER_CHATS",
+    "description": "Get all chats that the user is part of. This includes one-on-one chats, group chats, and meeting chats.",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "LIST_USER_CHATS",
+      "canonical_tool_description_hash": "e9759c644490d54d4887014f7f08e58e72899001019335aece0e0f9514ce5e4f",
+      "canonical_tool_input_schema_hash": "499f0d6e6d5162c6c908c6e91d69e10de2a4d7d46086cd5182e22c6d24c7cacc"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": [],
+      "properties": {
+        "query": {
+          "type": "object",
+          "required": [],
+          "properties": {
+            "$top": {
+              "type": "integer",
+              "description": "Maximum number of chats to return"
+            },
+            "$skip": {
+              "type": "integer",
+              "description": "Number of chats to skip for pagination"
+            },
+            "$filter": {
+              "type": "string",
+              "description": "Filter expression to limit chats (e.g., \"chatType eq 'oneOnOne'\" or \"chatType eq 'group'\")"
+            },
+            "$select": {
+              "type": "string",
+              "description": "Comma-separated list of properties to include (e.g., 'id,topic,chatType,createdDateTime')"
+            },
+            "$orderby": {
+              "type": "string",
+              "description": "Property to sort by with direction (e.g., 'createdDateTime desc')"
+            }
+          },
+          "description": "Query parameters for customizing the response",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "MICROSOFT_TEAMS__LIST_CHAT_MESSAGES",
+    "description": "Get all messages in a specific chat. This allows viewing the conversation history in direct messages or group chats.",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "LIST_CHAT_MESSAGES",
+      "canonical_tool_description_hash": "e7c7eacd099698d82e499babb369c15a8c084f618927857742a04ab254e496c7",
+      "canonical_tool_input_schema_hash": "f74b503d67cc5701843a3359c5e4e08e75d36e6a223ef948d4b9817aeaee2b16"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["path"],
+      "properties": {
+        "path": {
+          "type": "object",
+          "required": ["chat_id"],
+          "properties": {
+            "chat_id": {
+              "type": "string",
+              "description": "The unique identifier of the chat"
+            }
+          },
+          "description": "The path parameters",
+          "additionalProperties": false
+        },
+        "query": {
+          "type": "object",
+          "required": [],
+          "properties": {
+            "$top": {
+              "type": "integer",
+              "description": "Maximum number of messages to return"
+            },
+            "$select": {
+              "type": "string",
+              "description": "Comma-separated list of properties to include (e.g., 'id,body,from,createdDateTime')"
+            },
+            "$orderby": {
+              "type": "string",
+              "description": "Property to sort by with direction (e.g., 'createdDateTime desc')"
+            }
+          },
+          "description": "Query parameters for customizing the response",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "MICROSOFT_TEAMS__GET_CHAT_MESSAGE",
+    "description": "Get a specific message from a chat. This allows retrieving detailed information about a particular chat message.",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "GET_CHAT_MESSAGE",
+      "canonical_tool_description_hash": "a43ebeae851118d310ea4e12c4c5061d484d8c8e3d1769592f5a717901c6735c",
+      "canonical_tool_input_schema_hash": "7658fe449bfc1632d5bce99acc7de1942e952ef11a7ed32d4f6c78b1385dbd7c"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["path"],
+      "properties": {
+        "path": {
+          "type": "object",
+          "required": ["chat_id", "message_id"],
+          "properties": {
+            "chat_id": {
+              "type": "string",
+              "description": "The unique identifier of the chat"
+            },
+            "message_id": {
+              "type": "string",
+              "description": "The unique identifier of the message"
+            }
+          },
+          "description": "The path parameters",
+          "additionalProperties": false
+        },
+        "query": {
+          "type": "object",
+          "required": [],
+          "properties": {
+            "$expand": {
+              "type": "string",
+              "description": "Expand related entities like 'replies'"
+            },
+            "$select": {
+              "type": "string",
+              "description": "Comma-separated list of properties to include (e.g., 'id,body,from,createdDateTime,attachments')"
+            }
+          },
+          "description": "Query parameters for customizing the response",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "MICROSOFT_TEAMS__DELETE_TEAM",
+    "description": "Delete a team and its underlying Microsoft 365 group. This permanently removes the team and all its data.",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "DELETE_TEAM",
+      "canonical_tool_description_hash": "4f9ff41fd9ed22f22fb2070700b062b01b048a7900ec785b2fd2f6c63e33408b",
+      "canonical_tool_input_schema_hash": "4f92fd1ddef58615f4c6b74de85e767de66f853ba014a695a748034ebcdc6f86"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["path"],
+      "properties": {
+        "path": {
+          "type": "object",
+          "required": ["team_id"],
+          "properties": {
+            "team_id": {
+              "type": "string",
+              "description": "The unique identifier of the team to delete"
+            }
+          },
+          "description": "The path parameters",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "MICROSOFT_TEAMS__UPDATE_TEAM",
+    "description": "Update the properties of a team such as display name, description, and visibility settings.",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "UPDATE_TEAM",
+      "canonical_tool_description_hash": "5f54c44d2adc43141f797a317b5e73dbd9060d737357b21a1129e2e4653e79a5",
+      "canonical_tool_input_schema_hash": "fbe3e89e5ea216bb62e1c71eea112fb762f221a70219638491f6f024aaa82394"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["path", "body"],
+      "properties": {
+        "body": {
+          "type": "object",
+          "required": [],
+          "properties": {
+            "visibility": {
+              "enum": ["private", "public"],
+              "type": "string",
+              "description": "The visibility of the team (private or public)"
+            },
+            "description": {
+              "type": "string",
+              "description": "The updated description of the team"
+            },
+            "displayName": {
+              "type": "string",
+              "description": "The updated name of the team"
+            }
+          },
+          "description": "The team properties to update",
+          "additionalProperties": false
+        },
+        "path": {
+          "type": "object",
+          "required": ["team_id"],
+          "properties": {
+            "team_id": {
+              "type": "string",
+              "description": "The unique identifier of the team to update"
+            }
+          },
+          "description": "The path parameters",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "MICROSOFT_TEAMS__UPDATE_CHANNEL_MESSAGE",
+    "description": "Update an existing message in a team channel. This allows editing the content of previously sent channel messages.",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "UPDATE_CHANNEL_MESSAGE",
+      "canonical_tool_description_hash": "eda69c90232802496289ca67cb3befef11c8f86dc6582832c49da085b0abd99b",
+      "canonical_tool_input_schema_hash": "651a5b592307082bd7bae4fbded1bbbd7c6b177eed63b1ff6328f80640e0c9ea"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["path", "body"],
+      "properties": {
+        "body": {
+          "type": "object",
+          "required": ["body"],
+          "properties": {
+            "body": {
+              "type": "object",
+              "required": ["content"],
+              "properties": {
+                "content": {
+                  "type": "string",
+                  "description": "The updated content of the message"
+                },
+                "contentType": {
+                  "enum": ["text", "html"],
+                  "type": "string",
+                  "default": "text",
+                  "description": "The content type of the message body"
+                }
+              },
+              "description": "The message body",
+              "additionalProperties": false
+            }
+          },
+          "description": "The updated message content",
+          "additionalProperties": false
+        },
+        "path": {
+          "type": "object",
+          "required": ["team_id", "channel_id", "message_id"],
+          "properties": {
+            "team_id": {
+              "type": "string",
+              "description": "The unique identifier of the team"
+            },
+            "channel_id": {
+              "type": "string",
+              "description": "The unique identifier of the channel"
+            },
+            "message_id": {
+              "type": "string",
+              "description": "The unique identifier of the message to update"
+            }
+          },
+          "description": "The path parameters",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "MICROSOFT_TEAMS__UPDATE_CHAT_MESSAGE",
+    "description": "Update an existing message in a chat. This allows editing the content of previously sent chat messages.",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "UPDATE_CHAT_MESSAGE",
+      "canonical_tool_description_hash": "5cd9bf0893426f2f917a86e90aad2a2d7f02b27fe83ec12cdb82766dc981530b",
+      "canonical_tool_input_schema_hash": "1176041aab30f6651bdd873aab5f6f5237fc4956cbdb1e179b148c274ad8ee79"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["path", "body"],
+      "properties": {
+        "body": {
+          "type": "object",
+          "required": ["body"],
+          "properties": {
+            "body": {
+              "type": "object",
+              "required": ["content"],
+              "properties": {
+                "content": {
+                  "type": "string",
+                  "description": "The updated content of the message"
+                },
+                "contentType": {
+                  "enum": ["text", "html"],
+                  "type": "string",
+                  "default": "text",
+                  "description": "The content type of the message body"
+                }
+              },
+              "description": "The message body",
+              "additionalProperties": false
+            }
+          },
+          "description": "The updated message content",
+          "additionalProperties": false
+        },
+        "path": {
+          "type": "object",
+          "required": ["chat_id", "message_id"],
+          "properties": {
+            "chat_id": {
+              "type": "string",
+              "description": "The unique identifier of the chat"
+            },
+            "message_id": {
+              "type": "string",
+              "description": "The unique identifier of the message to update"
+            }
+          },
+          "description": "The path parameters",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "MICROSOFT_TEAMS__CREATE_CHAT",
+    "description": "Create a new chat conversation. This allows starting one-on-one or group chats with specified members.",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "CREATE_CHAT",
+      "canonical_tool_description_hash": "3aac2b2cb5838913f48e4e6b4acb103911ac6628f852443c657e01b6f60075d5",
+      "canonical_tool_input_schema_hash": "671c986dfcb7ff179d592c0dd215630775c7df91009601c4f0fc07d5ea5d66c3"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["body"],
+      "properties": {
+        "body": {
+          "type": "object",
+          "required": ["chatType", "members"],
+          "properties": {
+            "topic": {
+              "type": "string",
+              "description": "The topic/name of the chat (for group chats)"
+            },
+            "members": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "visible": ["@odata.type", "roles", "user"],
+                "required": ["@odata.type", "user"],
+                "properties": {
+                  "user": {
+                    "type": "object",
+                    "visible": ["id"],
+                    "required": ["id"],
+                    "properties": {
+                      "id": {
+                        "type": "string",
+                        "description": "The user ID (GUID format)"
+                      }
+                    },
+                    "description": "The user information",
+                    "additionalProperties": false
+                  },
+                  "roles": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    },
+                    "default": ["owner"],
+                    "description": "The roles for this member. Use [] for basic members, ['owner'] for owners, ['guest'] for in-tenant guests. Out-of-tenant external members are assigned ['owner']."
+                  },
+                  "@odata.type": {
+                    "type": "string",
+                    "default": "#microsoft.graph.aadUserConversationMember",
+                    "description": "The OData type for the member"
+                  }
+                },
+                "additionalProperties": false
+              },
+              "description": "Array of chat members. For oneOnOne chats, exactly 2 members required. For group chats, 2 or more members required."
+            },
+            "chatType": {
+              "enum": ["oneOnOne", "group"],
+              "type": "string",
+              "description": "The type of chat to create"
+            }
+          },
+          "description": "The chat configuration",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "MICROSOFT_TEAMS__REMOVE_TEAM_MEMBER",
+    "description": "Remove a member from a team. This allows removing users from team membership.",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "REMOVE_TEAM_MEMBER",
+      "canonical_tool_description_hash": "84a89540a127117d79a470f8668d7b4b2641c07ce2d12de84fe3a0dfa2bf08b0",
+      "canonical_tool_input_schema_hash": "a3df82079f5b6c2942d5c50657c0f537c0ee19af056af159b4fc1822b6ffe67a"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["path"],
+      "properties": {
+        "path": {
+          "type": "object",
+          "required": ["team_id", "member_id"],
+          "properties": {
+            "team_id": {
+              "type": "string",
+              "description": "The unique identifier of the team"
+            },
+            "member_id": {
+              "type": "string",
+              "description": "The unique identifier of the member to remove"
+            }
+          },
+          "description": "The path parameters",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "MICROSOFT_TEAMS__UPDATE_TEAM_MEMBER",
+    "description": "Update a team member's role (e.g., promote to owner or demote to member). This allows changing member permissions within a team.",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "UPDATE_TEAM_MEMBER",
+      "canonical_tool_description_hash": "b6e6bdf29e66f4f5d1dc1e668caa70a02f38ca7a0556c280eb4b33c7066be5bb",
+      "canonical_tool_input_schema_hash": "55c843cc5a518b552aacdf2c536eeb8187d1c056822d13c49ad15e94649e5ebe"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["path", "body"],
+      "properties": {
+        "body": {
+          "type": "object",
+          "required": ["@odata.type", "roles"],
+          "properties": {
+            "roles": {
+              "type": "array",
+              "items": {
+                "enum": ["owner", "guest"],
+                "type": "string"
+              },
+              "description": "Array of roles for the member. Use [] for basic members, ['owner'] for owners, ['guest'] for in-tenant guests. Out-of-tenant external members are assigned ['owner']."
+            },
+            "@odata.type": {
+              "type": "string",
+              "default": "#microsoft.graph.aadUserConversationMember",
+              "description": "The type of conversation member"
+            }
+          },
+          "description": "The member role update",
+          "additionalProperties": false
+        },
+        "path": {
+          "type": "object",
+          "required": ["team_id", "member_id"],
+          "properties": {
+            "team_id": {
+              "type": "string",
+              "description": "The unique identifier of the team"
+            },
+            "member_id": {
+              "type": "string",
+              "description": "The unique identifier of the member to update"
+            }
+          },
+          "description": "The path parameters",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "MICROSOFT_TEAMS__UPDATE_CHANNEL",
+    "description": "Update the properties of a channel such as display name, description, or member settings.",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "UPDATE_CHANNEL",
+      "canonical_tool_description_hash": "d7b0859cb119b1d8fe256aac13253bd04b4cf84bd96e86054c25d2d1bcb48e5c",
+      "canonical_tool_input_schema_hash": "68a03021ad8b5cb8f285c1d56eec8a358c47ec0ee7839002644951f5f93a4f15"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["path", "body"],
+      "properties": {
+        "body": {
+          "type": "object",
+          "required": [],
+          "properties": {
+            "description": {
+              "type": "string",
+              "description": "The updated description of the channel"
+            },
+            "displayName": {
+              "type": "string",
+              "description": "The updated name of the channel"
+            }
+          },
+          "description": "The channel properties to update",
+          "additionalProperties": false
+        },
+        "path": {
+          "type": "object",
+          "required": ["team_id", "channel_id"],
+          "properties": {
+            "team_id": {
+              "type": "string",
+              "description": "The unique identifier of the team"
+            },
+            "channel_id": {
+              "type": "string",
+              "description": "The unique identifier of the channel to update"
+            }
+          },
+          "description": "The path parameters",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "MICROSOFT_TEAMS__DELETE_CHANNEL",
+    "description": "Delete a channel from a team. Note: This cannot be used to delete the General channel.",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "DELETE_CHANNEL",
+      "canonical_tool_description_hash": "1aa362bdda9785d16567c48e03c6eb2fc19418f7a8f1a0ac89ee136f6658c143",
+      "canonical_tool_input_schema_hash": "5bd690e58f16d18ddb0f6bde3dfd59dcd4ca1b6911503fbfde840d4b0def79e6"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["path"],
+      "properties": {
+        "path": {
+          "type": "object",
+          "required": ["team_id", "channel_id"],
+          "properties": {
+            "team_id": {
+              "type": "string",
+              "description": "The unique identifier of the team"
+            },
+            "channel_id": {
+              "type": "string",
+              "description": "The unique identifier of the channel to delete"
+            }
+          },
+          "description": "The path parameters",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "MICROSOFT_TEAMS__LIST_CHAT_MEMBERS",
+    "description": "List all members of a chat conversation. This shows who is participating in the chat.",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "LIST_CHAT_MEMBERS",
+      "canonical_tool_description_hash": "ef168ad22d52c48b7af73a677d2f1effc66cfee9d326eff762481bc1534d176d",
+      "canonical_tool_input_schema_hash": "6594f553ea374afedbd50d166c6596f59627e04a6d3a97f4b03177adf351b66e"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["path"],
+      "properties": {
+        "path": {
+          "type": "object",
+          "required": ["chat_id"],
+          "properties": {
+            "chat_id": {
+              "type": "string",
+              "description": "The unique identifier of the chat"
+            }
+          },
+          "description": "The path parameters",
+          "additionalProperties": false
+        },
+        "query": {
+          "type": "object",
+          "required": [],
+          "properties": {
+            "$top": {
+              "type": "integer",
+              "description": "Maximum number of members to return"
+            },
+            "$select": {
+              "type": "string",
+              "description": "Comma-separated list of properties to include (e.g., 'id,displayName,email')"
+            }
+          },
+          "description": "Query parameters for customizing the response",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "MICROSOFT_TEAMS__ADD_CHAT_MEMBER",
+    "description": "Add a member to a group chat. This allows adding new participants to existing chat conversations.",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "ADD_CHAT_MEMBER",
+      "canonical_tool_description_hash": "1d51d0f5492ab440b10a34e997d9bf280a074878591a9501f61615a1c90ca2b6",
+      "canonical_tool_input_schema_hash": "7af9d3bf09240932a9cd71c382464bb8559e6c4b7722f8150a0b801ec9aa0a8d"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["path", "body"],
+      "properties": {
+        "body": {
+          "type": "object",
+          "required": ["@odata.type", "user@odata.bind"],
+          "properties": {
+            "roles": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "default": ["owner"],
+              "description": "Roles for the member in the chat. Use [] for basic members, ['owner'] for owners, ['guest'] for in-tenant guests. Out-of-tenant external members are assigned ['owner']."
+            },
+            "@odata.type": {
+              "type": "string",
+              "default": "#microsoft.graph.aadUserConversationMember",
+              "description": "The type of conversation member"
+            },
+            "user@odata.bind": {
+              "type": "string",
+              "description": "The user reference in format: https://graph.microsoft.com/v1.0/users/USER_ID"
+            }
+          },
+          "description": "The member to add to the chat",
+          "additionalProperties": false
+        },
+        "path": {
+          "type": "object",
+          "required": ["chat_id"],
+          "properties": {
+            "chat_id": {
+              "type": "string",
+              "description": "The unique identifier of the chat"
+            }
+          },
+          "description": "The path parameters",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "MICROSOFT_TEAMS__REMOVE_CHAT_MEMBER",
+    "description": "Remove a member from a group chat. This allows removing participants from chat conversations.",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "REMOVE_CHAT_MEMBER",
+      "canonical_tool_description_hash": "5221f07b129ac74c42c18c9c7174f3f7f7cfe51136d8e41e11b21d1b30e8a796",
+      "canonical_tool_input_schema_hash": "9e174a45066413dc8862634784de45dd07990844481ac8fb6c501f6bf4ff55db"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["path"],
+      "properties": {
+        "path": {
+          "type": "object",
+          "required": ["chat_id", "member_id"],
+          "properties": {
+            "chat_id": {
+              "type": "string",
+              "description": "The unique identifier of the chat"
+            },
+            "member_id": {
+              "type": "string",
+              "description": "The unique identifier of the member to remove"
+            }
+          },
+          "description": "The path parameters",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "MICROSOFT_TEAMS__SOFT_DELETE_CHANNEL_MESSAGE",
+    "description": "Soft delete a message in a channel. This allows safely removing messages with the ability to restore them later.",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "SOFT_DELETE_CHANNEL_MESSAGE",
+      "canonical_tool_description_hash": "34e64af901ba69c91c774e6a13c7b666d57fdbb1488826b67813d172332c09f9",
+      "canonical_tool_input_schema_hash": "a70a265f89e620a97777835a42732dac7bf42e9293f6a5171eca89a4a0adc99b"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["path"],
+      "properties": {
+        "path": {
+          "type": "object",
+          "required": ["team_id", "channel_id", "message_id"],
+          "properties": {
+            "team_id": {
+              "type": "string",
+              "description": "The unique identifier of the team"
+            },
+            "channel_id": {
+              "type": "string",
+              "description": "The unique identifier of the channel"
+            },
+            "message_id": {
+              "type": "string",
+              "description": "The unique identifier of the message to soft delete"
+            }
+          },
+          "description": "The path parameters",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "MICROSOFT_TEAMS__UNDO_SOFT_DELETE_CHANNEL_MESSAGE",
+    "description": "Undo soft deletion of a message in a channel. This restores a previously soft-deleted message.",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "UNDO_SOFT_DELETE_CHANNEL_MESSAGE",
+      "canonical_tool_description_hash": "009b47e856a01e503613ad4983202311c27eb7ea6aa24cbbd967cee3f56e52a0",
+      "canonical_tool_input_schema_hash": "e9da43b1e00720c4f5731a766dd960f1f9470c0a1f63c3c94e12851a0255fbcb"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["path"],
+      "properties": {
+        "path": {
+          "type": "object",
+          "required": ["team_id", "channel_id", "message_id"],
+          "properties": {
+            "team_id": {
+              "type": "string",
+              "description": "The unique identifier of the team"
+            },
+            "channel_id": {
+              "type": "string",
+              "description": "The unique identifier of the channel"
+            },
+            "message_id": {
+              "type": "string",
+              "description": "The unique identifier of the message to restore"
+            }
+          },
+          "description": "The path parameters",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "MICROSOFT_TEAMS__SET_CHANNEL_MESSAGE_REACTION",
+    "description": "Add a reaction (emoji) to a channel message. This allows users to react to messages with emojis.",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "SET_CHANNEL_MESSAGE_REACTION",
+      "canonical_tool_description_hash": "5239008e39376dde8b405d32e4faad98fb0e3c1f82b9ee411aa0ee6870087730",
+      "canonical_tool_input_schema_hash": "98c585f0fed08cd7c636383047bd33afe1a54e533617e173e09e7dce2b90dec4"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["path", "body"],
+      "properties": {
+        "body": {
+          "type": "object",
+          "required": ["reactionType"],
+          "properties": {
+            "reactionType": {
+              "type": "string",
+              "description": "The emoji reaction as unicode (e.g., '\ud83d\udc4d', '\u2764\ufe0f', '\ud83d\ude00')"
+            }
+          },
+          "description": "The reaction to add",
+          "additionalProperties": false
+        },
+        "path": {
+          "type": "object",
+          "required": ["team_id", "channel_id", "message_id"],
+          "properties": {
+            "team_id": {
+              "type": "string",
+              "description": "The unique identifier of the team"
+            },
+            "channel_id": {
+              "type": "string",
+              "description": "The unique identifier of the channel"
+            },
+            "message_id": {
+              "type": "string",
+              "description": "The unique identifier of the message to react to"
+            }
+          },
+          "description": "The path parameters",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "MICROSOFT_TEAMS__UNSET_CHANNEL_MESSAGE_REACTION",
+    "description": "Remove a reaction (emoji) from a channel message. This allows users to remove their emoji reactions.",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "UNSET_CHANNEL_MESSAGE_REACTION",
+      "canonical_tool_description_hash": "c60925b957ce186ad534550110608ddb81eba55f5283eb9b64c4ce41d440c91d",
+      "canonical_tool_input_schema_hash": "638c043bce8792def1e6ac15d1a3390b7d71f94fec54423749c0876b7c731160"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["path", "body"],
+      "properties": {
+        "body": {
+          "type": "object",
+          "required": ["reactionType"],
+          "properties": {
+            "reactionType": {
+              "type": "string",
+              "description": "The emoji reaction to remove as unicode (e.g., '\ud83d\udc4d', '\u2764\ufe0f', '\ud83d\ude00')"
+            }
+          },
+          "description": "The reaction to remove",
+          "additionalProperties": false
+        },
+        "path": {
+          "type": "object",
+          "required": ["team_id", "channel_id", "message_id"],
+          "properties": {
+            "team_id": {
+              "type": "string",
+              "description": "The unique identifier of the team"
+            },
+            "channel_id": {
+              "type": "string",
+              "description": "The unique identifier of the channel"
+            },
+            "message_id": {
+              "type": "string",
+              "description": "The unique identifier of the message to remove reaction from"
+            }
+          },
+          "description": "The path parameters",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "MICROSOFT_TEAMS__SET_CHAT_MESSAGE_REACTION",
+    "description": "Add a reaction (emoji) to a chat message. This allows users to react to messages with emojis.",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "SET_CHAT_MESSAGE_REACTION",
+      "canonical_tool_description_hash": "c356db11efbb4a60e9eab272ec434bb97f4f08711485d94f41b13d5ef370beb3",
+      "canonical_tool_input_schema_hash": "e338a7f13237941583dc4db8257c4a3c121e27d7cfb3d97ccf420f9b6a2c3256"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["path", "body"],
+      "properties": {
+        "body": {
+          "type": "object",
+          "required": ["reactionType"],
+          "properties": {
+            "reactionType": {
+              "type": "string",
+              "description": "The emoji reaction as unicode (e.g., '\ud83d\udc4d', '\u2764\ufe0f', '\ud83d\ude00')"
+            }
+          },
+          "description": "The reaction to add",
+          "additionalProperties": false
+        },
+        "path": {
+          "type": "object",
+          "required": ["chat_id", "message_id"],
+          "properties": {
+            "chat_id": {
+              "type": "string",
+              "description": "The unique identifier of the chat"
+            },
+            "message_id": {
+              "type": "string",
+              "description": "The unique identifier of the message to react to"
+            }
+          },
+          "description": "The path parameters",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "MICROSOFT_TEAMS__UNSET_CHAT_MESSAGE_REACTION",
+    "description": "Remove a reaction (emoji) from a chat message. This allows users to remove their emoji reactions.",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "UNSET_CHAT_MESSAGE_REACTION",
+      "canonical_tool_description_hash": "112fe5c0a6b1efc948dc64ef8b16cc0037079728d752f190ceff2ef7ece04536",
+      "canonical_tool_input_schema_hash": "0f5ddfa903002a4ba1db85a6751ea5bef4ccace890a96ff46df4ec2cd5f24dbd"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["path", "body"],
+      "properties": {
+        "body": {
+          "type": "object",
+          "required": ["reactionType"],
+          "properties": {
+            "reactionType": {
+              "type": "string",
+              "description": "The emoji reaction to remove as unicode (e.g., '\ud83d\udc4d', '\u2764\ufe0f', '\ud83d\ude00')"
+            }
+          },
+          "description": "The reaction to remove",
+          "additionalProperties": false
+        },
+        "path": {
+          "type": "object",
+          "required": ["chat_id", "message_id"],
+          "properties": {
+            "chat_id": {
+              "type": "string",
+              "description": "The unique identifier of the chat"
+            },
+            "message_id": {
+              "type": "string",
+              "description": "The unique identifier of the message to remove reaction from"
+            }
+          },
+          "description": "The path parameters",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "MICROSOFT_TEAMS__SOFT_DELETE_CHAT_MESSAGE",
+    "description": "Soft delete a message in a chat using the correct Microsoft Graph API endpoint. This allows safely removing chat messages with the ability to restore them later.",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "SOFT_DELETE_CHAT_MESSAGE",
+      "canonical_tool_description_hash": "1c40ccbcaafe879e23cd8dfbe96468e490c0ad4851f026586b2ea2ba2dbeb6e0",
+      "canonical_tool_input_schema_hash": "9e54e6534e895a774d26818f3f3ccc6f2f926555236e8e834c962c11564e913f"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["path"],
+      "properties": {
+        "path": {
+          "type": "object",
+          "required": ["chat_id", "message_id"],
+          "properties": {
+            "chat_id": {
+              "type": "string",
+              "description": "The unique identifier of the chat"
+            },
+            "message_id": {
+              "type": "string",
+              "description": "The unique identifier of the message to soft delete"
+            }
+          },
+          "description": "The path parameters",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "MICROSOFT_TEAMS__SOFT_DELETE_REPLY_MESSAGE",
+    "description": "Soft delete a reply message in a channel thread. This allows safely removing reply messages with the ability to restore them later.",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "SOFT_DELETE_REPLY_MESSAGE",
+      "canonical_tool_description_hash": "f3303b4d52d8b5d178945e51beb27d0e81ba7c01ab4323385e0d60f01c299639",
+      "canonical_tool_input_schema_hash": "c34ae05f3224593a49dd5b2c5bc8d6e20a6bea6f0dab56869ee6528dd02a479a"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["path"],
+      "properties": {
+        "path": {
+          "type": "object",
+          "required": ["team_id", "channel_id", "message_id", "reply_id"],
+          "properties": {
+            "team_id": {
+              "type": "string",
+              "description": "The unique identifier of the team"
+            },
+            "reply_id": {
+              "type": "string",
+              "description": "The unique identifier of the reply to soft delete"
+            },
+            "channel_id": {
+              "type": "string",
+              "description": "The unique identifier of the channel"
+            },
+            "message_id": {
+              "type": "string",
+              "description": "The unique identifier of the parent message"
+            }
+          },
+          "description": "The path parameters",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "MICROSOFT_TEAMS__UNDO_SOFT_DELETE_CHAT_MESSAGE",
+    "description": "Undo soft deletion of a message in a chat using the correct Microsoft Graph API endpoint. This restores a previously soft-deleted chat message.",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "UNDO_SOFT_DELETE_CHAT_MESSAGE",
+      "canonical_tool_description_hash": "f89c510e5b09996af992dc659aa985ff14fc3110d4f38fe695c321941003d220",
+      "canonical_tool_input_schema_hash": "fe7e11c90ba0224a8df064c4c8719e601b7acaf15ff24d5e5d0e93232cc2bc9e"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["path"],
+      "properties": {
+        "path": {
+          "type": "object",
+          "required": ["chat_id", "message_id"],
+          "properties": {
+            "chat_id": {
+              "type": "string",
+              "description": "The unique identifier of the chat"
+            },
+            "message_id": {
+              "type": "string",
+              "description": "The unique identifier of the message to restore"
+            }
+          },
+          "description": "The path parameters",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "MICROSOFT_TEAMS__UNDO_SOFT_DELETE_REPLY_MESSAGE",
+    "description": "Undo soft deletion of a reply message in a channel thread. This restores a previously soft-deleted reply message.",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "UNDO_SOFT_DELETE_REPLY_MESSAGE",
+      "canonical_tool_description_hash": "bd34cd45d92adea7d35064b858e1f766d70a0cf5027bd39cc01cf2dec3607ff7",
+      "canonical_tool_input_schema_hash": "ce194bfaf8282fac530c4e831675f8ed4c5395d75fea835dbb2598e41ea7c851"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["path"],
+      "properties": {
+        "path": {
+          "type": "object",
+          "required": ["team_id", "channel_id", "message_id", "reply_id"],
+          "properties": {
+            "team_id": {
+              "type": "string",
+              "description": "The unique identifier of the team"
+            },
+            "reply_id": {
+              "type": "string",
+              "description": "The unique identifier of the reply to restore"
+            },
+            "channel_id": {
+              "type": "string",
+              "description": "The unique identifier of the channel"
+            },
+            "message_id": {
+              "type": "string",
+              "description": "The unique identifier of the parent message"
+            }
+          },
+          "description": "The path parameters",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+]

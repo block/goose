@@ -1,0 +1,107 @@
+name: Validate Pricing File
+
+on:
+    push:
+      branches: [ "main" ]
+      paths:
+      - 'assets/pricing.json'
+    pull_request_target:
+      branches: [ "main" ]
+      paths:
+      - 'assets/pricing.json'
+    workflow_dispatch:
+    schedule:
+      - cron: '0 0 1-31/15 * *'
+
+jobs:
+  validate-pricing:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout base code
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - name: Validate JSON structure
+        id: validate
+        run: |
+          file=assets/pricing.json
+
+          echo "Validating JSON format..."
+          if ! jq empty "$file"; then
+            echo "Invalid JSON format"
+            exit 1
+          fi
+
+          # Verify top-level keys
+          keys=("embeddings" "images" "audio" "chat")
+          for key in "${keys[@]}"; do
+            if ! jq --exit-status ". | has(\"$key\")" "$file" > /dev/null; then
+              echo "Missing key: $key"
+              exit 1
+            fi
+          done
+          
+          echo "Validating JSON structure is valid"
+
+      - name: Custom Validation Logic
+        id: custom-validate
+        run: |
+          file=assets/pricing.json
+
+          # Validate Chat Models
+          echo "Validating chat models..."
+          chat_keys=("promptPrice" "completionPrice")
+          for model in $(jq -r '.chat | keys[]' "$file"); do
+            for key in "${chat_keys[@]}"; do
+              if ! jq --exit-status ".chat[\"$model\"] | has(\"$key\")" "$file" > /dev/null; then
+                echo "Chat model $model missing key: $key"
+                exit 1
+              fi
+            done
+          done
+
+          # Validate Audio Models
+          echo "Validating audio models..."
+          for model in $(jq -r '.audio | keys[]' "$file"); do
+            if ! jq --exit-status ".audio[\"$model\"]" "$file" > /dev/null; then
+              echo "Audio model $model is invalid."
+              exit 1
+            fi
+          done
+
+          # Validate Images Models
+          echo "Validating images models..."
+          image_categories=("standard" "hd" "premium")
+          for model in $(jq -r '.images | keys[]' "$file"); do
+            for category in "${image_categories[@]}"; do
+              if jq --exit-status ".images[\"$model\"] | has(\"$category\")" "$file" > /dev/null; then
+                for resolution in $(jq -r ".images[\"$model\"].$category | keys[]" "$file"); do
+                  if ! jq --exit-status ".images[\"$model\"].$category[\"$resolution\"]" "$file" > /dev/null; then
+                    echo "Image model $model category $category resolution $resolution is invalid."
+                    exit 1
+                  fi
+                done
+              fi
+            done
+          done
+
+          # Validate Embeddings Models
+          echo "Validating embeddings models..."
+          for model in $(jq -r '.embeddings | keys[]' "$file"); do
+            if ! jq --exit-status ".embeddings[\"$model\"]" "$file" > /dev/null; then
+              echo "Embedding model $model is invalid."
+              exit 1
+            fi
+          done
+          
+          echo "All validations passed"
+
+      - name: Success
+        if: success()
+        run: echo "Pricing file is valid and follows the convention."
+        
+      - name: Failure
+        if: failure()
+        run: echo "Pricing file validation failed."

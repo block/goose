@@ -1,0 +1,7 @@
+- repo: local
+  hooks:
+    - id: check-prisma-files
+      name: Check Prisma files
+      entry: check-prisma-files.sh
+      language: script
+      files: \.tsx?$  # Adjust the pattern according to the file types you want to check

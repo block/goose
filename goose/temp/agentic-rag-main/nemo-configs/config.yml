@@ -1,0 +1,4 @@
+models:
+  - type: main
+    engine: openai
+    model: gpt-4o

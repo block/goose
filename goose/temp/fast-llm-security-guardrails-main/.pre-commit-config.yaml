@@ -1,0 +1,12 @@
+---
+default_language_version:
+  python: python3
+
+exclude: "backend/third-party"
+
+repos:
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.4.8
+
+    hooks:
+      - id: ruff-format

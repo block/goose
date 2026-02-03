@@ -1,0 +1,162 @@
+### 3. Import the pre-built Dashboard
+
+1. Go to [one.newrelic.com](https://one.newrelic.com/) > Dashboards.
+1. In the top-right corner, click **Import dashboard**.
+1. Copy the dashboard JSON provided in the accordion named [`Dashboard`](#dashboard) below.
+1. Paste the dashboard JSON text directly into the text area.
+1. Choose the account and permission settings for the dashboard. You can't change the account once you've set it, but you can change the permissions at any time.
+1. Click **Import Dashboard**.
+
+<Accordion title="Dashboard">
+    ```json
+    {
+      "name": "GenAI Observability",
+      "description": null,
+      "permissions": "PUBLIC_READ_WRITE",
+      "pages": [
+          {
+          "name": "GenAI Observability",
+          "description": null,
+          "widgets": [
+              {
+              "title": "",
+              "layout": {
+                  "column": 1,
+                  "row": 1,
+                  "width": 4,
+                  "height": 2
+              },
+              "linkedEntityGuids": null,
+              "visualization": {
+                  "id": "viz.markdown"
+              },
+              "rawConfiguration": {
+                  "text": "# GenAI Observability Dashboard\nThis dashboard displays the usage of Large Language Models (LLM) and Vector Databases, tracking OpenTelemetry Traces and Metrics sent using [OpenLIT](https://github.com/openlit/openlit)."
+              }
+              },
+              {
+              "title": "",
+              "layout": {
+                  "column": 5,
+                  "row": 1,
+                  "width": 4,
+                  "height": 2
+              },
+              "linkedEntityGuids": null,
+              "visualization": {
+                  "id": "viz.billboard"
+              },
+              "rawConfiguration": {
+                  "facet": {
+                  "showOtherSeries": false
+                  },
+                  "nrqlQueries": [
+                  {
+                      "accountIds": [
+                      4060909
+                      ],
+                      "query": "SELECT count(`gen_ai.total.requests`) AS 'Total Successful LLM Requests' FROM Metric WHERE `telemetry.sdk.name` = 'openlit'"
+                  }
+                  ],
+                  "platformOptions": {
+                  "ignoreTimeRange": false
+                  }
+              }
+              },
+              {
+              "title": "",
+              "layout": {
+                  "column": 9,
+                  "row": 1,
+                  "width": 4,
+                  "height": 2
+              },
+              "linkedEntityGuids": null,
+              "visualization": {
+                  "id": "viz.billboard"
+              },
+              "rawConfiguration": {
+                  "facet": {
+                  "showOtherSeries": false
+                  },
+                  "nrqlQueries": [
+                  {
+                      "accountIds": [
+                      4060909
+                      ],
+                      "query": "SELECT count(`db.total.requests`) AS 'Total Successful VectorDB Requests' FROM Metric WHERE `telemetry.sdk.name` = 'openlit'"
+                  }
+                  ],
+                  "platformOptions": {
+                  "ignoreTimeRange": false
+                  }
+              }
+              },
+              {
+              "title": "Top GenAI Models by Usage",
+              "layout": {
+                  "column": 1,
+                  "row": 8,
+                  "width": 6,
+                  "height": 6
+              },
+              "linkedEntityGuids": null,
+              "visualization": {
+                  "id": "viz.bar"
+              },
+              "rawConfiguration": {
+                  "facet": {
+                  "showOtherSeries": false
+                  },
+                  "nrqlQueries": [
+                  {
+                      "accountIds": [
+                      4060909
+                      ],
+                      "query": "SELECT count(`gen_ai.total.requests`) FROM Metric FACET `gen_ai.request.model` WHERE `telemetry.sdk.name` = 'openlit' LIMIT 10"
+                  }
+                  ],
+                  "platformOptions": {
+                  "ignoreTimeRange": false
+                  }
+              }
+              },
+              {
+              "title": "GenAI Requests by Platform",
+              "layout": {
+                  "column": 7,
+                  "row": 8,
+                  "width": 3,
+                  "height": 3
+              },
+              "linkedEntityGuids": null,
+              "visualization": {
+                  "id": "viz.pie"
+              },
+              "rawConfiguration": {
+                  "facet": {
+                  "showOtherSeries": true
+                  },
+                  "legend": {
+                  "enabled": true
+                  },
+                  "nrqlQueries": [
+                  {
+                      "accountIds": [
+                      4060909
+                      ],
+                      "query": "SELECT count(`gen_ai.total.requests`) AS 'GenAI Requests by Platform' FROM Metric FACET `gen_ai.system` WHERE `telemetry.sdk.name` = 'openlit' LIMIT 5"
+                  }
+                  ],
+                  "platformOptions": {
+                  "ignoreTimeRange": false
+                  }
+              }
+              }
+          ]
+          }
+      ],
+      "variables": []
+    }
+    ```
+</Accordion>

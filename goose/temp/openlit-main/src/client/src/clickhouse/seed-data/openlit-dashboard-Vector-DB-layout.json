@@ -1,0 +1,158 @@
+{
+  "id": "4b153228-45fb-46d9-88c9-5a2aa3674251",
+  "title": "Vector DB",
+  "description": "The vector DB dashboard helps track query performance, memory usage, and index efficiency to optimize similarity search and ensure reliable vector database operations.",
+  "parentId": null,
+  "isMainDashboard": false,
+  "isPinned": true,
+  "createdAt": "2025-06-25 08:41:39",
+  "updatedAt": "2025-06-25 08:41:39",
+  "widgets": {
+    "af3786ef-5dd8-4b6c-929b-99005b27a784": {
+      "id": "af3786ef-5dd8-4b6c-929b-99005b27a784",
+      "title": "Generation by environment",
+      "description": "This defines total number of request grouped by environment name",
+      "type": "PIE_CHART",
+      "properties": {
+        "labelPath": "environment",
+        "valuePath": "count",
+        "color": "#F36C06"
+      },
+      "config": {
+        "query": "WITH\n    parseDateTimeBestEffort('{{filter.timeLimit.start}}') AS start_time,\n    parseDateTimeBestEffort('{{filter.timeLimit.end}}') AS end_time\n\nSELECT \n    ResourceAttributes['deployment.environment'] AS environment,\n    CAST(COUNT(*) AS INTEGER) AS count\n  FROM\n  otel_traces\n  WHERE \n  SpanAttributes['gen_ai.operation.name'] == 'vectordb'\n  AND notEmpty(ResourceAttributes['deployment.environment'])\n  AND StatusCode IN ('STATUS_CODE_OK', 'STATUS_CODE_UNSET', 'Ok', 'Unset')\n  AND Timestamp >= start_time\n    AND Timestamp <= end_time\n  GROUP BY environment;"
+      },
+      "createdAt": "2025-06-25 09:19:04",
+      "updatedAt": "2025-06-25 09:20:21"
+    },
+    "c7d531ef-3752-45a5-aa24-4b6de0f63be4": {
+      "id": "c7d531ef-3752-45a5-aa24-4b6de0f63be4",
+      "title": "Generation by system",
+      "description": "This defines total number of request grouped by system name",
+      "type": "PIE_CHART",
+      "properties": {
+        "labelPath": "system",
+        "valuePath": "count",
+        "color": "#F36C06"
+      },
+      "config": {
+        "query": "WITH\n    parseDateTimeBestEffort('{{filter.timeLimit.start}}') AS start_time,\n    parseDateTimeBestEffort('{{filter.timeLimit.end}}') AS end_time\n\nSELECT \n    SpanAttributes['db.system.name'] AS system,\n    CAST(COUNT(*) AS INTEGER) AS count\n  FROM\n  otel_traces\n  WHERE \n  SpanAttributes['gen_ai.operation.name'] == 'vectordb'\n  AND notEmpty(SpanAttributes['db.system.name'])\n  AND StatusCode IN ('STATUS_CODE_OK', 'STATUS_CODE_UNSET', 'Ok', 'Unset')\n  AND Timestamp >= start_time\n    AND Timestamp <= end_time\n  GROUP BY system;"
+      },
+      "createdAt": "2025-06-25 09:27:20",
+      "updatedAt": "2025-06-25 09:29:03"
+    },
+    "2c324137-3795-4268-ab8a-831a2977826c": {
+      "id": "2c324137-3795-4268-ab8a-831a2977826c",
+      "title": "Average Request Duration",
+      "description": "This defines the average request duration for the time period selected",
+      "type": "STAT_CARD",
+      "properties": {
+        "value": "0.average_duration",
+        "trend": "0.rate",
+        "trendSuffix": "%",
+        "color": "#F36C06",
+        "suffix": "s"
+      },
+      "config": {
+        "query": "WITH\n    parseDateTimeBestEffort('{{filter.timeLimit.start}}') AS start_time,\n    parseDateTimeBestEffort('{{filter.timeLimit.end}}') AS end_time,\n    (end_time - start_time) AS duration,\n    (start_time - duration) AS prev_start_time,\n    (end_time - duration) AS prev_end_time\n\nSELECT\n    round(multiply(\n        avgIf(Duration, Timestamp >= start_time AND Timestamp <= end_time),\n        10e-10\n    ), 4) AS average_duration,\n\n    round(multiply(\n        avgIf(Duration, Timestamp >= prev_start_time AND Timestamp <= prev_end_time),\n        10e-10\n    ), 4) AS average_duration_previous,\n\n    round(\n        if(\n            avgIf(Duration, Timestamp >= prev_start_time AND Timestamp <= prev_end_time) = 0,\n            avgIf(Duration, Timestamp >= start_time AND Timestamp <= end_time) * 100.0,\n            (\n                avgIf(Duration, Timestamp >= start_time AND Timestamp <= end_time) -\n                avgIf(Duration, Timestamp >= prev_start_time AND Timestamp <= prev_end_time)\n            ) / avgIf(Duration, Timestamp >= prev_start_time AND Timestamp <= prev_end_time) * 100.0\n        ), 4\n    ) AS rate\nFROM otel_traces\nWHERE\n    SpanAttributes['gen_ai.operation.name'] == 'vectordb'\n    AND isFinite(Duration)\n    AND StatusCode IN ('STATUS_CODE_OK', 'STATUS_CODE_UNSET', 'Ok', 'Unset')\n    AND Timestamp >= prev_start_time AND Timestamp <= end_time\n"
+      },
+      "createdAt": "2025-06-25 08:44:30",
+      "updatedAt": "2025-06-25 10:19:12"
+    },
+    "1459ede3-8584-4ce6-93c7-a6b713ee487c": {
+      "id": "1459ede3-8584-4ce6-93c7-a6b713ee487c",
+      "title": "Total Requests",
+      "description": "This defines total number of request within the time period selected",
+      "type": "STAT_CARD",
+      "properties": {
+        "value": "0.total_request",
+        "trend": "0.rate",
+        "trendSuffix": "%",
+        "color": "#F36C06"
+      },
+      "config": {
+        "query": "WITH\n    parseDateTimeBestEffort('{{filter.timeLimit.start}}') AS start_time,\n    parseDateTimeBestEffort('{{filter.timeLimit.end}}') AS end_time,\n    (end_time - start_time) AS duration,\n    (start_time - duration) AS prev_start_time,\n    (end_time - duration) AS prev_end_time\n\nSELECT\n    CAST(countIf(\n        Timestamp >= start_time AND Timestamp <= end_time\n    ) AS INTEGER) AS total_request,\n\n    CAST(countIf(\n        Timestamp >= prev_start_time AND Timestamp <= prev_end_time\n    ) AS INTEGER) AS total_request_previous,\n\n    round(\n        if(countIf(Timestamp >= prev_start_time AND Timestamp <= prev_end_time) = 0, \n           (countIf(Timestamp >= start_time AND Timestamp <= end_time) * 100.0), \n           ((countIf(Timestamp >= start_time AND Timestamp <= end_time) - countIf(Timestamp >= prev_start_time AND Timestamp <= prev_end_time)) \n           / countIf(Timestamp >= prev_start_time AND Timestamp <= prev_end_time))*100.0\n        ), 4\n    ) AS rate\n\nFROM otel_traces\nWHERE\n    SpanAttributes['gen_ai.operation.name'] == 'vectordb'\n    AND StatusCode IN ('STATUS_CODE_OK', 'STATUS_CODE_UNSET', 'Ok', 'Unset')\n    AND Timestamp >= prev_start_time AND Timestamp <= end_time;"
+      },
+      "createdAt": "2025-06-25 08:42:46",
+      "updatedAt": "2025-06-25 08:43:33"
+    },
+    "cbfc156a-ded5-4fa9-868a-25a93baf1e36": {
+      "id": "cbfc156a-ded5-4fa9-868a-25a93baf1e36",
+      "title": "Generation by application",
+      "description": "This defines total number of request grouped by application name",
+      "type": "PIE_CHART",
+      "properties": {
+        "labelPath": "applicationName",
+        "valuePath": "count",
+        "color": "#F36C06"
+      },
+      "config": {
+        "query": "WITH\n    parseDateTimeBestEffort('{{filter.timeLimit.start}}') AS start_time,\n    parseDateTimeBestEffort('{{filter.timeLimit.end}}') AS end_time\n\nSELECT \n    ResourceAttributes['service.name'] AS applicationName,\n    CAST(COUNT(*) AS INTEGER) AS count\n  FROM\n  otel_traces\n  WHERE \n  SpanAttributes['gen_ai.operation.name'] == 'vectordb'\n  AND notEmpty(ResourceAttributes['service.name'])\n  AND StatusCode IN ('STATUS_CODE_OK', 'STATUS_CODE_UNSET', 'Ok', 'Unset')\n  AND Timestamp >= start_time\n    AND Timestamp <= end_time\n  GROUP BY applicationName;"
+      },
+      "createdAt": "2025-06-25 09:16:51",
+      "updatedAt": "2025-06-25 09:20:13"
+    },
+    "2ef979cb-1380-4f40-8c8f-227f700c23c9": {
+      "id": "2ef979cb-1380-4f40-8c8f-227f700c23c9",
+      "title": "Generation by Operation",
+      "description": "This defines total number of request grouped by operation name",
+      "type": "BAR_CHART",
+      "properties": {
+        "xAxis": "operation",
+        "yAxis": "count",
+        "color": "#F36C06"
+      },
+      "config": {
+        "query": "WITH\n    parseDateTimeBestEffort('{{filter.timeLimit.start}}') AS start_time,\n    parseDateTimeBestEffort('{{filter.timeLimit.end}}') AS end_time\n\nSELECT \n    SpanAttributes['db.operation.name'] AS operation,\n    CAST(COUNT(*) AS INTEGER) AS count\n  FROM\n  otel_traces\n  WHERE \n  SpanAttributes['gen_ai.operation.name'] == 'vectordb'\n  AND notEmpty(SpanAttributes['db.operation.name'])\n  AND StatusCode IN ('STATUS_CODE_OK', 'STATUS_CODE_UNSET', 'Ok', 'Unset')\n  AND Timestamp >= start_time\n    AND Timestamp <= end_time\n  GROUP BY operation;"
+      },
+      "createdAt": "2025-06-25 09:20:58",
+      "updatedAt": "2025-06-25 09:26:39"
+    }
+  },
+  "tags": "[\"vector-db\"]",
+  "layouts": {
+    "lg": [
+      {
+        "i": "af3786ef-5dd8-4b6c-929b-99005b27a784",
+        "x": 3,
+        "y": 0,
+        "w": 1,
+        "h": 2
+      },
+      {
+        "i": "c7d531ef-3752-45a5-aa24-4b6de0f63be4",
+        "x": 1,
+        "y": 0,
+        "w": 1,
+        "h": 2
+      },
+      {
+        "i": "2c324137-3795-4268-ab8a-831a2977826c",
+        "x": 0,
+        "y": 1,
+        "w": 1,
+        "h": 1
+      },
+      {
+        "i": "1459ede3-8584-4ce6-93c7-a6b713ee487c",
+        "x": 0,
+        "y": 0,
+        "w": 1,
+        "h": 1
+      },
+      {
+        "i": "cbfc156a-ded5-4fa9-868a-25a93baf1e36",
+        "x": 2,
+        "y": 0,
+        "w": 1,
+        "h": 2
+      },
+      {
+        "i": "2ef979cb-1380-4f40-8c8f-227f700c23c9",
+        "x": 0,
+        "y": 2,
+        "w": 4,
+        "h": 2
+      }
+    ]
+  }
+}

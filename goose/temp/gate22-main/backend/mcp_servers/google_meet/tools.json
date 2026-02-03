@@ -1,0 +1,447 @@
+[
+  {
+    "name": "GOOGLE_MEET__CONFERENCE_RECORDS_LIST",
+    "description": "Lists the conference records. By default, ordered by start time and in descending order.",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "CONFERENCE_RECORDS_LIST",
+      "canonical_tool_description_hash": "d5a0258d2e261c283bf5f77e813c262e20caa4ac09f2a33ebe1570c3570353ce",
+      "canonical_tool_input_schema_hash": "815af01d0d6f896eb8b9b3ccc58200e1cb51f33a23279affa50a73c7dc73219d"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": [],
+      "properties": {
+        "query": {
+          "type": "object",
+          "required": [],
+          "properties": {
+            "filter": {
+              "type": "string",
+              "description": "User specified filtering condition. For example: 'space.name = \"spaces/NAME\"', 'space.meeting_code = \"abc-mnop-xyz\"', 'start_time>=\"2024-01-01T00:00:00.000Z\" AND start_time<=\"2024-01-02T00:00:00.000Z\"', 'end_time IS NULL'"
+            },
+            "pageSize": {
+              "type": "integer",
+              "default": 25,
+              "description": "Maximum number of conference records to return. The service might return fewer than this value. If unspecified, at most 25 conference records are returned. The maximum value is 100."
+            },
+            "pageToken": {
+              "type": "string",
+              "description": "Page token returned from previous List Call."
+            }
+          },
+          "description": "Query parameters for the request",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "GOOGLE_MEET__CONFERENCE_RECORDS_GET",
+    "description": "Gets a conference record by conference ID.",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "CONFERENCE_RECORDS_GET",
+      "canonical_tool_description_hash": "a21c83e4756bb62d2a03bc889cc0b84e988a3ad29a65d2431dd3eda91c7718c4",
+      "canonical_tool_input_schema_hash": "e143ff2fec179c6af7c795515e458da49a0ea42a28ae90319710c3963a52d495"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["path"],
+      "properties": {
+        "path": {
+          "type": "object",
+          "required": ["name"],
+          "properties": {
+            "name": {
+              "type": "string",
+              "pattern": "^conferenceRecords/[^/]+$",
+              "description": "The resource name of the conference record, format: conferenceRecords/{conference_record}"
+            }
+          },
+          "description": "Path parameters",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "GOOGLE_MEET__PARTICIPANTS_LIST",
+    "description": "Lists the participants in a conference record.",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "PARTICIPANTS_LIST",
+      "canonical_tool_description_hash": "8a878ab11a6c4b36f8065b129338cbd2bb851980cb7ae308fe7d2eb5ff4a1d04",
+      "canonical_tool_input_schema_hash": "c131e3468d1309c27f5371af7ee520333a935e6e0ad70373a6303530c942575b"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["path"],
+      "properties": {
+        "path": {
+          "type": "object",
+          "required": ["parent"],
+          "properties": {
+            "parent": {
+              "type": "string",
+              "pattern": "^conferenceRecords/[^/]+$",
+              "description": "Conference record ID. Format: conferenceRecords/{conference_record}"
+            }
+          },
+          "description": "Path parameters",
+          "additionalProperties": false
+        },
+        "query": {
+          "type": "object",
+          "required": [],
+          "properties": {
+            "filter": {
+              "type": "string",
+              "description": "Filter condition. Example: latest_end_time IS NULL returns active participants"
+            },
+            "pageSize": {
+              "type": "integer",
+              "default": 100,
+              "description": "Maximum number of participants to return per page. Default 100, maximum 250."
+            },
+            "pageToken": {
+              "type": "string",
+              "description": "Page token for pagination"
+            }
+          },
+          "description": "Query parameters",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "GOOGLE_MEET__PARTICIPANTS_GET",
+    "description": "Gets a participant by participant ID.",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "PARTICIPANTS_GET",
+      "canonical_tool_description_hash": "c41bb533e1a2fcd572dffe898d82f50992266da3600cf5feab8b7fd68df56790",
+      "canonical_tool_input_schema_hash": "d102568bffa1271560c31ee2a3a38fe665de86e1f9be70234db2a1b676f4640e"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["path"],
+      "properties": {
+        "path": {
+          "type": "object",
+          "required": ["name"],
+          "properties": {
+            "name": {
+              "type": "string",
+              "pattern": "^conferenceRecords/[^/]+/participants/[^/]+$",
+              "description": "Participant resource name. Format: conferenceRecords/{conference_record}/participants/{participant}"
+            }
+          },
+          "description": "Path parameters",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "GOOGLE_MEET__PARTICIPANT_SESSIONS_LIST",
+    "description": "Lists the participant sessions of a participant in a conference record.",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "PARTICIPANT_SESSIONS_LIST",
+      "canonical_tool_description_hash": "c92440884979ebf4c8e991538d624c41dd22593b6898626496ec91d25cd4a132",
+      "canonical_tool_input_schema_hash": "9b0f3202822bb79d8732029a908f6cbb27440d6e97864c31c75dd71ba3c63d29"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["path"],
+      "properties": {
+        "path": {
+          "type": "object",
+          "required": ["parent"],
+          "properties": {
+            "parent": {
+              "type": "string",
+              "pattern": "^conferenceRecords/[^/]+/participants/[^/]+$",
+              "description": "Participant resource name. Format: conferenceRecords/{conference_record}/participants/{participant}"
+            }
+          },
+          "description": "Path parameters",
+          "additionalProperties": false
+        },
+        "query": {
+          "type": "object",
+          "required": [],
+          "properties": {
+            "filter": {
+              "type": "string",
+              "description": "Filter condition. Example: end_time IS NULL returns active sessions"
+            },
+            "pageSize": {
+              "type": "integer",
+              "default": 100,
+              "description": "Maximum number of sessions to return per page"
+            },
+            "pageToken": {
+              "type": "string",
+              "description": "Page token for pagination"
+            }
+          },
+          "description": "Query parameters",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "GOOGLE_MEET__SPACES_GET",
+    "description": "Gets details about a meeting space.",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "SPACES_GET",
+      "canonical_tool_description_hash": "629ab2f781a262a656ed70717808bdb942329866f963ae0c90b176a84f0b3a4a",
+      "canonical_tool_input_schema_hash": "1f3f11439812f3059b7b3aabf00f345fdf856f0bb04549ed2e1dabaa7234ed42"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["path"],
+      "properties": {
+        "path": {
+          "type": "object",
+          "required": ["name"],
+          "properties": {
+            "name": {
+              "type": "string",
+              "pattern": "^spaces/[^/]+$",
+              "description": "Resource name of the space. Format: spaces/{space}"
+            }
+          },
+          "description": "Path parameters",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "GOOGLE_MEET__SPACES_CREATE",
+    "description": "Creates a space.",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "SPACES_CREATE",
+      "canonical_tool_description_hash": "156c4ead96e5fc920380fcf04bddc0c6fd1557debc5cce7489afacaf7ed2d937",
+      "canonical_tool_input_schema_hash": "8cca1c2e862d2fb515e672b9d34553523e45c47d0c0043aed0a01113291b0774"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": [],
+      "properties": {
+        "body": {
+          "type": "object",
+          "required": [],
+          "properties": {
+            "config": {
+              "type": "object",
+              "required": [],
+              "properties": {
+                "moderation": {
+                  "enum": ["MODERATION_UNSPECIFIED", "OFF", "ON"],
+                  "type": "string",
+                  "description": "The pre-configured moderation mode for the Meeting"
+                },
+                "artifactConfig": {
+                  "type": "object",
+                  "required": [],
+                  "properties": {
+                    "smartNotesConfig": {
+                      "type": "object",
+                      "required": [],
+                      "properties": {
+                        "autoSmartNotesGeneration": {
+                          "enum": ["AUTO_GENERATION_TYPE_UNSPECIFIED", "ON", "OFF"],
+                          "type": "string",
+                          "description": "Defines whether to automatically generate a summary and recap"
+                        }
+                      },
+                      "description": "Configuration related to smart notes in a meeting space",
+                      "additionalProperties": false
+                    }
+                  },
+                  "description": "Configuration related to meeting artifacts potentially generated by this meeting space",
+                  "additionalProperties": false
+                }
+              },
+              "description": "Configuration pertaining to the meeting space",
+              "additionalProperties": false
+            }
+          },
+          "description": "Request body parameters",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "GOOGLE_MEET__RECORDINGS_LIST",
+    "description": "Lists recordings from a conference record.",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "RECORDINGS_LIST",
+      "canonical_tool_description_hash": "853857012b4f502b64e6399d44962a267ffa43d541fe120a85fcdb7da3be1703",
+      "canonical_tool_input_schema_hash": "08f9898606adab1e7ebc0a959879273f13cd30371322988ce93494c69d645c12"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["path"],
+      "properties": {
+        "path": {
+          "type": "object",
+          "required": ["parent"],
+          "properties": {
+            "parent": {
+              "type": "string",
+              "pattern": "^conferenceRecords/[^/]+$",
+              "description": "Conference record ID. Format: conferenceRecords/{conference_record}"
+            }
+          },
+          "description": "Path parameters",
+          "additionalProperties": false
+        },
+        "query": {
+          "type": "object",
+          "required": [],
+          "properties": {
+            "pageSize": {
+              "type": "integer",
+              "default": 25,
+              "description": "Maximum number of recordings to return per page"
+            },
+            "pageToken": {
+              "type": "string",
+              "description": "Page token for pagination"
+            }
+          },
+          "description": "Query parameters",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "GOOGLE_MEET__RECORDINGS_GET",
+    "description": "Gets details of a specific recording including Google Drive links.",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "RECORDINGS_GET",
+      "canonical_tool_description_hash": "e9be36bf2cd4d7ce2dc778de5e761a09f9eb65b0b41f3e8f6109315a21a86cc2",
+      "canonical_tool_input_schema_hash": "ca19bc891464c22fa8d4f5c9ce5da8a733af28a33a796ef0ca2b9ec791d7c463"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["path"],
+      "properties": {
+        "path": {
+          "type": "object",
+          "required": ["name"],
+          "properties": {
+            "name": {
+              "type": "string",
+              "pattern": "^conferenceRecords/[^/]+/recordings/[^/]+$",
+              "description": "Recording resource name. Format: conferenceRecords/{conference_record}/recordings/{recording}"
+            }
+          },
+          "description": "Path parameters",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "GOOGLE_MEET__SPACES_CONFIGURE_SMART_NOTES",
+    "description": "Configures smart notes settings for a meeting space.",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "SPACES_CONFIGURE_SMART_NOTES",
+      "canonical_tool_description_hash": "f3f879438c27f2d39c494dbbf9a659c5b9fac70b441808efb49093c86f66477b",
+      "canonical_tool_input_schema_hash": "7684ca59f6683cb57c6961190f24e763408c0f53f4e6558677150515ffda6b4e"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["path", "body"],
+      "properties": {
+        "body": {
+          "type": "object",
+          "required": [],
+          "properties": {
+            "config": {
+              "type": "object",
+              "required": [],
+              "properties": {
+                "artifactConfig": {
+                  "type": "object",
+                  "required": [],
+                  "properties": {
+                    "smartNotesConfig": {
+                      "type": "object",
+                      "required": [],
+                      "properties": {
+                        "autoSmartNotesGeneration": {
+                          "enum": ["AUTO_GENERATION_TYPE_UNSPECIFIED", "ON", "OFF"],
+                          "type": "string",
+                          "description": "Defines whether to automatically generate a summary and recap of the meeting"
+                        }
+                      },
+                      "description": "Configuration related to smart notes in a meeting space",
+                      "additionalProperties": false
+                    }
+                  },
+                  "description": "Configuration related to meeting artifacts potentially generated by this meeting space",
+                  "additionalProperties": false
+                }
+              },
+              "description": "Configuration pertaining to the meeting space",
+              "additionalProperties": false
+            }
+          },
+          "description": "Request body parameters",
+          "additionalProperties": false
+        },
+        "path": {
+          "type": "object",
+          "required": ["name"],
+          "properties": {
+            "name": {
+              "type": "string",
+              "pattern": "^spaces/[^/]+$",
+              "description": "Resource name of the space. Format: spaces/{space}"
+            }
+          },
+          "description": "Path parameters",
+          "additionalProperties": false
+        },
+        "query": {
+          "type": "object",
+          "required": [],
+          "properties": {
+            "updateMask": {
+              "type": "string",
+              "description": "Fields to be updated. For example: config.artifactConfig.smartNotesConfig.autoSmartNotesGeneration"
+            }
+          },
+          "description": "Query parameters",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+]

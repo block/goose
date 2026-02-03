@@ -1,0 +1,2471 @@
+[
+  {
+    "name": "SENDGRID__SEND_EMAIL",
+    "description": "Send email over SendGrid's v3 Web API",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "SEND_EMAIL",
+      "canonical_tool_description_hash": "ed60e1598bce9d3e5a7b7a13fb9ad1972d43ffd450d8d443e078f23d428de49d",
+      "canonical_tool_input_schema_hash": "76cca0cc6cab3e500bf450de9bb45d87eea3eb0f82cd2b70476457b08df58739"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["body"],
+      "properties": {
+        "body": {
+          "type": "object",
+          "required": ["from", "personalizations", "content", "subject"],
+          "properties": {
+            "from": {
+              "type": "object",
+              "required": ["email"],
+              "properties": {
+                "name": {
+                  "type": "string",
+                  "description": "Name of the sender"
+                },
+                "email": {
+                  "type": "string",
+                  "format": "email",
+                  "description": "Email address of the sender"
+                }
+              },
+              "description": "Sender information",
+              "additionalProperties": false
+            },
+            "content": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "visible": ["type", "value"],
+                "required": ["type", "value"],
+                "properties": {
+                  "type": {
+                    "type": "string",
+                    "default": "text/plain",
+                    "description": "MIME type of the content (e.g., text/plain, text/html)"
+                  },
+                  "value": {
+                    "type": "string",
+                    "description": "The actual content of the email"
+                  }
+                },
+                "additionalProperties": false
+              },
+              "description": "Content of the email"
+            },
+            "subject": {
+              "type": "string",
+              "description": "Subject line of the email"
+            },
+            "personalizations": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "visible": ["to", "cc", "bcc"],
+                "required": ["to"],
+                "properties": {
+                  "cc": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "visible": ["email", "name"],
+                      "required": ["email"],
+                      "properties": {
+                        "name": {
+                          "type": "string",
+                          "description": "Name of the CC recipient"
+                        },
+                        "email": {
+                          "type": "string",
+                          "format": "email",
+                          "description": "Email address of the CC recipient"
+                        }
+                      },
+                      "additionalProperties": false
+                    },
+                    "description": "Carbon copy recipients"
+                  },
+                  "to": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "visible": ["email", "name"],
+                      "required": ["email"],
+                      "properties": {
+                        "name": {
+                          "type": "string",
+                          "description": "Name of the recipient"
+                        },
+                        "email": {
+                          "type": "string",
+                          "format": "email",
+                          "description": "Email address of the recipient"
+                        }
+                      },
+                      "additionalProperties": false
+                    },
+                    "description": "Recipients of the email"
+                  },
+                  "bcc": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "visible": ["email", "name"],
+                      "required": ["email"],
+                      "properties": {
+                        "name": {
+                          "type": "string",
+                          "description": "Name of the BCC recipient"
+                        },
+                        "email": {
+                          "type": "string",
+                          "format": "email",
+                          "description": "Email address of the BCC recipient"
+                        }
+                      },
+                      "additionalProperties": false
+                    },
+                    "description": "Blind carbon copy recipients"
+                  },
+                  "subject": {
+                    "type": "string",
+                    "description": "Subject line of the email"
+                  }
+                },
+                "additionalProperties": false
+              },
+              "description": "An array of different recipient groups"
+            }
+          },
+          "description": "Email content and configuration",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "SENDGRID__CREATE_DOMAIN_AUTHENTICATION",
+    "description": "Create a new authenticated domain",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "CREATE_DOMAIN_AUTHENTICATION",
+      "canonical_tool_description_hash": "4973a5e1a983c5aac40df146dfa33697174cfa235ffb6416bccdb5f1c04f773a",
+      "canonical_tool_input_schema_hash": "97cb060bbe1e4d41428e55a751d289ecdda4c7f56bc5775b580cde676aa12709"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["body"],
+      "properties": {
+        "body": {
+          "type": "object",
+          "required": ["domain"],
+          "properties": {
+            "ips": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "description": "List of IPs to associate with the domain"
+            },
+            "domain": {
+              "type": "string",
+              "description": "Domain to authenticate"
+            },
+            "default": {
+              "type": "boolean",
+              "description": "Whether this is the default domain"
+            },
+            "username": {
+              "type": "string",
+              "format": "email",
+              "description": "Username associated with the domain"
+            },
+            "subdomain": {
+              "type": "string",
+              "description": "Subdomain for authentication"
+            },
+            "custom_spf": {
+              "type": "boolean",
+              "description": "Whether to use custom SPF"
+            },
+            "automatic_security": {
+              "type": "boolean",
+              "description": "Whether to enable automatic security"
+            }
+          },
+          "description": "Domain authentication configuration",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "SENDGRID__GET_DEFAULT_DOMAIN_AUTHENTICATION",
+    "description": "Retrieve the default authentication for a domain. Returns default domain and its details if a default is set. If no default domain is set, returns general information about domain authentication status.",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "GET_DEFAULT_DOMAIN_AUTHENTICATION",
+      "canonical_tool_description_hash": "0e2d3d60fd92b7eb5a56158c8ffa891d90086b857a213834d37005e63ebdc988",
+      "canonical_tool_input_schema_hash": "86b80fafc3c072167942b924b71001218308f30a41d96fbbf01b31ad9b8d2cb3"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": [],
+      "properties": {
+        "query": {
+          "type": "object",
+          "required": [],
+          "properties": {
+            "domain": {
+              "type": "string",
+              "description": "The domain to find a default authentication"
+            }
+          },
+          "description": "Query parameters for the request",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "SENDGRID__GET_DOMAIN_AUTHENTICATION_BY_ID",
+    "description": "Retrieve a specific domain authentication by ID. Returns detailed information about the authenticated domain including DNS records and validation status.",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "GET_DOMAIN_AUTHENTICATION_BY_ID",
+      "canonical_tool_description_hash": "f7fd3b2dfb57a618649aacad447018b036f73fab9500d5bd4c3efe3515f06768",
+      "canonical_tool_input_schema_hash": "94206497314c894dbf966da4a9e3845be70f27a204d311fb632052e068f2bb59"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["path"],
+      "properties": {
+        "path": {
+          "type": "object",
+          "required": ["id"],
+          "properties": {
+            "id": {
+              "type": "string",
+              "description": "The ID of the domain authentication to retrieve"
+            }
+          },
+          "description": "Path parameters for the request",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "SENDGRID__LIST_AUTHENTICATED_DOMAINS",
+    "description": "List all authenticated domains",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "LIST_AUTHENTICATED_DOMAINS",
+      "canonical_tool_description_hash": "28936af929359c276440e6d8ab78424d8ada86fd1dfc6cced22366f50b296cf5",
+      "canonical_tool_input_schema_hash": "c6dfc540e30e661a59a24371ff17e3ec3e29be80596bd1a8a996946fd2ecb8fd"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": [],
+      "properties": {
+        "query": {
+          "type": "object",
+          "required": [],
+          "properties": {
+            "limit": {
+              "type": "integer",
+              "minimum": 1,
+              "description": "Number of domains to return"
+            },
+            "offset": {
+              "type": "integer",
+              "minimum": 0,
+              "description": "Paging offset"
+            }
+          },
+          "description": "Query parameters",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "SENDGRID__VALIDATE_DOMAIN_AUTHENTICATION",
+    "description": "Validate a domain authentication",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "VALIDATE_DOMAIN_AUTHENTICATION",
+      "canonical_tool_description_hash": "62792ee65f25bbf6efc4657d7a182bed565fa04d6c7ff8a45d9bf8f769852b2a",
+      "canonical_tool_input_schema_hash": "aac8ed27b7edbb66ba2d643d7cac5d1cb72700d8b21f91f21e4d4b7fb7915660"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["path"],
+      "properties": {
+        "path": {
+          "type": "object",
+          "required": ["domain_id"],
+          "properties": {
+            "domain_id": {
+              "type": "integer",
+              "description": "ID of the domain to validate"
+            }
+          },
+          "description": "Path parameters",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "SENDGRID__UPDATE_DOMAIN_AUTHENTICATION",
+    "description": "Update the settings for an authenticated domain",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "UPDATE_DOMAIN_AUTHENTICATION",
+      "canonical_tool_description_hash": "0fb05c10334568743b3a6967eb85d0bb301e71d319ad05f0adb1c6573e6f5579",
+      "canonical_tool_input_schema_hash": "d23799698444698d87cd1a13be3d144506666cba67208ac21ab862abf88a930f"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["path"],
+      "properties": {
+        "body": {
+          "type": "object",
+          "required": [],
+          "properties": {
+            "default": {
+              "type": "boolean",
+              "description": "Indicates whether this is the default authenticated domain"
+            },
+            "custom_spf": {
+              "type": "boolean",
+              "description": "Indicates whether to generate a custom SPF record for manual security"
+            }
+          },
+          "description": "Update settings for the domain authentication",
+          "additionalProperties": false
+        },
+        "path": {
+          "type": "object",
+          "required": ["domain_id"],
+          "properties": {
+            "domain_id": {
+              "type": "integer",
+              "description": "ID of the domain authentication to update"
+            }
+          },
+          "description": "Path parameters",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "SENDGRID__DELETE_DOMAIN_AUTHENTICATION",
+    "description": "Delete an authenticated domain",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "DELETE_DOMAIN_AUTHENTICATION",
+      "canonical_tool_description_hash": "b1148386145eeb7f15ccd30265f98c38bc10bb705438194fdbeb2106ddd95b39",
+      "canonical_tool_input_schema_hash": "e2b2f57dd9889d8ffa042be8242b1d5c3df71a71697554c9076ea948458b00a6"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["path"],
+      "properties": {
+        "path": {
+          "type": "object",
+          "required": ["domain_id"],
+          "properties": {
+            "domain_id": {
+              "type": "integer",
+              "description": "ID of the domain authentication to delete"
+            }
+          },
+          "description": "Path parameters",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "SENDGRID__LIST_BRANDED_LINKS",
+    "description": "Retrieve all branded links.",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "LIST_BRANDED_LINKS",
+      "canonical_tool_description_hash": "69ba0af6990f9d8948736d3b34497955ce56ddd55e86c025fa60efcc6b7d1e0f",
+      "canonical_tool_input_schema_hash": "af18e98f5d5e13fab7ce3f01f711c5386f95d0380771b4aa9c3e7f4d5308e662"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": [],
+      "properties": {
+        "query": {
+          "type": "object",
+          "required": [],
+          "properties": {
+            "limit": {
+              "type": "integer",
+              "minimum": 1,
+              "description": "Number of links to return"
+            },
+            "offset": {
+              "type": "integer",
+              "minimum": 0,
+              "description": "Paging offset"
+            }
+          },
+          "description": "Query parameters",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "SENDGRID__ASSOCIATE_DOMAIN_WITH_SUBUSER",
+    "description": "Associate a specific authenticated domain with a subuser. This allows subusers to send mail using their parent's authenticated domain.",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "ASSOCIATE_DOMAIN_WITH_SUBUSER",
+      "canonical_tool_description_hash": "c187f52329ff95b87f90c4791c1d223d12279bbef32764b4b8cd9992f68d5eae",
+      "canonical_tool_input_schema_hash": "efd93c26ac47ce5b60d134d15af489fab9f3616ae7a49e3df35089e06a487b53"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["path", "body"],
+      "properties": {
+        "body": {
+          "type": "object",
+          "required": ["username"],
+          "properties": {
+            "username": {
+              "type": "string",
+              "description": "Username of the subuser to associate with the authenticated domain"
+            }
+          },
+          "description": "Request body parameters",
+          "additionalProperties": false
+        },
+        "path": {
+          "type": "object",
+          "required": ["domain_id"],
+          "properties": {
+            "domain_id": {
+              "type": "integer",
+              "description": "ID of the authenticated domain to associate with the subuser"
+            }
+          },
+          "description": "Path parameters",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "SENDGRID__EMAIL_DNS_RECORDS",
+    "description": "Share DNS records with a colleague to help them enter it into your DNS provider to validate your domain and link branding. The email includes a direct link to the DNS records which expires after some time.",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "EMAIL_DNS_RECORDS",
+      "canonical_tool_description_hash": "4fd6539e7a17036bfaebaaec9dd2154c79d3bdbb5e52be9d13f12a7f5e9762e7",
+      "canonical_tool_input_schema_hash": "27197c9241e43dcd5b767037af9ddda812d98ef89ae3ff53f10b3f6d3ca4cf6e"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["body"],
+      "properties": {
+        "body": {
+          "type": "object",
+          "required": ["email"],
+          "properties": {
+            "email": {
+              "type": "string",
+              "format": "email",
+              "description": "The email address to send the DNS information to"
+            },
+            "link_id": {
+              "type": "integer",
+              "minimum": 0,
+              "description": "The ID of the branded link"
+            },
+            "message": {
+              "type": "string",
+              "default": "Please set these DNS records in our hosting solution.",
+              "description": "Optional custom text block to include in the email body sent with the records"
+            },
+            "domain_id": {
+              "type": "integer",
+              "minimum": 0,
+              "description": "The ID of your SendGrid domain record"
+            }
+          },
+          "description": "Request body parameters",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "SENDGRID__CREATE_BRANDED_LINK",
+    "description": "Create a new branded link for your SendGrid account. Link branding allows all click-tracked links and images in your emails to be served from your domain rather than sendgrid.net.",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "CREATE_BRANDED_LINK",
+      "canonical_tool_description_hash": "650d21ddc064c5048bee5477cc9afdd445b8a02da1a8a14c78363b2d8640816a",
+      "canonical_tool_input_schema_hash": "c565292c6031667b48ccab894e9a389d8ee314bf773c14e6732b9e71fc5f3560"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["body"],
+      "properties": {
+        "body": {
+          "type": "object",
+          "required": ["domain"],
+          "properties": {
+            "domain": {
+              "type": "string",
+              "description": "The domain to be branded"
+            },
+            "default": {
+              "type": "boolean",
+              "description": "Whether this should be the default branded link"
+            },
+            "subdomain": {
+              "type": "string",
+              "description": "The subdomain to use for branding"
+            }
+          },
+          "description": "Link branding configuration",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "SENDGRID__VALIDATE_BRANDED_LINK",
+    "description": "Validate a branded link. Returns validation results for the DNS records.",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "VALIDATE_BRANDED_LINK",
+      "canonical_tool_description_hash": "0d2589cd468697f0423e6a226be29a9ecc20820922d48cfc60954f503d13a900",
+      "canonical_tool_input_schema_hash": "4f5f4fad7c2c7a3b203c164558e12787d9e326eea60c41c0a4d6030080654b9d"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["path"],
+      "properties": {
+        "path": {
+          "type": "object",
+          "required": ["id"],
+          "properties": {
+            "id": {
+              "type": "integer",
+              "description": "ID of the branded link to validate"
+            }
+          },
+          "description": "Path parameters",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "SENDGRID__GET_DEFAULT_BRANDED_LINK",
+    "description": "Retrieve the default branded link. Returns the default branded link if one exists.",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "GET_DEFAULT_BRANDED_LINK",
+      "canonical_tool_description_hash": "f67cae1d4781224a730c98dd5292e22453076486650288e725e49d6d328377ab",
+      "canonical_tool_input_schema_hash": "3b7f810b0e98baf3bd4c78d067a17ffaea4368931b5aad4aa84f2f52b5e52ba8"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": [],
+      "properties": {
+        "query": {
+          "type": "object",
+          "required": [],
+          "properties": {
+            "domain": {
+              "type": "string",
+              "description": "The domain to find a default branded link for"
+            }
+          },
+          "description": "Query parameters",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "SENDGRID__GET_BRANDED_LINK",
+    "description": "Retrieve a specific branded link by ID.",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "GET_BRANDED_LINK",
+      "canonical_tool_description_hash": "124e4fcc3d11bc4bda7dec9718de379a02fd2e1e04e2034e26e04080dddd5c8f",
+      "canonical_tool_input_schema_hash": "cc54fe3a67a8c5d66914192a55859c7a0ecfe81797693a96ef9c35dde0a3a5b9"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["path"],
+      "properties": {
+        "path": {
+          "type": "object",
+          "required": ["id"],
+          "properties": {
+            "id": {
+              "type": "integer",
+              "description": "ID of the branded link to retrieve"
+            }
+          },
+          "description": "Path parameters",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "SENDGRID__UPDATE_BRANDED_LINK",
+    "description": "Update a branded link.",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "UPDATE_BRANDED_LINK",
+      "canonical_tool_description_hash": "588db684d24bef8a9584520933134a44f88498811b7ddcea74736dee900e5c2f",
+      "canonical_tool_input_schema_hash": "0f2a90f210029e0bf0f91376a477d291a836b439380d63ce7f69f64ef0edbae5"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["path"],
+      "properties": {
+        "body": {
+          "type": "object",
+          "required": [],
+          "properties": {
+            "default": {
+              "type": "boolean",
+              "description": "Whether this should be the default branded link"
+            }
+          },
+          "description": "Update settings for the branded link",
+          "additionalProperties": false
+        },
+        "path": {
+          "type": "object",
+          "required": ["id"],
+          "properties": {
+            "id": {
+              "type": "integer",
+              "description": "ID of the branded link to update"
+            }
+          },
+          "description": "Path parameters",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "SENDGRID__DELETE_BRANDED_LINK",
+    "description": "Delete a branded link.",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "DELETE_BRANDED_LINK",
+      "canonical_tool_description_hash": "ecd3cef16647cf8d9b477fbdcc0266f41a24d9da9be663502211907bf5ea8373",
+      "canonical_tool_input_schema_hash": "6bfdb26e050047261743dd1cc1b4c0dad1010381711fab2f52565dbd260b4cfe"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["path"],
+      "properties": {
+        "path": {
+          "type": "object",
+          "required": ["id"],
+          "properties": {
+            "id": {
+              "type": "integer",
+              "description": "ID of the branded link to delete"
+            }
+          },
+          "description": "Path parameters",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "SENDGRID__CREATE_VERIFIED_SENDER",
+    "description": "Create a new verified sender identity for your SendGrid account.",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "CREATE_VERIFIED_SENDER",
+      "canonical_tool_description_hash": "8f41bfa1aaf0c3d640695465ceb9997d0d8caa6f971d207f0b4bae0a60500b1b",
+      "canonical_tool_input_schema_hash": "10f041aa73abff7af2c5234987a58cbd174969af6be909c268a23ea73d65a119"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["body"],
+      "properties": {
+        "body": {
+          "type": "object",
+          "required": ["from_email", "from_name", "address", "city", "country"],
+          "properties": {
+            "zip": {
+              "type": "string",
+              "description": "The zip/postal code of the sender"
+            },
+            "city": {
+              "type": "string",
+              "description": "The city of the sender"
+            },
+            "state": {
+              "type": "string",
+              "description": "The state/province of the sender"
+            },
+            "address": {
+              "type": "string",
+              "description": "The physical address of the sender"
+            },
+            "country": {
+              "type": "string",
+              "description": "The country of the sender"
+            },
+            "address2": {
+              "type": "string",
+              "description": "Additional address information"
+            },
+            "nickname": {
+              "type": "string",
+              "description": "A nickname for the sender identity"
+            },
+            "reply_to": {
+              "type": "string",
+              "format": "email",
+              "description": "The reply-to email address"
+            },
+            "from_name": {
+              "type": "string",
+              "description": "The name to be associated with the sender"
+            },
+            "from_email": {
+              "type": "string",
+              "format": "email",
+              "description": "The email address to be verified"
+            },
+            "reply_to_name": {
+              "type": "string",
+              "description": "The name associated with the reply-to address"
+            }
+          },
+          "description": "Verified sender details",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "SENDGRID__GET_ALL_VERIFIED_SENDERS",
+    "description": "Retrieve all verified senders for your account.",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "GET_ALL_VERIFIED_SENDERS",
+      "canonical_tool_description_hash": "2b498243d359561fc3642209b950e4cd138284ca42b1a2655d24861c8a91bed4",
+      "canonical_tool_input_schema_hash": "d746974fa9afd5e951f76f9af38954b0ad7f436f2120dc974da65e5ee39f856f"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": [],
+      "properties": {},
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "SENDGRID__EDIT_VERIFIED_SENDER",
+    "description": "Update the details of a verified sender.",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "EDIT_VERIFIED_SENDER",
+      "canonical_tool_description_hash": "fcbf27234336d8848f5ba673218c2056ed8ef1dc857e8249b58eaee5ddba2ae7",
+      "canonical_tool_input_schema_hash": "b040b20a95d8d8363e40837b1092165a47e76a57816f0abbb36dc1532f2581fa"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["path"],
+      "properties": {
+        "body": {
+          "type": "object",
+          "required": ["from_name", "address", "city", "country"],
+          "properties": {
+            "zip": {
+              "type": "string",
+              "description": "The zip/postal code of the sender"
+            },
+            "city": {
+              "type": "string",
+              "description": "The city of the sender"
+            },
+            "state": {
+              "type": "string",
+              "description": "The state/province of the sender"
+            },
+            "address": {
+              "type": "string",
+              "description": "The physical address of the sender"
+            },
+            "country": {
+              "type": "string",
+              "description": "The country of the sender"
+            },
+            "address2": {
+              "type": "string",
+              "description": "Additional address information"
+            },
+            "nickname": {
+              "type": "string",
+              "description": "A nickname for the sender identity"
+            },
+            "reply_to": {
+              "type": "string",
+              "format": "email",
+              "description": "The reply-to email address"
+            },
+            "from_name": {
+              "type": "string",
+              "description": "The name to be associated with the sender"
+            },
+            "reply_to_name": {
+              "type": "string",
+              "description": "The name associated with the reply-to address"
+            }
+          },
+          "description": "Updated sender details",
+          "additionalProperties": false
+        },
+        "path": {
+          "type": "object",
+          "required": ["sender_id"],
+          "properties": {
+            "sender_id": {
+              "type": "integer",
+              "description": "ID of the sender identity to update"
+            }
+          },
+          "description": "Path parameters",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "SENDGRID__DELETE_VERIFIED_SENDER",
+    "description": "Delete a verified sender identity.",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "DELETE_VERIFIED_SENDER",
+      "canonical_tool_description_hash": "feabbf2f4c6e15b0a2ea85ca69c827c6a95c4daa09a086f0974bb108c313fad1",
+      "canonical_tool_input_schema_hash": "836a45d08581b3020989b8e6cf9d843569c8384aa42e9c1f77b8f1f183d81c65"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["path"],
+      "properties": {
+        "path": {
+          "type": "object",
+          "required": ["sender_id"],
+          "properties": {
+            "sender_id": {
+              "type": "integer",
+              "description": "ID of the sender identity to delete"
+            }
+          },
+          "description": "Path parameters",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "SENDGRID__GET_COMPLETED_STEPS",
+    "description": "Get the completed verification steps for a sender identity.",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "GET_COMPLETED_STEPS",
+      "canonical_tool_description_hash": "1c6348b82843f2d9967ea58795aaa1617f637b19bb054ad9c7e5f5d510e9001d",
+      "canonical_tool_input_schema_hash": "d746974fa9afd5e951f76f9af38954b0ad7f436f2120dc974da65e5ee39f856f"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": [],
+      "properties": {},
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "SENDGRID__GET_DOMAIN_WARN_LIST",
+    "description": "Get a list of domains known to implement DMARC.",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "GET_DOMAIN_WARN_LIST",
+      "canonical_tool_description_hash": "34897b8749ebdff8b8f260ebddb09ca395d7dec5485ad7ee9c7f1d7d29db45e4",
+      "canonical_tool_input_schema_hash": "4280414c80f90390d347f9564f450c84270740735a4ff084658ac93d39f9f39d"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["query"],
+      "properties": {
+        "query": {
+          "type": "object",
+          "required": ["domain"],
+          "properties": {
+            "domain": {
+              "type": "string",
+              "description": "Domain to check against the warn list"
+            }
+          },
+          "description": "Query parameters",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "SENDGRID__GET_ENGAGEMENT_QUALITY_SCORES",
+    "description": "Retrieve SendGrid Engagement Quality (SEQ) scores for a specified date range. SEQ scores indicate the quality of your email program based on factors like engagement recency, open rates, bounce rates, and spam rates. Scores range from 1 to 5, with higher numbers representing better engagement quality. To receive scores, you must have open tracking enabled and send at least 1,000 messages during the previous 30 days.",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "GET_ENGAGEMENT_QUALITY_SCORES",
+      "canonical_tool_description_hash": "3b1a1e6acb0a918509d8354a81a3b6e2db6e334d3f2fd353f340f0f357520d78",
+      "canonical_tool_input_schema_hash": "7e6246c3b94d4a5eba3fb0ae3c7ac53b4660523d385c6a5a44bb442b8857527f"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["query"],
+      "properties": {
+        "query": {
+          "type": "object",
+          "required": ["from", "to"],
+          "properties": {
+            "to": {
+              "type": "string",
+              "format": "date",
+              "description": "The ending date in YYYY-MM-DD format (UTC) for which you want to retrieve scores"
+            },
+            "from": {
+              "type": "string",
+              "format": "date",
+              "description": "The starting date in YYYY-MM-DD format (UTC) for which you want to retrieve scores"
+            }
+          },
+          "description": "Query parameters for the request",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "SENDGRID__GET_SUBUSERS_ENGAGEMENT_QUALITY_SCORES",
+    "description": "Retrieve SendGrid Engagement Quality (SEQ) scores for your Subusers or customer accounts for a specific date. SEQ scores indicate the quality of your email program based on factors like engagement recency, open rates, bounce rates, and spam rates. Scores range from 1 to 5, with higher numbers representing better engagement quality.",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "GET_SUBUSERS_ENGAGEMENT_QUALITY_SCORES",
+      "canonical_tool_description_hash": "01a63315a51bd78c2a78c32abe662f5bf8f8b79f894ba8515af251249f2d5156",
+      "canonical_tool_input_schema_hash": "861324b6ae611ea0125c0740760381d49f68d5118961ab0198c78dc3328ce25b"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["query"],
+      "properties": {
+        "query": {
+          "type": "object",
+          "required": ["date"],
+          "properties": {
+            "date": {
+              "type": "string",
+              "format": "date",
+              "description": "The date in YYYY-MM-DD format (UTC) for which you want to retrieve a SendGrid Engagement Quality score"
+            },
+            "limit": {
+              "type": "integer",
+              "default": 1000,
+              "maximum": 1000,
+              "minimum": 0,
+              "description": "Specifies the number of results to be returned by the API. Can be used to limit results or with after_key for pagination."
+            },
+            "after_key": {
+              "type": "string",
+              "description": "Specifies which items to be returned by the API. Used with limit for pagination. Value should be the after_key from the previous response."
+            }
+          },
+          "description": "Query parameters for the request",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "SENDGRID__CREATE_DESIGN",
+    "description": "Create a new design in the SendGrid Design Library",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "CREATE_DESIGN",
+      "canonical_tool_description_hash": "e589b45f1b65e33fc4c9d50227d0a5090784bb4dbc5859998f33c702f1b7005d",
+      "canonical_tool_input_schema_hash": "def3467a59a8b05a782f9635330f5d4493060e1cdf3b621da8b25a6b0ffc07df"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["body"],
+      "properties": {
+        "body": {
+          "type": "object",
+          "required": ["name"],
+          "properties": {
+            "name": {
+              "type": "string",
+              "description": "Name of the design"
+            },
+            "categories": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "description": "Categories to associate with the design"
+            },
+            "html_content": {
+              "type": "string",
+              "description": "HTML content of the design"
+            },
+            "plain_content": {
+              "type": "string",
+              "description": "Plain text content of the design"
+            },
+            "generate_plain_content": {
+              "type": "boolean",
+              "description": "Whether to automatically generate plain content from HTML"
+            }
+          },
+          "description": "Design configuration",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "SENDGRID__DUPLICATE_DESIGN",
+    "description": "Duplicate an existing design in the SendGrid Design Library",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "DUPLICATE_DESIGN",
+      "canonical_tool_description_hash": "8da3f4914d87f88b5bcdc19fcdec44f5f66b46bce3500bec986ef538a6bbb728",
+      "canonical_tool_input_schema_hash": "cf468daae06c69d38e59a14d0fda3e8acc6cd37b53ac6e5c0f522432b6508a86"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["path"],
+      "properties": {
+        "body": {
+          "type": "object",
+          "required": ["name"],
+          "properties": {
+            "name": {
+              "type": "string",
+              "description": "Name for the duplicated design"
+            },
+            "editor": {
+              "enum": ["design", "code"],
+              "type": "string",
+              "description": "Editor type (design or code)"
+            }
+          },
+          "description": "Duplicate design options",
+          "additionalProperties": false
+        },
+        "path": {
+          "type": "object",
+          "required": ["id"],
+          "properties": {
+            "id": {
+              "type": "string",
+              "description": "ID of the design to duplicate"
+            }
+          },
+          "description": "Path parameters",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "SENDGRID__GET_DESIGN",
+    "description": "Retrieve a specific design from the SendGrid Design Library",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "GET_DESIGN",
+      "canonical_tool_description_hash": "f525e5459388b095762cb1ead278c5523ed990d3e87bbd61a6b1f2a8b2fab8f9",
+      "canonical_tool_input_schema_hash": "fc07730a167233adda1d11664a06d18c1ce7072eb8335000d65a67b3b82f8d16"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["path"],
+      "properties": {
+        "path": {
+          "type": "object",
+          "required": ["id"],
+          "properties": {
+            "id": {
+              "type": "string",
+              "description": "ID of the design to retrieve"
+            }
+          },
+          "description": "Path parameters",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "SENDGRID__GET_CLICK_TRACKING_SETTINGS",
+    "description": "Retrieve click tracking settings for your SendGrid account",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "GET_CLICK_TRACKING_SETTINGS",
+      "canonical_tool_description_hash": "e41e3d9ad9c121c6ee29d3c03e806f6ee656983c77d3577ea5f0a3b290f80055",
+      "canonical_tool_input_schema_hash": "d746974fa9afd5e951f76f9af38954b0ad7f436f2120dc974da65e5ee39f856f"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": [],
+      "properties": {},
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "SENDGRID__LIST_DESIGNS",
+    "description": "List all designs in the SendGrid Design Library",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "LIST_DESIGNS",
+      "canonical_tool_description_hash": "b56b2d38d26f7288d05ec7b7c42054c2edc3cd4b9ef04aaf61d82f13234aab19",
+      "canonical_tool_input_schema_hash": "3528b62b7f7b1fef6e589840f3eda488c1a70a58a5e0bdbe3c7bc551dbee6b8b"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": [],
+      "properties": {
+        "query": {
+          "type": "object",
+          "required": [],
+          "properties": {
+            "summary": {
+              "type": "boolean",
+              "description": "Whether to return only summary information"
+            },
+            "page_size": {
+              "type": "integer",
+              "minimum": 1,
+              "description": "Number of results to return per page"
+            },
+            "page_token": {
+              "type": "string",
+              "description": "Token for pagination"
+            }
+          },
+          "description": "Query parameters",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "SENDGRID__UPDATE_DESIGN",
+    "description": "Update an existing design in the SendGrid Design Library",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "UPDATE_DESIGN",
+      "canonical_tool_description_hash": "40a7ff38f1f7f42efeb18e9cc5286e3012eb2f4b2538d89040d226ee1f5cf21a",
+      "canonical_tool_input_schema_hash": "694bf57f33e6f8acda50eb7ac320b2e01b7744b2a5d3ba0961c0e55397c7e648"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["path"],
+      "properties": {
+        "body": {
+          "type": "object",
+          "required": [],
+          "properties": {
+            "name": {
+              "type": "string",
+              "description": "New name for the design"
+            },
+            "categories": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "description": "Updated categories"
+            },
+            "html_content": {
+              "type": "string",
+              "description": "Updated HTML content"
+            },
+            "plain_content": {
+              "type": "string",
+              "description": "Updated plain text content"
+            },
+            "generate_plain_content": {
+              "type": "boolean",
+              "description": "Whether to automatically generate plain content from HTML"
+            }
+          },
+          "description": "Updated design properties",
+          "additionalProperties": false
+        },
+        "path": {
+          "type": "object",
+          "required": ["id"],
+          "properties": {
+            "id": {
+              "type": "string",
+              "description": "ID of the design to update"
+            }
+          },
+          "description": "Path parameters",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "SENDGRID__DUPLICATE_PREBUILT_DESIGN",
+    "description": "Duplicate a SendGrid pre-built design template",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "DUPLICATE_PREBUILT_DESIGN",
+      "canonical_tool_description_hash": "838208fefc352276c685bc45a26b910ec840dc6df0c24d0e7d548e1fe3a7f17a",
+      "canonical_tool_input_schema_hash": "21912c1c6cd4238cc6dcd9450cbe41e500e35892015dcb0572858cecd8183b24"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["path"],
+      "properties": {
+        "body": {
+          "type": "object",
+          "required": ["name"],
+          "properties": {
+            "name": {
+              "type": "string",
+              "description": "Name for the duplicated design"
+            },
+            "editor": {
+              "enum": ["design", "code"],
+              "type": "string",
+              "description": "Editor type (design or code)"
+            }
+          },
+          "description": "Duplication options",
+          "additionalProperties": false
+        },
+        "path": {
+          "type": "object",
+          "required": ["id"],
+          "properties": {
+            "id": {
+              "type": "string",
+              "description": "ID of the pre-built design to duplicate"
+            }
+          },
+          "description": "Path parameters",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "SENDGRID__GET_PREBUILT_DESIGN",
+    "description": "Retrieve a SendGrid pre-built design template",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "GET_PREBUILT_DESIGN",
+      "canonical_tool_description_hash": "a2ef4e11bef35119194107bb3ae009d87ad926d858850eb4f50b899e6fac25d8",
+      "canonical_tool_input_schema_hash": "5a318fc92960c663855f227976d499792bc501370ae35a9695d2d5d4cf36c24f"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["path"],
+      "properties": {
+        "path": {
+          "type": "object",
+          "required": ["id"],
+          "properties": {
+            "id": {
+              "type": "string",
+              "description": "ID of the pre-built design to retrieve"
+            }
+          },
+          "description": "Path parameters",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "SENDGRID__LIST_PREBUILT_DESIGNS",
+    "description": "List all SendGrid pre-built design templates",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "LIST_PREBUILT_DESIGNS",
+      "canonical_tool_description_hash": "b267e7ea52b51783c2ecba14137a4209bf4e699fa19b54602c0705e7549df7f4",
+      "canonical_tool_input_schema_hash": "6ac01b87de15fc02400e92aee8c1e6f147e551538222fb107ba3f95ee09cb75b"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": [],
+      "properties": {
+        "query": {
+          "type": "object",
+          "required": [],
+          "properties": {
+            "page_size": {
+              "type": "integer",
+              "minimum": 1,
+              "description": "Number of results to return per page"
+            },
+            "page_token": {
+              "type": "string",
+              "description": "Token for pagination"
+            }
+          },
+          "description": "Query parameters",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "SENDGRID__DELETE_DESIGN",
+    "description": "Delete a design from the SendGrid Design Library",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "DELETE_DESIGN",
+      "canonical_tool_description_hash": "5b4f9316b5ba91d0ec5193290d48d76bf4983d9fcdcdfdaccf7f3d51306ee67f",
+      "canonical_tool_input_schema_hash": "68e18aa559ba4498dee48f70d26d5d8fe6743fe37870f9dafda6832018b15ff2"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["path"],
+      "properties": {
+        "path": {
+          "type": "object",
+          "required": ["id"],
+          "properties": {
+            "id": {
+              "type": "string",
+              "description": "ID of the design to delete"
+            }
+          },
+          "description": "Path parameters",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "SENDGRID__GET_TRACKING_SETTINGS",
+    "description": "Retrieve all tracking settings for your SendGrid account",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "GET_TRACKING_SETTINGS",
+      "canonical_tool_description_hash": "521a1d862752aaf0607258854a2641d7fc418559094d0ba9716a8f6361331ef1",
+      "canonical_tool_input_schema_hash": "d746974fa9afd5e951f76f9af38954b0ad7f436f2120dc974da65e5ee39f856f"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": [],
+      "properties": {},
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "SENDGRID__UPDATE_CLICK_TRACKING_SETTINGS",
+    "description": "Update click tracking settings for your SendGrid account",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "UPDATE_CLICK_TRACKING_SETTINGS",
+      "canonical_tool_description_hash": "1dac0e736d244a3b898a88bb50f57a513558c72bf4aa948f7240c30762a04d95",
+      "canonical_tool_input_schema_hash": "85d93a0726b43747fe0cda5f361726154c6f8656f9bd229de0c2092667677590"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["body"],
+      "properties": {
+        "body": {
+          "type": "object",
+          "required": ["enabled"],
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "description": "Indicates if click tracking is enabled"
+            }
+          },
+          "description": "Click tracking settings",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "SENDGRID__GET_GOOGLE_ANALYTICS_SETTINGS",
+    "description": "Retrieve Google Analytics settings for your SendGrid account",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "GET_GOOGLE_ANALYTICS_SETTINGS",
+      "canonical_tool_description_hash": "5229b9ab02c0734c57348d6f6b33f136e243452e5da847c99ca2f7377016ccf4",
+      "canonical_tool_input_schema_hash": "d746974fa9afd5e951f76f9af38954b0ad7f436f2120dc974da65e5ee39f856f"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": [],
+      "properties": {},
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "SENDGRID__UPDATE_GOOGLE_ANALYTICS_SETTINGS",
+    "description": "Update Google Analytics settings for your SendGrid account",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "UPDATE_GOOGLE_ANALYTICS_SETTINGS",
+      "canonical_tool_description_hash": "c76afda7f6dfd6081240663fe8d63e63179bbf3ec98710dc1fb144e78acfbd8e",
+      "canonical_tool_input_schema_hash": "fb4c9beb690a2d06314a5ab7b74f869fbfb6d105f3f1b11630c46b629dd1f7b4"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["body"],
+      "properties": {
+        "body": {
+          "type": "object",
+          "required": ["enabled"],
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "description": "Indicates if Google Analytics tracking is enabled"
+            },
+            "utm_term": {
+              "type": "string",
+              "description": "Identify paid keywords"
+            },
+            "utm_medium": {
+              "type": "string",
+              "description": "Name of the marketing medium"
+            },
+            "utm_source": {
+              "type": "string",
+              "description": "Name of the referrer source"
+            },
+            "utm_content": {
+              "type": "string",
+              "description": "Use to differentiate ads"
+            },
+            "utm_campaign": {
+              "type": "string",
+              "description": "Name of the campaign"
+            }
+          },
+          "description": "Google Analytics settings",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "SENDGRID__GET_OPEN_TRACKING_SETTINGS",
+    "description": "Retrieve open tracking settings for your SendGrid account",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "GET_OPEN_TRACKING_SETTINGS",
+      "canonical_tool_description_hash": "ce53d40d2ff27ae28a8d5503b2df056dc9fe2ac522f21c284e8333810977c232",
+      "canonical_tool_input_schema_hash": "d746974fa9afd5e951f76f9af38954b0ad7f436f2120dc974da65e5ee39f856f"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": [],
+      "properties": {},
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "SENDGRID__UPDATE_OPEN_TRACKING_SETTINGS",
+    "description": "Update open tracking settings for your SendGrid account",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "UPDATE_OPEN_TRACKING_SETTINGS",
+      "canonical_tool_description_hash": "dd5071069075534e36dddb8a7a69e59b76171d144d786b3db61337c5dc05969e",
+      "canonical_tool_input_schema_hash": "852e31fec96af0a8677c5e9d37f5584a74aff7b9183471ae66b6caec53a767fc"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["body"],
+      "properties": {
+        "body": {
+          "type": "object",
+          "required": ["enabled"],
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "description": "Indicates if open tracking is enabled"
+            }
+          },
+          "description": "Open tracking settings",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "SENDGRID__GET_SUBSCRIPTION_TRACKING_SETTINGS",
+    "description": "Retrieve subscription tracking settings for your SendGrid account",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "GET_SUBSCRIPTION_TRACKING_SETTINGS",
+      "canonical_tool_description_hash": "f5b3c13235de87168d8abeda7f4149510e6c4b7f07ae7505631dc6891451963f",
+      "canonical_tool_input_schema_hash": "d746974fa9afd5e951f76f9af38954b0ad7f436f2120dc974da65e5ee39f856f"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": [],
+      "properties": {},
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "SENDGRID__UPDATE_SUBSCRIPTION_TRACKING_SETTINGS",
+    "description": "Update subscription tracking settings for your SendGrid account",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "UPDATE_SUBSCRIPTION_TRACKING_SETTINGS",
+      "canonical_tool_description_hash": "f2963749df3783f9ba636d05b81ac289f14681f2ec34fa2a81f8c2e4fb8e80ad",
+      "canonical_tool_input_schema_hash": "ecf07c9fd50e96c64aeecdc779c7ae1194a771d0f962fba5da3e2207400553f9"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["body"],
+      "properties": {
+        "body": {
+          "type": "object",
+          "required": ["enabled"],
+          "properties": {
+            "url": {
+              "type": "string",
+              "description": "URL that allows a recipient to unsubscribe"
+            },
+            "enabled": {
+              "type": "boolean",
+              "description": "Indicates if subscription tracking is enabled"
+            },
+            "landing": {
+              "type": "string",
+              "description": "URL of the landing page where users are sent after unsubscribing"
+            },
+            "replace": {
+              "type": "string",
+              "description": "Text to be replaced with the unsubscribe link"
+            },
+            "html_content": {
+              "type": "string",
+              "description": "HTML content of the unsubscribe link"
+            },
+            "text_content": {
+              "type": "string",
+              "description": "Text content of the unsubscribe link"
+            }
+          },
+          "description": "Subscription tracking settings",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "SENDGRID__GET_GLOBAL_STATS",
+    "description": "Retrieve global email statistics for your SendGrid account. Returns statistics about your email activity including requests, deliveries, opens, clicks, bounces, spam reports, and more.",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "GET_GLOBAL_STATS",
+      "canonical_tool_description_hash": "2728aa1fcd89e90679c244210ee72e2292426a65872222c4afcda599443a8b7c",
+      "canonical_tool_input_schema_hash": "bd386feee0ca971535b9ec677030b196d524e1894222a239a30dadcca2a1d912"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["query"],
+      "properties": {
+        "query": {
+          "type": "object",
+          "required": ["start_date"],
+          "properties": {
+            "end_date": {
+              "type": "string",
+              "format": "date",
+              "description": "The end date of the statistics to retrieve (YYYY-MM-DD)"
+            },
+            "start_date": {
+              "type": "string",
+              "format": "date",
+              "description": "The starting date of the statistics to retrieve (YYYY-MM-DD)"
+            },
+            "aggregated_by": {
+              "enum": ["day", "week", "month"],
+              "type": "string",
+              "description": "How to group the statistics (day, week, or month)"
+            }
+          },
+          "description": "Query parameters",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "SENDGRID__GET_BROWSER_STATS",
+    "description": "Retrieve email statistics by browser. Returns statistics about email activity broken down by browser (Chrome, Firefox, etc.).",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "GET_BROWSER_STATS",
+      "canonical_tool_description_hash": "4e7e01bbff438141400a08615fa7648db3b4b865c70621a02235dc426c034dca",
+      "canonical_tool_input_schema_hash": "bd386feee0ca971535b9ec677030b196d524e1894222a239a30dadcca2a1d912"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["query"],
+      "properties": {
+        "query": {
+          "type": "object",
+          "required": ["start_date"],
+          "properties": {
+            "end_date": {
+              "type": "string",
+              "format": "date",
+              "description": "The end date of the statistics to retrieve (YYYY-MM-DD)"
+            },
+            "start_date": {
+              "type": "string",
+              "format": "date",
+              "description": "The starting date of the statistics to retrieve (YYYY-MM-DD)"
+            },
+            "aggregated_by": {
+              "enum": ["day", "week", "month"],
+              "type": "string",
+              "description": "How to group the statistics (day, week, or month)"
+            }
+          },
+          "description": "Query parameters",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "SENDGRID__GET_CLIENT_TYPE_STATS",
+    "description": "Retrieve email statistics by specific client type (e.g., phone). Returns statistics about email activity broken down by client type.",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "GET_CLIENT_TYPE_STATS",
+      "canonical_tool_description_hash": "5e07e0dd28a9b9a76f759c5070646da5388a4e0e37905e2f6cea58b527d729d3",
+      "canonical_tool_input_schema_hash": "cc42088e0bf50ce8361943d07159357d1e45ac0a4c22b896566be3a11e597db3"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["path", "query"],
+      "properties": {
+        "path": {
+          "type": "object",
+          "required": ["client_type"],
+          "properties": {
+            "client_type": {
+              "enum": ["phone", "webmail", "desktop"],
+              "type": "string",
+              "description": "The type of client to get statistics for (e.g., phone, webmail, desktop)"
+            }
+          },
+          "description": "Path parameters",
+          "additionalProperties": false
+        },
+        "query": {
+          "type": "object",
+          "required": ["start_date"],
+          "properties": {
+            "end_date": {
+              "type": "string",
+              "format": "date",
+              "description": "The end date of the statistics to retrieve (YYYY-MM-DD)"
+            },
+            "start_date": {
+              "type": "string",
+              "format": "date",
+              "description": "The starting date of the statistics to retrieve (YYYY-MM-DD)"
+            },
+            "aggregated_by": {
+              "enum": ["day", "week", "month"],
+              "type": "string",
+              "description": "How to group the statistics (day, week, or month)"
+            }
+          },
+          "description": "Query parameters",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "SENDGRID__GET_CLIENTS_STATS",
+    "description": "Retrieve email statistics by all client types. Returns statistics about email activity broken down by all client types.",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "GET_CLIENTS_STATS",
+      "canonical_tool_description_hash": "9cf26592bcf295db3df997bfc4d65358ad3df5b7484f99c39ab43726330597ff",
+      "canonical_tool_input_schema_hash": "bd386feee0ca971535b9ec677030b196d524e1894222a239a30dadcca2a1d912"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["query"],
+      "properties": {
+        "query": {
+          "type": "object",
+          "required": ["start_date"],
+          "properties": {
+            "end_date": {
+              "type": "string",
+              "format": "date",
+              "description": "The end date of the statistics to retrieve (YYYY-MM-DD)"
+            },
+            "start_date": {
+              "type": "string",
+              "format": "date",
+              "description": "The starting date of the statistics to retrieve (YYYY-MM-DD)"
+            },
+            "aggregated_by": {
+              "enum": ["day", "week", "month"],
+              "type": "string",
+              "description": "How to group the statistics (day, week, or month)"
+            }
+          },
+          "description": "Query parameters",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "SENDGRID__GET_GEO_STATS",
+    "description": "Retrieve email statistics by geographical location (country and state/province). Returns statistics about email activity broken down by geographic location.",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "GET_GEO_STATS",
+      "canonical_tool_description_hash": "76a1b66e89e295ba4a70ceae57c16a43eb3fbd38658a589c18896362609acad7",
+      "canonical_tool_input_schema_hash": "bd386feee0ca971535b9ec677030b196d524e1894222a239a30dadcca2a1d912"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["query"],
+      "properties": {
+        "query": {
+          "type": "object",
+          "required": ["start_date"],
+          "properties": {
+            "end_date": {
+              "type": "string",
+              "format": "date",
+              "description": "The end date of the statistics to retrieve (YYYY-MM-DD)"
+            },
+            "start_date": {
+              "type": "string",
+              "format": "date",
+              "description": "The starting date of the statistics to retrieve (YYYY-MM-DD)"
+            },
+            "aggregated_by": {
+              "enum": ["day", "week", "month"],
+              "type": "string",
+              "description": "How to group the statistics (day, week, or month)"
+            }
+          },
+          "description": "Query parameters",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "SENDGRID__GET_DEVICES_STATS",
+    "description": "Retrieve email statistics by device type. Returns statistics about email activity broken down by device type (desktop, mobile, etc.).",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "GET_DEVICES_STATS",
+      "canonical_tool_description_hash": "92126f1f969b59270f3b6909fa91136e3ebba5bc746c3ef529425a67a616fb38",
+      "canonical_tool_input_schema_hash": "bd386feee0ca971535b9ec677030b196d524e1894222a239a30dadcca2a1d912"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["query"],
+      "properties": {
+        "query": {
+          "type": "object",
+          "required": ["start_date"],
+          "properties": {
+            "end_date": {
+              "type": "string",
+              "format": "date",
+              "description": "The end date of the statistics to retrieve (YYYY-MM-DD)"
+            },
+            "start_date": {
+              "type": "string",
+              "format": "date",
+              "description": "The starting date of the statistics to retrieve (YYYY-MM-DD)"
+            },
+            "aggregated_by": {
+              "enum": ["day", "week", "month"],
+              "type": "string",
+              "description": "How to group the statistics (day, week, or month)"
+            }
+          },
+          "description": "Query parameters",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "SENDGRID__GET_MAILBOX_PROVIDERS_STATS",
+    "description": "Retrieve email statistics by mailbox provider. Returns statistics about email activity broken down by recipient's mailbox provider (Gmail, Yahoo, etc.).",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "GET_MAILBOX_PROVIDERS_STATS",
+      "canonical_tool_description_hash": "68988e83f7367d1e0d5bcf1234d75bbfc2377cc6a28f4a249d0ba2487aa4f9ab",
+      "canonical_tool_input_schema_hash": "bd386feee0ca971535b9ec677030b196d524e1894222a239a30dadcca2a1d912"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["query"],
+      "properties": {
+        "query": {
+          "type": "object",
+          "required": ["start_date"],
+          "properties": {
+            "end_date": {
+              "type": "string",
+              "format": "date",
+              "description": "The end date of the statistics to retrieve (YYYY-MM-DD)"
+            },
+            "start_date": {
+              "type": "string",
+              "format": "date",
+              "description": "The starting date of the statistics to retrieve (YYYY-MM-DD)"
+            },
+            "aggregated_by": {
+              "enum": ["day", "week", "month"],
+              "type": "string",
+              "description": "How to group the statistics (day, week, or month)"
+            }
+          },
+          "description": "Query parameters",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "SENDGRID__CREATE_EVENT_WEBHOOK",
+    "description": "Create a new event webhook to receive real-time event notifications from SendGrid",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "CREATE_EVENT_WEBHOOK",
+      "canonical_tool_description_hash": "6830de41839b746456d1e13122980b9d2edfebc37d822a4f0138e0f77d07becb",
+      "canonical_tool_input_schema_hash": "2237e52fbcefbf594d2287cad004506d389e03efccb843cd8160b0858f0bdf9c"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["body"],
+      "properties": {
+        "body": {
+          "type": "object",
+          "required": ["enabled", "url"],
+          "properties": {
+            "url": {
+              "type": "string",
+              "description": "URL to receive webhook notifications"
+            },
+            "open": {
+              "type": "boolean",
+              "description": "Receive open events"
+            },
+            "click": {
+              "type": "boolean",
+              "description": "Receive click events"
+            },
+            "bounce": {
+              "type": "boolean",
+              "description": "Receive bounce events"
+            },
+            "dropped": {
+              "type": "boolean",
+              "description": "Receive dropped email events"
+            },
+            "enabled": {
+              "type": "boolean",
+              "description": "Enable/disable the webhook"
+            },
+            "deferred": {
+              "type": "boolean",
+              "description": "Receive deferred email events"
+            },
+            "delivered": {
+              "type": "boolean",
+              "description": "Receive delivered email events"
+            },
+            "processed": {
+              "type": "boolean",
+              "description": "Receive processed email events"
+            },
+            "spam_report": {
+              "type": "boolean",
+              "description": "Receive spam report events"
+            },
+            "unsubscribe": {
+              "type": "boolean",
+              "description": "Receive unsubscribe events"
+            },
+            "group_resubscribe": {
+              "type": "boolean",
+              "description": "Receive group resubscribe events"
+            },
+            "group_unsubscribe": {
+              "type": "boolean",
+              "description": "Receive group unsubscribe events"
+            }
+          },
+          "description": "Event webhook configuration",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "SENDGRID__TEST_EVENT_WEBHOOK",
+    "description": "Test event notification settings by sending a test event to your webhook URL",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "TEST_EVENT_WEBHOOK",
+      "canonical_tool_description_hash": "70c991adee46baf79ab7c5cf3a03a6eb7097aec2af372dc6e6a02153a00c53a6",
+      "canonical_tool_input_schema_hash": "c823df4ed2a169c413a3e9f5cd56faf3a0e2dcae2b36ab89bed73090ff4b573c"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["body"],
+      "properties": {
+        "body": {
+          "type": "object",
+          "required": ["url"],
+          "properties": {
+            "url": {
+              "type": "string",
+              "description": "URL to test webhook notifications"
+            }
+          },
+          "description": "Test webhook configuration",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "SENDGRID__GET_EVENT_WEBHOOK_SETTINGS",
+    "description": "Retrieve current event webhook settings",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "GET_EVENT_WEBHOOK_SETTINGS",
+      "canonical_tool_description_hash": "839842a529059ce63371d776979a127f3b5cf6bbbda0544b4e6864474c081898",
+      "canonical_tool_input_schema_hash": "cdfcc9aa1eb3c67c7a2a57901497bafc3c168b33612dd726c415ed8e50c28ba4"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["path"],
+      "properties": {
+        "path": {
+          "type": "object",
+          "required": ["id"],
+          "properties": {
+            "id": {
+              "type": "string",
+              "description": "ID of the event webhook to retrieve settings for"
+            }
+          },
+          "description": "Path parameters",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "SENDGRID__UPDATE_EVENT_WEBHOOK_SETTINGS",
+    "description": "Update event webhook settings",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "UPDATE_EVENT_WEBHOOK_SETTINGS",
+      "canonical_tool_description_hash": "afc0d899b372ba7a2a2d13270199f5310c090fbd92dabc4520a8b4ab5c0af074",
+      "canonical_tool_input_schema_hash": "9894ca99b146adfc79925d31dbfd62261973d03cc1493110c04f2113bac1180e"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["path", "body"],
+      "properties": {
+        "body": {
+          "type": "object",
+          "required": ["enabled", "url"],
+          "properties": {
+            "url": {
+              "type": "string",
+              "description": "URL to receive webhook notifications"
+            },
+            "open": {
+              "type": "boolean",
+              "description": "Receive open events"
+            },
+            "click": {
+              "type": "boolean",
+              "description": "Receive click events"
+            },
+            "bounce": {
+              "type": "boolean",
+              "description": "Receive bounce events"
+            },
+            "dropped": {
+              "type": "boolean",
+              "description": "Receive dropped email events"
+            },
+            "enabled": {
+              "type": "boolean",
+              "description": "Enable/disable the webhook"
+            },
+            "deferred": {
+              "type": "boolean",
+              "description": "Receive deferred email events"
+            },
+            "delivered": {
+              "type": "boolean",
+              "description": "Receive delivered email events"
+            },
+            "processed": {
+              "type": "boolean",
+              "description": "Receive processed email events"
+            },
+            "spam_report": {
+              "type": "boolean",
+              "description": "Receive spam report events"
+            },
+            "unsubscribe": {
+              "type": "boolean",
+              "description": "Receive unsubscribe events"
+            },
+            "group_resubscribe": {
+              "type": "boolean",
+              "description": "Receive group resubscribe events"
+            },
+            "group_unsubscribe": {
+              "type": "boolean",
+              "description": "Receive group unsubscribe events"
+            }
+          },
+          "description": "Updated webhook settings",
+          "additionalProperties": false
+        },
+        "path": {
+          "type": "object",
+          "required": ["id"],
+          "properties": {
+            "id": {
+              "type": "string",
+              "description": "ID of the webhook to update"
+            }
+          },
+          "description": "Path parameters",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "SENDGRID__DELETE_EVENT_WEBHOOK",
+    "description": "Delete the event webhook",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "DELETE_EVENT_WEBHOOK",
+      "canonical_tool_description_hash": "fb0eca8a8bf90f866aa4e1ce2ca84b65db58fc6f4b9d1a972ddec3d51ec38986",
+      "canonical_tool_input_schema_hash": "b9efc761ca9380ea98f3018e1249310b3479876b10eb72bf476e6a14710e51ca"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["path"],
+      "properties": {
+        "path": {
+          "type": "object",
+          "required": ["id"],
+          "properties": {
+            "id": {
+              "type": "string",
+              "description": "ID of the webhook to delete"
+            }
+          },
+          "description": "Path parameters",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "SENDGRID__TOGGLE_SIGNATURE_VERIFICATION",
+    "description": "Toggle signature verification for event webhook",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "TOGGLE_SIGNATURE_VERIFICATION",
+      "canonical_tool_description_hash": "ed13cd3aa1f732932364fbeed1b392433ff98afbbb68451641182b9752e50802",
+      "canonical_tool_input_schema_hash": "355e0279551b73e4d3570d503d84122a8d10eb0cc8410ab8b110fb942b6d6919"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["path", "body"],
+      "properties": {
+        "body": {
+          "type": "object",
+          "required": ["enabled"],
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "description": "Enable/disable signature verification"
+            }
+          },
+          "description": "Signature verification settings",
+          "additionalProperties": false
+        },
+        "path": {
+          "type": "object",
+          "required": ["id"],
+          "properties": {
+            "id": {
+              "type": "string",
+              "description": "ID of the webhook to toggle signature verification for"
+            }
+          },
+          "description": "Path parameters",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "SENDGRID__GET_SIGNED_WEBHOOK_PUBLIC_KEY",
+    "description": "Retrieve the public key for signed event webhook verification",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "GET_SIGNED_WEBHOOK_PUBLIC_KEY",
+      "canonical_tool_description_hash": "02f8158a3e7001b0543fa44924a13b6aeb518045045a364c2cb700dfe9df2d23",
+      "canonical_tool_input_schema_hash": "e565575044d25110bfc5de6ed7ef84b74c11456a4999470b1398785319a1c7fe"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["path"],
+      "properties": {
+        "path": {
+          "type": "object",
+          "required": ["id"],
+          "properties": {
+            "id": {
+              "type": "string",
+              "description": "ID of the signed webhook to get public key for"
+            }
+          },
+          "description": "Path parameters",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "SENDGRID__GET_PARSE_WEBHOOK_SETTINGS",
+    "description": "Retrieve Parse Webhook settings",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "GET_PARSE_WEBHOOK_SETTINGS",
+      "canonical_tool_description_hash": "057f1a14fb6c8ee49e119978b38b29cd851d50cea84162b6cd937a62f07573a9",
+      "canonical_tool_input_schema_hash": "d746974fa9afd5e951f76f9af38954b0ad7f436f2120dc974da65e5ee39f856f"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": [],
+      "properties": {},
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "SENDGRID__GET_PARSE_WEBHOOK_STATS",
+    "description": "Retrieve Inbound Parse Webhook statistics",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "GET_PARSE_WEBHOOK_STATS",
+      "canonical_tool_description_hash": "e893f72c0a4504622b3a0a1a5b5e9d8c2bd8e78ea1ab2c0a2c95e775757740fb",
+      "canonical_tool_input_schema_hash": "923ed294d83e995e6e2432d99896327cedb86da7dce744d44c95fb5d13b081b4"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["query"],
+      "properties": {
+        "query": {
+          "type": "object",
+          "required": ["start_date"],
+          "properties": {
+            "end_date": {
+              "type": "string",
+              "description": "The end date of the statistics to retrieve (YYYY-MM-DD)"
+            },
+            "start_date": {
+              "type": "string",
+              "description": "The starting date of the statistics to retrieve (YYYY-MM-DD)"
+            }
+          },
+          "description": "Query parameters for statistics",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "SENDGRID__GET_ALL_EVENT_WEBHOOKS",
+    "description": "Retrieve all event webhooks configured for your account",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "GET_ALL_EVENT_WEBHOOKS",
+      "canonical_tool_description_hash": "85ba7407262497264f2e096205992602a599fd0dda3eab880ee9887de1b22b5c",
+      "canonical_tool_input_schema_hash": "d746974fa9afd5e951f76f9af38954b0ad7f436f2120dc974da65e5ee39f856f"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": [],
+      "properties": {},
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "SENDGRID__CREATE_PARSE_WEBHOOK",
+    "description": "Create a new parse webhook setting for inbound email parsing",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "CREATE_PARSE_WEBHOOK",
+      "canonical_tool_description_hash": "bdbbf42eaf551c4cd0c15afa1299ed2de3287365045199741d3f49c91c79b339",
+      "canonical_tool_input_schema_hash": "e1a18f5e1b6daf1e61e6e6e0e88ab702b76a945ffb5d7508a26367e97d5112ed"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["body"],
+      "properties": {
+        "body": {
+          "type": "object",
+          "required": ["url", "hostname"],
+          "properties": {
+            "url": {
+              "type": "string",
+              "description": "The URL that you would like your parsed data to be POSTed to"
+            },
+            "hostname": {
+              "type": "string",
+              "description": "The domain that will receive the emails to be parsed"
+            },
+            "send_raw": {
+              "type": "boolean",
+              "description": "Whether to send the raw email content in the webhook POST"
+            },
+            "spam_check": {
+              "type": "boolean",
+              "description": "Whether to check incoming emails for spam"
+            }
+          },
+          "description": "Parse webhook settings",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "SENDGRID__LIST_PARSE_WEBHOOKS",
+    "description": "Retrieve all parse webhook settings",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "LIST_PARSE_WEBHOOKS",
+      "canonical_tool_description_hash": "0b0b525093f4cad1900a67755135c2c155706b5d66d46cbde9e5530fbc699536",
+      "canonical_tool_input_schema_hash": "d746974fa9afd5e951f76f9af38954b0ad7f436f2120dc974da65e5ee39f856f"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": [],
+      "properties": {},
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "SENDGRID__GET_PARSE_WEBHOOK",
+    "description": "Retrieve a specific parse webhook setting by hostname",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "GET_PARSE_WEBHOOK",
+      "canonical_tool_description_hash": "b5af8d601580180db31f9f241ccd4ac159d6f1a61bfbe666c2eb1c3d73d6c571",
+      "canonical_tool_input_schema_hash": "1688ff05aeb3deef22a5a714d353387732af15e2963d8c376ffd166f7b41a800"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["path"],
+      "properties": {
+        "path": {
+          "type": "object",
+          "required": ["hostname"],
+          "properties": {
+            "hostname": {
+              "type": "string",
+              "description": "The hostname of the parse webhook setting to retrieve"
+            }
+          },
+          "description": "Path parameters",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "SENDGRID__UPDATE_PARSE_WEBHOOK",
+    "description": "Update a specific parse webhook setting",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "UPDATE_PARSE_WEBHOOK",
+      "canonical_tool_description_hash": "d378458cbc5d6703396d80a36aa4557137df78f1828c1a0dc69d94540906f990",
+      "canonical_tool_input_schema_hash": "ad2214eddca41ed0344118d7e0941d4758fbc8a5135ce94c487eeebc60935af0"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["path", "body"],
+      "properties": {
+        "body": {
+          "type": "object",
+          "required": ["url"],
+          "properties": {
+            "url": {
+              "type": "string",
+              "description": "The new URL that you would like your parsed data to be POSTed to"
+            },
+            "send_raw": {
+              "type": "boolean",
+              "description": "Whether to send the raw email content in the webhook POST"
+            },
+            "spam_check": {
+              "type": "boolean",
+              "description": "Whether to check incoming emails for spam"
+            }
+          },
+          "description": "Updated parse webhook settings",
+          "additionalProperties": false
+        },
+        "path": {
+          "type": "object",
+          "required": ["hostname"],
+          "properties": {
+            "hostname": {
+              "type": "string",
+              "description": "The hostname of the parse webhook setting to update"
+            }
+          },
+          "description": "Path parameters",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "SENDGRID__DELETE_PARSE_WEBHOOK",
+    "description": "Delete a specific parse webhook setting",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "DELETE_PARSE_WEBHOOK",
+      "canonical_tool_description_hash": "022274532dbb08199847bba5eb24f20dc2dbe0ce0ff227c105eac7934ec0f78d",
+      "canonical_tool_input_schema_hash": "13e1aa39d638f66bb84541559ca806bee97dfbb11b3a6775513c0ed36ceffd94"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["path"],
+      "properties": {
+        "path": {
+          "type": "object",
+          "required": ["hostname"],
+          "properties": {
+            "hostname": {
+              "type": "string",
+              "description": "The hostname of the parse webhook setting to delete"
+            }
+          },
+          "description": "Path parameters",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+]

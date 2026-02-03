@@ -1,0 +1,18 @@
+[
+  {
+    "name": "DISCORD__GET_CURRENT_USER",
+    "description": "Get a user object for the current user.",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "GET_CURRENT_USER",
+      "canonical_tool_description_hash": "c60412789b5fda01cd52e3bbbce334ac56ded8deefa039fda6226208552abcc8",
+      "canonical_tool_input_schema_hash": "d746974fa9afd5e951f76f9af38954b0ad7f436f2120dc974da65e5ee39f856f"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": [],
+      "properties": {},
+      "additionalProperties": false
+    }
+  }
+]

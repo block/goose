@@ -1,0 +1,84 @@
+### 2. Instrument your application
+**For Kubernetes deployments with zero-code instrumentation:**
+
+#### Option 1: Direct to Dash0 Endpoint
+
+```yaml
+apiVersion: openlit.io/v1alpha1
+kind: AutoInstrumentation
+metadata:
+  name: dash0-instrumentation
+  namespace: default
+spec:
+  selector:
+    matchLabels:
+      instrument: "true"
+  python:
+    instrumentation:
+      provider: "openlit"
+      version: "latest"
+  otlp:
+    endpoint: "https://ingress.eu-west-1.aws.dash0.com:4318"
+    headers:
+      Authorization: "Bearer auth_your_token_here"
+    timeout: 30
+  resource:
+    environment: "production"
+    serviceName: "my-ai-service"
+```
+
+<Note>
+Replace `ingress.eu-west-1.aws.dash0.com:4318` with your Dash0 ingestion endpoint and `auth_your_token_here` with your actual Dash0 authorization token.
+</Note>
+
+#### Option 2: Via OpenTelemetry Collector
+
+For more advanced scenarios with filtering, batching, or multi-destination routing, deploy an OpenTelemetry Collector:
+
+```yaml
+apiVersion: openlit.io/v1alpha1
+kind: AutoInstrumentation
+metadata:
+  name: dash0-instrumentation
+  namespace: default
+spec:
+  selector:
+    matchLabels:
+      instrument: "true"
+  python:
+    instrumentation:
+      provider: "openlit"
+      version: "latest"
+  otlp:
+    endpoint: "http://otel-collector.opentelemetry.svc.cluster.local:4318"
+    timeout: 30
+  resource:
+    environment: "production"
+    serviceName: "my-ai-service"
+```
+
+Configure your OpenTelemetry Collector to forward to Dash0:
+
+```yaml
+exporters:
+  otlp/dash0:
+    auth:
+      authenticator: bearertokenauth/dash0
+    endpoint: ingress.eu-west-1.aws.dash0.com:4317
+
+extensions:
+  bearertokenauth/dash0:
+    scheme: Bearer
+    token: ${env:DASH0_AUTH_TOKEN}
+
+service:
+  extensions:
+    - bearertokenauth/dash0
+  pipelines:
+    traces:
+      exporters:
+        - otlp/dash0
+```
+
+Refer to the [OpenLIT Operator Documentation](/latest/operator/overview) for more advanced configurations and use cases.
+

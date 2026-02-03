@@ -1,0 +1,978 @@
+[
+  {
+    "name": "LINEAR__LIST_COMMENTS",
+    "description": "List comments for a specific Linear issue",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "list_comments",
+      "canonical_tool_description_hash": "2fc38b070586529de069bf85c2807cfb45ad8cd9d56d5c6237a8cf675f4d5a72",
+      "canonical_tool_input_schema_hash": "e8e6921f667f337d2682bd272923cd979d12e0a5bb6e7a87c81eeefa804be3c8"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "issueId": {
+          "type": "string",
+          "description": "The issue ID"
+        }
+      },
+      "required": ["issueId"],
+      "additionalProperties": false,
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    }
+  },
+  {
+    "name": "LINEAR__CREATE_COMMENT",
+    "description": "Create a comment on a specific Linear issue",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "create_comment",
+      "canonical_tool_description_hash": "41a970a416067e36a8997234820f6d6eb9e173d673f5427a0dd4588c709276ee",
+      "canonical_tool_input_schema_hash": "24aa5cd0a00c24a44de9e0b0d668fc49b836a046e9604745060677d05416a33d"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "issueId": {
+          "type": "string",
+          "description": "The issue ID"
+        },
+        "parentId": {
+          "type": "string",
+          "description": "A parent comment ID to reply to"
+        },
+        "body": {
+          "type": "string",
+          "description": "The content of the comment as Markdown"
+        }
+      },
+      "required": ["issueId", "body"],
+      "additionalProperties": false,
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    }
+  },
+  {
+    "name": "LINEAR__LIST_CYCLES",
+    "description": "Retrieve cycles for a specific Linear team",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "list_cycles",
+      "canonical_tool_description_hash": "7d4e5337daddccf47aa8a561499641770454957407677e7da90680f3823400fc",
+      "canonical_tool_input_schema_hash": "82fa2c92d82a81e743ad506f1f4dadf1f63979195ff08b79b60c7bba22ec6af9"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "teamId": {
+          "type": "string",
+          "description": "The team ID"
+        },
+        "type": {
+          "type": "string",
+          "enum": ["current", "previous", "next"],
+          "description": "Retrieve the current, previous, next, or all cycles. If no type is provided all cycles in the team will be returned"
+        }
+      },
+      "required": ["teamId"],
+      "additionalProperties": false,
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    }
+  },
+  {
+    "name": "LINEAR__GET_DOCUMENT",
+    "description": "Retrieve a Linear document by ID or slug",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "get_document",
+      "canonical_tool_description_hash": "8e63d75e4e5e2935469e9c37a6fc681e7f6631b15d7a97e21aa6f0fbf6927756",
+      "canonical_tool_input_schema_hash": "af35d1412f7aa21e44a797def70ee0a719e7dd11a3e7bc3e35d9734dd1dc2977"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "The document ID or slug"
+        }
+      },
+      "required": ["id"],
+      "additionalProperties": false,
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    }
+  },
+  {
+    "name": "LINEAR__LIST_DOCUMENTS",
+    "description": "List documents in the user's Linear workspace",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "list_documents",
+      "canonical_tool_description_hash": "a57e9d624e8958f252891e9a3caab213da7965d084844cfe5bec1301adb99798",
+      "canonical_tool_input_schema_hash": "223dc9560fb926d6cd90bd73b69d3203518b54ca58cc87b36de9e53205c449c8"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "limit": {
+          "type": "number",
+          "maximum": 250,
+          "default": 50,
+          "description": "The number of results to return (Max is 250)"
+        },
+        "before": {
+          "type": "string",
+          "description": "An ID to end at"
+        },
+        "after": {
+          "type": "string",
+          "description": "An ID to start from"
+        },
+        "orderBy": {
+          "type": "string",
+          "enum": ["createdAt", "updatedAt"],
+          "default": "updatedAt",
+          "description": "The order in which to return results"
+        },
+        "query": {
+          "type": "string",
+          "description": "An optional search query"
+        },
+        "projectId": {
+          "type": "string",
+          "description": "Filter by project ID"
+        },
+        "initiativeId": {
+          "type": "string",
+          "description": "Filter by initiative ID"
+        },
+        "creatorId": {
+          "type": "string",
+          "description": "Filter by creator ID"
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "Return only documents created on or after this ISO-8601 date-time or duration. e.g. -P1D to get documents created in the last day"
+        },
+        "updatedAt": {
+          "type": "string",
+          "description": "Return only documents updated on or after this ISO-8601 date-time or duration. e.g. -P1D to get documents updated in the last day"
+        },
+        "includeArchived": {
+          "type": "boolean",
+          "default": false,
+          "description": "Whether to include archived documents"
+        }
+      },
+      "additionalProperties": false,
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    }
+  },
+  {
+    "name": "LINEAR__GET_ISSUE",
+    "description": "Retrieve detailed information about an issue by ID, including attachments and git branch name",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "get_issue",
+      "canonical_tool_description_hash": "bbf8fa566482b21bd48d6cbd3c06ea5c137c8d710a7394e6d1c0b916c65f0c2e",
+      "canonical_tool_input_schema_hash": "b94611b7126fe8e9fd36cf3f089b4ff8c8f7a03f10cb8328b99a20a31dffa7a2"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "The issue ID"
+        }
+      },
+      "required": ["id"],
+      "additionalProperties": false,
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    }
+  },
+  {
+    "name": "LINEAR__LIST_ISSUES",
+    "description": "List issues in the user's Linear workspace",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "list_issues",
+      "canonical_tool_description_hash": "749e67368ecab35874a7625978621d113f2e99cdf26e1cd88e048fa3fa5de041",
+      "canonical_tool_input_schema_hash": "d883a08e939a397c68e239986bd444b03836fc12dcfbb0c6e0efef33dd5a70e8"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "limit": {
+          "type": "number",
+          "maximum": 250,
+          "default": 50,
+          "description": "The number of results to return (Max is 250)"
+        },
+        "before": {
+          "type": "string",
+          "description": "An ID to end at"
+        },
+        "after": {
+          "type": "string",
+          "description": "An ID to start from"
+        },
+        "orderBy": {
+          "type": "string",
+          "enum": ["createdAt", "updatedAt"],
+          "default": "updatedAt",
+          "description": "The order in which to return results"
+        },
+        "query": {
+          "type": "string",
+          "description": "Search for content in the issue title or description"
+        },
+        "team": {
+          "type": "string",
+          "description": "The team name or ID to filter by"
+        },
+        "state": {
+          "type": "string",
+          "description": "The state name or ID to filter by"
+        },
+        "cycle": {
+          "type": "string",
+          "description": "The cycle name or ID to filter by"
+        },
+        "label": {
+          "type": "string",
+          "description": "A label name or ID to filter by"
+        },
+        "assignee": {
+          "type": "string",
+          "description": "The assignee name or ID to filter by"
+        },
+        "delegate": {
+          "type": "string",
+          "description": "An agent name or ID to filter by"
+        },
+        "project": {
+          "type": "string",
+          "description": "The project name or ID to filter by"
+        },
+        "parentId": {
+          "type": "string",
+          "description": "The parent issue ID to filter by"
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "Return only issues created on or after this ISO-8601 date-time or duration. e.g. -P1D to get issues created in the last day"
+        },
+        "updatedAt": {
+          "type": "string",
+          "description": "Return only issues updated on or after this ISO-8601 date-time or duration. e.g. -P1D to get issues updated in the last day"
+        },
+        "includeArchived": {
+          "type": "boolean",
+          "default": true,
+          "description": "Whether to include archived issues"
+        }
+      },
+      "additionalProperties": false,
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    }
+  },
+  {
+    "name": "LINEAR__CREATE_ISSUE",
+    "description": "Create a new Linear issue",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "create_issue",
+      "canonical_tool_description_hash": "c17ec3b46bb2d8f8aa815bca36b81e16fdaa4a2ac131ca3fd7b786bf24092e9c",
+      "canonical_tool_input_schema_hash": "5ca6843fc9a4bd4c7f52fa535ee707a21bf4e7106383c7f198c57f4f9c4dc410"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "title": {
+          "type": "string",
+          "description": "The issue title"
+        },
+        "description": {
+          "type": "string",
+          "description": "The issue description as Markdown"
+        },
+        "team": {
+          "type": "string",
+          "description": "The team name or ID"
+        },
+        "cycle": {
+          "type": "string",
+          "description": "The cycle name, number, or ID to add the issue to"
+        },
+        "priority": {
+          "type": "number",
+          "description": "The issue priority. 0 = No priority, 1 = Urgent, 2 = High, 3 = Normal, 4 = Low. Do not set this field unless explicitly requested."
+        },
+        "project": {
+          "type": "string",
+          "description": "The project name or ID to add the issue to"
+        },
+        "state": {
+          "type": "string",
+          "description": "The issue state type, name, or ID"
+        },
+        "assignee": {
+          "type": "string",
+          "description": "The assignee name, displayName, or ID to assign"
+        },
+        "delegate": {
+          "type": "string",
+          "description": "The agent name, displayName, or ID to delegate"
+        },
+        "labels": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Array of label names or IDs to set on the issue (you can use label names directly, no need to look up IDs)"
+        },
+        "dueDate": {
+          "type": "string",
+          "description": "The due date for the issue in ISO format"
+        },
+        "parentId": {
+          "type": "string",
+          "description": "The parent issue ID, if this is a sub-issue"
+        },
+        "links": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "url": {
+                "type": "string",
+                "format": "uri"
+              },
+              "title": {
+                "type": "string",
+                "minLength": 1
+              }
+            },
+            "required": ["url", "title"],
+            "additionalProperties": false
+          },
+          "description": "Array of link objects to attach to the issue. Each object must contain a valid `url` and a non-empty `title`."
+        }
+      },
+      "required": ["title", "team"],
+      "additionalProperties": false,
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    }
+  },
+  {
+    "name": "LINEAR__UPDATE_ISSUE",
+    "description": "Update an existing Linear issue",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "update_issue",
+      "canonical_tool_description_hash": "c99b275b0bbab0ec71b31ff1b8d9be6e48e34066d7a2f65f13fbaad0c38e7e7b",
+      "canonical_tool_input_schema_hash": "8d91335f6df94a5abe9cfab76e951023a55139fad395de7d7177ba59d4ee0a21"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "The issue ID"
+        },
+        "title": {
+          "type": "string",
+          "description": "The issue title"
+        },
+        "description": {
+          "type": "string",
+          "description": "The issue description as Markdown"
+        },
+        "priority": {
+          "type": "number",
+          "description": "The issue priority. 0 = No priority, 1 = Urgent, 2 = High, 3 = Normal, 4 = Low. Do not set this field unless explicitly requested."
+        },
+        "project": {
+          "type": "string",
+          "description": "The project name or ID to add the issue to"
+        },
+        "state": {
+          "type": "string",
+          "description": "The issue state type, name, or ID"
+        },
+        "cycle": {
+          "type": "string",
+          "description": "The cycle name, number, or ID"
+        },
+        "assignee": {
+          "type": "string",
+          "description": "The assignee name, displayName, or ID to assign"
+        },
+        "delegate": {
+          "type": "string",
+          "description": "The agent name, displayName, or ID to delegate"
+        },
+        "labels": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Array of label names or IDs to set on the issue (you can use label names directly, no need to look up IDs)"
+        },
+        "parentId": {
+          "type": "string",
+          "description": "The parent issue ID, if this is a sub-issue"
+        },
+        "dueDate": {
+          "type": "string",
+          "description": "The due date for the issue in ISO format"
+        },
+        "estimate": {
+          "type": "number",
+          "description": "The numerical issue estimate value"
+        },
+        "links": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "url": {
+                "type": "string",
+                "format": "uri"
+              },
+              "title": {
+                "type": "string",
+                "minLength": 1
+              }
+            },
+            "required": ["url", "title"],
+            "additionalProperties": false
+          },
+          "description": "Array of link objects to attach to the issue. Each object must contain a valid `url` and a non-empty `title`."
+        }
+      },
+      "required": ["id"],
+      "additionalProperties": false,
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    }
+  },
+  {
+    "name": "LINEAR__LIST_ISSUE_STATUSES",
+    "description": "List available issue statuses in a Linear team",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "list_issue_statuses",
+      "canonical_tool_description_hash": "5e469ae6e3d3c97ec8b81dbf4864f098536d8c69ebc8a49bfd69f9c5e0122a18",
+      "canonical_tool_input_schema_hash": "be623ebba40d3e01f08dcb7b7a4cf550ec20cceec6a509ed9ba4102c78c0fecc"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "team": {
+          "type": "string",
+          "description": "The team name or ID"
+        }
+      },
+      "required": ["team"],
+      "additionalProperties": false,
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    }
+  },
+  {
+    "name": "LINEAR__GET_ISSUE_STATUS",
+    "description": "Retrieve detailed information about an issue status in Linear by name or ID",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "get_issue_status",
+      "canonical_tool_description_hash": "0f2aaeb4f4b9af9f651e3ecf2cb2562e026fe8023bf8639a10c92c24ba74d152",
+      "canonical_tool_input_schema_hash": "1a39272628dab5ecb18623456ac29bd7752b9e1a79c354ea4bc69dd52d3eba9d"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "The ID of the issue status to retrieve"
+        },
+        "name": {
+          "type": "string",
+          "description": "The name of the issue status to retrieve"
+        },
+        "team": {
+          "type": "string",
+          "description": "The team name or ID"
+        }
+      },
+      "required": ["id", "name", "team"],
+      "additionalProperties": false,
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    }
+  },
+  {
+    "name": "LINEAR__LIST_MY_ISSUES",
+    "description": "List issues assigned to the current user",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "list_my_issues",
+      "canonical_tool_description_hash": "bcd3135e0ba9fb35ea5e193a959dcd1d06c18f7b2e206455419f6be34c231519",
+      "canonical_tool_input_schema_hash": "b952c79ae7bc7f6aa076eaef0517f9f6b127bc112ee9a2ebfce2fdc1af1e6c49"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "limit": {
+          "type": "number",
+          "maximum": 250,
+          "default": 50,
+          "description": "The number of results to return (Max is 250)"
+        },
+        "before": {
+          "type": "string",
+          "description": "An ID to end at"
+        },
+        "after": {
+          "type": "string",
+          "description": "An ID to start from"
+        },
+        "orderBy": {
+          "type": "string",
+          "enum": ["createdAt", "updatedAt"],
+          "default": "updatedAt",
+          "description": "The order in which to return results"
+        }
+      },
+      "additionalProperties": false,
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    }
+  },
+  {
+    "name": "LINEAR__LIST_ISSUE_LABELS",
+    "description": "List available issue labels in a Linear workspace or team",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "list_issue_labels",
+      "canonical_tool_description_hash": "b32a9344caaebce7dafffb2a2d266a2fcbc8bd9ecb8b43c5632533ae70376187",
+      "canonical_tool_input_schema_hash": "61191b35e08fd7e7a397a65579c53417cc41070789f1be8f8cfce52eb571e9de"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "limit": {
+          "type": "number",
+          "maximum": 250,
+          "default": 50,
+          "description": "The number of results to return (Max is 250)"
+        },
+        "before": {
+          "type": "string",
+          "description": "An ID to end at"
+        },
+        "after": {
+          "type": "string",
+          "description": "An ID to start from"
+        },
+        "orderBy": {
+          "type": "string",
+          "enum": ["createdAt", "updatedAt"],
+          "default": "updatedAt",
+          "description": "The order in which to return results"
+        },
+        "name": {
+          "type": "string",
+          "description": "Filter by label name"
+        },
+        "team": {
+          "type": "string",
+          "description": "The team name or ID"
+        }
+      },
+      "additionalProperties": false,
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    }
+  },
+  {
+    "name": "LINEAR__CREATE_ISSUE_LABEL",
+    "description": "Create a new Linear issue label",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "create_issue_label",
+      "canonical_tool_description_hash": "452cca16fcd3bafd65706d55a235b9fa7a19c3ff69ae8f5eeb2b9b6dfba47471",
+      "canonical_tool_input_schema_hash": "5a34d4620aa27788847a11b4690e0ffa8cc5d412e474524c26fb497dfb41a8b0"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "The name of the label"
+        },
+        "description": {
+          "type": "string",
+          "description": "An optional description of the label"
+        },
+        "color": {
+          "type": "string",
+          "description": "The color of the label (hex color code)"
+        },
+        "teamId": {
+          "type": "string",
+          "description": "The team UUID. If not provided, the label will be created as a workspace label"
+        },
+        "parentId": {
+          "type": "string",
+          "description": "The parent label UUID, if this is a child of a label group"
+        },
+        "isGroup": {
+          "type": "boolean",
+          "default": false,
+          "description": "Whether this is label group (cannot be applied to issues directly)"
+        }
+      },
+      "required": ["name"],
+      "additionalProperties": false,
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    }
+  },
+  {
+    "name": "LINEAR__LIST_PROJECTS",
+    "description": "List projects in the user's Linear workspace",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "list_projects",
+      "canonical_tool_description_hash": "7f71b90456633865bb0e6d9766a227660a263170ed4c8b79a3d6a03b85f54dca",
+      "canonical_tool_input_schema_hash": "a01a0f77fb9010aac4d8a5ac9f017090aaa7f5aa2042809d735b281753b92f6c"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "limit": {
+          "type": "number",
+          "maximum": 250,
+          "default": 50,
+          "description": "The number of results to return (Max is 250)"
+        },
+        "before": {
+          "type": "string",
+          "description": "An ID to end at"
+        },
+        "after": {
+          "type": "string",
+          "description": "An ID to start from"
+        },
+        "orderBy": {
+          "type": "string",
+          "enum": ["createdAt", "updatedAt"],
+          "default": "updatedAt",
+          "description": "The order in which to return results"
+        },
+        "includeArchived": {
+          "type": "boolean",
+          "default": false,
+          "description": "Whether to include archived projects"
+        },
+        "teamId": {
+          "type": "string",
+          "description": "A team UUID to filter by"
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "Return only projects created on or after this ISO-8601 date-time or duration. e.g. -P1D to get projects created in the last day"
+        },
+        "updatedAt": {
+          "type": "string",
+          "description": "Return only projects updated on or after this ISO-8601 date-time or duration. e.g. -P1D to get projects updated in the last day"
+        }
+      },
+      "additionalProperties": false,
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    }
+  },
+  {
+    "name": "LINEAR__GET_PROJECT",
+    "description": "Retrieve details of a specific project in Linear",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "get_project",
+      "canonical_tool_description_hash": "28582acd84dfa09c7bbe502f9562a7070c4372ba55889e4a23e97c1d540f0e74",
+      "canonical_tool_input_schema_hash": "95ac79a9e16149b2fa8e36c16d3ceef23acc06f93fdf7e4b8af0265fa494063b"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "query": {
+          "type": "string",
+          "description": "The ID or name of the project to retrieve"
+        }
+      },
+      "required": ["query"],
+      "additionalProperties": false,
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    }
+  },
+  {
+    "name": "LINEAR__CREATE_PROJECT",
+    "description": "Create a new project in Linear",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "create_project",
+      "canonical_tool_description_hash": "e0a56fbe912c28dec9f4f671f20e5762f36a1843c17b6e6a55c66d52b446f3f9",
+      "canonical_tool_input_schema_hash": "73cc3744d7ec05bf0ef1af2d53efbf846559cc23beae02521ddd3eef07ee91d5"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "A descriptive name of the project"
+        },
+        "summary": {
+          "type": "string",
+          "description": "A concise plaintext summary of the project (max 255 chars)"
+        },
+        "description": {
+          "type": "string",
+          "description": "The full project description in Markdown format"
+        },
+        "startDate": {
+          "type": "string",
+          "description": "The start date of the project in ISO format"
+        },
+        "targetDate": {
+          "type": "string",
+          "description": "The target date of the project in ISO format"
+        },
+        "teamId": {
+          "type": "string",
+          "description": "The UUID of the team to associate the project with"
+        },
+        "labelIds": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Array of label UUIDs to set on the project"
+        },
+        "leadId": {
+          "type": "string",
+          "description": "The UUID of the user to set as project lead"
+        }
+      },
+      "required": ["name", "teamId"],
+      "additionalProperties": false,
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    }
+  },
+  {
+    "name": "LINEAR__UPDATE_PROJECT",
+    "description": "Update an existing Linear project",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "update_project",
+      "canonical_tool_description_hash": "2fcd7de5854e50a10e5dddf8b1c44bd7c6ed0f26618ef23fe83706626418acae",
+      "canonical_tool_input_schema_hash": "3927e76fdd3f4ccdf27cba25a2e2c200f7da0e8be490950c650ca2c56f6a810d"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "The ID of the project to update"
+        },
+        "name": {
+          "type": "string",
+          "description": "The new name of the project"
+        },
+        "summary": {
+          "type": "string",
+          "description": "A concise plaintext summary of the project (max 255 chars)"
+        },
+        "description": {
+          "type": "string",
+          "description": "The full project description in Markdown format"
+        },
+        "startDate": {
+          "type": "string",
+          "description": "The start date of the project in ISO format"
+        },
+        "targetDate": {
+          "type": "string",
+          "description": "The target date of the project in ISO format"
+        },
+        "labelIds": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Array of label UUIDs to set on the project"
+        },
+        "leadId": {
+          "type": "string",
+          "description": "The UUID of the user to set as project lead"
+        }
+      },
+      "required": ["id"],
+      "additionalProperties": false,
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    }
+  },
+  {
+    "name": "LINEAR__LIST_PROJECT_LABELS",
+    "description": "List available project labels in the Linear workspace",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "list_project_labels",
+      "canonical_tool_description_hash": "cea75e082f7e5dbec71ae4ff11c624a38995232531a0cabf576ee177409f8ba5",
+      "canonical_tool_input_schema_hash": "f973399805c1c233633f5196cf8e2ad40ee100b94996d711dcd030813b671bc5"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {},
+      "additionalProperties": false,
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    }
+  },
+  {
+    "name": "LINEAR__LIST_TEAMS",
+    "description": "List teams in the user's Linear workspace",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "list_teams",
+      "canonical_tool_description_hash": "27558098d05e892838e05c535d5247353390415939b020c7517f9eae8dc1d9d2",
+      "canonical_tool_input_schema_hash": "30c7f0059f84b40a32da57c5be2960e7a7cccb27e89f0f88544a6a711a396d2e"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "limit": {
+          "type": "number",
+          "maximum": 250,
+          "default": 50,
+          "description": "The number of results to return (Max is 250)"
+        },
+        "before": {
+          "type": "string",
+          "description": "An ID to end at"
+        },
+        "after": {
+          "type": "string",
+          "description": "An ID to start from"
+        },
+        "orderBy": {
+          "type": "string",
+          "enum": ["createdAt", "updatedAt"],
+          "default": "updatedAt",
+          "description": "The order in which to return results"
+        },
+        "query": {
+          "type": "string",
+          "description": "An optional search query"
+        },
+        "includeArchived": {
+          "type": "boolean",
+          "default": false,
+          "description": "Whether to include archived teams"
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "Return only teams created on or after this ISO-8601 date-time or duration. e.g. -P1D to get teams created in the last day"
+        },
+        "updatedAt": {
+          "type": "string",
+          "description": "Return only teams updated on or after this ISO-8601 date-time or duration. e.g. -P1D to get teams updated in the last day"
+        }
+      },
+      "additionalProperties": false,
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    }
+  },
+  {
+    "name": "LINEAR__GET_TEAM",
+    "description": "Retrieve details of a specific Linear team",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "get_team",
+      "canonical_tool_description_hash": "3144e44a6c2874c9c441278d87762eab0a9ac4441dace2d27d65cb01d6e0db53",
+      "canonical_tool_input_schema_hash": "f0f665189ce2539c2cfc511fd6f19fefd52b31f209ff5a56e0c7dbcd8c7db92a"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "query": {
+          "type": "string",
+          "description": "The UUID, key, or name of the team to retrieve"
+        }
+      },
+      "required": ["query"],
+      "additionalProperties": false,
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    }
+  },
+  {
+    "name": "LINEAR__LIST_USERS",
+    "description": "Retrieve users in the Linear workspace",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "list_users",
+      "canonical_tool_description_hash": "fdf958ced87b8dfb91355b93dc5b5e052076df6161a3aa9def72ba99d9fd664b",
+      "canonical_tool_input_schema_hash": "c73aa9598499a1897b84507240ece50e6a88970e339f90a2a71caae617507794"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "query": {
+          "type": "string",
+          "description": "Optional query to filter users by name or email"
+        }
+      },
+      "additionalProperties": false,
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    }
+  },
+  {
+    "name": "LINEAR__GET_USER",
+    "description": "Retrieve details of a specific Linear user",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "get_user",
+      "canonical_tool_description_hash": "31bebb392235ee4483535eb9507eaec281d5499a0c6e1c8a114aa496be2e1210",
+      "canonical_tool_input_schema_hash": "c2d0908403de61c669375286e7a41f451ce26023c4489618f144674e0f7e0619"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "query": {
+          "type": "string",
+          "description": "The UUID or name of the user to retrieve"
+        }
+      },
+      "required": ["query"],
+      "additionalProperties": false,
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    }
+  },
+  {
+    "name": "LINEAR__SEARCH_DOCUMENTATION",
+    "description": "Search Linear's documentation to learn about features and usage",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "search_documentation",
+      "canonical_tool_description_hash": "1752caed466bf34aea004c3c94b5686c8dac408cf0cc3f55b474c802c2c621d5",
+      "canonical_tool_input_schema_hash": "7964d9f7e37851ce9a64382ebc0fa1853c3bd75c5be1b1ab60f22419c5f4e0b2"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "query": {
+          "type": "string",
+          "description": "The search query"
+        },
+        "page": {
+          "type": "number",
+          "default": 0,
+          "description": "The page number"
+        }
+      },
+      "required": ["query"],
+      "additionalProperties": false,
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    }
+  }
+]

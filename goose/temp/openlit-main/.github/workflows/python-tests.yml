@@ -1,0 +1,89 @@
+name: Python Tests
+
+on:
+  push:
+    branches: [ "main" ]
+    paths:
+      - 'sdk/python/**'
+  pull_request_target:
+    branches: [ "main" ]
+    paths:
+      - 'sdk/python/**'
+  workflow_dispatch:
+  schedule:
+    - cron: '0 0 1-31/15 * *'
+
+env:
+  OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+  CO_API_KEY: ${{ secrets.CO_API_KEY }}
+  ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+  MISTRAL_API_KEY: ${{ secrets.MISTRAL_API_KEY }}
+  PINECONE_API_KEY: ${{ secrets.PINECONE_API_KEY }}
+  GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+  QDRANT_URL: ${{ secrets.QDRANT_URL }}
+  QDRANT_API_TOKEN: ${{ secrets.QDRANT_API_TOKEN }}
+  MILVUS_URL: ${{ secrets.MILVUS_URL }}
+  MILVUS_API_TOKEN: ${{ secrets.MILVUS_API_TOKEN }}
+  ELEVEN_API_KEY: ${{ secrets.ELEVEN_API_KEY }}
+  GOOGLE_AI_STUDIO_API_TOKEN: ${{ secrets.GOOGLE_AI_STUDIO_API_TOKEN }}
+  AZURE_AI_INFERENCE_API_TOKEN: ${{ secrets.AZURE_AI_INFERENCE_API_TOKEN }}
+  REKA_API_KEY: ${{ secrets.REKA_API_KEY }}
+  PREM_API_KEY: ${{ secrets.PREM_API_KEY }}
+  MULTION_API_KEY: ${{ secrets.MULTION_API_KEY }}
+  XAI_API_KEY: ${{ secrets.XAI_API_KEY }}
+  JULEP_API_KEY: ${{ secrets.JULEP_API_KEY }}
+  ASTRA_DB_API_ENDPOINT: ${{ secrets.ASTRA_DB_API_ENDPOINT }}
+  ASTRA_DB_APPLICATION_TOKEN: ${{ secrets.ASTRA_DB_APPLICATION_TOKEN }}
+  AI21_API_KEY: ${{ secrets.AI21_API_KEY }}
+  ASSEMBLYAI_API_KEY: ${{ secrets.ASSEMBLYAI_API_KEY }}
+  FIRECRAWL_API_KEY: ${{ secrets.FIRECRAWL_API_KEY }}
+  TOGETHER_API_KEY: ${{ secrets.TOGETHER_API_KEY }}
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.12"]
+
+    steps:
+    - name: Checkout base code
+      uses: actions/checkout@v5
+      with:
+        ref: ${{ github.event.pull_request.head.sha }}
+
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v5
+      with:
+        python-version: ${{ matrix.python-version }}
+
+    # - id: 'auth'
+    #   uses: 'google-github-actions/auth@v2'
+    #   with:
+    #     project_id: ${{ secrets.GCP_PROJECT_ID }}
+    #     workload_identity_provider: 'projects/123456789/locations/global/workloadIdentityPools/my-pool/providers/my-provider'
+    #     service_account: 'my-service-account@my-project.iam.gserviceaccount.com'
+  
+    # - name: 'Set up Cloud SDK'
+    #   uses: 'google-github-actions/setup-gcloud@v2'
+    #   with:
+    #     version: '>= 363.0.0'
+    
+    - name: Set up GCP Credentials
+      uses: google-github-actions/setup-gcloud@v2
+      with:
+        service_account_key: ${{ secrets.GCP_SA_KEY }}
+        project_id: ${{ secrets.GCP_PROJECT_ID }}
+        export_default_credentials: true
+
+    - name: Install dependencies
+      working-directory: sdk/python
+      run: |
+        python -m pip install --upgrade pip
+        python -m pip install -r tests/requirements.txt
+
+    - name: PyTest
+      working-directory: sdk/python
+      run: |
+        pytest

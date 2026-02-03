@@ -256,12 +256,10 @@ impl ClientHandler for GooseClient {
             stop_reason: Some(CreateMessageResult::STOP_REASON_END_TURN.to_string()),
             message: SamplingMessage {
                 role: Role::Assistant,
-                // TODO(alexhancock): MCP sampling currently only supports one content on each SamplingMessage
-                // https://modelcontextprotocol.io/specification/draft/client/sampling#messages
-                // This doesn't mesh well with goose's approach which has Vec<MessageContent>
-                // There is a proposal to MCP which is agreed to go in the next version to have SamplingMessages support multiple content parts
-                // https://github.com/modelcontextprotocol/modelcontextprotocol/pull/198
-                // Until that is formalized, we can take the first message content from the provider and use it
+                // MCP sampling currently supports one content per SamplingMessage (spec limitation).
+                // See: https://modelcontextprotocol.io/specification/draft/client/sampling#messages
+                // Multi-content support planned for future MCP version (PR #198).
+                // Current behavior: uses first content from provider response.
                 content: if let Some(content) = response.content.first() {
                     match content {
                         crate::conversation::message::MessageContent::Text(text) => {
@@ -270,7 +268,7 @@ impl ClientHandler for GooseClient {
                         crate::conversation::message::MessageContent::Image(img) => {
                             Content::image(&img.data, &img.mime_type)
                         }
-                        // TODO(alexhancock) - Content::Audio? goose's messages don't currently have it
+                        // Audio content not yet supported in goose message types
                         _ => Content::text(""),
                     }
                 } else {

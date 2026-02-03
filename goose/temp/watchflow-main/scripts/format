@@ -1,0 +1,15 @@
+#!/bin/sh -e
+set -x
+
+# Get the directory where the script is located
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+# Get the project root directory (parent of script directory)
+PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+# Change to the project root directory
+cd "$PROJECT_ROOT"
+
+# Run ruff linter with auto-fixes
+ruff check --fix src
+
+# Run ruff formatter
+ruff format src

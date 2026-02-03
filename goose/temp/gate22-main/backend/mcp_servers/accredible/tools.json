@@ -1,0 +1,525 @@
+[
+  {
+    "name": "ACCREDIBLE__CREATE_CREDENTIAL",
+    "description": "Create a new digital credential or badge for a recipient",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "CREATE_CREDENTIAL",
+      "canonical_tool_description_hash": "f0f7ca80432a6a6c0336254befde6f37b7cb630f9472c7cca2e9e147f629ef9e",
+      "canonical_tool_input_schema_hash": "bed6ab04fe275012fdc78a0a7120b33b7702e97df9c90af38af3b64425f3fd91"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["body"],
+      "properties": {
+        "body": {
+          "type": "object",
+          "required": ["credential"],
+          "properties": {
+            "credential": {
+              "type": "object",
+              "required": ["recipient"],
+              "properties": {
+                "name": {
+                  "type": "string",
+                  "description": "The credential name"
+                },
+                "group_id": {
+                  "type": "integer",
+                  "description": "The group ID this credential belongs to"
+                },
+                "issued_on": {
+                  "type": "string",
+                  "description": "Date of issue, format: YYYY-MM-DD"
+                },
+                "meta_data": {
+                  "type": "object",
+                  "required": ["batch_id"],
+                  "properties": {
+                    "batch_id": {
+                      "type": "string",
+                      "description": "Batch identifier"
+                    }
+                  },
+                  "description": "Additional metadata for the credential",
+                  "additionalProperties": true
+                },
+                "recipient": {
+                  "type": "object",
+                  "required": ["name", "email"],
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "description": "The recipient's user ID as defined by your organization"
+                    },
+                    "name": {
+                      "type": "string",
+                      "description": "Full name of the recipient"
+                    },
+                    "email": {
+                      "type": "string",
+                      "format": "email",
+                      "description": "Email address of the recipient"
+                    },
+                    "meta_data": {
+                      "type": "object",
+                      "required": [],
+                      "properties": {
+                        "credential_batch": {
+                          "type": "string",
+                          "description": "Batch identifier for the credential"
+                        }
+                      },
+                      "description": "Additional metadata for the recipient",
+                      "additionalProperties": true
+                    }
+                  },
+                  "additionalProperties": false
+                },
+                "group_name": {
+                  "type": "string",
+                  "description": "The group name this credential belongs to"
+                },
+                "references": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "visible": ["description", "referee", "relationship"],
+                    "required": ["description", "referee"],
+                    "properties": {
+                      "referee": {
+                        "type": "object",
+                        "visible": ["name", "email", "avatar", "url"],
+                        "required": ["name"],
+                        "properties": {
+                          "url": {
+                            "type": "string",
+                            "description": "URL associated with the referee"
+                          },
+                          "name": {
+                            "type": "string",
+                            "description": "Name of the referee"
+                          },
+                          "email": {
+                            "type": "string",
+                            "format": "email",
+                            "description": "Email of the referee"
+                          },
+                          "avatar": {
+                            "type": "string",
+                            "description": "Avatar URL of the referee"
+                          }
+                        },
+                        "additionalProperties": false
+                      },
+                      "description": {
+                        "type": "string",
+                        "description": "Reference description"
+                      },
+                      "relationship": {
+                        "type": "string",
+                        "description": "Relationship with the recipient"
+                      }
+                    },
+                    "additionalProperties": false
+                  },
+                  "description": "References for the credential"
+                },
+                "description": {
+                  "type": "string",
+                  "description": "The credential description"
+                },
+                "evidence_items": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "visible": ["description", "url", "file", "category"],
+                    "required": ["description", "category"],
+                    "properties": {
+                      "url": {
+                        "type": "string",
+                        "description": "URL of the evidence"
+                      },
+                      "file": {
+                        "type": "string",
+                        "description": "File URL of the evidence"
+                      },
+                      "category": {
+                        "enum": ["url", "file"],
+                        "type": "string",
+                        "description": "Category of evidence"
+                      },
+                      "description": {
+                        "type": "string",
+                        "description": "Description of the evidence"
+                      }
+                    },
+                    "additionalProperties": false
+                  },
+                  "description": "Evidence items for the credential"
+                },
+                "custom_attributes": {
+                  "type": "object",
+                  "required": [],
+                  "properties": {
+                    "dob": {
+                      "type": "string",
+                      "description": "Date of birth"
+                    },
+                    "custom_variables": {
+                      "type": "string",
+                      "description": "Custom variable value"
+                    }
+                  },
+                  "description": "Custom attributes for the credential",
+                  "additionalProperties": true
+                }
+              },
+              "additionalProperties": false
+            }
+          },
+          "description": "Credential creation details",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "ACCREDIBLE__SEARCH_CREDENTIALS",
+    "description": "Search for credentials using various criteria. Supports complex queries with multiple conditions.",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "SEARCH_CREDENTIALS",
+      "canonical_tool_description_hash": "32555c7855140de0efdc2bf22631a963ca75ea4be9e82a28a65e62aaeddde73a",
+      "canonical_tool_input_schema_hash": "faefd3b7e613739ff9c2da4cf7ac8ad3624b1a2c885b8ae343420a725373613a"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["body"],
+      "properties": {
+        "body": {
+          "type": "object",
+          "required": ["query"],
+          "properties": {
+            "page": {
+              "type": "integer",
+              "default": 1,
+              "minimum": 1,
+              "description": "Page number for pagination"
+            },
+            "query": {
+              "type": "object",
+              "required": [],
+              "properties": {
+                "group.id": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "description": "Filter by group ID"
+                },
+                "issued_on": {
+                  "type": "string",
+                  "format": "date-time",
+                  "description": "Filter by issue date"
+                },
+                "expires_on": {
+                  "type": "string",
+                  "format": "date-time",
+                  "description": "Filter by expiration date"
+                },
+                "custom_field": {
+                  "type": "object",
+                  "required": ["name", "value"],
+                  "properties": {
+                    "name": {
+                      "type": "string",
+                      "description": "Name of the custom field"
+                    },
+                    "value": {
+                      "type": "string",
+                      "description": "Value of the custom field"
+                    }
+                  },
+                  "description": "Filter by custom field",
+                  "additionalProperties": false
+                },
+                "recipient.email": {
+                  "type": "string",
+                  "format": "email",
+                  "description": "Filter by recipient email"
+                }
+              },
+              "description": "Search query parameters",
+              "additionalProperties": false
+            },
+            "per_page": {
+              "type": "integer",
+              "default": 20,
+              "maximum": 100,
+              "minimum": 1,
+              "description": "Number of results per page"
+            }
+          },
+          "description": "Search criteria",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "ACCREDIBLE__CREATE_GROUP",
+    "description": "Create a new group for organizing credentials. Groups are similar to courses or folders.",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "CREATE_GROUP",
+      "canonical_tool_description_hash": "70d172fad247cff3d0f11388a3596399fc435a48ed797de027a9cce8c47918ef",
+      "canonical_tool_input_schema_hash": "b3ba65b5fb0e316bd6108c051c39fed84ae14c20eea14e559651398ddc1f4084"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["body"],
+      "properties": {
+        "body": {
+          "type": "object",
+          "required": ["group"],
+          "properties": {
+            "group": {
+              "type": "object",
+              "required": ["name", "course_name", "course_description"],
+              "properties": {
+                "name": {
+                  "type": "string",
+                  "minLength": 1,
+                  "description": "Name of the group (for your reference and never shown to the recipient)"
+                },
+                "language": {
+                  "enum": [
+                    "en",
+                    "es",
+                    "vi",
+                    "pt",
+                    "ja",
+                    "fr",
+                    "da",
+                    "nl",
+                    "fi",
+                    "no",
+                    "nb",
+                    "ro",
+                    "sv",
+                    "th",
+                    "tw",
+                    "zh",
+                    "tr",
+                    "ar",
+                    "he",
+                    "ms",
+                    "de"
+                  ],
+                  "type": "string",
+                  "default": "en",
+                  "description": "Language for the group. Default language is en"
+                },
+                "meta_data": {
+                  "type": "object",
+                  "required": ["batch_id"],
+                  "properties": {
+                    "batch_id": {
+                      "type": "string",
+                      "description": "Batch identifier"
+                    }
+                  },
+                  "description": "Additional metadata for the group",
+                  "additionalProperties": true
+                },
+                "attach_pdf": {
+                  "type": "boolean",
+                  "default": false,
+                  "description": "PDF of the Credential should be attached to email when recipient is informed"
+                },
+                "blockchain": {
+                  "type": "boolean",
+                  "default": false,
+                  "description": "Enable or disable recording of these Credentials on a Blockchain"
+                },
+                "signup_url": {
+                  "type": "string",
+                  "description": "This provides a direct path for credential viewers to enroll in your course"
+                },
+                "auto_expiry": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "description": "Specifies the number of years from the issue date after which the credential will automatically expire. If the specified value is less than or equal to 0, it will be ignored"
+                },
+                "course_link": {
+                  "type": "string",
+                  "description": "Link to the web page with information related to this Credential. Typically this is a course information or event information page"
+                },
+                "course_name": {
+                  "type": "string",
+                  "description": "Name of the course or achievement. This is visible to the recipient"
+                },
+                "department_id": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "description": "Department that the group belongs to. If not defined the group will be assigned to the organizations default department"
+                },
+                "badge_design_id": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "description": "Badge Design which the Group will use to display Credentials"
+                },
+                "signup_url_show": {
+                  "type": "boolean",
+                  "default": false,
+                  "description": "Show or hide the sign up url"
+                },
+                "course_link_show": {
+                  "type": "boolean",
+                  "default": false,
+                  "description": "This links the credential data record to your information about the credential on your website"
+                },
+                "learning_outcomes": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "description": "List of learning outcomes for the course"
+                },
+                "primary_design_id": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "description": "Primary Design which the Group will use to display Credentials"
+                },
+                "course_description": {
+                  "type": "string",
+                  "description": "Description of the course or achievement. This is visible to the recipient"
+                },
+                "certificate_design_id": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "description": "Certificate Design which the Group will use to display Credentials"
+                },
+                "organization_link_show": {
+                  "type": "boolean",
+                  "default": false,
+                  "description": "Show or hide the link to your website homepage"
+                },
+                "allow_duplicate_credentials": {
+                  "type": "boolean",
+                  "default": false,
+                  "description": "An email address can receive more than one credential"
+                },
+                "generate_private_credential": {
+                  "type": "boolean",
+                  "default": false,
+                  "description": "The default value of Credential.private for the Group"
+                }
+              },
+              "additionalProperties": false
+            }
+          },
+          "description": "Group creation details",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "ACCREDIBLE__CREATE_ATTRIBUTE_KEY",
+    "description": "Create a new custom attribute key for use in credentials and templates",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "CREATE_ATTRIBUTE_KEY",
+      "canonical_tool_description_hash": "4fa327fb6b025c475506c7d21edbf38502e9061560c5b2ce735c348c2e23d3c3",
+      "canonical_tool_input_schema_hash": "b860df5f34977d91afefa00eb186fdc93e984824e769f47cd269ad6f9f6ea047"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["body"],
+      "properties": {
+        "body": {
+          "type": "object",
+          "required": ["attribute_key"],
+          "properties": {
+            "attribute_key": {
+              "type": "object",
+              "required": ["name", "kind"],
+              "properties": {
+                "kind": {
+                  "enum": ["text", "date", "number", "boolean"],
+                  "type": "string",
+                  "description": "Type of the attribute key"
+                },
+                "name": {
+                  "type": "string",
+                  "description": "Name of the attribute key"
+                },
+                "description": {
+                  "type": "string",
+                  "description": "Description of what this attribute key represents"
+                }
+              },
+              "additionalProperties": false
+            }
+          },
+          "description": "Attribute key creation details",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "ACCREDIBLE__SEARCH_ATTRIBUTE_KEYS",
+    "description": "Search for attribute keys using various criteria",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "SEARCH_ATTRIBUTE_KEYS",
+      "canonical_tool_description_hash": "447843d6c726bc0ff207c79b5053e583a64666c390e9a86f330651fb7a85a1b0",
+      "canonical_tool_input_schema_hash": "d1b5329395a6646a485497f91c052add2c4e36a7f61cb3b811d5176f2088f41e"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["body"],
+      "properties": {
+        "body": {
+          "type": "object",
+          "required": [],
+          "properties": {
+            "kind": {
+              "enum": ["text", "date", "email", "image"],
+              "type": "string",
+              "description": "Optional. Filter by attribute key type"
+            },
+            "name": {
+              "type": "string",
+              "description": "Optional. Filter by attribute key name"
+            },
+            "page": {
+              "type": "integer",
+              "default": 1,
+              "minimum": 1,
+              "description": "Optional. Page number for pagination"
+            },
+            "page_size": {
+              "type": "integer",
+              "default": 50,
+              "minimum": 1,
+              "description": "Optional. Number of results per page"
+            },
+            "department_id": {
+              "type": "integer",
+              "description": "Optional. Filter by department ID"
+            }
+          },
+          "description": "Search criteria for attribute keys. All parameters are optional.",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+]

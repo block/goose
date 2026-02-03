@@ -1,0 +1,311 @@
+[
+  {
+    "name": "TYPEFULLY__CREATE_DRAFT",
+    "description": "Create a draft given some plain-text content",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "POST",
+      "endpoint": "https://api.typefully.com/v1/drafts/"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "header": {
+          "type": "object",
+          "description": "Headers for the HTTP request",
+          "properties": {
+            "Content-Type": {
+              "type": "string",
+              "description": "Content type of the request",
+              "default": "application/json"
+            }
+          },
+          "required": [
+            "Content-Type"
+          ],
+          "visible": [],
+          "additionalProperties": false
+        },
+        "body": {
+          "type": "object",
+          "description": "Draft content and options",
+          "properties": {
+            "content": {
+              "type": "string",
+              "description": "Content of the draft. You can split into multiple tweets by adding 4 consecutive newlines between tweets in the content."
+            },
+            "threadify": {
+              "type": "boolean",
+              "description": "Content will be automatically split into multiple tweets"
+            },
+            "share": {
+              "type": "boolean",
+              "description": "If true, returned payload will include a share_url"
+            },
+            "schedule-date": {
+              "type": "string",
+              "description": "Can either be an ISO formatted date (e.g.: 2022-06-13T11:13:31.662Z) or 'next-free-slot'"
+            },
+            "auto_retweet_enabled": {
+              "type": "boolean",
+              "description": "If true, the post will have an AutoRT enabled, according to the one set on Typefully for the account"
+            },
+            "auto_plug_enabled": {
+              "type": "boolean",
+              "description": "If true, the post will have an AutoPlug enabled, according to the one set on Typefully for the account"
+            }
+          },
+          "required": [
+            "content"
+          ],
+          "visible": [
+            "content",
+            "threadify",
+            "share",
+            "schedule-date",
+            "auto_retweet_enabled",
+            "auto_plug_enabled"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "header",
+        "body"
+      ],
+      "visible": [
+        "body"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "TYPEFULLY__GET_RECENTLY_PUBLISHED_DRAFTS",
+    "description": "Get a list of all the most recently published drafts in Typefully",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "GET",
+      "endpoint": "https://api.typefully.com/v1/drafts/recently-published/"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "header": {
+          "type": "object",
+          "description": "Headers for the HTTP request",
+          "properties": {
+            "Content-Type": {
+              "type": "string",
+              "description": "Content type of the request",
+              "default": "application/json"
+            }
+          },
+          "required": [
+            "Content-Type"
+          ],
+          "visible": [],
+          "additionalProperties": false
+        },
+        "query": {
+          "type": "object",
+          "description": "Query parameters",
+          "properties": {
+            "content_filter": {
+              "type": "string",
+              "description": "Filters the list of drafts to only include tweets or threads",
+              "enum": [
+                "threads",
+                "tweets"
+              ]
+            }
+          },
+          "required": [],
+          "visible": [
+            "content_filter"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "header"
+      ],
+      "visible": [
+        "query"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "TYPEFULLY__GET_LATEST_NOTIFICATIONS",
+    "description": "Get the latest notifications from Typefully",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "GET",
+      "endpoint": "https://api.typefully.com/v1/notifications/"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "header": {
+          "type": "object",
+          "description": "Headers for the HTTP request",
+          "properties": {
+            "Content-Type": {
+              "type": "string",
+              "description": "Content type of the request",
+              "default": "application/json"
+            }
+          },
+          "required": [
+            "Content-Type"
+          ],
+          "visible": [],
+          "additionalProperties": false
+        },
+        "query": {
+          "type": "object",
+          "description": "Query parameters",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "description": "Filter notifications based on whether they are inbox notifications (e.g. comments, replies) or activity events (e.g. tweet published)",
+              "enum": [
+                "inbox",
+                "activity"
+              ]
+            }
+          },
+          "required": [],
+          "visible": [
+            "kind"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "header"
+      ],
+      "visible": [
+        "query"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "TYPEFULLY__MARK_NOTIFICATIONS_READ",
+    "description": "Mark all notifications as read",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "POST",
+      "endpoint": "https://api.typefully.com/v1/notifications/mark-all-read/"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "header": {
+          "type": "object",
+          "description": "Headers for the HTTP request",
+          "properties": {
+            "Content-Type": {
+              "type": "string",
+              "description": "Content type of the request",
+              "default": "application/json"
+            }
+          },
+          "required": [
+            "Content-Type"
+          ],
+          "visible": [],
+          "additionalProperties": false
+        },
+        "body": {
+          "type": "object",
+          "description": "Options for marking notifications as read",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "description": "Specifies whether to mark inbox notifications (e.g. comments, replies) or activities (e.g. publishing events) as read",
+              "enum": [
+                "inbox",
+                "activity"
+              ]
+            },
+            "username": {
+              "type": "string",
+              "description": "The username of the account. If given, it will only mark read notifications for that specific account"
+            }
+          },
+          "required": [],
+          "visible": [
+            "kind",
+            "username"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "header"
+      ],
+      "visible": [
+        "body"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "TYPEFULLY__GET_RECENTLY_SCHEDULED_DRAFTS",
+    "description": "Get a list of all the most recently scheduled drafts in Typefully",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "GET",
+      "endpoint": "https://api.typefully.com/v1/drafts/recently-scheduled/"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "header": {
+          "type": "object",
+          "description": "Headers for the HTTP request",
+          "properties": {
+            "Content-Type": {
+              "type": "string",
+              "description": "Content type of the request",
+              "default": "application/json"
+            }
+          },
+          "required": [
+            "Content-Type"
+          ],
+          "visible": [],
+          "additionalProperties": false
+        },
+        "query": {
+          "type": "object",
+          "description": "Query parameters",
+          "properties": {
+            "content_filter": {
+              "type": "string",
+              "description": "Filters the list of drafts to only include tweets or threads",
+              "enum": [
+                "threads",
+                "tweets"
+              ]
+            }
+          },
+          "required": [],
+          "visible": [
+            "content_filter"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "header"
+      ],
+      "visible": [
+        "query"
+      ],
+      "additionalProperties": false
+    }
+  }
+]

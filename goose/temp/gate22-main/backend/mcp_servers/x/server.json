@@ -1,0 +1,22 @@
+{
+  "name": "X",
+  "url": "https://mcp.aci.dev/virtual/mcp?server_name=X",
+  "transport_type": "streamable_http",
+  "description": "X API v2 integration for accessing posts, users, communities, trends, and social interactions. Provides programmatic access to X's global conversation with real-time data and advanced analytics.",
+  "logo": "https://raw.githubusercontent.com/aipotheosis-labs/aipolabs-icons/refs/heads/main/apps/x.svg",
+  "categories": ["Social Media", "Communication", "Analytics"],
+  "auth_configs": [
+    {
+      "type": "oauth2",
+      "client_id": "{{ CLIENT_ID }}",
+      "client_secret": "{{ CLIENT_SECRET }}",
+      "scope": "tweet.read tweet.write users.read follows.read follows.write like.read like.write bookmark.read bookmark.write list.read list.write mute.read mute.write block.read block.write space.read tweet.moderate.write offline.access",
+      "authorize_url": "https://x.com/i/oauth2/authorize",
+      "access_token_url": "https://api.x.com/2/oauth2/token",
+      "refresh_token_url": "https://api.x.com/2/oauth2/token"
+    }
+  ],
+  "server_metadata": {
+    "is_virtual_mcp_server": true
+  }
+}

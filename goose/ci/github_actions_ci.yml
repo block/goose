@@ -1,0 +1,237 @@
+name: Goose Enterprise Platform CI
+
+on:
+  push:
+    branches: [main, develop, 'feature/**', 'release/**']
+  pull_request:
+    branches: [main, develop]
+  workflow_dispatch:
+    inputs:
+      run_full_audit:
+        description: 'Run full 8-layer audit'
+        required: false
+        default: 'false'
+        type: boolean
+
+env:
+  CARGO_TERM_COLOR: always
+  RUSTFLAGS: "-D warnings"
+
+jobs:
+  # Layer 2: Build Correctness
+  build:
+    name: Build & Format Check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+
+      - name: Cache cargo registry
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-
+
+      - name: Check formatting
+        run: cargo fmt --all -- --check
+
+      - name: Build workspace
+        run: cargo build --workspace --all-features
+
+      - name: Clippy (zero warnings)
+        run: cargo clippy --workspace --all-targets --all-features -- -D warnings
+
+  # Layer 3: Test Correctness
+  test:
+    name: Test Suite
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo registry
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-
+
+      - name: Run tests
+        run: cargo test --workspace --all-features -- --nocapture
+
+      - name: Run doc tests
+        run: cargo test --workspace --doc
+
+  # Layer 1: Stub/TODO Elimination
+  quality-gate:
+    name: Quality Gate (Stub/TODO Scan)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install ripgrep
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ripgrep
+
+      - name: Scan production code for stubs/TODOs
+        run: |
+          echo "=== Scanning production code (crates/goose/src/agents/) ==="
+          if rg -n -S -f scripts/patterns.stub_todo.txt crates/goose/src/agents/ 2>/dev/null; then
+            echo "::error::Found stub/TODO markers in production code"
+            exit 1
+          else
+            echo "✓ No stubs found in production code"
+          fi
+
+      - name: Full repository scan (informational)
+        run: |
+          echo "=== Full repository scan (informational only) ==="
+          rg -n -S -f scripts/patterns.stub_todo.txt . \
+            --glob '!target/*' \
+            --glob '!node_modules/*' \
+            --glob '!*.md' \
+            --glob '!scripts/*' \
+            --glob '!ci/*' || echo "✓ Scan complete"
+        continue-on-error: true
+
+  # Layer 4-7: Enterprise Components Verification
+  enterprise-check:
+    name: Enterprise Components
+    runs-on: ubuntu-latest
+    needs: [build, test]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Verify core agent files exist
+        run: |
+          echo "=== Verifying Enterprise Agent Components ==="
+          AGENTS_DIR="crates/goose/src/agents"
+          REQUIRED_FILES=(
+            "orchestrator.rs"
+            "workflow_engine.rs"
+            "planner.rs"
+            "critic.rs"
+            "reasoning.rs"
+            "reflexion.rs"
+            "observability.rs"
+            "done_gate.rs"
+            "shell_guard.rs"
+          )
+
+          MISSING=0
+          for file in "${REQUIRED_FILES[@]}"; do
+            if [[ -f "$AGENTS_DIR/$file" ]]; then
+              LINES=$(wc -l < "$AGENTS_DIR/$file")
+              echo "✓ $file ($LINES lines)"
+            else
+              echo "✗ MISSING: $file"
+              MISSING=$((MISSING + 1))
+            fi
+          done
+
+          if [[ $MISSING -gt 0 ]]; then
+            echo "::error::Missing $MISSING required enterprise components"
+            exit 1
+          fi
+
+          echo ""
+          echo "=== All enterprise components verified ==="
+
+      - name: Check specialist agents
+        run: |
+          echo "=== Specialist Agents ==="
+          SPEC_DIR="crates/goose/src/agents/specialists"
+          if [[ -d "$SPEC_DIR" ]]; then
+            for spec in "$SPEC_DIR"/*.rs; do
+              if [[ -f "$spec" ]]; then
+                LINES=$(wc -l < "$spec")
+                echo "✓ $(basename "$spec") ($LINES lines)"
+              fi
+            done
+          else
+            echo "Specialists directory not found (optional)"
+          fi
+
+      - name: Check persistence/checkpointing
+        run: |
+          echo "=== Persistence (Checkpointing) ==="
+          PERS_DIR="crates/goose/src/agents/persistence"
+          if [[ -d "$PERS_DIR" ]]; then
+            for pf in "$PERS_DIR"/*.rs; do
+              if [[ -f "$pf" ]]; then
+                LINES=$(wc -l < "$pf")
+                echo "✓ $(basename "$pf") ($LINES lines)"
+              fi
+            done
+          fi
+
+      - name: Check approval policies
+        run: |
+          echo "=== Approval Policies (Layer 5 - Safety) ==="
+          APPR_DIR="crates/goose/src/approval"
+          if [[ -d "$APPR_DIR" ]]; then
+            for af in "$APPR_DIR"/*.rs; do
+              if [[ -f "$af" ]]; then
+                LINES=$(wc -l < "$af")
+                echo "✓ $(basename "$af") ($LINES lines)"
+              fi
+            done
+          fi
+
+  # Security Audit
+  security:
+    name: Security Audit
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install cargo-audit
+        run: cargo install cargo-audit
+
+      - name: Run security audit
+        run: cargo audit
+        continue-on-error: true
+
+  # Summary Job
+  ci-complete:
+    name: CI Complete
+    runs-on: ubuntu-latest
+    needs: [build, test, quality-gate, enterprise-check]
+    if: always()
+    steps:
+      - name: Check all jobs passed
+        run: |
+          echo "=== CI Pipeline Summary ==="
+          echo "Build:            ${{ needs.build.result }}"
+          echo "Tests:            ${{ needs.test.result }}"
+          echo "Quality Gate:     ${{ needs.quality-gate.result }}"
+          echo "Enterprise Check: ${{ needs.enterprise-check.result }}"
+
+          if [[ "${{ needs.build.result }}" != "success" ]] || \
+             [[ "${{ needs.test.result }}" != "success" ]] || \
+             [[ "${{ needs.quality-gate.result }}" != "success" ]] || \
+             [[ "${{ needs.enterprise-check.result }}" != "success" ]]; then
+            echo "::error::One or more CI jobs failed"
+            exit 1
+          fi
+
+          echo ""
+          echo "✓ All CI checks passed"
