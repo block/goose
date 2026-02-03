@@ -9,7 +9,7 @@ import {
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../../ui/dialog';
 import CustomProviderForm from './modal/subcomponents/forms/CustomProviderForm';
 import CustomProviderWizard from './modal/CustomProviderWizard';
-import { AddProviderCard } from './modal/subcomponents/AddProviderCards';
+import { OtherProvidersCard, ManualProviderCard } from './modal/subcomponents/AddProviderCards';
 import { SwitchModelModal } from '../models/subcomponents/SwitchModelModal';
 import type { View } from '../../../utils/navigationUtils';
 
@@ -194,8 +194,13 @@ function ProviderCards({
       />
     ));
 
-    // Add provider card
-    cards.push(<AddProviderCard key="add-provider" onClick={() => setShowCatalogWizard(true)} />);
+    // Add catalog-based providers card
+    cards.push(<OtherProvidersCard key="add-catalog" onClick={() => setShowCatalogWizard(true)} />);
+
+    // Add manual custom provider card
+    cards.push(
+      <ManualProviderCard key="add-manual" onClick={() => setShowCustomProviderModal(true)} />
+    );
 
     return cards;
   }, [providers, isOnboarding, configureProviderViaModal, handleProviderLaunchWithModelSelection]);
