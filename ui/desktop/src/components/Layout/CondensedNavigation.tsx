@@ -13,6 +13,7 @@ import {
   ChevronDown,
   ChevronRight,
   Plus,
+  ChefHat,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigationContext } from './NavigationContext';
@@ -392,6 +393,17 @@ export const CondensedNavigation: React.FC<CondensedNavigationProps> = ({ classN
 
   const isOverlayMode = effectiveNavigationMode === 'overlay';
 
+  // Get display name for session - prioritize recipe title, then session name
+  const getSessionDisplayName = (session: Session): string => {
+    if (session.recipe?.title) {
+      return session.recipe.title;
+    }
+    if (shouldShowNewChatTitle(session)) {
+      return 'New Chat';
+    }
+    return session.name;
+  };
+
   // Truncate session message for display
   const truncateMessage = (msg?: string, maxLen = 20) => {
     if (!msg) return 'New Chat';
@@ -528,9 +540,13 @@ export const CondensedNavigation: React.FC<CondensedNavigationProps> = ({ classN
                                 isActiveSession && 'bg-background-medium'
                               )}
                             >
-                              <MessageSquare className="w-4 h-4 flex-shrink-0 text-text-muted" />
+                              {session.recipe ? (
+                                <ChefHat className="w-4 h-4 flex-shrink-0 text-text-muted" />
+                              ) : (
+                                <MessageSquare className="w-4 h-4 flex-shrink-0 text-text-muted" />
+                              )}
                               <span className="truncate flex-1">
-                                {truncateMessage(session.name, 30)}
+                                {truncateMessage(getSessionDisplayName(session), 30)}
                               </span>
                               <SessionIndicators
                                 isStreaming={isStreaming}
@@ -674,7 +690,7 @@ export const CondensedNavigation: React.FC<CondensedNavigationProps> = ({ classN
                         transition={{ duration: 0.2 }}
                         className="overflow-hidden mt-[2px]"
                       >
-                        <div className="bg-background-default rounded-lg pl-2 pr-4 py-1 flex flex-col gap-[2px]">
+                        <div className="bg-background-default rounded-lg py-1 flex flex-col gap-[2px]">
                           {recentSessions.map((session) => {
                             const status = getSessionStatus(session.id);
                             const isStreaming = status?.streamState === 'streaming';
@@ -689,16 +705,21 @@ export const CondensedNavigation: React.FC<CondensedNavigationProps> = ({ classN
                                   handleSessionClick(session.id);
                                 }}
                                 className={cn(
-                                  'w-full text-left py-1.5 text-xs rounded-md',
+                                  'w-full text-left py-1.5 px-2 text-xs rounded-md',
                                   'hover:bg-background-medium transition-colors',
                                   'flex items-center gap-2',
                                   isActiveSession && 'bg-background-medium'
                                 )}
                               >
-                                <div className="w-4 flex-shrink-0" /> {/* Spacer to align with grip icon */}
-                                <MessageSquare className="w-4 h-4 flex-shrink-0 text-text-muted" />
+                                <div className="w-4 flex-shrink-0" />{' '}
+                                {/* Spacer to align with grip icon */}
+                                {session.recipe ? (
+                                  <ChefHat className="w-4 h-4 flex-shrink-0 text-text-muted" />
+                                ) : (
+                                  <MessageSquare className="w-4 h-4 flex-shrink-0 text-text-muted" />
+                                )}
                                 <span className="truncate text-text-default flex-1">
-                                  {truncateMessage(session.name)}
+                                  {truncateMessage(getSessionDisplayName(session))}
                                 </span>
                                 <SessionIndicators
                                   isStreaming={isStreaming}
@@ -812,9 +833,13 @@ export const CondensedNavigation: React.FC<CondensedNavigationProps> = ({ classN
                                 isActiveSession && 'bg-background-medium'
                               )}
                             >
-                              <MessageSquare className="w-4 h-4 flex-shrink-0 text-text-muted" />
+                              {session.recipe ? (
+                                <ChefHat className="w-4 h-4 flex-shrink-0 text-text-muted" />
+                              ) : (
+                                <MessageSquare className="w-4 h-4 flex-shrink-0 text-text-muted" />
+                              )}
                               <span className="truncate flex-1">
-                                {truncateMessage(session.name, 30)}
+                                {truncateMessage(getSessionDisplayName(session), 30)}
                               </span>
                               <SessionIndicators
                                 isStreaming={isStreaming}

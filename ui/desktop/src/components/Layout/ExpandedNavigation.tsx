@@ -10,6 +10,7 @@ import {
   Settings,
   GripVertical,
   Plus,
+  ChefHat,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigationContext } from './NavigationContext';
@@ -450,6 +451,17 @@ export const ExpandedNavigation: React.FC<ExpandedNavigationProps> = ({ classNam
 
   const isOverlayMode = effectiveNavigationMode === 'overlay';
 
+  // Get display name for session - prioritize recipe title, then session name
+  const getSessionDisplayName = (session: Session): string => {
+    if (session.recipe?.title) {
+      return session.recipe.title;
+    }
+    if (shouldShowNewChatTitle(session)) {
+      return 'New Chat';
+    }
+    return session.name;
+  };
+
   // Truncate session message for display
   const truncateMessage = (msg?: string, maxLen = 24) => {
     if (!msg) return 'New Chat';
@@ -636,9 +648,13 @@ export const ExpandedNavigation: React.FC<ExpandedNavigationProps> = ({ classNam
                               isActiveSession && 'bg-background-medium'
                             )}
                           >
-                            <MessageSquare className="w-4 h-4 flex-shrink-0 text-text-muted" />
+                            {session.recipe ? (
+                              <ChefHat className="w-4 h-4 flex-shrink-0 text-text-muted" />
+                            ) : (
+                              <MessageSquare className="w-4 h-4 flex-shrink-0 text-text-muted" />
+                            )}
                             <span className="truncate flex-1">
-                              {truncateMessage(session.name, 30)}
+                              {truncateMessage(getSessionDisplayName(session), 30)}
                             </span>
                             <SessionIndicators
                               isStreaming={isStreaming}
