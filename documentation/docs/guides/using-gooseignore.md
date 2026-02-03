@@ -86,7 +86,7 @@ When `.gooseignore` files exist, patterns are applied in this order:
    - Affects all projects on your machine
 
 2. **Local `.gooseignore`** (applied second, can override global)
-   - Located in your project root directory
+   - Located in the current working directory (the root of the directory you want these rules applied to)
    - Project-specific rules that can override global patterns
 
 ```
