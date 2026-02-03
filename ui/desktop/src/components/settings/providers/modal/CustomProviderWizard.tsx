@@ -35,7 +35,7 @@ interface CustomProviderWizardProps {
   isEditable?: boolean;
 }
 
-type WizardStep = 'catalog' | 'manual' | 'form';
+type WizardStep = 'catalog' | 'form';
 
 export default function CustomProviderWizard({
   open,
@@ -63,11 +63,6 @@ export default function CustomProviderWizard({
     setStep('form');
   };
 
-  const handleManualSetup = () => {
-    setSelectedTemplate(null);
-    setStep('form');
-  };
-
   const handleBack = () => {
     if (step === 'form' && !initialData) {
       setStep('catalog');
@@ -89,7 +84,7 @@ export default function CustomProviderWizard({
       case 'catalog':
         return 'Add Custom Provider';
       case 'form':
-        return selectedTemplate ? `Configure ${selectedTemplate.name}` : 'Manual Provider Setup';
+        return selectedTemplate ? `Configure ${selectedTemplate.name}` : 'Configure Provider';
       default:
         return 'Add Custom Provider';
     }
@@ -102,61 +97,7 @@ export default function CustomProviderWizard({
           <DialogTitle>{getTitle()}</DialogTitle>
         </DialogHeader>
 
-        {/* Initial step: Choose catalog or manual */}
-        {step === 'catalog' && !initialData && (
-          <div className="space-y-4">
-            <div>
-              <p className="text-sm text-textSubtle mb-4">
-                Choose how you'd like to add your provider
-              </p>
-            </div>
-
-            <div className="space-y-3">
-              <button
-                onClick={() => setStep('catalog')}
-                className="w-full p-4 text-left border border-border rounded-lg hover:bg-surfaceHover transition-colors"
-              >
-                <div className="flex items-center justify-between">
-                  <div>
-                    <div className="font-medium text-textStandard">
-                      Choose from Catalog
-                    </div>
-                    <div className="text-sm text-textSubtle mt-1">
-                      Select from 80+ providers with auto-filled configuration
-                    </div>
-                  </div>
-                  <div className="text-xs text-textSubtle bg-surfaceHover px-2 py-1 rounded">
-                    Recommended
-                  </div>
-                </div>
-              </button>
-
-              <button
-                onClick={handleManualSetup}
-                className="w-full p-4 text-left border border-border rounded-lg hover:bg-surfaceHover transition-colors"
-              >
-                <div className="flex items-center justify-between">
-                  <div>
-                    <div className="font-medium text-textStandard">
-                      Manual Setup
-                    </div>
-                    <div className="text-sm text-textSubtle mt-1">
-                      Enter all configuration details manually
-                    </div>
-                  </div>
-                </div>
-              </button>
-            </div>
-
-            <div className="flex justify-end space-x-2 pt-4 border-t border-border">
-              <Button type="button" variant="outline" onClick={handleCancel}>
-                Cancel
-              </Button>
-            </div>
-          </div>
-        )}
-
-        {/* Catalog picker step - nested component handles format → provider flow */}
+        {/* Catalog picker step */}
         {step === 'catalog' && !initialData && (
           <ProviderCatalogPicker onSelect={handleTemplateSelect} onCancel={handleCancel} />
         )}
@@ -165,13 +106,7 @@ export default function CustomProviderWizard({
         {step === 'form' && (
           <>
             {!initialData && selectedTemplate && (
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                onClick={handleBack}
-                className="mb-2"
-              >
+              <Button type="button" variant="ghost" size="sm" onClick={handleBack} className="mb-2">
                 ← Back to catalog
               </Button>
             )}

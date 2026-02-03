@@ -2,38 +2,13 @@ import { useState, useEffect } from 'react';
 import { Button } from '../../../../ui/button';
 import { Search, ExternalLink, Check } from 'lucide-react';
 import { Input } from '../../../../ui/input';
-
-interface ProviderCatalogEntry {
-  id: string;
-  name: string;
-  format: string;
-  api_url: string;
-  model_count: number;
-  doc_url: string;
-  env_var: string;
-}
-
-interface ProviderTemplate {
-  id: string;
-  name: string;
-  format: string;
-  api_url: string;
-  models: Array<{
-    id: string;
-    name: string;
-    context_limit: number;
-    capabilities: {
-      tool_call: boolean;
-      reasoning: boolean;
-      attachment: boolean;
-      temperature: boolean;
-    };
-    deprecated: boolean;
-  }>;
-  supports_streaming: boolean;
-  env_var: string;
-  doc_url: string;
-}
+import { Select } from '../../../../ui/Select';
+import {
+  getProviderCatalog,
+  getProviderCatalogTemplate,
+  type ProviderCatalogEntry,
+  type ProviderTemplate,
+} from '../../../../../api';
 
 interface ProviderCatalogPickerProps {
   onSelect: (template: ProviderTemplate) => void;
@@ -41,7 +16,6 @@ interface ProviderCatalogPickerProps {
 }
 
 export default function ProviderCatalogPicker({ onSelect, onCancel }: ProviderCatalogPickerProps) {
-  const [step, setStep] = useState<'format' | 'provider'>('format');
   const [selectedFormat, setSelectedFormat] = useState<string>('openai');
   const [providers, setProviders] = useState<ProviderCatalogEntry[]>([]);
   const [filteredProviders, setFilteredProviders] = useState<ProviderCatalogEntry[]>([]);
@@ -49,12 +23,15 @@ export default function ProviderCatalogPicker({ onSelect, onCancel }: ProviderCa
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const formatOptions = [
+    { value: 'openai', label: 'OpenAI Compatible' },
+    { value: 'anthropic', label: 'Anthropic Compatible' },
+  ];
+
   // Fetch providers when format changes
   useEffect(() => {
-    if (step === 'provider' && selectedFormat) {
-      fetchProviders(selectedFormat);
-    }
-  }, [step, selectedFormat]);
+    fetchProviders(selectedFormat);
+  }, [selectedFormat]);
 
   // Filter providers based on search query
   useEffect(() => {
@@ -74,35 +51,30 @@ export default function ProviderCatalogPicker({ onSelect, onCancel }: ProviderCa
     setLoading(true);
     setError(null);
     try {
-      const response = await fetch(`/config/provider-catalog?format=${format}`);
-      if (!response.ok) {
-        throw new Error('Failed to fetch providers');
-      }
-      const data = await response.json();
-      setProviders(data);
-      setFilteredProviders(data);
+      const { data } = await getProviderCatalog({
+        query: { format },
+        throwOnError: true,
+      });
+      setProviders(data || []);
+      setFilteredProviders(data || []);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unknown error');
     } finally {
       setLoading(false);
     }
-  };
-
-  const handleFormatSelect = (format: string) => {
-    setSelectedFormat(format);
-    setStep('provider');
   };
 
   const handleProviderSelect = async (providerId: string) => {
     setLoading(true);
     setError(null);
     try {
-      const response = await fetch(`/config/provider-catalog/${providerId}`);
-      if (!response.ok) {
-        throw new Error('Failed to fetch provider template');
+      const { data: template } = await getProviderCatalogTemplate({
+        path: { id: providerId },
+        throwOnError: true,
+      });
+      if (template) {
+        onSelect(template);
       }
-      const template: ProviderTemplate = await response.json();
-      onSelect(template);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unknown error');
     } finally {
@@ -110,95 +82,37 @@ export default function ProviderCatalogPicker({ onSelect, onCancel }: ProviderCa
     }
   };
 
-  if (step === 'format') {
-    return (
-      <div className="space-y-4">
-        <div>
-          <h3 className="text-lg font-semibold text-textStandard mb-2">Choose Provider Format</h3>
-          <p className="text-sm text-textSubtle mb-4">
-            Select the API format that your provider implements. Most providers use
-            OpenAI-compatible format.
-          </p>
-        </div>
-
-        <div className="space-y-3">
-          <button
-            onClick={() => handleFormatSelect('openai')}
-            className="w-full p-4 text-left border border-border rounded-lg hover:bg-surfaceHover transition-colors"
-          >
-            <div className="flex items-center justify-between">
-              <div>
-                <div className="font-medium text-textStandard">OpenAI Compatible</div>
-                <div className="text-sm text-textSubtle mt-1">
-                  Most widely supported format (57+ providers)
-                </div>
-              </div>
-              <div className="text-xs text-textSubtle bg-surfaceHover px-2 py-1 rounded">
-                Recommended
-              </div>
-            </div>
-          </button>
-
-          <button
-            onClick={() => handleFormatSelect('anthropic')}
-            className="w-full p-4 text-left border border-border rounded-lg hover:bg-surfaceHover transition-colors"
-          >
-            <div className="flex items-center justify-between">
-              <div>
-                <div className="font-medium text-textStandard">Anthropic Compatible</div>
-                <div className="text-sm text-textSubtle mt-1">
-                  For providers implementing Claude's API format (6+ providers)
-                </div>
-              </div>
-            </div>
-          </button>
-
-          <button
-            onClick={() => handleFormatSelect('ollama')}
-            className="w-full p-4 text-left border border-border rounded-lg hover:bg-surfaceHover transition-colors"
-          >
-            <div className="flex items-center justify-between">
-              <div>
-                <div className="font-medium text-textStandard">Ollama Compatible</div>
-                <div className="text-sm text-textSubtle mt-1">
-                  For local model hosting with Ollama API
-                </div>
-              </div>
-            </div>
-          </button>
-        </div>
-
-        <div className="flex justify-end space-x-2 pt-4 border-t border-border">
-          <Button type="button" variant="outline" onClick={onCancel}>
-            Cancel
-          </Button>
-        </div>
-      </div>
-    );
-  }
-
   return (
     <div className="space-y-4">
+      {/* Header */}
       <div>
-        <Button
-          type="button"
-          variant="ghost"
-          size="sm"
-          onClick={() => setStep('format')}
-          className="mb-2"
-        >
-          ← Back to format selection
-        </Button>
         <h3 className="text-lg font-semibold text-textStandard mb-2">Choose Provider</h3>
         <p className="text-sm text-textSubtle">
-          Select a provider from the catalog. We'll auto-fill the configuration for you.
+          Select an API format and provider. We'll auto-fill the configuration for you.
         </p>
+      </div>
+
+      {/* Format Selection */}
+      <div>
+        <label className="text-sm font-medium text-textStandard mb-2 block">API Format</label>
+        <Select
+          options={formatOptions}
+          value={formatOptions.find((opt) => opt.value === selectedFormat)}
+          onChange={(option: unknown) => {
+            const selectedOption = option as { value: string; label: string } | null;
+            if (selectedOption && selectedOption.value) {
+              setSelectedFormat(selectedOption.value);
+            }
+          }}
+          isSearchable={false}
+        />
       </div>
 
       {/* Search */}
       <div className="relative">
         <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-textSubtle w-4 h-4" />
         <Input
+          type="text"
           placeholder="Search providers..."
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
@@ -215,7 +129,7 @@ export default function ProviderCatalogPicker({ onSelect, onCancel }: ProviderCa
         <div className="space-y-2 max-h-96 overflow-y-auto">
           {filteredProviders.length === 0 ? (
             <div className="text-center py-8 text-textSubtle">
-              No providers found for "{searchQuery}"
+              {searchQuery ? `No providers found for "${searchQuery}"` : 'No providers available'}
             </div>
           ) : (
             filteredProviders.map((provider) => (
@@ -254,7 +168,8 @@ export default function ProviderCatalogPicker({ onSelect, onCancel }: ProviderCa
         </div>
       )}
 
-      <div className="flex justify-end space-x-2 pt-4 border-t border-border">
+      {/* Actions */}
+      <div className="flex justify-end space-x-2 pt-4">
         <Button type="button" variant="outline" onClick={onCancel}>
           Cancel
         </Button>

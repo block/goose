@@ -59,7 +59,7 @@ impl ProviderFormat {
 }
 
 /// Provider catalog entry for API responses
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, utoipa::ToSchema)]
 pub struct ProviderCatalogEntry {
     pub id: String,
     pub name: String,
@@ -71,7 +71,7 @@ pub struct ProviderCatalogEntry {
 }
 
 /// Provider template for auto-filling custom provider form
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, utoipa::ToSchema)]
 pub struct ProviderTemplate {
     pub id: String,
     pub name: String,
@@ -83,7 +83,7 @@ pub struct ProviderTemplate {
     pub doc_url: String,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, utoipa::ToSchema)]
 pub struct ModelTemplate {
     pub id: String,
     pub name: String,
@@ -92,7 +92,7 @@ pub struct ModelTemplate {
     pub deprecated: bool,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, utoipa::ToSchema)]
 pub struct ModelCapabilities {
     pub tool_call: bool,
     pub reasoning: bool,
