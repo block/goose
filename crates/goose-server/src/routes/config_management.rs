@@ -448,7 +448,7 @@ pub struct ModelInfoData {
 
 #[derive(Serialize, ToSchema)]
 pub struct ModelInfoResponse {
-    pub model_info: Option<ModelInfoData>,
+    pub model_info: ModelInfoData,
     pub source: String,
 }
 
@@ -487,15 +487,11 @@ pub async fn get_canonical_model_info(
         };
 
         Ok(Json(ModelInfoResponse {
-            model_info: Some(model_info),
+            model_info,
             source: "canonical".to_string(),
         }))
     } else {
-        // Return success with None to indicate model not in canonical registry
-        Ok(Json(ModelInfoResponse {
-            model_info: None,
-            source: "canonical".to_string(),
-        }))
+        Err(StatusCode::NOT_FOUND)
     }
 }
 

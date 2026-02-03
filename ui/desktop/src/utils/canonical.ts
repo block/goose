@@ -14,15 +14,12 @@ export async function fetchCanonicalModelInfo(
   try {
     const response = await getCanonicalModelInfo({
       body: { provider, model },
-      throwOnError: false,
+      throwOnError: true,
     });
 
-    if (!response.data) {
-      return null;
-    }
-
-    return response.data.model_info ?? null;
+    return response.data.model_info;
   } catch {
+    // 404 means model not found in canonical registry
     return null;
   }
 }

@@ -638,7 +638,7 @@ export type ModelInfoQuery = {
 };
 
 export type ModelInfoResponse = {
-    model_info?: ModelInfoData | null;
+    model_info: ModelInfoData;
     source: string;
 };
 

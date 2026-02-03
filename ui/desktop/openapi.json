@@ -5086,16 +5086,12 @@
       "ModelInfoResponse": {
         "type": "object",
         "required": [
+          "model_info",
           "source"
         ],
         "properties": {
           "model_info": {
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/ModelInfoData"
-              }
-            ],
-            "nullable": true
+            "$ref": "#/components/schemas/ModelInfoData"
           },
           "source": {
             "type": "string"
