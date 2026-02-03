@@ -75,7 +75,10 @@ mod tests {
         assert!(matches!(export_err, ObservabilityError::ExportError { .. }));
 
         let metrics_err = ObservabilityError::metrics("counter overflow");
-        assert!(matches!(metrics_err, ObservabilityError::MetricsError { .. }));
+        assert!(matches!(
+            metrics_err,
+            ObservabilityError::MetricsError { .. }
+        ));
 
         let config_err = ObservabilityError::config("invalid interval");
         assert!(matches!(config_err, ObservabilityError::ConfigError { .. }));

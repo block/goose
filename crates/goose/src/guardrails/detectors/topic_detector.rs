@@ -21,9 +21,22 @@ static TOPIC_PATTERNS: Lazy<HashMap<&'static str, TopicPattern>> = Lazy::new(|| 
             name: "violence",
             severity: Severity::High,
             keywords: vec![
-                "kill", "murder", "assault", "attack", "stab", "shoot",
-                "bomb", "explosion", "massacre", "torture", "harm",
-                "weapon", "violent", "hurt", "injure", "wound",
+                "kill",
+                "murder",
+                "assault",
+                "attack",
+                "stab",
+                "shoot",
+                "bomb",
+                "explosion",
+                "massacre",
+                "torture",
+                "harm",
+                "weapon",
+                "violent",
+                "hurt",
+                "injure",
+                "wound",
             ],
             phrases: vec![
                 "how to kill",
@@ -41,9 +54,20 @@ static TOPIC_PATTERNS: Lazy<HashMap<&'static str, TopicPattern>> = Lazy::new(|| 
             name: "illegal_activities",
             severity: Severity::Critical,
             keywords: vec![
-                "illegal", "crime", "criminal", "theft", "steal", "fraud",
-                "smuggling", "trafficking", "counterfeiting", "hacking",
-                "piracy", "embezzlement", "bribery", "extortion",
+                "illegal",
+                "crime",
+                "criminal",
+                "theft",
+                "steal",
+                "fraud",
+                "smuggling",
+                "trafficking",
+                "counterfeiting",
+                "hacking",
+                "piracy",
+                "embezzlement",
+                "bribery",
+                "extortion",
             ],
             phrases: vec![
                 "how to hack",
@@ -62,8 +86,14 @@ static TOPIC_PATTERNS: Lazy<HashMap<&'static str, TopicPattern>> = Lazy::new(|| 
             name: "self_harm",
             severity: Severity::Critical,
             keywords: vec![
-                "suicide", "self-harm", "cutting", "overdose", "kill myself",
-                "end my life", "die", "death wish",
+                "suicide",
+                "self-harm",
+                "cutting",
+                "overdose",
+                "kill myself",
+                "end my life",
+                "die",
+                "death wish",
             ],
             phrases: vec![
                 "want to die",
@@ -82,15 +112,20 @@ static TOPIC_PATTERNS: Lazy<HashMap<&'static str, TopicPattern>> = Lazy::new(|| 
             name: "hate_speech",
             severity: Severity::High,
             keywords: vec![
-                "racist", "racism", "sexist", "sexism", "homophobic",
-                "transphobic", "xenophobic", "discriminate", "supremacy",
-                "hate", "bigot", "slur",
+                "racist",
+                "racism",
+                "sexist",
+                "sexism",
+                "homophobic",
+                "transphobic",
+                "xenophobic",
+                "discriminate",
+                "supremacy",
+                "hate",
+                "bigot",
+                "slur",
             ],
-            phrases: vec![
-                "inferior race",
-                "hate group",
-                "ethnic cleansing",
-            ],
+            phrases: vec!["inferior race", "hate group", "ethnic cleansing"],
         },
     );
 
@@ -100,8 +135,16 @@ static TOPIC_PATTERNS: Lazy<HashMap<&'static str, TopicPattern>> = Lazy::new(|| 
             name: "drugs",
             severity: Severity::Medium,
             keywords: vec![
-                "cocaine", "heroin", "methamphetamine", "meth", "fentanyl",
-                "mdma", "lsd", "ecstasy", "opioid", "narcotic",
+                "cocaine",
+                "heroin",
+                "methamphetamine",
+                "meth",
+                "fentanyl",
+                "mdma",
+                "lsd",
+                "ecstasy",
+                "opioid",
+                "narcotic",
             ],
             phrases: vec![
                 "how to make drugs",
@@ -119,14 +162,15 @@ static TOPIC_PATTERNS: Lazy<HashMap<&'static str, TopicPattern>> = Lazy::new(|| 
             name: "explicit_content",
             severity: Severity::Medium,
             keywords: vec![
-                "pornography", "explicit", "nsfw", "xxx", "adult content",
-                "sexual content", "erotic",
+                "pornography",
+                "explicit",
+                "nsfw",
+                "xxx",
+                "adult content",
+                "sexual content",
+                "erotic",
             ],
-            phrases: vec![
-                "sexual fantasy",
-                "explicit scene",
-                "adult story",
-            ],
+            phrases: vec!["sexual fantasy", "explicit scene", "adult story"],
         },
     );
 
@@ -136,14 +180,16 @@ static TOPIC_PATTERNS: Lazy<HashMap<&'static str, TopicPattern>> = Lazy::new(|| 
             name: "gambling",
             severity: Severity::Low,
             keywords: vec![
-                "gambling", "casino", "betting", "wager", "poker",
-                "slot machine", "lottery", "bookmaker",
+                "gambling",
+                "casino",
+                "betting",
+                "wager",
+                "poker",
+                "slot machine",
+                "lottery",
+                "bookmaker",
             ],
-            phrases: vec![
-                "gambling strategy",
-                "beat the casino",
-                "winning system",
-            ],
+            phrases: vec!["gambling strategy", "beat the casino", "winning system"],
         },
     );
 
@@ -153,8 +199,11 @@ static TOPIC_PATTERNS: Lazy<HashMap<&'static str, TopicPattern>> = Lazy::new(|| 
             name: "financial_advice",
             severity: Severity::Low,
             keywords: vec![
-                "investment advice", "stock tip", "guarantee returns",
-                "get rich quick", "insider trading",
+                "investment advice",
+                "stock tip",
+                "guarantee returns",
+                "get rich quick",
+                "insider trading",
             ],
             phrases: vec![
                 "guaranteed profit",
@@ -171,8 +220,11 @@ static TOPIC_PATTERNS: Lazy<HashMap<&'static str, TopicPattern>> = Lazy::new(|| 
             name: "medical_advice",
             severity: Severity::Medium,
             keywords: vec![
-                "prescription", "diagnosis", "treatment for",
-                "cure for", "medical advice",
+                "prescription",
+                "diagnosis",
+                "treatment for",
+                "cure for",
+                "medical advice",
             ],
             phrases: vec![
                 "prescribe medication",
@@ -189,14 +241,14 @@ static TOPIC_PATTERNS: Lazy<HashMap<&'static str, TopicPattern>> = Lazy::new(|| 
             name: "legal_advice",
             severity: Severity::Low,
             keywords: vec![
-                "legal advice", "sue someone", "lawsuit", "attorney",
-                "legal strategy", "court case",
+                "legal advice",
+                "sue someone",
+                "lawsuit",
+                "attorney",
+                "legal strategy",
+                "court case",
             ],
-            phrases: vec![
-                "should I sue",
-                "legal defense",
-                "avoid prosecution",
-            ],
+            phrases: vec!["should I sue", "legal defense", "avoid prosecution"],
         },
     );
 
@@ -225,16 +277,18 @@ impl TopicDetector {
 
     /// Check if a topic is in the banned list
     fn is_banned(&self, topic: &str) -> bool {
-        self.config.banned_topics.iter().any(|t| {
-            t.eq_ignore_ascii_case(topic) || topic.eq_ignore_ascii_case(t)
-        })
+        self.config
+            .banned_topics
+            .iter()
+            .any(|t| t.eq_ignore_ascii_case(topic) || topic.eq_ignore_ascii_case(t))
     }
 
     /// Check if a topic is in the allowed list
     fn is_allowed(&self, topic: &str) -> bool {
-        self.config.allowed_topics.iter().any(|t| {
-            t.eq_ignore_ascii_case(topic) || topic.eq_ignore_ascii_case(t)
-        })
+        self.config
+            .allowed_topics
+            .iter()
+            .any(|t| t.eq_ignore_ascii_case(topic) || topic.eq_ignore_ascii_case(t))
     }
 
     /// Detect topics in input text
@@ -286,7 +340,6 @@ impl TopicDetector {
     }
 }
 
-
 #[async_trait]
 impl Detector for TopicDetector {
     fn name(&self) -> &'static str {
@@ -325,12 +378,7 @@ impl Detector for TopicDetector {
         let evidence: Vec<String> = detected_topics
             .iter()
             .map(|(topic, severity, matches)| {
-                format!(
-                    "Topic '{}' ({:?}): {}",
-                    topic,
-                    severity,
-                    matches.join(", ")
-                )
+                format!("Topic '{}' ({:?}): {}", topic, severity, matches.join(", "))
             })
             .collect();
 
@@ -343,14 +391,16 @@ impl Detector for TopicDetector {
         };
 
         let topic_boost = ((detected_topics.len() - 1) as f64 * 0.03).min(0.09);
-        let confidence =
-            (base_confidence + topic_boost) * self.config.sensitivity.multiplier();
+        let confidence = (base_confidence + topic_boost) * self.config.sensitivity.multiplier();
 
         let detected = confidence >= self.config.confidence_threshold;
 
         // Build metadata
         let mut metadata = std::collections::HashMap::new();
-        let topics: Vec<String> = detected_topics.iter().map(|(t, _, _)| t.to_string()).collect();
+        let topics: Vec<String> = detected_topics
+            .iter()
+            .map(|(t, _, _)| t.to_string())
+            .collect();
         metadata.insert("topics_found".to_string(), serde_json::json!(topics));
 
         Ok(DetectionResult {
@@ -477,7 +527,9 @@ mod tests {
         // Gambling should not trigger in allowlist mode when it's allowed
         // Note: In allowlist mode, topics NOT in the allow list are blocked
         // The implementation blocks everything except allowed topics
-        assert!(!gambling_result.detected || gambling_result.confidence < gambling_result.threshold);
+        assert!(
+            !gambling_result.detected || gambling_result.confidence < gambling_result.threshold
+        );
     }
 
     #[tokio::test]
@@ -511,6 +563,10 @@ mod tests {
             .unwrap();
 
         assert!(result.detected);
-        assert!(result.evidence.len() >= 2, "Expected 2+ evidence items, got: {:?}", result.evidence); // Both topics detected
+        assert!(
+            result.evidence.len() >= 2,
+            "Expected 2+ evidence items, got: {:?}",
+            result.evidence
+        ); // Both topics detected
     }
 }

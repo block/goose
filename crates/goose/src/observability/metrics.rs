@@ -74,13 +74,7 @@ impl GenAiMetrics {
     }
 
     /// Record a GenAI request
-    pub fn record_request(
-        &self,
-        model: &str,
-        usage: &TokenUsage,
-        duration_ms: f64,
-        success: bool,
-    ) {
+    pub fn record_request(&self, model: &str, usage: &TokenUsage, duration_ms: f64, success: bool) {
         let attributes = &[
             KeyValue::new("gen_ai.request.model", model.to_string()),
             KeyValue::new("gen_ai.operation.name", "chat"),
@@ -95,10 +89,13 @@ impl GenAiMetrics {
 
         // Record token usage
         let model_attr = &[KeyValue::new("gen_ai.request.model", model.to_string())];
-        self.input_tokens_counter.add(usage.input_tokens, model_attr);
-        self.output_tokens_counter.add(usage.output_tokens, model_attr);
+        self.input_tokens_counter
+            .add(usage.input_tokens, model_attr);
+        self.output_tokens_counter
+            .add(usage.output_tokens, model_attr);
         if usage.cached_tokens > 0 {
-            self.cached_tokens_counter.add(usage.cached_tokens, model_attr);
+            self.cached_tokens_counter
+                .add(usage.cached_tokens, model_attr);
         }
 
         // Record tokens per request
@@ -363,8 +360,12 @@ mod tests {
 
         // Test both sub-metrics
         let usage = TokenUsage::new(100, 50);
-        metrics.genai.record_request("test-model", &usage, 100.0, true);
-        metrics.mcp.record_tool_call("test-tool", "test-server", 50.0, true);
+        metrics
+            .genai
+            .record_request("test-model", &usage, 100.0, true);
+        metrics
+            .mcp
+            .record_tool_call("test-tool", "test-server", 50.0, true);
     }
 
     #[test]

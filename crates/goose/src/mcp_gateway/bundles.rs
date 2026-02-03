@@ -254,9 +254,11 @@ impl BundleManager {
     /// Delete bundle
     pub async fn delete_bundle(&self, bundle_id: &str) -> Result<(), GatewayError> {
         let mut bundles = self.bundles.write().await;
-        let bundle = bundles.remove(bundle_id).ok_or_else(|| GatewayError::BundleNotFound {
-            bundle_id: bundle_id.to_string(),
-        })?;
+        let bundle = bundles
+            .remove(bundle_id)
+            .ok_or_else(|| GatewayError::BundleNotFound {
+                bundle_id: bundle_id.to_string(),
+            })?;
 
         // Update user mappings
         let mut user_bundles = self.user_bundles.write().await;

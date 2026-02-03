@@ -97,22 +97,27 @@ impl TemplateVariable {
         match self.var_type {
             VariableType::String => Ok(()),
             VariableType::Number => {
-                value.parse::<f64>()
+                value
+                    .parse::<f64>()
                     .map_err(|_| PromptError::invalid_variable(&self.name, "Not a valid number"))?;
                 Ok(())
             }
-            VariableType::Boolean => {
-                match value.to_lowercase().as_str() {
-                    "true" | "false" | "yes" | "no" | "1" | "0" => Ok(()),
-                    _ => Err(PromptError::invalid_variable(&self.name, "Not a valid boolean")),
-                }
-            }
+            VariableType::Boolean => match value.to_lowercase().as_str() {
+                "true" | "false" | "yes" | "no" | "1" | "0" => Ok(()),
+                _ => Err(PromptError::invalid_variable(
+                    &self.name,
+                    "Not a valid boolean",
+                )),
+            },
             VariableType::Array => {
                 // Basic validation - check if it looks like a comma-separated list
                 if value.contains(',') || value.len() > 0 {
                     Ok(())
                 } else {
-                    Err(PromptError::invalid_variable(&self.name, "Array cannot be empty"))
+                    Err(PromptError::invalid_variable(
+                        &self.name,
+                        "Array cannot be empty",
+                    ))
                 }
             }
             VariableType::Object => {
@@ -120,7 +125,10 @@ impl TemplateVariable {
                 if value.starts_with('{') && value.ends_with('}') {
                     Ok(())
                 } else {
-                    Err(PromptError::invalid_variable(&self.name, "Should be a JSON object"))
+                    Err(PromptError::invalid_variable(
+                        &self.name,
+                        "Should be a JSON object",
+                    ))
                 }
             }
             VariableType::Any => Ok(()),
@@ -201,7 +209,7 @@ impl Template {
         // Replace variables
         for var in &self.variables {
             let placeholder = format!("{{{}}}", var.name);
-            
+
             let value = if let Some(provided) = variables.get(&var.name) {
                 provided.clone()
             } else if let Some(default) = &var.default {
@@ -220,10 +228,11 @@ impl Template {
                 .skip(1)
                 .filter_map(|s| s.split('}').next())
                 .collect();
-            
+
             if !remaining.is_empty() {
                 return Err(PromptError::template_parse(format!(
-                    "Undefined variables: {}", remaining.join(", ")
+                    "Undefined variables: {}",
+                    remaining.join(", ")
                 )));
             }
         }
@@ -644,7 +653,7 @@ mod tests {
     #[test]
     fn test_template_engine_defaults() {
         let engine = TemplateEngine::default();
-        
+
         assert!(engine.template_count() > 0);
         assert!(engine.get("system_message").is_some());
         assert!(engine.get("code_review").is_some());

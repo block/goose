@@ -13,37 +13,22 @@ use std::collections::HashMap;
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum Action {
     /// Block the action
-    Block {
-        reason: String,
-    },
+    Block { reason: String },
 
     /// Warn but allow
-    Warn {
-        message: String,
-    },
+    Warn { message: String },
 
     /// Log an event
-    Log {
-        level: String,
-        message: String,
-    },
+    Log { level: String, message: String },
 
     /// Send a notification
-    Notify {
-        channel: String,
-        message: String,
-    },
+    Notify { channel: String, message: String },
 
     /// Require human approval
-    RequireApproval {
-        approvers: Vec<String>,
-    },
+    RequireApproval { approvers: Vec<String> },
 
     /// Modify a field value
-    Modify {
-        field: String,
-        value: Value,
-    },
+    Modify { field: String, value: Value },
 
     /// Rate limit
     RateLimit {
@@ -60,10 +45,7 @@ pub enum Action {
     },
 
     /// Add metadata to the event
-    AddMetadata {
-        key: String,
-        value: Value,
-    },
+    AddMetadata { key: String, value: Value },
 
     /// Execute a webhook
     Webhook {
@@ -258,7 +240,11 @@ impl ActionExecutor {
         Ok(ActionResult::success("block", reason))
     }
 
-    fn execute_warn(&self, message: &str, context: &ActionContext) -> Result<ActionResult, PolicyError> {
+    fn execute_warn(
+        &self,
+        message: &str,
+        context: &ActionContext,
+    ) -> Result<ActionResult, PolicyError> {
         let formatted = self.format_message(message, context);
         tracing::warn!("Policy warning: {}", formatted);
         Ok(ActionResult::success("warn", formatted))
@@ -294,21 +280,24 @@ impl ActionExecutor {
         tracing::info!("Notification to {}: {}", channel, formatted);
 
         // In a real implementation, this would send to Slack, email, etc.
-        Ok(ActionResult::success("notify", formatted)
-            .with_data("channel", channel))
+        Ok(ActionResult::success("notify", formatted).with_data("channel", channel))
     }
 
     fn execute_require_approval(&self, approvers: &[String]) -> Result<ActionResult, PolicyError> {
         tracing::info!("Requiring approval from: {:?}", approvers);
-        Ok(ActionResult::success("require_approval", "Approval required")
-            .with_data("approvers", approvers))
+        Ok(
+            ActionResult::success("require_approval", "Approval required")
+                .with_data("approvers", approvers),
+        )
     }
 
     fn execute_modify(&self, field: &str, value: &Value) -> Result<ActionResult, PolicyError> {
         tracing::debug!("Modifying field {}: {:?}", field, value);
-        Ok(ActionResult::success("modify", format!("Modified field {}", field))
-            .with_data("field", field)
-            .with_data("value", value.clone()))
+        Ok(
+            ActionResult::success("modify", format!("Modified field {}", field))
+                .with_data("field", field)
+                .with_data("value", value.clone()),
+        )
     }
 
     fn execute_rate_limit(
@@ -318,10 +307,7 @@ impl ActionExecutor {
         context: &ActionContext,
     ) -> Result<ActionResult, PolicyError> {
         // Generate a key based on event type and some identifier
-        let key = format!(
-            "rate_limit:{:?}",
-            context.event.event_type
-        );
+        let key = format!("rate_limit:{:?}", context.event.event_type);
 
         let now = std::time::Instant::now();
 
@@ -343,7 +329,10 @@ impl ActionExecutor {
         if state.count > max_requests {
             Ok(ActionResult::failure(
                 "rate_limit",
-                format!("Rate limit exceeded: {} requests in {} seconds", max_requests, window_secs),
+                format!(
+                    "Rate limit exceeded: {} requests in {} seconds",
+                    max_requests, window_secs
+                ),
             ))
         } else {
             Ok(ActionResult::success(
@@ -356,13 +345,18 @@ impl ActionExecutor {
     async fn execute_delay(&self, delay_ms: u64) -> Result<ActionResult, PolicyError> {
         tracing::debug!("Delaying for {}ms", delay_ms);
         tokio::time::sleep(tokio::time::Duration::from_millis(delay_ms)).await;
-        Ok(ActionResult::success("delay", format!("Delayed {}ms", delay_ms)))
+        Ok(ActionResult::success(
+            "delay",
+            format!("Delayed {}ms", delay_ms),
+        ))
     }
 
     fn execute_add_metadata(&self, key: &str, value: &Value) -> Result<ActionResult, PolicyError> {
         tracing::debug!("Adding metadata {}: {:?}", key, value);
-        Ok(ActionResult::success("add_metadata", format!("Added metadata {}", key))
-            .with_data(key, value.clone()))
+        Ok(
+            ActionResult::success("add_metadata", format!("Added metadata {}", key))
+                .with_data(key, value.clone()),
+        )
     }
 
     async fn execute_webhook(
@@ -374,7 +368,10 @@ impl ActionExecutor {
     ) -> Result<ActionResult, PolicyError> {
         // In a real implementation, this would make an HTTP request
         tracing::info!("Webhook {} {}", method, url);
-        Ok(ActionResult::success("webhook", format!("Webhook sent to {}", url)))
+        Ok(ActionResult::success(
+            "webhook",
+            format!("Webhook sent to {}", url),
+        ))
     }
 
     fn execute_custom(

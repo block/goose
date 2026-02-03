@@ -128,7 +128,8 @@ impl Observability {
 
         // Record metrics
         if self.config.genai_conventions_enabled {
-            self.genai_metrics.record_request(model, usage, duration_ms, success);
+            self.genai_metrics
+                .record_request(model, usage, duration_ms, success);
         }
     }
 
@@ -141,7 +142,8 @@ impl Observability {
         success: bool,
     ) {
         if self.config.mcp_metrics_enabled {
-            self.mcp_metrics.record_tool_call(tool_name, server_name, duration_ms, success);
+            self.mcp_metrics
+                .record_tool_call(tool_name, server_name, duration_ms, success);
         }
     }
 
@@ -155,7 +157,8 @@ impl Observability {
     /// Record MCP server connection change
     pub fn record_mcp_server_connection(&self, server_name: &str, connected: bool) {
         if self.config.mcp_metrics_enabled {
-            self.mcp_metrics.record_server_connection(server_name, connected);
+            self.mcp_metrics
+                .record_server_connection(server_name, connected);
         }
     }
 
@@ -165,7 +168,10 @@ impl Observability {
     }
 
     /// Export cost report
-    pub async fn export_cost_report(&self, format: ReportFormat) -> Result<String, ObservabilityError> {
+    pub async fn export_cost_report(
+        &self,
+        format: ReportFormat,
+    ) -> Result<String, ObservabilityError> {
         self.cost_tracker.export_report(format).await
     }
 
@@ -223,43 +229,50 @@ impl GenAiSpanBuilder {
 
     /// Set the GenAI system (e.g., "anthropic", "openai")
     pub fn system(mut self, system: &str) -> Self {
-        self.attributes.push(KeyValue::new(gen_ai::SYSTEM, system.to_string()));
+        self.attributes
+            .push(KeyValue::new(gen_ai::SYSTEM, system.to_string()));
         self
     }
 
     /// Set the request model
     pub fn request_model(mut self, model: &str) -> Self {
-        self.attributes.push(KeyValue::new(gen_ai::REQUEST_MODEL, model.to_string()));
+        self.attributes
+            .push(KeyValue::new(gen_ai::REQUEST_MODEL, model.to_string()));
         self
     }
 
     /// Set max tokens
     pub fn max_tokens(mut self, tokens: i64) -> Self {
-        self.attributes.push(KeyValue::new(gen_ai::REQUEST_MAX_TOKENS, tokens));
+        self.attributes
+            .push(KeyValue::new(gen_ai::REQUEST_MAX_TOKENS, tokens));
         self
     }
 
     /// Set temperature
     pub fn temperature(mut self, temp: f64) -> Self {
-        self.attributes.push(KeyValue::new(gen_ai::REQUEST_TEMPERATURE, temp));
+        self.attributes
+            .push(KeyValue::new(gen_ai::REQUEST_TEMPERATURE, temp));
         self
     }
 
     /// Set top_p
     pub fn top_p(mut self, top_p: f64) -> Self {
-        self.attributes.push(KeyValue::new(gen_ai::REQUEST_TOP_P, top_p));
+        self.attributes
+            .push(KeyValue::new(gen_ai::REQUEST_TOP_P, top_p));
         self
     }
 
     /// Set response ID
     pub fn response_id(mut self, id: &str) -> Self {
-        self.attributes.push(KeyValue::new(gen_ai::RESPONSE_ID, id.to_string()));
+        self.attributes
+            .push(KeyValue::new(gen_ai::RESPONSE_ID, id.to_string()));
         self
     }
 
     /// Set response model
     pub fn response_model(mut self, model: &str) -> Self {
-        self.attributes.push(KeyValue::new(gen_ai::RESPONSE_MODEL, model.to_string()));
+        self.attributes
+            .push(KeyValue::new(gen_ai::RESPONSE_MODEL, model.to_string()));
         self
     }
 
@@ -274,43 +287,50 @@ impl GenAiSpanBuilder {
 
     /// Set input tokens
     pub fn input_tokens(mut self, tokens: i64) -> Self {
-        self.attributes.push(KeyValue::new(gen_ai::USAGE_INPUT_TOKENS, tokens));
+        self.attributes
+            .push(KeyValue::new(gen_ai::USAGE_INPUT_TOKENS, tokens));
         self
     }
 
     /// Set output tokens
     pub fn output_tokens(mut self, tokens: i64) -> Self {
-        self.attributes.push(KeyValue::new(gen_ai::USAGE_OUTPUT_TOKENS, tokens));
+        self.attributes
+            .push(KeyValue::new(gen_ai::USAGE_OUTPUT_TOKENS, tokens));
         self
     }
 
     /// Set total tokens
     pub fn total_tokens(mut self, tokens: i64) -> Self {
-        self.attributes.push(KeyValue::new(gen_ai::USAGE_TOTAL_TOKENS, tokens));
+        self.attributes
+            .push(KeyValue::new(gen_ai::USAGE_TOTAL_TOKENS, tokens));
         self
     }
 
     /// Set cached tokens
     pub fn cached_tokens(mut self, tokens: i64) -> Self {
-        self.attributes.push(KeyValue::new(gen_ai::USAGE_CACHED_TOKENS, tokens));
+        self.attributes
+            .push(KeyValue::new(gen_ai::USAGE_CACHED_TOKENS, tokens));
         self
     }
 
     /// Set cost in USD
     pub fn cost_usd(mut self, cost: f64) -> Self {
-        self.attributes.push(KeyValue::new(gen_ai::USAGE_COST_USD, cost));
+        self.attributes
+            .push(KeyValue::new(gen_ai::USAGE_COST_USD, cost));
         self
     }
 
     /// Set tool name
     pub fn tool_name(mut self, name: &str) -> Self {
-        self.attributes.push(KeyValue::new(gen_ai::TOOL_NAME, name.to_string()));
+        self.attributes
+            .push(KeyValue::new(gen_ai::TOOL_NAME, name.to_string()));
         self
     }
 
     /// Set tool call ID
     pub fn tool_call_id(mut self, id: &str) -> Self {
-        self.attributes.push(KeyValue::new(gen_ai::TOOL_CALL_ID, id.to_string()));
+        self.attributes
+            .push(KeyValue::new(gen_ai::TOOL_CALL_ID, id.to_string()));
         self
     }
 
@@ -334,19 +354,22 @@ impl McpSpanBuilder {
 
     /// Set the server name
     pub fn server_name(mut self, name: &str) -> Self {
-        self.attributes.push(KeyValue::new(mcp::SERVER_NAME, name.to_string()));
+        self.attributes
+            .push(KeyValue::new(mcp::SERVER_NAME, name.to_string()));
         self
     }
 
     /// Set the server version
     pub fn server_version(mut self, version: &str) -> Self {
-        self.attributes.push(KeyValue::new(mcp::SERVER_VERSION, version.to_string()));
+        self.attributes
+            .push(KeyValue::new(mcp::SERVER_VERSION, version.to_string()));
         self
     }
 
     /// Set the transport type
     pub fn transport_type(mut self, transport: &str) -> Self {
-        self.attributes.push(KeyValue::new(mcp::TRANSPORT_TYPE, transport.to_string()));
+        self.attributes
+            .push(KeyValue::new(mcp::TRANSPORT_TYPE, transport.to_string()));
         self
     }
 
@@ -358,13 +381,15 @@ impl McpSpanBuilder {
 
     /// Set the resource count
     pub fn resource_count(mut self, count: i64) -> Self {
-        self.attributes.push(KeyValue::new(mcp::RESOURCE_COUNT, count));
+        self.attributes
+            .push(KeyValue::new(mcp::RESOURCE_COUNT, count));
         self
     }
 
     /// Set the prompt count
     pub fn prompt_count(mut self, count: i64) -> Self {
-        self.attributes.push(KeyValue::new(mcp::PROMPT_COUNT, count));
+        self.attributes
+            .push(KeyValue::new(mcp::PROMPT_COUNT, count));
         self
     }
 

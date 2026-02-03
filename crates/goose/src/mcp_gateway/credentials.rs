@@ -351,7 +351,9 @@ impl CredentialManager {
         credentials: Credentials,
         scope: CredentialScope,
     ) -> Result<(), GatewayError> {
-        self.store.store_credentials(server_id, credentials, scope).await
+        self.store
+            .store_credentials(server_id, credentials, scope)
+            .await
     }
 
     /// Delete credentials
@@ -449,7 +451,10 @@ mod tests {
             .unwrap();
 
         // Should not return expired credentials
-        let retrieved = store.get_credentials("server1", &user_context).await.unwrap();
+        let retrieved = store
+            .get_credentials("server1", &user_context)
+            .await
+            .unwrap();
 
         assert!(retrieved.is_none());
     }
@@ -467,7 +472,10 @@ mod tests {
             .unwrap();
 
         // Get credentials
-        let retrieved = manager.get_credentials("server1", &user_context).await.unwrap();
+        let retrieved = manager
+            .get_credentials("server1", &user_context)
+            .await
+            .unwrap();
         assert_eq!(retrieved.value, "test-key");
     }
 
@@ -477,7 +485,10 @@ mod tests {
         let user_context = UserContext::new("user1");
 
         let result = manager.get_credentials("nonexistent", &user_context).await;
-        assert!(matches!(result, Err(GatewayError::CredentialNotFound { .. })));
+        assert!(matches!(
+            result,
+            Err(GatewayError::CredentialNotFound { .. })
+        ));
     }
 
     #[test]
@@ -494,12 +505,12 @@ mod tests {
 
     #[test]
     fn test_credential_expiration() {
-        let not_expired = Credentials::api_key("key")
-            .with_expiration(Utc::now() + chrono::Duration::hours(1));
+        let not_expired =
+            Credentials::api_key("key").with_expiration(Utc::now() + chrono::Duration::hours(1));
         assert!(!not_expired.is_expired());
 
-        let expired = Credentials::api_key("key")
-            .with_expiration(Utc::now() - chrono::Duration::hours(1));
+        let expired =
+            Credentials::api_key("key").with_expiration(Utc::now() - chrono::Duration::hours(1));
         assert!(expired.is_expired());
 
         let no_expiry = Credentials::api_key("key");

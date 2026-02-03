@@ -362,7 +362,6 @@ impl SecretDetector {
     }
 }
 
-
 #[async_trait]
 impl Detector for SecretDetector {
     fn name(&self) -> &'static str {
@@ -387,7 +386,11 @@ impl Detector for SecretDetector {
         for pattern in SECRET_PATTERNS.iter() {
             for capture in pattern.regex.find_iter(input) {
                 let value = capture.as_str();
-                detected_secrets.push((pattern.secret_type, value.to_string(), pattern.description));
+                detected_secrets.push((
+                    pattern.secret_type,
+                    value.to_string(),
+                    pattern.description,
+                ));
 
                 if pattern.secret_type.severity() > max_severity {
                     max_severity = pattern.secret_type.severity();
@@ -426,8 +429,14 @@ impl Detector for SecretDetector {
             .collect::<std::collections::HashSet<_>>()
             .into_iter()
             .collect();
-        metadata.insert("secret_types_found".to_string(), serde_json::json!(secret_types));
-        metadata.insert("count".to_string(), serde_json::json!(detected_secrets.len()));
+        metadata.insert(
+            "secret_types_found".to_string(),
+            serde_json::json!(secret_types),
+        );
+        metadata.insert(
+            "count".to_string(),
+            serde_json::json!(detected_secrets.len()),
+        );
 
         let detected = confidence >= self.config.confidence_threshold;
 
@@ -487,7 +496,10 @@ mod tests {
         let context = DetectionContext::default();
 
         let result = detector
-            .detect("sk-proj-abcdefghijklmnopqrstuvwxyz123456789012345678", &context)
+            .detect(
+                "sk-proj-abcdefghijklmnopqrstuvwxyz123456789012345678",
+                &context,
+            )
             .await
             .unwrap();
 
@@ -501,7 +513,10 @@ mod tests {
         let context = DetectionContext::default();
 
         let result = detector
-            .detect("sk-ant-abcdefghijklmnopqrstuvwxyz123456789012345678", &context)
+            .detect(
+                "sk-ant-abcdefghijklmnopqrstuvwxyz123456789012345678",
+                &context,
+            )
             .await
             .unwrap();
 
@@ -613,7 +628,8 @@ mod tests {
         let detector = SecretDetector::default();
         let context = DetectionContext::default();
 
-        let input = "AWS key: AKIAIOSFODNN7EXAMPLE, GitHub: ghp_aBcDeFgHiJkLmNoPqRsTuVwXyZ1234567890";
+        let input =
+            "AWS key: AKIAIOSFODNN7EXAMPLE, GitHub: ghp_aBcDeFgHiJkLmNoPqRsTuVwXyZ1234567890";
         let result = detector.detect(input, &context).await.unwrap();
 
         assert!(result.detected);

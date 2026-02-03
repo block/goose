@@ -12,7 +12,9 @@ use std::collections::HashMap;
 use tokio::sync::RwLock;
 
 /// Rule severity levels
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Default, Serialize, Deserialize)]
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Default, Serialize, Deserialize,
+)]
 #[serde(rename_all = "snake_case")]
 pub enum Severity {
     /// Low severity
@@ -367,7 +369,10 @@ impl RuleEngine {
                     event: event.clone(),
                 };
 
-                match self.evaluate_rule_conditions(&rule.conditions, &context).await {
+                match self
+                    .evaluate_rule_conditions(&rule.conditions, &context)
+                    .await
+                {
                     Ok(result) if result.matched => {
                         matches.push(RuleMatch {
                             rule_id: rule.id.clone(),
@@ -473,7 +478,10 @@ mod tests {
             .with_data("tool_name", "bash")
             .with_data("arguments", serde_json::json!({"command": "ls -la"}));
 
-        assert_eq!(event.get_field("tool_name"), Some(&Value::String("bash".to_string())));
+        assert_eq!(
+            event.get_field("tool_name"),
+            Some(&Value::String("bash".to_string()))
+        );
         assert_eq!(
             event.get_field("arguments.command"),
             Some(&Value::String("ls -la".to_string()))
@@ -561,8 +569,7 @@ mod tests {
 
         engine.add_rule_set(rule_set).await;
 
-        let event = Event::new(EventType::ToolExecution)
-            .with_data("tool_name", "bash");
+        let event = Event::new(EventType::ToolExecution).with_data("tool_name", "bash");
 
         let result = engine.evaluate(&event).await.unwrap();
         assert!(result.matched);

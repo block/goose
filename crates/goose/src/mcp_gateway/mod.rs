@@ -38,8 +38,8 @@ pub use bundles::{Bundle, BundleManager, BundleStatus};
 pub use credentials::{CredentialManager, CredentialScope, CredentialStore, Credentials};
 pub use errors::GatewayError;
 pub use permissions::{
-    DefaultPolicy, PermissionCheckResult, PermissionDecision, PermissionManager,
-    PermissionPolicy, PermissionRule, Subject, UserContext,
+    DefaultPolicy, PermissionCheckResult, PermissionDecision, PermissionManager, PermissionPolicy,
+    PermissionRule, Subject, UserContext,
 };
 pub use router::{
     HealthReport, McpRouter, McpServerConfig, McpServerConnection, ServerEndpoint, ServerStatus,
@@ -206,9 +206,10 @@ impl McpGateway {
                 "",
                 &server_id,
             );
-            self.audit_logger.log(entry).await.map_err(|e| {
-                GatewayError::AuditError(e.to_string())
-            })?;
+            self.audit_logger
+                .log(entry)
+                .await
+                .map_err(|e| GatewayError::AuditError(e.to_string()))?;
         }
 
         Ok(server_id)
@@ -225,22 +226,29 @@ impl McpGateway {
                 "",
                 server_id,
             );
-            self.audit_logger.log(entry).await.map_err(|e| {
-                GatewayError::AuditError(e.to_string())
-            })?;
+            self.audit_logger
+                .log(entry)
+                .await
+                .map_err(|e| GatewayError::AuditError(e.to_string()))?;
         }
 
         Ok(())
     }
 
     /// List all available tools across all registered servers
-    pub async fn list_tools(&self, user_context: &UserContext) -> Result<Vec<ToolDefinition>, GatewayError> {
+    pub async fn list_tools(
+        &self,
+        user_context: &UserContext,
+    ) -> Result<Vec<ToolDefinition>, GatewayError> {
         let all_tools = self.router.list_tools().await;
 
         // Filter by permissions
         let mut allowed_tools = Vec::new();
         for tool in all_tools {
-            let result = self.permission_manager.check_permission(&tool.name, user_context).await;
+            let result = self
+                .permission_manager
+                .check_permission(&tool.name, user_context)
+                .await;
             if result.is_allowed() {
                 allowed_tools.push(tool);
             }
@@ -260,7 +268,10 @@ impl McpGateway {
         // Filter by permissions and calculate scores
         let mut results = Vec::new();
         for tool in matching_tools {
-            let result = self.permission_manager.check_permission(&tool.name, user_context).await;
+            let result = self
+                .permission_manager
+                .check_permission(&tool.name, user_context)
+                .await;
             if result.is_allowed() {
                 // Simple relevance score based on name match
                 let score = if tool.name.to_lowercase() == query.to_lowercase() {
@@ -276,7 +287,11 @@ impl McpGateway {
         }
 
         // Sort by score
-        results.sort_by(|a, b| b.score.partial_cmp(&a.score).unwrap_or(std::cmp::Ordering::Equal));
+        results.sort_by(|a, b| {
+            b.score
+                .partial_cmp(&a.score)
+                .unwrap_or(std::cmp::Ordering::Equal)
+        });
 
         Ok(results)
     }
@@ -295,7 +310,10 @@ impl McpGateway {
         let start = Instant::now();
 
         // 1. Check permissions
-        let permission_result = self.permission_manager.check_permission(tool_name, user_context).await;
+        let permission_result = self
+            .permission_manager
+            .check_permission(tool_name, user_context)
+            .await;
 
         match permission_result {
             PermissionCheckResult::Denied { reason } => {
@@ -337,13 +355,18 @@ impl McpGateway {
             .await
             .ok();
 
-        // 5. Execute tool (simulated - actual MCP transport would happen here)
-        let execution_result = self.simulate_tool_execution(tool_name, &arguments).await;
+        // 5. Execute tool via MCP router
+        let execution_result = self
+            .router
+            .execute_tool(tool_name, &arguments, &server.server_id)
+            .await;
 
         let duration_ms = start.elapsed().as_millis() as u64;
 
         // 6. Record statistics
-        self.router.record_tool_call(tool_name, duration_ms as f64).await;
+        self.router
+            .record_tool_call(tool_name, duration_ms as f64)
+            .await;
 
         // 7. Complete audit entry
         if let Some(entry) = audit_entry {
@@ -352,47 +375,20 @@ impl McpGateway {
                     let result_size = serde_json::to_string(&result.content)
                         .map(|s| s.len())
                         .unwrap_or(0);
-                    self.audit_logger.complete_success(entry, result_size, duration_ms)
+                    self.audit_logger
+                        .complete_success(entry, result_size, duration_ms)
                 }
-                Err(e) => {
-                    self.audit_logger.complete_failure(
-                        entry,
-                        "execution_error",
-                        &e.to_string(),
-                        duration_ms,
-                    )
-                }
+                Err(e) => self.audit_logger.complete_failure(
+                    entry,
+                    "execution_error",
+                    &e.to_string(),
+                    duration_ms,
+                ),
             };
             self.audit_logger.log(completed_entry).await.ok();
         }
 
         execution_result
-    }
-
-    /// Simulate tool execution (placeholder for actual MCP transport)
-    async fn simulate_tool_execution(
-        &self,
-        tool_name: &str,
-        arguments: &serde_json::Value,
-    ) -> Result<ToolResult, GatewayError> {
-        // In a real implementation, this would:
-        // 1. Connect to the MCP server via the appropriate transport
-        // 2. Send the tool call request
-        // 3. Wait for response
-        // 4. Return the result
-
-        // For now, return a simulated success
-        Ok(ToolResult {
-            tool_name: tool_name.to_string(),
-            success: true,
-            content: serde_json::json!({
-                "status": "simulated",
-                "arguments_received": arguments,
-            }),
-            execution_ms: 10,
-            server_id: "simulated".to_string(),
-            error: None,
-        })
     }
 
     /// Health check all servers
@@ -541,12 +537,19 @@ mod tests {
             tags: vec![],
             metadata: std::collections::HashMap::new(),
         };
-        gateway.router.register_tools("test-server", vec![tool]).await;
+        gateway
+            .router
+            .register_tools("test-server", vec![tool])
+            .await;
 
         // Execute tool
         let user_context = UserContext::new("user1");
         let result = gateway
-            .execute_tool("test_tool", serde_json::json!({"arg": "value"}), &user_context)
+            .execute_tool(
+                "test_tool",
+                serde_json::json!({"arg": "value"}),
+                &user_context,
+            )
             .await
             .unwrap();
 
@@ -614,6 +617,7 @@ mod tests {
                 decision: PermissionDecision::Allow,
                 conditions: vec![],
                 description: None,
+                approvers: vec![],
             }],
             priority: 100,
             enabled: true,

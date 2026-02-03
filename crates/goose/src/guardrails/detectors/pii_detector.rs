@@ -346,7 +346,12 @@ impl Detector for PiiDetector {
         let evidence: Vec<String> = detected_pii
             .iter()
             .map(|(pii_type, value, desc)| {
-                format!("{} ({}): {}", desc, pii_type.as_str(), self.redact_value(value))
+                format!(
+                    "{} ({}): {}",
+                    desc,
+                    pii_type.as_str(),
+                    self.redact_value(value)
+                )
             })
             .collect();
 
@@ -361,10 +366,7 @@ impl Detector for PiiDetector {
             .collect::<HashSet<_>>()
             .into_iter()
             .collect();
-        metadata.insert(
-            "pii_types_found".to_string(),
-            serde_json::json!(pii_types),
-        );
+        metadata.insert("pii_types_found".to_string(), serde_json::json!(pii_types));
         metadata.insert("count".to_string(), serde_json::json!(detected_pii.len()));
 
         let detected = confidence >= self.config.confidence_threshold;
@@ -395,7 +397,10 @@ mod tests {
         let context = DetectionContext::default();
 
         let result = detector
-            .detect("My email is john.doe@example.com, please contact me", &context)
+            .detect(
+                "My email is john.doe@example.com, please contact me",
+                &context,
+            )
             .await
             .unwrap();
 

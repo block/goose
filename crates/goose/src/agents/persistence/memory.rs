@@ -171,7 +171,7 @@ mod tests {
 
         // Create multiple checkpoints
         for i in 0..5 {
-            let mut checkpoint = Checkpoint::new("thread-1", serde_json::json!({"count": i}));
+            let mut checkpoint = Checkpoint::new("thread-1", serde_json::json!({ "count": i }));
             checkpoint.metadata = CheckpointMetadata::for_step(i, "Test");
             cp.save(&checkpoint).await.unwrap();
         }
@@ -207,13 +207,13 @@ mod tests {
         for i in 0..5 {
             cp.save(&Checkpoint::new(
                 "thread-1",
-                serde_json::json!({"count": i}),
+                serde_json::json!({ "count": i }),
             ))
             .await
             .unwrap();
             cp.save(&Checkpoint::new(
                 "thread-2",
-                serde_json::json!({"count": i}),
+                serde_json::json!({ "count": i }),
             ))
             .await
             .unwrap();
@@ -237,7 +237,7 @@ mod tests {
         for i in 0..5 {
             cp.save(&Checkpoint::new(
                 "thread-1",
-                serde_json::json!({"count": i}),
+                serde_json::json!({ "count": i }),
             ))
             .await
             .unwrap();
@@ -255,7 +255,7 @@ mod tests {
         // Create a chain of checkpoints
         let mut parent_id: Option<String> = None;
         for i in 0..3 {
-            let mut checkpoint = Checkpoint::new("thread-1", serde_json::json!({"count": i}));
+            let mut checkpoint = Checkpoint::new("thread-1", serde_json::json!({ "count": i }));
             if let Some(pid) = parent_id {
                 checkpoint = checkpoint.with_parent(pid);
             }

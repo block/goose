@@ -128,10 +128,7 @@ static MODEL_PRICING: Lazy<HashMap<&str, ModelPricing>> = Lazy::new(|| {
         "gpt-4-turbo-preview",
         ModelPricing::with_cache_cost(0.01, 0.03, 0.0025),
     );
-    m.insert(
-        "gpt-4",
-        ModelPricing::with_cache_cost(0.03, 0.06, 0.0075),
-    );
+    m.insert("gpt-4", ModelPricing::with_cache_cost(0.03, 0.06, 0.0075));
     m.insert(
         "gpt-4-32k",
         ModelPricing::with_cache_cost(0.06, 0.12, 0.015),
@@ -467,9 +464,9 @@ impl CostTracker {
         };
 
         let mut costs = self.session_costs.write().await;
-        let session_cost = costs.entry(session_id.to_string()).or_insert_with(|| {
-            SessionCost::new(session_id)
-        });
+        let session_cost = costs
+            .entry(session_id.to_string())
+            .or_insert_with(|| SessionCost::new(session_id));
 
         session_cost.total_cost_usd += cost;
         session_cost.total_input_tokens += usage.input_tokens;
@@ -529,9 +526,8 @@ impl CostTracker {
         let costs = self.session_costs.read().await;
 
         match format {
-            ReportFormat::Json => {
-                serde_json::to_string_pretty(&*costs).map_err(ObservabilityError::SerializationError)
-            }
+            ReportFormat::Json => serde_json::to_string_pretty(&*costs)
+                .map_err(ObservabilityError::SerializationError),
             ReportFormat::Csv => self.to_csv(&costs),
             ReportFormat::Markdown => self.to_markdown(&costs),
         }
@@ -540,7 +536,9 @@ impl CostTracker {
     /// Convert to CSV format
     fn to_csv(&self, costs: &HashMap<String, SessionCost>) -> Result<String, ObservabilityError> {
         let mut csv = String::new();
-        csv.push_str("session_id,timestamp,model,input_tokens,output_tokens,cached_tokens,cost_usd\n");
+        csv.push_str(
+            "session_id,timestamp,model,input_tokens,output_tokens,cached_tokens,cost_usd\n",
+        );
 
         for session in costs.values() {
             for request in &session.requests {
@@ -568,10 +566,7 @@ impl CostTracker {
         let mut md = String::new();
 
         md.push_str("# Cost Report\n\n");
-        md.push_str(&format!(
-            "Generated: {}\n\n",
-            Utc::now().to_rfc3339()
-        ));
+        md.push_str(&format!("Generated: {}\n\n", Utc::now().to_rfc3339()));
 
         // Summary
         let total_cost: f64 = costs.values().map(|s| s.total_cost_usd).sum();
@@ -593,8 +588,14 @@ impl CostTracker {
             md.push_str(&format!("### Session: {}\n\n", session.session_id));
             md.push_str(&format!("- **Cost:** ${:.4}\n", session.total_cost_usd));
             md.push_str(&format!("- **Requests:** {}\n", session.requests.len()));
-            md.push_str(&format!("- **Input Tokens:** {}\n", session.total_input_tokens));
-            md.push_str(&format!("- **Output Tokens:** {}\n", session.total_output_tokens));
+            md.push_str(&format!(
+                "- **Input Tokens:** {}\n",
+                session.total_input_tokens
+            ));
+            md.push_str(&format!(
+                "- **Output Tokens:** {}\n",
+                session.total_output_tokens
+            ));
             md.push_str(&format!(
                 "- **Avg Cost/Request:** ${:.6}\n",
                 session.average_cost_per_request()
@@ -703,9 +704,7 @@ mod tests {
         let tracker = CostTracker::new();
 
         let usage = TokenUsage::new(1000, 500);
-        tracker
-            .record("session-1", &usage, "gpt-4o-mini")
-            .await;
+        tracker.record("session-1", &usage, "gpt-4o-mini").await;
 
         let session = tracker.get_session_cost("session-1").await.unwrap();
         assert_eq!(session.session_id, "session-1");

@@ -63,9 +63,8 @@ impl PolicyLoader {
 
     /// Parse policy content
     fn parse_content(&self, content: &str, source: &Path) -> Result<RuleSet, PolicyError> {
-        let rule_set: RuleSet = serde_yaml::from_str(content).map_err(|e| {
-            PolicyError::YamlParseError(serde_yaml::Error::from(e))
-        })?;
+        let rule_set: RuleSet = serde_yaml::from_str(content)
+            .map_err(|e| PolicyError::YamlParseError(serde_yaml::Error::from(e)))?;
 
         // Validate the rule set
         self.validate_rule_set(&rule_set, source)?;
@@ -162,39 +161,43 @@ impl PolicyWatcher {
         let (tx, rx) = mpsc::channel(100);
 
         let tx_clone = tx.clone();
-        let mut watcher = notify::recommended_watcher(move |res: Result<notify::Event, notify::Error>| {
-            match res {
-                Ok(event) => {
-                    for path in event.paths {
-                        // Only process YAML files
-                        if let Some(ext) = path.extension() {
-                            if ext == "yaml" || ext == "yml" {
-                                let change_event = match event.kind {
-                                    notify::EventKind::Create(_) | notify::EventKind::Modify(_) => {
-                                        PolicyChangeEvent::Modified(path.clone())
-                                    }
-                                    notify::EventKind::Remove(_) => {
-                                        PolicyChangeEvent::Removed(path.clone())
-                                    }
-                                    _ => continue,
-                                };
+        let mut watcher =
+            notify::recommended_watcher(move |res: Result<notify::Event, notify::Error>| {
+                match res {
+                    Ok(event) => {
+                        for path in event.paths {
+                            // Only process YAML files
+                            if let Some(ext) = path.extension() {
+                                if ext == "yaml" || ext == "yml" {
+                                    let change_event = match event.kind {
+                                        notify::EventKind::Create(_)
+                                        | notify::EventKind::Modify(_) => {
+                                            PolicyChangeEvent::Modified(path.clone())
+                                        }
+                                        notify::EventKind::Remove(_) => {
+                                            PolicyChangeEvent::Removed(path.clone())
+                                        }
+                                        _ => continue,
+                                    };
 
-                                if tx_clone.blocking_send(change_event).is_err() {
-                                    tracing::warn!("Failed to send policy change event");
+                                    if tx_clone.blocking_send(change_event).is_err() {
+                                        tracing::warn!("Failed to send policy change event");
+                                    }
                                 }
                             }
                         }
                     }
+                    Err(e) => {
+                        let _ = tx_clone.blocking_send(PolicyChangeEvent::Error(e.to_string()));
+                    }
                 }
-                Err(e) => {
-                    let _ = tx_clone.blocking_send(PolicyChangeEvent::Error(e.to_string()));
-                }
-            }
-        }).map_err(|e| PolicyError::Internal(e.to_string()))?;
+            })
+            .map_err(|e| PolicyError::Internal(e.to_string()))?;
 
         // Start watching the policy directory
         if policy_dir.exists() {
-            watcher.watch(&policy_dir, RecursiveMode::Recursive)
+            watcher
+                .watch(&policy_dir, RecursiveMode::Recursive)
                 .map_err(|e| PolicyError::Internal(e.to_string()))?;
         }
 

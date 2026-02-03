@@ -308,10 +308,7 @@ impl PrometheusExporter {
 
         // Header comment
         response.push_str("# Goose Observability Metrics\n");
-        response.push_str(&format!(
-            "# Generated at: {}\n\n",
-            Utc::now().to_rfc3339()
-        ));
+        response.push_str(&format!("# Generated at: {}\n\n", Utc::now().to_rfc3339()));
 
         // Cost metrics
         response.push_str(&self.export_cost_metrics(tracker).await);
@@ -370,19 +367,34 @@ impl GrafanaDashboard {
                     title: "Total Cost (USD)".to_string(),
                     panel_type: "stat".to_string(),
                     queries: vec!["goose_cost_total_usd".to_string()],
-                    grid_pos: GridPos { h: 4, w: 6, x: 0, y: 0 },
+                    grid_pos: GridPos {
+                        h: 4,
+                        w: 6,
+                        x: 0,
+                        y: 0,
+                    },
                 },
                 GrafanaPanel {
                     title: "Total Requests".to_string(),
                     panel_type: "stat".to_string(),
                     queries: vec!["goose_requests_total".to_string()],
-                    grid_pos: GridPos { h: 4, w: 6, x: 6, y: 0 },
+                    grid_pos: GridPos {
+                        h: 4,
+                        w: 6,
+                        x: 6,
+                        y: 0,
+                    },
                 },
                 GrafanaPanel {
                     title: "Active Sessions".to_string(),
                     panel_type: "stat".to_string(),
                     queries: vec!["goose_sessions_active".to_string()],
-                    grid_pos: GridPos { h: 4, w: 6, x: 12, y: 0 },
+                    grid_pos: GridPos {
+                        h: 4,
+                        w: 6,
+                        x: 12,
+                        y: 0,
+                    },
                 },
                 GrafanaPanel {
                     title: "Token Usage".to_string(),
@@ -391,13 +403,23 @@ impl GrafanaDashboard {
                         "goose_tokens_input_total".to_string(),
                         "goose_tokens_output_total".to_string(),
                     ],
-                    grid_pos: GridPos { h: 4, w: 6, x: 18, y: 0 },
+                    grid_pos: GridPos {
+                        h: 4,
+                        w: 6,
+                        x: 18,
+                        y: 0,
+                    },
                 },
                 GrafanaPanel {
                     title: "Cost Over Time".to_string(),
                     panel_type: "graph".to_string(),
                     queries: vec!["rate(goose_cost_total_usd[5m])".to_string()],
-                    grid_pos: GridPos { h: 8, w: 12, x: 0, y: 4 },
+                    grid_pos: GridPos {
+                        h: 8,
+                        w: 12,
+                        x: 0,
+                        y: 4,
+                    },
                 },
                 GrafanaPanel {
                     title: "Token Usage Over Time".to_string(),
@@ -406,19 +428,34 @@ impl GrafanaDashboard {
                         "rate(goose_tokens_input_total[5m])".to_string(),
                         "rate(goose_tokens_output_total[5m])".to_string(),
                     ],
-                    grid_pos: GridPos { h: 8, w: 12, x: 12, y: 4 },
+                    grid_pos: GridPos {
+                        h: 8,
+                        w: 12,
+                        x: 12,
+                        y: 4,
+                    },
                 },
                 GrafanaPanel {
                     title: "Cost by Session".to_string(),
                     panel_type: "table".to_string(),
                     queries: vec!["goose_session_cost_usd".to_string()],
-                    grid_pos: GridPos { h: 8, w: 12, x: 0, y: 12 },
+                    grid_pos: GridPos {
+                        h: 8,
+                        w: 12,
+                        x: 0,
+                        y: 12,
+                    },
                 },
                 GrafanaPanel {
                     title: "Cost by Model".to_string(),
                     panel_type: "piechart".to_string(),
                     queries: vec!["sum by (model) (goose_session_model_cost_usd)".to_string()],
-                    grid_pos: GridPos { h: 8, w: 12, x: 12, y: 12 },
+                    grid_pos: GridPos {
+                        h: 8,
+                        w: 12,
+                        x: 12,
+                        y: 12,
+                    },
                 },
             ],
         }

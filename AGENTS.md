@@ -130,6 +130,76 @@ Never: Skip cargo fmt
 Never: Merge without ./scripts/clippy-lint.sh
 Never: Comment self-evident operations (`// Initialize`, `// Return result`), getters/setters, constructors, or standard Rust idioms
 
+## Phase 7 Claude-Inspired Features
+
+### Task Graph (crates/goose/src/tasks/)
+DAG-based task management with dependencies, concurrency control, and persistence:
+- `Task`, `TaskGraph`, `TaskGraphConfig` - Core task management
+- `TaskPersistence` - Checkpoint/restore for long-running tasks
+- `TaskEventEmitter` - Event-driven task lifecycle
+
+### Hook System (crates/goose/src/hooks/)
+Deterministic lifecycle hooks (13 events) with validators:
+- `PreToolUse`, `PostToolUse`, `OnError`, `OnComplete` - Lifecycle events
+- `HookManager`, `HookConfig` - Hook registration and execution
+- `HookLogger` - Audit-proof logging (JSONL + human-readable)
+
+### Validators (crates/goose/src/validators/)
+Language-specific and security validators:
+- `RustValidator` - cargo build/test/clippy/fmt
+- `PythonValidator` - ruff/mypy/pyright
+- `JavaScriptValidator` - eslint/tsc
+- `SecurityValidator` - Secret detection, dangerous patterns
+- `ContentValidator` - File existence, TODO checking
+
+### Team Agents (crates/goose/src/agents/team/)
+Builder/Validator pairing with enforced roles:
+- `BuilderAgent` - Full write access, auto-validation
+- `ValidatorAgent` - Read-only verification
+- `TeamCoordinator` - Orchestrates build/validate workflows
+
+### Tool Search (crates/goose/src/tools/)
+Dynamic tool discovery (85% token reduction):
+- `ToolSearchTool` - On-demand tool discovery
+- `ToolRegistry` - Central tool management
+- `ProgrammaticToolCall` - Structured tool calling with validation
+
+### Compaction (crates/goose/src/compaction/)
+Context management for long conversations:
+- `CompactionManager` - Automatic context summarization
+- `CompactionConfig` - Trigger thresholds, preservation rules
+- Preserves critical messages while reducing tokens
+
+### Skills Pack (crates/goose/src/skills/)
+Installable enforcement modules:
+- `SkillPack` - Prompts, validators, gates
+- `SkillManager` - Discovery from .goose/skills/
+- `GateConfig` - Pre-complete validation commands
+
+### Status Line (crates/goose/src/status/)
+Real-time feedback for agent operations:
+- `StatusLine` - Ephemeral status updates
+- `StatusUpdate` - Reading, writing, executing states
+- `ToolExecutionStatus` - Progress tracking for tool calls
+
+### Subagents (crates/goose/src/subagents/)
+Task spawning and parallel execution:
+- `SubagentSpawner` - Spawn and track subagents
+- `SubagentConfig` - Type, instructions, timeout
+- `SubagentResult` - Artifacts and summaries
+
+### Agent Capabilities (crates/goose/src/agents/capabilities.rs)
+Unified integration of Phase 7 modules:
+- `AgentCapabilities` - Single interface for hooks, tasks, validators, tools
+- `CapabilitiesConfig` - Feature toggles
+- Hook integration for tool permission checks and done gates
+
+### Slash Commands (crates/goose/src/slash_commands.rs)
+Built-in and custom command handling:
+- 20 built-in commands (/help, /clear, /compact, /status, etc.)
+- `ParsedCommand` - Builtin, Recipe, or Unknown
+- Recipe-based custom commands
+
 ## Entry Points
 - CLI: crates/goose-cli/src/main.rs
 - Server: crates/goose-server/src/main.rs
@@ -141,3 +211,14 @@ Never: Comment self-evident operations (`// Initialize`, `// Return result`), ge
 - Prompts: crates/goose/src/prompts/mod.rs
 - Observability: crates/goose/src/observability/mod.rs
 - Policies: crates/goose/src/policies/mod.rs
+- Tasks: crates/goose/src/tasks/mod.rs
+- Hooks: crates/goose/src/hooks/mod.rs
+- Validators: crates/goose/src/validators/mod.rs
+- Team: crates/goose/src/agents/team/mod.rs
+- Tools: crates/goose/src/tools/mod.rs
+- Compaction: crates/goose/src/compaction/mod.rs
+- Skills: crates/goose/src/skills/mod.rs
+- Status: crates/goose/src/status/mod.rs
+- Subagents: crates/goose/src/subagents/mod.rs
+- Capabilities: crates/goose/src/agents/capabilities.rs
+- SlashCommands: crates/goose/src/slash_commands.rs

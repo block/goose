@@ -31,16 +31,10 @@ pub enum Condition {
     },
 
     /// Check if field matches a regex pattern
-    Matches {
-        field: String,
-        pattern: String,
-    },
+    Matches { field: String, pattern: String },
 
     /// Check if field equals a value
-    Equals {
-        field: String,
-        value: Value,
-    },
+    Equals { field: String, value: Value },
 
     /// Check if field starts with a prefix
     StartsWith {
@@ -59,120 +53,70 @@ pub enum Condition {
     },
 
     /// Check if field is empty or null
-    IsEmpty {
-        field: String,
-    },
+    IsEmpty { field: String },
 
     /// Check if field is not empty
-    IsNotEmpty {
-        field: String,
-    },
+    IsNotEmpty { field: String },
 
     // =========================================================================
     // Numeric Conditions
     // =========================================================================
     /// Check if field is greater than a value
-    GreaterThan {
-        field: String,
-        value: f64,
-    },
+    GreaterThan { field: String, value: f64 },
 
     /// Check if field is greater than or equal to a value
-    GreaterThanOrEqual {
-        field: String,
-        value: f64,
-    },
+    GreaterThanOrEqual { field: String, value: f64 },
 
     /// Check if field is less than a value
-    LessThan {
-        field: String,
-        value: f64,
-    },
+    LessThan { field: String, value: f64 },
 
     /// Check if field is less than or equal to a value
-    LessThanOrEqual {
-        field: String,
-        value: f64,
-    },
+    LessThanOrEqual { field: String, value: f64 },
 
     /// Check if field is between two values (inclusive)
-    Between {
-        field: String,
-        min: f64,
-        max: f64,
-    },
+    Between { field: String, min: f64, max: f64 },
 
     // =========================================================================
     // Collection Conditions
     // =========================================================================
     /// Check if field value is in a list
-    InList {
-        field: String,
-        values: Vec<Value>,
-    },
+    InList { field: String, values: Vec<Value> },
 
     /// Check if field value is not in a list
-    NotInList {
-        field: String,
-        values: Vec<Value>,
-    },
+    NotInList { field: String, values: Vec<Value> },
 
     /// Check if field (object) has a specific key
-    HasKey {
-        field: String,
-        key: String,
-    },
+    HasKey { field: String, key: String },
 
     /// Check if field (array) has a specific length
-    HasLength {
-        field: String,
-        length: usize,
-    },
+    HasLength { field: String, length: usize },
 
     /// Check if field (array) contains a value
-    ArrayContains {
-        field: String,
-        value: Value,
-    },
+    ArrayContains { field: String, value: Value },
 
     // =========================================================================
     // Temporal Conditions
     // =========================================================================
     /// Check if timestamp is before a datetime
-    Before {
-        field: String,
-        datetime: String,
-    },
+    Before { field: String, datetime: String },
 
     /// Check if timestamp is after a datetime
-    After {
-        field: String,
-        datetime: String,
-    },
+    After { field: String, datetime: String },
 
     /// Check if timestamp is within last N duration
-    WithinLast {
-        field: String,
-        duration: String,
-    },
+    WithinLast { field: String, duration: String },
 
     // =========================================================================
     // Logical Conditions
     // =========================================================================
     /// Logical AND of conditions
-    And {
-        conditions: Vec<Condition>,
-    },
+    And { conditions: Vec<Condition> },
 
     /// Logical OR of conditions
-    Or {
-        conditions: Vec<Condition>,
-    },
+    Or { conditions: Vec<Condition> },
 
     /// Logical NOT of a condition
-    Not {
-        condition: Box<Condition>,
-    },
+    Not { condition: Box<Condition> },
 
     // =========================================================================
     // Special Conditions
@@ -288,9 +232,7 @@ impl ConditionEvaluator {
                 self.eval_less_than_or_equal(field, *value, context)
             }
 
-            Condition::Between { field, min, max } => {
-                self.eval_between(field, *min, *max, context)
-            }
+            Condition::Between { field, min, max } => self.eval_between(field, *min, *max, context),
 
             // Collection conditions
             Condition::InList { field, values } => self.eval_in_list(field, values, context),
@@ -408,7 +350,9 @@ impl ConditionEvaluator {
         let matches = if case_sensitive {
             field_value.starts_with(value)
         } else {
-            field_value.to_lowercase().starts_with(&value.to_lowercase())
+            field_value
+                .to_lowercase()
+                .starts_with(&value.to_lowercase())
         };
 
         if matches {
@@ -446,7 +390,11 @@ impl ConditionEvaluator {
         }
     }
 
-    fn eval_is_empty(&self, field: &str, context: &ConditionContext) -> Result<ConditionResult, PolicyError> {
+    fn eval_is_empty(
+        &self,
+        field: &str,
+        context: &ConditionContext,
+    ) -> Result<ConditionResult, PolicyError> {
         let field_value = context.event.get_field(field);
 
         let is_empty = match field_value {
@@ -459,18 +407,28 @@ impl ConditionEvaluator {
         };
 
         if is_empty {
-            Ok(ConditionResult::matched(format!("Field '{}' is empty", field)))
+            Ok(ConditionResult::matched(format!(
+                "Field '{}' is empty",
+                field
+            )))
         } else {
             Ok(ConditionResult::not_matched())
         }
     }
 
-    fn eval_is_not_empty(&self, field: &str, context: &ConditionContext) -> Result<ConditionResult, PolicyError> {
+    fn eval_is_not_empty(
+        &self,
+        field: &str,
+        context: &ConditionContext,
+    ) -> Result<ConditionResult, PolicyError> {
         let result = self.eval_is_empty(field, context)?;
         if result.matched {
             Ok(ConditionResult::not_matched())
         } else {
-            Ok(ConditionResult::matched(format!("Field '{}' is not empty", field)))
+            Ok(ConditionResult::matched(format!(
+                "Field '{}' is not empty",
+                field
+            )))
         }
     }
 
@@ -579,12 +537,13 @@ impl ConditionEvaluator {
         values: &[Value],
         context: &ConditionContext,
     ) -> Result<ConditionResult, PolicyError> {
-        let field_value = context
-            .event
-            .get_field(field)
-            .ok_or_else(|| PolicyError::FieldNotFound {
-                field: field.to_string(),
-            })?;
+        let field_value =
+            context
+                .event
+                .get_field(field)
+                .ok_or_else(|| PolicyError::FieldNotFound {
+                    field: field.to_string(),
+                })?;
 
         if values.contains(field_value) {
             Ok(ConditionResult::matched(format!(
@@ -805,7 +764,11 @@ impl ConditionEvaluator {
     // Helper methods
     // =========================================================================
 
-    fn get_string_field(&self, field: &str, context: &ConditionContext) -> Result<String, PolicyError> {
+    fn get_string_field(
+        &self,
+        field: &str,
+        context: &ConditionContext,
+    ) -> Result<String, PolicyError> {
         let value = context
             .event
             .get_field(field)
@@ -825,7 +788,11 @@ impl ConditionEvaluator {
         }
     }
 
-    fn get_numeric_field(&self, field: &str, context: &ConditionContext) -> Result<f64, PolicyError> {
+    fn get_numeric_field(
+        &self,
+        field: &str,
+        context: &ConditionContext,
+    ) -> Result<f64, PolicyError> {
         let value = context
             .event
             .get_field(field)
@@ -899,9 +866,9 @@ impl ConditionEvaluator {
         }
 
         let (num_str, unit) = s.split_at(s.len() - 1);
-        let num: i64 = num_str
-            .parse()
-            .map_err(|_| PolicyError::evaluation(format!("Invalid duration number: {}", num_str)))?;
+        let num: i64 = num_str.parse().map_err(|_| {
+            PolicyError::evaluation(format!("Invalid duration number: {}", num_str))
+        })?;
 
         match unit {
             "s" => Ok(Duration::seconds(num)),
@@ -955,7 +922,10 @@ mod tests {
             .with_data("price", 19.99)
             .with_data("tags", vec!["admin", "dangerous"])
             .with_data("empty_string", "")
-            .with_data("config", serde_json::json!({"key": "value", "nested": {"deep": true}}));
+            .with_data(
+                "config",
+                serde_json::json!({"key": "value", "nested": {"deep": true}}),
+            );
 
         ConditionContext { event }
     }
@@ -1201,10 +1171,16 @@ mod tests {
         let evaluator = ConditionEvaluator::new();
         let context = create_test_context();
 
-        let always = evaluator.evaluate(&Condition::Always, &context).await.unwrap();
+        let always = evaluator
+            .evaluate(&Condition::Always, &context)
+            .await
+            .unwrap();
         assert!(always.matched);
 
-        let never = evaluator.evaluate(&Condition::Never, &context).await.unwrap();
+        let never = evaluator
+            .evaluate(&Condition::Never, &context)
+            .await
+            .unwrap();
         assert!(!never.matched);
     }
 
@@ -1212,9 +1188,18 @@ mod tests {
     fn test_parse_duration() {
         let evaluator = ConditionEvaluator::new();
 
-        assert_eq!(evaluator.parse_duration("5s").unwrap(), Duration::seconds(5));
-        assert_eq!(evaluator.parse_duration("30m").unwrap(), Duration::minutes(30));
-        assert_eq!(evaluator.parse_duration("24h").unwrap(), Duration::hours(24));
+        assert_eq!(
+            evaluator.parse_duration("5s").unwrap(),
+            Duration::seconds(5)
+        );
+        assert_eq!(
+            evaluator.parse_duration("30m").unwrap(),
+            Duration::minutes(30)
+        );
+        assert_eq!(
+            evaluator.parse_duration("24h").unwrap(),
+            Duration::hours(24)
+        );
         assert_eq!(evaluator.parse_duration("7d").unwrap(), Duration::days(7));
         assert_eq!(evaluator.parse_duration("2w").unwrap(), Duration::weeks(2));
     }

@@ -415,7 +415,10 @@ You should NOT:
             .with_description("Defines a clear role and persona for the AI")
             .with_required_variable("role")
             .with_required_variable("expertise")
-            .with_optional_variable("responsibilities", "- Answering questions accurately\n- Providing helpful guidance")
+            .with_optional_variable(
+                "responsibilities",
+                "- Answering questions accurately\n- Providing helpful guidance",
+            )
             .with_optional_variable("response_style", "clear and concise")
             .with_optional_variable("focus_areas", "practical solutions")
             .with_optional_variable("constraint_1", "Make claims without evidence")
@@ -559,7 +562,10 @@ Please provide the code with explanations for key decisions."#,
             .with_description("Structured code generation with requirements")
             .with_required_variable("language")
             .with_required_variable("task")
-            .with_optional_variable("requirements", "- Implement the core functionality\n- Include error handling")
+            .with_optional_variable(
+                "requirements",
+                "- Implement the core functionality\n- Include error handling",
+            )
             .with_use_case("Writing functions")
             .with_use_case("Building features")
             .combines_with_pattern("chain_of_thought"),
@@ -814,8 +820,7 @@ mod tests {
 
     #[test]
     fn test_pattern_render_missing_required() {
-        let pattern = Pattern::new("test", "Hello {name}")
-            .with_required_variable("name");
+        let pattern = Pattern::new("test", "Hello {name}").with_required_variable("name");
 
         let vars = HashMap::new();
         let result = pattern.render(&vars);
@@ -824,8 +829,7 @@ mod tests {
 
     #[test]
     fn test_pattern_builder() {
-        let pattern = Pattern::new("test", "Hello {name}!")
-            .with_required_variable("name");
+        let pattern = Pattern::new("test", "Hello {name}!").with_required_variable("name");
 
         let result = PatternBuilder::new(pattern)
             .set("name", "World")

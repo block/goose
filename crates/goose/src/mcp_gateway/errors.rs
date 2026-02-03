@@ -15,6 +15,14 @@ pub enum GatewayError {
     #[error("Server not available: {server_id}")]
     ServerNotAvailable { server_id: String },
 
+    /// Server not found
+    #[error("Server not found: {0}")]
+    ServerNotFound(String),
+
+    /// Server unavailable for execution
+    #[error("Server unavailable: {0}")]
+    ServerUnavailable(String),
+
     /// Server connection failed
     #[error("Server connection failed: {server_id} - {reason}")]
     ServerConnectionFailed { server_id: String, reason: String },

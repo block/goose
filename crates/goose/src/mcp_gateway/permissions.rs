@@ -2,7 +2,7 @@
 //!
 //! Function-level permissions for MCP tools.
 
-use chrono::{DateTime, Utc};
+use chrono::{DateTime, Timelike, Utc};
 use regex::Regex;
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
@@ -131,10 +131,7 @@ pub enum Condition {
     /// Argument contains condition
     ArgumentContains { arg_name: String, value: String },
     /// Rate limit condition
-    RateLimit {
-        max_calls: u32,
-        period_seconds: u64,
-    },
+    RateLimit { max_calls: u32, period_seconds: u64 },
     /// Custom condition
     Custom {
         name: String,
@@ -158,6 +155,48 @@ pub struct PermissionRule {
     pub conditions: Vec<Condition>,
     /// Rule description
     pub description: Option<String>,
+    /// Approvers for RequireApproval decisions
+    #[serde(default)]
+    pub approvers: Vec<String>,
+}
+
+impl Condition {
+    /// Evaluate condition against arguments
+    pub fn evaluate(&self, arguments: Option<&serde_json::Value>) -> bool {
+        match self {
+            Condition::TimeRange {
+                start_hour,
+                end_hour,
+                ..
+            } => {
+                let now = chrono::Utc::now();
+                let hour = now.hour();
+                hour >= *start_hour && hour < *end_hour
+            }
+            Condition::DayOfWeek { days } => {
+                let now = chrono::Utc::now();
+                let day = now.format("%A").to_string().to_lowercase();
+                days.iter().any(|d| d.to_lowercase() == day)
+            }
+            Condition::ArgumentEquals { arg_name, value } => arguments
+                .and_then(|args| args.get(arg_name))
+                .map(|v| v == value)
+                .unwrap_or(false),
+            Condition::ArgumentContains { arg_name, value } => arguments
+                .and_then(|args| args.get(arg_name))
+                .and_then(|v| v.as_str())
+                .map(|s| s.contains(value))
+                .unwrap_or(false),
+            Condition::RateLimit { .. } => {
+                // Rate limiting is handled separately by the gateway
+                true
+            }
+            Condition::Custom { .. } => {
+                // Custom conditions always pass unless explicitly handled
+                true
+            }
+        }
+    }
 }
 
 impl PermissionRule {
@@ -253,9 +292,9 @@ impl From<DefaultPolicy> for PermissionCheckResult {
             DefaultPolicy::Deny => PermissionCheckResult::Denied {
                 reason: "Default policy: deny".to_string(),
             },
-            DefaultPolicy::RequireApproval => PermissionCheckResult::RequiresApproval {
-                approvers: vec![],
-            },
+            DefaultPolicy::RequireApproval => {
+                PermissionCheckResult::RequiresApproval { approvers: vec![] }
+            }
         }
     }
 }
@@ -392,7 +431,13 @@ impl PermissionManager {
                     continue;
                 }
 
-                // TODO: Evaluate conditions
+                // Evaluate all conditions - all must pass for rule to apply
+                let conditions_met =
+                    rule.conditions.is_empty() || rule.conditions.iter().all(|c| c.evaluate(None));
+
+                if !conditions_met {
+                    continue;
+                }
 
                 match rule.decision {
                     PermissionDecision::Allow => {
@@ -408,7 +453,7 @@ impl PermissionManager {
                     }
                     PermissionDecision::RequireApproval => {
                         return PermissionCheckResult::RequiresApproval {
-                            approvers: vec![], // TODO: Get approvers from rule
+                            approvers: rule.approvers.clone(),
                         };
                     }
                 }
@@ -475,6 +520,7 @@ mod tests {
                 decision: PermissionDecision::Allow,
                 conditions: vec![],
                 description: None,
+                approvers: vec![],
             }],
             priority: 100,
             enabled: true,
@@ -510,6 +556,7 @@ mod tests {
                 decision: PermissionDecision::Allow,
                 conditions: vec![],
                 description: None,
+                approvers: vec![],
             }],
             priority: 100,
             enabled: true,
@@ -545,6 +592,7 @@ mod tests {
                 decision: PermissionDecision::Allow,
                 conditions: vec![],
                 description: None,
+                approvers: vec![],
             }],
             priority: 100,
             enabled: true,
@@ -554,12 +602,16 @@ mod tests {
 
         // DevOps group member should have access
         let devops_context = UserContext::new("user1").with_group("devops");
-        let result = manager.check_permission("deploy_staging", &devops_context).await;
+        let result = manager
+            .check_permission("deploy_staging", &devops_context)
+            .await;
         assert!(result.is_allowed());
 
         // Non-devops user should be denied
         let dev_context = UserContext::new("user2").with_group("developers");
-        let result = manager.check_permission("deploy_staging", &dev_context).await;
+        let result = manager
+            .check_permission("deploy_staging", &dev_context)
+            .await;
         assert!(result.is_denied());
     }
 
@@ -591,6 +643,7 @@ mod tests {
                 decision: PermissionDecision::Allow,
                 conditions: vec![],
                 description: None,
+                approvers: vec![],
             }],
             priority: 100,
             enabled: true,
@@ -648,6 +701,7 @@ mod tests {
                 decision: PermissionDecision::Deny,
                 conditions: vec![],
                 description: None,
+                approvers: vec![],
             }],
             priority: 10,
             enabled: true,
@@ -667,6 +721,7 @@ mod tests {
                 decision: PermissionDecision::Allow,
                 conditions: vec![],
                 description: None,
+                approvers: vec![],
             }],
             priority: 100, // Higher priority
             enabled: true,
@@ -695,6 +750,7 @@ mod tests {
             decision: PermissionDecision::Allow,
             conditions: vec![],
             description: None,
+            approvers: vec![],
         };
 
         assert!(rule.matches_tool("file_read"));
@@ -713,6 +769,7 @@ mod tests {
             decision: PermissionDecision::Allow,
             conditions: vec![],
             description: None,
+            approvers: vec![],
         };
 
         assert!(rule.matches_tool("bash"));

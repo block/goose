@@ -87,7 +87,10 @@ impl AuditRequest {
                         || key_lower.contains("key")
                         || key_lower.contains("credential")
                     {
-                        redacted.insert(key.clone(), serde_json::Value::String("[REDACTED]".to_string()));
+                        redacted.insert(
+                            key.clone(),
+                            serde_json::Value::String("[REDACTED]".to_string()),
+                        );
                     } else {
                         redacted.insert(key.clone(), Self::redact_arguments(value));
                     }

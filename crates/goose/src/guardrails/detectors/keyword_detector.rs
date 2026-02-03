@@ -41,7 +41,11 @@ impl KeywordDetector {
             let word_clean = word.trim_matches(|c: char| !c.is_alphanumeric());
 
             if self.config.case_sensitive {
-                if self.config.blocked_keywords.contains(&word_clean.to_string()) {
+                if self
+                    .config
+                    .blocked_keywords
+                    .contains(&word_clean.to_string())
+                {
                     matches.push((word_clean.to_string(), idx));
                 }
             } else if self.keywords_lower.contains(&word_clean.to_lowercase()) {
@@ -249,7 +253,10 @@ impl Detector for KeywordDetector {
             evidence.push(format!("Phrase match: \"{}\"", phrase));
         }
         for (word, keyword) in &fuzzy_matches {
-            evidence.push(format!("Fuzzy match: \"{}\" (similar to \"{}\")", word, keyword));
+            evidence.push(format!(
+                "Fuzzy match: \"{}\" (similar to \"{}\")",
+                word, keyword
+            ));
         }
 
         // Calculate confidence
@@ -260,17 +267,12 @@ impl Detector for KeywordDetector {
             0.0
         };
 
-        let fuzzy_confidence: f64 = if !fuzzy_matches.is_empty() {
-            0.75
-        } else {
-            0.0
-        };
+        let fuzzy_confidence: f64 = if !fuzzy_matches.is_empty() { 0.75 } else { 0.0 };
 
         let base_confidence = exact_confidence.max(fuzzy_confidence);
         let match_boost = ((total_matches - 1) as f64 * 0.02).min(0.04);
 
-        let confidence =
-            (base_confidence + match_boost) * self.config.sensitivity.multiplier();
+        let confidence = (base_confidence + match_boost) * self.config.sensitivity.multiplier();
 
         let detected = confidence >= self.config.confidence_threshold;
 
@@ -283,9 +285,18 @@ impl Detector for KeywordDetector {
 
         // Build metadata
         let mut metadata = std::collections::HashMap::new();
-        metadata.insert("exact_matches".to_string(), serde_json::json!(exact_matches.len()));
-        metadata.insert("phrase_matches".to_string(), serde_json::json!(phrase_matches.len()));
-        metadata.insert("fuzzy_matches".to_string(), serde_json::json!(fuzzy_matches.len()));
+        metadata.insert(
+            "exact_matches".to_string(),
+            serde_json::json!(exact_matches.len()),
+        );
+        metadata.insert(
+            "phrase_matches".to_string(),
+            serde_json::json!(phrase_matches.len()),
+        );
+        metadata.insert(
+            "fuzzy_matches".to_string(),
+            serde_json::json!(fuzzy_matches.len()),
+        );
 
         Ok(DetectionResult {
             detector_name: self.name().to_string(),
@@ -343,7 +354,11 @@ mod tests {
 
         for input in inputs {
             let result = detector.detect(input, &context).await.unwrap();
-            assert!(result.detected, "Should match case-insensitively: {}", input);
+            assert!(
+                result.detected,
+                "Should match case-insensitively: {}",
+                input
+            );
         }
     }
 
@@ -403,10 +418,7 @@ mod tests {
         let detector = KeywordDetector::with_config(config);
         let context = DetectionContext::default();
 
-        let result = detector
-            .detect("Any text here", &context)
-            .await
-            .unwrap();
+        let result = detector.detect("Any text here", &context).await.unwrap();
 
         assert!(!result.detected);
     }

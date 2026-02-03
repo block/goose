@@ -1,0 +1,7 @@
+# ty type checker configuration
+# https://docs.astral.sh/ty/configuration/
+
+[rules]
+# Ignore unresolved imports for inline scripts that use PEP 723 uv script dependencies
+# These dependencies are declared in script metadata and resolved at runtime by `uv run --script`
+unresolved-import = "ignore"
