@@ -62,8 +62,8 @@ Within each `.gooseignore` file, patterns are processed in order from top to bot
 # But allow error logs
 !error.log
 
-# Ignore the entire config directory
-config/
+# Ignore all JSON files in the config directory
+config/*.json
 
 # But allow the template
 !config/template.json
