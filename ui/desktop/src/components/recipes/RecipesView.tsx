@@ -14,6 +14,7 @@ import {
   Share2,
   Copy,
   Download,
+  Sparkles,
 } from 'lucide-react';
 import { ScrollArea } from '../ui/scroll-area';
 import { Card } from '../ui/card';
@@ -683,6 +684,15 @@ export default function RecipesView() {
               <div className="flex justify-between items-center mb-1">
                 <h1 className="text-4xl font-light">Recipes</h1>
                 <div className="flex gap-2">
+                  <Button
+                    onClick={() => setView('recipeBuilder')}
+                    variant="default"
+                    size="sm"
+                    className="flex items-center gap-2"
+                  >
+                    <Sparkles className="w-4 h-4" />
+                    Create with AI
+                  </Button>
                   <Button
                     onClick={() => setShowCreateDialog(true)}
                     variant="outline"

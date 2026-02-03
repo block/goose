@@ -43,6 +43,7 @@ import PermissionSettingsView from './components/settings/permission/PermissionS
 
 import ExtensionsView, { ExtensionsViewOptions } from './components/extensions/ExtensionsView';
 import RecipesView from './components/recipes/RecipesView';
+import RecipeBuilderView from './components/recipes/RecipeBuilderView';
 import AppsView from './components/apps/AppsView';
 import StandaloneAppView from './components/apps/StandaloneAppView';
 import { View, ViewOptions } from './utils/navigationUtils';
@@ -681,6 +682,7 @@ export function AppInner() {
               <Route path="sessions" element={<SessionsRoute />} />
               <Route path="schedules" element={<SchedulesRoute />} />
               <Route path="recipes" element={<RecipesRoute />} />
+              <Route path="recipe-builder" element={<RecipeBuilderView />} />
               <Route
                 path="shared-session"
                 element={
