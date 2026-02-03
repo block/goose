@@ -1594,6 +1594,142 @@
         }
       }
     },
+    "/dictation/models": {
+      "get": {
+        "tags": [
+          "super::routes::dictation"
+        ],
+        "operationId": "list_models",
+        "responses": {
+          "200": {
+            "description": "List of available Whisper models",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/WhisperModelResponse"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/dictation/models/{model_id}": {
+      "delete": {
+        "tags": [
+          "super::routes::dictation"
+        ],
+        "operationId": "delete_model",
+        "parameters": [
+          {
+            "name": "model_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Model deleted"
+          },
+          "404": {
+            "description": "Model not found or not downloaded"
+          },
+          "500": {
+            "description": "Failed to delete model"
+          }
+        }
+      }
+    },
+    "/dictation/models/{model_id}/download": {
+      "get": {
+        "tags": [
+          "super::routes::dictation"
+        ],
+        "operationId": "get_download_progress",
+        "parameters": [
+          {
+            "name": "model_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Download progress",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DownloadProgress"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Download not found"
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "super::routes::dictation"
+        ],
+        "operationId": "download_model",
+        "parameters": [
+          {
+            "name": "model_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "202": {
+            "description": "Download started"
+          },
+          "400": {
+            "description": "Download already in progress"
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "super::routes::dictation"
+        ],
+        "operationId": "cancel_download",
+        "parameters": [
+          {
+            "name": "model_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Download cancelled"
+          },
+          "404": {
+            "description": "Download not found"
+          }
+        }
+      }
+    },
     "/dictation/transcribe": {
       "post": {
         "tags": [
@@ -1628,7 +1764,7 @@
             "description": "Invalid API key"
           },
           "412": {
-            "description": "DictationProvider not configured"
+            "description": "Provider not configured"
           },
           "413": {
             "description": "Audio file too large (max 25MB)"
@@ -1640,7 +1776,7 @@
             "description": "Internal server error"
           },
           "502": {
-            "description": "DictationProvider API error"
+            "description": "Provider API error"
           },
           "503": {
             "description": "Service unavailable"
@@ -3677,7 +3813,9 @@
         "type": "string",
         "enum": [
           "openai",
-          "elevenlabs"
+          "elevenlabs",
+          "groq",
+          "local"
         ]
       },
       "DictationProviderStatus": {
@@ -3716,6 +3854,70 @@
             "description": "Whether this provider uses the main provider config (true) or has its own key (false)"
           }
         }
+      },
+      "DownloadProgress": {
+        "type": "object",
+        "required": [
+          "model_id",
+          "status",
+          "bytes_downloaded",
+          "total_bytes",
+          "progress_percent"
+        ],
+        "properties": {
+          "bytes_downloaded": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Bytes downloaded so far",
+            "minimum": 0
+          },
+          "error": {
+            "type": "string",
+            "description": "Error message if failed",
+            "nullable": true
+          },
+          "eta_seconds": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Estimated time remaining in seconds",
+            "nullable": true,
+            "minimum": 0
+          },
+          "model_id": {
+            "type": "string",
+            "description": "Model ID being downloaded"
+          },
+          "progress_percent": {
+            "type": "number",
+            "format": "float",
+            "description": "Download progress percentage (0-100)"
+          },
+          "speed_bps": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Download speed in bytes per second",
+            "nullable": true,
+            "minimum": 0
+          },
+          "status": {
+            "$ref": "#/components/schemas/DownloadStatus"
+          },
+          "total_bytes": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Total bytes to download",
+            "minimum": 0
+          }
+        }
+      },
+      "DownloadStatus": {
+        "type": "string",
+        "enum": [
+          "downloading",
+          "completed",
+          "failed",
+          "cancelled"
+        ]
       },
       "EmbeddedResource": {
         "type": "object",
@@ -7004,6 +7206,54 @@
             }
           }
         }
+      },
+      "WhisperModelResponse": {
+        "allOf": [
+          {
+            "type": "object",
+            "required": [
+              "id",
+              "size_mb",
+              "url",
+              "description"
+            ],
+            "properties": {
+              "description": {
+                "type": "string",
+                "description": "Description"
+              },
+              "id": {
+                "type": "string",
+                "description": "Model identifier (e.g., \"tiny\", \"base\", \"small\")"
+              },
+              "size_mb": {
+                "type": "integer",
+                "format": "int32",
+                "description": "Model file size in MB",
+                "minimum": 0
+              },
+              "url": {
+                "type": "string",
+                "description": "Download URL from HuggingFace"
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "downloaded",
+              "recommended"
+            ],
+            "properties": {
+              "downloaded": {
+                "type": "boolean"
+              },
+              "recommended": {
+                "type": "boolean"
+              }
+            }
+          }
+        ]
       },
       "WindowProps": {
         "type": "object",

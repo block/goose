@@ -110,7 +110,8 @@ impl CodeExecutionClient {
             .ok()?;
         let mut cfgs = vec![];
         for tool in tools {
-            let (server_name, tool_name) = tool.name.as_ref().split_once("__")?;
+            let full_name = tool.name.to_string();
+            let (server_name, tool_name) = full_name.split_once("__")?;
             cfgs.push(CallbackConfig {
                 name: tool_name.into(),
                 namespace: server_name.into(),

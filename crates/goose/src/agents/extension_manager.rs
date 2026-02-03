@@ -35,6 +35,7 @@ use super::types::SharedProvider;
 use crate::agents::extension::{Envs, ProcessExit};
 use crate::agents::extension_malware_check;
 use crate::agents::mcp_client::{McpClient, McpClientTrait};
+use crate::builtin_extension::get_builtin_extension;
 use crate::config::extensions::name_to_key;
 use crate::config::search_path::SearchPaths;
 use crate::config::{get_all_extensions, Config};
@@ -565,13 +566,10 @@ impl ExtensionManager {
             ExtensionConfig::Builtin { name, timeout, .. } => {
                 let timeout_duration = Duration::from_secs(timeout.unwrap_or(300));
                 let normalized_name = name_to_key(name);
-
-                if !goose_mcp::BUILTIN_EXTENSIONS.contains_key(normalized_name.as_str()) {
-                    return Err(ExtensionError::ConfigError(format!(
-                        "Unknown builtin extension: {}",
-                        name
-                    )));
-                }
+                let extension_fn =
+                    get_builtin_extension(normalized_name.as_str()).ok_or_else(|| {
+                        ExtensionError::ConfigError(format!("Unknown builtin extension: {}", name))
+                    })?;
 
                 if let Some(container) = container {
                     let container_id = container.id();
@@ -580,6 +578,7 @@ impl ExtensionManager {
                         builtin = %name,
                         "Starting builtin extension inside Docker container"
                     );
+                    let normalized_name = name_to_key(name);
                     let command = Command::new("docker").configure(|command| {
                         command
                             .arg("exec")
@@ -600,10 +599,6 @@ impl ExtensionManager {
                     .await?;
                     Box::new(client)
                 } else {
-                    let def = goose_mcp::BUILTIN_EXTENSIONS
-                        .get(normalized_name.as_str())
-                        .unwrap();
-
                     // Set GOOSE_WORKING_DIR in the current process for builtin extensions
                     // since they run in-process and read from std::env::var
                     if effective_working_dir.exists() && effective_working_dir.is_dir() {
@@ -616,7 +611,7 @@ impl ExtensionManager {
 
                     let (server_read, client_write) = tokio::io::duplex(65536);
                     let (client_read, server_write) = tokio::io::duplex(65536);
-                    (def.spawn_server)(server_read, server_write);
+                    extension_fn(server_read, server_write);
                     Box::new(
                         McpClient::connect(
                             (client_read, client_write),
@@ -796,7 +791,7 @@ impl ExtensionManager {
         tools
             .iter()
             .filter(|tool| {
-                let tool_prefix = tool.name.as_ref().split("__").next().unwrap_or("");
+                let tool_prefix = tool.name.split("__").next().unwrap_or("");
 
                 if let Some(ref excluded) = exclude_normalized {
                     if tool_prefix == excluded {
