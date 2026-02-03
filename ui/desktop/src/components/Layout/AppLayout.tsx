@@ -1,7 +1,7 @@
 import React from 'react';
 import { Outlet, useLocation } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Goose } from '../icons/Goose';
+import { Menu } from 'lucide-react';
 import { Button } from '../ui/button';
 import ChatSessionsContainer from '../ChatSessionsContainer';
 import { useChatContext } from '../../contexts/ChatContext';
@@ -112,13 +112,12 @@ const AppLayoutContent: React.FC<AppLayoutContentProps> = ({ activeSessions }) =
         {/* Navigation trigger */}
         <Button
           onClick={() => setIsNavExpanded(!isNavExpanded)}
-          className="no-drag hover:!bg-background-medium gap-1.5"
+          className="no-drag hover:!bg-background-medium"
           variant="ghost"
           size="xs"
           title={isNavExpanded ? 'Close navigation' : 'Open navigation'}
         >
-          <Goose className="w-6 h-6" />
-          <span className="text-xs font-mono text-text-muted">menu</span>
+          <Menu className="w-5 h-5" />
         </Button>
       </div>
 
