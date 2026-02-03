@@ -95,13 +95,14 @@ const menuItems: NavigationEntry[] = [
 ];
 
 const getSessionDisplayName = (session: Session): string => {
-  if (!shouldShowNewChatTitle(session)) {
-    return session.name;
-  }
   if (session.recipe?.title) {
     return session.recipe.title;
   }
-  return DEFAULT_CHAT_TITLE;
+
+  if (shouldShowNewChatTitle(session)) {
+    return DEFAULT_CHAT_TITLE;
+  }
+  return session.name;
 };
 
 const SessionList = React.memo<{
