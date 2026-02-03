@@ -537,10 +537,7 @@ mod tests {
     use super::*;
     use crate::{
         model::ModelConfig,
-        providers::{
-            base::{ProviderMetadata, Usage},
-            errors::ProviderError,
-        },
+        providers::{base::Usage, errors::ProviderError},
     };
     use async_trait::async_trait;
     use rmcp::model::{AnnotateAble, CallToolRequestParams, RawContent, Tool};
@@ -578,10 +575,6 @@ mod tests {
 
     #[async_trait]
     impl Provider for MockProvider {
-        fn metadata() -> ProviderMetadata {
-            ProviderMetadata::new("mock", "", "", "", vec![""], "", vec![])
-        }
-
         fn get_name(&self) -> &str {
             "mock"
         }

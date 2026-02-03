@@ -7,7 +7,7 @@ use std::process::Stdio;
 use tokio::io::{AsyncBufReadExt, BufReader};
 use tokio::process::Command;
 
-use super::base::{ConfigKey, Provider, ProviderMetadata, ProviderUsage, Usage};
+use super::base::{ConfigKey, Provider, ProviderDef, ProviderMetadata, ProviderUsage, Usage};
 use super::errors::ProviderError;
 use super::utils::{filter_extensions_from_system_prompt, RequestLog};
 use crate::config::base::{CodexCommand, CodexReasoningEffort, CodexSkipGitCheck};
@@ -16,9 +16,11 @@ use crate::config::{Config, GooseMode};
 use crate::conversation::message::{Message, MessageContent};
 use crate::model::ModelConfig;
 use crate::subprocess::configure_command_no_window;
+use futures::future::BoxFuture;
 use rmcp::model::Role;
 use rmcp::model::Tool;
 
+const CODEX_PROVIDER_NAME: &str = "codex";
 pub const CODEX_DEFAULT_MODEL: &str = "gpt-5.2-codex";
 pub const CODEX_KNOWN_MODELS: &[&str] = &[
     "gpt-5.2-codex",
@@ -77,7 +79,7 @@ impl CodexProvider {
         Ok(Self {
             command: resolved_command,
             model,
-            name: Self::metadata().name,
+            name: CODEX_PROVIDER_NAME.to_string(),
             reasoning_effort,
             skip_git_check,
         })
@@ -471,11 +473,12 @@ impl CodexProvider {
     }
 }
 
-#[async_trait]
-impl Provider for CodexProvider {
+impl ProviderDef for CodexProvider {
+    type Provider = Self;
+
     fn metadata() -> ProviderMetadata {
         ProviderMetadata::new(
-            "codex",
+            CODEX_PROVIDER_NAME,
             "OpenAI Codex CLI",
             "Execute OpenAI models via Codex CLI tool. Requires codex CLI installed.",
             CODEX_DEFAULT_MODEL,
@@ -489,6 +492,13 @@ impl Provider for CodexProvider {
         )
     }
 
+    fn from_env(model: ModelConfig) -> BoxFuture<'static, Result<Self::Provider>> {
+        Box::pin(Self::from_env(model))
+    }
+}
+
+#[async_trait]
+impl Provider for CodexProvider {
     fn get_name(&self) -> &str {
         &self.name
     }

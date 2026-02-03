@@ -5,7 +5,7 @@ use goose::agents::{Agent, AgentEvent, SessionConfig};
 use goose::conversation::message::{Message, MessageContent};
 use goose::conversation::Conversation;
 use goose::model::ModelConfig;
-use goose::providers::base::{Provider, ProviderMetadata, ProviderUsage, Usage};
+use goose::providers::base::{Provider, ProviderDef, ProviderMetadata, ProviderUsage, Usage};
 use goose::providers::errors::ProviderError;
 use goose::session::session_manager::SessionType;
 use goose::session::Session;
@@ -170,6 +170,14 @@ impl Provider for MockCompactionProvider {
         ModelConfig::new("mock-model", "test").unwrap()
     }
 
+    fn get_name(&self) -> &str {
+        "mock-compaction"
+    }
+}
+
+impl ProviderDef for MockCompactionProvider {
+    type Provider = Self;
+
     fn metadata() -> ProviderMetadata {
         ProviderMetadata {
             name: "mock".to_string(),
@@ -183,8 +191,8 @@ impl Provider for MockCompactionProvider {
         }
     }
 
-    fn get_name(&self) -> &str {
-        "mock-compaction"
+    fn from_env(_model: ModelConfig) -> futures::future::BoxFuture<'static, anyhow::Result<Self>> {
+        Box::pin(async { Ok(Self::new()) })
     }
 }
 
