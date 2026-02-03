@@ -22,6 +22,7 @@ import { cn } from '../../utils';
 import { DEFAULT_IFRAME_HEIGHT } from './utils';
 import { readResource, callTool } from '../../api';
 import { errorMessage } from '../../utils/conversionUtils';
+import { isProtocolSafe, getProtocol } from '../../utils/urlSecurity';
 
 interface McpAppRendererProps {
   resourceUri: string;
@@ -119,7 +120,37 @@ export default function McpAppRenderer({
       switch (method) {
         case 'ui/open-link': {
           const { url } = params as McpMethodParams['ui/open-link'];
-          await window.electron.openExternal(url);
+
+          // Safe protocols open directly, unknown protocols require confirmation
+          // Dangerous protocols are blocked by main.ts in the open-external handler
+          if (isProtocolSafe(url)) {
+            await window.electron.openExternal(url);
+          } else {
+            const protocol = getProtocol(url);
+            if (!protocol) {
+              return {
+                status: 'error',
+                message: 'Invalid URL',
+              } as McpMethodResponse['ui/open-link'];
+            }
+
+            const result = await window.electron.showMessageBox({
+              type: 'question',
+              buttons: ['Cancel', 'Open'],
+              defaultId: 0,
+              title: 'Open External Link',
+              message: `Open ${protocol} link?`,
+              detail: `This will open: ${url}`,
+            });
+            if (result.response !== 1) {
+              return {
+                status: 'error',
+                message: 'User cancelled',
+              } as McpMethodResponse['ui/open-link'];
+            }
+            await window.electron.openExternal(url);
+          }
+
           return {
             status: 'success',
             message: 'Link opened successfully',
