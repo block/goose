@@ -18,9 +18,19 @@ use serde_json::Value;
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::path::PathBuf;
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct ProviderMetadata {
+    pub id: String,
+    pub display_name: String,
+    pub npm: Option<String>,
+    pub api: Option<String>,
+    pub doc: Option<String>,
+    pub env: Vec<String>,
+}
+
 const MODELS_DEV_API_URL: &str = "https://models.dev/api.json";
 
-// Providers to include in canonical models
+// Providers to include in canonical models (for model data)
 const ALLOWED_PROVIDERS: &[&str] = &[
     "anthropic",
     "google",
@@ -36,6 +46,11 @@ const ALLOWED_PROVIDERS: &[&str] = &[
     "venice",
     "google-vertex",
 ];
+
+/// Detect if a provider is OpenAI/Anthropic compatible from npm package
+fn is_compatible_provider(npm: &str) -> bool {
+    npm.contains("openai") || npm.contains("anthropic") || npm.contains("ollama")
+}
 
 // Normalize provider names from models.dev to our canonical format
 fn normalize_provider_name(provider: &str) -> &str {
@@ -349,8 +364,10 @@ async fn build_canonical_models() -> Result<()> {
         .context("Expected object in models.dev response")?;
 
     let mut registry = CanonicalModelRegistry::new();
+    let mut provider_metadata_list: Vec<ProviderMetadata> = Vec::new();
     let mut total_models = 0;
 
+    // First pass: Build canonical models from ALLOWED_PROVIDERS
     for provider_key in ALLOWED_PROVIDERS {
         if let Some(provider_data) = providers_obj.get(*provider_key) {
             let models = provider_data["models"]
@@ -491,6 +508,64 @@ async fn build_canonical_models() -> Result<()> {
         }
     }
 
+    // Second pass: Collect provider metadata from ALL providers with npm and api fields
+    println!("\n\nCollecting provider metadata from models.dev...");
+    for (provider_id, provider_data) in providers_obj {
+        // Skip if no npm field
+        let npm = match provider_data.get("npm").and_then(|v| v.as_str()) {
+            Some(n) if !n.is_empty() => n,
+            _ => continue,
+        };
+
+        // Check if compatible (OpenAI/Anthropic/Ollama)
+        if !is_compatible_provider(npm) {
+            continue;
+        }
+
+        // For providers outside ALLOWED_PROVIDERS, require API URL
+        let is_allowed = ALLOWED_PROVIDERS.contains(&provider_id.as_str());
+        let api = provider_data.get("api").and_then(|v| v.as_str()).map(String::from);
+
+        // Skip if not allowed and no API URL
+        if !is_allowed && api.is_none() {
+            continue;
+        }
+
+        let normalized_provider = if is_allowed {
+            normalize_provider_name(provider_id).to_string()
+        } else {
+            provider_id.clone()
+        };
+
+        let doc = provider_data.get("doc").and_then(|v| v.as_str()).map(String::from);
+        let env = provider_data
+            .get("env")
+            .and_then(|v| v.as_array())
+            .map(|arr| {
+                arr.iter()
+                    .filter_map(|v| v.as_str())
+                    .map(String::from)
+                    .collect()
+            })
+            .unwrap_or_default();
+        let display_name = provider_data
+            .get("name")
+            .and_then(|v| v.as_str())
+            .unwrap_or(provider_id)
+            .to_string();
+
+        provider_metadata_list.push(ProviderMetadata {
+            id: normalized_provider,
+            display_name,
+            npm: Some(npm.to_string()),
+            api,
+            doc,
+            env,
+        });
+
+        println!("  Added {} ({})", provider_id, npm);
+    }
+
     let output_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
         .join("src/providers/canonical/data/canonical_models.json");
     registry.to_file(&output_path)?;
@@ -498,6 +573,17 @@ async fn build_canonical_models() -> Result<()> {
         "\n✓ Wrote {} models to {}",
         total_models,
         output_path.display()
+    );
+
+    // Save provider metadata
+    let provider_metadata_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("src/providers/canonical/data/provider_metadata.json");
+    let provider_metadata_json = serde_json::to_string_pretty(&provider_metadata_list)?;
+    std::fs::write(&provider_metadata_path, provider_metadata_json)?;
+    println!(
+        "✓ Wrote {} providers metadata to {}",
+        provider_metadata_list.len(),
+        provider_metadata_path.display()
     );
 
     Ok(())

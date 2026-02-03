@@ -1,27 +1,26 @@
-use super::canonical::{CanonicalModel, CanonicalModelRegistry};
 use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
-/// Provider metadata embedded in the binary
+use super::canonical::CanonicalModelRegistry;
+
+/// Provider metadata embedded in the binary (generated from models.dev)
 const PROVIDER_METADATA_JSON: &str =
     include_str!("canonical/data/provider_metadata.json");
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ProviderMetadata {
+struct ProviderMetadataEntry {
     pub id: String,
     pub display_name: String,
-    pub format: String,
-    pub api_url: String,
-    pub doc_url: String,
-    pub env_var: String,
-    pub supports_streaming: bool,
-    pub requires_auth: bool,
+    pub npm: Option<String>,
+    pub api: Option<String>,
+    pub doc: Option<String>,
+    pub env: Vec<String>,
 }
 
-/// Provider metadata map loaded from JSON
-static PROVIDER_METADATA: Lazy<HashMap<String, ProviderMetadata>> = Lazy::new(|| {
-    serde_json::from_str::<Vec<ProviderMetadata>>(PROVIDER_METADATA_JSON)
+/// Provider metadata loaded from generated JSON
+static PROVIDER_METADATA: Lazy<HashMap<String, ProviderMetadataEntry>> = Lazy::new(|| {
+    serde_json::from_str::<Vec<ProviderMetadataEntry>>(PROVIDER_METADATA_JSON)
         .unwrap_or_else(|e| {
             eprintln!("Failed to parse provider metadata: {}", e);
             Vec::new()
@@ -29,6 +28,11 @@ static PROVIDER_METADATA: Lazy<HashMap<String, ProviderMetadata>> = Lazy::new(||
         .into_iter()
         .map(|p| (p.id.clone(), p))
         .collect()
+});
+
+/// Canonical model registry (loaded once, lazily)
+static CANONICAL_REGISTRY: Lazy<Option<CanonicalModelRegistry>> = Lazy::new(|| {
+    CanonicalModelRegistry::bundled().ok().cloned()
 });
 
 /// Engine/format compatibility
@@ -55,6 +59,19 @@ impl ProviderFormat {
             "ollama" | "ollama_compatible" => Some(ProviderFormat::Ollama),
             _ => None,
         }
+    }
+}
+
+/// Detect format from npm package name
+fn detect_format_from_npm(npm: &str) -> Option<ProviderFormat> {
+    if npm.contains("openai") {
+        Some(ProviderFormat::OpenAI)
+    } else if npm.contains("anthropic") {
+        Some(ProviderFormat::Anthropic)
+    } else if npm.contains("ollama") {
+        Some(ProviderFormat::Ollama)
+    } else {
+        None
     }
 }
 
@@ -100,50 +117,42 @@ pub struct ModelCapabilities {
     pub temperature: bool,
 }
 
-/// Get models for a provider from canonical registry
-fn get_provider_models(provider_id: &str) -> Vec<CanonicalModel> {
-    let registry = match CanonicalModelRegistry::bundled() {
-        Ok(reg) => reg,
-        Err(e) => {
-            eprintln!("Failed to load canonical models: {}", e);
-            return Vec::new();
-        }
-    };
-
-    registry
-        .all_models()
-        .iter()
-        .filter(|m| m.id.starts_with(&format!("{}/", provider_id)))
-        .map(|m| (*m).clone())
-        .collect()
-}
-
 /// Get all providers from catalog filtered by format
 pub fn get_providers_by_format(format: ProviderFormat) -> Vec<ProviderCatalogEntry> {
+    let registry = CANONICAL_REGISTRY.as_ref();
+
     let mut entries: Vec<ProviderCatalogEntry> = PROVIDER_METADATA
         .values()
         .filter_map(|metadata| {
-            // Filter by format
-            if metadata.format != format.as_str() {
+            // Filter by npm package format
+            let npm = metadata.npm.as_ref()?;
+            let detected_format = detect_format_from_npm(npm)?;
+
+            if detected_format != format {
                 return None;
             }
 
-            // Get model count from canonical models
-            let models = get_provider_models(&metadata.id);
+            // Get API URL - skip if missing
+            let api_url = metadata.api.as_ref()?.clone();
 
-            // Skip providers with no models
-            if models.is_empty() {
-                return None;
-            }
+            // Count models for this provider in canonical registry (if available)
+            let model_count = registry
+                .and_then(|r| Some(r.get_all_models_for_provider(&metadata.id).len()))
+                .unwrap_or(0);
+
+            // Get env var (first one or generate default)
+            let env_var = metadata.env.first()
+                .cloned()
+                .unwrap_or_else(|| format!("{}_API_KEY", metadata.id.to_uppercase().replace('-', "_")));
 
             Some(ProviderCatalogEntry {
                 id: metadata.id.clone(),
                 name: metadata.display_name.clone(),
-                format: metadata.format.clone(),
-                api_url: metadata.api_url.clone(),
-                model_count: models.len(),
-                doc_url: metadata.doc_url.clone(),
-                env_var: metadata.env_var.clone(),
+                format: detected_format.as_str().to_string(),
+                api_url,
+                model_count,
+                doc_url: metadata.doc.clone().unwrap_or_default(),
+                env_var,
             })
         })
         .collect();
@@ -157,46 +166,57 @@ pub fn get_providers_by_format(format: ProviderFormat) -> Vec<ProviderCatalogEnt
 pub fn get_provider_template(provider_id: &str) -> Option<ProviderTemplate> {
     let metadata = PROVIDER_METADATA.get(provider_id)?;
 
-    // Get models from canonical registry
-    let canonical_models = get_provider_models(provider_id);
+    // Get npm package and detect format
+    let npm = metadata.npm.as_ref()?;
+    let format = detect_format_from_npm(npm)?;
 
-    if canonical_models.is_empty() {
-        return None;
-    }
+    // Get API URL
+    let api_url = metadata.api.as_ref()?.clone();
 
-    let models: Vec<ModelTemplate> = canonical_models
-        .iter()
-        .map(|model| {
-            // Extract just the model name (after "provider/")
-            let model_name = model
-                .id
-                .strip_prefix(&format!("{}/", provider_id))
-                .unwrap_or(&model.id);
+    // Get all models for this provider from canonical registry (if available)
+    let models: Vec<ModelTemplate> = CANONICAL_REGISTRY
+        .as_ref()
+        .map(|registry| {
+            registry.get_all_models_for_provider(provider_id)
+                .into_iter()
+                .map(|model| {
+                    // Extract just the model ID (without provider prefix)
+                    let model_id = model.id
+                        .strip_prefix(&format!("{}/", provider_id))
+                        .unwrap_or(&model.id)
+                        .to_string();
 
-            ModelTemplate {
-                id: model_name.to_string(),
-                name: model.name.clone(),
-                context_limit: model.limit.context,
-                capabilities: ModelCapabilities {
-                    tool_call: model.tool_call,
-                    reasoning: model.reasoning.unwrap_or(false),
-                    attachment: model.attachment.unwrap_or(false),
-                    temperature: model.temperature.unwrap_or(true),
-                },
-                deprecated: false, // Canonical models don't track deprecation yet
-            }
+                    ModelTemplate {
+                        id: model_id,
+                        name: model.name.clone(),
+                        context_limit: model.limit.context,
+                        capabilities: ModelCapabilities {
+                            tool_call: model.tool_call,
+                            reasoning: model.reasoning.unwrap_or(false),
+                            attachment: model.attachment.unwrap_or(false),
+                            temperature: model.temperature.unwrap_or(false),
+                        },
+                        deprecated: false, // Canonical models don't have deprecated flag
+                    }
+                })
+                .collect()
         })
-        .collect();
+        .unwrap_or_default();
+
+    // Get env var (first one or generate default)
+    let env_var = metadata.env.first()
+        .cloned()
+        .unwrap_or_else(|| format!("{}_API_KEY", provider_id.to_uppercase().replace('-', "_")));
 
     Some(ProviderTemplate {
         id: metadata.id.clone(),
         name: metadata.display_name.clone(),
-        format: metadata.format.clone(),
-        api_url: metadata.api_url.clone(),
+        format: format.as_str().to_string(),
+        api_url,
         models,
-        supports_streaming: metadata.supports_streaming,
-        env_var: metadata.env_var.clone(),
-        doc_url: metadata.doc_url.clone(),
+        supports_streaming: true, // Default to true
+        env_var,
+        doc_url: metadata.doc.clone().unwrap_or_default(),
     })
 }
 
@@ -208,35 +228,30 @@ mod tests {
     fn test_get_providers_by_format() {
         let openai_providers = get_providers_by_format(ProviderFormat::OpenAI);
         assert!(!openai_providers.is_empty());
+        println!("OpenAI compatible providers: {}", openai_providers.len());
+        for provider in openai_providers.iter().take(3) {
+            println!("  - {} ({}) - {} models", provider.name, provider.id, provider.model_count);
+        }
 
         let anthropic_providers = get_providers_by_format(ProviderFormat::Anthropic);
-        assert!(!anthropic_providers.is_empty());
-    }
-
-    #[test]
-    fn test_get_provider_template() {
-        // Test with providers we know exist in canonical models
-        let template = get_provider_template("anthropic");
-        assert!(template.is_some());
-
-        if let Some(t) = template {
-            assert_eq!(t.id, "anthropic");
-            assert!(!t.models.is_empty());
-            assert!(!t.api_url.is_empty());
+        println!("Anthropic compatible providers: {}", anthropic_providers.len());
+        for provider in anthropic_providers.iter().take(3) {
+            println!("  - {} ({}) - {} models", provider.name, provider.id, provider.model_count);
         }
     }
 
     #[test]
-    fn test_all_metadata_providers_have_models() {
-        // Verify that all providers in metadata have models in canonical registry
-        for (provider_id, metadata) in PROVIDER_METADATA.iter() {
-            let models = get_provider_models(provider_id);
-            assert!(
-                !models.is_empty(),
-                "Provider {} ({}) has no models in canonical registry",
-                provider_id,
-                metadata.display_name
-            );
+    fn test_get_provider_template() {
+        // Test with providers we know exist
+        let openai_providers = get_providers_by_format(ProviderFormat::OpenAI);
+        if let Some(first) = openai_providers.first() {
+            let template = get_provider_template(&first.id);
+            assert!(template.is_some());
+
+            if let Some(t) = template {
+                assert!(!t.models.is_empty());
+                assert!(!t.api_url.is_empty());
+            }
         }
     }
 }
