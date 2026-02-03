@@ -1827,6 +1827,142 @@
         }
       }
     },
+    "/local-inference/models": {
+      "get": {
+        "tags": [
+          "super::routes::local_inference"
+        ],
+        "operationId": "list_local_models",
+        "responses": {
+          "200": {
+            "description": "List of available local LLM models",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/LocalModelResponse"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/local-inference/models/{model_id}": {
+      "delete": {
+        "tags": [
+          "super::routes::local_inference"
+        ],
+        "operationId": "delete_local_model",
+        "parameters": [
+          {
+            "name": "model_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Model deleted"
+          },
+          "404": {
+            "description": "Model not found or not downloaded"
+          },
+          "500": {
+            "description": "Failed to delete model"
+          }
+        }
+      }
+    },
+    "/local-inference/models/{model_id}/download": {
+      "get": {
+        "tags": [
+          "super::routes::local_inference"
+        ],
+        "operationId": "get_local_model_download_progress",
+        "parameters": [
+          {
+            "name": "model_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Download progress",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DownloadProgress"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Download not found"
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "super::routes::local_inference"
+        ],
+        "operationId": "download_local_model",
+        "parameters": [
+          {
+            "name": "model_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "202": {
+            "description": "Download started"
+          },
+          "400": {
+            "description": "Model not found or download already in progress"
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "super::routes::local_inference"
+        ],
+        "operationId": "cancel_local_model_download",
+        "parameters": [
+          {
+            "name": "model_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Download cancelled"
+          },
+          "404": {
+            "description": "Download not found"
+          }
+        }
+      }
+    },
     "/mcp-ui-proxy": {
       "get": {
         "tags": [
@@ -4674,6 +4810,123 @@
           }
         }
       },
+      "LocalLlmModel": {
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "size_mb",
+          "context_limit",
+          "url",
+          "tokenizer_url",
+          "description",
+          "tier"
+        ],
+        "properties": {
+          "context_limit": {
+            "type": "integer",
+            "description": "Maximum context window in tokens",
+            "minimum": 0
+          },
+          "description": {
+            "type": "string",
+            "description": "Description and use case"
+          },
+          "id": {
+            "type": "string",
+            "description": "Model identifier (e.g., \"llama-3.2-1b\")"
+          },
+          "name": {
+            "type": "string",
+            "description": "Display name"
+          },
+          "size_mb": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Model file size in MB",
+            "minimum": 0
+          },
+          "tier": {
+            "$ref": "#/components/schemas/ModelTier"
+          },
+          "tokenizer_url": {
+            "type": "string",
+            "description": "Download URL for the tokenizer JSON"
+          },
+          "url": {
+            "type": "string",
+            "description": "Download URL for the model GGUF file"
+          }
+        }
+      },
+      "LocalModelResponse": {
+        "allOf": [
+          {
+            "type": "object",
+            "required": [
+              "id",
+              "name",
+              "size_mb",
+              "context_limit",
+              "url",
+              "tokenizer_url",
+              "description",
+              "tier"
+            ],
+            "properties": {
+              "context_limit": {
+                "type": "integer",
+                "description": "Maximum context window in tokens",
+                "minimum": 0
+              },
+              "description": {
+                "type": "string",
+                "description": "Description and use case"
+              },
+              "id": {
+                "type": "string",
+                "description": "Model identifier (e.g., \"llama-3.2-1b\")"
+              },
+              "name": {
+                "type": "string",
+                "description": "Display name"
+              },
+              "size_mb": {
+                "type": "integer",
+                "format": "int32",
+                "description": "Model file size in MB",
+                "minimum": 0
+              },
+              "tier": {
+                "$ref": "#/components/schemas/ModelTier"
+              },
+              "tokenizer_url": {
+                "type": "string",
+                "description": "Download URL for the tokenizer JSON"
+              },
+              "url": {
+                "type": "string",
+                "description": "Download URL for the model GGUF file"
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "downloaded",
+              "recommended"
+            ],
+            "properties": {
+              "downloaded": {
+                "type": "boolean"
+              },
+              "recommended": {
+                "type": "boolean"
+              }
+            }
+          }
+        ]
+      },
       "McpAppResource": {
         "type": "object",
         "description": "MCP App Resource\nRepresents a UI resource that can be rendered in an MCP App",
@@ -5217,6 +5470,15 @@
             "nullable": true
           }
         }
+      },
+      "ModelTier": {
+        "type": "string",
+        "enum": [
+          "tiny",
+          "small",
+          "medium",
+          "large"
+        ]
       },
       "ParseRecipeRequest": {
         "type": "object",

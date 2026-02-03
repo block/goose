@@ -5,6 +5,7 @@ pub mod azure;
 pub mod azureauth;
 pub mod base;
 pub mod bedrock;
+pub mod local_inference;
 pub mod canonical;
 pub mod chatgpt_codex;
 pub mod claude_code;

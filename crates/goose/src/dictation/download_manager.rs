@@ -1,4 +1,3 @@
-use crate::dictation::whisper::LOCAL_WHISPER_MODEL_CONFIG_KEY;
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -78,6 +77,8 @@ impl DownloadManager {
         model_id: String,
         url: String,
         destination: PathBuf,
+        config_key: Option<String>,
+        config_value: Option<String>,
     ) -> Result<()> {
         // Initialize progress
         {
@@ -126,8 +127,10 @@ impl DownloadManager {
                         }
                     }
 
-                    let _ = crate::config::Config::global()
-                        .set_param(LOCAL_WHISPER_MODEL_CONFIG_KEY, model_id_clone.clone());
+                    // Set config if provided
+                    if let (Some(key), Some(value)) = (config_key, config_value) {
+                        let _ = crate::config::Config::global().set_param(&key, value);
+                    }
                 }
                 Err(e) => {
                     if let Ok(mut downloads) = downloads.lock() {

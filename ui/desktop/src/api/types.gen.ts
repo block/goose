@@ -498,6 +498,73 @@ export type LoadedProvider = {
     is_editable: boolean;
 };
 
+export type LocalLlmModel = {
+    /**
+     * Maximum context window in tokens
+     */
+    context_limit: number;
+    /**
+     * Description and use case
+     */
+    description: string;
+    /**
+     * Model identifier (e.g., "llama-3.2-1b")
+     */
+    id: string;
+    /**
+     * Display name
+     */
+    name: string;
+    /**
+     * Model file size in MB
+     */
+    size_mb: number;
+    tier: ModelTier;
+    /**
+     * Download URL for the tokenizer JSON
+     */
+    tokenizer_url: string;
+    /**
+     * Download URL for the model GGUF file
+     */
+    url: string;
+};
+
+export type LocalModelResponse = {
+    /**
+     * Maximum context window in tokens
+     */
+    context_limit: number;
+    /**
+     * Description and use case
+     */
+    description: string;
+    /**
+     * Model identifier (e.g., "llama-3.2-1b")
+     */
+    id: string;
+    /**
+     * Display name
+     */
+    name: string;
+    /**
+     * Model file size in MB
+     */
+    size_mb: number;
+    tier: ModelTier;
+    /**
+     * Download URL for the tokenizer JSON
+     */
+    tokenizer_url: string;
+    /**
+     * Download URL for the model GGUF file
+     */
+    url: string;
+} & {
+    downloaded: boolean;
+    recommended: boolean;
+};
+
 /**
  * MCP App Resource
  * Represents a UI resource that can be rendered in an MCP App
@@ -653,6 +720,8 @@ export type ModelInfo = {
      */
     supports_cache_control?: boolean | null;
 };
+
+export type ModelTier = 'tiny' | 'small' | 'medium' | 'large';
 
 export type ParseRecipeRequest = {
     content: string;
@@ -2776,6 +2845,124 @@ export type StartTetrateSetupResponses = {
 };
 
 export type StartTetrateSetupResponse = StartTetrateSetupResponses[keyof StartTetrateSetupResponses];
+
+export type ListLocalModelsData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/local-inference/models';
+};
+
+export type ListLocalModelsResponses = {
+    /**
+     * List of available local LLM models
+     */
+    200: Array<LocalModelResponse>;
+};
+
+export type ListLocalModelsResponse = ListLocalModelsResponses[keyof ListLocalModelsResponses];
+
+export type DeleteLocalModelData = {
+    body?: never;
+    path: {
+        model_id: string;
+    };
+    query?: never;
+    url: '/local-inference/models/{model_id}';
+};
+
+export type DeleteLocalModelErrors = {
+    /**
+     * Model not found or not downloaded
+     */
+    404: unknown;
+    /**
+     * Failed to delete model
+     */
+    500: unknown;
+};
+
+export type DeleteLocalModelResponses = {
+    /**
+     * Model deleted
+     */
+    200: unknown;
+};
+
+export type CancelLocalModelDownloadData = {
+    body?: never;
+    path: {
+        model_id: string;
+    };
+    query?: never;
+    url: '/local-inference/models/{model_id}/download';
+};
+
+export type CancelLocalModelDownloadErrors = {
+    /**
+     * Download not found
+     */
+    404: unknown;
+};
+
+export type CancelLocalModelDownloadResponses = {
+    /**
+     * Download cancelled
+     */
+    200: unknown;
+};
+
+export type GetLocalModelDownloadProgressData = {
+    body?: never;
+    path: {
+        model_id: string;
+    };
+    query?: never;
+    url: '/local-inference/models/{model_id}/download';
+};
+
+export type GetLocalModelDownloadProgressErrors = {
+    /**
+     * Download not found
+     */
+    404: unknown;
+};
+
+export type GetLocalModelDownloadProgressResponses = {
+    /**
+     * Download progress
+     */
+    200: DownloadProgress;
+};
+
+export type GetLocalModelDownloadProgressResponse = GetLocalModelDownloadProgressResponses[keyof GetLocalModelDownloadProgressResponses];
+
+export type DownloadLocalModelData = {
+    body?: never;
+    path: {
+        model_id: string;
+    };
+    query?: never;
+    url: '/local-inference/models/{model_id}/download';
+};
+
+export type DownloadLocalModelErrors = {
+    /**
+     * Model not found or download already in progress
+     */
+    400: unknown;
+    /**
+     * Internal server error
+     */
+    500: unknown;
+};
+
+export type DownloadLocalModelResponses = {
+    /**
+     * Download started
+     */
+    202: unknown;
+};
 
 export type McpUiProxyData = {
     body?: never;

@@ -262,6 +262,8 @@ pub async fn download_model(Path(model_id): Path<String>) -> Result<StatusCode, 
             model.id.to_string(),
             model.url.to_string(),
             model.local_path(),
+            Some(whisper::LOCAL_WHISPER_MODEL_CONFIG_KEY.to_string()),
+            Some(model.id.to_string()),
         )
         .await
         .map_err(convert_error)?;
