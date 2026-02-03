@@ -791,7 +791,7 @@ impl ExtensionManager {
         tools
             .iter()
             .filter(|tool| {
-                let tool_prefix = tool.name.as_ref().split("__").next().unwrap_or("");
+                let tool_prefix = tool.name.split("__").next().unwrap_or("");
 
                 if let Some(ref excluded) = exclude_normalized {
                     if tool_prefix == excluded {
