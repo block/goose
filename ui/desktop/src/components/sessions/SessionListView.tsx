@@ -617,62 +617,23 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
       return (
         <Card
           onClick={handleCardClick}
-          className="session-item h-full py-3 px-4 hover:shadow-default cursor-pointer transition-all duration-150 flex flex-col justify-between relative group"
+          className="h-full py-3 px-4 hover:shadow-default cursor-pointer transition-all duration-150 flex flex-col justify-between relative group"
           ref={(el) => setSessionRefs(session.id, el)}
         >
-          <div className="flex items-start justify-between gap-2 mb-1">
-            <h3 className="text-base break-words line-clamp-2 flex-1 min-w-0">{displayName}</h3>
-            <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0">
-              <button
-                onClick={handleOpenInNewWindowClick}
-                className="p-2 rounded hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer"
-                title="Open in new window"
-              >
-                <ExternalLink className="w-3 h-3 text-textSubtle hover:text-textStandard" />
-              </button>
-              <button
-                onClick={handleEditClick}
-                className="p-2 rounded hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer"
-                title="Edit session name"
-              >
-                <Edit2 className="w-3 h-3 text-textSubtle hover:text-textStandard" />
-              </button>
-              <button
-                onClick={handleDuplicateClick}
-                className="p-2 rounded hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer"
-                title="Duplicate session"
-              >
-                <Copy className="w-3 h-3 text-textSubtle hover:text-textStandard" />
-              </button>
-              <button
-                onClick={handleDeleteClick}
-                className="p-2 rounded hover:bg-red-50 dark:hover:bg-red-900/20 cursor-pointer transition-colors"
-                title="Delete session"
-              >
-                <Trash2 className="w-3 h-3 text-red-500 hover:text-red-600" />
-              </button>
-              <button
-                onClick={handleExportClick}
-                className="p-2 rounded hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer"
-                title="Export session"
-              >
-                <Download className="w-3 h-3 text-textSubtle hover:text-textStandard" />
-              </button>
+          <div>
+            <h3 className="text-base break-words line-clamp-2 w-full mb-1">{displayName}</h3>
+            <div className="flex-1 mt-2">
+              <div className="flex items-center text-text-muted text-xs">
+                <Calendar className="w-3 h-3 mr-1 flex-shrink-0" />
+                <span>{formatMessageTimestamp(Date.parse(session.updated_at) / 1000)}</span>
+              </div>
+              <div className="flex items-center text-text-muted text-xs">
+                <Folder className="w-3 h-3 mr-1 flex-shrink-0" />
+                <span className="truncate">{session.working_dir}</span>
+              </div>
             </div>
           </div>
-
-          <div className="flex-1">
-            <div className="flex items-center text-text-muted text-xs mb-1">
-              <Calendar className="w-3 h-3 mr-1 flex-shrink-0" />
-              <span>{formatMessageTimestamp(Date.parse(session.updated_at) / 1000)}</span>
-            </div>
-            <div className="flex items-center text-text-muted text-xs mb-1">
-              <Folder className="w-3 h-3 mr-1 flex-shrink-0" />
-              <span className="truncate">{session.working_dir}</span>
-            </div>
-          </div>
-
-          <div className="flex items-center justify-between mt-1 pt-2">
+          <div className="flex items-center justify-between mt-1">
             <div className="flex items-center space-x-3 text-xs text-text-muted">
               <div className="flex items-center">
                 <MessageSquareText className="w-3 h-3 mr-1" />
@@ -707,6 +668,43 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
                 </TooltipProvider>
               )}
             </div>
+          </div>
+          <div className="flex justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+            <button
+              onClick={handleOpenInNewWindowClick}
+              className="p-2 rounded hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer"
+              title="Open in new window"
+            >
+              <ExternalLink className="w-3 h-3 text-textSubtle hover:text-textStandard" />
+            </button>
+            <button
+              onClick={handleEditClick}
+              className="p-2 rounded hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer"
+              title="Edit session name"
+            >
+              <Edit2 className="w-3 h-3 text-textSubtle hover:text-textStandard" />
+            </button>
+            <button
+              onClick={handleDuplicateClick}
+              className="p-2 rounded hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer"
+              title="Duplicate session"
+            >
+              <Copy className="w-3 h-3 text-textSubtle hover:text-textStandard" />
+            </button>
+            <button
+              onClick={handleDeleteClick}
+              className="p-2 rounded hover:bg-red-50 dark:hover:bg-red-900/20 cursor-pointer transition-colors"
+              title="Delete session"
+            >
+              <Trash2 className="w-3 h-3 text-red-500 hover:text-red-600" />
+            </button>
+            <button
+              onClick={handleExportClick}
+              className="p-2 rounded hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer"
+              title="Export session"
+            >
+              <Download className="w-3 h-3 text-textSubtle hover:text-textStandard" />
+            </button>
           </div>
         </Card>
       );
