@@ -1,14 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { useNavigate, useLocation, useSearchParams } from 'react-router-dom';
 import {
-  Home,
   MessageSquare,
   History,
-  FileText,
-  AppWindow,
-  Clock,
-  Puzzle,
-  Settings,
   GripVertical,
   Menu,
   ChevronDown,
@@ -19,16 +12,15 @@ import {
 import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigationContext } from './NavigationContext';
 import { cn } from '../../utils';
-import { listSessions } from '../../api';
-import { useChatContext } from '../../contexts/ChatContext';
-import { useNavigation } from '../../hooks/useNavigation';
-import { startNewSession, resumeSession, shouldShowNewChatTitle } from '../../sessions';
-import { getInitialWorkingDir } from '../../utils/workingDir';
 import { useSidebarSessionStatus } from '../../hooks/useSidebarSessionStatus';
+import {
+  useNavigationSessions,
+  getSessionDisplayName,
+  truncateMessage,
+} from '../../hooks/useNavigationSessions';
+import { useNavigationDragDrop } from '../../hooks/useNavigationDragDrop';
+import { useNavigationItems, useEscapeToClose } from '../../hooks/useNavigationItems';
 import { SessionIndicators } from '../SessionIndicators';
-import { AppEvents } from '../../constants/events';
-import type { Session } from '../../api';
-import { useConfig } from '../ConfigContext';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -38,23 +30,11 @@ import {
 } from '../ui/dropdown-menu';
 import * as PopoverPrimitive from '@radix-ui/react-popover';
 
-interface NavItem {
-  id: string;
-  path: string;
-  label: string;
-  icon: React.ComponentType<{ className?: string }>;
-  getTag?: () => string;
-  hasSubItems?: boolean;
-}
-
 interface CondensedNavigationProps {
   className?: string;
 }
 
 export const CondensedNavigation: React.FC<CondensedNavigationProps> = ({ className }) => {
-  const navigate = useNavigate();
-  const location = useLocation();
-  const configContext = useConfig();
   const {
     isNavExpanded,
     setIsNavExpanded,
@@ -67,21 +47,40 @@ export const CondensedNavigation: React.FC<CondensedNavigationProps> = ({ classN
     setIsChatExpanded,
   } = useNavigationContext();
 
-  // Check if apps extension is enabled
-  const appsExtensionEnabled = !!configContext.extensionsList?.find(
-    (ext) => ext.name === 'apps'
-  )?.enabled;
+  const { visibleItems, isActive } = useNavigationItems({ preferences });
 
-  const [draggedItem, setDraggedItem] = useState<string | null>(null);
-  const [dragOverItem, setDragOverItem] = useState<string | null>(null);
+  const handleOverlayClose = useCallback(() => {
+    if (effectiveNavigationMode === 'overlay') {
+      setIsNavExpanded(false);
+    }
+  }, [effectiveNavigationMode, setIsNavExpanded]);
+
+  const {
+    recentSessions,
+    activeSessionId,
+    fetchSessions,
+    handleNavClick,
+    handleNewChat,
+    handleSessionClick,
+  } = useNavigationSessions({ onNavigate: handleOverlayClose });
+
+  const { draggedItem, dragOverItem, handleDragStart, handleDragOver, handleDrop, handleDragEnd } =
+    useNavigationDragDrop({ preferences, updatePreferences });
+
+  useEscapeToClose({
+    isOpen: isNavExpanded,
+    isOverlayMode: effectiveNavigationMode === 'overlay',
+    onClose: () => setIsNavExpanded(false),
+  });
+
   const [chatPopoverOpen, setChatPopoverOpen] = useState(false);
   const [newChatHoverOpen, setNewChatHoverOpen] = useState(false);
   const hoverTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const [recentSessions, setRecentSessions] = useState<Session[]>([]);
-
   // Ref for focusing navigation when opened
   const navContainerRef = useRef<HTMLDivElement>(null);
+
+  const { getSessionStatus, clearUnread } = useSidebarSessionStatus();
 
   // Hover handlers with delay to allow mouse to travel between trigger and popover
   const handleHoverOpen = useCallback(() => {
@@ -107,324 +106,23 @@ export const CondensedNavigation: React.FC<CondensedNavigationProps> = ({ classN
     };
   }, []);
 
-  // Track session for /pair navigation
-  const [searchParams] = useSearchParams();
-  const activeSessionId = searchParams.get('resumeSessionId') ?? undefined;
-
-  // Use sidebar session status hook for streaming/unread indicators
-  const { getSessionStatus, clearUnread } = useSidebarSessionStatus(activeSessionId);
-
   // Fetch sessions when expanded and focus navigation
   useEffect(() => {
     if (isNavExpanded) {
-      fetchNavigationData();
-      // Focus the navigation container for keyboard navigation
-      // Use a small delay to ensure the element is rendered
+      fetchSessions();
       requestAnimationFrame(() => {
         navContainerRef.current?.focus();
       });
     }
-  }, [isNavExpanded]);
-
-  const fetchNavigationData = async () => {
-    try {
-      const sessionsResponse = await listSessions({ throwOnError: false });
-      if (sessionsResponse.data) {
-        // Get the 5 most recent sessions
-        const sorted = [...sessionsResponse.data.sessions]
-          .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
-          .slice(0, 5);
-        setRecentSessions(sorted);
-      }
-    } catch (error) {
-      console.error('Failed to fetch navigation data:', error);
-    }
-  };
-
-  // Listen for new session creation events to update the list immediately
-  useEffect(() => {
-    let pollingTimeouts: ReturnType<typeof setTimeout>[] = [];
-    let isPolling = false;
-
-    const handleSessionCreated = (event: Event) => {
-      const { session } = (event as CustomEvent<{ session?: Session }>).detail || {};
-      // If session data is provided, add it immediately
-      if (session) {
-        setRecentSessions((prev) => {
-          if (prev.some((s) => s.id === session.id)) return prev;
-          return [session, ...prev].slice(0, 5);
-        });
-      }
-
-      // Poll for updates to get the generated session name
-      if (isPolling) return;
-      isPolling = true;
-
-      const pollIntervalMs = 300;
-      const maxPollDurationMs = 10000;
-      const maxPolls = maxPollDurationMs / pollIntervalMs;
-      let pollCount = 0;
-
-      const pollForUpdates = async () => {
-        pollCount++;
-        try {
-          const response = await listSessions({ throwOnError: false });
-          if (response.data) {
-            const apiSessions = response.data.sessions.slice(0, 5);
-            setRecentSessions((prev) => {
-              // Merge: keep empty local sessions not in API, add API sessions
-              const emptyLocalSessions = prev.filter(
-                (local) =>
-                  local.message_count === 0 && !apiSessions.some((api) => api.id === local.id)
-              );
-              return [...emptyLocalSessions, ...apiSessions].slice(0, 5);
-            });
-          }
-        } catch (error) {
-          console.error('Failed to poll sessions:', error);
-        }
-
-        if (pollCount < maxPolls) {
-          const timeout = setTimeout(pollForUpdates, pollIntervalMs);
-          pollingTimeouts.push(timeout);
-        } else {
-          isPolling = false;
-        }
-      };
-
-      pollForUpdates();
-    };
-
-    window.addEventListener(AppEvents.SESSION_CREATED, handleSessionCreated);
-    return () => {
-      window.removeEventListener(AppEvents.SESSION_CREATED, handleSessionCreated);
-      pollingTimeouts.forEach(clearTimeout);
-    };
-  }, []);
-
-  // Build nav items
-  const getNavItems = (): NavItem[] => [
-    { id: 'home', path: '/', label: 'Home', icon: Home },
-    {
-      id: 'chat',
-      path: '/pair',
-      label: 'Chat',
-      icon: MessageSquare,
-      hasSubItems: true, // Always has sub-items for recent sessions
-    },
-    {
-      id: 'history',
-      path: '/sessions',
-      label: 'History',
-      icon: History,
-    },
-    { id: 'recipes', path: '/recipes', label: 'Recipes', icon: FileText },
-    { id: 'apps', path: '/apps', label: 'Apps', icon: AppWindow },
-    { id: 'scheduler', path: '/schedules', label: 'Scheduler', icon: Clock },
-    {
-      id: 'extensions',
-      path: '/extensions',
-      label: 'Extensions',
-      icon: Puzzle,
-    },
-    { id: 'settings', path: '/settings', label: 'Settings', icon: Settings },
-  ];
-
-  const navItems = getNavItems();
-
-  const getNavItemById = (id: string): NavItem | undefined => {
-    return navItems.find((item) => item.id === id);
-  };
-
-  // Handle escape key to close overlay
-  useEffect(() => {
-    if (!(effectiveNavigationMode === 'overlay' && isNavExpanded)) {
-      return;
-    }
-
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && isNavExpanded && effectiveNavigationMode === 'overlay') {
-        e.preventDefault();
-        setIsNavExpanded(false);
-      }
-    };
-
-    document.addEventListener('keydown', handleKeyDown, { capture: true });
-    return () => document.removeEventListener('keydown', handleKeyDown, { capture: true });
-  }, [isNavExpanded, effectiveNavigationMode, setIsNavExpanded]);
-
-  const chatContext = useChatContext();
-  const lastSessionIdRef = useRef<string | null>(null);
-  const currentSessionId =
-    location.pathname === '/pair' ? searchParams.get('resumeSessionId') : null;
-
-  // Keep track of last session ID
-  useEffect(() => {
-    if (currentSessionId) {
-      lastSessionIdRef.current = currentSessionId;
-    }
-  }, [currentSessionId]);
-
-  // Use setView for navigation to pair view (matches original AppSidebar behavior)
-  const setView = useNavigation();
-
-  // Ref to track recent sessions without causing re-renders
-  const recentSessionsRef = useRef<Session[]>([]);
-  useEffect(() => {
-    recentSessionsRef.current = recentSessions as Session[];
-  }, [recentSessions]);
-
-  // Guard ref to prevent duplicate session creation
-  const isCreatingSessionRef = useRef(false);
-
-  const handleNavClick = useCallback(
-    (path: string) => {
-      // For /pair, preserve the current session if one exists
-      if (path === '/pair') {
-        const sessionId =
-          currentSessionId || lastSessionIdRef.current || chatContext?.chat?.sessionId;
-        if (sessionId && sessionId.length > 0) {
-          navigate(`/pair?resumeSessionId=${sessionId}`);
-        } else {
-          // No session - go to home to start a new chat
-          navigate('/');
-        }
-      } else {
-        navigate(path);
-      }
-      // Close nav on selection only for overlay mode
-      if (effectiveNavigationMode === 'overlay') {
-        setIsNavExpanded(false);
-      }
-    },
-    [
-      navigate,
-      currentSessionId,
-      chatContext?.chat?.sessionId,
-      effectiveNavigationMode,
-      setIsNavExpanded,
-    ]
-  );
-
-  // New chat handler - matches original AppSidebar implementation
-  // If there's already an empty session, resume it; otherwise create a new one
-  const handleNewChat = useCallback(async () => {
-    if (isCreatingSessionRef.current) {
-      return;
-    }
-
-    // Check if there's already an empty "New Chat" session we can reuse
-    const emptyNewSession = recentSessionsRef.current.find((s) => shouldShowNewChatTitle(s));
-
-    if (emptyNewSession) {
-      // Resume the existing empty session
-      resumeSession(emptyNewSession, setView);
-    } else {
-      // Create a new session
-      isCreatingSessionRef.current = true;
-      try {
-        await startNewSession('', setView, getInitialWorkingDir());
-      } finally {
-        setTimeout(() => {
-          isCreatingSessionRef.current = false;
-        }, 1000);
-      }
-    }
-    // Close nav on selection only for overlay mode
-    if (effectiveNavigationMode === 'overlay') {
-      setIsNavExpanded(false);
-    }
-  }, [setView, effectiveNavigationMode, setIsNavExpanded]);
-
-  const handleSessionClick = useCallback(
-    (sessionId: string) => {
-      navigate(`/pair?resumeSessionId=${sessionId}`);
-      // Close nav on selection only for overlay mode
-      if (effectiveNavigationMode === 'overlay') {
-        setIsNavExpanded(false);
-      }
-    },
-    [navigate, effectiveNavigationMode, setIsNavExpanded]
-  );
+  }, [isNavExpanded, fetchSessions]);
 
   const toggleChatExpanded = () => {
     setIsChatExpanded(!isChatExpanded);
   };
 
-  const isActive = (path: string) => location.pathname === path;
   const isVertical = navigationPosition === 'left' || navigationPosition === 'right';
 
-  // Drag and drop handlers
-  const handleDragStart = (e: React.DragEvent, itemId: string) => {
-    setDraggedItem(itemId);
-    e.dataTransfer.effectAllowed = 'move';
-  };
-
-  const handleDragOver = (e: React.DragEvent, itemId: string) => {
-    e.preventDefault();
-    if (draggedItem && draggedItem !== itemId) {
-      setDragOverItem(itemId);
-    }
-  };
-
-  const handleDrop = (e: React.DragEvent, dropItemId: string) => {
-    e.preventDefault();
-    if (!draggedItem || draggedItem === dropItemId) return;
-
-    const newOrder = [...preferences.itemOrder];
-    const draggedIndex = newOrder.indexOf(draggedItem);
-    const dropIndex = newOrder.indexOf(dropItemId);
-
-    if (draggedIndex === -1 || dropIndex === -1) return;
-
-    newOrder.splice(draggedIndex, 1);
-    newOrder.splice(dropIndex, 0, draggedItem);
-
-    updatePreferences({
-      ...preferences,
-      itemOrder: newOrder,
-    });
-
-    setDraggedItem(null);
-    setDragOverItem(null);
-  };
-
-  const handleDragEnd = () => {
-    setDraggedItem(null);
-    setDragOverItem(null);
-  };
-
-  // Get ordered and enabled items, filtering out Apps if extension is not enabled
-  const visibleItems = preferences.itemOrder
-    .filter((id) => preferences.enabledItems.includes(id))
-    .map((id) => getNavItemById(id))
-    .filter((item): item is NavItem => item !== undefined)
-    .filter((item) => {
-      if (item.path === '/apps') {
-        return appsExtensionEnabled;
-      }
-      return true;
-    });
-
   const isOverlayMode = effectiveNavigationMode === 'overlay';
-
-  // Get display name for session - prioritize recipe title, then session name
-  const getSessionDisplayName = (session: Session): string => {
-    if (session.recipe?.title) {
-      return session.recipe.title;
-    }
-    if (shouldShowNewChatTitle(session)) {
-      return 'New Chat';
-    }
-    return session.name;
-  };
-
-  // Truncate session message for display
-  const truncateMessage = (msg?: string, maxLen = 20) => {
-    if (!msg) return 'New Chat';
-    return msg.length > maxLen ? msg.substring(0, maxLen) + '...' : msg;
-  };
-
   const isTopPosition = navigationPosition === 'top';
   const isBottomPosition = navigationPosition === 'bottom';
 

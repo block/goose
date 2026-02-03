@@ -12,7 +12,7 @@ interface SessionStatus {
  * Simple hook to track session status for the sidebar.
  * Listens to session-status-update events from BaseChat components.
  */
-export function useSidebarSessionStatus(_activeSessionId: string | undefined) {
+export function useSidebarSessionStatus() {
   const [statuses, setStatuses] = useState<Map<string, SessionStatus>>(new Map());
 
   // Listen for status updates from BaseChat
