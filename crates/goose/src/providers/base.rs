@@ -432,7 +432,7 @@ pub trait Provider: Send + Sync {
                         messages,
                         tools,
                     )
-                    .await
+                    .await 
                 } else {
                     Err(e)
                 }
@@ -445,6 +445,11 @@ pub trait Provider: Send + Sync {
 
     fn retry_config(&self) -> RetryConfig {
         RetryConfig::default()
+    }
+
+    fn fast_retry_config(&self) -> RetryConfig {
+        // Fast models default to no retries for quick failure
+        RetryConfig::new(0, 0, 1.0, 0)
     }
 
     async fn fetch_supported_models(&self) -> Result<Option<Vec<String>>, ProviderError> {
