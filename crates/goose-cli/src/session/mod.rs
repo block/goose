@@ -1129,6 +1129,7 @@ impl CliSession {
         if !tool_requests.is_empty() {
             // Interrupted during a tool request
             // Create tool responses for all interrupted tool requests
+            // TODO(Douwe): if we need this, it should happen in agent reply
             let mut response_message = Message::user();
             let last_tool_name = tool_requests
                 .last()
@@ -1155,7 +1156,6 @@ impl CliSession {
                     }),
                 ));
             }
-            // TODO(Douwe): update also db
             self.push_message(response_message);
             let prompt = format!(
                 "The existing call to {} was interrupted. How would you like to proceed?",
