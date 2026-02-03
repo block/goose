@@ -41,6 +41,10 @@ When you reach the auto-compaction threshold:
   2. Once complete, you'll see a confirmation message that the conversation was compacted and summarized.
   3. Continue the session. Your previous conversation remains visible, but only the compacted conversion is included in the active context for goose.
 
+:::tip Customize Compaction
+You can customize how goose summarizes conversations during compaction by editing the `compaction.md` [prompt template](/docs/guides/prompt-templates).
+:::
+
 ### Manual Compaction
 You can also trigger compaction manually before reaching context or token limits:
 

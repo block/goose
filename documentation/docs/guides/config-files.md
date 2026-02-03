@@ -19,6 +19,7 @@ The configuration files allow you to set default behaviors, configure language m
 - **permission.yaml** - Tool permission levels configured via `goose configure`
 - **secrets.yaml** - API keys and secrets (only when keyring is disabled)
 - **permissions/tool_permissions.json** - Runtime permission decisions (auto-managed)
+- **prompts/** - Customized [prompt templates](/docs/guides/prompt-templates)
 
 In addition to editing configuration files directly, many settings can be managed from goose Desktop and goose CLI:
 - **goose Desktop**: From the `Settings` page and the bottom toolbar
