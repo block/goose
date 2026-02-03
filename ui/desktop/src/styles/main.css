@@ -2,6 +2,9 @@
 @import 'tw-animate-css';
 @plugin '@tailwindcss/typography';
 
+@source './index.html';
+@source './src/**/*.{js,ts,jsx,tsx}';
+
 @theme {
   --breakpoint-md: 930px;
 }
