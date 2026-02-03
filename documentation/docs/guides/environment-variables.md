@@ -55,6 +55,67 @@ export GOOSE_PROVIDER__HOST="https://api.anthropic.com"
 export GOOSE_PROVIDER__API_KEY="your-api-key-here"
 ```
 
+### Custom Model Definitions
+
+Define custom model configurations with provider-specific parameters and context limits. This is useful for enabling provider beta features (like extended context windows) or configuring models with specific settings.
+
+| Variable | Purpose | Values | Default |
+|----------|---------|---------|---------|
+| `GOOSE_PREDEFINED_MODELS` | Define custom model configurations | JSON array of model objects | None |
+
+**Model Configuration Fields:**
+
+| Field | Required | Type | Description |
+|-------|----------|------|-------------|
+| `id` | Yes | number | Unique numeric identifier |
+| `name` | Yes | string | Model name used to reference this configuration |
+| `provider` | Yes | string | Provider name (e.g., "databricks", "openai", "anthropic") |
+| `alias` | No | string | Display name shown in the UI |
+| `subtext` | No | string | Additional text shown below the model name |
+| `context_limit` | No | number | Override the default context window size in tokens |
+| `request_params` | No | object | Provider-specific parameters included in API requests |
+
+When a custom model's `context_limit` is specified, it takes precedence over pattern-matching but can still be overridden by explicit environment variables like `GOOSE_CONTEXT_LIMIT`. See [Model Context Limit Overrides](#model-context-limit-overrides) for details on precedence.
+
+**Examples**
+
+```bash
+# Enable Anthropic's 1M context window with beta header
+export GOOSE_PREDEFINED_MODELS='[
+  {
+    "id": 1,
+    "name": "claude-sonnet-4-1m",
+    "provider": "anthropic",
+    "alias": "Claude Sonnet 4 (1M context)",
+    "subtext": "Anthropic",
+    "context_limit": 1000000,
+    "request_params": {
+      "anthropic_beta": ["context-1m-2025-08-07"]
+    }
+  }
+]'
+
+# Define multiple custom models
+export GOOSE_PREDEFINED_MODELS='[
+  {
+    "id": 1,
+    "name": "gpt-4-custom",
+    "provider": "openai",
+    "alias": "GPT-4 (200k)",
+    "context_limit": 200000
+  },
+  {
+    "id": 2,
+    "name": "internal-model",
+    "provider": "databricks",
+    "alias": "Internal Model (500k)",
+    "context_limit": 500000
+  }
+]'
+```
+
+Custom context limits and request parameters are applied when the model is used. Custom context limits are displayed in goose CLI's [token usage indicator](/docs/guides/sessions/smart-context-management#token-usage).
+
 ### Lead/Worker Model Configuration
 
 These variables configure a [lead/worker model pattern](/docs/tutorials/lead-worker) where a powerful lead model handles initial planning and complex reasoning, then switches to a faster/cheaper worker model for execution. The switch happens automatically based on your settings.
