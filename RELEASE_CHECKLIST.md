@@ -91,7 +91,7 @@ recipe:
 ### Playwright Extension
 
 - [ ] Install the playwright extension from the extensions hub
-  - [ ] Tell it to open a browser and search on google for cats
+  - [ ] Tell it to open a browser and search on Google for cats
   - [ ] Verify that the browser opens and navigates
 
 ### Extension with Environment Variables
