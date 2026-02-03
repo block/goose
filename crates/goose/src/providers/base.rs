@@ -447,11 +447,6 @@ pub trait Provider: Send + Sync {
         RetryConfig::default()
     }
 
-    fn fast_retry_config(&self) -> RetryConfig {
-        // Fast models default to no retries for quick failure
-        RetryConfig::new(0, 0, 1.0, 0)
-    }
-
     async fn fetch_supported_models(&self) -> Result<Option<Vec<String>>, ProviderError> {
         Ok(None)
     }

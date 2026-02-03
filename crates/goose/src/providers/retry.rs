@@ -128,11 +128,6 @@ pub trait ProviderRetry {
         RetryConfig::default()
     }
 
-    fn fast_retry_config(&self) -> RetryConfig {
-        // Fast models default to no retries for quick failure
-        RetryConfig::new(0, 0, 1.0, 0)
-    }
-
     async fn with_retry<F, Fut, T>(&self, operation: F) -> Result<T, ProviderError>
     where
         F: Fn() -> Fut + Send,
@@ -200,9 +195,5 @@ pub trait ProviderRetry {
 impl<P: Provider> ProviderRetry for P {
     fn retry_config(&self) -> RetryConfig {
         Provider::retry_config(self)
-    }
-
-    fn fast_retry_config(&self) -> RetryConfig {
-        Provider::fast_retry_config(self)
     }
 }

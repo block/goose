@@ -269,10 +269,6 @@ impl Provider for DatabricksProvider {
         self.retry_config.clone()
     }
 
-    fn fast_retry_config(&self) -> RetryConfig {
-        self.fast_retry_config.clone()
-    }
-
     fn get_model_config(&self) -> ModelConfig {
         self.model.clone()
     }
@@ -307,9 +303,9 @@ impl Provider for DatabricksProvider {
             .unwrap_or(false);
 
         let retry_config = if is_fast_model {
-            Provider::fast_retry_config(self)
+            self.fast_retry_config.clone()
         } else {
-            Provider::retry_config(self)
+            self.retry_config.clone()
         };
 
         let response = self
@@ -477,7 +473,7 @@ impl EmbeddingCapable for DatabricksProvider {
         let response = self
             .with_retry_config(
                 || self.post(Some(session_id), request.clone(), None),
-                Provider::fast_retry_config(self),
+                self.fast_retry_config.clone(),
             )
             .await?;
 
