@@ -740,6 +740,59 @@ goose session --name use-custom-theme
 
 ---
 
+### External Editor Mode
+
+For composing longer prompts or working with complex code snippets, you can configure goose to use your preferred text editor instead of CLI input. This replaces the standard CLI input and keyboard shortcuts for the entire session.
+
+**How it works:**
+1. goose opens your configured editor with a template file
+2. Type your prompt after the `# Your prompt:` heading (conversation history is shown below for context)
+3. Save the file and close/exit the editor to send your prompt to goose
+4. goose processes your prompt and reopens the editor with the response added to the conversation history
+5. Repeat steps 2-4 for each message in the conversation
+
+You can use any editor that accepts a file path argument, such as vim, nano, emacs, and VS Code.
+
+**Configuration:**
+
+<Tabs>
+  <TabItem value="envvar" label="Environment Variable" default>
+
+  Applies to the current session only.
+
+  ```bash
+  # For terminal editors like vim or nano
+  export GOOSE_PROMPT_EDITOR=vim
+
+  # Or for GUI editors like VS Code (use --wait flag)
+  export GOOSE_PROMPT_EDITOR="code --wait"
+  ```
+
+  </TabItem>
+  <TabItem value="config" label="Config File">
+
+  Persists across all sessions unless overridden by the environment variable.
+  
+  1. Navigate to the goose [configuration file](/docs/guides/config-files). For example, navigate to `~/.config/goose/config.yaml` on macOS.
+  2. Add `GOOSE_PROMPT_EDITOR` and set it to your preferred editor:
+  
+  ```yaml
+  # For terminal editors like vim or nano
+  GOOSE_PROMPT_EDITOR: vim
+
+  # Or for GUI editors like VS Code (use --wait flag)
+  GOOSE_PROMPT_EDITOR: code --wait
+  ```
+
+  </TabItem>
+</Tabs>
+
+**Using GUI Editors:**
+
+GUI editors require a `--wait` or equivalent flag to ensure goose waits for you to finish editing before continuing. Without this flag, the editor opens but goose immediately proceeds as if you're done. Terminal editors like vim and nano don't need this flag.
+
+---
+
 ### Command History Search
 
 The `Ctrl+R` shortcut provides interactive search through your stored CLI [command history](/docs/guides/logs#command-history). This feature makes it easy to find and reuse recent commands without retyping them. When you type a search term, goose searches backwards through your history for matches.
