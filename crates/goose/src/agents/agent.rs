@@ -933,6 +933,7 @@ impl Agent {
                 .dispatch_tool_call_with_guard(
                     &session.id,
                     tool_call.clone(),
+                    Some(session.working_dir.as_path()),
                     cancellation_token.unwrap_or_default(),
                     shell_guard.as_ref(),
                 )

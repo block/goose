@@ -72,7 +72,7 @@ pub async fn run_mcp_http_server<S: Session>() {
 pub async fn run_builtin_and_mcp<S: Session>() {
     let expected_session_id = ExpectedSessionId::default();
     let prompt =
-        "Search for get_code and text_editor tools. Use them to save the code to /tmp/result.txt.";
+        "Search for getCode and textEditor tools. Use them to save the code to /tmp/result.txt.";
     let mcp = McpFixture::new(expected_session_id.clone()).await;
     let openai = OpenAiFixture::new(
         vec![
@@ -81,15 +81,11 @@ pub async fn run_builtin_and_mcp<S: Session>() {
                 include_str!("../test_data/openai_builtin_search.txt"),
             ),
             (
-                r#"lookup/get_code: Get the code"#.into(),
-                include_str!("../test_data/openai_builtin_read_modules.txt"),
-            ),
-            (
-                r#"lookup[\"get_code\"]({}): string - Get the code"#.into(),
+                r#"export async function getCode"#.into(),
                 include_str!("../test_data/openai_builtin_execute.txt"),
             ),
             (
-                r#"Successfully wrote to /tmp/result.txt"#.into(),
+                r#""writeResult": "Successfully wrote to /tmp/result.txt"#.into(),
                 include_str!("../test_data/openai_builtin_final.txt"),
             ),
         ],

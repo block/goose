@@ -328,6 +328,63 @@ While you can resume sessions, we recommend creating new sessions for new tasks 
     </TabItem>
 </Tabs>
 
+## Duplicate Sessions
+
+Create a complete copy of any session to reuse configurations, experiment with variations, or preserve important work.
+
+<Tabs groupId="interface">
+    <TabItem value="ui" label="goose Desktop" default>
+        
+        Duplicate a session from the session list:
+
+        1. Click the <PanelLeft className="inline" size={16} /> button in the top-left to open the sidebar
+        2. Click `View All` at the bottom of the `Chat` section
+        3. Find the session you want to duplicate
+        4. Hover over the session card to reveal the action buttons
+        5. Click the <Copy className="inline" size={16} /> button that appears in the top-right corner
+
+        The duplicated session includes:
+        - Complete conversation history
+        - All session metadata and settings
+        - Provider and model configuration
+        - Extension data and configurations
+        - Recipe information (if applicable)
+
+        The new session is named the same as the original and appears at the top of your session list.
+
+        :::tip Duplicate vs Fork Session
+        - **Duplicate** (Copy button in session list): Creates a complete copy of the entire session. Use this to preserve a working session or reuse its configuration.
+        - **[Fork Session](/docs/guides/sessions/in-session-actions#fork-session)** (Edit button on a message): Creates a new session with conversation history up to a specific edited message. Use this when editing a message to explore different approaches from that point.
+        :::
+
+    </TabItem>
+    <TabItem value="cli" label="goose CLI">
+        
+        Create a new session by copying all messages from a previous session using the `--fork` flag along with `--resume`.
+
+        ```bash
+        # Fork the most recent session
+        goose session --resume --fork
+
+        # Fork a specific session by name
+        goose session --resume --fork --name my-project
+
+        # Fork a specific session by ID
+        goose session --resume --fork --session-id 20251108_3
+
+        # Fork and show message history
+        goose session --resume --fork --history
+        ```
+
+        The forked session includes:
+        - Complete conversation history from the original session
+        - All session metadata and settings
+        - Provider and model configuration
+        - Extension data and configurations
+        - Recipe information (if applicable)
+    </TabItem>
+</Tabs>
+
 ## Delete Sessions
 
 <Tabs groupId="interface">
