@@ -1,9 +1,11 @@
 use super::completion::GooseCompleter;
+use super::{CompletionCache, HintStatus};
 use anyhow::Result;
 use goose::config::Config;
 use rustyline::Editor;
 use shlex;
 use std::collections::HashMap;
+use std::sync::Arc;
 
 #[derive(Debug)]
 pub enum InputResult {
@@ -37,10 +39,18 @@ pub struct PlanCommandOptions {
     pub message_text: String,
 }
 
-struct CtrlCHandler;
+struct CtrlCHandler {
+    completion_cache: Arc<std::sync::RwLock<CompletionCache>>,
+}
+
+impl CtrlCHandler {
+    fn new(completion_cache: Arc<std::sync::RwLock<CompletionCache>>) -> Self {
+        Self { completion_cache }
+    }
+}
 
 impl rustyline::ConditionalEventHandler for CtrlCHandler {
-    /// Handle Ctrl+C to clear the line if text is entered, otherwise exit the session.
+    /// Handle Ctrl+C to clear the line if text is entered, otherwise check if we should exit.
     fn handle(
         &self,
         _event: &rustyline::Event,
@@ -49,9 +59,21 @@ impl rustyline::ConditionalEventHandler for CtrlCHandler {
         ctx: &rustyline::EventContext,
     ) -> Option<rustyline::Cmd> {
         if !ctx.line().is_empty() {
+            // Clear the line if there's text
+            let mut cache = self.completion_cache.write().unwrap();
+            cache.hint_status = HintStatus::Default;
             Some(rustyline::Cmd::Kill(rustyline::Movement::WholeBuffer))
         } else {
-            Some(rustyline::Cmd::Interrupt)
+            let mut cache = self.completion_cache.write().unwrap();
+
+            if cache.hint_status == HintStatus::MaybeExit {
+                return Some(rustyline::Cmd::Interrupt);
+            }
+
+            cache.hint_status = HintStatus::MaybeExit;
+            drop(cache);
+
+            Some(rustyline::Cmd::Repaint)
         }
     }
 }
@@ -83,15 +105,23 @@ pub fn get_input(
         return Ok(InputResult::Message(message));
     }
 
-    // Ensure Ctrl-J binding is set for newlines
+    let completion_cache = editor
+        .helper()
+        .map(|h| h.completion_cache.clone())
+        .ok_or_else(|| anyhow::anyhow!("Editor helper not set"))?;
+
+    let newline_key = get_newline_key();
     editor.bind_sequence(
-        rustyline::KeyEvent(rustyline::KeyCode::Char('j'), rustyline::Modifiers::CTRL),
+        rustyline::KeyEvent(
+            rustyline::KeyCode::Char(newline_key),
+            rustyline::Modifiers::CTRL,
+        ),
         rustyline::EventHandler::Simple(rustyline::Cmd::Newline),
     );
 
     editor.bind_sequence(
         rustyline::KeyEvent(rustyline::KeyCode::Char('c'), rustyline::Modifiers::CTRL),
-        rustyline::EventHandler::Conditional(Box::new(CtrlCHandler)),
+        rustyline::EventHandler::Conditional(Box::new(CtrlCHandler::new(completion_cache))),
     );
 
     let prompt = get_input_prompt_string();
@@ -133,10 +163,14 @@ pub fn get_input(
     }
 }
 
-/// Get regular CLI input when editor mode doesn't have content
 fn get_regular_input(
     editor: &mut Editor<GooseCompleter, rustyline::history::DefaultHistory>,
 ) -> Result<InputResult> {
+    let completion_cache = editor
+        .helper()
+        .map(|h| h.completion_cache.clone())
+        .ok_or_else(|| anyhow::anyhow!("Editor helper not set"))?;
+
     let newline_key = get_newline_key();
     editor.bind_sequence(
         rustyline::KeyEvent(
@@ -148,7 +182,7 @@ fn get_regular_input(
 
     editor.bind_sequence(
         rustyline::KeyEvent(rustyline::KeyCode::Char('c'), rustyline::Modifiers::CTRL),
-        rustyline::EventHandler::Conditional(Box::new(CtrlCHandler)),
+        rustyline::EventHandler::Conditional(Box::new(CtrlCHandler::new(completion_cache))),
     );
 
     let prompt = get_input_prompt_string();

@@ -104,7 +104,9 @@ export function formatExtensionName(name: string): string {
 }
 
 export function getFriendlyTitle(extension: FixedExtensionEntry): string {
-  const name = (extension.type === 'builtin' && extension.display_name) || extension.name;
+  const name =
+    ((extension.type === 'builtin' || extension.type === 'platform') && extension.display_name) ||
+    extension.name;
   return formatExtensionName(name);
 }
 

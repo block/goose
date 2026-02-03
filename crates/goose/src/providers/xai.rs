@@ -1,17 +1,11 @@
 use super::api_client::{ApiClient, AuthMethod};
-use super::errors::ProviderError;
-use super::retry::ProviderRetry;
-use super::utils::{get_model, handle_response_openai_compat, handle_status_openai_compat};
-use crate::conversation::message::Message;
+use super::base::{ConfigKey, ProviderDef, ProviderMetadata};
+use super::openai_compatible::OpenAiCompatibleProvider;
 use crate::model::ModelConfig;
-use crate::providers::base::{
-    ConfigKey, Provider, ProviderMetadata, ProviderUsage, StreamFormat, StreamRequest, Usage,
-};
-use crate::providers::formats::openai::{create_request, get_usage, response_to_message};
 use anyhow::Result;
-use async_trait::async_trait;
-use rmcp::model::Tool;
-use serde_json::Value;
+use futures::future::BoxFuture;
+
+const XAI_PROVIDER_NAME: &str = "xai";
 pub const XAI_API_HOST: &str = "https://api.x.ai/v1";
 pub const XAI_DEFAULT_MODEL: &str = "grok-code-fast-1";
 pub const XAI_KNOWN_MODELS: &[&str] = &[
@@ -37,50 +31,14 @@ pub const XAI_KNOWN_MODELS: &[&str] = &[
 
 pub const XAI_DOC_URL: &str = "https://docs.x.ai/docs/overview";
 
-#[derive(serde::Serialize)]
-pub struct XaiProvider {
-    #[serde(skip)]
-    api_client: ApiClient,
-    model: ModelConfig,
-    supports_streaming: bool,
-    #[serde(skip)]
-    name: String,
-}
+pub struct XaiProvider;
 
-impl XaiProvider {
-    pub async fn from_env(model: ModelConfig) -> Result<Self> {
-        let config = crate::config::Config::global();
-        let api_key: String = config.get_secret("XAI_API_KEY")?;
-        let host: String = config
-            .get_param("XAI_HOST")
-            .unwrap_or_else(|_| XAI_API_HOST.to_string());
+impl ProviderDef for XaiProvider {
+    type Provider = OpenAiCompatibleProvider;
 
-        let auth = AuthMethod::BearerToken(api_key);
-        let api_client = ApiClient::new(host, auth)?;
-
-        Ok(Self {
-            api_client,
-            model,
-            supports_streaming: true,
-            name: Self::metadata().name,
-        })
-    }
-
-    async fn post(&self, session_id: Option<&str>, payload: Value) -> Result<Value, ProviderError> {
-        let response = self
-            .api_client
-            .response_post(session_id, "chat/completions", &payload)
-            .await?;
-
-        handle_response_openai_compat(response).await
-    }
-}
-
-#[async_trait]
-impl Provider for XaiProvider {
     fn metadata() -> ProviderMetadata {
         ProviderMetadata::new(
-            "xai",
+            XAI_PROVIDER_NAME,
             "xAI",
             "Grok models from xAI, including reasoning and multimodal capabilities",
             XAI_DEFAULT_MODEL,
@@ -93,86 +51,21 @@ impl Provider for XaiProvider {
         )
     }
 
-    fn get_name(&self) -> &str {
-        &self.name
-    }
+    fn from_env(model: ModelConfig) -> BoxFuture<'static, Result<OpenAiCompatibleProvider>> {
+        Box::pin(async move {
+            let config = crate::config::Config::global();
+            let api_key: String = config.get_secret("XAI_API_KEY")?;
+            let host: String = config
+                .get_param("XAI_HOST")
+                .unwrap_or_else(|_| XAI_API_HOST.to_string());
 
-    fn get_model_config(&self) -> ModelConfig {
-        self.model.clone()
-    }
+            let api_client = ApiClient::new(host, AuthMethod::BearerToken(api_key))?;
 
-    #[tracing::instrument(
-        skip(self, model_config, system, messages, tools),
-        fields(model_config, input, output, input_tokens, output_tokens, total_tokens)
-    )]
-    async fn complete_with_model(
-        &self,
-        session_id: Option<&str>,
-        model_config: &ModelConfig,
-        system: &str,
-        messages: &[Message],
-        tools: &[Tool],
-    ) -> Result<(Message, ProviderUsage), ProviderError> {
-        let payload = create_request(
-            model_config,
-            system,
-            messages,
-            tools,
-            &super::utils::ImageFormat::OpenAi,
-            false,
-        )?;
-
-        let response = self
-            .with_retry(|| self.post(session_id, payload.clone()))
-            .await?;
-
-        let message = response_to_message(&response)?;
-        let usage = response.get("usage").map(get_usage).unwrap_or_else(|| {
-            tracing::debug!("Failed to get usage data");
-            Usage::default()
-        });
-        let response_model = get_model(&response);
-        Ok((message, ProviderUsage::new(response_model, usage)))
-    }
-
-    fn supports_streaming(&self) -> bool {
-        self.supports_streaming
-    }
-
-    fn build_stream_request(
-        &self,
-        _session_id: &str,
-        system: &str,
-        messages: &[Message],
-        tools: &[Tool],
-    ) -> Result<StreamRequest, ProviderError> {
-        let payload = create_request(
-            &self.model,
-            system,
-            messages,
-            tools,
-            &super::utils::ImageFormat::OpenAi,
-            true,
-        )?;
-
-        Ok(StreamRequest::new(
-            "chat/completions",
-            payload,
-            StreamFormat::OpenAiCompat,
-        ))
-    }
-
-    async fn execute_stream_request(
-        &self,
-        request: &StreamRequest,
-    ) -> Result<reqwest::Response, ProviderError> {
-        let mut api_request = self.api_client.request(None, &request.url);
-
-        for (key, value) in &request.headers {
-            api_request = api_request.header(key.as_str(), value.to_str().unwrap_or(""))?;
-        }
-
-        let resp = api_request.response_post(&request.payload).await?;
-        handle_status_openai_compat(resp).await
+            Ok(OpenAiCompatibleProvider::new(
+                XAI_PROVIDER_NAME.to_string(),
+                api_client,
+                model,
+            ))
+        })
     }
 }

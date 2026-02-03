@@ -1,21 +1,24 @@
 use anyhow::Result;
 use async_trait::async_trait;
+use futures::future::BoxFuture;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::time::Duration;
 
 use super::api_client::{ApiClient, AuthMethod, AuthProvider};
 use super::base::{
-    ConfigKey, Provider, ProviderMetadata, ProviderUsage, StreamFormat, StreamRequest, Usage,
+    ConfigKey, Provider, ProviderDef, ProviderMetadata, ProviderUsage, StreamFormat,
+    StreamRequest, Usage,
 };
 use super::embedding::EmbeddingCapable;
 use super::errors::ProviderError;
 use super::formats::databricks::{create_request, response_to_message};
 use super::oauth;
-use super::retry::ProviderRetry;
-use super::utils::{
-    get_model, handle_response_openai_compat, map_http_error_to_provider_error, ImageFormat,
+use super::openai_compatible::{
+    handle_response_openai_compat, map_http_error_to_provider_error,
 };
+use super::retry::ProviderRetry;
+use super::utils::{get_model, ImageFormat};
 use crate::config::ConfigError;
 use crate::conversation::message::Message;
 use crate::model::ModelConfig;
@@ -32,6 +35,7 @@ const DEFAULT_REDIRECT_URL: &str = "http://localhost";
 const DEFAULT_SCOPES: &[&str] = &["all-apis", "offline_access"];
 const DEFAULT_TIMEOUT_SECS: u64 = 600;
 
+const DATABRICKS_PROVIDER_NAME: &str = "databricks";
 pub const DATABRICKS_DEFAULT_MODEL: &str = "databricks-claude-sonnet-4";
 const DATABRICKS_DEFAULT_FAST_MODEL: &str = "gemini-2-5-flash";
 pub const DATABRICKS_KNOWN_MODELS: &[&str] = &[
@@ -141,7 +145,7 @@ impl DatabricksProvider {
             model: model.clone(),
             image_format: ImageFormat::OpenAi,
             retry_config,
-            name: Self::metadata().name,
+            name: DATABRICKS_PROVIDER_NAME.to_string(),
         };
         provider.model = model.with_fast(DATABRICKS_DEFAULT_FAST_MODEL.to_string());
         Ok(provider)
@@ -193,7 +197,7 @@ impl DatabricksProvider {
             model,
             image_format: ImageFormat::OpenAi,
             retry_config: RetryConfig::default(),
-            name: Self::metadata().name,
+            name: DATABRICKS_PROVIDER_NAME.to_string(),
         })
     }
 
@@ -223,11 +227,12 @@ impl DatabricksProvider {
     }
 }
 
-#[async_trait]
-impl Provider for DatabricksProvider {
+impl ProviderDef for DatabricksProvider {
+    type Provider = Self;
+
     fn metadata() -> ProviderMetadata {
         ProviderMetadata::new(
-            "databricks",
+            DATABRICKS_PROVIDER_NAME,
             "Databricks",
             "Models on Databricks AI Gateway",
             DATABRICKS_DEFAULT_MODEL,
@@ -240,6 +245,13 @@ impl Provider for DatabricksProvider {
         )
     }
 
+    fn from_env(model: ModelConfig) -> BoxFuture<'static, Result<Self::Provider>> {
+        Box::pin(Self::from_env(model))
+    }
+}
+
+#[async_trait]
+impl Provider for DatabricksProvider {
     fn get_name(&self) -> &str {
         &self.name
     }

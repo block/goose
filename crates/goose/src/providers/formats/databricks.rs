@@ -106,11 +106,10 @@ fn format_tool_response(
 ///   even though the message structure is otherwise following openai, the enum switches this
 fn format_messages(messages: &[Message], image_format: &ImageFormat) -> Vec<DatabricksMessage> {
     let mut result = Vec::new();
-    for message in messages.iter().filter(|m| m.is_agent_visible()) {
-        let filtered = message.agent_visible_content();
+    for message in messages {
         let mut converted = DatabricksMessage {
             content: Value::Null,
-            role: match filtered.role {
+            role: match message.role {
                 Role::User => "user".to_string(),
                 Role::Assistant => "assistant".to_string(),
             },
@@ -122,7 +121,7 @@ fn format_messages(messages: &[Message], image_format: &ImageFormat) -> Vec<Data
         let mut has_tool_calls = false;
         let mut has_multiple_content = false;
 
-        for content in &filtered.content {
+        for content in &message.content {
             match content {
                 MessageContent::Text(text) => {
                     if !text.text.is_empty() {

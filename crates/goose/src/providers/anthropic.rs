@@ -5,17 +5,24 @@ use serde_json::Value;
 
 use super::api_client::{ApiClient, ApiResponse, AuthMethod};
 use super::base::{
-    ConfigKey, ModelInfo, Provider, ProviderMetadata, ProviderUsage, StreamFormat, StreamRequest,
+    ConfigKey, ModelInfo, Provider, ProviderDef, ProviderMetadata, ProviderUsage,
+    StreamFormat, StreamRequest,
 };
 use super::errors::ProviderError;
-use super::formats::anthropic::{create_request, get_usage, response_to_message};
-use super::utils::{get_model, handle_status_openai_compat, map_http_error_to_provider_error};
+use super::formats::anthropic::{
+    create_request, get_usage, response_to_message,
+};
+use super::openai_compatible::handle_status_openai_compat;
+use super::openai_compatible::map_http_error_to_provider_error;
+use super::utils::get_model;
 use crate::config::declarative_providers::DeclarativeProviderConfig;
 use crate::conversation::message::Message;
 use crate::model::ModelConfig;
 use crate::providers::retry::ProviderRetry;
+use futures::future::BoxFuture;
 use rmcp::model::Tool;
 
+const ANTHROPIC_PROVIDER_NAME: &str = "anthropic";
 pub const ANTHROPIC_DEFAULT_MODEL: &str = "claude-sonnet-4-5";
 const ANTHROPIC_DEFAULT_FAST_MODEL: &str = "claude-haiku-4-5";
 const ANTHROPIC_KNOWN_MODELS: &[&str] = &[
@@ -67,7 +74,7 @@ impl AnthropicProvider {
             api_client,
             model,
             supports_streaming: true,
-            name: Self::metadata().name,
+            name: ANTHROPIC_PROVIDER_NAME.to_string(),
         })
     }
 
@@ -165,8 +172,9 @@ impl AnthropicProvider {
     }
 }
 
-#[async_trait]
-impl Provider for AnthropicProvider {
+impl ProviderDef for AnthropicProvider {
+    type Provider = Self;
+
     fn metadata() -> ProviderMetadata {
         let models: Vec<ModelInfo> = ANTHROPIC_KNOWN_MODELS
             .iter()
@@ -174,7 +182,7 @@ impl Provider for AnthropicProvider {
             .collect();
 
         ProviderMetadata::with_models(
-            "anthropic",
+            ANTHROPIC_PROVIDER_NAME,
             "Anthropic",
             "Claude and other models from Anthropic",
             ANTHROPIC_DEFAULT_MODEL,
@@ -192,6 +200,13 @@ impl Provider for AnthropicProvider {
         )
     }
 
+    fn from_env(model: ModelConfig) -> BoxFuture<'static, Result<Self::Provider>> {
+        Box::pin(Self::from_env(model))
+    }
+}
+
+#[async_trait]
+impl Provider for AnthropicProvider {
     fn get_name(&self) -> &str {
         &self.name
     }

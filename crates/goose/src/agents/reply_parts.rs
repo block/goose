@@ -8,6 +8,7 @@ use tracing::debug;
 
 use super::super::agents::Agent;
 use crate::agents::code_execution_extension::EXTENSION_NAME as CODE_EXECUTION_EXTENSION;
+use crate::agents::skills_extension::EXTENSION_NAME as SKILLS_EXTENSION;
 use crate::agents::subagent_tool::SUBAGENT_TOOL_NAME;
 use crate::conversation::message::{Message, MessageContent, ToolRequest};
 use crate::conversation::Conversation;
@@ -126,8 +127,11 @@ impl Agent {
             .await;
         if code_execution_active {
             let code_exec_prefix = format!("{CODE_EXECUTION_EXTENSION}__");
+            let skills_prefix = format!("{SKILLS_EXTENSION}__");
             tools.retain(|tool| {
-                tool.name.starts_with(&code_exec_prefix) || tool.name == SUBAGENT_TOOL_NAME
+                tool.name.starts_with(&code_exec_prefix)
+                    || tool.name.starts_with(&skills_prefix)
+                    || tool.name == SUBAGENT_TOOL_NAME
             });
         }
 
@@ -182,11 +186,17 @@ impl Agent {
     ) -> Result<MessageStream, ProviderError> {
         let config = provider.get_model_config();
 
+        let filtered_messages: Vec<Message> = messages
+            .iter()
+            .filter(|m| m.is_agent_visible())
+            .map(|m| m.agent_visible_content())
+            .collect();
+
         // Convert tool messages to text if toolshim is enabled
         let messages_for_provider = if config.toolshim {
-            convert_tool_messages_to_text(messages)
+            convert_tool_messages_to_text(&filtered_messages)
         } else {
-            Conversation::new_unvalidated(messages.to_vec())
+            Conversation::new_unvalidated(filtered_messages)
         };
 
         // Clone owned data to move into the async stream
@@ -421,10 +431,6 @@ mod tests {
 
     #[async_trait]
     impl Provider for MockProvider {
-        fn metadata() -> crate::providers::base::ProviderMetadata {
-            crate::providers::base::ProviderMetadata::empty()
-        }
-
         fn get_name(&self) -> &str {
             "mock"
         }
@@ -481,14 +487,17 @@ mod tests {
         ];
 
         agent
-            .add_extension(crate::agents::extension::ExtensionConfig::Frontend {
-                name: "frontend".to_string(),
-                description: "desc".to_string(),
-                tools: frontend_tools,
-                instructions: None,
-                bundled: None,
-                available_tools: vec![],
-            })
+            .add_extension(
+                crate::agents::extension::ExtensionConfig::Frontend {
+                    name: "frontend".to_string(),
+                    description: "desc".to_string(),
+                    tools: frontend_tools,
+                    instructions: None,
+                    bundled: None,
+                    available_tools: vec![],
+                },
+                &session.id,
+            )
             .await
             .unwrap();
 

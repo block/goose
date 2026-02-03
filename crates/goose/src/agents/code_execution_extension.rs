@@ -201,7 +201,7 @@ struct ToolInfo {
 
 impl ToolInfo {
     fn from_mcp_tool(tool: &McpTool) -> Option<Self> {
-        let (server_name, tool_name) = tool.name.as_ref().split_once("__")?;
+        let (server_name, tool_name) = tool.name.split_once("__")?;
         let param_names = get_parameter_names(tool);
 
         let mut schema_value = Value::Object(tool.input_schema.as_ref().clone());
@@ -235,11 +235,11 @@ impl ToolInfo {
         Some(Self {
             server_name: server_name.to_string(),
             tool_name: tool_name.to_string(),
-            full_name: tool.name.as_ref().to_string(),
+            full_name: tool.name.to_string(),
             description: tool
                 .description
                 .as_ref()
-                .map(|d| d.as_ref().to_string())
+                .map(|d| d.to_string())
                 .unwrap_or_default(),
             params,
             return_type,
@@ -434,7 +434,7 @@ impl CodeExecutionClient {
             },
             server_info: Implementation {
                 name: EXTENSION_NAME.to_string(),
-                title: Some("Code Execution".to_string()),
+                title: Some("Code Mode".to_string()),
                 version: "1.0.0".to_string(),
                 icons: None,
                 website_url: None,

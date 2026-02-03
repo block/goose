@@ -1,23 +1,26 @@
 use super::api_client::{ApiClient, AuthMethod};
 use super::base::{
-    ConfigKey, Provider, ProviderMetadata, ProviderUsage, StreamFormat, StreamRequest, Usage,
+    ConfigKey, Provider, ProviderDef, ProviderMetadata, ProviderUsage, StreamFormat,
+    StreamRequest, Usage,
 };
 use super::errors::ProviderError;
-use super::retry::ProviderRetry;
-use super::utils::{
-    get_model, handle_response_google_compat, handle_response_openai_compat,
-    handle_status_openai_compat, is_google_model,
+use super::openai_compatible::{
+    handle_response_openai_compat, handle_status_openai_compat,
 };
+use super::retry::ProviderRetry;
+use super::utils::{get_model, handle_response_google_compat, is_google_model};
 use crate::config::signup_tetrate::TETRATE_DEFAULT_MODEL;
 use crate::conversation::message::Message;
 use anyhow::Result;
 use async_trait::async_trait;
+use futures::future::BoxFuture;
 use serde_json::Value;
 
 use crate::model::ModelConfig;
 use crate::providers::formats::openai::{create_request, get_usage, response_to_message};
 use rmcp::model::Tool;
 
+const TETRATE_PROVIDER_NAME: &str = "tetrate";
 // Tetrate Agent Router Service can run many models, we suggest the default
 pub const TETRATE_KNOWN_MODELS: &[&str] = &[
     "claude-opus-4-1",
@@ -61,7 +64,7 @@ impl TetrateProvider {
             api_client,
             model,
             supports_streaming: true,
-            name: Self::metadata().name,
+            name: TETRATE_PROVIDER_NAME.to_string(),
         })
     }
 
@@ -128,11 +131,12 @@ impl TetrateProvider {
     }
 }
 
-#[async_trait]
-impl Provider for TetrateProvider {
+impl ProviderDef for TetrateProvider {
+    type Provider = Self;
+
     fn metadata() -> ProviderMetadata {
         ProviderMetadata::new(
-            "tetrate",
+            TETRATE_PROVIDER_NAME,
             "Tetrate Agent Router Service",
             "Enterprise router for AI models",
             TETRATE_DEFAULT_MODEL,
@@ -150,6 +154,13 @@ impl Provider for TetrateProvider {
         )
     }
 
+    fn from_env(model: ModelConfig) -> BoxFuture<'static, Result<Self::Provider>> {
+        Box::pin(Self::from_env(model))
+    }
+}
+
+#[async_trait]
+impl Provider for TetrateProvider {
     fn get_name(&self) -> &str {
         &self.name
     }
@@ -274,9 +285,13 @@ impl Provider for TetrateProvider {
 
         // The response format from /v1/models is expected to be OpenAI-compatible
         // It should have a "data" field with an array of model objects
-        let data = json.get("data").and_then(|v| v.as_array()).ok_or_else(|| {
-            ProviderError::UsageError("Missing data field in JSON response".into())
-        })?;
+        let data = match json.get("data").and_then(|v| v.as_array()) {
+            Some(data) => data,
+            None => {
+                tracing::warn!("Tetrate Agent Router Service API response missing 'data' field, falling back to manual model entry");
+                return Ok(None);
+            }
+        };
 
         let mut models: Vec<String> = data
             .iter()
@@ -286,18 +301,26 @@ impl Provider for TetrateProvider {
 
                 // Check if the model supports computer_use (which indicates tool/function support)
                 // The Tetrate API uses "supports_computer_use" instead of "supported_parameters"
-                let supports_computer_use = model
-                    .get("supports_computer_use")
-                    .and_then(|v| v.as_bool())
-                    .unwrap_or(false);
+                let supported_params =
+                    match model.get("supported_parameters").and_then(|v| v.as_array()) {
+                        Some(params) => params,
+                        None => {
+                            tracing::debug!(
+                                "Model '{}' missing supported_parameters field, skipping",
+                                id
+                            );
+                            return None;
+                        }
+                    };
 
-                if supports_computer_use {
+                let has_tool_support = supported_params
+                    .iter()
+                    .any(|param| param.as_str() == Some("tools"));
+
+                if has_tool_support {
                     Some(id.to_string())
                 } else {
-                    tracing::debug!(
-                        "Model '{}' does not support computer_use (tool support), skipping",
-                        id
-                    );
+                    tracing::debug!("Model '{}' does not support tools, skipping", id);
                     None
                 }
             })

@@ -1,5 +1,16 @@
+#![recursion_limit = "256"]
+#![allow(unused_attributes)]
+
 use assert_json_diff::{assert_json_matches_no_panic, CompareMode, Config};
+use async_trait::async_trait;
+use fs_err as fs;
+use goose::builtin_extension::register_builtin_extensions;
+use goose::config::{GooseMode, PermissionManager};
+use goose::model::ModelConfig;
+use goose::providers::api_client::{ApiClient, AuthMethod};
+use goose::providers::openai::OpenAiProvider;
 use goose::session_context::SESSION_ID_HEADER;
+use goose_acp::server::{serve, AcpServerConfig, GooseAcpAgent};
 use rmcp::model::{ClientNotification, ClientRequest, Meta, ServerResult};
 use rmcp::service::{NotificationContext, RequestContext, ServiceRole};
 use rmcp::transport::streamable_http_server::{
@@ -9,15 +20,66 @@ use rmcp::{
     handler::server::router::tool::ToolRouter, model::*, tool, tool_handler, tool_router,
     ErrorData as McpError, RoleServer, ServerHandler, Service,
 };
+use sacp::schema::{
+    McpServer, PermissionOptionKind, RequestPermissionOutcome, RequestPermissionRequest,
+    RequestPermissionResponse, SelectedPermissionOutcome, ToolCallStatus,
+};
 use std::collections::VecDeque;
+use std::future::Future;
+use std::path::Path;
+use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 use tokio::task::JoinHandle;
+use tokio_util::compat::{TokioAsyncReadCompatExt, TokioAsyncWriteCompatExt};
 use wiremock::matchers::{method, path};
 use wiremock::{Mock, MockServer, ResponseTemplate};
 
 pub const FAKE_CODE: &str = "test-uuid-12345-67890";
 
 const NOT_YET_SET: &str = "session-id-not-yet-set";
+
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+pub enum PermissionDecision {
+    AllowAlways,
+    AllowOnce,
+    RejectOnce,
+    RejectAlways,
+    Cancel,
+}
+
+#[derive(Default)]
+pub struct PermissionMapping;
+
+pub fn map_permission_response(
+    _mapping: &PermissionMapping,
+    req: &RequestPermissionRequest,
+    decision: PermissionDecision,
+) -> RequestPermissionResponse {
+    let outcome = match decision {
+        PermissionDecision::Cancel => RequestPermissionOutcome::Cancelled,
+        PermissionDecision::AllowAlways => select_option(req, PermissionOptionKind::AllowAlways),
+        PermissionDecision::AllowOnce => select_option(req, PermissionOptionKind::AllowOnce),
+        PermissionDecision::RejectOnce => select_option(req, PermissionOptionKind::RejectOnce),
+        PermissionDecision::RejectAlways => select_option(req, PermissionOptionKind::RejectAlways),
+    };
+
+    RequestPermissionResponse::new(outcome)
+}
+
+fn select_option(
+    req: &RequestPermissionRequest,
+    kind: PermissionOptionKind,
+) -> RequestPermissionOutcome {
+    req.options
+        .iter()
+        .find(|opt| opt.kind == kind)
+        .map(|opt| {
+            RequestPermissionOutcome::Selected(SelectedPermissionOutcome::new(
+                opt.option_id.clone(),
+            ))
+        })
+        .unwrap_or(RequestPermissionOutcome::Cancelled)
+}
 
 #[derive(Clone)]
 pub struct ExpectedSessionId {
@@ -60,14 +122,19 @@ impl ExpectedSessionId {
 
     /// Calling this ensures incidental requests that might error asynchronously, such as
     /// session rename have coherent session IDs.
-    pub fn assert_no_errors(&self) {
+    pub fn assert_matches(&self, actual: &str) {
+        let result = self.validate(Some(actual));
+        assert!(result.is_ok(), "{}", result.unwrap_err());
         let e = self.errors.lock().unwrap();
         assert!(e.is_empty(), "Session ID validation errors: {:?}", *e);
     }
 }
 
 pub struct OpenAiFixture {
-    pub server: MockServer,
+    _server: MockServer,
+    base_url: String,
+    exchanges: Vec<(String, &'static str)>,
+    queue: Arc<Mutex<VecDeque<(String, &'static str)>>>,
 }
 
 impl OpenAiFixture {
@@ -78,8 +145,7 @@ impl OpenAiFixture {
         expected_session_id: ExpectedSessionId,
     ) -> Self {
         let mock_server = MockServer::start().await;
-        let queue: VecDeque<(String, &'static str)> = exchanges.into_iter().collect();
-        let queue = Arc::new(Mutex::new(queue));
+        let queue = Arc::new(Mutex::new(VecDeque::from(exchanges.clone())));
 
         Mock::given(method("POST"))
             .and(path("/v1/chat/completions"))
@@ -104,7 +170,7 @@ impl OpenAiFixture {
                         return ResponseTemplate::new(200)
                             .insert_header("content-type", "application/json")
                             .set_body_string(include_str!(
-                                "./test_data/openai_session_description.json"
+                                "../test_data/openai_session_description.json"
                             ));
                     }
 
@@ -135,14 +201,27 @@ impl OpenAiFixture {
             .mount(&mock_server)
             .await;
 
+        let base_url = mock_server.uri();
         Self {
-            server: mock_server,
+            _server: mock_server,
+            base_url,
+            exchanges,
+            queue,
         }
+    }
+
+    pub fn uri(&self) -> &str {
+        &self.base_url
+    }
+
+    pub fn reset(&self) {
+        let mut queue = self.queue.lock().unwrap();
+        *queue = VecDeque::from(self.exchanges.clone());
     }
 }
 
 #[derive(Clone)]
-pub struct Lookup {
+struct Lookup {
     tool_router: ToolRouter<Lookup>,
 }
 
@@ -198,13 +277,13 @@ impl<R: ServiceRole> HasMeta for NotificationContext<R> {
     }
 }
 
-pub struct ValidatingService<S> {
+struct ValidatingService<S> {
     inner: S,
     expected_session_id: ExpectedSessionId,
 }
 
 impl<S> ValidatingService<S> {
-    pub fn new(inner: S, expected_session_id: ExpectedSessionId) -> Self {
+    fn new(inner: S, expected_session_id: ExpectedSessionId) -> Self {
         Self {
             inner,
             expected_session_id,
@@ -287,3 +366,105 @@ impl McpFixture {
         }
     }
 }
+
+#[allow(dead_code)]
+pub async fn spawn_acp_server_in_process(
+    openai_base_url: &str,
+    builtins: &[String],
+    data_root: &Path,
+    goose_mode: GooseMode,
+) -> (
+    tokio::io::DuplexStream,
+    tokio::io::DuplexStream,
+    JoinHandle<()>,
+    Arc<PermissionManager>,
+) {
+    fs::create_dir_all(data_root).unwrap();
+    let api_client = ApiClient::new(
+        openai_base_url.to_string(),
+        AuthMethod::BearerToken("test-key".to_string()),
+    )
+    .unwrap();
+    let model_config = ModelConfig::new("gpt-5-nano").unwrap();
+    let provider = OpenAiProvider::new(api_client, model_config);
+
+    let config = AcpServerConfig {
+        provider: Arc::new(provider),
+        builtins: builtins.to_vec(),
+        data_dir: data_root.to_path_buf(),
+        config_dir: data_root.to_path_buf(),
+        goose_mode,
+    };
+
+    let (client_read, server_write) = tokio::io::duplex(64 * 1024);
+    let (server_read, client_write) = tokio::io::duplex(64 * 1024);
+
+    let agent = Arc::new(GooseAcpAgent::with_config(config).await.unwrap());
+    let permission_manager = agent.permission_manager();
+    let handle = tokio::spawn(async move {
+        if let Err(e) = serve(agent, server_read.compat(), server_write.compat_write()).await {
+            tracing::error!("ACP server error: {e}");
+        }
+    });
+
+    (client_read, client_write, handle, permission_manager)
+}
+
+pub struct TestOutput {
+    pub text: String,
+    pub tool_status: Option<ToolCallStatus>,
+}
+
+pub struct TestSessionConfig {
+    pub mcp_servers: Vec<McpServer>,
+    pub builtins: Vec<String>,
+    pub goose_mode: GooseMode,
+    pub data_root: PathBuf,
+}
+
+impl Default for TestSessionConfig {
+    fn default() -> Self {
+        Self {
+            mcp_servers: Vec::new(),
+            builtins: Vec::new(),
+            goose_mode: GooseMode::Auto,
+            data_root: PathBuf::new(),
+        }
+    }
+}
+
+#[async_trait]
+pub trait Session {
+    async fn new(config: TestSessionConfig, openai: OpenAiFixture) -> Self
+    where
+        Self: Sized;
+    fn id(&self) -> &sacp::schema::SessionId;
+    fn reset_openai(&self);
+    fn reset_permissions(&self);
+    async fn prompt(&mut self, text: &str, decision: PermissionDecision) -> TestOutput;
+}
+
+#[allow(dead_code)]
+pub fn run_test<F>(fut: F)
+where
+    F: Future<Output = ()> + Send + 'static,
+{
+    register_builtin_extensions(goose_mcp::BUILTIN_EXTENSIONS.clone());
+
+    let handle = std::thread::Builder::new()
+        .name("acp-test".to_string())
+        .stack_size(8 * 1024 * 1024)
+        .spawn(move || {
+            let runtime = tokio::runtime::Builder::new_multi_thread()
+                .worker_threads(2)
+                .thread_stack_size(8 * 1024 * 1024)
+                .enable_all()
+                .build()
+                .unwrap();
+            runtime.block_on(fut);
+        })
+        .unwrap();
+    handle.join().unwrap();
+}
+
+pub mod server;

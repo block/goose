@@ -92,6 +92,7 @@ pub struct SessionBuilderConfig {
     pub streamable_http_extensions: Vec<StreamableHttpOptions>,
     /// List of builtin extension commands to add
     pub builtins: Vec<String>,
+    pub no_profile: bool,
     /// Recipe for the session
     pub recipe: Option<Recipe>,
     /// Any additional system prompt to append to the default
@@ -130,6 +131,7 @@ impl Default for SessionBuilderConfig {
             extensions: Vec::new(),
             streamable_http_extensions: Vec::new(),
             builtins: Vec::new(),
+            no_profile: false,
             recipe: None,
             additional_system_prompt: None,
             provider: None,
@@ -209,7 +211,10 @@ async fn offer_extension_debugging_help(
     let extensions = get_all_extensions();
     for ext_wrapper in extensions {
         if ext_wrapper.enabled && ext_wrapper.config.name() == "developer" {
-            if let Err(e) = debug_agent.add_extension(ext_wrapper.config).await {
+            if let Err(e) = debug_agent
+                .add_extension(ext_wrapper.config, &session.id)
+                .await
+            {
                 // If we can't add developer extension, continue without it
                 eprintln!(
                     "Note: Could not load developer extension for debugging: {}",
@@ -256,6 +261,7 @@ async fn load_extensions(
     extensions_to_load: Vec<(String, ExtensionConfig)>,
     provider_for_debug: Arc<dyn goose::providers::base::Provider>,
     interactive: bool,
+    session_id: &str,
 ) -> Arc<Agent> {
     let mut set = JoinSet::new();
     let agent_ptr = Arc::new(agent);
@@ -264,7 +270,8 @@ async fn load_extensions(
     for (id, (_label, extension)) in extensions_to_load.iter().enumerate() {
         let agent_ptr = agent_ptr.clone();
         let cfg = extension.clone();
-        set.spawn(async move { (id, agent_ptr.add_extension(cfg).await) });
+        let sid = session_id.to_string();
+        set.spawn(async move { (id, agent_ptr.add_extension(cfg, &sid).await) });
     }
 
     let get_message = |waiting_ids: &BTreeSet<usize>| {
@@ -529,6 +536,8 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> CliSession {
             .and_then(|s| EnabledExtensionsState::from_extension_data(&s.extension_data))
             .map(|state| state.extensions)
             .unwrap_or_else(get_enabled_extensions)
+    } else if session_config.no_profile {
+        Vec::new()
     } else {
         resolve_extensions_for_new_session(recipe.and_then(|r| r.extensions.as_deref()), None)
     };
@@ -550,6 +559,7 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> CliSession {
         extensions_to_load,
         Arc::clone(&provider_for_display),
         session_config.interactive,
+        &session_id,
     )
     .await;
 
@@ -636,6 +646,7 @@ mod tests {
                 timeout: goose::config::DEFAULT_EXTENSION_TIMEOUT,
             }],
             builtins: vec!["developer".to_string()],
+            no_profile: false,
             recipe: None,
             additional_system_prompt: Some("Test prompt".to_string()),
             provider: None,
@@ -671,6 +682,7 @@ mod tests {
         assert!(config.extensions.is_empty());
         assert!(config.streamable_http_extensions.is_empty());
         assert!(config.builtins.is_empty());
+        assert!(!config.no_profile);
         assert!(config.recipe.is_none());
         assert!(config.additional_system_prompt.is_none());
         assert!(!config.debug);

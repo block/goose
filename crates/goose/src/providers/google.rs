@@ -1,20 +1,23 @@
 use super::api_client::{ApiClient, AuthMethod};
 use super::base::{StreamFormat, StreamRequest};
 use super::errors::ProviderError;
+use super::openai_compatible::handle_status_openai_compat;
 use super::retry::ProviderRetry;
-use super::utils::{
-    handle_response_google_compat, handle_status_openai_compat, unescape_json_values,
-};
+use super::utils::{handle_response_google_compat, unescape_json_values};
 use crate::conversation::message::Message;
 
 use crate::model::ModelConfig;
-use crate::providers::base::{ConfigKey, Provider, ProviderMetadata, ProviderUsage};
-use crate::providers::formats::google::{create_request, get_usage, response_to_message};
+use crate::providers::base::{ConfigKey, Provider, ProviderDef, ProviderMetadata, ProviderUsage};
+use crate::providers::formats::google::{
+    create_request, get_usage, response_to_message,
+};
 use anyhow::Result;
 use async_trait::async_trait;
+use futures::future::BoxFuture;
 use rmcp::model::Tool;
 use serde_json::Value;
 
+const GOOGLE_PROVIDER_NAME: &str = "google";
 pub const GOOGLE_API_HOST: &str = "https://generativelanguage.googleapis.com";
 pub const GOOGLE_DEFAULT_MODEL: &str = "gemini-2.5-pro";
 pub const GOOGLE_DEFAULT_FAST_MODEL: &str = "gemini-2.5-flash";
@@ -78,7 +81,7 @@ impl GoogleProvider {
         Ok(Self {
             api_client,
             model,
-            name: Self::metadata().name,
+            name: GOOGLE_PROVIDER_NAME.to_string(),
         })
     }
 
@@ -97,11 +100,12 @@ impl GoogleProvider {
     }
 }
 
-#[async_trait]
-impl Provider for GoogleProvider {
+impl ProviderDef for GoogleProvider {
+    type Provider = Self;
+
     fn metadata() -> ProviderMetadata {
         ProviderMetadata::new(
-            "google",
+            GOOGLE_PROVIDER_NAME,
             "Google Gemini",
             "Gemini models from Google AI",
             GOOGLE_DEFAULT_MODEL,
@@ -114,6 +118,13 @@ impl Provider for GoogleProvider {
         )
     }
 
+    fn from_env(model: ModelConfig) -> BoxFuture<'static, Result<Self::Provider>> {
+        Box::pin(Self::from_env(model))
+    }
+}
+
+#[async_trait]
+impl Provider for GoogleProvider {
     fn get_name(&self) -> &str {
         &self.name
     }

@@ -1,21 +1,26 @@
 use anyhow::Result;
 use async_trait::async_trait;
+use futures::future::BoxFuture;
 use serde_json::{json, Value};
 
 use super::api_client::{ApiClient, AuthMethod};
 use super::base::{
-    ConfigKey, Provider, ProviderMetadata, ProviderUsage, StreamFormat, StreamRequest, Usage,
+    ConfigKey, Provider, ProviderDef, ProviderMetadata, ProviderUsage, StreamFormat,
+    StreamRequest, Usage,
 };
 use super::errors::ProviderError;
+use super::openai_compatible::{
+    handle_response_openai_compat, handle_status_openai_compat,
+};
 use super::retry::ProviderRetry;
-use super::utils::{get_model, handle_response_openai_compat, handle_status_openai_compat};
+use super::utils::{get_model, ImageFormat};
 use crate::conversation::message::Message;
-
 use crate::model::ModelConfig;
 use crate::providers::formats::openai::{create_request, get_usage};
 use crate::providers::formats::openrouter as openrouter_format;
 use rmcp::model::Tool;
 
+const OPENROUTER_PROVIDER_NAME: &str = "openrouter";
 pub const OPENROUTER_DEFAULT_MODEL: &str = "anthropic/claude-sonnet-4";
 pub const OPENROUTER_DEFAULT_FAST_MODEL: &str = "google/gemini-2.5-flash";
 pub const OPENROUTER_MODEL_PREFIX_ANTHROPIC: &str = "anthropic";
@@ -64,7 +69,7 @@ impl OpenRouterProvider {
             api_client,
             model,
             supports_streaming: true,
-            name: Self::metadata().name,
+            name: OPENROUTER_PROVIDER_NAME.to_string(),
         })
     }
 
@@ -202,7 +207,7 @@ async fn create_request_based_on_model(
         system,
         messages,
         tools,
-        &super::utils::ImageFormat::OpenAi,
+        &ImageFormat::OpenAi,
         false,
     )?;
 
@@ -227,11 +232,12 @@ async fn create_request_based_on_model(
     Ok(payload)
 }
 
-#[async_trait]
-impl Provider for OpenRouterProvider {
+impl ProviderDef for OpenRouterProvider {
+    type Provider = Self;
+
     fn metadata() -> ProviderMetadata {
         ProviderMetadata::new(
-            "openrouter",
+            OPENROUTER_PROVIDER_NAME,
             "OpenRouter",
             "Router for many model providers",
             OPENROUTER_DEFAULT_MODEL,
@@ -250,6 +256,13 @@ impl Provider for OpenRouterProvider {
         .with_unlisted_models()
     }
 
+    fn from_env(model: ModelConfig) -> BoxFuture<'static, Result<Self::Provider>> {
+        Box::pin(Self::from_env(model))
+    }
+}
+
+#[async_trait]
+impl Provider for OpenRouterProvider {
     fn get_name(&self) -> &str {
         &self.name
     }
@@ -398,7 +411,7 @@ impl Provider for OpenRouterProvider {
             system,
             messages,
             tools,
-            &super::utils::ImageFormat::OpenAi,
+            &ImageFormat::OpenAi,
             true,
         )?;
 

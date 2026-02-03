@@ -1,10 +1,11 @@
 {
   "name": "goose-app",
   "productName": "Goose",
-  "version": "1.21.0",
+  "version": "1.22.0",
   "description": "Goose App",
   "engines": {
-    "node": "^24.0.0"
+    "node": "^24.10.0",
+    "npm": "^11.6.1"
   },
   "main": ".vite/build/main.js",
   "scripts": {
@@ -69,11 +70,11 @@
     "lodash": "^4.17.23",
     "lucide-react": "^0.562.0",
     "qrcode.react": "^4.2.0",
-    "react": "^19.2.3",
-    "react-dom": "^19.2.3",
+    "react": "^19.2.4",
+    "react-dom": "^19.2.4",
     "react-icons": "^5.5.0",
     "react-markdown": "^10.1.0",
-    "react-router-dom": "^7.12.0",
+    "react-router-dom": "^7.13.0",
     "react-select": "^5.10.2",
     "react-syntax-highlighter": "^16.1.0",
     "react-toastify": "^11.0.5",
@@ -117,7 +118,7 @@
     "@types/electron-squirrel-startup": "^1.0.2",
     "@types/express": "^5.0.6",
     "@types/lodash": "^4.17.23",
-    "@types/react": "^19.2.8",
+    "@types/react": "^19.2.10",
     "@types/react-dom": "^19.2.3",
     "@types/react-syntax-highlighter": "^15.5.13",
     "@types/shell-quote": "^1.7.5",
@@ -128,7 +129,7 @@
     "@vitest/coverage-v8": "^4.0.17",
     "@vitest/ui": "^4.0.17",
     "autoprefixer": "^10.4.23",
-    "electron": "^39.3.0",
+    "electron": "^40.1.0",
     "electron-devtools-installer": "^4.0.0",
     "eslint": "^9.39.2",
     "eslint-plugin-react": "^7.37.5",
@@ -147,8 +148,8 @@
   "keywords": [],
   "license": "Apache-2.0",
   "overrides": {
-    "react": "^19.2.3",
-    "react-dom": "^19.2.3"
+    "react": "^19.2.4",
+    "react-dom": "^19.2.4"
   },
   "lint-staged": {
     "src/**/*.{ts,tsx}": [

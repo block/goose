@@ -32,7 +32,7 @@ import {
 } from '../../api';
 import ImportRecipeForm, { ImportRecipeButton } from './ImportRecipeForm';
 import CreateEditRecipeModal from './CreateEditRecipeModal';
-import { generateDeepLink, Recipe } from '../../recipe';
+import { generateDeepLink, Recipe, stripEmptyExtensions } from '../../recipe';
 import { useNavigation } from '../../hooks/useNavigation';
 import { CronPicker } from '../schedule/CronPicker';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../ui/dialog';
@@ -138,12 +138,12 @@ export default function RecipesView() {
     }
   };
 
-  const handleStartRecipeChat = async (recipe: Recipe, _recipeId: string) => {
+  const handleStartRecipeChat = async (recipe: Recipe) => {
     try {
       const newAgent = await startAgent({
         body: {
           working_dir: getInitialWorkingDir(),
-          recipe,
+          recipe: stripEmptyExtensions(recipe) as Recipe,
         },
         throwOnError: true,
       });
@@ -506,7 +506,7 @@ export default function RecipesView() {
           <Button
             onClick={(e) => {
               e.stopPropagation();
-              handleStartRecipeChat(recipe, recipeManifestResponse.id);
+              handleStartRecipeChat(recipe);
             }}
             size="sm"
             className="h-8 w-8 p-0"
