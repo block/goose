@@ -17,7 +17,7 @@ This guide will show you how to use `.gooseignore` files to prevent goose from c
 
 goose supports two types of `.gooseignore` files:
 - **Global ignore file** - Create a `.gooseignore` file in `~/.config/goose`. These restrictions will apply to all your sessions with goose, regardless of directory.
-- **Local ignore file** - Create a `.gooseignore` file at the root of the directory you'd like it applied to. These restrictions will only apply when working in a specific directory.
+- **Local ignore file** - Located at the root of your project directory. Goose automatically creates this file with default patterns if it doesn't exist (see [Auto-Created Local `.gooseignore`](#3-auto-created-local-gooseignore) below). You can edit it to add project-specific restrictions.
 
 :::tip
 You can use both global and local `.gooseignore` files simultaneously. When both exist, goose will combine the restrictions from both files to determine which paths are restricted.
@@ -73,13 +73,38 @@ Project/
 └── src/
 ```
 
-### 3. Default Patterns
-By default, if you haven't created any .gooseignore files, goose will not modify files matching these patterns:
+### 3. Auto-Created Local `.gooseignore`
+
+When goose starts in a directory that doesn't have a local `.gooseignore` file, it automatically creates one with sensible defaults. This makes the ignore rules visible and easy to customize.
+
+The auto-created file contains:
+
 ```plaintext
+# This file is created automatically if no .gooseignore exists.
+# Customize or uncomment the patterns below instead of deleting the file.
+# Removing it will simply cause goose to recreate it on the next start.
+#
+# Suggested patterns you can uncomment if desired:
+# **/.ssh/**        # block SSH keys and configs
+# **/*.key         # block loose private keys
+# **/*.pem         # block certificates/private keys
+# **/.git/**        # block git metadata entirely
+# **/target/**     # block Rust build artifacts
+# **/node_modules/** # block JS/TS dependencies
+# **/*.db          # block local database files
+# **/*.sqlite      # block SQLite databases
+#
+
 **/.env
 **/.env.*
 **/secrets.*
 ```
+
+The three active patterns at the bottom protect sensitive files by default. The commented patterns above are suggestions you can enable by removing the `#` prefix.
+
+:::tip
+If you don't want the auto-created `.gooseignore` file tracked in version control, add `.gooseignore` to your project's `.gitignore`.
+:::
 
 ## Common use cases
 
