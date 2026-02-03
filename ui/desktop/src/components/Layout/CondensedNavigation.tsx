@@ -28,6 +28,7 @@ import { useSidebarSessionStatus } from '../../hooks/useSidebarSessionStatus';
 import { SessionIndicators } from '../SessionIndicators';
 import { AppEvents } from '../../constants/events';
 import type { Session } from '../../api';
+import { useConfig } from '../ConfigContext';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -53,6 +54,7 @@ interface CondensedNavigationProps {
 export const CondensedNavigation: React.FC<CondensedNavigationProps> = ({ className }) => {
   const navigate = useNavigate();
   const location = useLocation();
+  const configContext = useConfig();
   const {
     isNavExpanded,
     setIsNavExpanded,
@@ -64,6 +66,11 @@ export const CondensedNavigation: React.FC<CondensedNavigationProps> = ({ classN
     isChatExpanded,
     setIsChatExpanded,
   } = useNavigationContext();
+
+  // Check if apps extension is enabled
+  const appsExtensionEnabled = !!configContext.extensionsList?.find(
+    (ext) => ext.name === 'apps'
+  )?.enabled;
 
   const [draggedItem, setDraggedItem] = useState<string | null>(null);
   const [dragOverItem, setDragOverItem] = useState<string | null>(null);
@@ -387,11 +394,17 @@ export const CondensedNavigation: React.FC<CondensedNavigationProps> = ({ classN
     setDragOverItem(null);
   };
 
-  // Get ordered and enabled items
+  // Get ordered and enabled items, filtering out Apps if extension is not enabled
   const visibleItems = preferences.itemOrder
     .filter((id) => preferences.enabledItems.includes(id))
     .map((id) => getNavItemById(id))
-    .filter((item): item is NavItem => item !== undefined);
+    .filter((item): item is NavItem => item !== undefined)
+    .filter((item) => {
+      if (item.path === '/apps') {
+        return appsExtensionEnabled;
+      }
+      return true;
+    });
 
   const isOverlayMode = effectiveNavigationMode === 'overlay';
 
