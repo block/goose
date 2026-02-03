@@ -3,7 +3,7 @@ use crate::agents::types::SharedProvider;
 use crate::session_context::{SESSION_ID_HEADER, WORKING_DIR_HEADER};
 use rmcp::model::{
     Content, CreateElicitationRequestParams, CreateElicitationResult, ElicitationAction, ErrorCode,
-    Extensions, JsonObject, Meta,
+    ExtensionCapabilities, Extensions, JsonObject, Meta,
 };
 /// MCP client implementation for Goose
 use rmcp::{
@@ -315,10 +315,25 @@ impl ClientHandler for GooseClient {
     }
 
     fn get_info(&self) -> ClientInfo {
+        // Build MCP Apps UI extension capability
+        // See: https://github.com/modelcontextprotocol/ext-apps/blob/main/specification/2026-01-26/apps.mdx
+        let mut ui_extension_settings = JsonObject::new();
+        ui_extension_settings.insert(
+            "mimeTypes".to_string(),
+            serde_json::json!(["text/html;profile=mcp-app"]),
+        );
+
+        let mut extensions = ExtensionCapabilities::new();
+        extensions.insert(
+            "io.modelcontextprotocol/ui".to_string(),
+            ui_extension_settings,
+        );
+
         ClientInfo {
             meta: None,
             protocol_version: ProtocolVersion::V_2025_03_26,
             capabilities: ClientCapabilities::builder()
+                .enable_extensions_with(extensions)
                 .enable_sampling()
                 .enable_elicitation()
                 .build(),
@@ -944,5 +959,27 @@ mod tests {
         let mcp_meta = extensions.get::<Meta>().unwrap();
 
         assert_eq!(&mcp_meta.0, expected_meta.as_object().unwrap());
+    }
+
+    #[test]
+    fn test_client_info_advertises_mcp_apps_ui_extension() {
+        let client = new_client();
+        let info = ClientHandler::get_info(&client);
+
+        // Verify the client advertises the MCP Apps UI extension capability
+        let extensions = info
+            .capabilities
+            .extensions
+            .expect("capabilities should have extensions");
+
+        let ui_ext = extensions
+            .get("io.modelcontextprotocol/ui")
+            .expect("should have io.modelcontextprotocol/ui extension");
+
+        let mime_types = ui_ext
+            .get("mimeTypes")
+            .expect("ui extension should have mimeTypes");
+
+        assert_eq!(mime_types, &json!(["text/html;profile=mcp-app"]));
     }
 }
