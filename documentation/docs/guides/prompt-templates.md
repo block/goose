@@ -2,6 +2,7 @@
 sidebar_position: 86
 title: Customizing Prompt Templates
 sidebar_label: Prompt Templates
+description: Learn how to customize the prompt templates that define goose's behavior in different situations
 ---
 
 import Tabs from '@theme/Tabs';
@@ -12,7 +13,7 @@ goose comes with built-in prompt templates that guide its behavior in different 
 
 ## How It Works
 
-goose's default prompt templates are defined in the codebase and embedded in the application. You can override any default by creating a custom version in your local config directory, which takes precedence over the default.
+goose's default prompt templates are defined in the codebase and embedded in the application. You can override any default by creating a custom version in your local config directory (either directly or via goose Desktop).
 
 When you customize a template:
 
@@ -26,6 +27,10 @@ Your changes can range from major updates to minor adjustments such as:
 - Edit `plan.md` to add time estimates by adding instructions to "Include an estimated time for each step (e.g., "~5 min", "~30 min", "~2 hours")."
 
 See [Template Variable Syntax](#template-variable-syntax) for important information about modifying template variables.
+
+:::info Related Configuration
+Other goose settings and features can also affect behavior or provide context, such as [config files](/docs/guides/config-files), [.goosehints](/docs/guides/context-engineering/using-goosehints), and [skills](/docs/guides/context-engineering/using-skills).
+:::
 
 ## Managing Prompt Templates
 
@@ -112,7 +117,21 @@ Check out the default templates (linked to from the [table](#available-prompt-te
 Be careful when modifying template variables, as incorrect changes can break functionality. Test your changes in a new session to ensure they work as expected.
 :::
 
-## See Also
+## Additional Resources
 
-- [Configuration Overview](/docs/guides/config-files) - For other goose settings
-- [Providing Hints to goose](/docs/guides/context-engineering/using-goosehints) - For global or project-specific context
+import ContentCardCarousel from '@site/src/components/ContentCardCarousel';
+import promptBanner from '@site/blog/2025-03-19-better-ai-prompting/prompt.png';
+
+<ContentCardCarousel
+  items={[
+    {
+      type: 'blog',
+      title: 'AI Prompting 101: How to Get the Best Responses from Your AI Agent',
+      description: 'Learn different prompting styles—from instruction-based to chain-of-thought—and discover which approach works best for your needs.',
+      thumbnailUrl: promptBanner,
+      linkUrl: '/goose/blog/2025/03/19/better-ai-prompting',
+      date: '2025-03-19',
+      duration: '8 min read'
+    }
+  ]}
+/>
