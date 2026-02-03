@@ -39,7 +39,7 @@ Test various ways to start a conversation:
 
 ### Use Existing Recipe
 
-- [ ] Pick trip planner from recipe hub
+- [ ] Pick trip planner from recipe hub (go/gooserecipes)
   - [ ] See the warning whether to trust this recipe (only on fresh install)
   - [ ] See the form pop up
   - [ ] Fill in the form with "Africa" and "14 days"
