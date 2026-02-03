@@ -67,13 +67,17 @@ Define custom model configurations with provider-specific parameters and context
 
 | Field | Required | Type | Description |
 |-------|----------|------|-------------|
-| `id` | Yes | number | Unique numeric identifier |
+| `id` | No | number | Optional numeric identifier |
 | `name` | Yes | string | Model name used to reference this configuration |
 | `provider` | Yes | string | Provider name (e.g., "databricks", "openai", "anthropic") |
-| `alias` | No | string | Display name shown in the UI |
-| `subtext` | No | string | Additional text shown below the model name |
+| `alias` | No | string | Display name for the model |
+| `subtext` | No | string | Additional descriptive text |
 | `context_limit` | No | number | Override the default context window size in tokens |
 | `request_params` | No | object | Provider-specific parameters included in API requests |
+
+:::info
+The `id`, `alias`, and `subtext` fields are currently not used.
+:::
 
 When a custom model's `context_limit` is specified, it takes precedence over pattern-matching but can still be overridden by explicit environment variables like [`GOOSE_CONTEXT_LIMIT`](#model-context-limit-overrides).
 
