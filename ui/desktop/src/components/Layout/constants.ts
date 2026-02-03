@@ -12,7 +12,9 @@ export const NAV_DIMENSIONS = {
 export const Z_INDEX = {
   /** Header controls (menu button, etc.) */
   HEADER: 100,
-  /** Popover content (hover menus, tooltips) */
+  /** Tooltips - should appear above most UI elements */
+  TOOLTIP: 200,
+  /** Popover content (hover menus) */
   POPOVER: 9999,
   /** Modal/overlay backdrop and content */
   OVERLAY: 10000,
