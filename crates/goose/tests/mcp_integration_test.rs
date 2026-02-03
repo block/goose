@@ -11,7 +11,8 @@ use rmcp::object;
 use tokio_util::sync::CancellationToken;
 
 use goose::agents::extension::{Envs, ExtensionConfig};
-use goose::agents::extension_manager::ExtensionManager;
+use goose::agents::extension_manager::{ExtensionManager, ExtensionManagerCapabilities};
+use goose::agents::GoosePlatform;
 use goose::model::ModelConfig;
 
 use test_case::test_case;
@@ -254,7 +255,12 @@ async fn test_replayed_session(
     let session_manager = Arc::new(goose::session::SessionManager::new(
         temp_dir.path().to_path_buf(),
     ));
-    let extension_manager = Arc::new(ExtensionManager::new(provider, session_manager));
+    let extension_manager = Arc::new(ExtensionManager::new(
+        provider,
+        session_manager,
+        GoosePlatform::GooseDesktop.to_string(),
+        ExtensionManagerCapabilities { mcpui: true },
+    ));
 
     #[allow(clippy::redundant_closure_call)]
     let result = (async || -> Result<(), Box<dyn std::error::Error>> {
