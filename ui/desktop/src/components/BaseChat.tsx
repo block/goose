@@ -39,6 +39,7 @@ import CreateRecipeFromSessionModal from './recipes/CreateRecipeFromSessionModal
 import { toastSuccess } from '../toasts';
 import { Recipe } from '../recipe';
 import { useAutoSubmit } from '../hooks/useAutoSubmit';
+import { Goose } from './icons';
 import EnvironmentBadge from './GooseSidebar/EnvironmentBadge';
 
 const CurrentModelContext = createContext<{ model: string; mode: string } | null>(null);
@@ -376,7 +377,19 @@ export default function BaseChat({
 
         {/* Chat container with sticky recipe header */}
         <div className="flex flex-col flex-1 mb-0.5 min-h-0 relative">
-          <EnvironmentBadge className="absolute bottom-3 right-4 z-[60]" />
+          {/* Goose watermark - top right */}
+          <div className="absolute top-3 right-4 z-[60] flex flex-row items-center gap-1">
+            <a
+              href="https://block.github.io/goose"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="no-drag flex flex-row items-center gap-1 hover:opacity-80 transition-opacity"
+            >
+              <Goose className="size-5 goose-icon-animation" />
+              <span className="text-sm leading-none text-text-muted -translate-y-px">goose</span>
+            </a>
+            <EnvironmentBadge className="translate-y-px" />
+          </div>
 
           <ScrollArea
             ref={scrollRef}

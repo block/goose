@@ -439,9 +439,9 @@ export const CondensedNavigation: React.FC<CondensedNavigationProps> = ({ classN
         <div className="bg-background-default rounded-lg self-stretch w-[160px] flex-shrink-0" />
       )}
 
-      {/* Scrollable container for navigation items (vertical only) */}
+      {/* Navigation items container (vertical only) */}
       {isVertical ? (
-        <div className="flex-1 min-h-0 overflow-y-auto overflow-x-visible flex flex-col gap-[2px] sidebar-scrollbar">
+        <div className="flex-1 min-h-0 flex flex-col gap-[2px]">
           {visibleItems.map((item, index) => {
             const Icon = item.icon;
             const active = isActive(item.path);
@@ -672,9 +672,9 @@ export const CondensedNavigation: React.FC<CondensedNavigationProps> = ({ classN
                         animate={{ height: 'auto', opacity: 1 }}
                         exit={{ height: 0, opacity: 0 }}
                         transition={{ duration: 0.2 }}
-                        className="overflow-hidden"
+                        className="overflow-hidden mt-[2px]"
                       >
-                        <div className="bg-background-default rounded-lg mt-[2px] p-1 flex flex-col gap-[2px]">
+                        <div className="bg-background-default rounded-lg pl-2 pr-4 py-1 flex flex-col gap-[2px]">
                           {recentSessions.map((session) => {
                             const status = getSessionStatus(session.id);
                             const isStreaming = status?.streamState === 'streaming';
@@ -689,13 +689,14 @@ export const CondensedNavigation: React.FC<CondensedNavigationProps> = ({ classN
                                   handleSessionClick(session.id);
                                 }}
                                 className={cn(
-                                  'w-full text-left px-2 py-1.5 text-xs rounded-md',
+                                  'w-full text-left py-1.5 text-xs rounded-md',
                                   'hover:bg-background-medium transition-colors',
                                   'flex items-center gap-2',
                                   isActiveSession && 'bg-background-medium'
                                 )}
                               >
-                                <MessageSquare className="w-3 h-3 flex-shrink-0 text-text-muted" />
+                                <div className="w-4 flex-shrink-0" /> {/* Spacer to align with grip icon */}
+                                <MessageSquare className="w-4 h-4 flex-shrink-0 text-text-muted" />
                                 <span className="truncate text-text-default flex-1">
                                   {truncateMessage(session.name)}
                                 </span>
@@ -715,6 +716,14 @@ export const CondensedNavigation: React.FC<CondensedNavigationProps> = ({ classN
               </motion.div>
             );
           })}
+
+          {/* Bottom filler block - fills remaining space below nav items */}
+          <div
+            className={cn(
+              'bg-background-default rounded-lg flex-1 min-h-[40px]',
+              isCondensedIconOnly ? 'w-[40px]' : 'w-full'
+            )}
+          />
         </div>
       ) : (
         /* Horizontal navigation items */
