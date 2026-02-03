@@ -68,7 +68,7 @@ export const ExpandedNavigation: React.FC<ExpandedNavigationProps> = ({ classNam
   const [isClosing, setIsClosing] = useState(false);
   const prevIsNavExpandedRef = useRef(isNavExpanded);
   const gridRef = useRef<HTMLDivElement>(null);
-  const navContainerRef = useRef<HTMLDivElement>(null);
+  const navFocusRef = useRef<HTMLDivElement>(null);
 
   const { getSessionStatus, clearUnread } = useSidebarSessionStatus();
 
@@ -77,7 +77,7 @@ export const ExpandedNavigation: React.FC<ExpandedNavigationProps> = ({ classNam
     if (isNavExpanded) {
       fetchSessions();
       requestAnimationFrame(() => {
-        navContainerRef.current?.focus();
+        navFocusRef.current?.focus();
       });
     }
   }, [isNavExpanded, fetchSessions]);
@@ -153,7 +153,7 @@ export const ExpandedNavigation: React.FC<ExpandedNavigationProps> = ({ classNam
 
   const navContent = (
     <motion.div
-      ref={navContainerRef}
+      ref={navFocusRef}
       tabIndex={-1}
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}

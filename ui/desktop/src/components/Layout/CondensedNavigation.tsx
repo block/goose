@@ -78,8 +78,7 @@ export const CondensedNavigation: React.FC<CondensedNavigationProps> = ({ classN
   const [newChatHoverOpen, setNewChatHoverOpen] = useState(false);
   const hoverTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Ref for focusing navigation when opened
-  const navContainerRef = useRef<HTMLDivElement>(null);
+  const navFocusRef = useRef<HTMLDivElement>(null);
 
   const { getSessionStatus, clearUnread } = useSidebarSessionStatus();
 
@@ -98,7 +97,6 @@ export const CondensedNavigation: React.FC<CondensedNavigationProps> = ({ classN
     }, 300);
   }, []);
 
-  // Cleanup timeout on unmount
   useEffect(() => {
     return () => {
       if (hoverTimeoutRef.current) {
@@ -107,12 +105,11 @@ export const CondensedNavigation: React.FC<CondensedNavigationProps> = ({ classN
     };
   }, []);
 
-  // Fetch sessions when expanded and focus navigation
   useEffect(() => {
     if (isNavExpanded) {
       fetchSessions();
       requestAnimationFrame(() => {
-        navContainerRef.current?.focus();
+        navFocusRef.current?.focus();
       });
     }
   }, [isNavExpanded, fetchSessions]);
@@ -129,7 +126,7 @@ export const CondensedNavigation: React.FC<CondensedNavigationProps> = ({ classN
 
   const navContent = (
     <motion.div
-      ref={navContainerRef}
+      ref={navFocusRef}
       tabIndex={-1}
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
@@ -139,13 +136,10 @@ export const CondensedNavigation: React.FC<CondensedNavigationProps> = ({ classN
         'bg-app outline-none',
         isOverlayMode && 'rounded-xl backdrop-blur-md shadow-lg p-2',
         isVertical ? 'flex flex-col gap-[2px] h-full' : 'flex flex-row items-stretch gap-[2px]',
-        // Add 2px padding on the edge facing the content for vertical (only when not icon-only)
         !isOverlayMode && navigationPosition === 'left' && !isCondensedIconOnly && 'pr-[2px]',
         !isOverlayMode && navigationPosition === 'right' && !isCondensedIconOnly && 'pl-[2px]',
-        // Add 2px padding on the edge facing the content for horizontal
         !isOverlayMode && isTopPosition && 'pb-[2px] pt-0',
         !isOverlayMode && isBottomPosition && 'pt-[2px] pb-0',
-        // Allow hover buttons to overflow outside the nav container
         !isCondensedIconOnly && 'overflow-visible',
         className
       )}
@@ -666,7 +660,6 @@ export const CondensedNavigation: React.FC<CondensedNavigationProps> = ({ classN
     );
   }
 
-  // Push mode: render inline
   if (!isNavExpanded) return null;
   return navContent;
 };

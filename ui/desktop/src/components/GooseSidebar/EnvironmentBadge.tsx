@@ -25,9 +25,7 @@ const EnvironmentBadge: React.FC<EnvironmentBadgeProps> = ({ className = '' }) =
           data-testid="environment-badge"
           aria-label={tooltipText}
         >
-          {/* Invisible expanded hover target */}
           <div className="absolute -inset-1" />
-          {/* Visible dot */}
           <div className={`${bgColor} w-2 h-2 rounded-full`} />
         </div>
       </TooltipTrigger>

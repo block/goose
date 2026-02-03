@@ -98,7 +98,6 @@ const AppLayoutContent: React.FC<AppLayoutContentProps> = ({ activeSessions }) =
         style={{ zIndex: Z_INDEX.HEADER }}
         className={cn(
           'absolute flex items-center gap-1',
-          // Bottom right for bottom condensed push mode
           effectiveNavigationStyle === 'condensed' &&
             navigationPosition === 'bottom' &&
             effectiveNavigationMode === 'push'
@@ -106,7 +105,6 @@ const AppLayoutContent: React.FC<AppLayoutContentProps> = ({ activeSessions }) =
             : cn(
                 headerPadding,
                 'top-3 mt-[2px]',
-                // Right position (both condensed and expanded) - 24px from right
                 navigationPosition === 'right' ? 'right-6 left-auto' : 'ml-1.5'
               )
         )}
