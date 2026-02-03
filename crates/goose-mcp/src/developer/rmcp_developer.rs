@@ -4,6 +4,7 @@ use etcetera::AppStrategy;
 use ignore::gitignore::{Gitignore, GitignoreBuilder};
 use include_dir::{include_dir, Dir};
 use indoc::{formatdoc, indoc};
+use once_cell::sync::Lazy;
 use rmcp::{
     handler::server::{router::tool::ToolRouter, wrapper::Parameters},
     model::{
@@ -120,6 +121,13 @@ pub struct PromptArgumentTemplate {
 
 // Embeds the prompts directory to the build
 static PROMPTS_DIR: Dir = include_dir!("$CARGO_MANIFEST_DIR/src/developer/prompts");
+
+static MACOS_SCREENSHOT_FILENAME_RE: Lazy<regex::Regex> = Lazy::new(|| {
+    regex::Regex::new(
+        r"^Screenshot \d{4}-\d{2}-\d{2} at \d{1,2}\.\d{2}\.\d{2} (AM|PM|am|pm)(?: \(\d+\))?\.png$",
+    )
+    .expect("macOS screenshot filename regex should be valid")
+});
 
 const DEFAULT_GOOSEIGNORE_CONTENT: &str = concat!(
     "# This file is created automatically if no .gooseignore exists.\n",
@@ -1387,27 +1395,22 @@ impl DeveloperServer {
         if let Some(filename) = path.file_name().and_then(|f| f.to_str()) {
             // Check if this matches Mac screenshot pattern:
             // "Screenshot YYYY-MM-DD at H.MM.SS AM/PM.png"
-            if let Some(captures) = regex::Regex::new(r"^Screenshot \d{4}-\d{2}-\d{2} at \d{1,2}\.\d{2}\.\d{2} (AM|PM|am|pm)(?: \(\d+\))?\.png$")
-                .ok()
-                .and_then(|re| re.captures(filename))
-            {
+            if let Some(captures) = MACOS_SCREENSHOT_FILENAME_RE.captures(filename) {
                 // Get the AM/PM part
                 let meridian = captures.get(1).unwrap().as_str();
 
                 // Find the last space before AM/PM and replace it with U+202F
-                let space_pos = filename.rfind(meridian)
+                let space_pos = filename
+                    .rfind(meridian)
                     .and_then(|pos| filename.get(..pos).map(|s| s.trim_end().len()))
                     .unwrap_or(0);
 
                 if space_pos > 0 {
                     let parent = path.parent().unwrap_or(Path::new(""));
-                    if let (Some(before), Some(after)) = (filename.get(..space_pos), filename.get(space_pos+1..)) {
-                        let new_filename = format!(
-                            "{}{}{}",
-                            before,
-                            '\u{202F}',
-                            after
-                        );
+                    if let (Some(before), Some(after)) =
+                        (filename.get(..space_pos), filename.get(space_pos + 1..))
+                    {
+                        let new_filename = format!("{}{}{}", before, '\u{202F}', after);
                         let new_path = parent.join(new_filename);
 
                         return new_path;
