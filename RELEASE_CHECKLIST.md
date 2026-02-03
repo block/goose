@@ -81,8 +81,6 @@ recipe:
 
 ## Extensions
 
-Some steps may require turning off warp when npx is used.
-
 ### Manual Extension Addition
 
 - [ ] Can manually add an extension using random quotes from project
@@ -93,14 +91,11 @@ Some steps may require turning off warp when npx is used.
 ### Playwright Extension
 
 - [ ] Install the playwright extension from the extensions hub
-  - [ ] Turn off warp before starting a new session so the playwright extension can activate with npx internally
-  - [ ] Turn back on warp
   - [ ] Tell it to open a browser and search on google for cats
   - [ ] Verify that the browser opens and navigates
 
 ### Extension with Environment Variables
 
-- [ ] Turn off warp
 - [ ] Install an extension from deeplink that needs env variables:
   - [ ] Use: `goose://extension?cmd=npx&arg=-y&arg=%40upstash%2Fcontext7-mcp&id=context7&name=Context7&description=Use%20up-to-date%20code%20and%20docs&env=TEST_ACCESS_TOKEN`
   - [ ] Extension page should load with env variables modal showing
