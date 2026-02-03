@@ -262,7 +262,7 @@ fn create_tool_callback(
                 arguments: args.and_then(|v| v.as_object().cloned()),
             };
             match manager
-                .dispatch_tool_call(&session_id, tool_call, CancellationToken::new())
+                .dispatch_tool_call(&session_id, tool_call, None, CancellationToken::new())
                 .await
             {
                 Ok(dispatch_result) => match dispatch_result.result.await {
@@ -422,6 +422,7 @@ impl McpClientTrait for CodeExecutionClient {
         session_id: &str,
         name: &str,
         arguments: Option<JsonObject>,
+        _working_dir: Option<&str>,
         _cancellation_token: CancellationToken,
     ) -> Result<CallToolResult, Error> {
         let result = match name {

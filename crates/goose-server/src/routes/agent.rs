@@ -947,7 +947,12 @@ async fn call_tool(
 
     let tool_result = agent
         .extension_manager
-        .dispatch_tool_call(&payload.session_id, tool_call, CancellationToken::default())
+        .dispatch_tool_call(
+            &payload.session_id,
+            tool_call,
+            None,
+            CancellationToken::default(),
+        )
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 

@@ -10,13 +10,26 @@ use rmcp::{
     model::{
         CallToolResult, CancelledNotificationParam, Content, ErrorCode, ErrorData,
         GetPromptRequestParams, GetPromptResult, Implementation, ListPromptsResult, LoggingLevel,
-        LoggingMessageNotificationParam, PaginatedRequestParams, Prompt, PromptArgument,
+        LoggingMessageNotificationParam, Meta, PaginatedRequestParams, Prompt, PromptArgument,
         PromptMessage, PromptMessageRole, Role, ServerCapabilities, ServerInfo,
     },
     schemars::JsonSchema,
     service::{NotificationContext, RequestContext},
     tool, tool_handler, tool_router, RoleServer, ServerHandler,
 };
+
+/// Header name for passing working directory through MCP request metadata
+const WORKING_DIR_HEADER: &str = "agent-working-dir";
+
+/// Extract working directory from MCP request metadata
+fn extract_working_dir_from_meta(meta: &Meta) -> Option<PathBuf> {
+    meta.0
+        .get(WORKING_DIR_HEADER)
+        .and_then(|v| v.as_str())
+        .filter(|s| !s.is_empty())
+        .map(PathBuf::from)
+}
+
 use serde::{Deserialize, Serialize};
 use std::{
     collections::HashMap,
@@ -873,6 +886,8 @@ impl DeveloperServer {
         let peer = context.peer;
         let request_id = context.id;
 
+        let working_dir = extract_working_dir_from_meta(&context.meta);
+
         // Validate the shell command
         self.validate_shell_command(command)?;
 
@@ -886,7 +901,7 @@ impl DeveloperServer {
 
         // Execute the command and capture output
         let output_result = self
-            .execute_shell_command(command, &peer, cancellation_token.clone())
+            .execute_shell_command(command, &peer, cancellation_token.clone(), working_dir)
             .await;
 
         // Clean up the process from tracking
@@ -970,16 +985,13 @@ impl DeveloperServer {
         command: &str,
         peer: &rmcp::service::Peer<RoleServer>,
         cancellation_token: CancellationToken,
+        working_dir: Option<PathBuf>,
     ) -> Result<String, ErrorData> {
         let mut shell_config = ShellConfig::default();
         let shell_name = std::path::Path::new(&shell_config.executable)
             .file_name()
             .and_then(|s| s.to_str())
             .unwrap_or("bash");
-
-        let working_dir = std::env::var("GOOSE_WORKING_DIR")
-            .ok()
-            .map(std::path::PathBuf::from);
 
         if let Some(ref env_file) = self.bash_env_file {
             if shell_name == "bash" {

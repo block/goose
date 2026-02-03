@@ -267,7 +267,12 @@ async fn test_replayed_session(
                 arguments: tool_call.arguments,
             };
             let result = extension_manager
-                .dispatch_tool_call("test-session-id", tool_call, CancellationToken::default())
+                .dispatch_tool_call(
+                    "test-session-id",
+                    tool_call,
+                    None,
+                    CancellationToken::default(),
+                )
                 .await;
 
             let tool_result = result?;

@@ -3,7 +3,6 @@ import { FolderDot } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../ui/Tooltip';
 import { updateWorkingDir } from '../../api';
 import { toast } from 'react-toastify';
-import { setCurrentWorkingDir } from '../../utils/workingDir';
 
 interface DirSwitcherProps {
   className: string;
@@ -43,7 +42,6 @@ export const DirSwitcher: React.FC<DirSwitcherProps> = ({
     const newDir = result.filePaths[0];
 
     window.electron.addRecentDir(newDir);
-    setCurrentWorkingDir(newDir);
 
     if (sessionId) {
       onWorkingDirChange?.(newDir);
