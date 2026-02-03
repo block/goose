@@ -11,6 +11,7 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigationContext } from './NavigationContext';
+import { Z_INDEX } from './constants';
 import { cn } from '../../utils';
 import { useSidebarSessionStatus } from '../../hooks/useSidebarSessionStatus';
 import {
@@ -327,7 +328,8 @@ export const CondensedNavigation: React.FC<CondensedNavigationProps> = ({ classN
                               sideOffset={4}
                               onMouseEnter={handleHoverOpen}
                               onMouseLeave={handleHoverClose}
-                              className="z-[9999] outline-none"
+                              style={{ zIndex: Z_INDEX.POPOVER }}
+                              className="outline-none"
                             >
                               <button
                                 onClick={(e) => {
@@ -634,7 +636,7 @@ export const CondensedNavigation: React.FC<CondensedNavigationProps> = ({ classN
     return (
       <AnimatePresence>
         {isNavExpanded && (
-          <div className="fixed inset-0 z-[10000]">
+          <div className="fixed inset-0" style={{ zIndex: Z_INDEX.OVERLAY }}>
             {/* Backdrop */}
             <motion.div
               initial={{ opacity: 0 }}

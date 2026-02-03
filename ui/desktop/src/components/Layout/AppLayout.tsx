@@ -8,6 +8,7 @@ import { useChatContext } from '../../contexts/ChatContext';
 import { NavigationProvider, useNavigationContext } from './NavigationContext';
 import { ExpandedNavigation } from './ExpandedNavigation';
 import { CondensedNavigation } from './CondensedNavigation';
+import { NAV_DIMENSIONS, Z_INDEX } from './constants';
 import { cn } from '../../utils';
 import { UserInput } from '../../types/message';
 
@@ -94,8 +95,9 @@ const AppLayoutContent: React.FC<AppLayoutContentProps> = ({ activeSessions }) =
     >
       {/* Header controls */}
       <div
+        style={{ zIndex: Z_INDEX.HEADER }}
         className={cn(
-          'absolute z-[100] flex items-center gap-1',
+          'absolute flex items-center gap-1',
           // Bottom right for bottom condensed push mode
           effectiveNavigationStyle === 'condensed' &&
             navigationPosition === 'bottom' &&
@@ -135,14 +137,14 @@ const AppLayoutContent: React.FC<AppLayoutContentProps> = ({ activeSessions }) =
                   ? effectiveNavigationStyle === 'expanded'
                     ? '30%'
                     : isCondensedIconOnly
-                      ? 44
-                      : 200
+                      ? NAV_DIMENSIONS.CONDENSED_ICON_ONLY_WIDTH
+                      : NAV_DIMENSIONS.CONDENSED_WIDTH
                   : 0,
               height: isHorizontalNav
                 ? isNavExpanded
                   ? effectiveNavigationStyle === 'expanded'
-                    ? 180
-                    : 46
+                    ? NAV_DIMENSIONS.EXPANDED_HEIGHT
+                    : NAV_DIMENSIONS.CONDENSED_HEIGHT
                   : 0
                 : '100%',
             }}
@@ -157,14 +159,14 @@ const AppLayoutContent: React.FC<AppLayoutContentProps> = ({ activeSessions }) =
               minWidth:
                 !isHorizontalNav && effectiveNavigationStyle === 'condensed' && isNavExpanded
                   ? isCondensedIconOnly
-                    ? 44
-                    : 200
+                    ? NAV_DIMENSIONS.CONDENSED_ICON_ONLY_WIDTH
+                    : NAV_DIMENSIONS.CONDENSED_WIDTH
                   : undefined,
               minHeight:
                 isHorizontalNav && isNavExpanded
                   ? effectiveNavigationStyle === 'expanded'
-                    ? 180
-                    : 46
+                    ? NAV_DIMENSIONS.EXPANDED_HEIGHT
+                    : NAV_DIMENSIONS.CONDENSED_HEIGHT
                   : undefined,
               height: !isHorizontalNav ? '100%' : undefined,
             }}

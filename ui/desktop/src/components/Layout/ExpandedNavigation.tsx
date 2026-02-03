@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { MessageSquare, History, GripVertical, Plus, ChefHat } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigationContext } from './NavigationContext';
+import { Z_INDEX } from './constants';
 import { cn } from '../../utils';
 import { useSidebarSessionStatus } from '../../hooks/useSidebarSessionStatus';
 import {
@@ -292,7 +293,8 @@ export const ExpandedNavigation: React.FC<ExpandedNavigationProps> = ({ classNam
                       </motion.button>
                     </div>
                     <DropdownMenuContent
-                      className="w-64 p-1 bg-background-default border-border-subtle rounded-lg shadow-lg z-[10001]"
+                      style={{ zIndex: Z_INDEX.DROPDOWN_ABOVE_OVERLAY }}
+                      className="w-64 p-1 bg-background-default border-border-subtle rounded-lg shadow-lg"
                       side="right"
                       align="start"
                       sideOffset={8}
@@ -457,7 +459,7 @@ export const ExpandedNavigation: React.FC<ExpandedNavigationProps> = ({ classNam
     return (
       <AnimatePresence>
         {isNavExpanded && (
-          <div className="fixed inset-0 z-[10000]">
+          <div className="fixed inset-0" style={{ zIndex: Z_INDEX.OVERLAY }}>
             {/* Backdrop */}
             <motion.div
               initial={{ opacity: 0 }}
