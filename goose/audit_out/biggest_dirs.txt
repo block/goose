@@ -1,0 +1,31 @@
+﻿=== LAYER 0: Repository Size Analysis ===
+Goal: Identify repository bloat and large files
+
+Top-level directories by size:
+
+Directory        SizeGB  SizeMB
+---------        ------  ------
+target           35.345 36193.7
+.git              0.993  1017.3
+documentation     0.461     472
+external          0.453   463.8
+ui                0.083    84.9
+crates            0.013    13.4
+.claude               0       0
+docs                  0     0.5
+recipe-scanner        0     0.1
+goose                 0     0.1
+scripts               0     0.3
+examples              0       0
+.husky                0       0
+.intersect            0       0
+.devcontainer         0       0
+.github               0     0.2
+.trunk                0       0
+bin                   0       0
+clippy-baselines      0       0
+.zencoder             0       0
+.zenflow              0       0
+
+
+

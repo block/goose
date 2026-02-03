@@ -1,0 +1,18 @@
+FROM python:3.12
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
+
+WORKDIR /workdir
+
+COPY ./pyproject.toml ./uv.lock /workdir/
+RUN uv sync --no-dev --no-install-project
+
+ENV PATH="/workdir/.venv/bin:$PATH"
+ENV PYTHONPATH=/workdir
+
+# .env files will be skipped by default specified in .dockerignore
+COPY ./aci/alembic /workdir/aci/alembic
+COPY ./aci/common /workdir/aci/common
+COPY ./alembic.ini /workdir/alembic.ini
+COPY ./aci/__init__.py /workdir/aci/__init__.py
+
+CMD ["uv", "run", "alembic", "upgrade", "head"]

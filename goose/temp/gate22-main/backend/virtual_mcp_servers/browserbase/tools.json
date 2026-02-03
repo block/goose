@@ -1,0 +1,828 @@
+[
+  {
+    "name": "BROWSERBASE__CREATE_SESSION",
+    "description": "Create a new browser session with Browserbase cloud browser. Configure browser settings, fingerprinting, proxy, and more to simulate real user browsing behavior.",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "POST",
+      "endpoint": "https://api.browserbase.com/v1/sessions"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "body": {
+          "type": "object",
+          "properties": {
+            "projectId": {
+              "type": "string",
+              "description": "The Project ID. Can be found in Settings"
+            },
+            "extensionId": {
+              "type": "string",
+              "description": "The uploaded Extension ID"
+            },
+            "browserSettings": {
+              "type": "object",
+              "properties": {
+                "context": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "description": "The Context ID"
+                    },
+                    "persist": {
+                      "type": "boolean",
+                      "description": "Whether or not to persist the context after browsing",
+                      "default": false
+                    }
+                  },
+                  "required": [
+                    "id"
+                  ],
+                  "visible": [
+                    "id",
+                    "persist"
+                  ],
+                  "additionalProperties": false
+                },
+                "fingerprint": {
+                  "type": "object",
+                  "properties": {
+                    "httpVersion": {
+                      "type": "string",
+                      "enum": [
+                        "1",
+                        "2"
+                      ],
+                      "description": "HTTP version"
+                    },
+                    "browsers": {
+                      "type": "array",
+                      "items": {
+                        "type": "string",
+                        "enum": [
+                          "chrome",
+                          "edge",
+                          "firefox",
+                          "safari"
+                        ]
+                      },
+                      "description": "List of supported browsers"
+                    },
+                    "devices": {
+                      "type": "array",
+                      "items": {
+                        "type": "string",
+                        "enum": [
+                          "desktop",
+                          "mobile"
+                        ]
+                      },
+                      "description": "Device types"
+                    },
+                    "operatingSystems": {
+                      "type": "array",
+                      "items": {
+                        "type": "string",
+                        "enum": [
+                          "android",
+                          "ios",
+                          "linux",
+                          "macos",
+                          "windows"
+                        ]
+                      },
+                      "description": "List of operating systems"
+                    },
+                    "screen": {
+                      "type": "object",
+                      "properties": {
+                        "maxHeight": {
+                          "type": "integer"
+                        },
+                        "maxWidth": {
+                          "type": "integer"
+                        },
+                        "minHeight": {
+                          "type": "integer"
+                        },
+                        "minWidth": {
+                          "type": "integer"
+                        }
+                      },
+                      "required": [],
+                      "visible": [
+                        "maxHeight",
+                        "maxWidth",
+                        "minHeight",
+                        "minWidth"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [],
+                  "visible": [
+                    "httpVersion",
+                    "browsers",
+                    "devices",
+                    "operatingSystems",
+                    "screen"
+                  ],
+                  "additionalProperties": false
+                },
+                "viewport": {
+                  "type": "object",
+                  "properties": {
+                    "width": {
+                      "type": "integer"
+                    },
+                    "height": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [],
+                  "visible": [
+                    "width",
+                    "height"
+                  ],
+                  "additionalProperties": false
+                },
+                "blockAds": {
+                  "type": "boolean",
+                  "default": false,
+                  "description": "Enable or disable ad blocking in the browser"
+                },
+                "solveCaptchas": {
+                  "type": "boolean",
+                  "default": true,
+                  "description": "Enable or disable captcha solving in the browser"
+                },
+                "recordSession": {
+                  "type": "boolean",
+                  "default": true,
+                  "description": "Enable or disable session recording"
+                },
+                "logSession": {
+                  "type": "boolean",
+                  "default": true,
+                  "description": "Enable or disable session logging"
+                },
+                "advancedStealth": {
+                  "type": "boolean",
+                  "description": "Advanced Browser Stealth Mode"
+                }
+              },
+              "required": [],
+              "visible": [
+                "context",
+                "fingerprint",
+                "viewport",
+                "blockAds",
+                "solveCaptchas",
+                "recordSession",
+                "logSession",
+                "advancedStealth"
+              ],
+              "additionalProperties": false
+            },
+            "timeout": {
+              "type": "integer",
+              "description": "Duration in seconds after which the session will automatically end",
+              "minimum": 60,
+              "maximum": 21600
+            },
+            "keepAlive": {
+              "type": "boolean",
+              "description": "Set to true to keep the session alive even after disconnections (Startup plan only)"
+            },
+            "proxies": {
+              "type": "boolean",
+              "description": "Proxy configuration. Can be true for default proxy, or an array of proxy configurations"
+            },
+            "region": {
+              "type": "string",
+              "enum": [
+                "us-west-2",
+                "us-east-1",
+                "eu-central-1",
+                "ap-southeast-1"
+              ],
+              "description": "The region where the Session should run"
+            },
+            "userMetadata": {
+              "type": "object",
+              "description": "Arbitrary user metadata to attach to the session",
+              "properties": {},
+              "required": [],
+              "visible": [],
+              "additionalProperties": true
+            }
+          },
+          "required": [
+            "projectId"
+          ],
+          "visible": [
+            "projectId",
+            "extensionId",
+            "browserSettings",
+            "timeout",
+            "keepAlive",
+            "proxies",
+            "region",
+            "userMetadata"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "body"
+      ],
+      "visible": [
+        "body"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "BROWSERBASE__LIST_SESSIONS",
+    "description": "List all browser sessions for a project. Returns session details including ID, status, resource usage, and metadata.",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "GET",
+      "endpoint": "https://api.browserbase.com/v1/sessions"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "query": {
+          "type": "object",
+          "description": "query parameters",
+          "properties": {
+            "status": {
+              "type": "string",
+              "enum": [
+                "RUNNING",
+                "ERROR",
+                "TIMED_OUT",
+                "COMPLETED"
+              ],
+              "description": "Filter sessions by their current status"
+            },
+            "q": {
+              "type": "string",
+              "description": "Query sessions by user metadata. See Querying Sessions by User Metadata for the schema of this query."
+            }
+          },
+          "required": [],
+          "visible": [
+            "status",
+            "q"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [],
+      "visible": [
+        "query"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "BROWSERBASE__GET_SESSION",
+    "description": "Get detailed information about a specific browser session by its ID. Returns complete session metadata including status, resource usage, and configuration.",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "GET",
+      "endpoint": "https://api.browserbase.com/v1/sessions/{id}"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "path": {
+          "type": "object",
+          "description": "path parameters",
+          "properties": {
+            "id": {
+              "type": "string",
+              "description": "The unique identifier of the session to retrieve"
+            }
+          },
+          "required": [
+            "id"
+          ],
+          "visible": [
+            "id"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "path"
+      ],
+      "visible": [
+        "path"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "BROWSERBASE__UPDATE_SESSION",
+    "description": "Update a browser session's status, such as requesting release of a session to avoid additional charges before timeout.",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "POST",
+      "endpoint": "https://api.browserbase.com/v1/sessions/{id}"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "path": {
+          "type": "object",
+          "description": "path parameters",
+          "properties": {
+            "id": {
+              "type": "string",
+              "description": "The unique identifier of the session to update"
+            }
+          },
+          "required": [
+            "id"
+          ],
+          "visible": [
+            "id"
+          ],
+          "additionalProperties": false
+        },
+        "body": {
+          "type": "object",
+          "properties": {
+            "projectId": {
+              "type": "string",
+              "description": "The Project ID. Can be found in Settings"
+            },
+            "status": {
+              "type": "string",
+              "enum": [
+                "REQUEST_RELEASE"
+              ],
+              "description": "Set to REQUEST_RELEASE to request that the session complete. Use before session's timeout to avoid additional charges."
+            }
+          },
+          "required": [
+            "projectId",
+            "status"
+          ],
+          "visible": [
+            "projectId",
+            "status"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "path",
+        "body"
+      ],
+      "visible": [
+        "path",
+        "body"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "BROWSERBASE__GET_SESSION_DEBUG",
+    "description": "Get debug URLs for a specific browser session, including debugger URLs and page information. Provides access to Chrome DevTools Protocol endpoints and page inspection interfaces.",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "GET",
+      "endpoint": "https://api.browserbase.com/v1/sessions/{id}/debug"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "path": {
+          "type": "object",
+          "description": "path parameters",
+          "properties": {
+            "id": {
+              "type": "string",
+              "description": "The unique identifier of the session to get debug information for"
+            }
+          },
+          "required": [
+            "id"
+          ],
+          "visible": [
+            "id"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "path"
+      ],
+      "visible": [
+        "path"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "BROWSERBASE__GET_SESSION_DOWNLOADS",
+    "description": "Get a list of files downloaded during a specific browser session. Allows access to files that were downloaded while the session was active.",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "GET",
+      "endpoint": "https://api.browserbase.com/v1/sessions/{id}/downloads"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "path": {
+          "type": "object",
+          "description": "path parameters",
+          "properties": {
+            "id": {
+              "type": "string",
+              "description": "The unique identifier of the session to retrieve downloads for"
+            }
+          },
+          "required": [
+            "id"
+          ],
+          "visible": [
+            "id"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "path"
+      ],
+      "visible": [
+        "path"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "BROWSERBASE__GET_SESSION_LOGS",
+    "description": "Get the logs for a specific browser session.",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "GET",
+      "endpoint": "https://api.browserbase.com/v1/sessions/{id}/logs"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "path": {
+          "type": "object",
+          "description": "path parameters",
+          "properties": {
+            "id": {
+              "type": "string",
+              "description": "The unique identifier of the session to retrieve logs for"
+            }
+          },
+          "required": [
+            "id"
+          ],
+          "visible": [
+            "id"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "path"
+      ],
+      "visible": [
+        "path"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "BROWSERBASE__GET_SESSION_RECORDING",
+    "description": "Get the recording of a specific browser session. Returns a list of recorded events in the session with timestamps.",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "GET",
+      "endpoint": "https://api.browserbase.com/v1/sessions/{id}/recording"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "path": {
+          "type": "object",
+          "description": "path parameters",
+          "properties": {
+            "id": {
+              "type": "string",
+              "description": "The unique identifier of the session to retrieve recording for"
+            }
+          },
+          "required": [
+            "id"
+          ],
+          "visible": [
+            "id"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "path"
+      ],
+      "visible": [
+        "path"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "BROWSERBASE__LIST_PROJECTS",
+    "description": "List all available projects associated with your Browserbase account.",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "GET",
+      "endpoint": "https://api.browserbase.com/v1/projects"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {},
+      "required": [],
+      "visible": [],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "BROWSERBASE__GET_PROJECT",
+    "description": "Get detailed information about a specific project by its ID.",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "GET",
+      "endpoint": "https://api.browserbase.com/v1/projects/{id}"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "path": {
+          "type": "object",
+          "description": "path parameters",
+          "properties": {
+            "id": {
+              "type": "string",
+              "description": "The unique identifier of the project to retrieve"
+            }
+          },
+          "required": [
+            "id"
+          ],
+          "visible": [
+            "id"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "path"
+      ],
+      "visible": [
+        "path"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "BROWSERBASE__GET_PROJECT_USAGE",
+    "description": "Get resource usage statistics for a specific project.",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "GET",
+      "endpoint": "https://api.browserbase.com/v1/projects/{id}/usage"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "path": {
+          "type": "object",
+          "description": "path parameters",
+          "properties": {
+            "id": {
+              "type": "string",
+              "description": "The unique identifier of the project to retrieve usage statistics for"
+            }
+          },
+          "required": [
+            "id"
+          ],
+          "visible": [
+            "id"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "path"
+      ],
+      "visible": [
+        "path"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "BROWSERBASE__CREATE_CONTEXT",
+    "description": "Create a new browser context. A browser context is a persistent browser profile that can be reused across multiple sessions.",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "POST",
+      "endpoint": "https://api.browserbase.com/v1/contexts"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "body": {
+          "type": "object",
+          "properties": {
+            "projectId": {
+              "type": "string",
+              "description": "The Project ID. Can be found in Settings"
+            }
+          },
+          "required": [
+            "projectId"
+          ],
+          "visible": [
+            "projectId"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "body"
+      ],
+      "visible": [
+        "body"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "BROWSERBASE__GET_CONTEXT",
+    "description": "Get detailed information about a specific browser context by its ID. Returns context metadata including creation date and associated project.",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "GET",
+      "endpoint": "https://api.browserbase.com/v1/contexts/{id}"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "path": {
+          "type": "object",
+          "description": "path parameters",
+          "properties": {
+            "id": {
+              "type": "string",
+              "description": "The unique identifier of the context to retrieve"
+            }
+          },
+          "required": [
+            "id"
+          ],
+          "visible": [
+            "id"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "path"
+      ],
+      "visible": [
+        "path"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "BROWSERBASE__UPDATE_CONTEXT",
+    "description": "Update a specific browser context by its ID. Refreshes encryption keys and other security parameters.",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "PUT",
+      "endpoint": "https://api.browserbase.com/v1/contexts/{id}"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "path": {
+          "type": "object",
+          "description": "path parameters",
+          "properties": {
+            "id": {
+              "type": "string",
+              "description": "The unique identifier of the context to update"
+            }
+          },
+          "required": [
+            "id"
+          ],
+          "visible": [
+            "id"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "path"
+      ],
+      "visible": [
+        "path"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "BROWSERBASE__GET_EXTENSION",
+    "description": "Get detailed information about a specific browser extension by its ID.",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "GET",
+      "endpoint": "https://api.browserbase.com/v1/extensions/{id}"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "path": {
+          "type": "object",
+          "description": "path parameters",
+          "properties": {
+            "id": {
+              "type": "string",
+              "description": "The unique identifier of the extension to retrieve"
+            }
+          },
+          "required": [
+            "id"
+          ],
+          "visible": [
+            "id"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "path"
+      ],
+      "visible": [
+        "path"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "BROWSERBASE__DELETE_EXTENSION",
+    "description": "Delete a specific browser extension by its ID.",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "DELETE",
+      "endpoint": "https://api.browserbase.com/v1/extensions/{id}"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "path": {
+          "type": "object",
+          "description": "path parameters",
+          "properties": {
+            "id": {
+              "type": "string",
+              "description": "The unique identifier of the extension to delete"
+            }
+          },
+          "required": [
+            "id"
+          ],
+          "visible": [
+            "id"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "path"
+      ],
+      "visible": [
+        "path"
+      ],
+      "additionalProperties": false
+    }
+  }
+]

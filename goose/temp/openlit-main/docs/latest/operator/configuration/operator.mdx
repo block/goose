@@ -1,0 +1,502 @@
+---
+title: 'Operator'
+description: 'Configure the OpenLIT Operator deployment using Helm chart values'
+---
+
+Configure the OpenLIT Operator deployment using Helm chart values. This page covers all operator-level settings including images, resources, security, and infrastructure configuration.
+
+## Core Configuration
+
+### Global Settings
+
+| Parameter | Description | Default | Example |
+|-----------|-------------|---------|---------|
+| `global.namespace` | Operator namespace override | `""` (uses release namespace) | `openlit-system` |
+| `global.commonLabels` | Labels added to all resources | `{}` | `{team: "platform"}` |
+| `global.commonAnnotations` | Annotations added to all resources | `{}` | `{version: "v1.0.0"}` |
+
+<AccordionGroup>
+  <Accordion title="Global Configuration Example">
+    ```yaml
+    global:
+      namespace: "openlit-system"
+      commonLabels:
+        team: "platform"
+        environment: "production"
+      commonAnnotations:
+        version: "v1.0.0"
+        managed-by: "helm"
+    ```
+  </Accordion>
+</AccordionGroup>
+
+### Operator Image
+
+| Parameter | Description | Default | Example |
+|-----------|-------------|---------|---------|
+| `image.repository` | Operator image repository | `ghcr.io/openlit/openlit-operator` | `my-registry.com/openlit-operator` |
+| `image.tag` | Operator image tag | `""` (uses Chart.AppVersion) | `v1.0.0` |
+| `image.pullPolicy` | Image pull policy | `IfNotPresent` | `Always` |
+| `image.pullSecrets` | Image pull secrets | `[]` | `[{name: "regcred"}]` |
+
+<AccordionGroup>
+  <Accordion title="Operator Image Example">
+    ```yaml
+    image:
+      repository: ghcr.io/openlit/openlit-operator
+      tag: "v1.0.0"
+      pullPolicy: IfNotPresent
+      pullSecrets:
+        - name: registry-secret
+        - name: docker-hub-secret
+    ```
+  </Accordion>
+</AccordionGroup>
+
+### Provider Images
+
+Configure the instrumentation provider init container images:
+
+| Parameter | Description | Default | Example |
+|-----------|-------------|---------|---------|
+| `providerImages.openlit.repository` | OpenLIT provider image | `ghcr.io/openlit/openlit-ai-instrumentation` | `my-registry.com/openlit-provider` |
+| `providerImages.openlit.tag` | OpenLIT provider tag | `""` (inherits operator tag) | `v1.2.0` |
+| `providerImages.openllmetry.repository` | OpenLLMetry provider image | `ghcr.io/openlit/openllmetry-ai-instrumentation` | Custom registry |
+| `providerImages.openllmetry.tag` | OpenLLMetry provider tag | `""` (inherits operator tag) | `v1.1.0` |
+| `providerImages.openinference.repository` | OpenInference provider image | `ghcr.io/openlit/openinference-ai-instrumentation` | Custom registry |
+| `providerImages.openinference.tag` | OpenInference provider tag | `""` (inherits operator tag) | `v0.5.0` |
+
+<AccordionGroup>
+  <Accordion title="Provider Images Example">
+    ```yaml
+    # Operator version that providers inherit by default
+    image:
+      tag: "v1.0.0"
+
+    # Provider images with automatic version sync
+    providerImages:
+      openlit:
+        repository: ghcr.io/openlit/openlit-ai-instrumentation
+        tag: ""  # Inherits v1.0.0 from operator
+      openllmetry:
+        repository: ghcr.io/openlit/openllmetry-ai-instrumentation
+        tag: ""  # Inherits v1.0.0 from operator
+      openinference:
+        repository: ghcr.io/openlit/openinference-ai-instrumentation
+        tag: "v0.9.0"  # Custom version override
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Deployment Configuration
+
+### Resource Management
+
+| Parameter | Description | Default | Example |
+|-----------|-------------|---------|---------|
+| `resources.requests.cpu` | CPU request | `100m` | `200m` |
+| `resources.requests.memory` | Memory request | `128Mi` | `256Mi` |
+| `resources.limits.cpu` | CPU limit | `500m` | `1000m` |
+| `resources.limits.memory` | Memory limit | `512Mi` | `1Gi` |
+
+<AccordionGroup>
+  <Accordion title="Resource Management Example">
+    ```yaml
+    resources:
+      requests:
+        cpu: 200m
+        memory: 256Mi
+      limits:
+        cpu: 500m
+        memory: 512Mi
+    ```
+  </Accordion>
+</AccordionGroup>
+
+### Deployment Settings
+
+| Parameter | Description | Default | Example |
+|-----------|-------------|---------|---------|
+| `deployment.replicas` | Number of operator replicas | `1` | `3` |
+| `deployment.strategy.type` | Deployment strategy | `RollingUpdate` | `Recreate` |
+| `deployment.podAnnotations` | Pod annotations | `{}` | `{version: "v1.0.0"}` |
+| `deployment.podLabels` | Pod labels | `{}` | `{component: "operator"}` |
+| `deployment.nodeSelector` | Node selector | `{}` | `{role: "system"}` |
+| `deployment.tolerations` | Pod tolerations | Control plane tolerations | Custom tolerations |
+| `deployment.affinity` | Pod affinity rules | `{}` | Anti-affinity config |
+| `deployment.priorityClassName` | Priority class | `""` | `system-cluster-critical` |
+
+<AccordionGroup>
+  <Accordion title="High Availability Deployment Example">
+    ```yaml
+    deployment:
+      replicas: 3
+      strategy:
+        type: RollingUpdate
+        rollingUpdate:
+          maxUnavailable: 1
+          maxSurge: 1
+      podAnnotations:
+        prometheus.io/scrape: "true"
+        fluentd.io/parser-type: "json"
+      podLabels:
+        component: "operator"
+        tier: "control-plane"
+      nodeSelector:
+        node-role.kubernetes.io/control-plane: ""
+      priorityClassName: "system-cluster-critical"
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 100
+            podAffinityTerm:
+              labelSelector:
+                matchLabels:
+                  app.kubernetes.io/name: openlit-operator
+              topologyKey: kubernetes.io/hostname
+      tolerations:
+      - key: node-role.kubernetes.io/control-plane
+        operator: Exists
+        effect: NoSchedule
+      - key: node-role.kubernetes.io/master
+        operator: Exists
+        effect: NoSchedule
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Webhook Configuration
+
+### Webhook Service
+
+| Parameter | Description | Default | Example |
+|-----------|-------------|---------|---------|
+| `webhook.service.name` | Webhook service name | `""` (auto-generated) | `openlit-webhook` |
+| `webhook.service.type` | Service type | `ClusterIP` | `LoadBalancer` |
+| `webhook.service.port` | Service port | `443` | `8443` |
+| `webhook.service.targetPort` | Target port | `9443` | `8443` |
+| `webhook.service.annotations` | Service annotations | `{}` | Load balancer config |
+
+### Webhook Server
+
+| Parameter | Description | Default | Example |
+|-----------|-------------|---------|---------|
+| `webhook.server.port` | Webhook server port | `9443` | `8443` |
+| `webhook.server.path` | Webhook path | `"/mutate"` | `"/webhook"` |
+| `webhook.server.certDir` | Certificate directory | `"/tmp/k8s-webhook-server/serving-certs"` | `"/certs"` |
+
+### Webhook Behavior
+
+| Parameter | Description | Default | Example |
+|-----------|-------------|---------|---------|
+| `webhook.failurePolicy` | Failure policy | `Ignore` | `Fail` |
+| `webhook.reinvocationPolicy` | Reinvocation policy | `Never` | `IfNeeded` |
+| `webhook.configName` | Webhook configuration name | `""` (auto-generated) | `openlit-webhook` |
+
+<AccordionGroup>
+  <Accordion title="Webhook Configuration Example">
+    ```yaml
+    webhook:
+      service:
+        name: "openlit-webhook"
+        type: ClusterIP
+        port: 443
+        targetPort: 9443
+        annotations:
+          service.beta.kubernetes.io/aws-load-balancer-type: nlb
+          external-dns.alpha.kubernetes.io/hostname: webhook.openlit.io
+      server:
+        port: 9443
+        path: "/mutate"
+        certDir: "/tmp/k8s-webhook-server/serving-certs"
+      failurePolicy: Fail
+      reinvocationPolicy: Never
+      configName: "openlit-operator-webhook"
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Security Configuration
+
+### Service Account
+
+| Parameter | Description | Default | Example |
+|-----------|-------------|---------|---------|
+| `serviceAccount.create` | Create service account | `true` | `false` |
+| `serviceAccount.name` | Service account name | `""` (auto-generated) | `custom-sa` |
+| `serviceAccount.annotations` | SA annotations | `{}` | OIDC annotations |
+
+<AccordionGroup>
+  <Accordion title="Service Account Example">
+    ```yaml
+    serviceAccount:
+      create: true
+      name: "openlit-operator"
+      annotations:
+        eks.amazonaws.com/role-arn: arn:aws:iam::123456789:role/openlit-operator
+        iam.gke.io/gcp-service-account: openlit-operator@my-project.iam.gserviceaccount.com
+    ```
+  </Accordion>
+</AccordionGroup>
+
+### RBAC
+
+| Parameter | Description | Default | Example |
+|-----------|-------------|---------|---------|
+| `rbac.create` | Create RBAC resources | `true` | `false` |
+| `rbac.clusterRoleName` | Cluster role name | `""` (auto-generated) | `openlit-operator` |
+| `rbac.clusterRoleBindingName` | Cluster role binding name | `""` (auto-generated) | `openlit-operator` |
+
+<AccordionGroup>
+  <Accordion title="RBAC Example">
+    ```yaml
+    rbac:
+      create: true
+      clusterRoleName: "openlit-operator"
+      clusterRoleBindingName: "openlit-operator-binding"
+    ```
+  </Accordion>
+</AccordionGroup>
+
+### Security Context
+
+| Parameter | Description | Default | Example |
+|-----------|-------------|---------|---------|
+| `deployment.podSecurityContext.runAsNonRoot` | Run as non-root | `false` | `true` |
+| `deployment.podSecurityContext.runAsUser` | User ID | `0` | `65534` |
+| `deployment.podSecurityContext.fsGroup` | Filesystem group | `0` | `65534` |
+| `deployment.securityContext.allowPrivilegeEscalation` | Allow privilege escalation | `false` | `true` |
+| `deployment.securityContext.readOnlyRootFilesystem` | Read-only root filesystem | `false` | `true` |
+| `deployment.securityContext.runAsNonRoot` | Container runs as non-root | `false` | `true` |
+
+<AccordionGroup>
+  <Accordion title="Security Context Example">
+    ```yaml
+    deployment:
+      podSecurityContext:
+        runAsNonRoot: false  # Required for certificate management
+        runAsUser: 0
+        runAsGroup: 0
+        fsGroup: 0
+        seccompProfile:
+          type: RuntimeDefault
+      securityContext:
+        allowPrivilegeEscalation: false
+        readOnlyRootFilesystem: false  # Allow writing certificates
+        runAsNonRoot: false
+        capabilities:
+          drop:
+          - ALL
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## TLS Configuration
+
+| Parameter | Description | Default | Example |
+|-----------|-------------|---------|---------|
+| `tls.validityDays` | Certificate validity in days | `365` | `730` |
+| `tls.refreshDays` | Certificate refresh threshold in days | `30` | `60` |
+| `tls.secretName` | TLS secret name | `""` (auto-generated) | `webhook-tls` |
+
+<AccordionGroup>
+  <Accordion title="TLS Configuration Example">
+    ```yaml
+    tls:
+      validityDays: 365
+      refreshDays: 30
+      secretName: "openlit-operator-tls"
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Observability Configuration
+
+| Parameter | Description | Default | Example |
+|-----------|-------------|---------|---------|
+| `observability.logLevel` | Log level | `info` | `debug` |
+| `observability.selfMonitoringEnabled` | Enable self-monitoring with OpenTelemetry | `false` | `true` |
+| `observability.otel.endpoint` | OTLP endpoint for operator telemetry | `""` | `http://openlit:4318` |
+| `observability.otel.headers` | OTLP headers | `""` | `Authorization=Bearer token` |
+| `observability.otel.logsEndpoint` | OTLP logs endpoint | `""` | `http://openlit:4318/v1/logs` |
+| `observability.otel.metricsEndpoint` | OTLP metrics endpoint | `""` | `http://openlit:4318/v1/metrics` |
+
+<AccordionGroup>
+  <Accordion title="Observability Configuration Example">
+    ```yaml
+    observability:
+      logLevel: info
+      selfMonitoringEnabled: true
+      otel:
+        endpoint: "http://openlit:4318"
+        headers: "Authorization=Bearer my-secret-token"
+        logsEndpoint: "http://openlit:4318/v1/logs"
+        metricsEndpoint: "http://openlit:4318/v1/metrics"
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Health Checks
+
+| Parameter | Description | Default | Example |
+|-----------|-------------|---------|---------|
+| `healthcheck.port` | Health check port | `8081` | `9090` |
+| `healthcheck.livenessProbe.initialDelaySeconds` | Liveness probe initial delay | `15` | `30` |
+| `healthcheck.livenessProbe.periodSeconds` | Liveness probe period | `20` | `30` |
+| `healthcheck.readinessProbe.initialDelaySeconds` | Readiness probe initial delay | `5` | `10` |
+| `healthcheck.readinessProbe.periodSeconds` | Readiness probe period | `10` | `15` |
+
+<AccordionGroup>
+  <Accordion title="Health Checks Example">
+    ```yaml
+    healthcheck:
+      port: 8081
+      livenessProbe:
+        httpGet:
+          path: /healthz
+          port: health
+        initialDelaySeconds: 15
+        periodSeconds: 20
+        timeoutSeconds: 5
+        failureThreshold: 3
+      readinessProbe:
+        httpGet:
+          path: /readyz
+          port: health
+        initialDelaySeconds: 5
+        periodSeconds: 10
+        timeoutSeconds: 5
+        failureThreshold: 3
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Instrumentation Defaults
+
+| Parameter | Description | Default | Example |
+|-----------|-------------|---------|---------|
+| `instrumentation.defaultProvider` | Default instrumentation provider | `openlit` | `openinference` |
+| `instrumentation.defaultVersion` | Default provider version | `latest` | `v1.0.0` |
+| `instrumentation.defaultImagePullPolicy` | Default image pull policy for init containers | `IfNotPresent` | `Always` |
+| `operator.defaultInitImage` | Override default init image | `""` | `my-registry.com/custom:v1.0` |
+
+<AccordionGroup>
+  <Accordion title="Instrumentation Defaults Example">
+    ```yaml
+    instrumentation:
+      defaultProvider: openlit
+      defaultVersion: latest
+      defaultImagePullPolicy: IfNotPresent
+    
+    operator:
+      defaultInitImage: "my-registry.com/custom-instrumentation:v1.0"
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Multi-Operator Support
+
+| Parameter | Description | Default | Example |
+|-----------|-------------|---------|---------|
+| `multiOperator.watchNamespace` | Watch specific namespace only | `""` (all namespaces) | `production` |
+
+<AccordionGroup>
+  <Accordion title="Multi-Operator Support Example">
+    ```yaml
+    multiOperator:
+      watchNamespace: "production"  # Only watch production namespace
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Custom Resource Definition
+
+| Parameter | Description | Default | Example |
+|-----------|-------------|---------|---------|
+| `crd.install` | Install CRDs | `true` | `false` |
+| `crd.annotations` | CRD annotations | `{}` | `{version: "v1.0.0"}` |
+| `schema.validation` | Enable schema validation | `true` | `false` |
+
+<AccordionGroup>
+  <Accordion title="CRD Configuration Example">
+    ```yaml
+    crd:
+      install: true
+      annotations:
+        version: "v1.0.0"
+        last-updated: "2024-01-15"
+    
+    schema:
+      validation: true
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Additional Configuration
+
+### Environment Variables
+
+| Parameter | Description | Default | Example |
+|-----------|-------------|---------|---------|
+| `env.extra` | Additional environment variables | `[]` | Custom env vars |
+
+<AccordionGroup>
+  <Accordion title="Environment Variables Example">
+    ```yaml
+    env:
+      extra:
+        - name: CUSTOM_VAR
+          value: "custom-value"
+        - name: SECRET_VAR
+          valueFrom:
+            secretKeyRef:
+              name: my-secret
+              key: my-key
+        - name: CONFIG_VAR
+          valueFrom:
+            configMapKeyRef:
+              name: operator-config
+              key: config-value
+        - name: FIELD_VAR
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.namespace
+    ```
+  </Accordion>
+</AccordionGroup>
+
+### Additional Volumes
+
+| Parameter | Description | Default | Example |
+|-----------|-------------|---------|---------|
+| `volumes.extra` | Additional volumes | `[]` | ConfigMap volumes |
+| `volumeMounts.extra` | Additional volume mounts | `[]` | Custom mount paths |
+
+<AccordionGroup>
+  <Accordion title="Additional Volumes Example">
+    ```yaml
+    volumes:
+      extra:
+        - name: custom-config
+          configMap:
+            name: operator-config
+        - name: secret-volume
+          secret:
+            secretName: operator-secrets
+        - name: empty-dir
+          emptyDir: {}
+
+    volumeMounts:
+      extra:
+        - name: custom-config
+          mountPath: /etc/config
+          readOnly: true
+        - name: secret-volume
+          mountPath: /etc/secrets
+          readOnly: true
+        - name: empty-dir
+          mountPath: /tmp/cache
+    ```
+  </Accordion>
+</AccordionGroup>
+

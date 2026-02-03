@@ -1,0 +1,205 @@
+[
+  {
+    "name": "CLICKUP__GET_AUTHORIZED_WORKSPACES",
+    "description": "View the Workspaces available to the authenticated user.",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "GET_AUTHORIZED_WORKSPACES",
+      "canonical_tool_description_hash": "983905f5512aa2bf40b95b7917621ed34cf697845fc0acf0f0ff52ae5888ab61",
+      "canonical_tool_input_schema_hash": "d746974fa9afd5e951f76f9af38954b0ad7f436f2120dc974da65e5ee39f856f"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": [],
+      "properties": {},
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "CLICKUP__DOCS_SEARCH",
+    "description": "View the Docs in your Workspace. You can only view information of Docs you can access.",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "DOCS_SEARCH",
+      "canonical_tool_description_hash": "b43ac2f948299995dc3aee74293e324fbecf3fa2cd21eaaf337547d9977030ec",
+      "canonical_tool_input_schema_hash": "4279ed4e507e74b16a3bcc6e259618a7ba9c34c072c93b557ff535e02fa5a117"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["path"],
+      "properties": {
+        "path": {
+          "type": "object",
+          "required": ["workspaceId"],
+          "properties": {
+            "workspaceId": {
+              "type": "string",
+              "description": "The ID of the workspace to search docs in."
+            }
+          },
+          "description": "Path parameters",
+          "additionalProperties": false
+        },
+        "query": {
+          "type": "object",
+          "required": [],
+          "properties": {
+            "id": {
+              "type": "string",
+              "description": "Filter results to a single Doc with the given Doc ID."
+            },
+            "limit": {
+              "type": "number",
+              "default": 50,
+              "maximum": 100,
+              "minimum": 10,
+              "description": "The maximum number of results to retrieve for each page."
+            },
+            "creator": {
+              "type": "number",
+              "description": "Filter results to Docs created by the user with the given user ID."
+            },
+            "deleted": {
+              "type": "boolean",
+              "default": false,
+              "description": "Filter results to return deleted Docs."
+            },
+            "archived": {
+              "type": "boolean",
+              "default": false,
+              "description": "Filter results to return archived Docs."
+            },
+            "parent_id": {
+              "type": "string",
+              "description": "Filter results to children of a parent Doc with the given parent Doc ID."
+            },
+            "next_cursor": {
+              "type": "string",
+              "description": "The cursor to use to get the next page of results."
+            },
+            "parent_type": {
+              "type": "string",
+              "description": "Filter results to children of the given parent Doc type. For example, SPACE, FOLDER, LIST, EVERYTHING, WORKSPACE."
+            }
+          },
+          "description": "Query parameters for the request.",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "CLICKUP__GOALS_GET",
+    "description": "View the Goals available in a Workspace.",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "GOALS_GET",
+      "canonical_tool_description_hash": "79038ef51aa178244960a5d523e8a279769b85b28f9443d8fc1cbc959cde391b",
+      "canonical_tool_input_schema_hash": "6b07f5966be7761aab2b595ff3f74d99b42f0e5d2cc8fdf1380b34782b3507ad"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["path"],
+      "properties": {
+        "path": {
+          "type": "object",
+          "required": ["team_id"],
+          "properties": {
+            "team_id": {
+              "type": "string",
+              "description": "Workspace ID"
+            }
+          },
+          "description": "Path parameters",
+          "additionalProperties": false
+        },
+        "query": {
+          "type": "object",
+          "required": [],
+          "properties": {
+            "include_completed": {
+              "type": "boolean",
+              "default": true,
+              "description": "Whether to include completed goals in the results."
+            }
+          },
+          "description": "Query parameters for the request.",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "CLICKUP__WORKSPACE_SEATS_GET",
+    "description": "View the used, total, and available member and guest seats for a Workspace.",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "WORKSPACE_SEATS_GET",
+      "canonical_tool_description_hash": "78e48cbeb04773c4f64c999f2500c5d9ecc338b9ab6b9062c3b21856781ca66c",
+      "canonical_tool_input_schema_hash": "24d45a7905c742da2d133db2f7a57947777c72f376f3453b9f71c19457005b25"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["path"],
+      "properties": {
+        "path": {
+          "type": "object",
+          "required": ["team_id"],
+          "properties": {
+            "team_id": {
+              "type": "string",
+              "description": "Workspace ID"
+            }
+          },
+          "description": "Path parameters",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "CLICKUP__SPACES_GET",
+    "description": "View the Spaces available in a Workspace. You can only get member info in private Spaces.",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "SPACES_GET",
+      "canonical_tool_description_hash": "7c070c3f87cb8f65b1a93b9c3d6f19e2562f0fe6ccd31037473b7a4496f7fcdc",
+      "canonical_tool_input_schema_hash": "296eb144e546eeaff2dd852a0e49ccbb1c9cf6652b21c70de5aa3d6043602b1e"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["path"],
+      "properties": {
+        "path": {
+          "type": "object",
+          "required": ["team_id"],
+          "properties": {
+            "team_id": {
+              "type": "string",
+              "description": "Workspace ID"
+            }
+          },
+          "description": "Path parameters",
+          "additionalProperties": false
+        },
+        "query": {
+          "type": "object",
+          "required": [],
+          "properties": {
+            "archived": {
+              "type": "boolean",
+              "default": false,
+              "description": "Filter results to return archived Spaces."
+            }
+          },
+          "description": "Query parameters for the request.",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+]

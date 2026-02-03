@@ -1,0 +1,479 @@
+[
+  {
+    "name": "DAYTONA__LIST_WORKSPACES",
+    "description": "List all workspaces. Returns workspace details including ID, status, and configuration.",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "GET",
+      "endpoint": "https://app.daytona.io/api/workspace"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "query": {
+          "type": "object",
+          "description": "query parameters",
+          "properties": {
+            "verbose": {
+              "type": "boolean",
+              "description": "Include verbose output"
+            },
+            "labels": {
+              "type": "string",
+              "description": "Filter workspaces by labels"
+            }
+          },
+          "required": [],
+          "visible": [
+            "verbose",
+            "labels"
+          ],
+          "additionalProperties": false
+        },
+        "header": {
+          "type": "object",
+          "description": "header parameters",
+          "properties": {
+            "X-Daytona-Organization-ID": {
+              "type": "string",
+              "description": "Use with JWT to specify the organization ID"
+            }
+          },
+          "required": [],
+          "visible": [
+            "X-Daytona-Organization-ID"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [],
+      "visible": [
+        "query",
+        "header"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "DAYTONA__CREATE_WORKSPACE",
+    "description": "Create a new workspace in Daytona. Configure workspace settings for running AI-generated code in isolated environments.",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "POST",
+      "endpoint": "https://app.daytona.io/api/workspace"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "header": {
+          "type": "object",
+          "description": "header parameters",
+          "properties": {
+            "X-Daytona-Organization-ID": {
+              "type": "string",
+              "description": "Use with JWT to specify the organization ID"
+            }
+          },
+          "required": [],
+          "visible": [
+            "X-Daytona-Organization-ID"
+          ],
+          "additionalProperties": false
+        },
+        "body": {
+          "type": "object",
+          "properties": {
+            "name": {
+              "type": "string",
+              "description": "Name of the workspace"
+            },
+            "imageId": {
+              "type": "string",
+              "description": "ID of the image to use for the workspace"
+            },
+            "size": {
+              "type": "string",
+              "description": "Size of the workspace (e.g., 'small', 'medium', 'large')"
+            },
+            "labels": {
+              "type": "object",
+              "description": "Labels to associate with the workspace",
+              "properties": {},
+              "visible": [],
+              "required": [],
+              "additionalProperties": {
+                "type": "string"
+              }
+            },
+            "autoStop": {
+              "type": "integer",
+              "description": "Auto-stop interval in minutes"
+            }
+          },
+          "required": [
+            "name",
+            "imageId"
+          ],
+          "visible": [
+            "name",
+            "imageId",
+            "size",
+            "labels",
+            "autoStop"
+          ],
+          "additionalProperties": true
+        }
+      },
+      "required": [],
+      "visible": [
+        "header",
+        "body"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "DAYTONA__GET_WORKSPACE",
+    "description": "Get detailed information about a specific workspace by its ID. Returns workspace configuration, status, and metadata.",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "GET",
+      "endpoint": "https://app.daytona.io/api/workspace/{workspaceId}"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "path": {
+          "type": "object",
+          "description": "path parameters",
+          "properties": {
+            "workspaceId": {
+              "type": "string",
+              "description": "ID of the workspace"
+            }
+          },
+          "required": [
+            "workspaceId"
+          ],
+          "visible": [
+            "workspaceId"
+          ],
+          "additionalProperties": false
+        },
+        "query": {
+          "type": "object",
+          "description": "query parameters",
+          "properties": {
+            "verbose": {
+              "type": "boolean",
+              "description": "Include verbose output"
+            }
+          },
+          "required": [],
+          "visible": [
+            "verbose"
+          ],
+          "additionalProperties": false
+        },
+        "header": {
+          "type": "object",
+          "description": "header parameters",
+          "properties": {
+            "X-Daytona-Organization-ID": {
+              "type": "string",
+              "description": "Use with JWT to specify the organization ID"
+            }
+          },
+          "required": [],
+          "visible": [
+            "X-Daytona-Organization-ID"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "path"
+      ],
+      "visible": [
+        "path",
+        "query",
+        "header"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "DAYTONA__DELETE_WORKSPACE",
+    "description": "Delete a specific workspace by its ID. Permanently removes the workspace and all associated resources.",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "DELETE",
+      "endpoint": "https://app.daytona.io/api/workspace/{workspaceId}"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "path": {
+          "type": "object",
+          "description": "path parameters",
+          "properties": {
+            "workspaceId": {
+              "type": "string",
+              "description": "ID of the workspace"
+            }
+          },
+          "required": [
+            "workspaceId"
+          ],
+          "visible": [
+            "workspaceId"
+          ],
+          "additionalProperties": false
+        },
+        "query": {
+          "type": "object",
+          "description": "query parameters",
+          "properties": {
+            "force": {
+              "type": "boolean",
+              "description": "Force deletion of the workspace"
+            }
+          },
+          "required": [
+            "force"
+          ],
+          "visible": [
+            "force"
+          ],
+          "additionalProperties": false
+        },
+        "header": {
+          "type": "object",
+          "description": "header parameters",
+          "properties": {
+            "X-Daytona-Organization-ID": {
+              "type": "string",
+              "description": "Use with JWT to specify the organization ID"
+            }
+          },
+          "required": [],
+          "visible": [
+            "X-Daytona-Organization-ID"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "path",
+        "query"
+      ],
+      "visible": [
+        "path",
+        "query",
+        "header"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "DAYTONA__START_WORKSPACE",
+    "description": "Start a specific workspace by its ID. Initializes and starts the workspace environment.",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "POST",
+      "endpoint": "https://app.daytona.io/api/workspace/{workspaceId}/start"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "path": {
+          "type": "object",
+          "description": "path parameters",
+          "properties": {
+            "workspaceId": {
+              "type": "string",
+              "description": "ID of the workspace"
+            }
+          },
+          "required": [
+            "workspaceId"
+          ],
+          "visible": [
+            "workspaceId"
+          ],
+          "additionalProperties": false
+        },
+        "header": {
+          "type": "object",
+          "description": "header parameters",
+          "properties": {
+            "X-Daytona-Organization-ID": {
+              "type": "string",
+              "description": "Use with JWT to specify the organization ID"
+            }
+          },
+          "required": [],
+          "visible": [
+            "X-Daytona-Organization-ID"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "path"
+      ],
+      "visible": [
+        "path",
+        "header"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "DAYTONA__STOP_WORKSPACE",
+    "description": "Stop a specific workspace by its ID. Shuts down the workspace environment to save resources.",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "POST",
+      "endpoint": "https://app.daytona.io/api/workspace/{workspaceId}/stop"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "path": {
+          "type": "object",
+          "description": "path parameters",
+          "properties": {
+            "workspaceId": {
+              "type": "string",
+              "description": "ID of the workspace"
+            }
+          },
+          "required": [
+            "workspaceId"
+          ],
+          "visible": [
+            "workspaceId"
+          ],
+          "additionalProperties": false
+        },
+        "header": {
+          "type": "object",
+          "description": "header parameters",
+          "properties": {
+            "X-Daytona-Organization-ID": {
+              "type": "string",
+              "description": "Use with JWT to specify the organization ID"
+            }
+          },
+          "required": [],
+          "visible": [
+            "X-Daytona-Organization-ID"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "path"
+      ],
+      "visible": [
+        "path",
+        "header"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "DAYTONA__EXECUTE_COMMAND",
+    "description": "Execute a command synchronously inside a workspace. Runs shell commands and returns the output.",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "POST",
+      "endpoint": "https://app.daytona.io/api/toolbox/{workspaceId}/toolbox/process/execute"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "path": {
+          "type": "object",
+          "description": "path parameters",
+          "properties": {
+            "workspaceId": {
+              "type": "string",
+              "description": "ID of the workspace where the command will be executed"
+            }
+          },
+          "required": [
+            "workspaceId"
+          ],
+          "visible": [
+            "workspaceId"
+          ],
+          "additionalProperties": false
+        },
+        "header": {
+          "type": "object",
+          "description": "header parameters",
+          "properties": {
+            "X-Daytona-Organization-ID": {
+              "type": "string",
+              "description": "Use with JWT to specify the organization ID"
+            }
+          },
+          "required": [],
+          "visible": [
+            "X-Daytona-Organization-ID"
+          ],
+          "additionalProperties": false
+        },
+        "body": {
+          "type": "object",
+          "properties": {
+            "command": {
+              "type": "string",
+              "description": "The command to execute in the workspace"
+            },
+            "cwd": {
+              "type": "string",
+              "description": "The working directory for command execution"
+            },
+            "env": {
+              "type": "object",
+              "description": "Environment variables for the command",
+              "properties": {},
+              "visible": [],
+              "required": [],
+              "additionalProperties": {
+                "type": "string"
+              }
+            },
+            "timeout": {
+              "type": "integer",
+              "description": "Timeout in seconds for the command execution"
+            }
+          },
+          "required": [
+            "command"
+          ],
+          "visible": [
+            "command",
+            "cwd",
+            "env",
+            "timeout"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "path",
+        "body"
+      ],
+      "visible": [
+        "path",
+        "header",
+        "body"
+      ],
+      "additionalProperties": false
+    }
+  }
+]

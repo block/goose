@@ -1,0 +1,43 @@
+### 2. Instrument your application
+**For Kubernetes deployments with zero-code instrumentation:**
+
+```yaml
+apiVersion: openlit.io/v1alpha1
+kind: AutoInstrumentation
+metadata:
+  name: langfuse-instrumentation
+  namespace: default
+spec:
+  selector:
+    matchLabels:
+      instrument: "true"
+  python:
+    instrumentation:
+      provider: "openlit"
+      version: "latest"
+  otlp:
+    endpoint: "https://cloud.langfuse.com/api/public/otel"
+    headers: "Authorization=Basic <BASE64_ENCODED_AUTH>"
+    timeout: 30
+  resource:
+    environment: "production"
+    serviceName: "my-ai-service"
+```
+
+**To create the Base64 encoded auth header:**
+```shell
+# Replace with your actual Langfuse keys
+export LANGFUSE_PUBLIC_KEY="pk-lf-..."
+export LANGFUSE_SECRET_KEY="sk-lf-..."
+export LANGFUSE_AUTH=$(echo -n "$LANGFUSE_PUBLIC_KEY:$LANGFUSE_SECRET_KEY" | base64)
+echo $LANGFUSE_AUTH
+```
+
+Replace:
+1. `<BASE64_ENCODED_AUTH>` with the output from the Base64 encoding command above
+2. Update the endpoint for your region:
+   * **EU**: `https://cloud.langfuse.com/api/public/otel`
+   * **US**: `https://us.cloud.langfuse.com/api/public/otel`
+   * **Self-hosted**: `https://your-langfuse-instance.com/api/public/otel`
+
+Refer to the [OpenLIT Operator Documentation](/latest/operator/overview) for more advanced configurations and use cases.

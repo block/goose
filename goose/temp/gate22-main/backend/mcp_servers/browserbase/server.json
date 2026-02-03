@@ -1,0 +1,18 @@
+{
+  "name": "BROWSERBASE",
+  "url": "https://mcp.aci.dev/virtual/mcp?server_name=BROWSERBASE",
+  "transport_type": "streamable_http",
+  "description": "Browserbase is a platform for running headless browsers.",
+  "logo": "https://raw.githubusercontent.com/aipotheosis-labs/aipolabs-icons/refs/heads/main/apps/browserbase.png",
+  "categories": ["Browser", "Search & Scraping"],
+  "auth_configs": [
+    {
+      "type": "api_key",
+      "location": "header",
+      "name": "x-bb-api-key"
+    }
+  ],
+  "server_metadata": {
+    "is_virtual_mcp_server": true
+  }
+}

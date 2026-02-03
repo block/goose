@@ -1,0 +1,91 @@
+openapi: 3.0.0
+info:
+  title: Get Compiled Prompt API
+  description: An API to fetch compiled prompts by providing necessary parameters.
+  version: 1.0.0
+servers:
+  - url: http://localhost:3000
+paths:
+  /api/prompt/get-compiled:
+    post:
+      summary: Get Compiled Prompt
+      description: Fetches a compiled prompt using the provided prompt ID, version, and variables.
+      operationId: getCompiledPrompt
+      requestBody:
+        required: true
+        content:
+          text/plain:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                  example: tester
+                promptId:
+                  type: string
+                  format: uuid
+                  example: a7a55e48-1588-44ee-99e2-d9de5c026238
+                version:
+                  type: string
+                  example: '1.0.0'
+                metaProperties:
+                  type: object
+                  additionalProperties: true
+                compile:
+                  type: boolean
+                  example: true
+                variables:
+                  type: object
+                  properties:
+                    name:
+                      type: string
+                      example: John
+      responses:
+        '200':
+          description: Successfully retrieved compiled prompt.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  err:
+                    type: object
+                    nullable: true
+                  res:
+                    type: object
+                    properties:
+                      promptId:
+                        type: string
+                        format: uuid
+                        example: a7a55e48-1588-44ee-99e2-d9de5c026238
+                      versionId:
+                        type: string
+                        format: uuid
+                        example: 2d44f89a-2222-498d-869b-795296496ca3
+                      name:
+                        type: string
+                        example: tester
+                      version:
+                        type: string
+                        example: '1.0.0'
+                      tags:
+                        type: array
+                        items:
+                          type: string
+                      metaProperties:
+                        type: object
+                        additionalProperties: true
+                      prompt:
+                        type: string
+                        example: 'Hello {{name}}'
+                      compiledPrompt:
+                        type: string
+                        example: 'Hello John'
+      security:
+        - apiKeyAuth: []
+components:
+  securitySchemes:
+    apiKeyAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT

@@ -1,0 +1,117 @@
+---
+title: 'Custom'
+description: 'Build and deploy custom instrumentation solutions'
+---
+
+The Custom provider allows you to bring your own instrumentation image, enabling complete control over observability implementation for specialized requirements, legacy integrations, or proprietary solutions.
+
+## Configuration
+
+<Tabs>
+  <Tab title="Basic">
+    ```yaml
+    apiVersion: openlit.io/v1alpha1
+    kind: AutoInstrumentation
+    metadata:
+      name: custom-instrumentation
+    spec:
+      selector:
+        matchLabels:
+          custom.instrument: "true"
+      python:
+        instrumentation:
+          provider: "custom"
+          customInitImage: "my-registry.com/custom-instrumentation:v1.0.0"
+      otlp:
+        endpoint: "http://openlit:4318"
+    ```
+  </Tab>
+  
+  <Tab title="Advanced">
+    ```yaml
+    apiVersion: openlit.io/v1alpha1
+    kind: AutoInstrumentation
+    metadata:
+      name: custom-production
+    spec:
+      selector:
+        matchLabels:
+          environment: "production"
+      python:
+        instrumentation:
+          provider: "custom"
+          customInitImage: "my-registry.com/custom-instrumentation:v2.0.0"
+          imagePullPolicy: "IfNotPresent"
+          customPackages: "my-observability-sdk>=2.0.0,custom-metrics>=1.5.0"
+          env:
+          - name: OTEL_SERVICE_NAME
+            value: "custom-ai-service"
+          - name: CUSTOM_METRICS_ENDPOINT
+            value: "http://custom-backend:8080"
+          - name: LEGACY_TRACING_ENABLED
+            value: "true"
+          - name: PROPRIETARY_KEY
+            valueFrom:
+              secretKeyRef:
+                name: custom-secrets
+                key: api-key
+      otlp:
+        endpoint: "http://openlit:4318"
+        timeout: 60
+      resource:
+        environment: "production"
+        serviceName: "custom-ai-service"
+    ```
+  </Tab>
+</Tabs>
+
+## Provider Specific Features
+
+The Custom provider offers maximum flexibility for specialized observability needs:
+
+### Custom Image Requirements
+
+Your custom instrumentation image must include:
+
+```dockerfile
+# Example custom instrumentation Dockerfile
+FROM python:3.11-slim
+
+# Install your custom instrumentation packages
+COPY requirements.txt /tmp/
+RUN pip install -r /tmp/requirements.txt
+
+# Copy your custom instrumentation logic
+COPY sitecustomize.py /usr/local/lib/python3.11/site-packages/
+COPY setup-instrumentation.py /
+
+# Set up the instrumentation entry point
+ENTRYPOINT ["python", "/setup-instrumentation.py"]
+```
+
+### When to Use Custom Provider
+
+**Use Cases:**
+- **Legacy System Integration**: Integrate with existing proprietary observability tools
+- **Custom Business Metrics**: Collect domain-specific metrics not covered by standard providers
+- **Compliance Requirements**: Meet specific regulatory or security requirements
+- **Research & Development**: Implement experimental observability features
+- **Multi-vendor Strategy**: Combine multiple observability solutions
+
+### Base OpenTelemetry Support
+
+The custom provider includes basic OpenTelemetry setup:
+
+**Features:**
+- Standard OTLP exporter configuration
+- Support for both HTTP and gRPC endpoints
+- Environment variable-based configuration
+- Fallback OpenTelemetry setup if custom logic fails
+
+### Environment Variables
+
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `OTEL_SERVICE_NAME` | Service name for tracing | `"custom-app"` |
+| `OTEL_EXPORTER_OTLP_ENDPOINT` | OTLP endpoint (standard) | Required |
+| `CUSTOM_PACKAGES` | Custom packages installed by setup script | From `customPackages` |

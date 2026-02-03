@@ -1,0 +1,848 @@
+[
+  {
+    "name": "RENDER__CREATE_KEY_VALUE",
+    "description": "Create a new Key Value instance in your Render account",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "create_key_value",
+      "canonical_tool_description_hash": "b64d0c33e5a24e103e204d63041725cb0222cfa6f342bc8c98adb45f2f4e1515",
+      "canonical_tool_input_schema_hash": "516854fa4683cd9a7c96fbc4e6add9b701c5e5097373b70c8034b2c630036bdc"
+    },
+    "input_schema": {
+      "properties": {
+        "maxmemoryPolicy": {
+          "description": "The eviction policy for the Key Value store",
+          "enum": [
+            "noeviction",
+            "allkeys_lfu",
+            "allkeys_lru",
+            "allkeys_random",
+            "volatile_lfu",
+            "volatile_lru",
+            "volatile_random",
+            "volatile_ttl"
+          ],
+          "type": "string"
+        },
+        "name": {
+          "description": "Name of the Key Value instance",
+          "type": "string"
+        },
+        "plan": {
+          "default": "free",
+          "description": "Pricing plan for the Key Value instance",
+          "enum": ["free", "starter", "standard", "pro", "pro_plus"],
+          "type": "string"
+        },
+        "region": {
+          "default": "oregon",
+          "description": "Region where the Key Value instance will be deployed",
+          "enum": ["oregon", "frankfurt", "singapore", "ohio", "virginia"],
+          "type": "string"
+        }
+      },
+      "required": ["name", "plan"],
+      "type": "object"
+    }
+  },
+  {
+    "name": "RENDER__CREATE_POSTGRES",
+    "description": "Create a new Postgres instance in your Render account",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "create_postgres",
+      "canonical_tool_description_hash": "3f12c76ffe585f5cf80c65c091a77e7e12ca9a1b340898f232e17b7e23884839",
+      "canonical_tool_input_schema_hash": "631d19cd0c30554a71ad29b223422101a645fde90660b1135d254fe8ee32d0a3"
+    },
+    "input_schema": {
+      "properties": {
+        "diskSizeGb": {
+          "description": "Your database's capacity, in GB. You can increase storage at any time, but you can't decrease it. Specify 1 GB or any multiple of 5 GB.",
+          "type": "number"
+        },
+        "name": {
+          "description": "The name of the database as it will appear in the Render Dashboard",
+          "type": "string"
+        },
+        "plan": {
+          "description": "Pricing plan for the database",
+          "enum": [
+            "free",
+            "basic_256mb",
+            "basic_1gb",
+            "basic_4gb",
+            "pro_4gb",
+            "pro_8gb",
+            "pro_16gb",
+            "pro_32gb",
+            "pro_64gb",
+            "pro_128gb",
+            "pro_192gb",
+            "pro_256gb",
+            "pro_384gb",
+            "pro_512gb",
+            "accelerated_16gb",
+            "accelerated_32gb",
+            "accelerated_64gb",
+            "accelerated_128gb",
+            "accelerated_256gb",
+            "accelerated_384gb",
+            "accelerated_512gb",
+            "accelerated_768gb",
+            "accelerated_1024gb"
+          ],
+          "type": "string"
+        },
+        "region": {
+          "description": "Region where the database will be deployed",
+          "enum": ["oregon", "frankfurt", "singapore", "ohio", "virginia"],
+          "type": "string"
+        },
+        "version": {
+          "default": 16,
+          "description": "PostgreSQL version to use (e.g., 14, 15)",
+          "maximum": 16,
+          "minimum": 12,
+          "type": "number"
+        }
+      },
+      "required": ["name", "plan"],
+      "type": "object"
+    }
+  },
+  {
+    "name": "RENDER__CREATE_STATIC_SITE",
+    "description": "Create a new static site in your Render account. Apps that consist entirely of statically served assets (commonly HTML, CSS, and JS). Static sites have a public onrender.com subdomain and are served over a global CDN. Create a static site if you're building with a framework like: Create React App, Vue.js, Gatsby, etc.This tool is currently limited to support only a subset of the static site configuration parameters.To create a static site without those limitations, please use the dashboard at: https://dashboard.render.com/static/new",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "create_static_site",
+      "canonical_tool_description_hash": "23250a1d82bad1e7863eb8b34b750c7e7764a64f0916e29c99ba3c1393be107d",
+      "canonical_tool_input_schema_hash": "bf1c5e450057dd80bdd8987d6ee5245a6545cbbc047e6b8618edc3eca2c4b78a"
+    },
+    "input_schema": {
+      "properties": {
+        "autoDeploy": {
+          "default": "yes",
+          "description": "Whether to automatically deploy the service when the specified branch is updated. Defaults to 'yes'.",
+          "enum": ["yes", "no"],
+          "type": "string"
+        },
+        "branch": {
+          "description": "The repository branch to deploy. This branch will be deployed when you manually trigger deploys and when auto-deploy is enabled. If left empty, this will fall back to the default branch of the repository.",
+          "type": "string"
+        },
+        "buildCommand": {
+          "description": "Render runs this command to build your app before each deploy. For example, 'yarn; yarn build' a React app.",
+          "type": "string"
+        },
+        "envVars": {
+          "description": "Environment variables to set for your service. These are exposed during builds and at runtime.",
+          "items": {
+            "additionalProperties": false,
+            "properties": {
+              "key": {
+                "description": "The name of the environment variable",
+                "type": "string"
+              },
+              "value": {
+                "description": "The value of the environment variable",
+                "type": "string"
+              }
+            },
+            "required": ["key", "value"],
+            "type": "object"
+          },
+          "type": "array"
+        },
+        "name": {
+          "description": "A unique name for your service. This will be used to generate the service's URL if it is public.",
+          "type": "string"
+        },
+        "publishPath": {
+          "default": "public",
+          "description": "The relative path of the directory containing built assets to publish. Examples: ./, ./build, dist and frontend/build. This is the directory that will be served to the public.",
+          "type": "string"
+        },
+        "repo": {
+          "description": "The repository containing the source code for your service. Must be a valid Git URL that Render can clone and deploy. Do not include the branch in the repo string. You can instead supply a 'branch' parameter.",
+          "type": "string"
+        }
+      },
+      "required": ["name", "buildCommand"],
+      "type": "object"
+    }
+  },
+  {
+    "name": "RENDER__CREATE_WEB_SERVICE",
+    "description": "Create a new web service in your Render account. A web service is a public-facing service that can be accessed by users on the internet. By default, these services are automatically deployed when the specified branch is updated and do not require a manual trigger of a deploy. The user should only be prompted to manually trigger a deploy if auto-deploy is disabled.This tool is currently limited to support only a subset of the web service configuration parameters.It also only supports web services which don't use Docker, or a container registry.To create a service without those limitations, please use the dashboard at: https://dashboard.render.com/web/new",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "create_web_service",
+      "canonical_tool_description_hash": "2f7875450260169996887d11c6b28c50cdf4e6c549ea79314d1abcbc039f0bb1",
+      "canonical_tool_input_schema_hash": "83a83596b1d80012a770580b44e682f5a304352cc6747562c12ec8f5063c7294"
+    },
+    "input_schema": {
+      "properties": {
+        "autoDeploy": {
+          "default": "yes",
+          "description": "Whether to automatically deploy the service when the specified branch is updated. Defaults to 'yes'.",
+          "enum": ["yes", "no"],
+          "type": "string"
+        },
+        "branch": {
+          "description": "The repository branch to deploy. This branch will be deployed when you manually trigger deploys and when auto-deploy is enabled. If left empty, this will fall back to the default branch of the repository.",
+          "type": "string"
+        },
+        "buildCommand": {
+          "description": "The command used to build your service. For example, 'npm run build' for Node.js or 'pip install -r requirements.txt' for Python.",
+          "type": "string"
+        },
+        "envVars": {
+          "description": "Environment variables to set for your service. These are exposed during builds and at runtime.",
+          "items": {
+            "additionalProperties": false,
+            "properties": {
+              "key": {
+                "description": "The name of the environment variable",
+                "type": "string"
+              },
+              "value": {
+                "description": "The value of the environment variable",
+                "type": "string"
+              }
+            },
+            "required": ["key", "value"],
+            "type": "object"
+          },
+          "type": "array"
+        },
+        "name": {
+          "description": "A unique name for your service. This will be used to generate the service's URL if it is public.",
+          "type": "string"
+        },
+        "plan": {
+          "default": "starter",
+          "description": "The pricing plan for your service. Different plans offer different levels of resources and features.",
+          "enum": ["starter", "standard", "pro", "pro_max", "pro_plus", "pro_ultra"],
+          "type": "string"
+        },
+        "region": {
+          "default": "oregon",
+          "description": "The geographic region where your service will be deployed. Defaults to Oregon. Choose the region closest to your users for best performance.",
+          "enum": ["oregon", "frankfurt", "singapore", "ohio", "virginia"],
+          "type": "string"
+        },
+        "repo": {
+          "description": "The repository containing the source code for your service. Must be a valid Git URL that Render can clone and deploy. Do not include the branch in the repo string. You can instead supply a 'branch' parameter.",
+          "type": "string"
+        },
+        "runtime": {
+          "description": "The runtime environment for your service. This determines how your service is built and run.",
+          "enum": ["node", "python", "go", "rust", "ruby", "elixir", "docker"],
+          "type": "string"
+        },
+        "startCommand": {
+          "description": "The command used to start your service. For example, 'npm start' for Node.js or 'gunicorn app:app' for Python.",
+          "type": "string"
+        }
+      },
+      "required": ["name", "runtime", "buildCommand", "startCommand"],
+      "type": "object"
+    }
+  },
+  {
+    "name": "RENDER__GET_DEPLOY",
+    "description": "Retrieve the details of a particular deploy for a particular service.",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "get_deploy",
+      "canonical_tool_description_hash": "c1c138d8bbccae821eaa413f310eb38486d78363ebd5a80830d2fd72d0ba3f1d",
+      "canonical_tool_input_schema_hash": "31edc6dbd06225827ec30b581860ccc4bd02c62ba6fa511b81b8ae62bc8bdf1a"
+    },
+    "input_schema": {
+      "properties": {
+        "deployId": {
+          "description": "The ID of the deployment to retrieve",
+          "type": "string"
+        },
+        "serviceId": {
+          "description": "The ID of the service to get deployments for",
+          "type": "string"
+        }
+      },
+      "required": ["serviceId", "deployId"],
+      "type": "object"
+    }
+  },
+  {
+    "name": "RENDER__GET_KEY_VALUE",
+    "description": "Retrieve a Key Value instance by ID",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "get_key_value",
+      "canonical_tool_description_hash": "8bd7a680f27f037e7623bd32d65b8baecb4439169d339d2f436584c6d3b29647",
+      "canonical_tool_input_schema_hash": "cd7ea1e2e572fae7fff195cea90f8359f1f7efdda14ca7244872f573ad7de902"
+    },
+    "input_schema": {
+      "properties": {
+        "keyValueId": {
+          "description": "The ID of the Key Value instance to retrieve",
+          "type": "string"
+        }
+      },
+      "required": ["keyValueId"],
+      "type": "object"
+    }
+  },
+  {
+    "name": "RENDER__GET_METRICS",
+    "description": "Get performance metrics for any Render resource (services, Postgres databases, key-value stores). Supports CPU usage/limits/targets, memory usage/limits/targets, service instance counts, HTTP request counts and response time metrics, database active connection counts for debugging, capacity planning, and performance optimization. Returns time-series data with timestamps and values for the specified time range. HTTP metrics support filtering by host and path for more granular analysis. Limits and targets help understand resource constraints and autoscaling thresholds. Metrics may be empty if the metric is not valid for the given resource.",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "get_metrics",
+      "canonical_tool_description_hash": "e540752f1e126f84bac057dce3d5631a4539315f8f1a8ca067c5ee77734dcde7",
+      "canonical_tool_input_schema_hash": "3bed5ecab18b26aa5c1ab136f56cda7322ac8931b88ddeb446cedf64dcbf670c"
+    },
+    "input_schema": {
+      "properties": {
+        "aggregateHttpRequestCountsBy": {
+          "description": "Field to aggregate HTTP request metrics by. Only supported for http_request_count metric. Options: host (aggregate by request host), statusCode (aggregate by HTTP status code). When not specified, returns total request counts.",
+          "enum": ["host", "statusCode"],
+          "type": "string"
+        },
+        "cpuUsageAggregationMethod": {
+          "default": "AVG",
+          "description": "Method for aggregating metric values over time intervals. Only supported for CPU usage metrics. Options: AVG, MAX, MIN. Defaults to AVG.",
+          "enum": ["AVG", "MAX", "MIN"],
+          "type": "string"
+        },
+        "endTime": {
+          "description": "End time for metrics query in RFC3339 format (e.g., '2024-01-01T13:00:00Z'). Defaults to the current time. The end time must be within the last 30 days.",
+          "type": "string"
+        },
+        "httpHost": {
+          "description": "Filter HTTP metrics to specific request hosts. Supported for http_request_count and http_latency metrics. Example: 'api.example.com' or 'myapp.render.com'. When not specified, includes all hosts.",
+          "type": "string"
+        },
+        "httpLatencyQuantile": {
+          "default": 0.95,
+          "description": "The quantile/percentile of HTTP latency to fetch. Only supported for http_latency metric. Common values: 0.5 (median), 0.95 (95th percentile), 0.99 (99th percentile). Defaults to 0.95 if not specified.",
+          "maximum": 1,
+          "minimum": 0,
+          "type": "number"
+        },
+        "httpPath": {
+          "description": "Filter HTTP metrics to specific request paths. Supported for http_request_count and http_latency metrics. Example: '/api/users' or '/health'. When not specified, includes all paths.",
+          "type": "string"
+        },
+        "metricTypes": {
+          "description": "Which metrics to fetch. CPU usage/limits/targets, memory usage/limits/targets, and instance count metrics are available for all resources. HTTP request counts and response time metrics are only available for services. Active connection metrics are only available for databases and key-value stores. Limits show resource constraints, targets show autoscaling thresholds.",
+          "items": {
+            "enum": [
+              "cpu_usage",
+              "memory_usage",
+              "http_request_count",
+              "active_connections",
+              "instance_count",
+              "http_latency",
+              "cpu_limit",
+              "cpu_target",
+              "memory_limit",
+              "memory_target"
+            ],
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "resolution": {
+          "description": "Time resolution for data points in seconds. Lower values provide more granular data. Higher values provide more aggregated data points. API defaults to 60 seconds if not provided. There is a limit to the number of data points that can be returned, after which the metrics endpoint will return a 500. If you are getting a 500, try reducing granularity (increasing the value of resolution).",
+          "minimum": 30,
+          "type": "number"
+        },
+        "resourceId": {
+          "description": "The ID of the resource to get metrics for (service ID, Postgres ID, or key-value store ID)",
+          "type": "string"
+        },
+        "startTime": {
+          "description": "Start time for metrics query in RFC3339 format (e.g., '2024-01-01T12:00:00Z'). Defaults to 1 hour ago. The start time must be within the last 30 days.",
+          "type": "string"
+        }
+      },
+      "required": ["resourceId", "metricTypes"],
+      "type": "object"
+    }
+  },
+  {
+    "name": "RENDER__GET_POSTGRES",
+    "description": "Retrieve a Postgres instance by ID",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "get_postgres",
+      "canonical_tool_description_hash": "72d3807fe7e8eff0bb657e1c13052292f3b82a63b0708a7dd4225e915a4c20fa",
+      "canonical_tool_input_schema_hash": "7b4a24850a95b33c32717d4d043e50793ebd201c948753c93ff4ec631f1be5e1"
+    },
+    "input_schema": {
+      "properties": {
+        "postgresId": {
+          "description": "The ID of the Postgres instance to retrieve",
+          "type": "string"
+        }
+      },
+      "required": ["postgresId"],
+      "type": "object"
+    }
+  },
+  {
+    "name": "RENDER__GET_SELECTED_WORKSPACE",
+    "description": "Get the currently selected workspace",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "get_selected_workspace",
+      "canonical_tool_description_hash": "75f91b7a6ab828ca718350557f73727ba42dc3680f784eca5f93456241e7740c",
+      "canonical_tool_input_schema_hash": "efddc7bd8bbcef73a14eb1ace1ffdaec81e518ef1e13c1e9271d0b8acb694a49"
+    },
+    "input_schema": {
+      "properties": {},
+      "type": "object"
+    }
+  },
+  {
+    "name": "RENDER__GET_SERVICE",
+    "description": "Get details about a specific service",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "get_service",
+      "canonical_tool_description_hash": "f1044d28055322675cc081cb95c631af62f985312c24ace3cd31427831730038",
+      "canonical_tool_input_schema_hash": "0209a32aee5eb0506d24ae8acd3335bf29b0e5c69c18a3d4c9365b78977905a6"
+    },
+    "input_schema": {
+      "properties": {
+        "serviceId": {
+          "description": "The ID of the service to retrieve",
+          "type": "string"
+        }
+      },
+      "required": ["serviceId"],
+      "type": "object"
+    }
+  },
+  {
+    "name": "RENDER__LIST_DEPLOYS",
+    "description": "List deploys matching the provided filters. If no filters are provided, all deploys for the service are returned.",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "list_deploys",
+      "canonical_tool_description_hash": "885b64f6c1d767302d01338d5e2339559c597fccb0d30efead8fbcdb7ae0c236",
+      "canonical_tool_input_schema_hash": "fc4baec375042f0e78deadb45796c33b2fb55f607a862f3355dde7c281ff5dba"
+    },
+    "input_schema": {
+      "properties": {
+        "cursor": {
+          "default": "",
+          "description": "A unique string that corresponds to a position in the result list. If provided, the endpoint returns results that appear after the corresponding position. To fetch the first page of results, set to the empty string.",
+          "type": "string"
+        },
+        "limit": {
+          "default": 10,
+          "description": "The maximum number of deploys to return in a single page. To fetch additional pages of results, set the cursor to the last deploy in the previous page. It should be rare to need to set this value greater than 20.",
+          "maximum": 100,
+          "minimum": 1,
+          "type": "number"
+        },
+        "serviceId": {
+          "description": "The ID of the service to get deployments for",
+          "type": "string"
+        }
+      },
+      "required": ["serviceId"],
+      "type": "object"
+    }
+  },
+  {
+    "name": "RENDER__LIST_KEY_VALUE",
+    "description": "List all Key Value instances in your Render account",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "list_key_value",
+      "canonical_tool_description_hash": "21fd532cf3facc8eec65abe4163df950a4a0d4ad2ffe25e6fc81b7951155fb29",
+      "canonical_tool_input_schema_hash": "efddc7bd8bbcef73a14eb1ace1ffdaec81e518ef1e13c1e9271d0b8acb694a49"
+    },
+    "input_schema": {
+      "properties": {},
+      "type": "object"
+    }
+  },
+  {
+    "name": "RENDER__LIST_LOG_LABEL_VALUES",
+    "description": "List all values for a given log label in the logs matching the provided filters. This can be used to discover what values are available for filtering logs using the list_logs tool. You can query for logs across multiple resources, but all resources must be in the same region and belong to the same owner.",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "list_log_label_values",
+      "canonical_tool_description_hash": "e326adfdf4f7110e02f85a0373371249f29e9c3e43fa0005f88c2a1f6d758f8d",
+      "canonical_tool_input_schema_hash": "4133a36a54c48b81136ece388d58f01b1284da526f85203d6fca53f1ed55baad"
+    },
+    "input_schema": {
+      "properties": {
+        "direction": {
+          "default": "backward",
+          "description": "The direction to query logs for. Backward will return most recent logs first. Forward will start with the oldest logs in the time range.",
+          "enum": ["backward", "forward"],
+          "type": "string"
+        },
+        "endTime": {
+          "description": "End time for log query (RFC3339 format). Defaults to the current time. The end time must be within the last 30 days.",
+          "type": "string"
+        },
+        "host": {
+          "description": "Filter request logs by their host. Wildcards and regex are supported.",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "instance": {
+          "description": "Filter logs by the instance they were emitted from.",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "label": {
+          "description": "The label to list values for.",
+          "enum": ["host", "instance", "level", "method", "statusCode", "type"],
+          "type": "string"
+        },
+        "level": {
+          "description": "Filter logs by their severity level. Wildcards and regex are supported.",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "method": {
+          "description": "Filter request logs by their requests method. Wildcards and regex are supported.",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "path": {
+          "description": "Filter request logs by their path. Wildcards and regex are supported.",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "resource": {
+          "description": "Filter by resource. A resource is the id of a server, cronjob, job, postgres, or redis.",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "startTime": {
+          "description": "Start time for log query (RFC3339 format). Defaults to 1 hour ago. The start time must be within the last 30 days.",
+          "type": "string"
+        },
+        "statusCode": {
+          "description": "Filter request logs by their status code. Wildcards and regex are supported.",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "text": {
+          "description": "Filter by the text of the logs. Wildcards and regex are supported.",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "type": {
+          "description": "Filter logs by their type.",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "required": ["label", "resource"],
+      "type": "object"
+    }
+  },
+  {
+    "name": "RENDER__LIST_LOGS",
+    "description": "List logs matching the provided filters. Logs are paginated by start and end timestamps. There are more logs to fetch if hasMore is true in the response. Provide the nextStartTime and nextEndTime timestamps as the startTime and endTime query parameters to fetch the next page of logs. You can query for logs across multiple resources, but all resources must be in the same region and belong to the same owner.",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "list_logs",
+      "canonical_tool_description_hash": "3795c23da18ac5c7580df8ec28d9d43c9dc04533d184c8d5e8aa3cb97aeb42a3",
+      "canonical_tool_input_schema_hash": "86736334261fbd094543c70019378533fb219089c010564f40179fa0abfbe8c7"
+    },
+    "input_schema": {
+      "properties": {
+        "direction": {
+          "default": "backward",
+          "description": "The direction to query logs for. Backward will return most recent logs first. Forward will start with the oldest logs in the time range.",
+          "enum": ["backward", "forward"],
+          "type": "string"
+        },
+        "endTime": {
+          "description": "End time for log query (RFC3339 format). Defaults to the current time. The end time must be within the last 30 days.",
+          "type": "string"
+        },
+        "host": {
+          "description": "Filter request logs by their host. Wildcards and regex are supported.",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "instance": {
+          "description": "Filter logs by the instance they were emitted from. An instance is the id of a specific running server.",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "level": {
+          "description": "Filter logs by their severity level. Wildcards and regex are supported.",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "limit": {
+          "description": "Maximum number of logs to return",
+          "maximum": 100,
+          "minimum": 1,
+          "type": "number"
+        },
+        "method": {
+          "description": "Filter request logs by their requests method. Wildcards and regex are supported.",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "path": {
+          "description": "Filter request logs by their path. Wildcards and regex are supported.",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "resource": {
+          "description": "Filter logs by their resource. A resource is the id of a server, cronjob, job, postgres, or redis.",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "startTime": {
+          "description": "Start time for log query (RFC3339 format). Defaults to 1 hour ago. The start time must be within the last 30 days.",
+          "type": "string"
+        },
+        "statusCode": {
+          "description": "Filter request logs by their status code. Wildcards and regex are supported.",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "text": {
+          "description": "Filter by the text of the logs. Wildcards and regex are supported.",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "type": {
+          "description": "Filter logs by their type. Types include app for application logs, request for request logs, and build for build logs. You can find the full set of types available for a query by using the list_log_label_values tool.",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "required": ["resource"],
+      "type": "object"
+    }
+  },
+  {
+    "name": "RENDER__LIST_POSTGRES_INSTANCES",
+    "description": "List all Postgres databases in your Render account",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "list_postgres_instances",
+      "canonical_tool_description_hash": "e1e01f597e9c669f8387f2e5589d8e6d1df23da2b7b56f0377432d4b9ca6cd05",
+      "canonical_tool_input_schema_hash": "efddc7bd8bbcef73a14eb1ace1ffdaec81e518ef1e13c1e9271d0b8acb694a49"
+    },
+    "input_schema": {
+      "properties": {},
+      "type": "object"
+    }
+  },
+  {
+    "name": "RENDER__LIST_SERVICES",
+    "description": "List all services in your Render account",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "list_services",
+      "canonical_tool_description_hash": "5f608a9bbc88459326d7f15298ba0091d66a156b6fb49b6197054e10f1b6019f",
+      "canonical_tool_input_schema_hash": "22bdb15fe4d5b5b6ceabe5c3bcbe5ff86d3856744325c2443d1a310f41ed6fa4"
+    },
+    "input_schema": {
+      "properties": {
+        "includePreviews": {
+          "default": false,
+          "description": "Whether to include preview services in the response. Defaults to false.",
+          "type": "boolean"
+        }
+      },
+      "type": "object"
+    }
+  },
+  {
+    "name": "RENDER__LIST_WORKSPACES",
+    "description": "List the workspaces that you have access to",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "list_workspaces",
+      "canonical_tool_description_hash": "c17903e7d0a63fe382fc999e958076080c13c9e95dfc6577e79159f8ed115125",
+      "canonical_tool_input_schema_hash": "efddc7bd8bbcef73a14eb1ace1ffdaec81e518ef1e13c1e9271d0b8acb694a49"
+    },
+    "input_schema": {
+      "properties": {},
+      "type": "object"
+    }
+  },
+  {
+    "name": "RENDER__QUERY_RENDER_POSTGRES",
+    "description": "Run a read-only SQL query against a Render-hosted Postgres database. This tool creates a new connection for each query and closes it after the query completes.",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "query_render_postgres",
+      "canonical_tool_description_hash": "a072615eb1285516779224e71d7700e1b7d854014fcc10c933ca8b868b1d9578",
+      "canonical_tool_input_schema_hash": "5b3868dc45f0e4579ff7ccfa7d5285071828c059f4a2f5b05af0b2eb63fc9879"
+    },
+    "input_schema": {
+      "properties": {
+        "postgresId": {
+          "description": "The ID of the Postgres instance to query",
+          "type": "string"
+        },
+        "sql": {
+          "description": "The SQL query to run. Note that the query will be wrapped in a read-only transaction.",
+          "type": "string"
+        }
+      },
+      "required": ["postgresId", "sql"],
+      "type": "object"
+    }
+  },
+  {
+    "name": "RENDER__SELECT_WORKSPACE",
+    "description": "Select a workspace to use for all actions. This tool should only be used after explicitly asking the user to select one, it should not be invoked as part of an automated process. Having the wrong workspace selected can lead to destructive actions being performed on unintended resources.",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "select_workspace",
+      "canonical_tool_description_hash": "b2895a9712b4ecac358aedceb891c18f981d672b7d7b2c37bbb19ec3c3dc972e",
+      "canonical_tool_input_schema_hash": "165da7f13a67e0eceef4435dc60ba2f6e623b0cb536a2e4d7fa830b39ee4a733"
+    },
+    "input_schema": {
+      "properties": {
+        "ownerID": {
+          "description": "The ID of the owner to select",
+          "type": "string"
+        }
+      },
+      "required": ["ownerID"],
+      "type": "object"
+    }
+  },
+  {
+    "name": "RENDER__UPDATE_ENVIRONMENT_VARIABLES",
+    "description": "Update environment variables for a service. By default, environment variables passed in will be merged with the service's existing environment variables. This makes it safe to update environment variableswithout pulling the existing ones into the MCP host's context. To replace all existing environment variables, set the 'replace' parameter to 'true'.",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "update_environment_variables",
+      "canonical_tool_description_hash": "14fd6cb97709fe472a12c443dbe4baa0995e5a72d9eae12aaf12792757d3cab4",
+      "canonical_tool_input_schema_hash": "8d4b49f5559e5cb66f64329d7dbe0c52eded88ad70dfb66ff7cbd50017391dca"
+    },
+    "input_schema": {
+      "properties": {
+        "envVars": {
+          "description": "The list of environment variables to update or set for the service.",
+          "items": {
+            "additionalProperties": false,
+            "properties": {
+              "key": {
+                "description": "The name of the environment variable",
+                "type": "string"
+              },
+              "value": {
+                "description": "The value of the environment variable",
+                "type": "string"
+              }
+            },
+            "required": ["key", "value"],
+            "type": "object"
+          },
+          "type": "array"
+        },
+        "replace": {
+          "default": false,
+          "description": "Whether to replace all existing environment variables with the provided list, or merge with the existing ones. Defaults to false.",
+          "type": "boolean"
+        },
+        "serviceId": {
+          "description": "The ID of the service to update",
+          "type": "string"
+        }
+      },
+      "required": ["serviceId", "envVars"],
+      "type": "object"
+    }
+  },
+  {
+    "name": "RENDER__UPDATE_STATIC_SITE",
+    "description": "Update an existing static site in your Render account.",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "update_static_site",
+      "canonical_tool_description_hash": "58e37ea7f2f8b758d8d0fa33db110fc26dc30812a0c8fb3c40da1f37b607105c",
+      "canonical_tool_input_schema_hash": "0d01279cff3ce2d73421c60d61f9ce9f48b2640a6dbfd53b2d1e94cea2cd6f4e"
+    },
+    "input_schema": {
+      "properties": {
+        "serviceId": {
+          "description": "The ID of the service to update",
+          "type": "string"
+        }
+      },
+      "required": ["serviceId"],
+      "type": "object"
+    }
+  },
+  {
+    "name": "RENDER__UPDATE_WEB_SERVICE",
+    "description": "Update an existing web service in your Render account.",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "update_web_service",
+      "canonical_tool_description_hash": "0c56d3ee8ae853f8d2f985f423c5c264ff6e36956e93e29651bc4edd12402b5f",
+      "canonical_tool_input_schema_hash": "0d01279cff3ce2d73421c60d61f9ce9f48b2640a6dbfd53b2d1e94cea2cd6f4e"
+    },
+    "input_schema": {
+      "properties": {
+        "serviceId": {
+          "description": "The ID of the service to update",
+          "type": "string"
+        }
+      },
+      "required": ["serviceId"],
+      "type": "object"
+    }
+  }
+]

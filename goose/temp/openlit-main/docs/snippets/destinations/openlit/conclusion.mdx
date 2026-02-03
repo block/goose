@@ -1,0 +1,25 @@
+### 3. Access OpenLIT Platform Dashboard
+
+Once your LLM application is instrumented, you can explore the comprehensive observability data in the OpenLIT Platform:
+
+**Access the Dashboard**:
+```bash
+# Get the external service details
+kubectl get svc -n openlit openlit
+
+# For local access via port-forwarding:
+kubectl port-forward -n openlit svc/openlit 3000:3000
+# Then visit: http://localhost:3000
+```
+
+**What You'll See**:
+1. **LLM Observability Dashboard**: Comprehensive view of your AI applications including:
+   - **Real-time Metrics**: Request rates, latency, and error rates
+   - **Cost Tracking**: Token usage and cost breakdown by model and application
+   - **Performance Analytics**: Response times, throughput, and model performance
+   - **Trace Visualization**: Detailed execution flow with full request/response context
+2. **Vector Database Analytics**: Monitor your vector database operations and performance
+3. **GPU Monitoring**: Track GPU utilization and performance metrics (if enabled)
+4. **Custom Dashboards**: Create tailored views for your specific monitoring needs
+
+Your OpenLIT-instrumented AI applications will appear automatically in the OpenLIT Platform with comprehensive observability including LLM costs, token usage, model performance, distributed tracing, and business intelligence - all in a single, self-hosted platform designed specifically for AI workloads.

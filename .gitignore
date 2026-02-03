@@ -72,3 +72,6 @@ result
 
 # Goose self-test artifacts
 gooseselftest/
+
+# External reference implementations (not part of goose)
+external/

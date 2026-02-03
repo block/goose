@@ -1,0 +1,57 @@
+---
+title: Auto Refresh & Time Interval
+description: Learn how to enable auto-refresh and set time intervals in OpenLIT dashboards to keep your data live and updated in real time.
+---
+
+You can configure OpenLIT dashboards to automatically refresh data at set intervals. This feature is essential for live monitoring dashboards, status boards, and any view that requires up-to-date metrics from ClickHouse.
+
+## Why use refresh intervals?
+
+Refresh intervals allow you to:
+- Keep data fresh without manual reloads and automatically re-run queries behind the scenes  
+- Power live dashboards for operations and support teams  
+- Monitor real-time metrics
+
+## How to enable auto-refresh
+
+<iframe className="w-full aspect-video" src="https://www.youtube.com/embed/YCplfvm6_W0?list=PLgErWFh-dyiGp9yUDnnx67wHEeNqzzMXZ" title="How to Auto Refresh &amp; Select Time Interval in OpenLIT – Real-Time Dashboards with ClickHouse" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" referrerpolicy="strict-origin-when-cross-origin" allowfullscreen></iframe>
+
+Once set, the dashboard will automatically re-fetch data from ClickHouse at the selected interval.
+
+## Available refresh rate
+
+| Interval   | Use Case                          |
+|------------|-----------------------------------|
+| Never      | Static dashboards 					    	 |
+| 30 seconds | Live dashboards, production stats |
+| 1 minute   | Standard monitoring   (default)   |
+| 5 minutes  | Low-frequency updates             |
+| 10 minutes | Less load on db			             |
+
+
+## Available time intervals
+
+| Range  | Description                            | Example Use Case                          |
+| ------ | -------------------------------------- | ----------------------------------------- |
+| 24H    | Last 24 hours from now                 | Real-time metrics, active users, API logs |
+| 7D     | Last 7 calendar days                   | Weekly trends, retention, issue tracking  |
+| 1M     | Last 1 calendar month                  | Revenue analysis, product adoption        |
+| 3M     | Last 3 calendar months                 | Quarterly metrics, strategic reviews      |
+| Custom | Select any start and end date manually | Audits, investigations, historical views  |
+
+
+Snippet to make use of the time interval in the query:
+
+```sql
+WHERE event_time BETWEEN {{filter.timeLimit.start}} AND {{filter.timeLimit.end}}
+```
+
+<Tip>
+Use shorter intervals only for optimized queries. Long-running queries + high refresh rates can overload your ClickHouse backend.
+</Tip>
+
+## Best practices
+
+- Use dynamic bindings like `{{filter.timeLimit.start}}`, `{{filter.timeLimit.end}}` to make your chart respond to dashboard time filters. 
+- Avoid using `LIMIT 1000` or wide result sets on high-frequency updates  
+- Use refresh intervals in combination with pinned dashboards for kiosk or ops setups  

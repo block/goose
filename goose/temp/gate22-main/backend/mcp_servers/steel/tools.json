@@ -1,0 +1,481 @@
+[
+  {
+    "name": "STEEL__RELEASE_SESSION",
+    "description": "Releases a specific session by ID.",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "RELEASE_SESSION",
+      "canonical_tool_description_hash": "96120a5fde81ef5fa68aee0280e2be864d040486b88f91fc03314e148feb3d26",
+      "canonical_tool_input_schema_hash": "c9cada70f44e69b19762b749f3c03621ef4409573089a27f05bb448ed8cd2a93"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["path"],
+      "properties": {
+        "path": {
+          "type": "object",
+          "required": ["id"],
+          "properties": {
+            "id": {
+              "type": "string",
+              "format": "uuid",
+              "description": "The unique identifier of the session to release"
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "STEEL__GET_SESSION_LIVE_DETAILS",
+    "description": "Returns the live state of the session, including pages, tabs, and browser state.",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "GET_SESSION_LIVE_DETAILS",
+      "canonical_tool_description_hash": "a2856f7be214fb48a2d8e673f3b156c03d2df00c7e9d6fbda1fab4610638c06d",
+      "canonical_tool_input_schema_hash": "912fe7836afd4bbf96e49fd00acb3293673917f212b7227fb1684a0bc7bc6f96"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["path"],
+      "properties": {
+        "path": {
+          "type": "object",
+          "required": ["id"],
+          "properties": {
+            "id": {
+              "type": "string",
+              "format": "uuid",
+              "description": "The unique identifier of the session to get live details for"
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "STEEL__GET_SESSION_DETAILS",
+    "description": "Retrieves details of a specific session by ID.",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "GET_SESSION_DETAILS",
+      "canonical_tool_description_hash": "9dcd20f273da99302ccaed70502f37aa76a418d94c4eed6b81ddc63553d4b6ad",
+      "canonical_tool_input_schema_hash": "9ef8cf7009fd7c83a11cb8e3879384c88e2e7361a93c561b0698280601467315"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["path"],
+      "properties": {
+        "path": {
+          "type": "object",
+          "required": ["id"],
+          "properties": {
+            "id": {
+              "type": "string",
+              "format": "uuid",
+              "description": "The unique identifier of the session to retrieve"
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "STEEL__GET_SESSION_CONTEXT",
+    "description": "Fetches the context data of a specific session.",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "GET_SESSION_CONTEXT",
+      "canonical_tool_description_hash": "ce62b6ee68e9e0c0f4e88393c18fe60e7ecd094bceb93f7611693ed28b090638",
+      "canonical_tool_input_schema_hash": "9708ece5526ebae47b4c09f7c8f97fef150e8369dee724e5a70b9297dd6d6add"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["path"],
+      "properties": {
+        "path": {
+          "type": "object",
+          "required": ["id"],
+          "properties": {
+            "id": {
+              "type": "string",
+              "format": "uuid",
+              "description": "The unique identifier of the session to fetch context for"
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "STEEL__GET_SESSION_EVENTS",
+    "description": "Get the recorded session events in the RRWeb format.",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "GET_SESSION_EVENTS",
+      "canonical_tool_description_hash": "f99eeeff531388acbb9ebfb60b9d98c2d33633fb5e6bc6b56aaea92d36bebb06",
+      "canonical_tool_input_schema_hash": "3e0ff6df76b045d24157f56d336eebc6411957314d563bedba7fc8409371a8e8"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["path"],
+      "properties": {
+        "path": {
+          "type": "object",
+          "required": ["id"],
+          "properties": {
+            "id": {
+              "type": "string",
+              "format": "uuid",
+              "description": "The unique identifier of the session to get recorded events for"
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "STEEL__SCRAPE_WEBPAGE",
+    "description": "Extracts content from a specified URL. Returns the page content in various formats along with optional screenshot and PDF.",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "SCRAPE_WEBPAGE",
+      "canonical_tool_description_hash": "c89cf7847a07e13d32c3b95b5f484deeed5c00c4546fe041107b04a9b07631a8",
+      "canonical_tool_input_schema_hash": "b49feb2bc92b6decb6cc19c447a4c83c57ab44e7e7d0def068dfb276f210e189"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["body"],
+      "properties": {
+        "body": {
+          "type": "object",
+          "required": ["url"],
+          "properties": {
+            "pdf": {
+              "type": "boolean",
+              "default": false,
+              "description": "Include a PDF of the page in the response"
+            },
+            "url": {
+              "type": "string",
+              "description": "URL of the webpage to scrape"
+            },
+            "delay": {
+              "type": "number",
+              "default": 0,
+              "description": "Delay before scraping (in milliseconds)"
+            },
+            "format": {
+              "type": "array",
+              "items": {
+                "enum": ["html", "cleaned_html", "markdown", "readability"],
+                "type": "string"
+              },
+              "description": "Desired format(s) for the scraped content. Default is 'html'."
+            },
+            "useProxy": {
+              "type": "boolean",
+              "default": false,
+              "description": "Use a Steel-provided residential proxy for the scrape"
+            },
+            "screenshot": {
+              "type": "boolean",
+              "default": false,
+              "description": "Include a screenshot in the response"
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "STEEL__CAPTURE_SCREENSHOT",
+    "description": "Captures a screenshot of a specified webpage.",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "CAPTURE_SCREENSHOT",
+      "canonical_tool_description_hash": "211f51d2dcebd6dfd4fba02327b1809a969d21cad012f5b545e4689193ce23fd",
+      "canonical_tool_input_schema_hash": "73a0afb35e7d58d8f3e6f642abc8dfe237a7a5426aebe4d17dbdd10b85e34221"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["body"],
+      "properties": {
+        "body": {
+          "type": "object",
+          "required": ["url"],
+          "properties": {
+            "url": {
+              "type": "string",
+              "description": "URL of the webpage to capture"
+            },
+            "delay": {
+              "type": "number",
+              "default": 0,
+              "description": "Delay before capturing the screenshot (in milliseconds)"
+            },
+            "fullPage": {
+              "type": "boolean",
+              "default": false,
+              "description": "Whether to capture the full scrollable page or just the viewport"
+            },
+            "useProxy": {
+              "type": "boolean",
+              "default": false,
+              "description": "Use a Steel-provided residential proxy for the request"
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "STEEL__CONVERT_TO_PDF",
+    "description": "Generates a PDF from a specified webpage.",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "CONVERT_TO_PDF",
+      "canonical_tool_description_hash": "aab48e124c6ca37f136e53ae5724da3a973cb01b765bd94322448cb867c2a5c3",
+      "canonical_tool_input_schema_hash": "b6170031b000580d9c8f1f40c48037c12dbd6b2206ae89c1a33b5193d0936a66"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["body"],
+      "properties": {
+        "body": {
+          "type": "object",
+          "required": ["url"],
+          "properties": {
+            "url": {
+              "type": "string",
+              "description": "URL of the webpage to convert to PDF"
+            },
+            "delay": {
+              "type": "number",
+              "default": 0,
+              "description": "Delay before generating the PDF (in milliseconds)"
+            },
+            "useProxy": {
+              "type": "boolean",
+              "default": false,
+              "description": "Use a Steel-provided residential proxy for the request"
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "STEEL__LIST_SESSIONS",
+    "description": "Fetches all active sessions for the current organization.",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "LIST_SESSIONS",
+      "canonical_tool_description_hash": "a2d3db4c3ca128f3c39c5856c772a2efce702812e46936ca96d6f112c3dbf396",
+      "canonical_tool_input_schema_hash": "d32b48be2dd7c0d1edf4f7a9c1061476776b8d2ca5cf0a76e2a347bd557de121"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": [],
+      "properties": {
+        "query": {
+          "type": "object",
+          "required": [],
+          "properties": {
+            "limit": {
+              "type": "integer",
+              "default": 50,
+              "description": "Number of sessions to return. Default is 50."
+            },
+            "status": {
+              "enum": ["live", "released", "failed"],
+              "type": "string",
+              "description": "Filter sessions by current status"
+            },
+            "cursorId": {
+              "type": "string",
+              "description": "Cursor ID for pagination"
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "STEEL__CREATE_SESSION",
+    "description": "Creates a new session with the provided configuration.",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "CREATE_SESSION",
+      "canonical_tool_description_hash": "6747dc95f7fa8077b25290c37ad181714151e7eeb2d3093f3eb7c8e6df6a81a1",
+      "canonical_tool_input_schema_hash": "6777b1f5c70c0af06980316d5c38d7464c2dbed862c915fc4ee50788619861d4"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["body"],
+      "properties": {
+        "body": {
+          "type": "object",
+          "required": ["dimensions"],
+          "properties": {
+            "timeout": {
+              "type": "integer",
+              "default": 300000,
+              "description": "Session timeout duration in milliseconds. Default is 300000 (5 minutes)."
+            },
+            "blockAds": {
+              "type": "boolean",
+              "default": false,
+              "description": "Block ads in the browser session. Default is false."
+            },
+            "proxyUrl": {
+              "type": "string",
+              "description": "Custom proxy URL for the browser session. Overrides useProxy, disabling Steel-provided proxies in favor of your specified proxy. Format: http(s)://username:password@hostname:port"
+            },
+            "useProxy": {
+              "type": "boolean",
+              "default": false,
+              "description": "Enable Steel-provided residential proxy usage for the browser session. Default is false, which routes requests through datacenter proxies."
+            },
+            "sessionId": {
+              "type": "string",
+              "format": "uuid",
+              "description": "Optional custom UUID for the session"
+            },
+            "userAgent": {
+              "type": "string",
+              "description": "Custom user agent string for the browser session"
+            },
+            "dimensions": {
+              "type": "object",
+              "required": ["width", "height"],
+              "properties": {
+                "width": {
+                  "type": "integer",
+                  "description": "Width of the session"
+                },
+                "height": {
+                  "type": "integer",
+                  "description": "Height of the session"
+                }
+              },
+              "description": "Viewport and browser window dimensions for the session",
+              "additionalProperties": false
+            },
+            "isSelenium": {
+              "type": "boolean",
+              "default": false,
+              "description": "Enable Selenium mode for the browser session (default is false). Use this when you plan to connect to the browser session via Selenium."
+            },
+            "concurrency": {
+              "type": "integer",
+              "default": 1,
+              "description": "Number of sessions to create concurrently (check your plan limit)"
+            },
+            "solveCaptcha": {
+              "type": "boolean",
+              "default": false,
+              "description": "Enable automatic captcha solving. Default is false."
+            },
+            "sessionContext": {
+              "type": "object",
+              "required": [],
+              "properties": {
+                "cookies": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "required": ["name", "value", "domain"],
+                    "properties": {
+                      "name": {
+                        "type": "string",
+                        "description": "Name of the cookie"
+                      },
+                      "path": {
+                        "type": "string",
+                        "default": "/",
+                        "description": "Path the cookie is valid for"
+                      },
+                      "value": {
+                        "type": "string",
+                        "description": "Value of the cookie"
+                      },
+                      "domain": {
+                        "type": "string",
+                        "description": "Domain the cookie belongs to"
+                      },
+                      "secure": {
+                        "type": "boolean",
+                        "description": "Whether the cookie requires HTTPS"
+                      },
+                      "expires": {
+                        "type": "number",
+                        "description": "Unix timestamp when the cookie expires"
+                      },
+                      "httpOnly": {
+                        "type": "boolean",
+                        "description": "Whether the cookie is HTTP only"
+                      },
+                      "sameSite": {
+                        "enum": ["Strict", "Lax", "None"],
+                        "type": "string",
+                        "description": "SameSite attribute of the cookie"
+                      }
+                    },
+                    "additionalProperties": false
+                  },
+                  "description": "Cookies to initialize in the session"
+                },
+                "localStorage": {
+                  "type": "object",
+                  "required": [],
+                  "properties": {},
+                  "description": "Domain-specific localStorage items to initialize in the session",
+                  "additionalProperties": true
+                }
+              },
+              "description": "Session context data to be used in the created session. Sessions will start with an empty context by default.",
+              "additionalProperties": false
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "STEEL__RELEASE_ALL_SESSIONS",
+    "description": "Releases all active sessions for the current organization.",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "RELEASE_ALL_SESSIONS",
+      "canonical_tool_description_hash": "953af39c46735e853565257666754be1bcd3d80f9ec005b72bffacf9df6691e2",
+      "canonical_tool_input_schema_hash": "d746974fa9afd5e951f76f9af38954b0ad7f436f2120dc974da65e5ee39f856f"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": [],
+      "properties": {},
+      "additionalProperties": false
+    }
+  }
+]

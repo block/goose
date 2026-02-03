@@ -1,0 +1,68 @@
+name: Release on Test PYPI
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v5
+    
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.x'
+    
+    - name: Install dependencies
+      working-directory: sdk/python
+      run: |
+        python -m pip install --upgrade pip
+        pip install build
+    
+    - name: Remove Main pyproject.toml from repository
+      working-directory: sdk/python
+      run: rm pyproject.toml
+
+    - name: Create a new pyproject.toml
+      working-directory: sdk/python
+      run: |
+        cat <<EOF > pyproject.toml
+        [tool.poetry]
+        name = "openlit"
+        version = "0.0.${{ github.run_number }}"
+        description = "OpenTelemetry-native Auto instrumentation library for monitoring LLM Applications, facilitating the integration of observability into your GenAI-driven projects"
+        authors = ["OpenLIT"]
+        repository = "https://github.com/openlit/openlit/tree/main/openlit/python"
+        readme = "README.md"
+        homepage = "https://github.com/openlit/openlit/tree/main/openlit/python"
+        keywords = ["OpenTelemetry", "otel", "otlp","llm", "tracing", "openai", "anthropic", "claude", "cohere", "llm monitoring", "observability", "monitoring", "gpt", "Generative AI", "chatGPT"]
+
+        [tool.poetry.dependencies]
+        python = "^3.8.0"
+        requests = "^2.26.0"
+        opentelemetry-api = "^1.30.0"
+        opentelemetry-sdk = "^1.30.0"
+        opentelemetry-exporter-otlp = "^1.30.0"
+        opentelemetry-instrumentation = ">=0.52b0,<1.0.0"
+
+        [build-system]
+        requires = ["poetry-core>=1.1.0"]
+        build-backend = "poetry.core.masonry.api"
+        EOF
+    
+    - name: Build package
+      working-directory: sdk/python
+      run: python -m build
+    
+    - name: Publish package
+      uses: pypa/gh-action-pypi-publish@ec4db0b4ddc65acdf4bff5fa45ac92d78b56bdf0
+      with:
+        user: __token__
+        repository-url: https://test.pypi.org/legacy/
+        password: ${{ secrets.TEST_PYPI_API_TOKEN }}
+        packages-dir: sdk/python/dist

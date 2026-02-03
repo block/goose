@@ -1,0 +1,487 @@
+[
+  {
+    "name": "LMNT__SPEECH_BYTES",
+    "description": "Synthesizes speech from a text string and returns the audio data as a binary stream.",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "POST",
+      "endpoint": "https://api.lmnt.com/v1/ai/speech/bytes"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "body": {
+          "type": "object",
+          "description": "body parameters",
+          "properties": {
+            "voice": {
+              "type": "string",
+              "description": "The voice id of the voice to use; voice ids can be retrieved by calls to List voices or Voice info.",
+              "example": "ava"
+            },
+            "text": {
+              "type": "string",
+              "description": "The text to synthesize; max 5000 characters per request (including spaces)",
+              "example": "hello world."
+            },
+            "model": {
+              "type": "string",
+              "default": "aurora",
+              "description": "The model to use for synthesis. One of aurora (default) or blizzard.",
+              "enum": [
+                "aurora",
+                "blizzard"
+              ]
+            },
+            "language": {
+              "type": "string",
+              "default": "auto",
+              "description": "The desired language. Two letter ISO 639-1 code.",
+              "enum": [
+                "auto",
+                "en",
+                "es",
+                "pt",
+                "fr",
+                "de",
+                "zh",
+                "ko",
+                "hi",
+                "ja",
+                "ru",
+                "it",
+                "tr"
+              ]
+            },
+            "format": {
+              "type": "string",
+              "default": "mp3",
+              "description": "The file format of the audio output",
+              "enum": [
+                "aac",
+                "mp3",
+                "mulaw",
+                "raw",
+                "wav"
+              ]
+            },
+            "sample_rate": {
+              "type": "integer",
+              "default": 24000,
+              "description": "The desired output sample rate in Hz",
+              "enum": [
+                8000,
+                16000,
+                24000
+              ]
+            },
+            "speed": {
+              "type": "number",
+              "default": 1,
+              "description": "The talking speed of the generated speech, a floating point value between 0.25 (slow) and 2.0 (fast).",
+              "minimum": 0.25,
+              "maximum": 2
+            },
+            "seed": {
+              "type": "integer",
+              "description": "Seed used to specify a different take; defaults to random"
+            },
+            "conversational": {
+              "type": "boolean",
+              "default": false,
+              "description": "Set this to true to generate conversational-style speech rather than reading-style speech."
+            },
+            "length": {
+              "type": "number",
+              "description": "Produce speech of this length in seconds; maximum 300.0 (5 minutes).",
+              "maximum": 300
+            },
+            "top_p": {
+              "type": "number",
+              "default": 1,
+              "description": "Controls the stability of the generated speech.",
+              "minimum": 0,
+              "maximum": 1
+            },
+            "temperature": {
+              "type": "number",
+              "default": 1,
+              "description": "Influences how expressive and emotionally varied the speech becomes.",
+              "minimum": 0
+            }
+          },
+          "required": [
+            "voice",
+            "text"
+          ],
+          "visible": [
+            "voice",
+            "text",
+            "model",
+            "language",
+            "format",
+            "sample_rate",
+            "speed",
+            "conversational",
+            "length",
+            "top_p",
+            "temperature"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "body"
+      ],
+      "visible": [
+        "body"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "LMNT__SPEECH_ADVANCED",
+    "description": "Synthesizes speech from a text string and provides advanced information about the synthesis.",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "POST",
+      "endpoint": "https://api.lmnt.com/v1/ai/speech"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "body": {
+          "type": "object",
+          "description": "body parameters",
+          "properties": {
+            "voice": {
+              "type": "string",
+              "description": "The voice id of the voice to use; voice ids can be retrieved by calls to List voices or Voice info.",
+              "example": "ava"
+            },
+            "text": {
+              "type": "string",
+              "description": "The text to synthesize; max 5000 characters per request (including spaces)",
+              "example": "hello world."
+            },
+            "model": {
+              "type": "string",
+              "default": "aurora",
+              "description": "The model to use for synthesis. One of aurora (default) or blizzard.",
+              "enum": [
+                "aurora",
+                "blizzard"
+              ]
+            },
+            "language": {
+              "type": "string",
+              "default": "auto",
+              "description": "The desired language. Two letter ISO 639-1 code.",
+              "enum": [
+                "auto",
+                "en",
+                "es",
+                "pt",
+                "fr",
+                "de",
+                "zh",
+                "ko",
+                "hi",
+                "ja",
+                "ru",
+                "it",
+                "tr"
+              ]
+            },
+            "format": {
+              "type": "string",
+              "default": "mp3",
+              "description": "The file format of the audio output",
+              "enum": [
+                "aac",
+                "mp3",
+                "mulaw",
+                "raw",
+                "wav"
+              ]
+            },
+            "sample_rate": {
+              "type": "integer",
+              "default": 24000,
+              "description": "The desired output sample rate in Hz",
+              "enum": [
+                8000,
+                16000,
+                24000
+              ]
+            },
+            "speed": {
+              "type": "number",
+              "default": 1,
+              "description": "The talking speed of the generated speech, a floating point value between 0.25 (slow) and 2.0 (fast).",
+              "minimum": 0.25,
+              "maximum": 2
+            },
+            "seed": {
+              "type": "integer",
+              "description": "Seed used to specify a different take; defaults to random"
+            },
+            "conversational": {
+              "type": "boolean",
+              "default": false,
+              "description": "Set this to true to generate conversational-style speech rather than reading-style speech."
+            },
+            "length": {
+              "type": "number",
+              "description": "Produce speech of this length in seconds; maximum 300.0 (5 minutes).",
+              "maximum": 300
+            },
+            "top_p": {
+              "type": "number",
+              "default": 1,
+              "description": "Controls the stability of the generated speech.",
+              "minimum": 0,
+              "maximum": 1
+            },
+            "temperature": {
+              "type": "number",
+              "default": 1,
+              "description": "Influences how expressive and emotionally varied the speech becomes.",
+              "minimum": 0
+            },
+            "return_durations": {
+              "type": "boolean",
+              "default": false,
+              "description": "If set as true, response will contain a durations object."
+            }
+          },
+          "required": [
+            "voice",
+            "text"
+          ],
+          "visible": [
+            "voice",
+            "text",
+            "model",
+            "language",
+            "format",
+            "sample_rate",
+            "speed",
+            "conversational",
+            "length",
+            "top_p",
+            "temperature",
+            "return_durations"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "body"
+      ],
+      "visible": [
+        "body"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "LMNT__LIST_VOICES",
+    "description": "Returns a list of voices available to you.",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "GET",
+      "endpoint": "https://api.lmnt.com/v1/ai/voice/list"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "query": {
+          "type": "object",
+          "description": "query parameters",
+          "properties": {
+            "starred": {
+              "type": "string",
+              "default": "false",
+              "description": "If true, only returns voices that you have starred."
+            },
+            "owner": {
+              "type": "string",
+              "default": "all",
+              "description": "Which owner's voices to return. Choose from system, me, or all.",
+              "enum": [
+                "system",
+                "me",
+                "all"
+              ]
+            }
+          },
+          "required": [],
+          "visible": [
+            "starred",
+            "owner"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "query"
+      ],
+      "visible": [
+        "query"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "LMNT__VOICE_INFO",
+    "description": "Returns details of a specific voice.",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "GET",
+      "endpoint": "https://api.lmnt.com/v1/ai/voice/{id}"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "path": {
+          "type": "object",
+          "description": "path parameters",
+          "properties": {
+            "id": {
+              "type": "string",
+              "description": "The id of the voice to update, which can be retrieved by a call to List voices."
+            }
+          },
+          "required": [
+            "id"
+          ],
+          "visible": [
+            "id"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "path"
+      ],
+      "visible": [
+        "path"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "LMNT__UPDATE_VOICE",
+    "description": "Updates metadata for a specific voice. Only provided fields will be changed.",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "PUT",
+      "endpoint": "https://api.lmnt.com/v1/ai/voice/{id}"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "path": {
+          "type": "object",
+          "description": "path parameters",
+          "properties": {
+            "id": {
+              "type": "string",
+              "description": "The id of the voice to update, which can be retrieved by a call to List voices."
+            }
+          },
+          "required": [
+            "id"
+          ],
+          "visible": [
+            "id"
+          ],
+          "additionalProperties": false
+        },
+        "body": {
+          "type": "object",
+          "description": "body parameters",
+          "properties": {
+            "description": {
+              "type": "string",
+              "description": "A description of this voice."
+            },
+            "gender": {
+              "type": "string",
+              "description": "A tag describing the gender of this voice, e.g. male, female, nonbinary."
+            },
+            "name": {
+              "type": "string",
+              "description": "The display name for this voice."
+            },
+            "starred": {
+              "type": "boolean",
+              "description": "If true, adds this voice to your starred list."
+            },
+            "unfreeze": {
+              "type": "boolean",
+              "description": "If true, unfreezes this voice and upgrades it to the latest model."
+            }
+          },
+          "required": [],
+          "visible": [
+            "description",
+            "gender",
+            "name",
+            "starred",
+            "unfreeze"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "path",
+        "body"
+      ],
+      "visible": [
+        "path",
+        "body"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "LMNT__DELETE_VOICE",
+    "description": "Deletes a voice and cancels any pending operations on it. Cannot be undone.",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "DELETE",
+      "endpoint": "https://api.lmnt.com/v1/ai/voice/{id}"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "path": {
+          "type": "object",
+          "description": "path parameters",
+          "properties": {
+            "id": {
+              "type": "string",
+              "description": "The id of the voice to delete, which can be retrieved by a call to List voices."
+            }
+          },
+          "required": [
+            "id"
+          ],
+          "visible": [
+            "id"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "path"
+      ],
+      "visible": [
+        "path"
+      ],
+      "additionalProperties": false
+    }
+  }
+]

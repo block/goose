@@ -1,0 +1,121 @@
+---
+title: 'OpenInference'
+description: 'OpenTelemetry standard compliance with OpenInference instrumentation'
+---
+
+The OpenInference provider uses instrumentations built by Arize Phoenix that provide OpenTelemetry-compliant tracing for AI applications with semantic conventions for LLMs, embeddings, and retrieval.
+
+## Configuration
+
+<Tabs>
+  <Tab title="Basic">
+    ```yaml
+    apiVersion: openlit.io/v1alpha1
+    kind: AutoInstrumentation
+    metadata:
+      name: openinference-instrumentation
+    spec:
+      selector:
+        matchLabels:
+          instrumentation.provider: "openinference"
+      python:
+        instrumentation:
+          provider: "openinference"
+          version: "latest"
+      otlp:
+        endpoint: "http://openlit:4318"
+    ```
+  </Tab>
+  
+  <Tab title="Advanced">
+    ```yaml
+    apiVersion: openlit.io/v1alpha1
+    kind: AutoInstrumentation
+    metadata:
+      name: openinference-production
+    spec:
+      selector:
+        matchLabels:
+          environment: "production"
+      python:
+        instrumentation:
+          provider: "openinference"
+          version: "latest"
+          customPackages: "langchain>=0.1.0,llama-index>=0.9.0,openai>=1.0.0"
+          env:
+          - name: OTEL_SERVICE_NAME
+            value: "ai-chat-service"
+          - name: OTEL_DEPLOYMENT_ENVIRONMENT
+            value: "production"
+          - name: OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT
+            value: "true"
+      otlp:
+        endpoint: "http://openlit:4318"
+        timeout: 30
+      resource:
+        environment: "production"
+        serviceName: "ai-chat-service"
+    ```
+  </Tab>
+</Tabs>
+
+## Provider Specific Features
+
+OpenInference offers comprehensive instrumentation coverage using pure OpenTelemetry standards:
+
+### Custom Package Installation
+
+Install additional AI framework packages alongside OpenInference:
+
+```yaml
+spec:
+  python:
+    instrumentation:
+      customPackages: "langchain>=0.1.0,llama-index>=0.9.0,openai>=1.0.0"
+```
+
+**Common AI Framework Packages:**
+- **LangChain**: `langchain>=0.1.0,langchain-community>=0.0.20`
+- **LlamaIndex**: `llama-index>=0.9.0,llama-index-vector-stores-chroma>=0.1.0`
+- **LLM Providers**: `openai>=1.0.0,anthropic>=0.8.0,google-generativeai>=0.3.0`
+- **Vector Databases**: `chromadb>=0.4.0,pinecone-client>=2.0.0`
+
+### Comprehensive AI Framework Support
+
+Built-in instrumentors for major AI frameworks:
+
+```yaml
+# Included instrumentors (automatically enabled)
+- openinference-instrumentation-openai
+- openinference-instrumentation-anthropic  
+- openinference-instrumentation-langchain
+- openinference-instrumentation-llama-index
+- openinference-instrumentation-bedrock
+- openinference-instrumentation-mistralai
+- openinference-instrumentation-groq
+- openinference-instrumentation-vertexai
+- openinference-instrumentation-dspy
+- openinference-instrumentation-instructor
+- openinference-instrumentation-litellm
+- openinference-instrumentation-haystack
+- openinference-instrumentation-guardrails
+- openinference-instrumentation-portkey
+```
+
+### OpenTelemetry Standard Compliance
+
+Pure OpenTelemetry implementation with standard semantic conventions:
+
+**Features:**
+- 100% OpenTelemetry semantic conventions compliance
+- Vendor-neutral tracing data
+- Multi-backend compatibility (Jaeger, Grafana, DataDog, etc.)
+- Standard resource attributes and span naming
+
+### Environment Variables
+
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `OTEL_SERVICE_NAME` | Service name for tracing | `"openinference-app"` |
+| `OTEL_DEPLOYMENT_ENVIRONMENT` | Deployment environment | `"production"` |
+| `OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT` | Capture message content | `true` |

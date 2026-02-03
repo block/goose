@@ -1,0 +1,11 @@
+{
+  "// NOTE": "Copy this file to sources.json to override upstream URLs",
+  "// PRIORITY": "env vars > sources.json > defaults",
+
+  "fireproof": "https://use-fireproof.com/llms-full.txt",
+  "stylePrompt": "https://raw.githubusercontent.com/VibesDIY/vibes.diy/main/prompts/pkg/style-prompts.ts",
+  "importMap": "https://raw.githubusercontent.com/VibesDIY/vibes.diy/main/vibes.diy/pkg/app/config/import-map.ts",
+  "cssVariables": "https://raw.githubusercontent.com/VibesDIY/vibes.diy/main/vibes.diy/pkg/app/styles/colors.css",
+  "vibesComponentsBase": "https://raw.githubusercontent.com/VibesDIY/vibes.diy/main/vibes.diy/pkg/app/components/vibes",
+  "useVibesBase": "https://raw.githubusercontent.com/VibesDIY/vibes.diy/main/use-vibes/base"
+}

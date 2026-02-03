@@ -1,0 +1,297 @@
+# Complete OpenLIT Kubernetes Operator Deployment
+# This file contains all the Kubernetes resources needed to deploy the OpenLIT operator
+# with comprehensive configuration options and detailed comments explaining defaults.
+
+---
+# Namespace for the operator
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: openlit
+  labels:
+    app: openlit-operator
+    component: namespace
+
+---
+# ServiceAccount for the operator
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: openlit-operator
+  namespace: openlit
+  labels:
+    app: openlit-operator
+    component: serviceaccount
+
+---
+# ClusterRole defining permissions the operator needs
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: openlit-operator
+  labels:
+    app: openlit-operator
+    component: rbac
+rules:
+# AutoInstrumentation Custom Resource permissions
+- apiGroups: ["openlit.io"]
+  resources: ["autoinstrumentations"]
+  verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+- apiGroups: ["openlit.io"]
+  resources: ["autoinstrumentations/status"]
+  verbs: ["get", "update", "patch"]
+- apiGroups: ["openlit.io"]
+  resources: ["autoinstrumentations/finalizers"]
+  verbs: ["update"]
+
+# Core Kubernetes resources
+- apiGroups: [""]
+  resources: ["pods"]
+  verbs: ["get", "list", "watch"]
+- apiGroups: [""]
+  resources: ["namespaces"]
+  verbs: ["get", "list", "watch"]
+- apiGroups: [""]
+  resources: ["secrets"]
+  verbs: ["get", "list", "watch", "create", "update", "patch"]
+
+# Admission controller webhook permissions
+- apiGroups: ["admissionregistration.k8s.io"]
+  resources: ["mutatingwebhookconfigurations"]
+  verbs: ["get", "list", "watch", "create", "update", "patch"]
+
+# Events for logging and debugging
+- apiGroups: [""]
+  resources: ["events"]
+  verbs: ["create", "patch"]
+
+---
+# ClusterRoleBinding to grant permissions to the ServiceAccount
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: openlit-operator
+  labels:
+    app: openlit-operator
+    component: rbac
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: openlit-operator
+subjects:
+- kind: ServiceAccount
+  name: openlit-operator
+  namespace: openlit
+
+---
+# Service for the webhook
+apiVersion: v1
+kind: Service
+metadata:
+  name: openlit-webhook-service
+  namespace: openlit
+  labels:
+    app: openlit-operator
+    component: webhook
+spec:
+  ports:
+  - name: webhook
+    port: 443
+    protocol: TCP
+    targetPort: 9443  # Default webhook port
+  selector:
+    app: openlit-operator
+
+---
+# Main operator deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: openlit-operator
+  namespace: openlit
+  labels:
+    app: openlit-operator
+    component: controller
+spec:
+  replicas: 1  # Single replica for simplicity, can be increased for HA
+  selector:
+    matchLabels:
+      app: openlit-operator
+  template:
+    metadata:
+      labels:
+        app: openlit-operator
+      annotations:
+        # Force restart when config changes
+        checksum/config: "UPDATE_ON_CONFIG_CHANGE"
+    spec:
+      serviceAccountName: openlit-operator
+      securityContext:
+        runAsNonRoot: false  # Required for certificate management
+        runAsUser: 0
+        fsGroup: 0
+      containers:
+      - name: operator
+        image: ghcr.io/openlit/openlit-operator:latest
+        imagePullPolicy: IfNotPresent
+        
+        # Environment variables for operator configuration
+        env:
+        # Operator Infrastructure Configuration
+        # Essential environment variables for local deployment
+        - name: OPENLIT_DEFAULT_INIT_IMAGE
+          value: "ghcr.io/openlit/openlit-ai-instrumentation:latest"
+        - name: LOG_LEVEL
+          value: "debug"
+        - name: WEBHOOK_FAILURE_POLICY
+          value: "Ignore"
+        
+        # Webhook Configuration (defaults provided by schema)
+        # - name: WEBHOOK_PORT
+        #   value: "9443"                   # Default: 9443
+        # - name: WEBHOOK_PATH  
+        #   value: "/mutate"                # Default: /mutate
+        # - name: WEBHOOK_CERT_DIR
+        #   value: "/tmp/k8s-webhook-server/serving-certs"  # Default cert directory
+        # - name: WEBHOOK_SERVICE_NAME
+        #   value: "openlit-webhook-service"  # Default: openlit-webhook-service
+        # - name: WEBHOOK_SECRET_NAME
+        #   value: "webhook-server-certs"    # Default: webhook-server-certs
+        # - name: WEBHOOK_CONFIG_NAME
+        #   value: "openlit-mutating-webhook-configuration"  # Default: openlit-mutating-webhook-configuration
+        
+        # TLS Certificate Configuration (defaults provided by schema)
+        # - name: CERT_VALIDITY_DAYS
+        #   value: "365"                    # Default: 365 days
+        # - name: CERT_REFRESH_DAYS
+        #   value: "30"                     # Default: 30 days (refresh when <30 days left)
+        
+        # Observability Configuration (defaults provided by schema)
+        # METRICS_PORT removed - no metrics server implemented
+        # - name: HEALTH_PORT
+        #   value: "8081"                   # Default: 8081
+        - name: SELF_MONITORING_ENABLED
+          value: "false"                    # Disable OTLP - use stdout logging for local debugging
+        # - name: LOG_LEVEL
+        #   value: "info"                   # Default: info (options: debug, info, warn, error)
+        
+        # OpenTelemetry Configuration (for operator self-monitoring)
+        # Disabled for local debugging - all logs will go to stdout
+        # - name: OTEL_EXPORTER_OTLP_LOGS_ENDPOINT
+        #   value: ""
+        # - name: OTEL_EXPORTER_OTLP_HEADERS
+        #   value: ""
+        # - name: OTEL_EXPORTER_OTLP_LOGS_ENDPOINT
+        #   value: ""                       # Default: "" (uses OTEL_EXPORTER_OTLP_ENDPOINT if empty)
+        # - name: OTEL_EXPORTER_OTLP_METRICS_ENDPOINT
+        #   value: ""                       # Default: "" (uses OTEL_EXPORTER_OTLP_ENDPOINT if empty)
+        
+        # Multi-Operator Support (defaults provided by schema)
+        # - name: WATCH_NAMESPACE
+        #   value: ""                       # Default: "" (all namespaces), set to specific namespace for scoped operation
+        
+        # Webhook Behavior Configuration (defaults provided by schema)
+        # - name: WEBHOOK_FAILURE_POLICY
+        #   value: "Fail"                   # Default: Fail (options: Fail, Ignore)
+        # - name: WEBHOOK_REINVOCATION_POLICY
+        #   value: "Never"                  # Default: Never (options: Never, IfNeeded)
+        
+
+        
+        # Ports (using schema defaults, can be overridden via env vars)
+        ports:
+        - containerPort: 9443  # WEBHOOK_PORT default
+          name: webhook-server
+          protocol: TCP
+        # Metrics port removed - no metrics server implemented
+        - containerPort: 8081  # HEALTH_PORT default
+          name: health
+          protocol: TCP
+        
+        # Health checks
+        livenessProbe:
+          httpGet:
+            path: /healthz
+            port: health
+          initialDelaySeconds: 15      # Default: 15s
+          periodSeconds: 20            # Default: 20s
+          timeoutSeconds: 5            # Default: 5s
+          failureThreshold: 3          # Default: 3
+        
+        readinessProbe:
+          httpGet:
+            path: /readyz
+            port: health
+          initialDelaySeconds: 5       # Default: 5s
+          periodSeconds: 10            # Default: 10s
+          timeoutSeconds: 5            # Default: 5s
+          failureThreshold: 3          # Default: 3
+        
+        # Resource limits (recommended for production)
+        resources:
+          requests:
+            cpu: 100m                  # Default: 100m CPU
+            memory: 128Mi              # Default: 128Mi memory
+          limits:
+            cpu: 500m                  # Default: 500m CPU
+            memory: 512Mi              # Default: 512Mi memory
+        
+        # Volume mounts (using configurable paths)
+        volumeMounts:
+        - mountPath: /tmp/k8s-webhook-server/serving-certs  # WEBHOOK_CERT_DIR default
+          name: cert-dir
+          readOnly: false         # Allow writing certificates
+        - mountPath: /tmp
+          name: tmp
+        
+        # Security context
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: false   # Allow writing certificates to filesystem
+          runAsNonRoot: false         # Required for certificate management
+          capabilities:
+            drop:
+            - ALL
+      
+      # Volumes
+      volumes:
+      - name: cert-dir
+        emptyDir: {}
+      - name: tmp
+        emptyDir: {}
+      
+      # Node selector (optional)
+      # nodeSelector:
+      #   kubernetes.io/os: linux
+      
+      # Tolerations (optional)
+      tolerations:
+      - key: node-role.kubernetes.io/control-plane
+        operator: Exists
+        effect: NoSchedule
+      - key: node-role.kubernetes.io/master
+        operator: Exists
+        effect: NoSchedule
+
+---
+# MutatingWebhookConfiguration (will be managed by the operator)
+# This is created automatically by the operator, but shown here for reference
+# apiVersion: admissionregistration.k8s.io/v1
+# kind: MutatingWebhookConfiguration
+# metadata:
+#   name: openlit-instrumentation-webhook
+# webhooks:
+# - name: instrumentation.openlit.io
+#   clientConfig:
+#     service:
+#       name: openlit-webhook-service
+#       namespace: openlit
+#       path: /mutate
+#   rules:
+#   - operations: ["CREATE"]
+#     apiGroups: [""]
+#     apiVersions: ["v1"]
+#     resources: ["pods"]
+#   failurePolicy: Ignore              # Default: Ignore
+#   reinvocationPolicy: Never          # Default: Never
+#   admissionReviewVersions: ["v1", "v1beta1"]

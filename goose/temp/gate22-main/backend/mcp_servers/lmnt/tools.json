@@ -1,0 +1,364 @@
+[
+  {
+    "name": "LMNT__VOICE_INFO",
+    "description": "Returns details of a specific voice.",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "VOICE_INFO",
+      "canonical_tool_description_hash": "f798ac93cf8f2c7f28e050878e69cb9b90847dabb3b744f99b4872ef29fadd37",
+      "canonical_tool_input_schema_hash": "cd4f551cf9573038ce6803545c10a465bbe42c5df44fb242bb33c418580188c3"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["path"],
+      "properties": {
+        "path": {
+          "type": "object",
+          "required": ["id"],
+          "properties": {
+            "id": {
+              "type": "string",
+              "description": "The id of the voice to update, which can be retrieved by a call to List voices."
+            }
+          },
+          "description": "path parameters",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "LMNT__SPEECH_BYTES",
+    "description": "Synthesizes speech from a text string and returns the audio data as a binary stream.",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "SPEECH_BYTES",
+      "canonical_tool_description_hash": "989bd6a983634ba9fa24f875d2f2e775ad7d89ef42ec56a9173d9fcbc96beb1b",
+      "canonical_tool_input_schema_hash": "eaeae314f7ac475c2e914e4da0dc0cc59c34bf455a35800868ca837666ce14aa"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["body"],
+      "properties": {
+        "body": {
+          "type": "object",
+          "required": ["voice", "text"],
+          "properties": {
+            "text": {
+              "type": "string",
+              "example": "hello world.",
+              "description": "The text to synthesize; max 5000 characters per request (including spaces)"
+            },
+            "model": {
+              "enum": ["aurora", "blizzard"],
+              "type": "string",
+              "default": "aurora",
+              "description": "The model to use for synthesis. One of aurora (default) or blizzard."
+            },
+            "speed": {
+              "type": "number",
+              "default": 1,
+              "maximum": 2,
+              "minimum": 0.25,
+              "description": "The talking speed of the generated speech, a floating point value between 0.25 (slow) and 2.0 (fast)."
+            },
+            "top_p": {
+              "type": "number",
+              "default": 1,
+              "maximum": 1,
+              "minimum": 0,
+              "description": "Controls the stability of the generated speech."
+            },
+            "voice": {
+              "type": "string",
+              "example": "ava",
+              "description": "The voice id of the voice to use; voice ids can be retrieved by calls to List voices or Voice info."
+            },
+            "format": {
+              "enum": ["aac", "mp3", "mulaw", "raw", "wav"],
+              "type": "string",
+              "default": "mp3",
+              "description": "The file format of the audio output"
+            },
+            "length": {
+              "type": "number",
+              "maximum": 300,
+              "description": "Produce speech of this length in seconds; maximum 300.0 (5 minutes)."
+            },
+            "language": {
+              "enum": [
+                "auto",
+                "en",
+                "es",
+                "pt",
+                "fr",
+                "de",
+                "zh",
+                "ko",
+                "hi",
+                "ja",
+                "ru",
+                "it",
+                "tr"
+              ],
+              "type": "string",
+              "default": "auto",
+              "description": "The desired language. Two letter ISO 639-1 code."
+            },
+            "sample_rate": {
+              "enum": [8000, 16000, 24000],
+              "type": "integer",
+              "default": 24000,
+              "description": "The desired output sample rate in Hz"
+            },
+            "temperature": {
+              "type": "number",
+              "default": 1,
+              "minimum": 0,
+              "description": "Influences how expressive and emotionally varied the speech becomes."
+            },
+            "conversational": {
+              "type": "boolean",
+              "default": false,
+              "description": "Set this to true to generate conversational-style speech rather than reading-style speech."
+            }
+          },
+          "description": "body parameters",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "LMNT__SPEECH_ADVANCED",
+    "description": "Synthesizes speech from a text string and provides advanced information about the synthesis.",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "SPEECH_ADVANCED",
+      "canonical_tool_description_hash": "7f16053b7dc961d0075619931252f158a965a7859a045e51962fdff87fecf137",
+      "canonical_tool_input_schema_hash": "1974e37b217635a62f607a53a3974e5fb74eb855f15afa55f6efd8738fd67b05"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["body"],
+      "properties": {
+        "body": {
+          "type": "object",
+          "required": ["voice", "text"],
+          "properties": {
+            "text": {
+              "type": "string",
+              "example": "hello world.",
+              "description": "The text to synthesize; max 5000 characters per request (including spaces)"
+            },
+            "model": {
+              "enum": ["aurora", "blizzard"],
+              "type": "string",
+              "default": "aurora",
+              "description": "The model to use for synthesis. One of aurora (default) or blizzard."
+            },
+            "speed": {
+              "type": "number",
+              "default": 1,
+              "maximum": 2,
+              "minimum": 0.25,
+              "description": "The talking speed of the generated speech, a floating point value between 0.25 (slow) and 2.0 (fast)."
+            },
+            "top_p": {
+              "type": "number",
+              "default": 1,
+              "maximum": 1,
+              "minimum": 0,
+              "description": "Controls the stability of the generated speech."
+            },
+            "voice": {
+              "type": "string",
+              "example": "ava",
+              "description": "The voice id of the voice to use; voice ids can be retrieved by calls to List voices or Voice info."
+            },
+            "format": {
+              "enum": ["aac", "mp3", "mulaw", "raw", "wav"],
+              "type": "string",
+              "default": "mp3",
+              "description": "The file format of the audio output"
+            },
+            "length": {
+              "type": "number",
+              "maximum": 300,
+              "description": "Produce speech of this length in seconds; maximum 300.0 (5 minutes)."
+            },
+            "language": {
+              "enum": [
+                "auto",
+                "en",
+                "es",
+                "pt",
+                "fr",
+                "de",
+                "zh",
+                "ko",
+                "hi",
+                "ja",
+                "ru",
+                "it",
+                "tr"
+              ],
+              "type": "string",
+              "default": "auto",
+              "description": "The desired language. Two letter ISO 639-1 code."
+            },
+            "sample_rate": {
+              "enum": [8000, 16000, 24000],
+              "type": "integer",
+              "default": 24000,
+              "description": "The desired output sample rate in Hz"
+            },
+            "temperature": {
+              "type": "number",
+              "default": 1,
+              "minimum": 0,
+              "description": "Influences how expressive and emotionally varied the speech becomes."
+            },
+            "conversational": {
+              "type": "boolean",
+              "default": false,
+              "description": "Set this to true to generate conversational-style speech rather than reading-style speech."
+            },
+            "return_durations": {
+              "type": "boolean",
+              "default": false,
+              "description": "If set as true, response will contain a durations object."
+            }
+          },
+          "description": "body parameters",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "LMNT__LIST_VOICES",
+    "description": "Returns a list of voices available to you.",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "LIST_VOICES",
+      "canonical_tool_description_hash": "c5a68bc1593b58e3f319497b805904e6af4f8c9e9e2717ff84fd85f639242339",
+      "canonical_tool_input_schema_hash": "4cc38e063fe2f9994f9ee946c9fb3a831474bb5424904f44b41bd9b21a95a7ca"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["query"],
+      "properties": {
+        "query": {
+          "type": "object",
+          "required": [],
+          "properties": {
+            "owner": {
+              "enum": ["system", "me", "all"],
+              "type": "string",
+              "default": "all",
+              "description": "Which owner's voices to return. Choose from system, me, or all."
+            },
+            "starred": {
+              "type": "string",
+              "default": "false",
+              "description": "If true, only returns voices that you have starred."
+            }
+          },
+          "description": "query parameters",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "LMNT__UPDATE_VOICE",
+    "description": "Updates metadata for a specific voice. Only provided fields will be changed.",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "UPDATE_VOICE",
+      "canonical_tool_description_hash": "a7d9f22011b7b43c68ce280c8200a9eaee8f08958104fe8dee8776a33f763602",
+      "canonical_tool_input_schema_hash": "df54de068e5e73f58e16ab406cad3c39b37bb1594c5f601a45614de5ee4ca8a7"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["path", "body"],
+      "properties": {
+        "body": {
+          "type": "object",
+          "required": [],
+          "properties": {
+            "name": {
+              "type": "string",
+              "description": "The display name for this voice."
+            },
+            "gender": {
+              "type": "string",
+              "description": "A tag describing the gender of this voice, e.g. male, female, nonbinary."
+            },
+            "starred": {
+              "type": "boolean",
+              "description": "If true, adds this voice to your starred list."
+            },
+            "unfreeze": {
+              "type": "boolean",
+              "description": "If true, unfreezes this voice and upgrades it to the latest model."
+            },
+            "description": {
+              "type": "string",
+              "description": "A description of this voice."
+            }
+          },
+          "description": "body parameters",
+          "additionalProperties": false
+        },
+        "path": {
+          "type": "object",
+          "required": ["id"],
+          "properties": {
+            "id": {
+              "type": "string",
+              "description": "The id of the voice to update, which can be retrieved by a call to List voices."
+            }
+          },
+          "description": "path parameters",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "LMNT__DELETE_VOICE",
+    "description": "Deletes a voice and cancels any pending operations on it. Cannot be undone.",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "DELETE_VOICE",
+      "canonical_tool_description_hash": "d96517500732f96aa3dad7d7ce9e30dcd21e75ea21d77b8a591ab3aabc183efa",
+      "canonical_tool_input_schema_hash": "582726332f90fbcbb5cff37b01dd3ac5066076d02591ef6ca9682906db39e011"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["path"],
+      "properties": {
+        "path": {
+          "type": "object",
+          "required": ["id"],
+          "properties": {
+            "id": {
+              "type": "string",
+              "description": "The id of the voice to delete, which can be retrieved by a call to List voices."
+            }
+          },
+          "description": "path parameters",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+]

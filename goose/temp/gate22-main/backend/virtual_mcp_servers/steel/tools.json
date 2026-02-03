@@ -1,0 +1,618 @@
+[
+  {
+    "name": "STEEL__SCRAPE_WEBPAGE",
+    "description": "Extracts content from a specified URL. Returns the page content in various formats along with optional screenshot and PDF.",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "POST",
+      "endpoint": "https://api.steel.dev/v1/scrape"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "body": {
+          "type": "object",
+          "properties": {
+            "url": {
+              "type": "string",
+              "description": "URL of the webpage to scrape"
+            },
+            "format": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "enum": [
+                  "html",
+                  "cleaned_html",
+                  "markdown",
+                  "readability"
+                ]
+              },
+              "description": "Desired format(s) for the scraped content. Default is 'html'."
+            },
+            "screenshot": {
+              "type": "boolean",
+              "description": "Include a screenshot in the response",
+              "default": false
+            },
+            "pdf": {
+              "type": "boolean",
+              "description": "Include a PDF of the page in the response",
+              "default": false
+            },
+            "delay": {
+              "type": "number",
+              "description": "Delay before scraping (in milliseconds)",
+              "default": 0
+            },
+            "useProxy": {
+              "type": "boolean",
+              "description": "Use a Steel-provided residential proxy for the scrape",
+              "default": false
+            }
+          },
+          "required": [
+            "url"
+          ],
+          "visible": [
+            "url",
+            "format",
+            "screenshot",
+            "pdf",
+            "delay",
+            "useProxy"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "body"
+      ],
+      "visible": [
+        "body"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "STEEL__CAPTURE_SCREENSHOT",
+    "description": "Captures a screenshot of a specified webpage.",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "POST",
+      "endpoint": "https://api.steel.dev/v1/screenshot"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "body": {
+          "type": "object",
+          "properties": {
+            "url": {
+              "type": "string",
+              "description": "URL of the webpage to capture"
+            },
+            "fullPage": {
+              "type": "boolean",
+              "description": "Whether to capture the full scrollable page or just the viewport",
+              "default": false
+            },
+            "delay": {
+              "type": "number",
+              "description": "Delay before capturing the screenshot (in milliseconds)",
+              "default": 0
+            },
+            "useProxy": {
+              "type": "boolean",
+              "description": "Use a Steel-provided residential proxy for the request",
+              "default": false
+            }
+          },
+          "required": [
+            "url"
+          ],
+          "visible": [
+            "url",
+            "fullPage",
+            "delay",
+            "useProxy"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "body"
+      ],
+      "visible": [
+        "body"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "STEEL__CONVERT_TO_PDF",
+    "description": "Generates a PDF from a specified webpage.",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "POST",
+      "endpoint": "https://api.steel.dev/v1/pdf"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "body": {
+          "type": "object",
+          "properties": {
+            "url": {
+              "type": "string",
+              "description": "URL of the webpage to convert to PDF"
+            },
+            "delay": {
+              "type": "number",
+              "description": "Delay before generating the PDF (in milliseconds)",
+              "default": 0
+            },
+            "useProxy": {
+              "type": "boolean",
+              "description": "Use a Steel-provided residential proxy for the request",
+              "default": false
+            }
+          },
+          "required": [
+            "url"
+          ],
+          "visible": [
+            "url",
+            "delay",
+            "useProxy"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "body"
+      ],
+      "visible": [
+        "body"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "STEEL__LIST_SESSIONS",
+    "description": "Fetches all active sessions for the current organization.",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "GET",
+      "endpoint": "https://api.steel.dev/v1/sessions"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "query": {
+          "type": "object",
+          "properties": {
+            "cursorId": {
+              "type": "string",
+              "description": "Cursor ID for pagination"
+            },
+            "limit": {
+              "type": "integer",
+              "description": "Number of sessions to return. Default is 50.",
+              "default": 50
+            },
+            "status": {
+              "type": "string",
+              "enum": [
+                "live",
+                "released",
+                "failed"
+              ],
+              "description": "Filter sessions by current status"
+            }
+          },
+          "required": [],
+          "visible": [
+            "cursorId",
+            "limit",
+            "status"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [],
+      "visible": [
+        "query"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "STEEL__CREATE_SESSION",
+    "description": "Creates a new session with the provided configuration.",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "POST",
+      "endpoint": "https://api.steel.dev/v1/sessions"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "body": {
+          "type": "object",
+          "properties": {
+            "sessionId": {
+              "type": "string",
+              "format": "uuid",
+              "description": "Optional custom UUID for the session"
+            },
+            "userAgent": {
+              "type": "string",
+              "description": "Custom user agent string for the browser session"
+            },
+            "useProxy": {
+              "type": "boolean",
+              "description": "Enable Steel-provided residential proxy usage for the browser session. Default is false, which routes requests through datacenter proxies.",
+              "default": false
+            },
+            "proxyUrl": {
+              "type": "string",
+              "description": "Custom proxy URL for the browser session. Overrides useProxy, disabling Steel-provided proxies in favor of your specified proxy. Format: http(s)://username:password@hostname:port"
+            },
+            "blockAds": {
+              "type": "boolean",
+              "description": "Block ads in the browser session. Default is false.",
+              "default": false
+            },
+            "solveCaptcha": {
+              "type": "boolean",
+              "description": "Enable automatic captcha solving. Default is false.",
+              "default": false
+            },
+            "sessionContext": {
+              "type": "object",
+              "description": "Session context data to be used in the created session. Sessions will start with an empty context by default.",
+              "properties": {
+                "cookies": {
+                  "type": "array",
+                  "description": "Cookies to initialize in the session",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "name": {
+                        "type": "string",
+                        "description": "Name of the cookie"
+                      },
+                      "value": {
+                        "type": "string",
+                        "description": "Value of the cookie"
+                      },
+                      "domain": {
+                        "type": "string",
+                        "description": "Domain the cookie belongs to"
+                      },
+                      "path": {
+                        "type": "string",
+                        "description": "Path the cookie is valid for",
+                        "default": "/"
+                      },
+                      "expires": {
+                        "type": "number",
+                        "description": "Unix timestamp when the cookie expires"
+                      },
+                      "httpOnly": {
+                        "type": "boolean",
+                        "description": "Whether the cookie is HTTP only"
+                      },
+                      "secure": {
+                        "type": "boolean",
+                        "description": "Whether the cookie requires HTTPS"
+                      },
+                      "sameSite": {
+                        "type": "string",
+                        "enum": [
+                          "Strict",
+                          "Lax",
+                          "None"
+                        ],
+                        "description": "SameSite attribute of the cookie"
+                      }
+                    },
+                    "required": [
+                      "name",
+                      "value",
+                      "domain"
+                    ],
+                    "additionalProperties": false
+                  }
+                },
+                "localStorage": {
+                  "type": "object",
+                  "description": "Domain-specific localStorage items to initialize in the session",
+                  "properties": {},
+                  "required": [],
+                  "visible": [],
+                  "additionalProperties": true
+                }
+              },
+              "required": [],
+              "visible": [
+                "cookies",
+                "localStorage"
+              ],
+              "additionalProperties": false
+            },
+            "timeout": {
+              "type": "integer",
+              "description": "Session timeout duration in milliseconds. Default is 300000 (5 minutes).",
+              "default": 300000
+            },
+            "concurrency": {
+              "type": "integer",
+              "description": "Number of sessions to create concurrently (check your plan limit)",
+              "default": 1
+            },
+            "isSelenium": {
+              "type": "boolean",
+              "description": "Enable Selenium mode for the browser session (default is false). Use this when you plan to connect to the browser session via Selenium.",
+              "default": false
+            },
+            "dimensions": {
+              "type": "object",
+              "description": "Viewport and browser window dimensions for the session",
+              "properties": {
+                "width": {
+                  "type": "integer",
+                  "description": "Width of the session"
+                },
+                "height": {
+                  "type": "integer",
+                  "description": "Height of the session"
+                }
+              },
+              "required": [
+                "width",
+                "height"
+              ],
+              "visible": [
+                "width",
+                "height"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "required": [
+            "dimensions"
+          ],
+          "visible": [
+            "sessionId",
+            "userAgent",
+            "useProxy",
+            "proxyUrl",
+            "blockAds",
+            "solveCaptcha",
+            "sessionContext",
+            "timeout",
+            "concurrency",
+            "isSelenium",
+            "dimensions"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "body"
+      ],
+      "visible": [
+        "body"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "STEEL__RELEASE_ALL_SESSIONS",
+    "description": "Releases all active sessions for the current organization.",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "POST",
+      "endpoint": "https://api.steel.dev/v1/sessions/release"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {},
+      "required": [],
+      "visible": [],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "STEEL__GET_SESSION_DETAILS",
+    "description": "Retrieves details of a specific session by ID.",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "GET",
+      "endpoint": "https://api.steel.dev/v1/sessions/{id}"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "path": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string",
+              "format": "uuid",
+              "description": "The unique identifier of the session to retrieve"
+            }
+          },
+          "required": [
+            "id"
+          ],
+          "visible": [
+            "id"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "path"
+      ],
+      "visible": [
+        "path"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "STEEL__GET_SESSION_CONTEXT",
+    "description": "Fetches the context data of a specific session.",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "GET",
+      "endpoint": "https://api.steel.dev/v1/sessions/{id}/context"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "path": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string",
+              "format": "uuid",
+              "description": "The unique identifier of the session to fetch context for"
+            }
+          },
+          "required": [
+            "id"
+          ],
+          "visible": [
+            "id"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "path"
+      ],
+      "visible": [
+        "path"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "STEEL__GET_SESSION_EVENTS",
+    "description": "Get the recorded session events in the RRWeb format.",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "GET",
+      "endpoint": "https://api.steel.dev/v1/sessions/{id}/events"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "path": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string",
+              "format": "uuid",
+              "description": "The unique identifier of the session to get recorded events for"
+            }
+          },
+          "required": [
+            "id"
+          ],
+          "visible": [
+            "id"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "path"
+      ],
+      "visible": [
+        "path"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "STEEL__RELEASE_SESSION",
+    "description": "Releases a specific session by ID.",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "POST",
+      "endpoint": "https://api.steel.dev/v1/sessions/{id}/release"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "path": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string",
+              "format": "uuid",
+              "description": "The unique identifier of the session to release"
+            }
+          },
+          "required": [
+            "id"
+          ],
+          "visible": [
+            "id"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "path"
+      ],
+      "visible": [
+        "path"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "STEEL__GET_SESSION_LIVE_DETAILS",
+    "description": "Returns the live state of the session, including pages, tabs, and browser state.",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "GET",
+      "endpoint": "https://api.steel.dev/v1/sessions/{id}/live-details"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "path": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string",
+              "format": "uuid",
+              "description": "The unique identifier of the session to get live details for"
+            }
+          },
+          "required": [
+            "id"
+          ],
+          "visible": [
+            "id"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "path"
+      ],
+      "visible": [
+        "path"
+      ],
+      "additionalProperties": false
+    }
+  }
+]

@@ -1,0 +1,303 @@
+[
+  {
+    "name": "GOOGLE_MAPS__TEXT_SEARCH",
+    "description": "Returns a list of places based on a text string (e.g. 'pizza in Sydney' or 'shops near Main St').",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "TEXT_SEARCH",
+      "canonical_tool_description_hash": "248baa9822bf32d01283efd0d7b1a0b6d8f3bff0bea566e7c0993e4713b9909a",
+      "canonical_tool_input_schema_hash": "2b1ab1afc2dd76c3590aa5bdbbea23ae363e171f2dbf3174be09f6aea53e4861"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["query"],
+      "properties": {
+        "query": {
+          "type": "object",
+          "required": ["query"],
+          "properties": {
+            "type": {
+              "enum": [
+                "accounting",
+                "airport",
+                "amusement_park",
+                "aquarium",
+                "art_gallery",
+                "atm",
+                "bakery",
+                "bank",
+                "bar",
+                "beauty_salon",
+                "bicycle_store",
+                "book_store",
+                "bowling_alley",
+                "bus_station",
+                "cafe",
+                "campground",
+                "car_dealer",
+                "car_rental",
+                "car_repair",
+                "car_wash",
+                "casino",
+                "cemetery",
+                "church",
+                "city_hall",
+                "clothing_store",
+                "convenience_store",
+                "courthouse",
+                "dentist",
+                "department_store",
+                "doctor",
+                "drugstore",
+                "electrician",
+                "electronics_store",
+                "embassy",
+                "fire_station",
+                "florist",
+                "funeral_home",
+                "furniture_store",
+                "gas_station",
+                "gym",
+                "hair_care",
+                "hardware_store",
+                "hindu_temple",
+                "home_goods_store",
+                "hospital",
+                "insurance_agency",
+                "jewelry_store",
+                "laundry",
+                "lawyer",
+                "library",
+                "light_rail_station",
+                "liquor_store",
+                "local_government_office",
+                "locksmith",
+                "lodging",
+                "meal_delivery",
+                "meal_takeaway",
+                "mosque",
+                "movie_rental",
+                "movie_theater",
+                "moving_company",
+                "museum",
+                "night_club",
+                "painter",
+                "park",
+                "parking",
+                "pet_store",
+                "pharmacy",
+                "physiotherapist",
+                "plumber",
+                "police",
+                "post_office",
+                "primary_school",
+                "real_estate_agency",
+                "restaurant",
+                "roofing_contractor",
+                "rv_park",
+                "school",
+                "secondary_school",
+                "shoe_store",
+                "shopping_mall",
+                "spa",
+                "stadium",
+                "storage",
+                "store",
+                "subway_station",
+                "supermarket",
+                "synagogue",
+                "taxi_stand",
+                "tourist_attraction",
+                "train_station",
+                "transit_station",
+                "travel_agency",
+                "university",
+                "veterinary_care",
+                "zoo"
+              ],
+              "type": "string",
+              "description": "Restricts results to places matching the specified type."
+            },
+            "query": {
+              "type": "string",
+              "description": "The text string to search for (e.g. 'restaurants in Sydney' or 'shops at 123 Main St'). Google recommends using Place Autocomplete instead of text search when possible."
+            },
+            "radius": {
+              "type": "integer",
+              "description": "Defines the distance (in meters) within which to return place results, relative to the specified location. Maximum allowed radius is 50,000 meters."
+            },
+            "opennow": {
+              "type": "boolean",
+              "description": "Returns only those places that are open for business at the time the query is sent."
+            },
+            "language": {
+              "type": "string",
+              "default": "en",
+              "description": "The language in which to return results."
+            },
+            "location": {
+              "type": "string",
+              "description": "The latitude/longitude around which to retrieve place information (e.g. '-33.8670522,151.1957362')."
+            }
+          },
+          "description": "Query parameters",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "GOOGLE_MAPS__GET_DIRECTIONS",
+    "description": "Get walking directions between two locations using Google Maps API",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "GET_DIRECTIONS",
+      "canonical_tool_description_hash": "83f4dc146a3bd1592a8677bc9ef14141989e049c3af1bb73f91734e9c208f847",
+      "canonical_tool_input_schema_hash": "ceef37b84994f817c6b292a5312addefadf5be577c40abaedfa0bf34b8c66dc1"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["query"],
+      "properties": {
+        "query": {
+          "type": "object",
+          "required": ["origin", "destination"],
+          "properties": {
+            "mode": {
+              "enum": ["walking", "driving", "bicycling", "transit"],
+              "type": "string",
+              "default": "walking",
+              "description": "Travel mode"
+            },
+            "origin": {
+              "type": "string",
+              "example": "Tokyo Station",
+              "description": "Starting point address or coordinates"
+            },
+            "destination": {
+              "type": "string",
+              "example": "Sensoji Temple",
+              "description": "End point address or coordinates"
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "GOOGLE_MAPS__REVERSE_GEOCODE",
+    "description": "Get address information from latitude/longitude coordinates using Google Maps Geocoding API",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "REVERSE_GEOCODE",
+      "canonical_tool_description_hash": "0c40ce3c061a46faa6305380a0447bd2550433c374f288dc73f9f1cef02608c3",
+      "canonical_tool_input_schema_hash": "1ed58d743bbfb90eb5b3798cbc96cb9918e81a04305dbb4e90779ce46aaddb4a"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["query"],
+      "properties": {
+        "query": {
+          "type": "object",
+          "required": ["latlng"],
+          "properties": {
+            "latlng": {
+              "type": "string",
+              "example": "48.8584,2.2945",
+              "pattern": "^[-+]?([1-8]?\\d(\\.\\d+)?|90(\\.0+)?),[-+]?(180(\\.0+)?|((1[0-7]\\d)|([1-9]?\\d))(\\.\\d+)?)$",
+              "description": "Latitude and longitude coordinates (comma-separated)"
+            },
+            "language": {
+              "type": "string",
+              "default": "en",
+              "description": "Language for results (e.g., 'en', 'fr')"
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "GOOGLE_MAPS__GET_STATIC_MAP",
+    "description": "Generate a static map image using Google Maps Static API",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "GET_STATIC_MAP",
+      "canonical_tool_description_hash": "e3dafbdfff09e88ce043258182ba96dfecfb531f1566269ff0c4cb2d868645b3",
+      "canonical_tool_input_schema_hash": "783752d43eb3260b0a1b7c124ed072d41af828b4658c2378c3c1f7db53026771"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["query"],
+      "properties": {
+        "query": {
+          "type": "object",
+          "required": ["center", "size"],
+          "properties": {
+            "size": {
+              "type": "string",
+              "example": "600x300",
+              "pattern": "^\\d+x\\d+$",
+              "description": "Image dimensions in pixels (widthxheight)"
+            },
+            "zoom": {
+              "type": "integer",
+              "default": 13,
+              "maximum": 21,
+              "minimum": 0,
+              "description": "Zoom level (0-21)"
+            },
+            "center": {
+              "type": "string",
+              "example": "40.7128,-74.0060",
+              "pattern": "^[-+]?([1-8]?\\d(\\.\\d+)?|90(\\.0+)?),[-+]?(180(\\.0+)?|((1[0-7]\\d)|([1-9]?\\d))(\\.\\d+)?)$",
+              "description": "Center point coordinates (lat,lng)"
+            },
+            "markers": {
+              "type": "string",
+              "example": "color:red|40.7128,-74.0060",
+              "description": "Marker style and locations"
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "GOOGLE_MAPS__GET_ELEVATION",
+    "description": "Retrieve elevation data for specific locations using Google Maps Elevation API",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "GET_ELEVATION",
+      "canonical_tool_description_hash": "08ce2f2a7311fc6e49d9ca504cd26de4898981cf3ddcd01a2f83ed6cb75ce5f8",
+      "canonical_tool_input_schema_hash": "f61763f1c5d0ceeced38cb0f7a8a02f2f9034714667c5ffb21c811d4dcca56cb"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["query"],
+      "properties": {
+        "query": {
+          "type": "object",
+          "required": ["locations"],
+          "properties": {
+            "locations": {
+              "type": "string",
+              "example": "35.68,139.76|40.71,-74.01",
+              "pattern": "^([-+]?([1-8]?\\d(\\.\\d+)?|90(\\.0+)?),[-+]?(180(\\.0+)?|((1[0-7]\\d)|([1-9]?\\d))(\\.\\d+)?)(\\|[-+]?([1-8]?\\d(\\.\\d+)?|90(\\.0+)?),[-+]?(180(\\.0+)?|((1[0-7]\\d)|([1-9]?\\d))(\\.\\d+)?))*)$",
+              "description": "Pipe-separated latitude/longitude coordinate pairs"
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+]

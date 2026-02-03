@@ -1,0 +1,205 @@
+[
+  {
+    "name": "REDDIT__GET_SUBREDDIT_POSTS",
+    "description": "Retrieves posts from a specified subreddit",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "GET_SUBREDDIT_POSTS",
+      "canonical_tool_description_hash": "04f5f1b32bc9d250b7c83bd8aeb31abb32f542eb7d3880d0e899aaeb7945674f",
+      "canonical_tool_input_schema_hash": "529a4015d51f6bac89c4b12d149c76de855bf1cb2dd8c3e5d9ad0d9374a42814"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["path"],
+      "properties": {
+        "path": {
+          "type": "object",
+          "required": ["subreddit", "sort"],
+          "properties": {
+            "sort": {
+              "enum": ["hot", "new", "top", "rising"],
+              "type": "string",
+              "description": "Sort method for posts"
+            },
+            "subreddit": {
+              "type": "string",
+              "description": "The name of the subreddit"
+            }
+          },
+          "description": "Path parameters for the http request",
+          "additionalProperties": false
+        },
+        "query": {
+          "type": "object",
+          "required": [],
+          "properties": {
+            "after": {
+              "type": "string",
+              "description": "The fullname of a thing to use as the anchor point for pagination"
+            },
+            "limit": {
+              "type": "integer",
+              "default": 25,
+              "description": "The maximum number of posts to return"
+            }
+          },
+          "description": "Optional query parameters for the http request",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "REDDIT__GET_POST_COMMENTS",
+    "description": "Retrieves comments for a specific post",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "GET_POST_COMMENTS",
+      "canonical_tool_description_hash": "db67b1d466bc4f0e34fafaea062b25b3508925d8c2c12997bbd2e2e5639201ce",
+      "canonical_tool_input_schema_hash": "6b3c58cb36000b1abb1ad1176dec8da85be83e9efa8efb502e50453735406993"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["path"],
+      "properties": {
+        "path": {
+          "type": "object",
+          "required": ["article"],
+          "properties": {
+            "article": {
+              "type": "string",
+              "description": "The ID of the post to get comments for"
+            }
+          },
+          "description": "Path parameters for the http request",
+          "additionalProperties": false
+        },
+        "query": {
+          "type": "object",
+          "required": [],
+          "properties": {
+            "sort": {
+              "enum": ["confidence", "top", "new", "controversial", "old", "random", "qa"],
+              "type": "string",
+              "default": "confidence",
+              "description": "Sort method for comments"
+            },
+            "limit": {
+              "type": "integer",
+              "default": 25,
+              "description": "The maximum number of comments to return"
+            }
+          },
+          "description": "Optional query parameters for the http request",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "REDDIT__GET_USER_INFO",
+    "description": "Retrieves information about a Reddit user",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "GET_USER_INFO",
+      "canonical_tool_description_hash": "66d140f068b275a83e72016817fc170da8b41fe0d30927ab0c0c84fcfd6318b6",
+      "canonical_tool_input_schema_hash": "837f294f3230d325414f1cc602cde43d8b3c19a9fe6afeec997930f8085ebadb"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["path"],
+      "properties": {
+        "path": {
+          "type": "object",
+          "required": ["username"],
+          "properties": {
+            "username": {
+              "type": "string",
+              "description": "The username of the Reddit user"
+            }
+          },
+          "description": "Path parameters for the http request",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "REDDIT__SEARCH",
+    "description": "Searches Reddit for posts and comments",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "SEARCH",
+      "canonical_tool_description_hash": "8bfa0e9372b849c359d3345026830eafa1576872cab239bacbf824ec0d4b85ef",
+      "canonical_tool_input_schema_hash": "973e345a3804630ac61f5be32a471b4de9aedf7b52ea96071ad848870fe6f743"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["query"],
+      "properties": {
+        "query": {
+          "type": "object",
+          "required": ["q"],
+          "properties": {
+            "q": {
+              "type": "string",
+              "description": "The search query"
+            },
+            "t": {
+              "enum": ["hour", "day", "week", "month", "year", "all"],
+              "type": "string",
+              "default": "all",
+              "description": "Time period for results"
+            },
+            "sort": {
+              "enum": ["relevance", "hot", "top", "new", "comments"],
+              "type": "string",
+              "default": "relevance",
+              "description": "Sort method for results"
+            },
+            "limit": {
+              "type": "integer",
+              "default": 25,
+              "description": "The maximum number of results to return"
+            }
+          },
+          "description": "Query parameters for the http request",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "REDDIT__GET_SUBREDDIT_INFO",
+    "description": "Retrieves information about a subreddit",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "GET_SUBREDDIT_INFO",
+      "canonical_tool_description_hash": "a2a30cb5d69cbd6a730119c56ec3dfc4c83a5cfc9bf96c431211f5b279ab4923",
+      "canonical_tool_input_schema_hash": "15012c3656d2ce9c3b67968460e4ff905bee5289dc509a5ac6c52ef3abc52574"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["path"],
+      "properties": {
+        "path": {
+          "type": "object",
+          "required": ["subreddit"],
+          "properties": {
+            "subreddit": {
+              "type": "string",
+              "description": "The name of the subreddit"
+            }
+          },
+          "description": "Path parameters for the http request",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+]

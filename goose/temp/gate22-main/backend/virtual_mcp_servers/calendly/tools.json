@@ -1,0 +1,463 @@
+[
+  {
+    "name": "CALENDLY__LIST_SCHEDULED_EVENTS",
+    "description": "List all scheduled events from Calendly",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "GET",
+      "endpoint": "https://api.calendly.com/scheduled_events"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "header": {
+          "type": "object",
+          "description": "HTTP request headers",
+          "properties": {
+            "accept": {
+              "type": "string",
+              "description": "Accept content type",
+              "default": "application/json",
+              "enum": [
+                "application/json"
+              ]
+            }
+          },
+          "required": [
+            "accept"
+          ],
+          "visible": [
+            "accept"
+          ],
+          "additionalProperties": false
+        },
+        "query": {
+          "type": "object",
+          "description": "URL query parameters",
+          "properties": {
+            "user": {
+              "type": "string",
+              "description": "The URI of the user to list events for. Format: https://api.calendly.com/users/{uuid}. NOTE: You must provide at least one of: user, organization, or group.",
+              "format": "uri"
+            },
+            "organization": {
+              "type": "string",
+              "description": "The URI of the organization to list events for. Format: https://api.calendly.com/organizations/{uuid}. NOTE: You must provide at least one of: user, organization, or group.",
+              "format": "uri"
+            },
+            "group": {
+              "type": "string",
+              "description": "The URI of the group to list events for. Format: https://api.calendly.com/groups/{uuid}. NOTE: You must provide at least one of: user, organization, or group.",
+              "format": "uri"
+            },
+            "min_start_time": {
+              "type": "string",
+              "format": "date-time",
+              "description": "The start time of the first event to return"
+            },
+            "max_start_time": {
+              "type": "string",
+              "format": "date-time",
+              "description": "The start time of the last event to return"
+            },
+            "status": {
+              "type": "string",
+              "enum": [
+                "active",
+                "canceled"
+              ],
+              "description": "Filter events by status"
+            },
+            "page_token": {
+              "type": "string",
+              "description": "Token to retrieve the next page of results"
+            },
+            "count": {
+              "type": "integer",
+              "description": "Number of results per page",
+              "default": 10,
+              "minimum": 1,
+              "maximum": 100
+            }
+          },
+          "required": [],
+          "visible": [
+            "user",
+            "organization",
+            "group",
+            "min_start_time",
+            "max_start_time",
+            "status",
+            "page_token",
+            "count"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "header",
+        "query"
+      ],
+      "visible": [
+        "header",
+        "query"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "CALENDLY__GET_EVENT_DETAILS",
+    "description": "Get details of a specific Calendly event",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "GET",
+      "endpoint": "https://api.calendly.com/scheduled_events/{uuid}"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "header": {
+          "type": "object",
+          "description": "HTTP request headers",
+          "properties": {
+            "accept": {
+              "type": "string",
+              "description": "Accept content type",
+              "default": "application/json",
+              "enum": [
+                "application/json"
+              ]
+            }
+          },
+          "required": [
+            "accept"
+          ],
+          "visible": [
+            "accept"
+          ],
+          "additionalProperties": false
+        },
+        "path": {
+          "type": "object",
+          "description": "URL path parameters",
+          "properties": {
+            "uuid": {
+              "type": "string",
+              "description": "The UUID of the event to retrieve",
+              "format": "uuid"
+            }
+          },
+          "required": [
+            "uuid"
+          ],
+          "visible": [
+            "uuid"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "header",
+        "path"
+      ],
+      "visible": [
+        "header",
+        "path"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "CALENDLY__LIST_EVENT_TYPES",
+    "description": "List all event types from Calendly",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "GET",
+      "endpoint": "https://api.calendly.com/event_types"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "header": {
+          "type": "object",
+          "description": "HTTP request headers",
+          "properties": {
+            "accept": {
+              "type": "string",
+              "description": "Accept content type",
+              "default": "application/json",
+              "enum": [
+                "application/json"
+              ]
+            }
+          },
+          "required": [
+            "accept"
+          ],
+          "visible": [
+            "accept"
+          ],
+          "additionalProperties": false
+        },
+        "query": {
+          "type": "object",
+          "description": "URL query parameters",
+          "properties": {
+            "user": {
+              "type": "string",
+              "description": "The URI of the user to list event types for. Format: https://api.calendly.com/users/{uuid}. NOTE: You must provide at least one of: user, organization, or group.",
+              "format": "uri"
+            },
+            "organization": {
+              "type": "string",
+              "description": "The URI of the organization to list event types for. Format: https://api.calendly.com/organizations/{uuid}. NOTE: You must provide at least one of: user, organization, or group.",
+              "format": "uri"
+            },
+            "group": {
+              "type": "string",
+              "description": "The URI of the group to list event types for. Format: https://api.calendly.com/groups/{uuid}. NOTE: You must provide at least one of: user, organization, or group.",
+              "format": "uri"
+            },
+            "page_token": {
+              "type": "string",
+              "description": "Token to retrieve the next page of results"
+            },
+            "count": {
+              "type": "integer",
+              "description": "Number of results per page",
+              "default": 10,
+              "minimum": 1,
+              "maximum": 100
+            },
+            "status": {
+              "type": "string",
+              "enum": [
+                "active",
+                "inactive"
+              ],
+              "description": "Filter event types by status"
+            }
+          },
+          "required": [],
+          "visible": [
+            "user",
+            "organization",
+            "group",
+            "page_token",
+            "count",
+            "status"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "header",
+        "query"
+      ],
+      "visible": [
+        "header",
+        "query"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "CALENDLY__LIST_INVITEES",
+    "description": "List all invitees for a specific event",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "GET",
+      "endpoint": "https://api.calendly.com/scheduled_events/{uuid}/invitees"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "header": {
+          "type": "object",
+          "description": "HTTP request headers",
+          "properties": {
+            "accept": {
+              "type": "string",
+              "description": "Accept content type",
+              "default": "application/json",
+              "enum": [
+                "application/json"
+              ]
+            }
+          },
+          "required": [
+            "accept"
+          ],
+          "visible": [
+            "accept"
+          ],
+          "additionalProperties": false
+        },
+        "path": {
+          "type": "object",
+          "description": "URL path parameters",
+          "properties": {
+            "uuid": {
+              "type": "string",
+              "description": "The UUID of the event to retrieve invitees for",
+              "format": "uuid"
+            }
+          },
+          "required": [
+            "uuid"
+          ],
+          "visible": [
+            "uuid"
+          ],
+          "additionalProperties": false
+        },
+        "query": {
+          "type": "object",
+          "description": "URL query parameters",
+          "properties": {
+            "page_token": {
+              "type": "string",
+              "description": "Token to retrieve the next page of results"
+            },
+            "count": {
+              "type": "integer",
+              "description": "Number of results per page",
+              "default": 10,
+              "minimum": 1,
+              "maximum": 100
+            },
+            "status": {
+              "type": "string",
+              "enum": [
+                "active",
+                "canceled"
+              ],
+              "description": "Filter invitees by status"
+            }
+          },
+          "required": [],
+          "visible": [
+            "page_token",
+            "count",
+            "status"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "header",
+        "path"
+      ],
+      "visible": [
+        "header",
+        "path",
+        "query"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "CALENDLY__GET_USER_AVAILABILITY",
+    "description": "Get availability information for a specific user",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "GET",
+      "endpoint": "https://api.calendly.com/user_availability_schedules"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "header": {
+          "type": "object",
+          "description": "HTTP request headers",
+          "properties": {
+            "accept": {
+              "type": "string",
+              "description": "Accept content type",
+              "default": "application/json",
+              "enum": [
+                "application/json"
+              ]
+            }
+          },
+          "required": [
+            "accept"
+          ],
+          "visible": [
+            "accept"
+          ],
+          "additionalProperties": false
+        },
+        "query": {
+          "type": "object",
+          "description": "URL query parameters",
+          "properties": {
+            "user": {
+              "type": "string",
+              "description": "The URI of the user to get availability for. Format: https://api.calendly.com/users/{uuid}",
+              "format": "uri"
+            }
+          },
+          "required": [
+            "user"
+          ],
+          "visible": [
+            "user"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "header",
+        "query"
+      ],
+      "visible": [
+        "header",
+        "query"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "CALENDLY__GET_CURRENT_USER",
+    "description": "Get basic information about your user account",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "GET",
+      "endpoint": "https://api.calendly.com/users/me"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "header": {
+          "type": "object",
+          "description": "HTTP request headers",
+          "properties": {
+            "accept": {
+              "type": "string",
+              "description": "Accept content type",
+              "default": "application/json",
+              "enum": [
+                "application/json"
+              ]
+            }
+          },
+          "required": [
+            "accept"
+          ],
+          "visible": [
+            "accept"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "header"
+      ],
+      "visible": [
+        "header"
+      ],
+      "additionalProperties": false
+    }
+  }
+]

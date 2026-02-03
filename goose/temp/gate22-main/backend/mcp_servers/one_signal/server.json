@@ -1,0 +1,19 @@
+{
+  "name": "ONE_SIGNAL",
+  "url": "https://mcp.aci.dev/virtual/mcp?server_name=ONE_SIGNAL",
+  "transport_type": "streamable_http",
+  "description": "OneSignal is a comprehensive customer engagement solution that provides push notifications, in-app messaging, email, and SMS services. This integration enables managing and sending cross-platform notifications, tracking user engagement, and accessing notification analytics.",
+  "logo": "https://raw.githubusercontent.com/aipotheosis-labs/aipolabs-icons/refs/heads/main/apps/one_signal.svg",
+  "categories": ["Communication", "Marketing"],
+  "auth_configs": [
+    {
+      "type": "api_key",
+      "location": "header",
+      "name": "Authorization",
+      "prefix": "Key"
+    }
+  ],
+  "server_metadata": {
+    "is_virtual_mcp_server": true
+  }
+}

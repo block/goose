@@ -102,7 +102,7 @@ pub fn format_messages(messages: &[Message]) -> Vec<Value> {
                             parts.push(json!(part));
                         }
                         Err(e) => {
-                            parts.push(json!({"text":format!("Error: {}", e)}));
+                            parts.push(json!({ "text": format!("Error: {}", e) }));
                         }
                     },
                     MessageContent::ToolResponse(response) => match &response.tool_result {

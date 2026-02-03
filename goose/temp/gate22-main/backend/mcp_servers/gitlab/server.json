@@ -1,0 +1,19 @@
+{
+  "name": "GITLAB",
+  "url": "https://gitlab.com/api/v4/mcp",
+  "transport_type": "streamable_http",
+  "description": "The MCP server provides a standardized way for AI tools to:\n\nAccess GitLab project information.\nRetrieve issue and merge request data.\nInteract with GitLab APIs securely.\nPerform GitLab-specific operations through AI assistants.",
+  "logo": "https://raw.githubusercontent.com/aipotheosis-labs/aipolabs-icons/refs/heads/main/apps/gitlab.svg",
+  "categories": ["Dev Tools"],
+  "auth_configs": [
+    {
+      "type": "oauth2",
+      "client_id": "{{ CLIENT_ID }}",
+      "scope": "mcp",
+      "authorize_url": "https://gitlab.com/oauth/authorize",
+      "access_token_url": "https://gitlab.com/oauth/token",
+      "refresh_token_url": "https://gitlab.com/oauth/token"
+    }
+  ],
+  "server_metadata": {}
+}

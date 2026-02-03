@@ -1,0 +1,92 @@
+### 2. Instrument your application
+    <Tabs>
+      <Tab title="SDK">
+        **For direct integration into your Python applications:**
+        
+        <Tabs>
+          <Tab title="Function Arguments">
+          ```python
+          import openlit
+
+          openlit.init(
+            otlp_endpoint="SIGNOZ_ENDPOINT", 
+            otlp_headers="signoz-access-token=SIGNOZ_INGESTION_KEY"
+          )
+          ```
+
+          Replace:
+          1. `SIGNOZ_ENDPOINT` with your SigNoz endpoint URL.
+             * Example: `https://ingest.{region}.signoz.cloud:443`
+          1. `SIGNOZ_INGESTION_KEY` with the access token provided by SigNoz.
+             * Example: `896cc137-xxxx-xxxx-b8a0-a6d7ab65f274`
+          </Tab>
+          
+          <Tab title="Environment Variables">
+          ```python
+          import openlit
+
+          openlit.init()
+          ```
+
+          Set these environment variables:
+          ```shell
+          export OTEL_EXPORTER_OTLP_ENDPOINT="SIGNOZ_ENDPOINT"
+          export OTEL_EXPORTER_OTLP_HEADERS="signoz-access-token=SIGNOZ_INGESTION_KEY"
+          ```
+
+          Replace:
+          1. `SIGNOZ_ENDPOINT` with your SigNoz endpoint URL.
+             * Example: `https://ingest.{region}.signoz.cloud:443`
+          1. `SIGNOZ_INGESTION_KEY` with the access token provided by SigNoz.
+             * Example: `896cc137-xxxx-xxxx-b8a0-a6d7ab65f274`
+          </Tab>
+        </Tabs>
+
+        Refer to the OpenLIT [Python SDK repository](https://github.com/openlit/openlit/tree/main/sdk/python) for more advanced configurations and use cases.
+      </Tab>
+      
+      <Tab title="CLI">
+        **For zero-code auto-instrumentation via command line:**
+        
+        <Tabs>
+          <Tab title="CLI Arguments">
+          ```shell
+          # Using CLI arguments
+          openlit-instrument \
+            --otlp-endpoint "SIGNOZ_ENDPOINT" \
+            --otlp-headers "signoz-access-token=SIGNOZ_INGESTION_KEY" \
+            --service-name "my-ai-service" \
+            --deployment-environment "production" \
+            python app.py
+          ```
+          
+          Replace:
+          1. `SIGNOZ_ENDPOINT` with your SigNoz endpoint URL.
+             * Example: `https://ingest.{region}.signoz.cloud:443`
+          1. `SIGNOZ_INGESTION_KEY` with the access token provided by SigNoz.
+             * Example: `896cc137-xxxx-xxxx-b8a0-a6d7ab65f274`
+          </Tab>
+          
+          <Tab title="Environment Variables">
+          ```shell
+          # Set environment variables (takes precedence over CLI args)
+          export OTEL_EXPORTER_OTLP_ENDPOINT="SIGNOZ_ENDPOINT"
+          export OTEL_EXPORTER_OTLP_HEADERS="signoz-access-token=SIGNOZ_INGESTION_KEY"
+          export OTEL_SERVICE_NAME="my-ai-service"
+          export OTEL_DEPLOYMENT_ENVIRONMENT="production"
+          
+          # Run your application
+          openlit-instrument python app.py
+          ```
+          
+          Replace:
+          1. `SIGNOZ_ENDPOINT` with your SigNoz endpoint URL.
+             * Example: `https://ingest.{region}.signoz.cloud:443`
+          1. `SIGNOZ_INGESTION_KEY` with the access token provided by SigNoz.
+             * Example: `896cc137-xxxx-xxxx-b8a0-a6d7ab65f274`
+          </Tab>
+        </Tabs>
+
+        Refer to the OpenLIT [Python SDK repository](https://github.com/openlit/openlit/tree/main/sdk/python) for more advanced configurations and use cases.
+      </Tab>
+    </Tabs>

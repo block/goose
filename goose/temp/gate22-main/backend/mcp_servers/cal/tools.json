@@ -1,0 +1,254 @@
+[
+  {
+    "name": "CAL__GET_SCHEDULES",
+    "description": "Retrieves a list of schedules from the authenticated user in Cal.com",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "GET_SCHEDULES",
+      "canonical_tool_description_hash": "e82f9b9667d177430ba5412081d5cf06063a8ee92bf324ba01c28811e33a9f3d",
+      "canonical_tool_input_schema_hash": "d746974fa9afd5e951f76f9af38954b0ad7f436f2120dc974da65e5ee39f856f"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": [],
+      "properties": {},
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "CAL__CREATE_SCHEDULE",
+    "description": "Create a new schedule in Cal.com",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "CREATE_SCHEDULE",
+      "canonical_tool_description_hash": "ddf070d463c3a62241be6dbc4dcfd53a9bdac50bdece17ed6991840415953704",
+      "canonical_tool_input_schema_hash": "dfc81ca69d36f3e4411ebc75ada84dfdd3bbb8bb9f1f1033b677ba95cee04027"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["body"],
+      "properties": {
+        "body": {
+          "type": "object",
+          "required": ["name", "timeZone"],
+          "properties": {
+            "name": {
+              "type": "string",
+              "description": "Name of the schedule"
+            },
+            "timeZone": {
+              "type": "string",
+              "example": "Asia/Shanghai",
+              "description": "Timezone for the schedule in IANA format"
+            },
+            "isDefault": {
+              "type": "boolean",
+              "default": false,
+              "description": "Whether this is the default schedule"
+            },
+            "availability": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "days": {
+                    "type": "array",
+                    "items": {
+                      "enum": [
+                        "Monday",
+                        "Tuesday",
+                        "Wednesday",
+                        "Thursday",
+                        "Friday",
+                        "Saturday",
+                        "Sunday"
+                      ],
+                      "type": "string"
+                    },
+                    "description": "Days of the week for this availability"
+                  },
+                  "endTime": {
+                    "type": "string",
+                    "example": "17:00",
+                    "description": "End time in HH:MM format"
+                  },
+                  "startTime": {
+                    "type": "string",
+                    "example": "09:00",
+                    "description": "Start time in HH:MM format"
+                  }
+                }
+              },
+              "description": "Availability time slots for the schedule"
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "CAL__GET_SCHEDULE",
+    "description": "Retrieve a specific schedule from Cal.com by ID",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "GET_SCHEDULE",
+      "canonical_tool_description_hash": "16123b885d0ef0639e7154b869f63d7be62d7600fd1ebf25691dd6428bde83b5",
+      "canonical_tool_input_schema_hash": "5ecf31574695d04a9b6cbb6934f78311882bf2c31af309eebd9adcf7b808a296"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["path"],
+      "properties": {
+        "path": {
+          "type": "object",
+          "required": ["schedule_id"],
+          "properties": {
+            "schedule_id": {
+              "type": "string",
+              "example": "660201",
+              "description": "ID of the schedule to retrieve"
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "CAL__UPDATE_SCHEDULE",
+    "description": "Update an existing schedule in Cal.com",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "UPDATE_SCHEDULE",
+      "canonical_tool_description_hash": "ccfcd0dc2aade78cd03bdf680424b0c5e164bca60689405349af4c5e7f088364",
+      "canonical_tool_input_schema_hash": "2d1462c4b0275817269e5ff6e327315428b208edc9097e35084e07946c5b74e1"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["path", "body"],
+      "properties": {
+        "body": {
+          "type": "object",
+          "required": [],
+          "properties": {
+            "name": {
+              "type": "string",
+              "example": "work time",
+              "description": "Updated name for the schedule"
+            },
+            "timeZone": {
+              "type": "string",
+              "example": "Asia/Shanghai",
+              "description": "Updated timezone in IANA format"
+            },
+            "overrides": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "date": {
+                    "type": "string",
+                    "example": "2024-05-20",
+                    "description": "Date for the override in YYYY-MM-DD format"
+                  },
+                  "endTime": {
+                    "type": "string",
+                    "example": "18:00",
+                    "description": "End time in HH:MM format"
+                  },
+                  "startTime": {
+                    "type": "string",
+                    "example": "10:00",
+                    "description": "Start time in HH:MM format"
+                  }
+                }
+              },
+              "description": "Overrides for specific dates"
+            },
+            "availability": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "days": {
+                    "type": "array",
+                    "items": {
+                      "enum": [
+                        "Monday",
+                        "Tuesday",
+                        "Wednesday",
+                        "Thursday",
+                        "Friday",
+                        "Saturday",
+                        "Sunday"
+                      ],
+                      "type": "string"
+                    },
+                    "description": "Days of the week for this availability"
+                  },
+                  "endTime": {
+                    "type": "string",
+                    "example": "17:00",
+                    "description": "End time in HH:MM format"
+                  },
+                  "startTime": {
+                    "type": "string",
+                    "example": "09:00",
+                    "description": "Start time in HH:MM format"
+                  }
+                }
+              },
+              "description": "Updated availability time slots for the schedule"
+            }
+          },
+          "additionalProperties": false
+        },
+        "path": {
+          "type": "object",
+          "required": ["schedule_id"],
+          "properties": {
+            "schedule_id": {
+              "type": "string",
+              "example": "660201",
+              "description": "ID of the schedule to update"
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "CAL__DELETE_SCHEDULE",
+    "description": "Delete a specific schedule from Cal.com by ID",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "DELETE_SCHEDULE",
+      "canonical_tool_description_hash": "f03401c02a6ffddac8f15fde87249a4e76a6599cc0aea1b0ff5c41c161259cf0",
+      "canonical_tool_input_schema_hash": "ef620ee89be644e3620b542d6a944a6f2a0a5bea7ead537e43d57c72c398d93e"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["path"],
+      "properties": {
+        "path": {
+          "type": "object",
+          "required": ["schedule_id"],
+          "properties": {
+            "schedule_id": {
+              "type": "string",
+              "example": "660201",
+              "description": "ID of the schedule to delete"
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+]

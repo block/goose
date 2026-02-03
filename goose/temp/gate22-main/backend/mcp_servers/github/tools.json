@@ -1,0 +1,3461 @@
+[
+  {
+    "name": "GITHUB__ADD_COMMENT_TO_PENDING_REVIEW",
+    "description": "Add review comment to the requester's latest pending pull request review. A pending review needs to already exist to call this (check with the user if not sure).",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "add_comment_to_pending_review",
+      "canonical_tool_description_hash": "198fd98a1e0dc027c9a35e5edf34e19512deabe6888e46526a77cfcdc929015a",
+      "canonical_tool_input_schema_hash": "bae38a4fcef594731ca23ce64fdc83d0491d764d9f558e028705d0ca396e6be4"
+    },
+    "input_schema": {
+      "properties": {
+        "body": {
+          "description": "The text of the review comment",
+          "type": "string"
+        },
+        "line": {
+          "description": "The line of the blob in the pull request diff that the comment applies to. For multi-line comments, the last line of the range",
+          "type": "number"
+        },
+        "owner": {
+          "description": "Repository owner",
+          "type": "string"
+        },
+        "path": {
+          "description": "The relative path to the file that necessitates a comment",
+          "type": "string"
+        },
+        "pullNumber": {
+          "description": "Pull request number",
+          "type": "number"
+        },
+        "repo": {
+          "description": "Repository name",
+          "type": "string"
+        },
+        "side": {
+          "description": "The side of the diff to comment on. LEFT indicates the previous state, RIGHT indicates the new state",
+          "enum": ["LEFT", "RIGHT"],
+          "type": "string"
+        },
+        "startLine": {
+          "description": "For multi-line comments, the first line of the range that the comment applies to",
+          "type": "number"
+        },
+        "startSide": {
+          "description": "For multi-line comments, the starting side of the diff that the comment applies to. LEFT indicates the previous state, RIGHT indicates the new state",
+          "enum": ["LEFT", "RIGHT"],
+          "type": "string"
+        },
+        "subjectType": {
+          "description": "The level at which the comment is targeted",
+          "enum": ["FILE", "LINE"],
+          "type": "string"
+        }
+      },
+      "required": ["owner", "repo", "pullNumber", "path", "body", "subjectType"],
+      "type": "object"
+    }
+  },
+  {
+    "name": "GITHUB__ADD_ISSUE_COMMENT",
+    "description": "Add a comment to a specific issue in a GitHub repository.",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "add_issue_comment",
+      "canonical_tool_description_hash": "abc51ea6143c81e8e89245d8bc55ab7e8639ed2da78d82d34de73fccbedf6526",
+      "canonical_tool_input_schema_hash": "f8b9b28896aaf981553a4c64327ea934466f4f2cb7fb812bf4f282874876ca9a"
+    },
+    "input_schema": {
+      "properties": {
+        "body": {
+          "description": "Comment content",
+          "type": "string"
+        },
+        "issue_number": {
+          "description": "Issue number to comment on",
+          "type": "number"
+        },
+        "owner": {
+          "description": "Repository owner",
+          "type": "string"
+        },
+        "repo": {
+          "description": "Repository name",
+          "type": "string"
+        }
+      },
+      "required": ["owner", "repo", "issue_number", "body"],
+      "type": "object"
+    }
+  },
+  {
+    "name": "GITHUB__ADD_SUB_ISSUE",
+    "description": "Add a sub-issue to a parent issue in a GitHub repository.",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "add_sub_issue",
+      "canonical_tool_description_hash": "9f14a983aa372ffc30767908dd4a2b669ca336f9b1b37d50de88f368e0bc121d",
+      "canonical_tool_input_schema_hash": "742c11397f4a9d199f7ae12156ed5e70b956a70086f89bab89bd59473e850020"
+    },
+    "input_schema": {
+      "properties": {
+        "issue_number": {
+          "description": "The number of the parent issue",
+          "type": "number"
+        },
+        "owner": {
+          "description": "Repository owner",
+          "type": "string"
+        },
+        "replace_parent": {
+          "description": "When true, replaces the sub-issue's current parent issue",
+          "type": "boolean"
+        },
+        "repo": {
+          "description": "Repository name",
+          "type": "string"
+        },
+        "sub_issue_id": {
+          "description": "The ID of the sub-issue to add. ID is not the same as issue number",
+          "type": "number"
+        }
+      },
+      "required": ["owner", "repo", "issue_number", "sub_issue_id"],
+      "type": "object"
+    }
+  },
+  {
+    "name": "GITHUB__ASSIGN_COPILOT_TO_ISSUE",
+    "description": "Assign Copilot to a specific issue in a GitHub repository.\n\nThis tool can help with the following outcomes:\n- a Pull Request created with source code changes to resolve the issue\n\n\nMore information can be found at:\n- https://docs.github.com/en/copilot/using-github-copilot/using-copilot-coding-agent-to-work-on-tasks/about-assigning-tasks-to-copilot\n",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "assign_copilot_to_issue",
+      "canonical_tool_description_hash": "c27352e553b51295f9914944a480250dc1c04abe894a9c89fab14657626c63ab",
+      "canonical_tool_input_schema_hash": "8a9d55195e7d2e0b64615dc9b7053125f0b2a622af19243f80b998bc7f38418f"
+    },
+    "input_schema": {
+      "properties": {
+        "issueNumber": {
+          "description": "Issue number",
+          "type": "number"
+        },
+        "owner": {
+          "description": "Repository owner",
+          "type": "string"
+        },
+        "repo": {
+          "description": "Repository name",
+          "type": "string"
+        }
+      },
+      "required": ["owner", "repo", "issueNumber"],
+      "type": "object"
+    }
+  },
+  {
+    "name": "GITHUB__CANCEL_WORKFLOW_RUN",
+    "description": "Cancel a workflow run",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "cancel_workflow_run",
+      "canonical_tool_description_hash": "f7a3e26bc7119562770dd3883ae6fcba6e2f5a9efc3ac22941218be0a35cceec",
+      "canonical_tool_input_schema_hash": "9caf4e7eedebc1b75d775da229fb47b5c6838fd9dadca6555c1b50e72e96eb47"
+    },
+    "input_schema": {
+      "properties": {
+        "owner": {
+          "description": "Repository owner",
+          "type": "string"
+        },
+        "repo": {
+          "description": "Repository name",
+          "type": "string"
+        },
+        "run_id": {
+          "description": "The unique identifier of the workflow run",
+          "type": "number"
+        }
+      },
+      "required": ["owner", "repo", "run_id"],
+      "type": "object"
+    }
+  },
+  {
+    "name": "GITHUB__CREATE_AND_SUBMIT_PULL_REQUEST_REVIEW",
+    "description": "Create and submit a review for a pull request without review comments.",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "create_and_submit_pull_request_review",
+      "canonical_tool_description_hash": "883a0b91bf5388b22b28e147dd390c59274be9248fd56da32fa1d7930182ec18",
+      "canonical_tool_input_schema_hash": "d0a83a9060c362263f51fb64559cfd38659a3f3eb5fc0971111c1d6e02b1df40"
+    },
+    "input_schema": {
+      "properties": {
+        "body": {
+          "description": "Review comment text",
+          "type": "string"
+        },
+        "commitID": {
+          "description": "SHA of commit to review",
+          "type": "string"
+        },
+        "event": {
+          "description": "Review action to perform",
+          "enum": ["APPROVE", "REQUEST_CHANGES", "COMMENT"],
+          "type": "string"
+        },
+        "owner": {
+          "description": "Repository owner",
+          "type": "string"
+        },
+        "pullNumber": {
+          "description": "Pull request number",
+          "type": "number"
+        },
+        "repo": {
+          "description": "Repository name",
+          "type": "string"
+        }
+      },
+      "required": ["owner", "repo", "pullNumber", "body", "event"],
+      "type": "object"
+    }
+  },
+  {
+    "name": "GITHUB__CREATE_BRANCH",
+    "description": "Create a new branch in a GitHub repository",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "create_branch",
+      "canonical_tool_description_hash": "b661f9529875a199b19b0887842fbfbf0349ed86344e41a7c899318b740d5417",
+      "canonical_tool_input_schema_hash": "3e9280c29f029e43a068bc6d3180db14ae46de17707904826c60ebb70d7b1c70"
+    },
+    "input_schema": {
+      "properties": {
+        "branch": {
+          "description": "Name for new branch",
+          "type": "string"
+        },
+        "from_branch": {
+          "description": "Source branch (defaults to repo default)",
+          "type": "string"
+        },
+        "owner": {
+          "description": "Repository owner",
+          "type": "string"
+        },
+        "repo": {
+          "description": "Repository name",
+          "type": "string"
+        }
+      },
+      "required": ["owner", "repo", "branch"],
+      "type": "object"
+    }
+  },
+  {
+    "name": "GITHUB__CREATE_GIST",
+    "description": "Create a new gist",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "create_gist",
+      "canonical_tool_description_hash": "be28c42d587ad5a95b4a84ac9b4261c697e6984b15b25f04ea361a6679e9c2ad",
+      "canonical_tool_input_schema_hash": "53528a68f9b35f0fca8e7fb6853572129085689b8f19ae03aae23144489bbb2d"
+    },
+    "input_schema": {
+      "properties": {
+        "content": {
+          "description": "Content for simple single-file gist creation",
+          "type": "string"
+        },
+        "description": {
+          "description": "Description of the gist",
+          "type": "string"
+        },
+        "filename": {
+          "description": "Filename for simple single-file gist creation",
+          "type": "string"
+        },
+        "public": {
+          "default": false,
+          "description": "Whether the gist is public",
+          "type": "boolean"
+        }
+      },
+      "required": ["filename", "content"],
+      "type": "object"
+    }
+  },
+  {
+    "name": "GITHUB__CREATE_ISSUE",
+    "description": "Create a new issue in a GitHub repository.",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "create_issue",
+      "canonical_tool_description_hash": "efaeeb29e270d1051ccbc644ed017a263ba25b0c16cd1839af8a8323716011eb",
+      "canonical_tool_input_schema_hash": "6f566d9c14fc55a72074624f0a15c104db39f69bfcf75372db8a861fd005b85c"
+    },
+    "input_schema": {
+      "properties": {
+        "assignees": {
+          "description": "Usernames to assign to this issue",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "body": {
+          "description": "Issue body content",
+          "type": "string"
+        },
+        "labels": {
+          "description": "Labels to apply to this issue",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "milestone": {
+          "description": "Milestone number",
+          "type": "number"
+        },
+        "owner": {
+          "description": "Repository owner",
+          "type": "string"
+        },
+        "repo": {
+          "description": "Repository name",
+          "type": "string"
+        },
+        "title": {
+          "description": "Issue title",
+          "type": "string"
+        },
+        "type": {
+          "description": "Type of this issue",
+          "type": "string"
+        }
+      },
+      "required": ["owner", "repo", "title"],
+      "type": "object"
+    }
+  },
+  {
+    "name": "GITHUB__CREATE_OR_UPDATE_FILE",
+    "description": "Create or update a single file in a GitHub repository. If updating, you must provide the SHA of the file you want to update. Use this tool to create or update a file in a GitHub repository remotely; do not use it for local file operations.",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "create_or_update_file",
+      "canonical_tool_description_hash": "474b122c9c61524913e987b4f1bd0a11324c3a061cbb90a55d66595af65e6a54",
+      "canonical_tool_input_schema_hash": "589c09a6f222168afeab04c3136e7e66a5da2f0079a6eb531577019dae79c14b"
+    },
+    "input_schema": {
+      "properties": {
+        "branch": {
+          "description": "Branch to create/update the file in",
+          "type": "string"
+        },
+        "content": {
+          "description": "Content of the file",
+          "type": "string"
+        },
+        "message": {
+          "description": "Commit message",
+          "type": "string"
+        },
+        "owner": {
+          "description": "Repository owner (username or organization)",
+          "type": "string"
+        },
+        "path": {
+          "description": "Path where to create/update the file",
+          "type": "string"
+        },
+        "repo": {
+          "description": "Repository name",
+          "type": "string"
+        },
+        "sha": {
+          "description": "Required if updating an existing file. The blob SHA of the file being replaced.",
+          "type": "string"
+        }
+      },
+      "required": ["owner", "repo", "path", "content", "message", "branch"],
+      "type": "object"
+    }
+  },
+  {
+    "name": "GITHUB__CREATE_PENDING_PULL_REQUEST_REVIEW",
+    "description": "Create a pending review for a pull request. Call this first before attempting to add comments to a pending review, and ultimately submitting it. A pending pull request review means a pull request review, it is pending because you create it first and submit it later, and the PR author will not see it until it is submitted.",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "create_pending_pull_request_review",
+      "canonical_tool_description_hash": "068146897fdfe4319b4271c063940f6a54683676f47bffea9b1554c0c22632eb",
+      "canonical_tool_input_schema_hash": "33c5d9b4800fcc618bb7806648af82bf8065b0c14e0c835186def0ddef231213"
+    },
+    "input_schema": {
+      "properties": {
+        "commitID": {
+          "description": "SHA of commit to review",
+          "type": "string"
+        },
+        "owner": {
+          "description": "Repository owner",
+          "type": "string"
+        },
+        "pullNumber": {
+          "description": "Pull request number",
+          "type": "number"
+        },
+        "repo": {
+          "description": "Repository name",
+          "type": "string"
+        }
+      },
+      "required": ["owner", "repo", "pullNumber"],
+      "type": "object"
+    }
+  },
+  {
+    "name": "GITHUB__CREATE_PULL_REQUEST",
+    "description": "Create a new pull request in a GitHub repository.",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "create_pull_request",
+      "canonical_tool_description_hash": "d96937399a783efefa6fd6f81645c96efd920026b97808398808f5e62693bca2",
+      "canonical_tool_input_schema_hash": "73d767fba2fa28e9707aacf0f8927ba5a3b1a323eaa7cb852cc8b3c85bd49dd6"
+    },
+    "input_schema": {
+      "properties": {
+        "base": {
+          "description": "Branch to merge into",
+          "type": "string"
+        },
+        "body": {
+          "description": "PR description",
+          "type": "string"
+        },
+        "draft": {
+          "description": "Create as draft PR",
+          "type": "boolean"
+        },
+        "head": {
+          "description": "Branch containing changes",
+          "type": "string"
+        },
+        "maintainer_can_modify": {
+          "description": "Allow maintainer edits",
+          "type": "boolean"
+        },
+        "owner": {
+          "description": "Repository owner",
+          "type": "string"
+        },
+        "repo": {
+          "description": "Repository name",
+          "type": "string"
+        },
+        "title": {
+          "description": "PR title",
+          "type": "string"
+        }
+      },
+      "required": ["owner", "repo", "title", "head", "base"],
+      "type": "object"
+    }
+  },
+  {
+    "name": "GITHUB__CREATE_PULL_REQUEST_WITH_COPILOT",
+    "description": "Delegate a task to GitHub Copilot coding agent to perform in the background. The agent will create a pull request with the implementation. You should use this tool if the user asks to create a pull request to perform a specific task, or if the user asks Copilot to do something.",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "create_pull_request_with_copilot",
+      "canonical_tool_description_hash": "ee6000f70e9c666da9a22f006d7d0f5b42281e1428f62502fadccc49275b1912",
+      "canonical_tool_input_schema_hash": "6d9e0c48f72dd609d3b1c8d2f8535e333b98a9b4b165f3ae30dc4444640b4675"
+    },
+    "input_schema": {
+      "properties": {
+        "base_ref": {
+          "description": "Git reference (e.g., branch) that the agent will start its work from. If not specified, defaults to the repository's default branch",
+          "type": "string"
+        },
+        "owner": {
+          "description": "Repository owner. You can guess the owner, but confirm it with the user before proceeding.",
+          "type": "string"
+        },
+        "problem_statement": {
+          "description": "Detailed description of the task to be performed (e.g., 'Implement a feature that does X', 'Fix bug Y', etc.)",
+          "type": "string"
+        },
+        "repo": {
+          "description": "Repository name. You can guess the repository name, but confirm it with the user before proceeding.",
+          "type": "string"
+        },
+        "title": {
+          "description": "Title for the pull request that will be created",
+          "type": "string"
+        }
+      },
+      "required": ["owner", "repo", "problem_statement", "title"],
+      "type": "object"
+    }
+  },
+  {
+    "name": "GITHUB__CREATE_REPOSITORY",
+    "description": "Create a new GitHub repository in your account or specified organization",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "create_repository",
+      "canonical_tool_description_hash": "346ee3f45f10ec9bc6938b961aaa048015009f3ba270b651a54af288dc2c653e",
+      "canonical_tool_input_schema_hash": "3c92d21d92904c302e284e2ede0041fa1fde96df6a7c3b583b2c0b686f5f69e3"
+    },
+    "input_schema": {
+      "properties": {
+        "autoInit": {
+          "description": "Initialize with README",
+          "type": "boolean"
+        },
+        "description": {
+          "description": "Repository description",
+          "type": "string"
+        },
+        "name": {
+          "description": "Repository name",
+          "type": "string"
+        },
+        "organization": {
+          "description": "Organization to create the repository in (omit to create in your personal account)",
+          "type": "string"
+        },
+        "private": {
+          "description": "Whether repo should be private",
+          "type": "boolean"
+        }
+      },
+      "required": ["name"],
+      "type": "object"
+    }
+  },
+  {
+    "name": "GITHUB__DELETE_FILE",
+    "description": "Delete a file from a GitHub repository",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "delete_file",
+      "canonical_tool_description_hash": "efc6257d81ed278b3b0fbb9aac6841160b17655f27d7377ba837cd9f3b67006b",
+      "canonical_tool_input_schema_hash": "0926de0cb51bcf553ea8c788e4c4d79a22baf9bcd2235ef4124ca14c3f23753e"
+    },
+    "input_schema": {
+      "properties": {
+        "branch": {
+          "description": "Branch to delete the file from",
+          "type": "string"
+        },
+        "message": {
+          "description": "Commit message",
+          "type": "string"
+        },
+        "owner": {
+          "description": "Repository owner (username or organization)",
+          "type": "string"
+        },
+        "path": {
+          "description": "Path to the file to delete",
+          "type": "string"
+        },
+        "repo": {
+          "description": "Repository name",
+          "type": "string"
+        }
+      },
+      "required": ["owner", "repo", "path", "message", "branch"],
+      "type": "object"
+    }
+  },
+  {
+    "name": "GITHUB__DELETE_PENDING_PULL_REQUEST_REVIEW",
+    "description": "Delete the requester's latest pending pull request review. Use this after the user decides not to submit a pending review, if you don't know if they already created one then check first.",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "delete_pending_pull_request_review",
+      "canonical_tool_description_hash": "20f466e22eaff535883072d8b6c790d5a28b2d852e0f98f6eec32b42a91acaec",
+      "canonical_tool_input_schema_hash": "281e253e5f52a1ed3e8f3c254d6c8c5e5d99e6804e4fb245b655084fcc272a0f"
+    },
+    "input_schema": {
+      "properties": {
+        "owner": {
+          "description": "Repository owner",
+          "type": "string"
+        },
+        "pullNumber": {
+          "description": "Pull request number",
+          "type": "number"
+        },
+        "repo": {
+          "description": "Repository name",
+          "type": "string"
+        }
+      },
+      "required": ["owner", "repo", "pullNumber"],
+      "type": "object"
+    }
+  },
+  {
+    "name": "GITHUB__DELETE_WORKFLOW_RUN_LOGS",
+    "description": "Delete logs for a workflow run",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "delete_workflow_run_logs",
+      "canonical_tool_description_hash": "e6c2e787a7302824d2bb32eb0344dcc482f2544a03c30a4695d2364738fa2005",
+      "canonical_tool_input_schema_hash": "9caf4e7eedebc1b75d775da229fb47b5c6838fd9dadca6555c1b50e72e96eb47"
+    },
+    "input_schema": {
+      "properties": {
+        "owner": {
+          "description": "Repository owner",
+          "type": "string"
+        },
+        "repo": {
+          "description": "Repository name",
+          "type": "string"
+        },
+        "run_id": {
+          "description": "The unique identifier of the workflow run",
+          "type": "number"
+        }
+      },
+      "required": ["owner", "repo", "run_id"],
+      "type": "object"
+    }
+  },
+  {
+    "name": "GITHUB__DISMISS_NOTIFICATION",
+    "description": "Dismiss a notification by marking it as read or done",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "dismiss_notification",
+      "canonical_tool_description_hash": "d769d1c6dd6ddc43e4023e715e9f19629aab53625b711630cfd3dd1409a72097",
+      "canonical_tool_input_schema_hash": "4815cc402e29a84848e6ac8ad8019bc06c4ed8852e56a8840ff5fc26f6cdc08c"
+    },
+    "input_schema": {
+      "properties": {
+        "state": {
+          "description": "The new state of the notification (read/done)",
+          "enum": ["read", "done"],
+          "type": "string"
+        },
+        "threadID": {
+          "description": "The ID of the notification thread",
+          "type": "string"
+        }
+      },
+      "required": ["threadID"],
+      "type": "object"
+    }
+  },
+  {
+    "name": "GITHUB__DOWNLOAD_WORKFLOW_RUN_ARTIFACT",
+    "description": "Get download URL for a workflow run artifact",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "download_workflow_run_artifact",
+      "canonical_tool_description_hash": "857e7ca9c4b576d2aaa1c78683913398aeb3dee1383f03055c6d4ef9befe6260",
+      "canonical_tool_input_schema_hash": "ce3509773c5f4272efe95e34b92453d6c1e7ba55196b86be09ffec189650a009"
+    },
+    "input_schema": {
+      "properties": {
+        "artifact_id": {
+          "description": "The unique identifier of the artifact",
+          "type": "number"
+        },
+        "owner": {
+          "description": "Repository owner",
+          "type": "string"
+        },
+        "repo": {
+          "description": "Repository name",
+          "type": "string"
+        }
+      },
+      "required": ["owner", "repo", "artifact_id"],
+      "type": "object"
+    }
+  },
+  {
+    "name": "GITHUB__FORK_REPOSITORY",
+    "description": "Fork a GitHub repository to your account or specified organization",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "fork_repository",
+      "canonical_tool_description_hash": "689d49e5c5e7a60cc7d61869221ffc2b5e6faa14afad88dd1960f38df73f7923",
+      "canonical_tool_input_schema_hash": "798df01a52b1195a01cdbc1c341387bab99527ac4dc240a447943f1264820f6d"
+    },
+    "input_schema": {
+      "properties": {
+        "organization": {
+          "description": "Organization to fork to",
+          "type": "string"
+        },
+        "owner": {
+          "description": "Repository owner",
+          "type": "string"
+        },
+        "repo": {
+          "description": "Repository name",
+          "type": "string"
+        }
+      },
+      "required": ["owner", "repo"],
+      "type": "object"
+    }
+  },
+  {
+    "name": "GITHUB__GET_CODE_SCANNING_ALERT",
+    "description": "Get details of a specific code scanning alert in a GitHub repository.",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "get_code_scanning_alert",
+      "canonical_tool_description_hash": "290e830a1aef04ada6c16e5f8ab63c652a41c49c36b3ef03aa4135f5d3a64000",
+      "canonical_tool_input_schema_hash": "31e89f7a2261faf97fdd72c5e5b06f3caa0bfe1718e1e4697b407303c0c50131"
+    },
+    "input_schema": {
+      "properties": {
+        "alertNumber": {
+          "description": "The number of the alert.",
+          "type": "number"
+        },
+        "owner": {
+          "description": "The owner of the repository.",
+          "type": "string"
+        },
+        "repo": {
+          "description": "The name of the repository.",
+          "type": "string"
+        }
+      },
+      "required": ["owner", "repo", "alertNumber"],
+      "type": "object"
+    }
+  },
+  {
+    "name": "GITHUB__GET_COMMIT",
+    "description": "Get details for a commit from a GitHub repository",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "get_commit",
+      "canonical_tool_description_hash": "333603b380535f0e78b547c0786cc97d4ccd9fb96e929b3ca4d8a257e9952e8e",
+      "canonical_tool_input_schema_hash": "3afa9b0d9bde817d7de9509a77921d8d3bf68874e04d20f879cd737a8fc91ffd"
+    },
+    "input_schema": {
+      "properties": {
+        "include_diff": {
+          "default": true,
+          "description": "Whether to include file diffs and stats in the response. Default is true.",
+          "type": "boolean"
+        },
+        "owner": {
+          "description": "Repository owner",
+          "type": "string"
+        },
+        "page": {
+          "description": "Page number for pagination (min 1)",
+          "minimum": 1,
+          "type": "number"
+        },
+        "perPage": {
+          "description": "Results per page for pagination (min 1, max 100)",
+          "maximum": 100,
+          "minimum": 1,
+          "type": "number"
+        },
+        "repo": {
+          "description": "Repository name",
+          "type": "string"
+        },
+        "sha": {
+          "description": "Commit SHA, branch name, or tag name",
+          "type": "string"
+        }
+      },
+      "required": ["owner", "repo", "sha"],
+      "type": "object"
+    }
+  },
+  {
+    "name": "GITHUB__GET_COPILOT_SPACE",
+    "description": "This tool can be used to provide additional context to the chat from a specific Copilot space. If user mentioned the keyword 'Copilot space' with the name and owner of the space, execute this tool.",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "get_copilot_space",
+      "canonical_tool_description_hash": "b91d9397cadebfcc856f132097b2dde0d06ac3066687227190de286b0b3279fb",
+      "canonical_tool_input_schema_hash": "4db74753f0200fb39c5c8be6db098520a92cb98fcba5d90cbda85665bcc23e2f"
+    },
+    "input_schema": {
+      "properties": {
+        "name": {
+          "description": "The name of the space",
+          "type": "string"
+        },
+        "owner": {
+          "description": "The owner of the space",
+          "type": "string"
+        }
+      },
+      "required": ["owner", "name"],
+      "type": "object"
+    }
+  },
+  {
+    "name": "GITHUB__GET_DEPENDABOT_ALERT",
+    "description": "Get details of a specific dependabot alert in a GitHub repository.",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "get_dependabot_alert",
+      "canonical_tool_description_hash": "b9ecd52b3ef6ac83b733ff0b577c031453ceb8774ba11b807c0f94cef02c7f96",
+      "canonical_tool_input_schema_hash": "31e89f7a2261faf97fdd72c5e5b06f3caa0bfe1718e1e4697b407303c0c50131"
+    },
+    "input_schema": {
+      "properties": {
+        "alertNumber": {
+          "description": "The number of the alert.",
+          "type": "number"
+        },
+        "owner": {
+          "description": "The owner of the repository.",
+          "type": "string"
+        },
+        "repo": {
+          "description": "The name of the repository.",
+          "type": "string"
+        }
+      },
+      "required": ["owner", "repo", "alertNumber"],
+      "type": "object"
+    }
+  },
+  {
+    "name": "GITHUB__GET_DISCUSSION",
+    "description": "Get a specific discussion by ID",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "get_discussion",
+      "canonical_tool_description_hash": "5a2233e37b0f913edb0756d44760ff2f86c88708e2007484a9f5062f1f61e6ff",
+      "canonical_tool_input_schema_hash": "ec1a24ba847b30240efe255b6c6294e361d5c64cca9146d0da90d1cd832e26ce"
+    },
+    "input_schema": {
+      "properties": {
+        "discussionNumber": {
+          "description": "Discussion Number",
+          "type": "number"
+        },
+        "owner": {
+          "description": "Repository owner",
+          "type": "string"
+        },
+        "repo": {
+          "description": "Repository name",
+          "type": "string"
+        }
+      },
+      "required": ["owner", "repo", "discussionNumber"],
+      "type": "object"
+    }
+  },
+  {
+    "name": "GITHUB__GET_DISCUSSION_COMMENTS",
+    "description": "Get comments from a discussion",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "get_discussion_comments",
+      "canonical_tool_description_hash": "859d0cb5eafc48085ff81b2242a5295792fa13a0d600669cfc3173a56ec8d27d",
+      "canonical_tool_input_schema_hash": "b758c4b5de860c4d220326f7d4a11315e1f4292eedab79457e965d330efab655"
+    },
+    "input_schema": {
+      "properties": {
+        "after": {
+          "description": "Cursor for pagination. Use the endCursor from the previous page's PageInfo for GraphQL APIs.",
+          "type": "string"
+        },
+        "discussionNumber": {
+          "description": "Discussion Number",
+          "type": "number"
+        },
+        "owner": {
+          "description": "Repository owner",
+          "type": "string"
+        },
+        "perPage": {
+          "description": "Results per page for pagination (min 1, max 100)",
+          "maximum": 100,
+          "minimum": 1,
+          "type": "number"
+        },
+        "repo": {
+          "description": "Repository name",
+          "type": "string"
+        }
+      },
+      "required": ["owner", "repo", "discussionNumber"],
+      "type": "object"
+    }
+  },
+  {
+    "name": "GITHUB__GET_FILE_CONTENTS",
+    "description": "Get the contents of a file or directory from a GitHub repository",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "get_file_contents",
+      "canonical_tool_description_hash": "e0131ffc3a4f53eef42e20a064f44d99e2ff6f24af7fc2ff60f57ad849672bff",
+      "canonical_tool_input_schema_hash": "343407ff2976db341bb087c397720a169873369173d30a8076da60bb5ff93d01"
+    },
+    "input_schema": {
+      "properties": {
+        "owner": {
+          "description": "Repository owner (username or organization)",
+          "type": "string"
+        },
+        "path": {
+          "default": "/",
+          "description": "Path to file/directory (directories must end with a slash '/')",
+          "type": "string"
+        },
+        "ref": {
+          "description": "Accepts optional git refs such as `refs/tags/{tag}`, `refs/heads/{branch}` or `refs/pull/{pr_number}/head`",
+          "type": "string"
+        },
+        "repo": {
+          "description": "Repository name",
+          "type": "string"
+        },
+        "sha": {
+          "description": "Accepts optional commit SHA. If specified, it will be used instead of ref",
+          "type": "string"
+        }
+      },
+      "required": ["owner", "repo"],
+      "type": "object"
+    }
+  },
+  {
+    "name": "GITHUB__GET_GLOBAL_SECURITY_ADVISORY",
+    "description": "Get a global security advisory",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "get_global_security_advisory",
+      "canonical_tool_description_hash": "d197c2bdb3b5e412dce4fdcfacfc39e3c7f78a5e7a27d429c3e71e37d38193a9",
+      "canonical_tool_input_schema_hash": "7cf7dd41ec56694e4789f5c912970c9edc306f2f1a99ca269f05ef9f01517c41"
+    },
+    "input_schema": {
+      "properties": {
+        "ghsaId": {
+          "description": "GitHub Security Advisory ID (format: GHSA-xxxx-xxxx-xxxx).",
+          "type": "string"
+        }
+      },
+      "required": ["ghsaId"],
+      "type": "object"
+    }
+  },
+  {
+    "name": "GITHUB__GET_ISSUE",
+    "description": "Get details of a specific issue in a GitHub repository.",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "get_issue",
+      "canonical_tool_description_hash": "6a4e07f13c93f01a02eb98e0592e8b230bf6760283905aeb01638549befbace1",
+      "canonical_tool_input_schema_hash": "b1225508d789919511417171116d191b11cd5b25e483d635da2bb00ba60832c1"
+    },
+    "input_schema": {
+      "properties": {
+        "issue_number": {
+          "description": "The number of the issue",
+          "type": "number"
+        },
+        "owner": {
+          "description": "The owner of the repository",
+          "type": "string"
+        },
+        "repo": {
+          "description": "The name of the repository",
+          "type": "string"
+        }
+      },
+      "required": ["owner", "repo", "issue_number"],
+      "type": "object"
+    }
+  },
+  {
+    "name": "GITHUB__GET_ISSUE_COMMENTS",
+    "description": "Get comments for a specific issue in a GitHub repository.",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "get_issue_comments",
+      "canonical_tool_description_hash": "8eed2f623899b89c980d4e9c5071d125a05f349b96d59aa3cfb42bfea0138751",
+      "canonical_tool_input_schema_hash": "dae142a16c42052f9690fc8427798736d484313b7bf52d916a48cf7daae3da74"
+    },
+    "input_schema": {
+      "properties": {
+        "issue_number": {
+          "description": "Issue number",
+          "type": "number"
+        },
+        "owner": {
+          "description": "Repository owner",
+          "type": "string"
+        },
+        "page": {
+          "description": "Page number for pagination (min 1)",
+          "minimum": 1,
+          "type": "number"
+        },
+        "perPage": {
+          "description": "Results per page for pagination (min 1, max 100)",
+          "maximum": 100,
+          "minimum": 1,
+          "type": "number"
+        },
+        "repo": {
+          "description": "Repository name",
+          "type": "string"
+        }
+      },
+      "required": ["owner", "repo", "issue_number"],
+      "type": "object"
+    }
+  },
+  {
+    "name": "GITHUB__GET_JOB_LOGS",
+    "description": "Download logs for a specific workflow job or efficiently get all failed job logs for a workflow run",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "get_job_logs",
+      "canonical_tool_description_hash": "ba1fd34a221eac23ae923d9ef5f93ddfa144094c24b089c5e375ad4c1ae23eb0",
+      "canonical_tool_input_schema_hash": "ed4fd995bcceeb16334b8685400e3bbc39b615bbf0707744867b78e0ecbea023"
+    },
+    "input_schema": {
+      "properties": {
+        "failed_only": {
+          "description": "When true, gets logs for all failed jobs in run_id",
+          "type": "boolean"
+        },
+        "job_id": {
+          "description": "The unique identifier of the workflow job (required for single job logs)",
+          "type": "number"
+        },
+        "owner": {
+          "description": "Repository owner",
+          "type": "string"
+        },
+        "repo": {
+          "description": "Repository name",
+          "type": "string"
+        },
+        "return_content": {
+          "description": "Returns actual log content instead of URLs",
+          "type": "boolean"
+        },
+        "run_id": {
+          "description": "Workflow run ID (required when using failed_only)",
+          "type": "number"
+        },
+        "tail_lines": {
+          "default": 500,
+          "description": "Number of lines to return from the end of the log",
+          "type": "number"
+        }
+      },
+      "required": ["owner", "repo"],
+      "type": "object"
+    }
+  },
+  {
+    "name": "GITHUB__GET_LATEST_RELEASE",
+    "description": "Get the latest release in a GitHub repository",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "get_latest_release",
+      "canonical_tool_description_hash": "e26a14c675e3c97032d1e52b231df416674af89f7448b0bab692a8a7d97c1ec4",
+      "canonical_tool_input_schema_hash": "7a5fbbc5e857868bee3f91845a8c3dbc3f50235a855cdc23a221a3eeca258406"
+    },
+    "input_schema": {
+      "properties": {
+        "owner": {
+          "description": "Repository owner",
+          "type": "string"
+        },
+        "repo": {
+          "description": "Repository name",
+          "type": "string"
+        }
+      },
+      "required": ["owner", "repo"],
+      "type": "object"
+    }
+  },
+  {
+    "name": "GITHUB__GET_ME",
+    "description": "Get details of the authenticated GitHub user. Use this when a request is about the user's own profile for GitHub. Or when information is missing to build other tool calls.",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "get_me",
+      "canonical_tool_description_hash": "0e952f45d3059324498bce9ae3d8601388ff808eee8181c76de944a55846218b",
+      "canonical_tool_input_schema_hash": "efddc7bd8bbcef73a14eb1ace1ffdaec81e518ef1e13c1e9271d0b8acb694a49"
+    },
+    "input_schema": {
+      "properties": {},
+      "type": "object"
+    }
+  },
+  {
+    "name": "GITHUB__GET_NOTIFICATION_DETAILS",
+    "description": "Get detailed information for a specific GitHub notification, always call this tool when the user asks for details about a specific notification, if you don't know the ID list notifications first.",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "get_notification_details",
+      "canonical_tool_description_hash": "c51a5c70f551b18838a0fc501fe02f0925e2d252d91b2ae1ae4e0a3f2f746911",
+      "canonical_tool_input_schema_hash": "0e233dbf54c92265fa97f75b8a3c9afcc22148f667327a15ffa268b25f4bc968"
+    },
+    "input_schema": {
+      "properties": {
+        "notificationID": {
+          "description": "The ID of the notification",
+          "type": "string"
+        }
+      },
+      "required": ["notificationID"],
+      "type": "object"
+    }
+  },
+  {
+    "name": "GITHUB__GET_PULL_REQUEST",
+    "description": "Get details of a specific pull request in a GitHub repository.",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "get_pull_request",
+      "canonical_tool_description_hash": "9d72bee183f0053b92831de60253bb175d79200ebf6c46356db2c6da982e14ad",
+      "canonical_tool_input_schema_hash": "281e253e5f52a1ed3e8f3c254d6c8c5e5d99e6804e4fb245b655084fcc272a0f"
+    },
+    "input_schema": {
+      "properties": {
+        "owner": {
+          "description": "Repository owner",
+          "type": "string"
+        },
+        "pullNumber": {
+          "description": "Pull request number",
+          "type": "number"
+        },
+        "repo": {
+          "description": "Repository name",
+          "type": "string"
+        }
+      },
+      "required": ["owner", "repo", "pullNumber"],
+      "type": "object"
+    }
+  },
+  {
+    "name": "GITHUB__GET_PULL_REQUEST_DIFF",
+    "description": "Get the diff of a pull request.",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "get_pull_request_diff",
+      "canonical_tool_description_hash": "4cb257b3226d67cdb0fc758060249354debcf18bf92a092d92ed86057a422804",
+      "canonical_tool_input_schema_hash": "281e253e5f52a1ed3e8f3c254d6c8c5e5d99e6804e4fb245b655084fcc272a0f"
+    },
+    "input_schema": {
+      "properties": {
+        "owner": {
+          "description": "Repository owner",
+          "type": "string"
+        },
+        "pullNumber": {
+          "description": "Pull request number",
+          "type": "number"
+        },
+        "repo": {
+          "description": "Repository name",
+          "type": "string"
+        }
+      },
+      "required": ["owner", "repo", "pullNumber"],
+      "type": "object"
+    }
+  },
+  {
+    "name": "GITHUB__GET_PULL_REQUEST_FILES",
+    "description": "Get the files changed in a specific pull request.",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "get_pull_request_files",
+      "canonical_tool_description_hash": "7fca14a18f5c112fbb651afd437fd8c7454b84a6dee0f00ff246ea04ad25cdcb",
+      "canonical_tool_input_schema_hash": "57202ba6eeffda22434a8e0c3b4a93922b54150bdcffcdc2b24e5668fde5c0e6"
+    },
+    "input_schema": {
+      "properties": {
+        "owner": {
+          "description": "Repository owner",
+          "type": "string"
+        },
+        "page": {
+          "description": "Page number for pagination (min 1)",
+          "minimum": 1,
+          "type": "number"
+        },
+        "perPage": {
+          "description": "Results per page for pagination (min 1, max 100)",
+          "maximum": 100,
+          "minimum": 1,
+          "type": "number"
+        },
+        "pullNumber": {
+          "description": "Pull request number",
+          "type": "number"
+        },
+        "repo": {
+          "description": "Repository name",
+          "type": "string"
+        }
+      },
+      "required": ["owner", "repo", "pullNumber"],
+      "type": "object"
+    }
+  },
+  {
+    "name": "GITHUB__GET_PULL_REQUEST_REVIEW_COMMENTS",
+    "description": "Get pull request review comments. They are comments made on a portion of the unified diff during a pull request review. These are different from commit comments and issue comments in a pull request.",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "get_pull_request_review_comments",
+      "canonical_tool_description_hash": "f921ab9193296f510ea49216d953fb67d57bd91032997b4a028606cdcb70341b",
+      "canonical_tool_input_schema_hash": "281e253e5f52a1ed3e8f3c254d6c8c5e5d99e6804e4fb245b655084fcc272a0f"
+    },
+    "input_schema": {
+      "properties": {
+        "owner": {
+          "description": "Repository owner",
+          "type": "string"
+        },
+        "pullNumber": {
+          "description": "Pull request number",
+          "type": "number"
+        },
+        "repo": {
+          "description": "Repository name",
+          "type": "string"
+        }
+      },
+      "required": ["owner", "repo", "pullNumber"],
+      "type": "object"
+    }
+  },
+  {
+    "name": "GITHUB__GET_PULL_REQUEST_REVIEWS",
+    "description": "Get reviews for a specific pull request.",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "get_pull_request_reviews",
+      "canonical_tool_description_hash": "74ae7c3f657c922579b5a3d15d96ee72acfdb62e914e8fd05a7a971ccd127f99",
+      "canonical_tool_input_schema_hash": "281e253e5f52a1ed3e8f3c254d6c8c5e5d99e6804e4fb245b655084fcc272a0f"
+    },
+    "input_schema": {
+      "properties": {
+        "owner": {
+          "description": "Repository owner",
+          "type": "string"
+        },
+        "pullNumber": {
+          "description": "Pull request number",
+          "type": "number"
+        },
+        "repo": {
+          "description": "Repository name",
+          "type": "string"
+        }
+      },
+      "required": ["owner", "repo", "pullNumber"],
+      "type": "object"
+    }
+  },
+  {
+    "name": "GITHUB__GET_PULL_REQUEST_STATUS",
+    "description": "Get the status of a specific pull request.",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "get_pull_request_status",
+      "canonical_tool_description_hash": "cd13d9abd57c6c3b30c55ce4c08369f3bb89fe9a7518a14e8d85ea1ce55be0ae",
+      "canonical_tool_input_schema_hash": "281e253e5f52a1ed3e8f3c254d6c8c5e5d99e6804e4fb245b655084fcc272a0f"
+    },
+    "input_schema": {
+      "properties": {
+        "owner": {
+          "description": "Repository owner",
+          "type": "string"
+        },
+        "pullNumber": {
+          "description": "Pull request number",
+          "type": "number"
+        },
+        "repo": {
+          "description": "Repository name",
+          "type": "string"
+        }
+      },
+      "required": ["owner", "repo", "pullNumber"],
+      "type": "object"
+    }
+  },
+  {
+    "name": "GITHUB__GET_RELEASE_BY_TAG",
+    "description": "Get a specific release by its tag name in a GitHub repository",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "get_release_by_tag",
+      "canonical_tool_description_hash": "f4474fb4360744744757a6ba3f9c2b69d0e776af2e2ccccf4bb8797ce27ce050",
+      "canonical_tool_input_schema_hash": "4dac4b30e66574819c34ef734fa012851c1176f779ea8c6edd7105bf7fe3128e"
+    },
+    "input_schema": {
+      "properties": {
+        "owner": {
+          "description": "Repository owner",
+          "type": "string"
+        },
+        "repo": {
+          "description": "Repository name",
+          "type": "string"
+        },
+        "tag": {
+          "description": "Tag name (e.g., 'v1.0.0')",
+          "type": "string"
+        }
+      },
+      "required": ["owner", "repo", "tag"],
+      "type": "object"
+    }
+  },
+  {
+    "name": "GITHUB__GET_SECRET_SCANNING_ALERT",
+    "description": "Get details of a specific secret scanning alert in a GitHub repository.",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "get_secret_scanning_alert",
+      "canonical_tool_description_hash": "bc899b8ea1852fffec32b3702742f0987f7fad165f5da4878da63043e87ede18",
+      "canonical_tool_input_schema_hash": "31e89f7a2261faf97fdd72c5e5b06f3caa0bfe1718e1e4697b407303c0c50131"
+    },
+    "input_schema": {
+      "properties": {
+        "alertNumber": {
+          "description": "The number of the alert.",
+          "type": "number"
+        },
+        "owner": {
+          "description": "The owner of the repository.",
+          "type": "string"
+        },
+        "repo": {
+          "description": "The name of the repository.",
+          "type": "string"
+        }
+      },
+      "required": ["owner", "repo", "alertNumber"],
+      "type": "object"
+    }
+  },
+  {
+    "name": "GITHUB__GET_TAG",
+    "description": "Get details about a specific git tag in a GitHub repository",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "get_tag",
+      "canonical_tool_description_hash": "bc4da39b9329c0a0d6090b1b46144386db41044e6688156da0e2c467d07f4a72",
+      "canonical_tool_input_schema_hash": "de2bdebc8f3b32a17aa4324afb288c8d54d7f302861a99435ea1986a2a578ab9"
+    },
+    "input_schema": {
+      "properties": {
+        "owner": {
+          "description": "Repository owner",
+          "type": "string"
+        },
+        "repo": {
+          "description": "Repository name",
+          "type": "string"
+        },
+        "tag": {
+          "description": "Tag name",
+          "type": "string"
+        }
+      },
+      "required": ["owner", "repo", "tag"],
+      "type": "object"
+    }
+  },
+  {
+    "name": "GITHUB__GET_TEAM_MEMBERS",
+    "description": "Get member usernames of a specific team in an organization. Limited to organizations accessible with current credentials",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "get_team_members",
+      "canonical_tool_description_hash": "a1916844df63f6a8fe4500ec2c0c8557319742348e800579a2ddcfded3794444",
+      "canonical_tool_input_schema_hash": "2057617b9f286589ce361113cf8e6cc39b2fbb759362e3812684262fe0bb149e"
+    },
+    "input_schema": {
+      "properties": {
+        "org": {
+          "description": "Organization login (owner) that contains the team.",
+          "type": "string"
+        },
+        "team_slug": {
+          "description": "Team slug",
+          "type": "string"
+        }
+      },
+      "required": ["org", "team_slug"],
+      "type": "object"
+    }
+  },
+  {
+    "name": "GITHUB__GET_TEAMS",
+    "description": "Get details of the teams the user is a member of. Limited to organizations accessible with current credentials",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "get_teams",
+      "canonical_tool_description_hash": "16498c319f7b6adcbdf518f8ba51d4901fdcdae5115344215ffd9feea824aa1d",
+      "canonical_tool_input_schema_hash": "e9b47da278526190aee1429f2c68de4589b0a63265c94a07f7fccae096f29fec"
+    },
+    "input_schema": {
+      "properties": {
+        "user": {
+          "description": "Username to get teams for. If not provided, uses the authenticated user.",
+          "type": "string"
+        }
+      },
+      "type": "object"
+    }
+  },
+  {
+    "name": "GITHUB__GET_WORKFLOW_RUN",
+    "description": "Get details of a specific workflow run",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "get_workflow_run",
+      "canonical_tool_description_hash": "125040add5e54566449f61e05a53b0136a821296c6557b1e1fdf1933fc0521df",
+      "canonical_tool_input_schema_hash": "9caf4e7eedebc1b75d775da229fb47b5c6838fd9dadca6555c1b50e72e96eb47"
+    },
+    "input_schema": {
+      "properties": {
+        "owner": {
+          "description": "Repository owner",
+          "type": "string"
+        },
+        "repo": {
+          "description": "Repository name",
+          "type": "string"
+        },
+        "run_id": {
+          "description": "The unique identifier of the workflow run",
+          "type": "number"
+        }
+      },
+      "required": ["owner", "repo", "run_id"],
+      "type": "object"
+    }
+  },
+  {
+    "name": "GITHUB__GET_WORKFLOW_RUN_LOGS",
+    "description": "Download logs for a specific workflow run (EXPENSIVE: downloads ALL logs as ZIP. Consider using get_job_logs with failed_only=true for debugging failed jobs)",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "get_workflow_run_logs",
+      "canonical_tool_description_hash": "4da0d96851d1d97e0f1a1e6fce4164f60c873f066f42bd381480c148787fb286",
+      "canonical_tool_input_schema_hash": "9caf4e7eedebc1b75d775da229fb47b5c6838fd9dadca6555c1b50e72e96eb47"
+    },
+    "input_schema": {
+      "properties": {
+        "owner": {
+          "description": "Repository owner",
+          "type": "string"
+        },
+        "repo": {
+          "description": "Repository name",
+          "type": "string"
+        },
+        "run_id": {
+          "description": "The unique identifier of the workflow run",
+          "type": "number"
+        }
+      },
+      "required": ["owner", "repo", "run_id"],
+      "type": "object"
+    }
+  },
+  {
+    "name": "GITHUB__GET_WORKFLOW_RUN_USAGE",
+    "description": "Get usage metrics for a workflow run",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "get_workflow_run_usage",
+      "canonical_tool_description_hash": "ec98e2799b2b955156e82401a9c3f3927a5445c0efd95cb140c12682787b6999",
+      "canonical_tool_input_schema_hash": "9caf4e7eedebc1b75d775da229fb47b5c6838fd9dadca6555c1b50e72e96eb47"
+    },
+    "input_schema": {
+      "properties": {
+        "owner": {
+          "description": "Repository owner",
+          "type": "string"
+        },
+        "repo": {
+          "description": "Repository name",
+          "type": "string"
+        },
+        "run_id": {
+          "description": "The unique identifier of the workflow run",
+          "type": "number"
+        }
+      },
+      "required": ["owner", "repo", "run_id"],
+      "type": "object"
+    }
+  },
+  {
+    "name": "GITHUB__LIST_BRANCHES",
+    "description": "List branches in a GitHub repository",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "list_branches",
+      "canonical_tool_description_hash": "692f1be9ed8aec028952d29deb9b01fab01780c6b6630aba7c6dcb1df5f811f7",
+      "canonical_tool_input_schema_hash": "fb189a2423563fc2e7735f5d650c4170ef8ca67cb81dedb4a4e2a3853057b879"
+    },
+    "input_schema": {
+      "properties": {
+        "owner": {
+          "description": "Repository owner",
+          "type": "string"
+        },
+        "page": {
+          "description": "Page number for pagination (min 1)",
+          "minimum": 1,
+          "type": "number"
+        },
+        "perPage": {
+          "description": "Results per page for pagination (min 1, max 100)",
+          "maximum": 100,
+          "minimum": 1,
+          "type": "number"
+        },
+        "repo": {
+          "description": "Repository name",
+          "type": "string"
+        }
+      },
+      "required": ["owner", "repo"],
+      "type": "object"
+    }
+  },
+  {
+    "name": "GITHUB__LIST_CODE_SCANNING_ALERTS",
+    "description": "List code scanning alerts in a GitHub repository.",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "list_code_scanning_alerts",
+      "canonical_tool_description_hash": "112d7b786ea4d6d65924db7d919950649a5d7d05389a2f189554c61ce57e3a2c",
+      "canonical_tool_input_schema_hash": "20f22230294c43806a103b0b36f35ab953240b3edb79c23b4d2789727c5c0903"
+    },
+    "input_schema": {
+      "properties": {
+        "owner": {
+          "description": "The owner of the repository.",
+          "type": "string"
+        },
+        "ref": {
+          "description": "The Git reference for the results you want to list.",
+          "type": "string"
+        },
+        "repo": {
+          "description": "The name of the repository.",
+          "type": "string"
+        },
+        "severity": {
+          "description": "Filter code scanning alerts by severity",
+          "enum": ["critical", "high", "medium", "low", "warning", "note", "error"],
+          "type": "string"
+        },
+        "state": {
+          "default": "open",
+          "description": "Filter code scanning alerts by state. Defaults to open",
+          "enum": ["open", "closed", "dismissed", "fixed"],
+          "type": "string"
+        },
+        "tool_name": {
+          "description": "The name of the tool used for code scanning.",
+          "type": "string"
+        }
+      },
+      "required": ["owner", "repo"],
+      "type": "object"
+    }
+  },
+  {
+    "name": "GITHUB__LIST_COMMITS",
+    "description": "Get list of commits of a branch in a GitHub repository. Returns at least 30 results per page by default, but can return more if specified using the perPage parameter (up to 100).",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "list_commits",
+      "canonical_tool_description_hash": "2cc538336763dc3bb91664a854f26dc061978ff65f59ceccc3e962b998347406",
+      "canonical_tool_input_schema_hash": "7731ae74db0ee7426a1929674dc0207de7509c49f3f562e494fc8e2c38ac3010"
+    },
+    "input_schema": {
+      "properties": {
+        "author": {
+          "description": "Author username or email address to filter commits by",
+          "type": "string"
+        },
+        "owner": {
+          "description": "Repository owner",
+          "type": "string"
+        },
+        "page": {
+          "description": "Page number for pagination (min 1)",
+          "minimum": 1,
+          "type": "number"
+        },
+        "perPage": {
+          "description": "Results per page for pagination (min 1, max 100)",
+          "maximum": 100,
+          "minimum": 1,
+          "type": "number"
+        },
+        "repo": {
+          "description": "Repository name",
+          "type": "string"
+        },
+        "sha": {
+          "description": "Commit SHA, branch or tag name to list commits of. If not provided, uses the default branch of the repository. If a commit SHA is provided, will list commits up to that SHA.",
+          "type": "string"
+        }
+      },
+      "required": ["owner", "repo"],
+      "type": "object"
+    }
+  },
+  {
+    "name": "GITHUB__LIST_COPILOT_SPACES",
+    "description": "Retrieves the list of Copilot Spaces accessible to the user, including their names and owners.",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "list_copilot_spaces",
+      "canonical_tool_description_hash": "99120acdfb7f806b70c183c0aa8346a03762061434067edbad616eb914c424ed",
+      "canonical_tool_input_schema_hash": "efddc7bd8bbcef73a14eb1ace1ffdaec81e518ef1e13c1e9271d0b8acb694a49"
+    },
+    "input_schema": {
+      "properties": {},
+      "type": "object"
+    }
+  },
+  {
+    "name": "GITHUB__LIST_DEPENDABOT_ALERTS",
+    "description": "List dependabot alerts in a GitHub repository.",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "list_dependabot_alerts",
+      "canonical_tool_description_hash": "0921aa0fbcb7fab6858f6c7ae08070caaf8ded8ec3025d7f93f8db55130d4438",
+      "canonical_tool_input_schema_hash": "32cccac21bbba8f330f5e17d05405711a94f0592d297384f1eaed3214b8275bc"
+    },
+    "input_schema": {
+      "properties": {
+        "owner": {
+          "description": "The owner of the repository.",
+          "type": "string"
+        },
+        "repo": {
+          "description": "The name of the repository.",
+          "type": "string"
+        },
+        "severity": {
+          "description": "Filter dependabot alerts by severity",
+          "enum": ["low", "medium", "high", "critical"],
+          "type": "string"
+        },
+        "state": {
+          "default": "open",
+          "description": "Filter dependabot alerts by state. Defaults to open",
+          "enum": ["open", "fixed", "dismissed", "auto_dismissed"],
+          "type": "string"
+        }
+      },
+      "required": ["owner", "repo"],
+      "type": "object"
+    }
+  },
+  {
+    "name": "GITHUB__LIST_DISCUSSION_CATEGORIES",
+    "description": "List discussion categories with their id and name, for a repository or organisation.",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "list_discussion_categories",
+      "canonical_tool_description_hash": "87985d20deca13b2bc8a93864ca06492b209b057c5a0cc222f5c6b564ae2799d",
+      "canonical_tool_input_schema_hash": "0f6de745fabf683dc4c1dd2c42665da0a6fc3b0dfea9ab238d93ced09353d1a1"
+    },
+    "input_schema": {
+      "properties": {
+        "owner": {
+          "description": "Repository owner",
+          "type": "string"
+        },
+        "repo": {
+          "description": "Repository name. If not provided, discussion categories will be queried at the organisation level.",
+          "type": "string"
+        }
+      },
+      "required": ["owner"],
+      "type": "object"
+    }
+  },
+  {
+    "name": "GITHUB__LIST_DISCUSSIONS",
+    "description": "List discussions for a repository or organisation.",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "list_discussions",
+      "canonical_tool_description_hash": "bb7a2859a5b40fb8fca2d2bb6f9b8a4e5de9aad1e03df3810ea08d2303e631c0",
+      "canonical_tool_input_schema_hash": "18e0d350cc3802802b8d3551eb66de17d2a5264cd2ae26eed32676ae6fcf9ce6"
+    },
+    "input_schema": {
+      "properties": {
+        "after": {
+          "description": "Cursor for pagination. Use the endCursor from the previous page's PageInfo for GraphQL APIs.",
+          "type": "string"
+        },
+        "category": {
+          "description": "Optional filter by discussion category ID. If provided, only discussions with this category are listed.",
+          "type": "string"
+        },
+        "direction": {
+          "description": "Order direction.",
+          "enum": ["ASC", "DESC"],
+          "type": "string"
+        },
+        "orderBy": {
+          "description": "Order discussions by field. If provided, the 'direction' also needs to be provided.",
+          "enum": ["CREATED_AT", "UPDATED_AT"],
+          "type": "string"
+        },
+        "owner": {
+          "description": "Repository owner",
+          "type": "string"
+        },
+        "perPage": {
+          "description": "Results per page for pagination (min 1, max 100)",
+          "maximum": 100,
+          "minimum": 1,
+          "type": "number"
+        },
+        "repo": {
+          "description": "Repository name. If not provided, discussions will be queried at the organisation level.",
+          "type": "string"
+        }
+      },
+      "required": ["owner"],
+      "type": "object"
+    }
+  },
+  {
+    "name": "GITHUB__LIST_GISTS",
+    "description": "List gists for a user",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "list_gists",
+      "canonical_tool_description_hash": "bd1cb518eea49cac10f7471d9ef9975fa9acb53012d2508f0ca1a0b24ce151d8",
+      "canonical_tool_input_schema_hash": "f4b2b06cedd17f2970e74e7102c7ecb038eebe5c3c267b39a7cd4a7e6e47e8cc"
+    },
+    "input_schema": {
+      "properties": {
+        "page": {
+          "description": "Page number for pagination (min 1)",
+          "minimum": 1,
+          "type": "number"
+        },
+        "perPage": {
+          "description": "Results per page for pagination (min 1, max 100)",
+          "maximum": 100,
+          "minimum": 1,
+          "type": "number"
+        },
+        "since": {
+          "description": "Only gists updated after this time (ISO 8601 timestamp)",
+          "type": "string"
+        },
+        "username": {
+          "description": "GitHub username (omit for authenticated user's gists)",
+          "type": "string"
+        }
+      },
+      "type": "object"
+    }
+  },
+  {
+    "name": "GITHUB__LIST_GLOBAL_SECURITY_ADVISORIES",
+    "description": "List global security advisories from GitHub.",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "list_global_security_advisories",
+      "canonical_tool_description_hash": "2aa11a10050f7fff73623fd43391eebf2ad57724bf767414234bd9fd689ac2cf",
+      "canonical_tool_input_schema_hash": "8bcbb067c8f59db2419da32028118c416cc6fd8ac05592613df8becfa203f8b8"
+    },
+    "input_schema": {
+      "properties": {
+        "affects": {
+          "description": "Filter advisories by affected package or version (e.g. \"package1,package2@1.0.0\").",
+          "type": "string"
+        },
+        "cveId": {
+          "description": "Filter by CVE ID.",
+          "type": "string"
+        },
+        "cwes": {
+          "description": "Filter by Common Weakness Enumeration IDs (e.g. [\"79\", \"284\", \"22\"]).",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "ecosystem": {
+          "description": "Filter by package ecosystem.",
+          "enum": [
+            "actions",
+            "composer",
+            "erlang",
+            "go",
+            "maven",
+            "npm",
+            "nuget",
+            "other",
+            "pip",
+            "pub",
+            "rubygems",
+            "rust"
+          ],
+          "type": "string"
+        },
+        "ghsaId": {
+          "description": "Filter by GitHub Security Advisory ID (format: GHSA-xxxx-xxxx-xxxx).",
+          "type": "string"
+        },
+        "isWithdrawn": {
+          "description": "Whether to only return withdrawn advisories.",
+          "type": "boolean"
+        },
+        "modified": {
+          "description": "Filter by publish or update date or date range (ISO 8601 date or range).",
+          "type": "string"
+        },
+        "published": {
+          "description": "Filter by publish date or date range (ISO 8601 date or range).",
+          "type": "string"
+        },
+        "severity": {
+          "description": "Filter by severity.",
+          "enum": ["unknown", "low", "medium", "high", "critical"],
+          "type": "string"
+        },
+        "type": {
+          "default": "reviewed",
+          "description": "Advisory type.",
+          "enum": ["reviewed", "malware", "unreviewed"],
+          "type": "string"
+        },
+        "updated": {
+          "description": "Filter by update date or date range (ISO 8601 date or range).",
+          "type": "string"
+        }
+      },
+      "type": "object"
+    }
+  },
+  {
+    "name": "GITHUB__LIST_ISSUE_TYPES",
+    "description": "List supported issue types for repository owner (organization).",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "list_issue_types",
+      "canonical_tool_description_hash": "18634dabe926f14e35067bd05c6d91b3d93ad811308e065f77e771b13c9b5434",
+      "canonical_tool_input_schema_hash": "858a82d087992927e84d2c293f04b4bf86dd8e7818419d83646e43e72b39e33e"
+    },
+    "input_schema": {
+      "properties": {
+        "owner": {
+          "description": "The organization owner of the repository",
+          "type": "string"
+        }
+      },
+      "required": ["owner"],
+      "type": "object"
+    }
+  },
+  {
+    "name": "GITHUB__LIST_ISSUES",
+    "description": "List issues in a GitHub repository. For pagination, use the 'endCursor' from the previous response's 'pageInfo' in the 'after' parameter.",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "list_issues",
+      "canonical_tool_description_hash": "e2d7f7870382919fd51280de2902ff7b4552ed182f784e0ea2cd0cc8d26a3833",
+      "canonical_tool_input_schema_hash": "055225f06299de63a610ed95e25006bbf1c82d334764c4505a6ab8a12ace0ebf"
+    },
+    "input_schema": {
+      "properties": {
+        "after": {
+          "description": "Cursor for pagination. Use the endCursor from the previous page's PageInfo for GraphQL APIs.",
+          "type": "string"
+        },
+        "direction": {
+          "description": "Order direction. If provided, the 'orderBy' also needs to be provided.",
+          "enum": ["ASC", "DESC"],
+          "type": "string"
+        },
+        "labels": {
+          "description": "Filter by labels",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "orderBy": {
+          "description": "Order issues by field. If provided, the 'direction' also needs to be provided.",
+          "enum": ["CREATED_AT", "UPDATED_AT", "COMMENTS"],
+          "type": "string"
+        },
+        "owner": {
+          "description": "Repository owner",
+          "type": "string"
+        },
+        "perPage": {
+          "description": "Results per page for pagination (min 1, max 100)",
+          "maximum": 100,
+          "minimum": 1,
+          "type": "number"
+        },
+        "repo": {
+          "description": "Repository name",
+          "type": "string"
+        },
+        "since": {
+          "description": "Filter by date (ISO 8601 timestamp)",
+          "type": "string"
+        },
+        "state": {
+          "description": "Filter by state, by default both open and closed issues are returned when not provided",
+          "enum": ["OPEN", "CLOSED"],
+          "type": "string"
+        }
+      },
+      "required": ["owner", "repo"],
+      "type": "object"
+    }
+  },
+  {
+    "name": "GITHUB__LIST_NOTIFICATIONS",
+    "description": "Lists all GitHub notifications for the authenticated user, including unread notifications, mentions, review requests, assignments, and updates on issues or pull requests. Use this tool whenever the user asks what to work on next, requests a summary of their GitHub activity, wants to see pending reviews, or needs to check for new updates or tasks. This tool is the primary way to discover actionable items, reminders, and outstanding work on GitHub. Always call this tool when asked what to work on next, what is pending, or what needs attention in GitHub.",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "list_notifications",
+      "canonical_tool_description_hash": "3ccc2ea1a1bee3a3edcfeb89dc81669f3b8b84e873c40e94a22e18bb398c1211",
+      "canonical_tool_input_schema_hash": "adaac24304eb85b01a0523f5a13b56643ab8e891bcebd2efe29766e462d2bad7"
+    },
+    "input_schema": {
+      "properties": {
+        "before": {
+          "description": "Only show notifications updated before the given time (ISO 8601 format)",
+          "type": "string"
+        },
+        "filter": {
+          "description": "Filter notifications to, use default unless specified. Read notifications are ones that have already been acknowledged by the user. Participating notifications are those that the user is directly involved in, such as issues or pull requests they have commented on or created.",
+          "enum": ["default", "include_read_notifications", "only_participating"],
+          "type": "string"
+        },
+        "owner": {
+          "description": "Optional repository owner. If provided with repo, only notifications for this repository are listed.",
+          "type": "string"
+        },
+        "page": {
+          "description": "Page number for pagination (min 1)",
+          "minimum": 1,
+          "type": "number"
+        },
+        "perPage": {
+          "description": "Results per page for pagination (min 1, max 100)",
+          "maximum": 100,
+          "minimum": 1,
+          "type": "number"
+        },
+        "repo": {
+          "description": "Optional repository name. If provided with owner, only notifications for this repository are listed.",
+          "type": "string"
+        },
+        "since": {
+          "description": "Only show notifications updated after the given time (ISO 8601 format)",
+          "type": "string"
+        }
+      },
+      "type": "object"
+    }
+  },
+  {
+    "name": "GITHUB__LIST_ORG_REPOSITORY_SECURITY_ADVISORIES",
+    "description": "List repository security advisories for a GitHub organization.",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "list_org_repository_security_advisories",
+      "canonical_tool_description_hash": "a80546b07d985f37c1e568f032be3ad063dde736e991cdac2b2b06206b22aae9",
+      "canonical_tool_input_schema_hash": "63e24e622092cbafb4d9fbfb251e4345bbb1c628f7d4af72f220f0fadf29d8de"
+    },
+    "input_schema": {
+      "properties": {
+        "direction": {
+          "description": "Sort direction.",
+          "enum": ["asc", "desc"],
+          "type": "string"
+        },
+        "org": {
+          "description": "The organization login.",
+          "type": "string"
+        },
+        "sort": {
+          "description": "Sort field.",
+          "enum": ["created", "updated", "published"],
+          "type": "string"
+        },
+        "state": {
+          "description": "Filter by advisory state.",
+          "enum": ["triage", "draft", "published", "closed"],
+          "type": "string"
+        }
+      },
+      "required": ["org"],
+      "type": "object"
+    }
+  },
+  {
+    "name": "GITHUB__LIST_PULL_REQUESTS",
+    "description": "List pull requests in a GitHub repository. If the user specifies an author, then DO NOT use this tool and use the search_pull_requests tool instead.",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "list_pull_requests",
+      "canonical_tool_description_hash": "3ebdc540f5a2ac9b69c92ce4d7204e79588a31ae81453433d693928b6edb83c2",
+      "canonical_tool_input_schema_hash": "89230186cfc3af235ef92e58d603b3f7105743e83a2d47f11e52c854b7c4f608"
+    },
+    "input_schema": {
+      "properties": {
+        "base": {
+          "description": "Filter by base branch",
+          "type": "string"
+        },
+        "direction": {
+          "description": "Sort direction",
+          "enum": ["asc", "desc"],
+          "type": "string"
+        },
+        "head": {
+          "description": "Filter by head user/org and branch",
+          "type": "string"
+        },
+        "owner": {
+          "description": "Repository owner",
+          "type": "string"
+        },
+        "page": {
+          "description": "Page number for pagination (min 1)",
+          "minimum": 1,
+          "type": "number"
+        },
+        "perPage": {
+          "description": "Results per page for pagination (min 1, max 100)",
+          "maximum": 100,
+          "minimum": 1,
+          "type": "number"
+        },
+        "repo": {
+          "description": "Repository name",
+          "type": "string"
+        },
+        "sort": {
+          "description": "Sort by",
+          "enum": ["created", "updated", "popularity", "long-running"],
+          "type": "string"
+        },
+        "state": {
+          "description": "Filter by state",
+          "enum": ["open", "closed", "all"],
+          "type": "string"
+        }
+      },
+      "required": ["owner", "repo"],
+      "type": "object"
+    }
+  },
+  {
+    "name": "GITHUB__LIST_RELEASES",
+    "description": "List releases in a GitHub repository",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "list_releases",
+      "canonical_tool_description_hash": "fa5a694eea3a77fcbacc8b524829114ab3e1fe0611cefbc960cddb08f15d6be9",
+      "canonical_tool_input_schema_hash": "fb189a2423563fc2e7735f5d650c4170ef8ca67cb81dedb4a4e2a3853057b879"
+    },
+    "input_schema": {
+      "properties": {
+        "owner": {
+          "description": "Repository owner",
+          "type": "string"
+        },
+        "page": {
+          "description": "Page number for pagination (min 1)",
+          "minimum": 1,
+          "type": "number"
+        },
+        "perPage": {
+          "description": "Results per page for pagination (min 1, max 100)",
+          "maximum": 100,
+          "minimum": 1,
+          "type": "number"
+        },
+        "repo": {
+          "description": "Repository name",
+          "type": "string"
+        }
+      },
+      "required": ["owner", "repo"],
+      "type": "object"
+    }
+  },
+  {
+    "name": "GITHUB__LIST_REPOSITORY_SECURITY_ADVISORIES",
+    "description": "List repository security advisories for a GitHub repository.",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "list_repository_security_advisories",
+      "canonical_tool_description_hash": "797f70e09158a7cbd8ac618ff3bcc16f19027a368e13106f1cecffde32fecfb1",
+      "canonical_tool_input_schema_hash": "8e468ec67b0c0bf641996e20156d9b5b7f2abfd3e467af92ca12856bef54d961"
+    },
+    "input_schema": {
+      "properties": {
+        "direction": {
+          "description": "Sort direction.",
+          "enum": ["asc", "desc"],
+          "type": "string"
+        },
+        "owner": {
+          "description": "The owner of the repository.",
+          "type": "string"
+        },
+        "repo": {
+          "description": "The name of the repository.",
+          "type": "string"
+        },
+        "sort": {
+          "description": "Sort field.",
+          "enum": ["created", "updated", "published"],
+          "type": "string"
+        },
+        "state": {
+          "description": "Filter by advisory state.",
+          "enum": ["triage", "draft", "published", "closed"],
+          "type": "string"
+        }
+      },
+      "required": ["owner", "repo"],
+      "type": "object"
+    }
+  },
+  {
+    "name": "GITHUB__LIST_SECRET_SCANNING_ALERTS",
+    "description": "List secret scanning alerts in a GitHub repository.",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "list_secret_scanning_alerts",
+      "canonical_tool_description_hash": "2ff37b696dccfc0ff621029cfab31b6af126ab1e52fe07aaef32eac12ad7f11a",
+      "canonical_tool_input_schema_hash": "74b2e2a1a65450ab52402f63ad32aa7363c69c0dd4efa4898e74a15f522df106"
+    },
+    "input_schema": {
+      "properties": {
+        "owner": {
+          "description": "The owner of the repository.",
+          "type": "string"
+        },
+        "repo": {
+          "description": "The name of the repository.",
+          "type": "string"
+        },
+        "resolution": {
+          "description": "Filter by resolution",
+          "enum": [
+            "false_positive",
+            "wont_fix",
+            "revoked",
+            "pattern_edited",
+            "pattern_deleted",
+            "used_in_tests"
+          ],
+          "type": "string"
+        },
+        "secret_type": {
+          "description": "A comma-separated list of secret types to return. All default secret patterns are returned. To return generic patterns, pass the token name(s) in the parameter.",
+          "type": "string"
+        },
+        "state": {
+          "description": "Filter by state",
+          "enum": ["open", "resolved"],
+          "type": "string"
+        }
+      },
+      "required": ["owner", "repo"],
+      "type": "object"
+    }
+  },
+  {
+    "name": "GITHUB__LIST_STARRED_REPOSITORIES",
+    "description": "List starred repositories",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "list_starred_repositories",
+      "canonical_tool_description_hash": "6944318960da5b6eb706c11df87f521676770e96b5c2295ad61d3a9e7a1b3f59",
+      "canonical_tool_input_schema_hash": "bab54c9c9dddb8262447a28142e83fb4830fc4d0acb3cda3199affd853f6f48a"
+    },
+    "input_schema": {
+      "properties": {
+        "direction": {
+          "description": "The direction to sort the results by.",
+          "enum": ["asc", "desc"],
+          "type": "string"
+        },
+        "page": {
+          "description": "Page number for pagination (min 1)",
+          "minimum": 1,
+          "type": "number"
+        },
+        "perPage": {
+          "description": "Results per page for pagination (min 1, max 100)",
+          "maximum": 100,
+          "minimum": 1,
+          "type": "number"
+        },
+        "sort": {
+          "description": "How to sort the results. Can be either 'created' (when the repository was starred) or 'updated' (when the repository was last pushed to).",
+          "enum": ["created", "updated"],
+          "type": "string"
+        },
+        "username": {
+          "description": "Username to list starred repositories for. Defaults to the authenticated user.",
+          "type": "string"
+        }
+      },
+      "type": "object"
+    }
+  },
+  {
+    "name": "GITHUB__LIST_SUB_ISSUES",
+    "description": "List sub-issues for a specific issue in a GitHub repository.",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "list_sub_issues",
+      "canonical_tool_description_hash": "961b844c69ce4fca1bb558914be4bcb155318571d7acbc9b4b6ec3b681326999",
+      "canonical_tool_input_schema_hash": "1789d92878d57e623569a33afa8f3a56f690480d416eff292ac2eec922295201"
+    },
+    "input_schema": {
+      "properties": {
+        "issue_number": {
+          "description": "Issue number",
+          "type": "number"
+        },
+        "owner": {
+          "description": "Repository owner",
+          "type": "string"
+        },
+        "page": {
+          "description": "Page number for pagination (default: 1)",
+          "type": "number"
+        },
+        "per_page": {
+          "description": "Number of results per page (max 100, default: 30)",
+          "type": "number"
+        },
+        "repo": {
+          "description": "Repository name",
+          "type": "string"
+        }
+      },
+      "required": ["owner", "repo", "issue_number"],
+      "type": "object"
+    }
+  },
+  {
+    "name": "GITHUB__LIST_TAGS",
+    "description": "List git tags in a GitHub repository",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "list_tags",
+      "canonical_tool_description_hash": "f663c65ba860b616a07b142d16e088328febead535f0c2e87692a75d3c050b6c",
+      "canonical_tool_input_schema_hash": "fb189a2423563fc2e7735f5d650c4170ef8ca67cb81dedb4a4e2a3853057b879"
+    },
+    "input_schema": {
+      "properties": {
+        "owner": {
+          "description": "Repository owner",
+          "type": "string"
+        },
+        "page": {
+          "description": "Page number for pagination (min 1)",
+          "minimum": 1,
+          "type": "number"
+        },
+        "perPage": {
+          "description": "Results per page for pagination (min 1, max 100)",
+          "maximum": 100,
+          "minimum": 1,
+          "type": "number"
+        },
+        "repo": {
+          "description": "Repository name",
+          "type": "string"
+        }
+      },
+      "required": ["owner", "repo"],
+      "type": "object"
+    }
+  },
+  {
+    "name": "GITHUB__LIST_WORKFLOW_JOBS",
+    "description": "List jobs for a specific workflow run",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "list_workflow_jobs",
+      "canonical_tool_description_hash": "5b88a4f9640db3793acd814f909946ec49ecfdab0f23f145c23cfd43a5ed7a13",
+      "canonical_tool_input_schema_hash": "fd4eb48837bf13d7cc165868775beb41c7c596f641f20e1173d405c900a94021"
+    },
+    "input_schema": {
+      "properties": {
+        "filter": {
+          "description": "Filters jobs by their completed_at timestamp",
+          "enum": ["latest", "all"],
+          "type": "string"
+        },
+        "owner": {
+          "description": "Repository owner",
+          "type": "string"
+        },
+        "page": {
+          "description": "Page number for pagination (min 1)",
+          "minimum": 1,
+          "type": "number"
+        },
+        "perPage": {
+          "description": "Results per page for pagination (min 1, max 100)",
+          "maximum": 100,
+          "minimum": 1,
+          "type": "number"
+        },
+        "repo": {
+          "description": "Repository name",
+          "type": "string"
+        },
+        "run_id": {
+          "description": "The unique identifier of the workflow run",
+          "type": "number"
+        }
+      },
+      "required": ["owner", "repo", "run_id"],
+      "type": "object"
+    }
+  },
+  {
+    "name": "GITHUB__LIST_WORKFLOW_RUN_ARTIFACTS",
+    "description": "List artifacts for a workflow run",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "list_workflow_run_artifacts",
+      "canonical_tool_description_hash": "69d404d1f22d32f0f5e548068aed8993cc4aa9dc6dd247c1b67d9d0b9b5efa74",
+      "canonical_tool_input_schema_hash": "e438b55a39953dc381ade5aac10e0c7c80feede0af2c09590c5189efa84e5e81"
+    },
+    "input_schema": {
+      "properties": {
+        "owner": {
+          "description": "Repository owner",
+          "type": "string"
+        },
+        "page": {
+          "description": "Page number for pagination (min 1)",
+          "minimum": 1,
+          "type": "number"
+        },
+        "perPage": {
+          "description": "Results per page for pagination (min 1, max 100)",
+          "maximum": 100,
+          "minimum": 1,
+          "type": "number"
+        },
+        "repo": {
+          "description": "Repository name",
+          "type": "string"
+        },
+        "run_id": {
+          "description": "The unique identifier of the workflow run",
+          "type": "number"
+        }
+      },
+      "required": ["owner", "repo", "run_id"],
+      "type": "object"
+    }
+  },
+  {
+    "name": "GITHUB__LIST_WORKFLOW_RUNS",
+    "description": "List workflow runs for a specific workflow",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "list_workflow_runs",
+      "canonical_tool_description_hash": "fb2c1849a19c505d46d062183f5d126fa44f704a917fd8ae13b3e7eba03708cb",
+      "canonical_tool_input_schema_hash": "4a02f9b218a92fed87e138a2655e6d9d4932ec53941ee1f0c0ab5d13373e1e20"
+    },
+    "input_schema": {
+      "properties": {
+        "actor": {
+          "description": "Returns someone's workflow runs. Use the login for the user who created the workflow run.",
+          "type": "string"
+        },
+        "branch": {
+          "description": "Returns workflow runs associated with a branch. Use the name of the branch.",
+          "type": "string"
+        },
+        "event": {
+          "description": "Returns workflow runs for a specific event type",
+          "enum": [
+            "branch_protection_rule",
+            "check_run",
+            "check_suite",
+            "create",
+            "delete",
+            "deployment",
+            "deployment_status",
+            "discussion",
+            "discussion_comment",
+            "fork",
+            "gollum",
+            "issue_comment",
+            "issues",
+            "label",
+            "merge_group",
+            "milestone",
+            "page_build",
+            "public",
+            "pull_request",
+            "pull_request_review",
+            "pull_request_review_comment",
+            "pull_request_target",
+            "push",
+            "registry_package",
+            "release",
+            "repository_dispatch",
+            "schedule",
+            "status",
+            "watch",
+            "workflow_call",
+            "workflow_dispatch",
+            "workflow_run"
+          ],
+          "type": "string"
+        },
+        "owner": {
+          "description": "Repository owner",
+          "type": "string"
+        },
+        "page": {
+          "description": "Page number for pagination (min 1)",
+          "minimum": 1,
+          "type": "number"
+        },
+        "perPage": {
+          "description": "Results per page for pagination (min 1, max 100)",
+          "maximum": 100,
+          "minimum": 1,
+          "type": "number"
+        },
+        "repo": {
+          "description": "Repository name",
+          "type": "string"
+        },
+        "status": {
+          "description": "Returns workflow runs with the check run status",
+          "enum": ["queued", "in_progress", "completed", "requested", "waiting"],
+          "type": "string"
+        },
+        "workflow_id": {
+          "description": "The workflow ID or workflow file name",
+          "type": "string"
+        }
+      },
+      "required": ["owner", "repo", "workflow_id"],
+      "type": "object"
+    }
+  },
+  {
+    "name": "GITHUB__LIST_WORKFLOWS",
+    "description": "List workflows in a repository",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "list_workflows",
+      "canonical_tool_description_hash": "d136d63463970a40775ff1d7a5e5ca7089c188b0623cc0d0a0eb65296d6e8d3d",
+      "canonical_tool_input_schema_hash": "fb189a2423563fc2e7735f5d650c4170ef8ca67cb81dedb4a4e2a3853057b879"
+    },
+    "input_schema": {
+      "properties": {
+        "owner": {
+          "description": "Repository owner",
+          "type": "string"
+        },
+        "page": {
+          "description": "Page number for pagination (min 1)",
+          "minimum": 1,
+          "type": "number"
+        },
+        "perPage": {
+          "description": "Results per page for pagination (min 1, max 100)",
+          "maximum": 100,
+          "minimum": 1,
+          "type": "number"
+        },
+        "repo": {
+          "description": "Repository name",
+          "type": "string"
+        }
+      },
+      "required": ["owner", "repo"],
+      "type": "object"
+    }
+  },
+  {
+    "name": "GITHUB__MANAGE_NOTIFICATION_SUBSCRIPTION",
+    "description": "Manage a notification subscription: ignore, watch, or delete a notification thread subscription.",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "manage_notification_subscription",
+      "canonical_tool_description_hash": "7738cc3dd05735a793e63f8f39a0c689edc098158d39feb1905cff59240bb186",
+      "canonical_tool_input_schema_hash": "fdf8dc52d483d9e01b0f10cca5a20f3328fcd8fce74c634e4c68ec47f447c365"
+    },
+    "input_schema": {
+      "properties": {
+        "action": {
+          "description": "Action to perform: ignore, watch, or delete the notification subscription.",
+          "enum": ["ignore", "watch", "delete"],
+          "type": "string"
+        },
+        "notificationID": {
+          "description": "The ID of the notification thread.",
+          "type": "string"
+        }
+      },
+      "required": ["notificationID", "action"],
+      "type": "object"
+    }
+  },
+  {
+    "name": "GITHUB__MANAGE_REPOSITORY_NOTIFICATION_SUBSCRIPTION",
+    "description": "Manage a repository notification subscription: ignore, watch, or delete repository notifications subscription for the provided repository.",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "manage_repository_notification_subscription",
+      "canonical_tool_description_hash": "df212a8b36d3e3e076cf89dae5c45f428d98439cc9c586d5fbf58c5a484450e4",
+      "canonical_tool_input_schema_hash": "fbbe0d2f46f63d903778595f858225c020196c4854f306bb2eae49cb610d875b"
+    },
+    "input_schema": {
+      "properties": {
+        "action": {
+          "description": "Action to perform: ignore, watch, or delete the repository notification subscription.",
+          "enum": ["ignore", "watch", "delete"],
+          "type": "string"
+        },
+        "owner": {
+          "description": "The account owner of the repository.",
+          "type": "string"
+        },
+        "repo": {
+          "description": "The name of the repository.",
+          "type": "string"
+        }
+      },
+      "required": ["owner", "repo", "action"],
+      "type": "object"
+    }
+  },
+  {
+    "name": "GITHUB__MARK_ALL_NOTIFICATIONS_READ",
+    "description": "Mark all notifications as read",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "mark_all_notifications_read",
+      "canonical_tool_description_hash": "6d82efd5f9d1ca3a690b7839f156d0abf6ceb81dac377f5cc632a099c59f9bab",
+      "canonical_tool_input_schema_hash": "8bb7e9f2af2ec57f2ac088fed1bbd1dc29a1516b38278e2597934c59a2416171"
+    },
+    "input_schema": {
+      "properties": {
+        "lastReadAt": {
+          "description": "Describes the last point that notifications were checked (optional). Default: Now",
+          "type": "string"
+        },
+        "owner": {
+          "description": "Optional repository owner. If provided with repo, only notifications for this repository are marked as read.",
+          "type": "string"
+        },
+        "repo": {
+          "description": "Optional repository name. If provided with owner, only notifications for this repository are marked as read.",
+          "type": "string"
+        }
+      },
+      "type": "object"
+    }
+  },
+  {
+    "name": "GITHUB__MERGE_PULL_REQUEST",
+    "description": "Merge a pull request in a GitHub repository.",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "merge_pull_request",
+      "canonical_tool_description_hash": "8e74c739b209b080601f9057d1df049396167a46f14eb40e4edea063b5d58a61",
+      "canonical_tool_input_schema_hash": "2f2939309d2bb0bc4641b6f497692812c1f8ed9420abdf123d28999d0523f2aa"
+    },
+    "input_schema": {
+      "properties": {
+        "commit_message": {
+          "description": "Extra detail for merge commit",
+          "type": "string"
+        },
+        "commit_title": {
+          "description": "Title for merge commit",
+          "type": "string"
+        },
+        "merge_method": {
+          "description": "Merge method",
+          "enum": ["merge", "squash", "rebase"],
+          "type": "string"
+        },
+        "owner": {
+          "description": "Repository owner",
+          "type": "string"
+        },
+        "pullNumber": {
+          "description": "Pull request number",
+          "type": "number"
+        },
+        "repo": {
+          "description": "Repository name",
+          "type": "string"
+        }
+      },
+      "required": ["owner", "repo", "pullNumber"],
+      "type": "object"
+    }
+  },
+  {
+    "name": "GITHUB__PUSH_FILES",
+    "description": "Push multiple files to a GitHub repository in a single commit",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "push_files",
+      "canonical_tool_description_hash": "8ed19629a39d61053144aabc37b75ae51cf447d767acc67abe3727d2924f5bc0",
+      "canonical_tool_input_schema_hash": "8cef47011bea6de8f28af4f135fc3361fb7b5afe1d1470d198e457a62e63b287"
+    },
+    "input_schema": {
+      "properties": {
+        "branch": {
+          "description": "Branch to push to",
+          "type": "string"
+        },
+        "files": {
+          "description": "Array of file objects to push, each object with path (string) and content (string)",
+          "items": {
+            "additionalProperties": false,
+            "properties": {
+              "content": {
+                "description": "file content",
+                "type": "string"
+              },
+              "path": {
+                "description": "path to the file",
+                "type": "string"
+              }
+            },
+            "required": ["path", "content"],
+            "type": "object"
+          },
+          "type": "array"
+        },
+        "message": {
+          "description": "Commit message",
+          "type": "string"
+        },
+        "owner": {
+          "description": "Repository owner",
+          "type": "string"
+        },
+        "repo": {
+          "description": "Repository name",
+          "type": "string"
+        }
+      },
+      "required": ["owner", "repo", "branch", "files", "message"],
+      "type": "object"
+    }
+  },
+  {
+    "name": "GITHUB__REMOVE_SUB_ISSUE",
+    "description": "Remove a sub-issue from a parent issue in a GitHub repository.",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "remove_sub_issue",
+      "canonical_tool_description_hash": "6702ce3f4a58d1940e0cda2707763fe730ab88d64c245612e9cf41fae5216328",
+      "canonical_tool_input_schema_hash": "704af25b28902d8e3e4b62e9ca4dcd3befde3c47efd2b430758837ff012aa828"
+    },
+    "input_schema": {
+      "properties": {
+        "issue_number": {
+          "description": "The number of the parent issue",
+          "type": "number"
+        },
+        "owner": {
+          "description": "Repository owner",
+          "type": "string"
+        },
+        "repo": {
+          "description": "Repository name",
+          "type": "string"
+        },
+        "sub_issue_id": {
+          "description": "The ID of the sub-issue to remove. ID is not the same as issue number",
+          "type": "number"
+        }
+      },
+      "required": ["owner", "repo", "issue_number", "sub_issue_id"],
+      "type": "object"
+    }
+  },
+  {
+    "name": "GITHUB__REPRIORITIZE_SUB_ISSUE",
+    "description": "Reprioritize a sub-issue to a different position in the parent issue's sub-issue list.",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "reprioritize_sub_issue",
+      "canonical_tool_description_hash": "49978bf420cd57fa3f510250ac504cdda6126b45848bec814cf19e0acab7ebd7",
+      "canonical_tool_input_schema_hash": "17fac7ad480e5c083159427156660f8c6ab1662802eaf7c19fadadb2e48a0b1f"
+    },
+    "input_schema": {
+      "properties": {
+        "after_id": {
+          "description": "The ID of the sub-issue to be prioritized after (either after_id OR before_id should be specified)",
+          "type": "number"
+        },
+        "before_id": {
+          "description": "The ID of the sub-issue to be prioritized before (either after_id OR before_id should be specified)",
+          "type": "number"
+        },
+        "issue_number": {
+          "description": "The number of the parent issue",
+          "type": "number"
+        },
+        "owner": {
+          "description": "Repository owner",
+          "type": "string"
+        },
+        "repo": {
+          "description": "Repository name",
+          "type": "string"
+        },
+        "sub_issue_id": {
+          "description": "The ID of the sub-issue to reprioritize. ID is not the same as issue number",
+          "type": "number"
+        }
+      },
+      "required": ["owner", "repo", "issue_number", "sub_issue_id"],
+      "type": "object"
+    }
+  },
+  {
+    "name": "GITHUB__REQUEST_COPILOT_REVIEW",
+    "description": "Request a GitHub Copilot code review for a pull request. Use this for automated feedback on pull requests, usually before requesting a human reviewer.",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "request_copilot_review",
+      "canonical_tool_description_hash": "eba0ebda27f1de035f9987d3afaccb3c91b798886f087767eb010bea6dbedb0e",
+      "canonical_tool_input_schema_hash": "281e253e5f52a1ed3e8f3c254d6c8c5e5d99e6804e4fb245b655084fcc272a0f"
+    },
+    "input_schema": {
+      "properties": {
+        "owner": {
+          "description": "Repository owner",
+          "type": "string"
+        },
+        "pullNumber": {
+          "description": "Pull request number",
+          "type": "number"
+        },
+        "repo": {
+          "description": "Repository name",
+          "type": "string"
+        }
+      },
+      "required": ["owner", "repo", "pullNumber"],
+      "type": "object"
+    }
+  },
+  {
+    "name": "GITHUB__RERUN_FAILED_JOBS",
+    "description": "Re-run only the failed jobs in a workflow run",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "rerun_failed_jobs",
+      "canonical_tool_description_hash": "24662a57fa7fac19ead4d644cc31a237d313aa3e3efe61d28c074907dd89eb6f",
+      "canonical_tool_input_schema_hash": "9caf4e7eedebc1b75d775da229fb47b5c6838fd9dadca6555c1b50e72e96eb47"
+    },
+    "input_schema": {
+      "properties": {
+        "owner": {
+          "description": "Repository owner",
+          "type": "string"
+        },
+        "repo": {
+          "description": "Repository name",
+          "type": "string"
+        },
+        "run_id": {
+          "description": "The unique identifier of the workflow run",
+          "type": "number"
+        }
+      },
+      "required": ["owner", "repo", "run_id"],
+      "type": "object"
+    }
+  },
+  {
+    "name": "GITHUB__RERUN_WORKFLOW_RUN",
+    "description": "Re-run an entire workflow run",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "rerun_workflow_run",
+      "canonical_tool_description_hash": "408422433901e73f824a61d68cd89dfefe7aa6906a542751536e1e62fb07cbf7",
+      "canonical_tool_input_schema_hash": "9caf4e7eedebc1b75d775da229fb47b5c6838fd9dadca6555c1b50e72e96eb47"
+    },
+    "input_schema": {
+      "properties": {
+        "owner": {
+          "description": "Repository owner",
+          "type": "string"
+        },
+        "repo": {
+          "description": "Repository name",
+          "type": "string"
+        },
+        "run_id": {
+          "description": "The unique identifier of the workflow run",
+          "type": "number"
+        }
+      },
+      "required": ["owner", "repo", "run_id"],
+      "type": "object"
+    }
+  },
+  {
+    "name": "GITHUB__RUN_WORKFLOW",
+    "description": "Run an Actions workflow by workflow ID or filename",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "run_workflow",
+      "canonical_tool_description_hash": "4d0a39e5ee1aa777dd17be54a97c51f84b99fd206a2611dab3f1490b897efeb8",
+      "canonical_tool_input_schema_hash": "38e7d7ac20913a4947956665acd8180d0d77286964fffc3cc916848ebb678e64"
+    },
+    "input_schema": {
+      "properties": {
+        "inputs": {
+          "description": "Inputs the workflow accepts",
+          "properties": {},
+          "type": "object"
+        },
+        "owner": {
+          "description": "Repository owner",
+          "type": "string"
+        },
+        "ref": {
+          "description": "The git reference for the workflow. The reference can be a branch or tag name.",
+          "type": "string"
+        },
+        "repo": {
+          "description": "Repository name",
+          "type": "string"
+        },
+        "workflow_id": {
+          "description": "The workflow ID (numeric) or workflow file name (e.g., main.yml, ci.yaml)",
+          "type": "string"
+        }
+      },
+      "required": ["owner", "repo", "workflow_id", "ref"],
+      "type": "object"
+    }
+  },
+  {
+    "name": "GITHUB__SEARCH_CODE",
+    "description": "Fast and precise code search across ALL GitHub repositories using GitHub's native search engine. Best for finding exact symbols, functions, classes, or specific code patterns.",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "search_code",
+      "canonical_tool_description_hash": "89f53951241b3676cbcb3b55c9ab123f5180406203f9ad5ffbd5643b638944e2",
+      "canonical_tool_input_schema_hash": "047f34a0c6d2c6e9b5d6808b48db0c9769b1d6aac7fa9109f35edd409e198358"
+    },
+    "input_schema": {
+      "properties": {
+        "order": {
+          "description": "Sort order for results",
+          "enum": ["asc", "desc"],
+          "type": "string"
+        },
+        "page": {
+          "description": "Page number for pagination (min 1)",
+          "minimum": 1,
+          "type": "number"
+        },
+        "perPage": {
+          "description": "Results per page for pagination (min 1, max 100)",
+          "maximum": 100,
+          "minimum": 1,
+          "type": "number"
+        },
+        "query": {
+          "description": "Search query using GitHub's powerful code search syntax. Examples: 'content:Skill language:Java org:github', 'NOT is:archived language:Python OR language:go', 'repo:github/github-mcp-server'. Supports exact matching, language filters, path filters, and more.",
+          "type": "string"
+        },
+        "sort": {
+          "description": "Sort field ('indexed' only)",
+          "type": "string"
+        }
+      },
+      "required": ["query"],
+      "type": "object"
+    }
+  },
+  {
+    "name": "GITHUB__SEARCH_ISSUES",
+    "description": "Search for issues in GitHub repositories using issues search syntax already scoped to is:issue",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "search_issues",
+      "canonical_tool_description_hash": "0c6a38913bf830f4f000b669a1ec5e3c815d4572e9f12ac11f51f1bd7966ab5e",
+      "canonical_tool_input_schema_hash": "88ad4ad005939481e6d96a744e963971e1e76ec2b2fe995460b73154c02c1d09"
+    },
+    "input_schema": {
+      "properties": {
+        "order": {
+          "description": "Sort order",
+          "enum": ["asc", "desc"],
+          "type": "string"
+        },
+        "owner": {
+          "description": "Optional repository owner. If provided with repo, only issues for this repository are listed.",
+          "type": "string"
+        },
+        "page": {
+          "description": "Page number for pagination (min 1)",
+          "minimum": 1,
+          "type": "number"
+        },
+        "perPage": {
+          "description": "Results per page for pagination (min 1, max 100)",
+          "maximum": 100,
+          "minimum": 1,
+          "type": "number"
+        },
+        "query": {
+          "description": "Search query using GitHub issues search syntax",
+          "type": "string"
+        },
+        "repo": {
+          "description": "Optional repository name. If provided with owner, only issues for this repository are listed.",
+          "type": "string"
+        },
+        "sort": {
+          "description": "Sort field by number of matches of categories, defaults to best match",
+          "enum": [
+            "comments",
+            "reactions",
+            "reactions-+1",
+            "reactions--1",
+            "reactions-smile",
+            "reactions-thinking_face",
+            "reactions-heart",
+            "reactions-tada",
+            "interactions",
+            "created",
+            "updated"
+          ],
+          "type": "string"
+        }
+      },
+      "required": ["query"],
+      "type": "object"
+    }
+  },
+  {
+    "name": "GITHUB__SEARCH_ORGS",
+    "description": "Find GitHub organizations by name, location, or other organization metadata. Ideal for discovering companies, open source foundations, or teams.",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "search_orgs",
+      "canonical_tool_description_hash": "e4a1eb7388f1861a2a8e4c0a0746cf97dcf7ebfd4344cc1f23eeb2ed68f86550",
+      "canonical_tool_input_schema_hash": "85c11d0f92f4dd086bcdd5494104a917e332c05028bc055598298b327643d9f9"
+    },
+    "input_schema": {
+      "properties": {
+        "order": {
+          "description": "Sort order",
+          "enum": ["asc", "desc"],
+          "type": "string"
+        },
+        "page": {
+          "description": "Page number for pagination (min 1)",
+          "minimum": 1,
+          "type": "number"
+        },
+        "perPage": {
+          "description": "Results per page for pagination (min 1, max 100)",
+          "maximum": 100,
+          "minimum": 1,
+          "type": "number"
+        },
+        "query": {
+          "description": "Organization search query. Examples: 'microsoft', 'location:california', 'created:>=2025-01-01'. Search is automatically scoped to type:org.",
+          "type": "string"
+        },
+        "sort": {
+          "description": "Sort field by category",
+          "enum": ["followers", "repositories", "joined"],
+          "type": "string"
+        }
+      },
+      "required": ["query"],
+      "type": "object"
+    }
+  },
+  {
+    "name": "GITHUB__SEARCH_PULL_REQUESTS",
+    "description": "Search for pull requests in GitHub repositories using issues search syntax already scoped to is:pr",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "search_pull_requests",
+      "canonical_tool_description_hash": "78e0f69e5021a8439827caeaa0b9308fe48ae974e3d0e44c8b79db79cebcaae2",
+      "canonical_tool_input_schema_hash": "a25769cddacef044a5f7bc65f1f160bf26e29fae93441d0988b26576720acbd1"
+    },
+    "input_schema": {
+      "properties": {
+        "order": {
+          "description": "Sort order",
+          "enum": ["asc", "desc"],
+          "type": "string"
+        },
+        "owner": {
+          "description": "Optional repository owner. If provided with repo, only pull requests for this repository are listed.",
+          "type": "string"
+        },
+        "page": {
+          "description": "Page number for pagination (min 1)",
+          "minimum": 1,
+          "type": "number"
+        },
+        "perPage": {
+          "description": "Results per page for pagination (min 1, max 100)",
+          "maximum": 100,
+          "minimum": 1,
+          "type": "number"
+        },
+        "query": {
+          "description": "Search query using GitHub pull request search syntax",
+          "type": "string"
+        },
+        "repo": {
+          "description": "Optional repository name. If provided with owner, only pull requests for this repository are listed.",
+          "type": "string"
+        },
+        "sort": {
+          "description": "Sort field by number of matches of categories, defaults to best match",
+          "enum": [
+            "comments",
+            "reactions",
+            "reactions-+1",
+            "reactions--1",
+            "reactions-smile",
+            "reactions-thinking_face",
+            "reactions-heart",
+            "reactions-tada",
+            "interactions",
+            "created",
+            "updated"
+          ],
+          "type": "string"
+        }
+      },
+      "required": ["query"],
+      "type": "object"
+    }
+  },
+  {
+    "name": "GITHUB__SEARCH_REPOSITORIES",
+    "description": "Find GitHub repositories by name, description, readme, topics, or other metadata. Perfect for discovering projects, finding examples, or locating specific repositories across GitHub.",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "search_repositories",
+      "canonical_tool_description_hash": "b5fb9ecfc067057cebe83fc2c40b5439fab562e63fcd192c9310ae41484b4ead",
+      "canonical_tool_input_schema_hash": "e9fbefeb1ddb9d90ce6a2ec0aec12d44f13c922596e224a7ab03f1f1491f245b"
+    },
+    "input_schema": {
+      "properties": {
+        "minimal_output": {
+          "default": true,
+          "description": "Return minimal repository information (default: true). When false, returns full GitHub API repository objects.",
+          "type": "boolean"
+        },
+        "page": {
+          "description": "Page number for pagination (min 1)",
+          "minimum": 1,
+          "type": "number"
+        },
+        "perPage": {
+          "description": "Results per page for pagination (min 1, max 100)",
+          "maximum": 100,
+          "minimum": 1,
+          "type": "number"
+        },
+        "query": {
+          "description": "Repository search query. Examples: 'machine learning in:name stars:>1000 language:python', 'topic:react', 'user:facebook'. Supports advanced search syntax for precise filtering.",
+          "type": "string"
+        }
+      },
+      "required": ["query"],
+      "type": "object"
+    }
+  },
+  {
+    "name": "GITHUB__SEARCH_USERS",
+    "description": "Find GitHub users by username, real name, or other profile information. Useful for locating developers, contributors, or team members.",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "search_users",
+      "canonical_tool_description_hash": "6f32cfd7c004f556e04f22c6a8122d752395f1a96d442509656e36a0da5845fd",
+      "canonical_tool_input_schema_hash": "0d70495994a01ade18b09dfbb88db34bc96064af9d47b51a610bb87654babc0d"
+    },
+    "input_schema": {
+      "properties": {
+        "order": {
+          "description": "Sort order",
+          "enum": ["asc", "desc"],
+          "type": "string"
+        },
+        "page": {
+          "description": "Page number for pagination (min 1)",
+          "minimum": 1,
+          "type": "number"
+        },
+        "perPage": {
+          "description": "Results per page for pagination (min 1, max 100)",
+          "maximum": 100,
+          "minimum": 1,
+          "type": "number"
+        },
+        "query": {
+          "description": "User search query. Examples: 'john smith', 'location:seattle', 'followers:>100'. Search is automatically scoped to type:user.",
+          "type": "string"
+        },
+        "sort": {
+          "description": "Sort users by number of followers or repositories, or when the person joined GitHub.",
+          "enum": ["followers", "repositories", "joined"],
+          "type": "string"
+        }
+      },
+      "required": ["query"],
+      "type": "object"
+    }
+  },
+  {
+    "name": "GITHUB__STAR_REPOSITORY",
+    "description": "Star a GitHub repository",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "star_repository",
+      "canonical_tool_description_hash": "9d5e9aede20b025d40298782852c43b8cf266762aaac40dac4c3ee496ae3e050",
+      "canonical_tool_input_schema_hash": "7a5fbbc5e857868bee3f91845a8c3dbc3f50235a855cdc23a221a3eeca258406"
+    },
+    "input_schema": {
+      "properties": {
+        "owner": {
+          "description": "Repository owner",
+          "type": "string"
+        },
+        "repo": {
+          "description": "Repository name",
+          "type": "string"
+        }
+      },
+      "required": ["owner", "repo"],
+      "type": "object"
+    }
+  },
+  {
+    "name": "GITHUB__SUBMIT_PENDING_PULL_REQUEST_REVIEW",
+    "description": "Submit the requester's latest pending pull request review, normally this is a final step after creating a pending review, adding comments first, unless you know that the user already did the first two steps, you should check before calling this.",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "submit_pending_pull_request_review",
+      "canonical_tool_description_hash": "aefc30af186d10ed03a19a2e3c283c34ef02df0247622c5e969bfe0e8ee583cb",
+      "canonical_tool_input_schema_hash": "2d23991fd35b8d78a6799eb8189ba2213e0868326cc8a8e125d34aab35380b36"
+    },
+    "input_schema": {
+      "properties": {
+        "body": {
+          "description": "The text of the review comment",
+          "type": "string"
+        },
+        "event": {
+          "description": "The event to perform",
+          "enum": ["APPROVE", "REQUEST_CHANGES", "COMMENT"],
+          "type": "string"
+        },
+        "owner": {
+          "description": "Repository owner",
+          "type": "string"
+        },
+        "pullNumber": {
+          "description": "Pull request number",
+          "type": "number"
+        },
+        "repo": {
+          "description": "Repository name",
+          "type": "string"
+        }
+      },
+      "required": ["owner", "repo", "pullNumber", "event"],
+      "type": "object"
+    }
+  },
+  {
+    "name": "GITHUB__UNSTAR_REPOSITORY",
+    "description": "Unstar a GitHub repository",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "unstar_repository",
+      "canonical_tool_description_hash": "9b5064cd0da0a83aa0ba89aac61fc169c533df26008e4f26b0953d0b953a6fe5",
+      "canonical_tool_input_schema_hash": "7a5fbbc5e857868bee3f91845a8c3dbc3f50235a855cdc23a221a3eeca258406"
+    },
+    "input_schema": {
+      "properties": {
+        "owner": {
+          "description": "Repository owner",
+          "type": "string"
+        },
+        "repo": {
+          "description": "Repository name",
+          "type": "string"
+        }
+      },
+      "required": ["owner", "repo"],
+      "type": "object"
+    }
+  },
+  {
+    "name": "GITHUB__UPDATE_GIST",
+    "description": "Update an existing gist",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "update_gist",
+      "canonical_tool_description_hash": "9b149733e8a8a0e6d6f0e030365db5cb4641ea6f0d6688e52f0a415d5544dc1c",
+      "canonical_tool_input_schema_hash": "971d17848e6139752107e9c8eca93876aa570ffebd4592933a2e29d1c4123cc0"
+    },
+    "input_schema": {
+      "properties": {
+        "content": {
+          "description": "Content for the file",
+          "type": "string"
+        },
+        "description": {
+          "description": "Updated description of the gist",
+          "type": "string"
+        },
+        "filename": {
+          "description": "Filename to update or create",
+          "type": "string"
+        },
+        "gist_id": {
+          "description": "ID of the gist to update",
+          "type": "string"
+        }
+      },
+      "required": ["gist_id", "filename", "content"],
+      "type": "object"
+    }
+  },
+  {
+    "name": "GITHUB__UPDATE_ISSUE",
+    "description": "Update an existing issue in a GitHub repository.",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "update_issue",
+      "canonical_tool_description_hash": "9a131ebc59e990a15edc9d699643a59c307ed0f8bab916341c41acd10d8d0b56",
+      "canonical_tool_input_schema_hash": "9a2708a9a37c845333407480bca3c56e782d8c598d3c7c5c927492a80ae07449"
+    },
+    "input_schema": {
+      "properties": {
+        "assignees": {
+          "description": "New assignees",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "body": {
+          "description": "New description",
+          "type": "string"
+        },
+        "duplicate_of": {
+          "description": "Issue number that this issue is a duplicate of. Only used when state_reason is 'duplicate'.",
+          "type": "number"
+        },
+        "issue_number": {
+          "description": "Issue number to update",
+          "type": "number"
+        },
+        "labels": {
+          "description": "New labels",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "milestone": {
+          "description": "New milestone number",
+          "type": "number"
+        },
+        "owner": {
+          "description": "Repository owner",
+          "type": "string"
+        },
+        "repo": {
+          "description": "Repository name",
+          "type": "string"
+        },
+        "state": {
+          "description": "New state",
+          "enum": ["open", "closed"],
+          "type": "string"
+        },
+        "state_reason": {
+          "description": "Reason for the state change. Ignored unless state is changed.",
+          "enum": ["completed", "not_planned", "duplicate"],
+          "type": "string"
+        },
+        "title": {
+          "description": "New title",
+          "type": "string"
+        },
+        "type": {
+          "description": "New issue type",
+          "type": "string"
+        }
+      },
+      "required": ["owner", "repo", "issue_number"],
+      "type": "object"
+    }
+  },
+  {
+    "name": "GITHUB__UPDATE_PULL_REQUEST",
+    "description": "Update an existing pull request in a GitHub repository.",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "update_pull_request",
+      "canonical_tool_description_hash": "f3cff7241ae0198475fd70ae93fa05c04ead7d4321a550facd66d77588febd37",
+      "canonical_tool_input_schema_hash": "e3242887350707a731c1d8d32b7402009b9949c3d16f3a9a4bb44475a33d515c"
+    },
+    "input_schema": {
+      "properties": {
+        "base": {
+          "description": "New base branch name",
+          "type": "string"
+        },
+        "body": {
+          "description": "New description",
+          "type": "string"
+        },
+        "draft": {
+          "description": "Mark pull request as draft (true) or ready for review (false)",
+          "type": "boolean"
+        },
+        "maintainer_can_modify": {
+          "description": "Allow maintainer edits",
+          "type": "boolean"
+        },
+        "owner": {
+          "description": "Repository owner",
+          "type": "string"
+        },
+        "pullNumber": {
+          "description": "Pull request number to update",
+          "type": "number"
+        },
+        "repo": {
+          "description": "Repository name",
+          "type": "string"
+        },
+        "reviewers": {
+          "description": "GitHub usernames to request reviews from",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "state": {
+          "description": "New state",
+          "enum": ["open", "closed"],
+          "type": "string"
+        },
+        "title": {
+          "description": "New title",
+          "type": "string"
+        }
+      },
+      "required": ["owner", "repo", "pullNumber"],
+      "type": "object"
+    }
+  },
+  {
+    "name": "GITHUB__UPDATE_PULL_REQUEST_BRANCH",
+    "description": "Update the branch of a pull request with the latest changes from the base branch.",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "update_pull_request_branch",
+      "canonical_tool_description_hash": "ac12d6fea5d2ef70b17ef81ec2c9b74b5a9fe3669f13dd7449a71c2902505669",
+      "canonical_tool_input_schema_hash": "24074e9ea8af137ab22bfbb98ffc0f94ef4dc63c8e3b4cdc70f648ecc54e021b"
+    },
+    "input_schema": {
+      "properties": {
+        "expectedHeadSha": {
+          "description": "The expected SHA of the pull request's HEAD ref",
+          "type": "string"
+        },
+        "owner": {
+          "description": "Repository owner",
+          "type": "string"
+        },
+        "pullNumber": {
+          "description": "Pull request number",
+          "type": "number"
+        },
+        "repo": {
+          "description": "Repository name",
+          "type": "string"
+        }
+      },
+      "required": ["owner", "repo", "pullNumber"],
+      "type": "object"
+    }
+  }
+]

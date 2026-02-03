@@ -1,0 +1,928 @@
+[
+  {
+    "name": "GMAIL__SEND_EMAIL",
+    "description": "Sends an email on behalf of the user",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "SEND_EMAIL",
+      "canonical_tool_description_hash": "8e38746a9f3cd3f3036bb9c61b93a925ce121a34dd7a3e3fd76f3efb31b3a269",
+      "canonical_tool_input_schema_hash": "6f664efb5f98e1c0b1275d097750ca7e57aa4af1684e0a895074c8407b6436a6"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["sender", "recipient", "body"],
+      "properties": {
+        "cc": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "format": "email"
+          },
+          "description": "The email addresses of the cc recipients."
+        },
+        "bcc": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "format": "email"
+          },
+          "description": "The email addresses of the bcc recipients."
+        },
+        "body": {
+          "type": "string",
+          "description": "The body content of the email, for now only plain text is supported."
+        },
+        "sender": {
+          "type": "string",
+          "default": "me",
+          "description": "The user's email address where the email will be sent from. The special value me can be used to indicate the authenticated user."
+        },
+        "subject": {
+          "type": "string",
+          "description": "The subject of the email."
+        },
+        "recipient": {
+          "type": "string",
+          "format": "email",
+          "description": "The email address of the recipient."
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "GMAIL__MESSAGES_LIST",
+    "description": "Lists the messages in the user's mailbox",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "MESSAGES_LIST",
+      "canonical_tool_description_hash": "93ad46b939df50180d1d912e64dca1ce0e421ca4240b2dada82b8657bfc24c57",
+      "canonical_tool_input_schema_hash": "9e571632dfe307dd33d495a6770ed3981eb33ccb473c3c7c03c731214fecc831"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": [],
+      "properties": {
+        "query": {
+          "type": "object",
+          "required": [],
+          "properties": {
+            "q": {
+              "type": "string",
+              "description": "Only return messages matching the specified query. Supports the same query format as the Gmail search box."
+            },
+            "labelIds": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "description": "Only return messages with labels that match all of the specified label IDs."
+            },
+            "pageToken": {
+              "type": "string",
+              "default": null,
+              "description": "Page token to retrieve a specific page of results"
+            },
+            "maxResults": {
+              "type": "integer",
+              "default": 100,
+              "maximum": 500,
+              "description": "Maximum number of messages to return. Default is 100."
+            },
+            "includeSpamTrash": {
+              "type": "boolean",
+              "default": false,
+              "description": "Include messages from SPAM and TRASH in the results."
+            }
+          },
+          "description": "Query parameters",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "GMAIL__MESSAGES_GET",
+    "description": "Gets the specified message",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "MESSAGES_GET",
+      "canonical_tool_description_hash": "b52644cad4cab0d73fc4c6115662f26eb494936e368c310d19d00283b7992a81",
+      "canonical_tool_input_schema_hash": "f229f219dd59d6ae2434245c7e08c737f5578828777db26e3f4de0687519bf44"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["path", "query"],
+      "properties": {
+        "path": {
+          "type": "object",
+          "required": ["id"],
+          "properties": {
+            "id": {
+              "type": "string",
+              "description": "The ID of the message to retrieve"
+            }
+          },
+          "description": "Path parameters",
+          "additionalProperties": false
+        },
+        "query": {
+          "type": "object",
+          "required": ["format"],
+          "properties": {
+            "format": {
+              "enum": ["full", "metadata", "minimal", "raw"],
+              "type": "string",
+              "default": "full",
+              "description": "The format to return the message in"
+            },
+            "metadataHeaders": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "description": "When given and format is metadata, only include headers specified"
+            }
+          },
+          "description": "Query parameters",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "GMAIL__MESSAGES_TRASH",
+    "description": "Moves the specified message to the trash",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "MESSAGES_TRASH",
+      "canonical_tool_description_hash": "8b90c9f7bef19dc8f4353df451fd2a6aaf28062fca5043b2587b80a18237e602",
+      "canonical_tool_input_schema_hash": "796b02d49e49564ef27d9c4f5add6508da5ffbe20bfa70b0f6868bf1e78662d8"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["path"],
+      "properties": {
+        "path": {
+          "type": "object",
+          "required": ["id"],
+          "properties": {
+            "id": {
+              "type": "string",
+              "description": "The ID of the message to trash"
+            }
+          },
+          "description": "Path parameters",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "GMAIL__MESSAGES_UNTRASH",
+    "description": "Removes the specified message from the trash",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "MESSAGES_UNTRASH",
+      "canonical_tool_description_hash": "60d9ec7f245619ee65f38d72683624829d55feeb8ddd196defe46816f8b590ef",
+      "canonical_tool_input_schema_hash": "622e84ddaa5439533f4aa9a10f1d37e0da08842dc4c401103dc7b73a97a4a792"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["path"],
+      "properties": {
+        "path": {
+          "type": "object",
+          "required": ["id"],
+          "properties": {
+            "id": {
+              "type": "string",
+              "description": "The ID of the message to untrash"
+            }
+          },
+          "description": "Path parameters",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "GMAIL__LABELS_LIST",
+    "description": "Lists all labels in the user's mailbox",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "LABELS_LIST",
+      "canonical_tool_description_hash": "71ea62684c970faf8aa2734f89e774615c619f048a4b30ffaefb658c6fada120",
+      "canonical_tool_input_schema_hash": "d746974fa9afd5e951f76f9af38954b0ad7f436f2120dc974da65e5ee39f856f"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": [],
+      "properties": {},
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "GMAIL__LABELS_GET",
+    "description": "Gets the specified label",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "LABELS_GET",
+      "canonical_tool_description_hash": "d2ed992a4987e218c845964cebe368b0e68de2cc53f45ac2d1521ab02ab8a3ae",
+      "canonical_tool_input_schema_hash": "c13602b55bf3a8bb109a1a57c442987ad2023b68b0e3e96ee104719c5ad3ac8c"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["path"],
+      "properties": {
+        "path": {
+          "type": "object",
+          "required": ["id"],
+          "properties": {
+            "id": {
+              "type": "string",
+              "description": "The ID of the label to retrieve"
+            }
+          },
+          "description": "Path parameters",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "GMAIL__DRAFTS_GET",
+    "description": "Gets the specified draft",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "DRAFTS_GET",
+      "canonical_tool_description_hash": "d51acf1d5b7fdf1470e05938eae06fd4c7efeb6aa56fff60d1ac437efa47182f",
+      "canonical_tool_input_schema_hash": "f36de29c5357752693adc5017d88baefa781adcb36539d214c9342e335520b93"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["path"],
+      "properties": {
+        "path": {
+          "type": "object",
+          "required": ["id"],
+          "properties": {
+            "id": {
+              "type": "string",
+              "description": "The ID of the draft to retrieve"
+            }
+          },
+          "description": "Path parameters",
+          "additionalProperties": false
+        },
+        "query": {
+          "type": "object",
+          "required": [],
+          "properties": {
+            "format": {
+              "enum": ["full", "metadata", "minimal", "raw"],
+              "type": "string",
+              "default": "full",
+              "description": "The format to return the draft message in"
+            }
+          },
+          "description": "Query parameters",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "GMAIL__LABELS_CREATE",
+    "description": "Creates a new label",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "LABELS_CREATE",
+      "canonical_tool_description_hash": "08d4e6cd81d85ed70d4f5c885144eb511a0af946779e4347578ba530b84d83e7",
+      "canonical_tool_input_schema_hash": "392d7b9abab991e1155e4f273bd3764caf5dbbf5f665498fee88a3ed686463ff"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["body"],
+      "properties": {
+        "body": {
+          "type": "object",
+          "required": ["name"],
+          "properties": {
+            "name": {
+              "type": "string",
+              "description": "The display name of the label"
+            },
+            "color": {
+              "type": "object",
+              "required": [],
+              "properties": {
+                "textColor": {
+                  "type": "string",
+                  "description": "The text color of the label"
+                },
+                "backgroundColor": {
+                  "type": "string",
+                  "description": "The background color of the label"
+                }
+              },
+              "description": "The color to assign to the label",
+              "additionalProperties": false
+            },
+            "labelListVisibility": {
+              "enum": ["labelHide", "labelShow", "labelShowIfUnread"],
+              "type": "string",
+              "default": "labelShow",
+              "description": "The visibility of the label in the label list in the Gmail web interface"
+            },
+            "messageListVisibility": {
+              "enum": ["hide", "show"],
+              "type": "string",
+              "default": "show",
+              "description": "The visibility of the label in the message list in the Gmail web interface"
+            }
+          },
+          "description": "Label data",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "GMAIL__LABELS_UPDATE",
+    "description": "Updates the specified label",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "LABELS_UPDATE",
+      "canonical_tool_description_hash": "1bdd2fde243eb4e395c06454f06a246336ba1607730cdc69e1c7c226e1e66dc8",
+      "canonical_tool_input_schema_hash": "f387c5997e5a7245ee0fc4f80ebf23e913b046891b979680dbdf559550ac9adb"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["path", "body"],
+      "properties": {
+        "body": {
+          "type": "object",
+          "required": [],
+          "properties": {
+            "name": {
+              "type": "string",
+              "description": "The display name of the label"
+            },
+            "color": {
+              "type": "object",
+              "required": [],
+              "properties": {
+                "textColor": {
+                  "type": "string",
+                  "description": "The text color of the label"
+                },
+                "backgroundColor": {
+                  "type": "string",
+                  "description": "The background color of the label"
+                }
+              },
+              "description": "The color to assign to the label",
+              "additionalProperties": false
+            },
+            "labelListVisibility": {
+              "enum": ["labelHide", "labelShow", "labelShowIfUnread"],
+              "type": "string",
+              "description": "The visibility of the label in the label list in the Gmail web interface"
+            },
+            "messageListVisibility": {
+              "enum": ["hide", "show"],
+              "type": "string",
+              "description": "The visibility of the label in the message list in the Gmail web interface"
+            }
+          },
+          "description": "Label data",
+          "additionalProperties": false
+        },
+        "path": {
+          "type": "object",
+          "required": ["id"],
+          "properties": {
+            "id": {
+              "type": "string",
+              "description": "The ID of the label to update"
+            }
+          },
+          "description": "Path parameters",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "GMAIL__LABELS_DELETE",
+    "description": "Deletes the specified label",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "LABELS_DELETE",
+      "canonical_tool_description_hash": "e7ba895c9695628c7b974ba5387f6afdb4635d4040e10e2350f03002fec31a3b",
+      "canonical_tool_input_schema_hash": "234a17c784397fd8680af114ff4a41dc5082c9172da97c8dc8617e3c9e53761f"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["path"],
+      "properties": {
+        "path": {
+          "type": "object",
+          "required": ["id"],
+          "properties": {
+            "id": {
+              "type": "string",
+              "description": "The ID of the label to delete"
+            }
+          },
+          "description": "Path parameters",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "GMAIL__MESSAGES_MODIFY",
+    "description": "Modifies the labels on the specified message",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "MESSAGES_MODIFY",
+      "canonical_tool_description_hash": "c2d311447a7dcb1bedc210b937d2c7a79329477a0daebe82d7c0a2b6ee776622",
+      "canonical_tool_input_schema_hash": "4152c20e686f09081307675d6c900ce6431a4d351e48438ab7cb2e5bc55a531d"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["path", "body"],
+      "properties": {
+        "body": {
+          "type": "object",
+          "required": [],
+          "properties": {
+            "addLabelIds": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "default": [],
+              "description": "A list of label IDs to add to the message"
+            },
+            "removeLabelIds": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "default": [],
+              "description": "A list of label IDs to remove from the message"
+            }
+          },
+          "description": "Message modification data",
+          "additionalProperties": false
+        },
+        "path": {
+          "type": "object",
+          "required": ["id"],
+          "properties": {
+            "id": {
+              "type": "string",
+              "description": "The ID of the message to modify"
+            }
+          },
+          "description": "Path parameters",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "GMAIL__DRAFTS_LIST",
+    "description": "Lists the drafts in the user's mailbox",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "DRAFTS_LIST",
+      "canonical_tool_description_hash": "6568fa2d244602f53429de5bec263d120d826efc552a925a19b6f872fe5e6665",
+      "canonical_tool_input_schema_hash": "4010e3afeb78d871c2d3272329047dc534bddf48004e353d708b3154da136b54"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": [],
+      "properties": {
+        "query": {
+          "type": "object",
+          "required": [],
+          "properties": {
+            "q": {
+              "type": "string",
+              "description": "Only return drafts matching the specified query. Supports the same query format as the Gmail search box."
+            },
+            "pageToken": {
+              "type": "string",
+              "default": null,
+              "description": "Page token to retrieve a specific page of results"
+            },
+            "maxResults": {
+              "type": "integer",
+              "default": 100,
+              "description": "Maximum number of drafts to return. Default is 100."
+            }
+          },
+          "description": "Query parameters",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "GMAIL__DRAFTS_CREATE",
+    "description": "create an email draft on behalf of the user",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "DRAFTS_CREATE",
+      "canonical_tool_description_hash": "f4673d5b736c80bd5c7408361f9f0263ea4698c64ca7a64e37ec2f24fa7210f8",
+      "canonical_tool_input_schema_hash": "6f664efb5f98e1c0b1275d097750ca7e57aa4af1684e0a895074c8407b6436a6"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["sender", "recipient", "body"],
+      "properties": {
+        "cc": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "format": "email"
+          },
+          "description": "The email addresses of the cc recipients."
+        },
+        "bcc": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "format": "email"
+          },
+          "description": "The email addresses of the bcc recipients."
+        },
+        "body": {
+          "type": "string",
+          "description": "The body content of the email, for now only plain text is supported."
+        },
+        "sender": {
+          "type": "string",
+          "default": "me",
+          "description": "The user's email address where the email will be sent from. The special value me can be used to indicate the authenticated user."
+        },
+        "subject": {
+          "type": "string",
+          "description": "The subject of the email."
+        },
+        "recipient": {
+          "type": "string",
+          "format": "email",
+          "description": "The email address of the recipient."
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "GMAIL__DRAFTS_UPDATE",
+    "description": "create an email draft on behalf of the user",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "DRAFTS_UPDATE",
+      "canonical_tool_description_hash": "f4673d5b736c80bd5c7408361f9f0263ea4698c64ca7a64e37ec2f24fa7210f8",
+      "canonical_tool_input_schema_hash": "52b62e8debcd750dd6fe210c744e8964a3d586bd21af1a3730f7d35a81d9cf57"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["draft_id", "sender", "recipient", "body"],
+      "properties": {
+        "cc": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "format": "email"
+          },
+          "description": "The email addresses of the cc recipients."
+        },
+        "bcc": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "format": "email"
+          },
+          "description": "The email addresses of the bcc recipients."
+        },
+        "body": {
+          "type": "string",
+          "description": "The body content of the email, for now only plain text is supported."
+        },
+        "sender": {
+          "type": "string",
+          "default": "me",
+          "description": "The user's email address where the email will be sent from. The special value me can be used to indicate the authenticated user."
+        },
+        "subject": {
+          "type": "string",
+          "description": "The subject of the email."
+        },
+        "draft_id": {
+          "type": "string",
+          "description": "The ID of the draft to update"
+        },
+        "recipient": {
+          "type": "string",
+          "format": "email",
+          "description": "The email address of the recipient."
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "GMAIL__DRAFTS_DELETE",
+    "description": "Deletes the specified draft",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "DRAFTS_DELETE",
+      "canonical_tool_description_hash": "9f814a1e92445a0c632f51123a706631420e7625414acf5c7d0fb285dfbb98a9",
+      "canonical_tool_input_schema_hash": "4ee563bc85b22f36695567e559e2e7a759ded6257edca2e842e04da2c936afe5"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["path"],
+      "properties": {
+        "path": {
+          "type": "object",
+          "required": ["id"],
+          "properties": {
+            "id": {
+              "type": "string",
+              "description": "The ID of the draft to delete"
+            }
+          },
+          "description": "Path parameters",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "GMAIL__DRAFTS_SEND",
+    "description": "Sends the specified draft",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "DRAFTS_SEND",
+      "canonical_tool_description_hash": "e36e351153884914a49339074bb20b5409ee6572bb53ecad660093898c20fff4",
+      "canonical_tool_input_schema_hash": "16acef7545cc886edd0d322ef80669e46591ec20636f156f62e2a422389059dc"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["body"],
+      "properties": {
+        "body": {
+          "type": "object",
+          "required": ["id"],
+          "properties": {
+            "id": {
+              "type": "string",
+              "description": "The ID of the draft to send"
+            }
+          },
+          "description": "Draft data",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "GMAIL__THREADS_LIST",
+    "description": "Lists the threads in the user's mailbox",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "THREADS_LIST",
+      "canonical_tool_description_hash": "4fb5f33d0bb675cf8b90e65727b219b6ff63423657f12c44826f4a8195f525bb",
+      "canonical_tool_input_schema_hash": "ecd1d6f76388dceadeb6fb3204ab54981b7cf862bd3bef8d7f4d10b32d439007"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": [],
+      "properties": {
+        "query": {
+          "type": "object",
+          "required": [],
+          "properties": {
+            "q": {
+              "type": "string",
+              "description": "Only return threads matching the specified query. Supports the same query format as the Gmail search box."
+            },
+            "labelIds": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "description": "Only return threads with labels that match all of the specified label IDs."
+            },
+            "pageToken": {
+              "type": "string",
+              "default": null,
+              "description": "Page token to retrieve a specific page of results"
+            },
+            "maxResults": {
+              "type": "integer",
+              "default": 100,
+              "description": "Maximum number of threads to return. Default is 100."
+            },
+            "includeSpamTrash": {
+              "type": "boolean",
+              "default": false,
+              "description": "Include threads from SPAM and TRASH in the results."
+            }
+          },
+          "description": "Query parameters",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "GMAIL__THREADS_GET",
+    "description": "Gets the specified thread",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "THREADS_GET",
+      "canonical_tool_description_hash": "a49535078b23127de2d90398b20481eb6daee4a32f90d0c460bd7e0ae5267356",
+      "canonical_tool_input_schema_hash": "dc85f821f2fcd97f8b8a8bd758e9552cc05d0742f6a6a1376c1abf58e613409d"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["path"],
+      "properties": {
+        "path": {
+          "type": "object",
+          "required": ["id"],
+          "properties": {
+            "id": {
+              "type": "string",
+              "description": "The ID of the thread to retrieve"
+            }
+          },
+          "description": "Path parameters",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "GMAIL__THREADS_MODIFY",
+    "description": "Modifies the labels applied to the thread",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "THREADS_MODIFY",
+      "canonical_tool_description_hash": "d7dea84511d64307c96843fbd7e70cd19a7bf5026955139096feb2481d4fb7f9",
+      "canonical_tool_input_schema_hash": "57786f0de13e39d1f397a0df43b038f140099767116f8c71a69b88a4de1c1c51"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["path", "body"],
+      "properties": {
+        "body": {
+          "type": "object",
+          "required": [],
+          "properties": {
+            "addLabelIds": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "description": "A list of IDs of labels to add to this thread"
+            },
+            "removeLabelIds": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "description": "A list of IDs of labels to remove from this thread"
+            }
+          },
+          "description": "Request body",
+          "additionalProperties": false
+        },
+        "path": {
+          "type": "object",
+          "required": ["id"],
+          "properties": {
+            "id": {
+              "type": "string",
+              "description": "The ID of the thread to modify"
+            }
+          },
+          "description": "Path parameters",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "GMAIL__THREADS_TRASH",
+    "description": "Moves the specified thread to the trash",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "THREADS_TRASH",
+      "canonical_tool_description_hash": "f249ffd4ac5736bfd1de0c900b8e3fa298c1604bf563ed89db2867d268b31409",
+      "canonical_tool_input_schema_hash": "844b8b3f12a9dab6c6dc02c07e5bd020400251e114115e4b25ae938d571411fa"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["path"],
+      "properties": {
+        "path": {
+          "type": "object",
+          "required": ["id"],
+          "properties": {
+            "id": {
+              "type": "string",
+              "description": "The ID of the thread to trash"
+            }
+          },
+          "description": "Path parameters",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "GMAIL__THREADS_UNTRASH",
+    "description": "Removes the specified thread from the trash",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "THREADS_UNTRASH",
+      "canonical_tool_description_hash": "3e0d864209efae8a8dfd9a09bd50a10b987ef64e55bacc302972c1b7b943b8db",
+      "canonical_tool_input_schema_hash": "76b1a3db696dad13b8e30c8fcc63f5b92b5ac949df2f291dcf7a2944d1319263"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["path"],
+      "properties": {
+        "path": {
+          "type": "object",
+          "required": ["id"],
+          "properties": {
+            "id": {
+              "type": "string",
+              "description": "The ID of the thread to untrash"
+            }
+          },
+          "description": "Path parameters",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "GMAIL__THREADS_DELETE",
+    "description": "Immediately and permanently deletes the specified thread",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "THREADS_DELETE",
+      "canonical_tool_description_hash": "1d42aa478a36cb674b4dd15c61f7419c600d38aac2cceecf6458d1ad54b40790",
+      "canonical_tool_input_schema_hash": "62119adaeb3b5eaeb434abe3b788c0ad13392cb0745ca1ec0fa0c33a8b70929e"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["path"],
+      "properties": {
+        "path": {
+          "type": "object",
+          "required": ["id"],
+          "properties": {
+            "id": {
+              "type": "string",
+              "description": "The ID of the thread to delete"
+            }
+          },
+          "description": "Path parameters",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+]

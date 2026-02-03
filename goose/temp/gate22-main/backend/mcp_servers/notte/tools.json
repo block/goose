@@ -1,0 +1,137 @@
+[
+  {
+    "name": "NOTTE__START_SESSION",
+    "description": "Starts a new browser session and returns a session ID. An existing session cannot provide a session ID during creation.",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "START_SESSION",
+      "canonical_tool_description_hash": "b63b630be5af81aefc9fc6438a3f391802424c8b5c914a355659e85ffa584426",
+      "canonical_tool_input_schema_hash": "e3204a0d5848491c44aad2d1a50778659ad01097773f15d0a9a5f25ba6aa1863"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["body"],
+      "properties": {
+        "body": {
+          "type": "object",
+          "required": [],
+          "properties": {
+            "keep_alive": {
+              "type": "boolean",
+              "default": false,
+              "description": "Optional parameter to keep the session alive beyond its timeout period."
+            },
+            "screenshot": {
+              "type": "boolean",
+              "default": false,
+              "description": "Optional parameter to request a screenshot during the session."
+            },
+            "session_id": {
+              "type": "string",
+              "default": null,
+              "description": "Optional parameter to specify a session ID. Session ID should not be provided when starting a new session."
+            },
+            "session_timeout": {
+              "type": "integer",
+              "default": 10,
+              "description": "Optional parameter to set a custom timeout for the session. Specify the timeout in minutes."
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "NOTTE__OBSERVE_PAGE",
+    "description": "This endpoint observes the actions available on a given URL within the session's environment.",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "OBSERVE_PAGE",
+      "canonical_tool_description_hash": "9b2f58430b08b01801cc954440290ca00edc01df6849d55738bbc5544dc58028",
+      "canonical_tool_input_schema_hash": "83cde3b60108a128295a321622ee9179888fc5dc1931dcbaa988979f741158b3"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["body"],
+      "properties": {
+        "body": {
+          "type": "object",
+          "required": ["url"],
+          "properties": {
+            "url": {
+              "type": "string",
+              "description": "Required parameter to specify the URL to observe. The URL to analyze and fetch available actions."
+            },
+            "keep_alive": {
+              "type": "boolean",
+              "default": false,
+              "description": "Optional parameter to keep the session alive beyond its timeout period."
+            },
+            "session_id": {
+              "type": "string",
+              "description": "Optional parameter to specify the session ID. The session ID of the session within which the environment will be observed."
+            },
+            "session_timeout": {
+              "type": "integer",
+              "default": 10,
+              "description": "Optional parameter to set a custom timeout for the session. Specify the timeout in minutes."
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "NOTTE__SCRAPE_DATA",
+    "description": "This endpoint scrapes data from a specified URL within the session's environment.",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "SCRAPE_DATA",
+      "canonical_tool_description_hash": "82656ff221e1f98d74644c27937d3ae550c68890cc06ee358b948359bdf6cebd",
+      "canonical_tool_input_schema_hash": "4b984b593faec223e00c65859e01cd5189bc2dceb3ab138d8945be42c3ebca82"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["body"],
+      "properties": {
+        "body": {
+          "type": "object",
+          "required": [],
+          "properties": {
+            "url": {
+              "type": "string",
+              "default": null,
+              "description": "URL to scrape data from."
+            },
+            "keep_alive": {
+              "type": "boolean",
+              "default": false,
+              "description": "Optional parameter to keep the session alive beyond its timeout period."
+            },
+            "screenshot": {
+              "type": "boolean",
+              "default": null,
+              "description": "Optional parameter to request a screenshot of the scraped page."
+            },
+            "session_id": {
+              "type": "string",
+              "default": null,
+              "description": "Optional parameter to specify the session ID."
+            },
+            "session_timeout": {
+              "type": "integer",
+              "default": 10,
+              "description": "Optional parameter to set a custom timeout for the session. Specify the timeout in minutes."
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+]

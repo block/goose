@@ -1,0 +1,52 @@
+---
+title: Pie Chart Widget
+description: Learn how to use the Pie Chart Widget in OpenLIT to display proportions and segment distributions using ClickHouse data.
+---
+
+The **Pie Chart Widget** in OpenLIT is perfect for showing how values are distributed across categories. Use it to represent proportions such as traffic sources, user roles, or error types.
+
+## When to use
+
+- Visualize category breakdowns  
+- Show relative proportions of segments (e.g. users by role)  
+- Highlight top contributors to a total value  
+- Display simple summaries at a glance  
+
+## How to add a pie chart
+
+<iframe className="w-full aspect-video" src="https://www.youtube.com/embed/vUEIXLiY2Kk?list=PLgErWFh-dyiGp9yUDnnx67wHEeNqzzMXZ" title="How to Use the Pie Chart Widget in OpenLIT – Visualize Trends Over Time" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" referrerpolicy="strict-origin-when-cross-origin" allowfullscreen></iframe>
+
+Example:
+
+```sql
+WITH
+	parseDateTimeBestEffort('{{filter.timeLimit.start}}') AS start_time,
+	parseDateTimeBestEffort('{{filter.timeLimit.end}}') AS end_time,
+	
+	SELECT
+		DISTINCT ResourceAttributes['service.name'] as applicationName,
+		ROUND(SUM(toFloat64OrZero(SpanAttributes['gen_ai.usage.cost'])), 5) AS cost
+	FROM otel_traces
+	WHERE
+		SpanAttributes['gen_ai.operation.name'] != 'vectordb'
+		AND notEmpty(SpanAttributes['gen_ai.usage.cost'])
+		AND notEmpty(ResourceAttributes['service.name'])
+		AND StatusCode IN ('STATUS_CODE_OK', 'STATUS_CODE_UNSET', 'Ok', 'Unset')
+		AND Timestamp >= start_time AND Timestamp <= end_time
+	GROUP BY applicationName;
+````
+
+## Configuration options
+
+* Customize **colors**
+* Add paths for **labels** &  **values**
+
+<Tip>
+Use dynamic bindings like `{{filter.timeLimit.start}}`, `{{filter.timeLimit.end}}` to make your chart respond to dashboard time filters.
+</Tip>
+
+## Best practices
+
+* Aggregate less-important categories into an "Other" group in SQL
+* Use percent labels for quick at-a-glance insights
+* Match colors with your product or brand theme for consistency

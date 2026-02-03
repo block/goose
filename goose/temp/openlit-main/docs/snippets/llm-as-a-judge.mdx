@@ -1,0 +1,87 @@
+LLM-as-a-Judge is a technique to evaluate the quality of LLM applications by using powerful language models as evaluators. The LLM judge analyzes your AI outputs and provides structured scores, classifications, and detailed reasoning about response quality, safety, and performance.
+
+## Why use LLM-as-a-Judge?
+
+- **Scalable & Cost-Effective**: Evaluate thousands of LLM outputs automatically at a fraction of human evaluation costs
+- **Human-Like Quality Assessment**: Capture nuanced quality dimensions like helpfulness, safety, and coherence that simple metrics miss
+- **Consistent & Reproducible**: Apply uniform evaluation criteria across all outputs with repeatable scoring for reliable model comparisons
+- **Actionable Insights**: Get structured reasoning and detailed explanations for evaluation decisions to systematically improve your AI systems
+
+## Built-in evaluators
+
+OpenLIT provides a set of built-in evaluation metrics that can be used to evaluate the output of your LLM calls.
+
+
+<CardGroup cols={2}>
+  <Card title="Hallucination detection" icon="circle-exclamation">
+    Identifies factual inaccuracies, contradictions, and fabricated information in AI responses
+  </Card>
+  <Card title="Bias detection" icon="people-arrows">
+    Monitors for discriminatory patterns across protected attributes and ensures fair outputs
+  </Card>
+  <Card title="Toxicity detection" icon="shield-virus">
+    Screens for harmful, offensive, or inappropriate content in AI-generated text
+  </Card>
+  <Card title="Combined analysis" icon="border-all">
+    All-in-one evaluator combining hallucination, bias, and toxicity detection
+  </Card>
+</CardGroup>
+
+## Running evaluations
+
+OpenLIT provides two convenient ways to configure evaluation settings:
+
+<Frame>
+  <img src="/images/setup-auto-evals-from-settings.png" />
+</Frame>
+
+1. Navigate to **Settings** → **Evaluation Settings**
+2. Configure your model provider and the LLM to use as a judge (OpenAI GPT-4, Anthropic Claude, etc.)
+3. Add your LLM Provider API key in Vault or select one from previously created secrets in Vault
+4. Set evaluation recurring time in cron schedule format
+5. Enable auto evaluation for continuous monitoring
+
+**Alternatively, you can also directly enable evaluations from Traces:**  
+
+<Frame>
+  <img src="/images/setup-auto-evals-from-trace.png" />
+</Frame>
+
+1. Open any LLM trace in the **Requests** page
+2. Click the **Evaluation** tab in the trace details
+3. Click **Setup Evaluation!** to configure settings
+4. Your evaluation configuration will apply to future traces
+
+## Monitor & Iterate
+
+Once evaluations are running, OpenLIT continuously analyzes your LLM responses and provides actionable insights:
+
+- **Review Individual Results**: Examine detailed evaluation scores, classifications, and explanations for each LLM trace
+- **Track Quality Trends**: Monitor aggregate metrics across time periods and compare performance between different models or versions
+- **Manage Evaluations**: Enable, disable, or modify evaluation settings as your application evolves
+
+### Detailed results in traces
+
+<Frame>
+  <img src="/images/auto-evals-result.png" />
+</Frame>
+
+1. Go to the Requests page to see all your LLM traces
+2. Click on any LLM trace to view details
+3. Click the **Evaluation** tab to see evaluation results for that specific trace
+4. **Detailed Metrics**: Each evaluation shows:
+   - **Score**: Numerical score (0-1) indicating the severity or likelihood of the issue
+   - **Classification**: Category classification (e.g., "factual_inaccuracy")
+   - **Explanation**: Detailed reasoning from the LLM judge about why this score was given
+   - **Verdict**: Simple yes/no determination based on your threshold settings
+
+### Aggregate statistics in dashboard
+
+<Frame>
+  <img src="/images/auto-evals-dashboard.png" />
+</Frame>
+
+- **Total Hallucination Detected**: Count of traces flagged for hallucination issues
+- **Total Bias Detected**: Number of traces identified with bias concerns  
+- **Total Toxicity Detected**: Count of traces containing toxic or harmful content
+- **Detection Rate Trends**: Percentage changes and trends over time periods

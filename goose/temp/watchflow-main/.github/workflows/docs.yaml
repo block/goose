@@ -1,0 +1,76 @@
+name: "Deploy documentation"
+
+on:
+  push:
+    branches:
+      - "main"
+    paths:
+      - "docs/**"
+      - "mkdocs.yml"
+      - ".github/workflows/docs.yaml"
+  pull_request:
+    branches:
+      - "main"
+    paths:
+      - "docs/**"
+      - "mkdocs.yml"
+      - ".github/workflows/docs.yaml"
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: "pages"
+  cancel-in-progress: false
+
+jobs:
+  # Build documentation site
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      # Checkout code
+      - name: "Checkout"
+        uses: actions/checkout@v4
+
+      # Set up Python
+      - name: "Setup Python"
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      # Install UV
+      - name: "Install UV"
+        uses: astral-sh/setup-uv@v2
+        with:
+          version: "latest"
+
+      # Install dependencies
+      - name: "Install dependencies"
+        run: |
+          uv sync --locked --all-extras --dev
+
+      # Build documentation
+      - name: "Build documentation"
+        run: uv run mkdocs build
+
+      # Upload artifact
+      - name: "Upload artifact"
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: ./site
+
+  # Deploy to GitHub Pages
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    needs: build
+    if: github.ref == 'refs/heads/main' && github.repository == 'warestack/watchflow'
+    steps:
+      # Deploy to GitHub Pages
+      - name: "Deploy to GitHub Pages"
+        id: deployment
+        uses: actions/deploy-pages@v4

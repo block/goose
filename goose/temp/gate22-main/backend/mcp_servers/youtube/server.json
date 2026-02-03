@@ -1,0 +1,22 @@
+{
+  "name": "YOUTUBE",
+  "url": "https://mcp.aci.dev/virtual/mcp?server_name=YOUTUBE",
+  "transport_type": "streamable_http",
+  "description": "YouTube API provides access to Google's streaming video repository, allowing you to search for videos, retrieve standard feeds, and manage YouTube subscriptions and playlists.",
+  "logo": "https://raw.githubusercontent.com/aipotheosis-labs/aipolabs-icons/refs/heads/main/apps/youtube.svg",
+  "categories": ["Media"],
+  "auth_configs": [
+    {
+      "type": "oauth2",
+      "client_id": "{{ CLIENT_ID }}",
+      "client_secret": "{{ CLIENT_SECRET }}",
+      "scope": "https://www.googleapis.com/auth/youtube https://www.googleapis.com/auth/youtube.channel-memberships.creator https://www.googleapis.com/auth/youtube.force-ssl https://www.googleapis.com/auth/youtube.readonly https://www.googleapis.com/auth/youtube.upload https://www.googleapis.com/auth/youtubepartner https://www.googleapis.com/auth/youtubepartner-channel-audit",
+      "authorize_url": "https://accounts.google.com/o/oauth2/v2/auth",
+      "access_token_url": "https://oauth2.googleapis.com/token",
+      "refresh_token_url": "https://oauth2.googleapis.com/token"
+    }
+  ],
+  "server_metadata": {
+    "is_virtual_mcp_server": true
+  }
+}

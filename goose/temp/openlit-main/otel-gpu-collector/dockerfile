@@ -1,0 +1,30 @@
+# Use an official Python runtime as a parent image
+FROM python:3.9-slim
+
+# Set the working directory in the container
+WORKDIR /usr/src/app
+
+# Install build dependencies and necessary libraries
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    gcc \
+    python3-dev \
+    libffi-dev \
+    libssl-dev \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy the current directory contents into the container at /usr/src/app
+COPY . .
+
+# Install necessary Python packages
+RUN pip install --no-cache-dir --no-binary :psutil: psutil==6.1.0 nvidia-ml-py==12.560.30 amdsmi==6.2.4 openlit==1.29.0
+
+# Expose any required ports, if necessary
+EXPOSE 80
+
+# Define default values for the environment variables
+ENV GPU_APPLICATION_NAME=default
+ENV GPU_ENVIRONMENT=default
+
+# Run the script continuously
+CMD ["python", "collector.py"]

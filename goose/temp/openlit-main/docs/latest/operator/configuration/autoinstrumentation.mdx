@@ -1,0 +1,439 @@
+---
+title: 'AutoInstrumentation CR'
+description: 'Configure AutoInstrumentation Custom Resources with detailed parameters'
+---
+
+The `AutoInstrumentation` Custom Resource is the primary configuration interface for defining:
+
+- **Which pods** to instrument (selectors)
+- **How to instrument** them (provider, packages, environment)
+- **Where to send** telemetry data (OTLP configuration)
+- **What attributes** to include (resource attributes)
+
+## Resource Structure
+
+### Basic Structure
+
+```yaml
+apiVersion: openlit.io/v1alpha1
+kind: AutoInstrumentation
+metadata:
+  name: example-instrumentation
+  namespace: default
+spec:
+  selector: {}           # Pod selection criteria
+  ignore: {}             # Pods to ignore  
+  python: {}             # Python instrumentation config
+  otlp: {}               # OTLP endpoint configuration
+  resource: {}           # Resource attributes
+status: {}               # Resource status (read-only)
+```
+
+## Pod Selection Configuration
+
+Configure which pods should be instrumented using label selectors.
+
+### Selector Parameters
+
+| Parameter | Type | Description | Default | Example |
+|-----------|------|-------------|---------|---------|
+| `spec.selector` | `LabelSelector` | Pods to instrument | Required | See examples below |
+| `spec.selector.matchLabels` | `map[string]string` | Exact label matches | `{}` | `{"app": "chatbot"}` |
+| `spec.selector.matchExpressions` | `[]LabelSelectorRequirement` | Expression-based matching | `[]` | See expressions table |
+
+### Match Expressions
+
+| Field | Type | Description | Values | Example |
+|-------|------|-------------|---------|---------|
+| `key` | `string` | Label key to match | Any label key | `"environment"` |
+| `operator` | `string` | Matching operator | `In`, `NotIn`, `Exists`, `DoesNotExist` | `"In"` |
+| `values` | `[]string` | Values to match (for In/NotIn) | List of strings | `["prod", "staging"]` |
+
+<AccordionGroup>
+  <Accordion title="Pod Selector Examples">
+    ```yaml
+    # Basic label matching
+    spec:
+      selector:
+        matchLabels:
+          openlit.io/instrument: "true"
+          app: "ai-chatbot"
+          environment: "production"
+
+    # Advanced expression matching  
+    spec:
+      selector:
+        matchExpressions:
+        - key: "environment"
+          operator: In
+          values: ["production", "staging"]
+        - key: "ai-framework"
+          operator: Exists
+        - key: "legacy-app"
+          operator: DoesNotExist
+
+    # Combined matching
+    spec:
+      selector:
+        matchLabels:
+          team: "ai-platform"
+        matchExpressions:
+        - key: "version"
+          operator: In
+          values: ["v2", "v3"]
+        - key: "experimental"
+          operator: DoesNotExist
+    ```
+  </Accordion>
+</AccordionGroup>
+
+### Ignore Configuration
+
+| Parameter | Type | Description | Default | Example |
+|-----------|------|-------------|---------|---------|
+| `spec.ignore` | `LabelSelector` | Pods to skip even if they match selector | `{}` | See example |
+| `spec.ignore.matchLabels` | `map[string]string` | Exact label matches to ignore | `{}` | `{"debug": "true"}` |
+| `spec.ignore.matchExpressions` | `[]LabelSelectorRequirement` | Expression-based ignoring | `[]` | System pods |
+
+<AccordionGroup>
+  <Accordion title="Ignore Configuration Examples">
+    ```yaml
+    # Basic ignore configuration
+    spec:
+      ignore:
+        matchLabels:
+          openlit.io/skip: "true"
+          system-component: "true"
+          debug-mode: "enabled"
+
+    # Advanced ignore with expressions
+    spec:
+      ignore:
+        matchLabels:
+          team: "infrastructure"
+        matchExpressions:
+        - key: "debug-mode"
+          operator: Exists
+        - key: "monitoring-type"
+          operator: In
+          values: ["system", "infrastructure"]
+        - key: "instrumentation-exempt"
+          operator: Exists
+
+    # Ignore test and development pods
+    spec:
+      ignore:
+        matchExpressions:
+        - key: "environment"
+          operator: In
+          values: ["test", "dev", "local"]
+        - key: "app.kubernetes.io/component"
+          operator: In
+          values: ["test", "debug", "proxy"]
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Python Instrumentation Configuration
+
+Configure Python-specific instrumentation settings.
+
+### Instrumentation Parameters
+
+| Parameter | Type | Description | Default | Example |
+|-----------|------|-------------|---------|---------|
+| `spec.python.instrumentation.enabled` | `bool` | Enable Python instrumentation | `true` | `false` |
+| `spec.python.instrumentation.provider` | `string` | Instrumentation provider | `"openlit"` | `"openinference"` |
+| `spec.python.instrumentation.version` | `string` | Provider version | `"latest"` | `"v1.0.0"` |
+| `spec.python.instrumentation.customInitImage` | `string` | Custom init container image | `""` | `"custom-registry.com/openlit:v1.0"` |
+| `spec.python.instrumentation.imagePullPolicy` | `string` | Image pull policy | `"IfNotPresent"` | `"Always"` |
+| `spec.python.instrumentation.customPackages` | `string` | Additional pip packages | `""` | `"langchain>=0.1.0,chromadb>=0.4.0"` |
+
+### Supported Providers
+
+| Provider | Description | Use Case | Image Repository |
+|----------|-------------|----------|------------------|
+| `"openlit"` | Full OpenLIT instrumentation | Complete AI observability | `ghcr.io/openlit/openlit-ai-instrumentation` |
+| `"openinference"` | OpenInference standard | OpenTelemetry standard compliance | `ghcr.io/openlit/openinference-ai-instrumentation` |
+| `"openllmetry"` | OpenLLMetry instrumentation | LLM-focused observability | `ghcr.io/openlit/openllmetry-ai-instrumentation` |
+| `"custom"` | Custom instrumentation | Custom implementation | User-defined via `customInitImage` |
+
+<AccordionGroup>
+  <Accordion title="Provider Configuration Examples">
+    ```yaml
+    # OpenLIT provider with custom packages
+    spec:
+      python:
+        instrumentation:
+          enabled: true
+          provider: "openlit"
+          version: "latest"
+          imagePullPolicy: "IfNotPresent"
+          customPackages: "langchain>=0.1.0,chromadb>=0.4.0,numpy==1.21.0"
+
+    # OpenInference provider with specific version
+    spec:
+      python:
+        instrumentation:
+          enabled: true
+          provider: "openinference"
+          version: "v0.5.0"
+          imagePullPolicy: "Always"
+
+    # OpenLLMetry provider 
+    spec:
+      python:
+        instrumentation:
+          enabled: true
+          provider: "openllmetry"
+          version: "v1.2.0"
+          customPackages: "openai>=1.0.0,anthropic>=0.8.0"
+
+    # Custom provider with private registry
+    spec:
+      python:
+        instrumentation:
+          enabled: true
+          provider: "custom"
+          customInitImage: "my-registry.com/custom-openlit:v2.0.0"
+          imagePullPolicy: "Always"
+          customPackages: "my-custom-package>=1.0.0"
+
+    # Disabled instrumentation
+    spec:
+      python:
+        instrumentation:
+          enabled: false
+    ```
+  </Accordion>
+</AccordionGroup>
+
+### Environment Variables
+
+| Parameter | Type | Description | Default | Example |
+|-----------|------|-------------|---------|---------|
+| `spec.python.instrumentation.env` | `[]EnvVar` | Environment variables for instrumented containers | `[]` | See examples |
+| `spec.python.instrumentation.env[].name` | `string` | Environment variable name | Required | `"OPENLIT_API_KEY"` |
+| `spec.python.instrumentation.env[].value` | `string` | Direct value | `""` | `"debug-mode"` |
+| `spec.python.instrumentation.env[].valueFrom` | `EnvVarSource` | Value from external source | `nil` | Secret/ConfigMap reference |
+
+### Environment Variable Sources
+
+| Source Type | Field | Description | Example |
+|-------------|-------|-------------|---------|
+| `secretKeyRef` | `name`, `key` | Value from Kubernetes Secret | `{name: "openlit-secret", key: "api-key"}` |
+| `configMapKeyRef` | `name`, `key` | Value from ConfigMap | `{name: "openlit-config", key: "endpoint"}` |
+| `fieldRef` | `fieldPath` | Value from pod/container field | `{fieldPath: "metadata.name"}` |
+| `resourceFieldRef` | `resource` | Value from resource field | `{resource: "requests.cpu"}` |
+
+<AccordionGroup>
+  <Accordion title="Environment Variables Examples">
+    ```yaml
+    spec:
+      python:
+        instrumentation:
+          env:
+          # Direct value
+          - name: OPENLIT_DEBUG
+            value: "true"
+          - name: OPENLIT_ENVIRONMENT
+            value: "production"
+          
+          # From secret
+          - name: OPENLIT_API_KEY
+            valueFrom:
+              secretKeyRef:
+                name: openlit-secret
+                key: api-key
+          - name: DATABASE_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                name: db-credentials
+                key: password
+          
+          # From configmap
+          - name: OPENLIT_ENDPOINT
+            valueFrom:
+              configMapKeyRef:
+                name: openlit-config
+                key: otlp-endpoint
+          - name: LOG_LEVEL
+            valueFrom:
+              configMapKeyRef:
+                name: app-config
+                key: log-level
+          
+          # From pod metadata
+          - name: POD_NAME
+            valueFrom:
+              fieldRef:
+                fieldPath: metadata.name
+          - name: POD_NAMESPACE
+            valueFrom:
+              fieldRef:
+                fieldPath: metadata.namespace
+          - name: NODE_NAME
+            valueFrom:
+              fieldRef:
+                fieldPath: spec.nodeName
+          
+          # From resource requests/limits
+          - name: CPU_REQUEST
+            valueFrom:
+              resourceFieldRef:
+                resource: requests.cpu
+          - name: MEMORY_LIMIT
+            valueFrom:
+              resourceFieldRef:
+                resource: limits.memory
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## OTLP Configuration
+
+Configure OpenTelemetry Protocol (OTLP) endpoint settings.
+
+### OTLP Parameters
+
+| Parameter | Type | Description | Default | Example | Validation |
+|-----------|------|-------------|---------|---------|------------|
+| `spec.otlp.endpoint` | `string` | OTLP endpoint URL | Required | `"http://openlit:4318"` | Valid HTTP/HTTPS URL |
+| `spec.otlp.headers` | `string` | HTTP headers (comma-separated) | `""` | `"authorization=Bearer token123"` | `key=value` format |
+| `spec.otlp.timeout` | `int` | Request timeout in seconds | `30` | `60` | 1-300 seconds |
+
+### Endpoint Formats
+
+| Format | Description | Example | Use Case |
+|--------|-------------|---------|----------|
+| Internal Service | Kubernetes service reference | `http://openlit:4318` | Same cluster deployment |
+| Fully Qualified | Full service DNS name | `http://openlit.openlit.svc.cluster.local:4318` | Cross-namespace access |
+| External HTTPS | External secure endpoint | `https://traces.example.com:4318` | Cloud/external services |
+| Load Balancer | Load balancer endpoint | `http://otlp-lb.company.com:4318` | High availability setup |
+
+### Headers Format
+
+Headers should be comma-separated key=value pairs:
+
+| Header Type | Format | Example | Use Case |
+|-------------|--------|---------|----------|
+| Authorization | `authorization=Bearer <token>` | `"authorization=Bearer abc123"` | API authentication |
+| API Key | `x-api-key=<key>` | `"x-api-key=secret456"` | API key authentication |
+| Multiple Headers | `key1=val1,key2=val2` | `"auth=token,x-trace-id=123"` | Multiple authentication |
+| URL Encoded | URL-encoded special chars | `"auth=Bearer%20token"` | Special characters |
+
+<AccordionGroup>
+  <Accordion title="OTLP Configuration Examples">
+    ```yaml
+    # Basic OTLP configuration
+    spec:
+      otlp:
+        endpoint: "http://openlit:4318"
+        timeout: 30
+
+    # With authentication headers
+    spec:
+      otlp:
+        endpoint: "https://traces.example.com:4318"
+        headers: "authorization=Bearer token123,x-api-key=secret456"
+        timeout: 60
+
+    # Internal service with FQDN
+    spec:
+      otlp:
+        endpoint: "http://openlit.openlit.svc.cluster.local:4318"
+        timeout: 45
+
+    # External SaaS provider
+    spec:
+      otlp:
+        endpoint: "https://otlp.company.datadog.com:443"
+        headers: "DD-API-KEY=your-api-key,DD-APP-KEY=your-app-key"
+        timeout: 30
+
+    # Load balancer with custom headers
+    spec:
+      otlp:
+        endpoint: "http://otlp-lb.company.com:4318"
+        headers: "x-tenant-id=production,authorization=Bearer jwt-token"
+        timeout: 120
+
+    # Local development
+    spec:
+      otlp:
+        endpoint: "http://localhost:4318"
+        timeout: 10
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Resource Attributes
+
+Configure resource attributes that will be added to all telemetry data.
+
+### Resource Parameters
+
+| Parameter | Type | Description | Default | Example | OpenTelemetry Mapping |
+|-----------|------|-------------|---------|---------|----------------------|
+| `spec.resource.environment` | `string` | Deployment environment | `""` | `"production"` | `deployment.environment` |
+| `spec.resource.serviceName` | `string` | Service name override | `""` | `"ai-chat-service"` | `service.name` |
+| `spec.resource.serviceNamespace` | `string` | Service namespace | `""` | `"ai-platform"` | `service.namespace` |
+| `spec.resource.serviceVersion` | `string` | Service version | `""` | `"v2.1.0"` | `service.version` |
+
+### Automatic Attributes
+
+The operator automatically sets these attributes (cannot be overridden):
+
+| Attribute | Source | Example | Description |
+|-----------|--------|---------|-------------|
+| `k8s.pod.name` | Pod metadata | `"chatbot-abc123"` | Kubernetes pod name |
+| `k8s.namespace.name` | Pod namespace | `"production"` | Kubernetes namespace |
+| `k8s.deployment.name` | Owner reference | `"ai-chatbot"` | Deployment name (if applicable) |
+| `k8s.replicaset.name` | Owner reference | `"ai-chatbot-xyz789"` | ReplicaSet name (if applicable) |
+| `k8s.node.name` | Pod spec | `"worker-node-1"` | Node where pod is running |
+
+<AccordionGroup>
+  <Accordion title="Resource Attributes Examples">
+    ```yaml
+    # Basic resource attributes
+    spec:
+      resource:
+        environment: "production"
+        serviceName: "customer-support-ai"
+        serviceNamespace: "ai-platform"
+        serviceVersion: "v2.1.0"
+
+    # Environment-specific configuration
+    spec:
+      resource:
+        environment: "staging"
+        serviceName: "experiment-chatbot"
+        serviceNamespace: "research"
+        serviceVersion: "v1.0.0-beta"
+
+    # Microservice with detailed attributes
+    spec:
+      resource:
+        environment: "production"
+        serviceName: "recommendation-engine"
+        serviceNamespace: "ml-services"
+        serviceVersion: "v3.2.1"
+
+    # Development environment
+    spec:
+      resource:
+        environment: "development"
+        serviceName: "local-test-app"
+        serviceNamespace: "dev-testing"
+        serviceVersion: "latest"
+
+    # Multi-tenant service
+    spec:
+      resource:
+        environment: "production"
+        serviceName: "tenant-ai-service"
+        serviceNamespace: "multi-tenant"
+        serviceVersion: "v1.5.2"
+    ```
+  </Accordion>
+</AccordionGroup>

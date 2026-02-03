@@ -1,0 +1,264 @@
+[
+  {
+    "name": "DEXSCREENER__GET_TOKEN_PROFILES",
+    "description": "Get the latest token profiles from DexScreener. Rate-limited to 60 requests per minute.",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "GET",
+      "endpoint": "https://api.dexscreener.com/token-profiles/latest/v1"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {},
+      "required": [],
+      "visible": [],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "DEXSCREENER__GET_TOKEN_BOOSTS",
+    "description": "Get the latest boosted tokens from DexScreener. Rate-limited to 60 requests per minute.",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "GET",
+      "endpoint": "https://api.dexscreener.com/token-boosts/latest/v1"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {},
+      "required": [],
+      "visible": [],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "DEXSCREENER__GET_TOP_TOKEN_BOOSTS",
+    "description": "Get the tokens with most active boosts from DexScreener. Rate-limited to 60 requests per minute.",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "GET",
+      "endpoint": "https://api.dexscreener.com/token-boosts/top/v1"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {},
+      "required": [],
+      "visible": [],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "DEXSCREENER__CHECK_TOKEN_ORDERS",
+    "description": "Check orders paid for a specific token. Rate-limited to 60 requests per minute.",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "GET",
+      "endpoint": "https://api.dexscreener.com/orders/v1/{chainId}/{tokenAddress}"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "path": {
+          "type": "object",
+          "description": "Path parameters for the request",
+          "properties": {
+            "chainId": {
+              "type": "string",
+              "description": "The blockchain ID (e.g., 'solana', 'ethereum')"
+            },
+            "tokenAddress": {
+              "type": "string",
+              "description": "The token address to check orders for"
+            }
+          },
+          "required": [
+            "chainId",
+            "tokenAddress"
+          ],
+          "visible": [
+            "chainId",
+            "tokenAddress"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "path"
+      ],
+      "visible": [
+        "path"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "DEXSCREENER__GET_PAIRS_BY_ADDRESS",
+    "description": "Get one or multiple pairs by chain and pair address. Rate-limited to 300 requests per minute.",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "GET",
+      "endpoint": "https://api.dexscreener.com/latest/dex/pairs/{chainId}/{pairId}"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "path": {
+          "type": "object",
+          "description": "Path parameters for the request",
+          "properties": {
+            "chainId": {
+              "type": "string",
+              "description": "The blockchain ID (e.g., 'solana', 'ethereum')"
+            },
+            "pairId": {
+              "type": "string",
+              "description": "The pair address to retrieve"
+            }
+          },
+          "required": [
+            "chainId",
+            "pairId"
+          ],
+          "visible": [
+            "chainId",
+            "pairId"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "path"
+      ],
+      "visible": [
+        "path"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "DEXSCREENER__SEARCH_PAIRS",
+    "description": "Search for pairs matching a query. Rate-limited to 300 requests per minute.",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "GET",
+      "endpoint": "https://api.dexscreener.com/latest/dex/search"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "query": {
+          "type": "object",
+          "description": "Query parameters for the request",
+          "properties": {
+            "q": {
+              "type": "string",
+              "description": "The search query (e.g., 'SOL/USDC')"
+            }
+          },
+          "required": [
+            "q"
+          ],
+          "visible": [
+            "q"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "query"
+      ],
+      "visible": [
+        "query"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "DEXSCREENER__GET_TOKEN_POOLS",
+    "description": "Get the pools of a given token address. Rate-limited to 300 requests per minute.",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "GET",
+      "endpoint": "https://api.dexscreener.com/token-pairs/v1/{chainId}/{tokenAddress}"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "path": {
+          "type": "object",
+          "description": "Path parameters for the request",
+          "properties": {
+            "chainId": {
+              "type": "string",
+              "description": "The blockchain ID (e.g., 'solana', 'ethereum')"
+            },
+            "tokenAddress": {
+              "type": "string",
+              "description": "The token address to get pools for"
+            }
+          },
+          "required": [
+            "chainId",
+            "tokenAddress"
+          ],
+          "visible": [
+            "chainId",
+            "tokenAddress"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "path"
+      ],
+      "visible": [
+        "path"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "DEXSCREENER__GET_PAIRS_BY_TOKEN",
+    "description": "Get one or multiple pairs by token address. Rate-limited to 300 requests per minute.",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "GET",
+      "endpoint": "https://api.dexscreener.com/tokens/v1/{chainId}/{tokenAddresses}"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "path": {
+          "type": "object",
+          "description": "Path parameters for the request",
+          "properties": {
+            "chainId": {
+              "type": "string",
+              "description": "The blockchain ID (e.g., 'solana', 'ethereum')"
+            },
+            "tokenAddresses": {
+              "type": "string",
+              "description": "One or multiple comma-separated token addresses (up to 30 addresses)"
+            }
+          },
+          "required": [
+            "chainId",
+            "tokenAddresses"
+          ],
+          "visible": [
+            "chainId",
+            "tokenAddresses"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "path"
+      ],
+      "visible": [
+        "path"
+      ],
+      "additionalProperties": false
+    }
+  }
+]

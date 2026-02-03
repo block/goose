@@ -1228,9 +1228,7 @@ mod tests {
         let result = validate_data_param(&params_bool, false);
         assert!(result.is_err());
 
-        let params_null = json!({
-            "data": null
-        });
+        let params_null = json!({ "data": null });
 
         let result = validate_data_param(&params_null, false);
         assert!(result.is_err());

@@ -1,0 +1,43 @@
+[DESIGN]
+
+# Maximum number of locals for function / method body
+max-locals=30
+
+# Maximum number of arguments for function / method
+max-args=26
+
+# Maximum number of positional arguments (see R0917).
+max-positional-arguments=21
+
+# Maximum allowed line length
+max-line-length=135
+
+# Maximum number of instance attributes
+max-attributes=25
+
+[MESSAGES CONTROL]
+disable=
+    global-statement,
+    duplicate-code,
+    broad-exception-caught,
+    too-many-statements,
+    unused-argument,
+    too-many-branches,
+    too-many-locals,
+    too-many-lines,
+    no-name-in-module,
+    protected-access,
+    bare-except,
+    expression-not-assigned,
+    unnecessary-direct-lambda-call,
+    no-member,
+    no-else-return,
+    import-outside-toplevel,
+    too-many-return-statements,
+    too-many-function-args,
+    too-many-public-methods,
+    unnecessary-pass,
+    invalid-name,
+    import-error,
+    too-many-nested-blocks
+    

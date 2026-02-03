@@ -1,0 +1,52 @@
+receivers:
+  otlp:
+    protocols:
+      grpc:
+        endpoint: 0.0.0.0:4317
+      http:
+        endpoint: 0.0.0.0:4318
+
+processors:
+  batch:
+  memory_limiter:
+    # 80% of maximum memory up to 2G
+    limit_mib: 1500
+    # 25% of limit up to 2G
+    spike_limit_mib: 512
+    check_interval: 5s
+
+exporters:
+  clickhouse:
+    endpoint: tcp://${env:INIT_DB_HOST}:9000?dial_timeout=10s
+    database: ${env:INIT_DB_DATABASE}
+    username: ${env:INIT_DB_USERNAME}
+    password: ${env:INIT_DB_PASSWORD}
+    ttl: 730h
+    logs_table_name: otel_logs
+    traces_table_name: otel_traces
+    # Metrics use separate tables by type: otel_metrics_gauge, otel_metrics_sum,
+    # otel_metrics_histogram, otel_metrics_summary, otel_metrics_exponential_histogram
+    timeout: 5s
+    retry_on_failure:
+      enabled: true
+      initial_interval: 5s
+      max_interval: 30s
+      max_elapsed_time: 300s
+
+service:
+  pipelines:
+    logs:
+      receivers: [otlp]
+      processors: [batch]
+      exporters: [clickhouse]
+    traces:
+      receivers: [otlp]
+      processors: [memory_limiter, batch]
+      exporters: [clickhouse]
+    metrics:
+      receivers: [otlp]
+      processors: [memory_limiter, batch]
+      exporters: [clickhouse]
+  # telemetry:
+  #   metrics:
+  #     address: localhost:8888

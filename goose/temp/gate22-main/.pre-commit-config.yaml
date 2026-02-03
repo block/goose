@@ -1,0 +1,75 @@
+repos:
+  # General checks
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-yaml
+      - id: check-json
+      - id: check-added-large-files
+      - id: check-merge-conflict
+
+  # Frontend checks
+  - repo: local
+    hooks:
+      - id: format check
+        name: running frontend format check
+        language: system
+        entry: sh -c "cd frontend && pnpm run format:check"
+        pass_filenames: false
+        require_serial: true
+        files: ^frontend/
+      - id: lint check
+        name: running frontend lint check
+        language: system
+        entry: sh -c "cd frontend && pnpm run lint"
+        pass_filenames: false
+        require_serial: true
+        files: ^frontend/
+      - id: build check
+        name: running frontend build check
+        language: system
+        entry: sh -c "cd frontend && pnpm run build"
+        pass_filenames: false
+        require_serial: true
+        files: ^frontend/
+
+  # Backend checks
+  - repo: local
+    hooks:
+      - id: format
+        name: running backend format checks
+        language: system
+        entry: sh -c "cd backend && uv run ruff format ."
+        pass_filenames: false
+        require_serial: true
+        files: ^backend/
+      - id: lint
+        name: running backend lint checks
+        language: system
+        entry: sh -c "cd backend && uv run ruff check . --fix"
+        pass_filenames: false
+        require_serial: true
+        files: ^backend/
+      - id: prettier-json
+        name: running backend prettier (json)
+        language: node
+        entry: prettier --config backend/.prettierrc --write
+        files: ^backend/.*\.(json|jsonc)$
+        additional_dependencies:
+          - prettier@3.6.2
+      - id: mypy
+        name: running backend mypy checks
+        language: system
+        entry: sh -c "cd backend && uv run mypy ."
+        pass_filenames: false
+        require_serial: true
+        files: ^backend/
+      - id: importlinter
+        name: running backend importlinter checks
+        language: system
+        entry: sh -c "cd backend && uv run lint-imports"
+        pass_filenames: false
+        require_serial: true
+        files: ^backend/

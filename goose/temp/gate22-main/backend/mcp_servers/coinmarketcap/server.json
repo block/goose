@@ -1,0 +1,18 @@
+{
+  "name": "COINMARKETCAP",
+  "url": "https://mcp.aci.dev/virtual/mcp?server_name=COINMARKETCAP",
+  "transport_type": "streamable_http",
+  "description": "CoinMarketCap API provides cryptocurrency market data including listings, quotes, mapping and global metrics. API accessible is subject to the pricing tier of the user.",
+  "logo": "https://raw.githubusercontent.com/aipotheosis-labs/aipolabs-icons/refs/heads/main/apps/coinmarketcap.svg",
+  "categories": ["Finance", "Blockchain"],
+  "auth_configs": [
+    {
+      "type": "api_key",
+      "location": "header",
+      "name": "X-CMC_PRO_API_KEY"
+    }
+  ],
+  "server_metadata": {
+    "is_virtual_mcp_server": true
+  }
+}

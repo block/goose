@@ -8,3 +8,4 @@ pub mod session;
 pub mod term;
 pub mod update;
 pub mod web;
+pub mod workflow;

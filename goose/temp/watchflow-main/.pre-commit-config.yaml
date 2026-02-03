@@ -1,0 +1,31 @@
+default_stages:
+  - pre-commit
+  - pre-push
+
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v6.0.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-yaml
+        exclude: '^helm-chart/templates.*\.yaml$|^mkdocs\.yml$'
+      - id: check-json
+      - id: check-added-large-files
+
+  # Ruff: The One Tool to Rule Them All
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.3.0
+    hooks:
+      # Linter (Fixes imports, modernizes syntax, checks bugs)
+      - id: ruff
+        args: [--fix, --exit-non-zero-on-fix]
+      # Formatter (Replaces Black)
+      - id: ruff-format
+
+  # Convention Enforcement
+  - repo: https://github.com/compilerla/conventional-pre-commit
+    rev: v4.3.0
+    hooks:
+      - id: conventional-pre-commit
+        stages: [commit-msg]

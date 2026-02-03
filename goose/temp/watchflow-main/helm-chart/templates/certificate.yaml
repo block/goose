@@ -1,0 +1,16 @@
+{{- if .Values.cert.enabled }}
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: {{ include "copilot.fullname" . }}
+  labels:
+    {{- include "copilot.labels" . | nindent 4 }}
+spec:
+  secretName: {{ .Values.cert.tls.secretName }}
+  issuerRef:
+    name: {{ .Values.cert.issuerRef.name }}
+    kind: {{ .Values.cert.issuerRef.kind }}
+  commonName: {{ .Values.cert.commonName }}
+  dnsNames:
+    {{ .Values.cert.dnsNames.hosts }}
+{{- end }}

@@ -1,0 +1,238 @@
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: generated-by-openlit-operator
+  creationTimestamp: null
+  name: autoinstrumentations.openlit.io
+spec:
+  group: openlit.io
+  names:
+    kind: AutoInstrumentation
+    plural: autoinstrumentations
+    shortNames:
+    - ai
+    singular: autoinstrumentation
+  scope: Namespaced
+  versions:
+  - additionalPrinterColumns:
+    - description: Python instrumentation enabled
+      jsonPath: .spec.python.instrumentation.enabled
+      name: Python-Enabled
+      type: boolean
+    - description: Instrumentation provider
+      jsonPath: .spec.python.instrumentation.provider
+      name: Provider
+      type: string
+    - description: OTLP endpoint
+      jsonPath: .spec.otlp.endpoint
+      name: OTLP-Endpoint
+      type: string
+    - jsonPath: .metadata.creationTimestamp
+      name: Age
+      type: date
+    name: v1alpha1
+    schema:
+      openAPIV3Schema:
+        description: AutoInstrumentation defines the configuration for automatic instrumentation
+          of applications
+        properties:
+          spec:
+            properties:
+              ignore:
+                properties:
+                  matchExpressions:
+                    items:
+                      properties:
+                        key:
+                          type: string
+                        operator:
+                          type: string
+                        values:
+                          items:
+                            type: string
+                          type: array
+                      required:
+                      - key
+                      - operator
+                      type: object
+                    type: array
+                  matchLabels:
+                    additionalProperties:
+                      type: string
+                    type: object
+                type: object
+              otlp:
+                properties:
+                  endpoint:
+                    type: string
+                  headers:
+                    type: string
+                  timeout:
+                    type: integer
+                required:
+                - endpoint
+                type: object
+              python:
+                properties:
+                  instrumentation:
+                    properties:
+                      customInitImage:
+                        type: string
+                      customPackages:
+                        type: string
+                      enabled:
+                        type: boolean
+                      env:
+                        items:
+                          properties:
+                            name:
+                              type: string
+                            value:
+                              type: string
+                            valueFrom:
+                              properties:
+                                configMapKeyRef:
+                                  properties:
+                                    key:
+                                      type: string
+                                    name:
+                                      type: string
+                                    optional:
+                                      type: boolean
+                                  required:
+                                  - name
+                                  - key
+                                  type: object
+                                fieldRef:
+                                  properties:
+                                    apiVersion:
+                                      type: string
+                                    fieldPath:
+                                      type: string
+                                  required:
+                                  - fieldPath
+                                  type: object
+                                secretKeyRef:
+                                  properties:
+                                    key:
+                                      type: string
+                                    name:
+                                      type: string
+                                    optional:
+                                      type: boolean
+                                  required:
+                                  - name
+                                  - key
+                                  type: object
+                              type: object
+                          required:
+                          - name
+                          type: object
+                        type: array
+                      imagePullPolicy:
+                        type: string
+                      provider:
+                        type: string
+                      version:
+                        type: string
+                    type: object
+                type: object
+              resource:
+                properties:
+                  environment:
+                    type: string
+                type: object
+              selector:
+                properties:
+                  matchExpressions:
+                    items:
+                      properties:
+                        key:
+                          type: string
+                        operator:
+                          type: string
+                        values:
+                          items:
+                            type: string
+                          type: array
+                      required:
+                      - key
+                      - operator
+                      type: object
+                    type: array
+                  matchLabels:
+                    additionalProperties:
+                      type: string
+                    type: object
+                type: object
+            required:
+            - selector
+            - otlp
+            type: object
+          status:
+            properties:
+              conditions:
+                items:
+                  properties:
+                    lastTransitionTime:
+                      format: date-time
+                      type: string
+                    message:
+                      type: string
+                    observedGeneration:
+                      type: integer
+                    reason:
+                      type: string
+                    status:
+                      type: string
+                    type:
+                      type: string
+                  required:
+                  - type
+                  - status
+                  - lastTransitionTime
+                  - reason
+                  - message
+                  type: object
+                type: array
+              instrumentedPods:
+                items:
+                  properties:
+                    instrumentedAt:
+                      format: date-time
+                      type: string
+                    name:
+                      type: string
+                    namespace:
+                      type: string
+                    provider:
+                      type: string
+                  required:
+                  - name
+                  - namespace
+                  - instrumentedAt
+                  - provider
+                  type: object
+                type: array
+              lastProcessed:
+                format: date-time
+                type: string
+              validationErrors:
+                items:
+                  type: string
+                type: array
+            type: object
+        required:
+        - spec
+        type: object
+    served: true
+    storage: true
+    subresources:
+      status: {}
+status:
+  acceptedNames:
+    kind: ""
+    plural: ""
+  conditions: null
+  storedVersions: null

@@ -1,0 +1,1848 @@
+[
+  {
+    "name": "RESEND__SEND_EMAIL",
+    "description": "Start sending emails through the Resend Email API.",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "POST",
+      "endpoint": "https://api.resend.com/emails"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "header": {
+          "type": "object",
+          "description": "Headers for the http request",
+          "properties": {
+            "Content-Type": {
+              "type": "string",
+              "description": "Content-Type header",
+              "default": "application/json"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "Content-Type"
+          ],
+          "visible": []
+        },
+        "body": {
+          "type": "object",
+          "description": "Body parameters for the email request",
+          "properties": {
+            "from": {
+              "type": "string",
+              "description": "Sender email address"
+            },
+            "to": {
+              "type": "array",
+              "description": "Recipient email address(es)",
+              "items": {
+                "type": "string"
+              }
+            },
+            "subject": {
+              "type": "string",
+              "description": "Email subject"
+            },
+            "bcc": {
+              "type": "array",
+              "description": "Bcc recipient email address(es)",
+              "items": {
+                "type": "string"
+              }
+            },
+            "cc": {
+              "type": "array",
+              "description": "Cc recipient email address(es)",
+              "items": {
+                "type": "string"
+              }
+            },
+            "scheduled_at": {
+              "type": "string",
+              "description": "Schedule email to be sent later. The date should be in natural language (e.g.: in 1 min) or ISO 8601 format (e.g: 2024-08-05T11:52:01.858Z)."
+            },
+            "reply_to": {
+              "oneOf": [
+                {
+                  "type": "string",
+                  "description": "Single reply-to email address",
+                  "format": "email"
+                },
+                {
+                  "type": "array",
+                  "description": "Multiple reply-to email addresses",
+                  "items": {
+                    "type": "string",
+                    "format": "email"
+                  }
+                }
+              ],
+              "description": "Reply-to email address(es). Can be a single email or an array of emails."
+            },
+            "html": {
+              "type": "string",
+              "description": "The HTML version of the message"
+            },
+            "text": {
+              "type": "string",
+              "description": "The plain text version of the message"
+            },
+            "tags": {
+              "type": "array",
+              "description": "Custom data passed in key/value pairs",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "description": "The name of the email tag"
+                  },
+                  "value": {
+                    "type": "string",
+                    "description": "The value of the email tag"
+                  }
+                },
+                "required": [
+                  "name",
+                  "value"
+                ],
+                "visible": [
+                  "name",
+                  "value"
+                ]
+              }
+            }
+          },
+          "required": [
+            "from",
+            "to",
+            "subject"
+          ],
+          "visible": [
+            "from",
+            "to",
+            "subject",
+            "bcc",
+            "cc",
+            "scheduled_at",
+            "reply_to",
+            "html",
+            "text",
+            "tags"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "header",
+        "body"
+      ],
+      "visible": [
+        "body"
+      ]
+    }
+  },
+  {
+    "name": "RESEND__RETRIVE_EMAIL",
+    "description": "Retrieve a single email.",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "GET",
+      "endpoint": "https://api.resend.com/emails/{id}"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "header": {
+          "type": "object",
+          "description": "Headers for the http request",
+          "properties": {
+            "Content-Type": {
+              "type": "string",
+              "description": "Content-Type header",
+              "default": "application/json"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "Content-Type"
+          ],
+          "visible": []
+        },
+        "path": {
+          "type": "object",
+          "description": "Path parameters for the request",
+          "properties": {
+            "id": {
+              "type": "string",
+              "description": "The ID of the email to retrieve"
+            }
+          },
+          "required": [
+            "id"
+          ],
+          "visible": [
+            "id"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "header",
+        "path"
+      ],
+      "visible": [
+        "path"
+      ]
+    }
+  },
+  {
+    "name": "RESEND__SEND_BATCH_EMAILS",
+    "description": "Trigger up to 100 batch emails at once.",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "POST",
+      "endpoint": "https://api.resend.com/emails/batch"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "header": {
+          "type": "object",
+          "description": "Headers for the http request",
+          "properties": {
+            "Content-Type": {
+              "type": "string",
+              "description": "Content-Type header",
+              "default": "application/json"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "Content-Type"
+          ],
+          "visible": []
+        },
+        "body": {
+          "type": "array",
+          "description": "Array of email objects to send in batch",
+          "items": {
+            "type": "object",
+            "properties": {
+              "from": {
+                "type": "string",
+                "description": "Sender email address"
+              },
+              "to": {
+                "type": "array",
+                "description": "Recipient email address(es)",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "subject": {
+                "type": "string",
+                "description": "Email subject"
+              },
+              "bcc": {
+                "type": "array",
+                "description": "Bcc recipient email address(es)",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "cc": {
+                "type": "array",
+                "description": "Cc recipient email address(es)",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "scheduled_at": {
+                "type": "string",
+                "description": "Schedule email to be sent later. The date should be in natural language (e.g.: in 1 min) or ISO 8601 format (e.g: 2024-08-05T11:52:01.858Z)."
+              },
+              "reply_to": {
+                "oneOf": [
+                  {
+                    "type": "string",
+                    "description": "Single reply-to email address",
+                    "format": "email"
+                  },
+                  {
+                    "type": "array",
+                    "description": "Multiple reply-to email addresses",
+                    "items": {
+                      "type": "string",
+                      "format": "email"
+                    }
+                  }
+                ],
+                "description": "Reply-to email address(es). Can be a single email or an array of emails."
+              },
+              "html": {
+                "type": "string",
+                "description": "The HTML version of the message"
+              },
+              "text": {
+                "type": "string",
+                "description": "The plain text version of the message"
+              },
+              "tags": {
+                "type": "array",
+                "description": "Custom data passed in key/value pairs",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "name": {
+                      "type": "string",
+                      "description": "The name of the email tag"
+                    },
+                    "value": {
+                      "type": "string",
+                      "description": "The value of the email tag"
+                    }
+                  },
+                  "required": [
+                    "name",
+                    "value"
+                  ],
+                  "visible": [
+                    "name",
+                    "value"
+                  ]
+                }
+              }
+            },
+            "required": [
+              "from",
+              "to",
+              "subject"
+            ],
+            "visible": [
+              "from",
+              "to",
+              "subject",
+              "bcc",
+              "cc",
+              "scheduled_at",
+              "reply_to",
+              "html",
+              "text",
+              "tags"
+            ],
+            "additionalProperties": false
+          }
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "header",
+        "body"
+      ],
+      "visible": [
+        "body"
+      ]
+    }
+  },
+  {
+    "name": "RESEND__UPDATE_EMAIL",
+    "description": "Update a scheduled email.",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "PATCH",
+      "endpoint": "https://api.resend.com/emails/{id}"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "header": {
+          "type": "object",
+          "description": "Headers for the http request",
+          "properties": {
+            "Content-Type": {
+              "type": "string",
+              "description": "Content-Type header",
+              "default": "application/json"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "Content-Type"
+          ],
+          "visible": []
+        },
+        "path": {
+          "type": "object",
+          "description": "Path parameters for the request",
+          "properties": {
+            "id": {
+              "type": "string",
+              "description": "The ID of the email to update"
+            }
+          },
+          "required": [
+            "id"
+          ],
+          "visible": [
+            "id"
+          ],
+          "additionalProperties": false
+        },
+        "body": {
+          "type": "object",
+          "description": "Body parameters for the email update request",
+          "properties": {
+            "scheduled_at": {
+              "type": "string",
+              "description": "Schedule email to be sent later. The date should be in ISO 8601 format (e.g: 2024-08-05T11:52:01.858Z)."
+            }
+          },
+          "required": [
+            "scheduled_at"
+          ],
+          "visible": [
+            "scheduled_at"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "header",
+        "path",
+        "body"
+      ],
+      "visible": [
+        "path",
+        "body"
+      ]
+    }
+  },
+  {
+    "name": "RESEND__CANCEL_EMAIL",
+    "description": "Cancel a scheduled email.",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "POST",
+      "endpoint": "https://api.resend.com/emails/{id}/cancel"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "header": {
+          "type": "object",
+          "description": "Headers for the http request",
+          "properties": {
+            "Content-Type": {
+              "type": "string",
+              "description": "Content-Type header",
+              "default": "application/json"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "Content-Type"
+          ],
+          "visible": []
+        },
+        "path": {
+          "type": "object",
+          "description": "Path parameters for the request",
+          "properties": {
+            "id": {
+              "type": "string",
+              "description": "The ID of the email to cancel"
+            }
+          },
+          "required": [
+            "id"
+          ],
+          "visible": [
+            "id"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "header",
+        "path"
+      ],
+      "visible": [
+        "path"
+      ]
+    }
+  },
+  {
+    "name": "RESEND__CREATE_DOMAIN",
+    "description": "Add a domain to your Resend account.",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "POST",
+      "endpoint": "https://api.resend.com/domains"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "header": {
+          "type": "object",
+          "description": "Headers for the http request",
+          "properties": {
+            "Content-Type": {
+              "type": "string",
+              "description": "Content-Type header",
+              "default": "application/json"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "Content-Type"
+          ],
+          "visible": []
+        },
+        "body": {
+          "type": "object",
+          "description": "Body parameters for the domain creation request",
+          "properties": {
+            "name": {
+              "type": "string",
+              "description": "The domain name to add"
+            },
+            "region": {
+              "type": "string",
+              "description": "The region to create the domain in"
+            }
+          },
+          "required": [
+            "name"
+          ],
+          "visible": [
+            "name",
+            "region"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "header",
+        "body"
+      ],
+      "visible": [
+        "body"
+      ]
+    }
+  },
+  {
+    "name": "RESEND__RETRIEVE_DOMAIN",
+    "description": "Retrieve a single domain.",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "GET",
+      "endpoint": "https://api.resend.com/domains/{id}"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "header": {
+          "type": "object",
+          "description": "Headers for the http request",
+          "properties": {
+            "Content-Type": {
+              "type": "string",
+              "description": "Content-Type header",
+              "default": "application/json"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "Content-Type"
+          ],
+          "visible": []
+        },
+        "path": {
+          "type": "object",
+          "description": "Path parameters for the request",
+          "properties": {
+            "id": {
+              "type": "string",
+              "description": "The ID of the domain to retrieve"
+            }
+          },
+          "required": [
+            "id"
+          ],
+          "visible": [
+            "id"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "header",
+        "path"
+      ],
+      "visible": [
+        "path"
+      ]
+    }
+  },
+  {
+    "name": "RESEND__VERIFY_DOMAIN",
+    "description": "Verify a domain.",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "POST",
+      "endpoint": "https://api.resend.com/domains/{id}/verify"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "header": {
+          "type": "object",
+          "description": "Headers for the http request",
+          "properties": {
+            "Content-Type": {
+              "type": "string",
+              "description": "Content-Type header",
+              "default": "application/json"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "Content-Type"
+          ],
+          "visible": []
+        },
+        "path": {
+          "type": "object",
+          "description": "Path parameters for the request",
+          "properties": {
+            "id": {
+              "type": "string",
+              "description": "The ID of the domain to verify"
+            }
+          },
+          "required": [
+            "id"
+          ],
+          "visible": [
+            "id"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "header",
+        "path"
+      ],
+      "visible": [
+        "path"
+      ]
+    }
+  },
+  {
+    "name": "RESEND__UPDATE_DOMAIN",
+    "description": "Update a domain.",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "PATCH",
+      "endpoint": "https://api.resend.com/domains/{id}"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "header": {
+          "type": "object",
+          "description": "Headers for the http request",
+          "properties": {
+            "Content-Type": {
+              "type": "string",
+              "description": "Content-Type header",
+              "default": "application/json"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "Content-Type"
+          ],
+          "visible": []
+        },
+        "path": {
+          "type": "object",
+          "description": "Path parameters for the request",
+          "properties": {
+            "id": {
+              "type": "string",
+              "description": "The ID of the domain to update"
+            }
+          },
+          "required": [
+            "id"
+          ],
+          "visible": [
+            "id"
+          ],
+          "additionalProperties": false
+        },
+        "body": {
+          "type": "object",
+          "description": "Body parameters for the domain update request",
+          "properties": {
+            "click_tracking": {
+              "type": "boolean",
+              "description": "Enable or disable click tracking"
+            },
+            "open_tracking": {
+              "type": "boolean",
+              "description": "Enable or disable open tracking"
+            }
+          },
+          "required": [],
+          "visible": [
+            "click_tracking",
+            "open_tracking"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "header",
+        "path",
+        "body"
+      ],
+      "visible": [
+        "path",
+        "body"
+      ]
+    }
+  },
+  {
+    "name": "RESEND__LIST_DOMAINS",
+    "description": "Returns a list of your domains.",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "GET",
+      "endpoint": "https://api.resend.com/domains"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "header": {
+          "type": "object",
+          "description": "Headers for the http request",
+          "properties": {
+            "Content-Type": {
+              "type": "string",
+              "description": "Content-Type header",
+              "default": "application/json"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "Content-Type"
+          ],
+          "visible": []
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "header"
+      ],
+      "visible": []
+    }
+  },
+  {
+    "name": "RESEND__DELETE_DOMAIN",
+    "description": "Delete a domain.",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "DELETE",
+      "endpoint": "https://api.resend.com/domains/{id}"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "header": {
+          "type": "object",
+          "description": "Headers for the http request",
+          "properties": {
+            "Content-Type": {
+              "type": "string",
+              "description": "Content-Type header",
+              "default": "application/json"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "Content-Type"
+          ],
+          "visible": []
+        },
+        "path": {
+          "type": "object",
+          "description": "Path parameters for the request",
+          "properties": {
+            "id": {
+              "type": "string",
+              "description": "The ID of the domain to delete"
+            }
+          },
+          "required": [
+            "id"
+          ],
+          "visible": [
+            "id"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "header",
+        "path"
+      ],
+      "visible": [
+        "path"
+      ]
+    }
+  },
+  {
+    "name": "RESEND__CREATE_API_KEY",
+    "description": "Add a new API key to authenticate communications with Resend.",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "POST",
+      "endpoint": "https://api.resend.com/api-keys"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "header": {
+          "type": "object",
+          "description": "Headers for the http request",
+          "properties": {
+            "Content-Type": {
+              "type": "string",
+              "description": "Content-Type header",
+              "default": "application/json"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "Content-Type"
+          ],
+          "visible": []
+        },
+        "body": {
+          "type": "object",
+          "description": "Body parameters for the API key creation request",
+          "properties": {
+            "name": {
+              "type": "string",
+              "description": "The API key name"
+            },
+            "permission": {
+              "type": "string",
+              "description": "The API key permission level (full_access or sending_access)",
+              "enum": [
+                "full_access",
+                "sending_access"
+              ]
+            },
+            "domain_id": {
+              "type": "string",
+              "description": "Restrict API key to send emails only from a specific domain (only used with sending_access permission)"
+            }
+          },
+          "required": [
+            "name"
+          ],
+          "visible": [
+            "name",
+            "permission",
+            "domain_id"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "header",
+        "body"
+      ],
+      "visible": [
+        "body"
+      ]
+    }
+  },
+  {
+    "name": "RESEND__LIST_API_KEYS",
+    "description": "Retrieve a list of API keys for the authenticated user.",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "GET",
+      "endpoint": "https://api.resend.com/api-keys"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "header": {
+          "type": "object",
+          "description": "Headers for the http request",
+          "properties": {
+            "Content-Type": {
+              "type": "string",
+              "description": "Content-Type header",
+              "default": "application/json"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "Content-Type"
+          ],
+          "visible": []
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "header"
+      ],
+      "visible": []
+    }
+  },
+  {
+    "name": "RESEND__DELETE_API_KEY",
+    "description": "Remove an existing API key.",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "DELETE",
+      "endpoint": "https://api.resend.com/api-keys/{api_key_id}"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "header": {
+          "type": "object",
+          "description": "Headers for the http request",
+          "properties": {
+            "Content-Type": {
+              "type": "string",
+              "description": "Content-Type header",
+              "default": "application/json"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "Content-Type"
+          ],
+          "visible": []
+        },
+        "path": {
+          "type": "object",
+          "description": "Path parameters for the request",
+          "properties": {
+            "api_key_id": {
+              "type": "string",
+              "description": "The API key ID to delete"
+            }
+          },
+          "required": [
+            "api_key_id"
+          ],
+          "visible": [
+            "api_key_id"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "header",
+        "path"
+      ],
+      "visible": [
+        "path"
+      ]
+    }
+  },
+  {
+    "name": "RESEND__CREATE_AUDIENCE",
+    "description": "Create a list of contacts.",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "POST",
+      "endpoint": "https://api.resend.com/audiences"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "header": {
+          "type": "object",
+          "description": "Headers for the http request",
+          "properties": {
+            "Content-Type": {
+              "type": "string",
+              "description": "Content-Type header",
+              "default": "application/json"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "Content-Type"
+          ],
+          "visible": []
+        },
+        "body": {
+          "type": "object",
+          "description": "Body parameters for the audience creation request",
+          "properties": {
+            "name": {
+              "type": "string",
+              "description": "The name of the audience you want to create"
+            }
+          },
+          "required": [
+            "name"
+          ],
+          "visible": [
+            "name"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "header",
+        "body"
+      ],
+      "visible": [
+        "body"
+      ]
+    }
+  },
+  {
+    "name": "RESEND__RETRIEVE_AUDIENCE",
+    "description": "Retrieve a single audience.",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "GET",
+      "endpoint": "https://api.resend.com/audiences/{id}"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "header": {
+          "type": "object",
+          "description": "Headers for the http request",
+          "properties": {
+            "Content-Type": {
+              "type": "string",
+              "description": "Content-Type header",
+              "default": "application/json"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "Content-Type"
+          ],
+          "visible": []
+        },
+        "path": {
+          "type": "object",
+          "description": "Path parameters for the request",
+          "properties": {
+            "id": {
+              "type": "string",
+              "description": "The ID of the audience to retrieve"
+            }
+          },
+          "required": [
+            "id"
+          ],
+          "visible": [
+            "id"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "header",
+        "path"
+      ],
+      "visible": [
+        "path"
+      ]
+    }
+  },
+  {
+    "name": "RESEND__DELETE_AUDIENCE",
+    "description": "Remove an existing audience.",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "DELETE",
+      "endpoint": "https://api.resend.com/audiences/{id}"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "header": {
+          "type": "object",
+          "description": "Headers for the http request",
+          "properties": {
+            "Content-Type": {
+              "type": "string",
+              "description": "Content-Type header",
+              "default": "application/json"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "Content-Type"
+          ],
+          "visible": []
+        },
+        "path": {
+          "type": "object",
+          "description": "Path parameters for the request",
+          "properties": {
+            "id": {
+              "type": "string",
+              "description": "The ID of the audience to delete"
+            }
+          },
+          "required": [
+            "id"
+          ],
+          "visible": [
+            "id"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "header",
+        "path"
+      ],
+      "visible": [
+        "path"
+      ]
+    }
+  },
+  {
+    "name": "RESEND__LIST_AUDIENCES",
+    "description": "Retrieve a list of audiences.",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "GET",
+      "endpoint": "https://api.resend.com/audiences"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "header": {
+          "type": "object",
+          "description": "Headers for the http request",
+          "properties": {
+            "Content-Type": {
+              "type": "string",
+              "description": "Content-Type header",
+              "default": "application/json"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "Content-Type"
+          ],
+          "visible": []
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "header"
+      ],
+      "visible": []
+    }
+  },
+  {
+    "name": "RESEND__CREATE_CONTACT",
+    "description": "Add a contact to an audience.",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "POST",
+      "endpoint": "https://api.resend.com/audiences/{audience_id}/contacts"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "header": {
+          "type": "object",
+          "description": "Headers for the http request",
+          "properties": {
+            "Content-Type": {
+              "type": "string",
+              "description": "Content-Type header",
+              "default": "application/json"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "Content-Type"
+          ],
+          "visible": []
+        },
+        "path": {
+          "type": "object",
+          "description": "Path parameters for the request",
+          "properties": {
+            "audience_id": {
+              "type": "string",
+              "description": "The ID of the audience to add the contact to"
+            }
+          },
+          "required": [
+            "audience_id"
+          ],
+          "visible": [
+            "audience_id"
+          ],
+          "additionalProperties": false
+        },
+        "body": {
+          "type": "object",
+          "description": "Body parameters for the contact creation request",
+          "properties": {
+            "email": {
+              "type": "string",
+              "description": "Email address of the contact"
+            },
+            "first_name": {
+              "type": "string",
+              "description": "First name of the contact"
+            },
+            "last_name": {
+              "type": "string",
+              "description": "Last name of the contact"
+            },
+            "unsubscribed": {
+              "type": "boolean",
+              "description": "Whether the contact is unsubscribed"
+            }
+          },
+          "required": [
+            "email"
+          ],
+          "visible": [
+            "email",
+            "first_name",
+            "last_name",
+            "unsubscribed"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "header",
+        "path",
+        "body"
+      ],
+      "visible": [
+        "path",
+        "body"
+      ]
+    }
+  },
+  {
+    "name": "RESEND__RETRIEVE_CONTACT",
+    "description": "Retrieve a single contact.",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "GET",
+      "endpoint": "https://api.resend.com/audiences/{audience_id}/contacts/{id}"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "header": {
+          "type": "object",
+          "description": "Headers for the http request",
+          "properties": {
+            "Content-Type": {
+              "type": "string",
+              "description": "Content-Type header",
+              "default": "application/json"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "Content-Type"
+          ],
+          "visible": []
+        },
+        "path": {
+          "type": "object",
+          "description": "Path parameters for the request",
+          "properties": {
+            "audience_id": {
+              "type": "string",
+              "description": "The ID of the audience containing the contact"
+            },
+            "id": {
+              "type": "string",
+              "description": "The ID of the contact to retrieve"
+            }
+          },
+          "required": [
+            "audience_id",
+            "id"
+          ],
+          "visible": [
+            "audience_id",
+            "id"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "header",
+        "path"
+      ],
+      "visible": [
+        "path"
+      ]
+    }
+  },
+  {
+    "name": "RESEND__UPDATE_CONTACT",
+    "description": "Update a contact.",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "PATCH",
+      "endpoint": "https://api.resend.com/audiences/{audience_id}/contacts/{id}"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "header": {
+          "type": "object",
+          "description": "Headers for the http request",
+          "properties": {
+            "Content-Type": {
+              "type": "string",
+              "description": "Content-Type header",
+              "default": "application/json"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "Content-Type"
+          ],
+          "visible": []
+        },
+        "path": {
+          "type": "object",
+          "description": "Path parameters for the request",
+          "properties": {
+            "audience_id": {
+              "type": "string",
+              "description": "The ID of the audience containing the contact"
+            },
+            "id": {
+              "type": "string",
+              "description": "The ID of the contact to update"
+            }
+          },
+          "required": [
+            "audience_id",
+            "id"
+          ],
+          "visible": [
+            "audience_id",
+            "id"
+          ],
+          "additionalProperties": false
+        },
+        "body": {
+          "type": "object",
+          "description": "Body parameters for the contact update request",
+          "properties": {
+            "first_name": {
+              "type": "string",
+              "description": "First name of the contact"
+            },
+            "last_name": {
+              "type": "string",
+              "description": "Last name of the contact"
+            },
+            "unsubscribed": {
+              "type": "boolean",
+              "description": "Whether the contact is unsubscribed"
+            }
+          },
+          "required": [],
+          "visible": [
+            "first_name",
+            "last_name",
+            "unsubscribed"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "header",
+        "path",
+        "body"
+      ],
+      "visible": [
+        "path",
+        "body"
+      ]
+    }
+  },
+  {
+    "name": "RESEND__DELETE_CONTACT",
+    "description": "Remove an existing contact.",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "DELETE",
+      "endpoint": "https://api.resend.com/audiences/{audience_id}/contacts/{id}"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "header": {
+          "type": "object",
+          "description": "Headers for the http request",
+          "properties": {
+            "Content-Type": {
+              "type": "string",
+              "description": "Content-Type header",
+              "default": "application/json"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "Content-Type"
+          ],
+          "visible": []
+        },
+        "path": {
+          "type": "object",
+          "description": "Path parameters for the request",
+          "properties": {
+            "audience_id": {
+              "type": "string",
+              "description": "The ID of the audience containing the contact"
+            },
+            "id": {
+              "type": "string",
+              "description": "The ID of the contact to delete"
+            }
+          },
+          "required": [
+            "audience_id",
+            "id"
+          ],
+          "visible": [
+            "audience_id",
+            "id"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "header",
+        "path"
+      ],
+      "visible": [
+        "path"
+      ]
+    }
+  },
+  {
+    "name": "RESEND__LIST_CONTACTS",
+    "description": "Returns a list of contacts for an audience.",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "GET",
+      "endpoint": "https://api.resend.com/audiences/{audience_id}/contacts"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "header": {
+          "type": "object",
+          "description": "Headers for the http request",
+          "properties": {
+            "Content-Type": {
+              "type": "string",
+              "description": "Content-Type header",
+              "default": "application/json"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "Content-Type"
+          ],
+          "visible": []
+        },
+        "path": {
+          "type": "object",
+          "description": "Path parameters for the request",
+          "properties": {
+            "audience_id": {
+              "type": "string",
+              "description": "The ID of the audience to list contacts from"
+            }
+          },
+          "required": [
+            "audience_id"
+          ],
+          "visible": [
+            "audience_id"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "header",
+        "path"
+      ],
+      "visible": [
+        "path"
+      ]
+    }
+  },
+  {
+    "name": "RESEND__CREATE_BROADCAST",
+    "description": "Create a new broadcast to send to your audience.",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "POST",
+      "endpoint": "https://api.resend.com/broadcasts"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "header": {
+          "type": "object",
+          "description": "Headers for the http request",
+          "properties": {
+            "Content-Type": {
+              "type": "string",
+              "description": "Content-Type header",
+              "default": "application/json"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "Content-Type"
+          ],
+          "visible": []
+        },
+        "body": {
+          "type": "object",
+          "description": "Body parameters for the broadcast creation request",
+          "properties": {
+            "audience_id": {
+              "type": "string",
+              "description": "The ID of the audience you want to send to"
+            },
+            "from": {
+              "type": "string",
+              "description": "Sender email address. To include a friendly name, use the format \"Your Name <sender@domain.com>\""
+            },
+            "subject": {
+              "type": "string",
+              "description": "Email subject"
+            },
+            "reply_to": {
+              "oneOf": [
+                {
+                  "type": "string",
+                  "description": "Single reply-to email address",
+                  "format": "email"
+                },
+                {
+                  "type": "array",
+                  "description": "Multiple reply-to email addresses",
+                  "items": {
+                    "type": "string",
+                    "format": "email"
+                  }
+                }
+              ],
+              "description": "Reply-to email address(es). Can be a single email or an array of emails"
+            },
+            "html": {
+              "type": "string",
+              "description": "The HTML version of the message"
+            },
+            "text": {
+              "type": "string",
+              "description": "The plain text version of the message"
+            },
+            "name": {
+              "type": "string",
+              "description": "The friendly name of the broadcast. Only used for internal reference"
+            }
+          },
+          "required": [
+            "audience_id",
+            "from",
+            "subject"
+          ],
+          "visible": [
+            "audience_id",
+            "from",
+            "subject",
+            "reply_to",
+            "html",
+            "text",
+            "name"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "header",
+        "body"
+      ],
+      "visible": [
+        "body"
+      ]
+    }
+  },
+  {
+    "name": "RESEND__RETRIEVE_BROADCAST",
+    "description": "Retrieve a single broadcast.",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "GET",
+      "endpoint": "https://api.resend.com/broadcasts/{id}"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "header": {
+          "type": "object",
+          "description": "Headers for the http request",
+          "properties": {
+            "Content-Type": {
+              "type": "string",
+              "description": "Content-Type header",
+              "default": "application/json"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "Content-Type"
+          ],
+          "visible": []
+        },
+        "path": {
+          "type": "object",
+          "description": "Path parameters for the request",
+          "properties": {
+            "id": {
+              "type": "string",
+              "description": "The ID of the broadcast to retrieve"
+            }
+          },
+          "required": [
+            "id"
+          ],
+          "visible": [
+            "id"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "header",
+        "path"
+      ],
+      "visible": [
+        "path"
+      ]
+    }
+  },
+  {
+    "name": "RESEND__SEND_BROADCAST",
+    "description": "Start sending broadcasts to your audience through the Resend API.",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "POST",
+      "endpoint": "https://api.resend.com/broadcasts/{id}/send"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "header": {
+          "type": "object",
+          "description": "Headers for the http request",
+          "properties": {
+            "Content-Type": {
+              "type": "string",
+              "description": "Content-Type header",
+              "default": "application/json"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "Content-Type"
+          ],
+          "visible": []
+        },
+        "path": {
+          "type": "object",
+          "description": "Path parameters for the request",
+          "properties": {
+            "id": {
+              "type": "string",
+              "description": "The broadcast ID"
+            }
+          },
+          "required": [
+            "id"
+          ],
+          "visible": [
+            "id"
+          ],
+          "additionalProperties": false
+        },
+        "body": {
+          "type": "object",
+          "description": "Body parameters for the send broadcast request",
+          "properties": {
+            "scheduled_at": {
+              "type": "string",
+              "description": "Schedule email to be sent later. The date should be in natural language (e.g.: in 1 min) or ISO 8601 format (e.g: 2024-08-05T11:52:01.858Z)"
+            }
+          },
+          "required": [],
+          "visible": [
+            "scheduled_at"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "header",
+        "path"
+      ],
+      "visible": [
+        "path",
+        "body"
+      ]
+    }
+  },
+  {
+    "name": "RESEND__DELETE_BROADCAST",
+    "description": "Delete a broadcast.",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "DELETE",
+      "endpoint": "https://api.resend.com/broadcasts/{id}"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "header": {
+          "type": "object",
+          "description": "Headers for the http request",
+          "properties": {
+            "Content-Type": {
+              "type": "string",
+              "description": "Content-Type header",
+              "default": "application/json"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "Content-Type"
+          ],
+          "visible": []
+        },
+        "path": {
+          "type": "object",
+          "description": "Path parameters for the requests",
+          "properties": {
+            "id": {
+              "type": "string",
+              "description": "The ID of the broadcast to delete"
+            }
+          },
+          "required": [
+            "id"
+          ],
+          "visible": [
+            "id"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "header",
+        "path"
+      ],
+      "visible": [
+        "path"
+      ]
+    }
+  },
+  {
+    "name": "RESEND__LIST_BROADCASTS",
+    "description": "Returns a list of your broadcasts.",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "GET",
+      "endpoint": "https://api.resend.com/broadcasts"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "header": {
+          "type": "object",
+          "description": "Headers for the http request",
+          "properties": {
+            "Content-Type": {
+              "type": "string",
+              "description": "Content-Type header",
+              "default": "application/json"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "Content-Type"
+          ],
+          "visible": []
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "header"
+      ],
+      "visible": []
+    }
+  }
+]

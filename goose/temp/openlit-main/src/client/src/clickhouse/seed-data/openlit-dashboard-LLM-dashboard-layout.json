@@ -1,0 +1,454 @@
+{
+  "id": "f36c60be-5133-4727-b6f8-8999f0692943",
+  "title": "LLM dashboard",
+  "description": "The LLM dashboard helps monitor usage patterns, detect anomalies, and optimize performance and cost across large language model workloads.",
+  "parentId": null,
+  "isMainDashboard": true,
+  "isPinned": false,
+  "createdAt": "2025-06-16 07:39:17",
+  "updatedAt": "2025-06-16 07:39:17",
+  "widgets": {
+    "3a680898-76da-4932-9499-ac8f13b0324d": {
+      "id": "3a680898-76da-4932-9499-ac8f13b0324d",
+      "title": "Total hallucination detected",
+      "description": "This defines the total hallucination detected all in all for requests for the time period selected",
+      "type": "STAT_CARD",
+      "properties": {
+        "value": "0.total_evaluation_detected",
+        "color": "#F36C06",
+        "trend": "0.rate",
+        "trendSuffix": "%"
+      },
+      "config": {
+        "query": "WITH\n    parseDateTimeBestEffort('{{filter.timeLimit.start}}') AS start_time,\n    parseDateTimeBestEffort('{{filter.timeLimit.end}}') AS end_time,\n    (end_time - start_time) AS duration,\n    (start_time - duration) AS prev_start_time,\n    (end_time - duration) AS prev_end_time\n\nSELECT\n    countDistinctIf(\n        span_id,\n        parseDateTimeBestEffort(meta['traceTimeStamp']) >= start_time\n        AND parseDateTimeBestEffort(meta['traceTimeStamp']) <= end_time\n        AND evaluationData.evaluation = 'Hallucination'\n        AND evaluationData.verdict = 'yes'\n    ) AS total_evaluation_detected,\n\n    countDistinctIf(\n        span_id,\n        parseDateTimeBestEffort(meta['traceTimeStamp']) >= prev_start_time\n        AND parseDateTimeBestEffort(meta['traceTimeStamp']) <= prev_end_time\n        AND evaluationData.evaluation = 'Hallucination'\n        AND evaluationData.verdict = 'yes'\n    ) AS previous_total_evaluation_detected,\n\n    round(\n        if(\n            countDistinctIf(\n                span_id,\n                parseDateTimeBestEffort(meta['traceTimeStamp']) >= prev_start_time\n                AND parseDateTimeBestEffort(meta['traceTimeStamp']) <= prev_end_time\n                AND evaluationData.evaluation = 'Hallucination'\n                AND evaluationData.verdict = 'yes'\n            ) = 0,\n            countDistinctIf(\n                span_id,\n                parseDateTimeBestEffort(meta['traceTimeStamp']) >= start_time\n                AND parseDateTimeBestEffort(meta['traceTimeStamp']) <= end_time\n                AND evaluationData.evaluation = 'Hallucination'\n                AND evaluationData.verdict = 'yes'\n            ) * 100.0,\n            (\n                countDistinctIf(\n                    span_id,\n                    parseDateTimeBestEffort(meta['traceTimeStamp']) >= start_time\n                    AND parseDateTimeBestEffort(meta['traceTimeStamp']) <= end_time\n                    AND evaluationData.evaluation = 'Hallucination'\n                    AND evaluationData.verdict = 'yes'\n                ) -\n                countDistinctIf(\n                    span_id,\n                    parseDateTimeBestEffort(meta['traceTimeStamp']) >= prev_start_time\n                    AND parseDateTimeBestEffort(meta['traceTimeStamp']) <= prev_end_time\n                    AND evaluationData.evaluation = 'Hallucination'\n                    AND evaluationData.verdict = 'yes'\n                )\n            ) /\n            countDistinctIf(\n                span_id,\n                parseDateTimeBestEffort(meta['traceTimeStamp']) >= prev_start_time\n                AND parseDateTimeBestEffort(meta['traceTimeStamp']) <= prev_end_time\n                AND evaluationData.evaluation = 'Hallucination'\n                AND evaluationData.verdict = 'yes'\n            ) * 100.0\n        ), 4\n    ) AS rate\nFROM openlit_evaluation\nARRAY JOIN evaluationData\nWHERE\n    parseDateTimeBestEffort(meta['traceTimeStamp']) >= prev_start_time\n    AND parseDateTimeBestEffort(meta['traceTimeStamp']) <= end_time\n"
+      },
+      "createdAt": "2025-06-16 07:39:17",
+      "updatedAt": "2025-06-16 07:39:17"
+    },
+    "e9b4e3de-0975-4082-912a-fc10ab22f401": {
+      "id": "e9b4e3de-0975-4082-912a-fc10ab22f401",
+      "title": "Top models",
+      "description": "Top 3 models within the time period selected",
+      "type": "BAR_CHART",
+      "properties": {
+        "xAxis": "model",
+        "yAxis": "model_count",
+        "color": "#F36C06"
+      },
+      "config": {
+        "query": "WITH\n    parseDateTimeBestEffort('{{filter.timeLimit.start}}') AS start_time,\n    parseDateTimeBestEffort('{{filter.timeLimit.end}}') AS end_time\n\t\nSELECT\n\t\t\tSpanAttributes['gen_ai.request.model'] AS model,\n\t\t\tCAST(COUNT(SpanAttributes['gen_ai.request.model']) AS INTEGER) AS model_count\n\t\tFROM\n\t\t\totel_traces\n\t\tWHERE \n\t\tSpanAttributes['gen_ai.operation.name'] != 'vectordb'\n\t\tAND notEmpty(SpanAttributes['gen_ai.request.model'])\n\t\tAND Timestamp >= start_time\n    AND Timestamp <= end_time\n\t\tGROUP BY\n\t\t\tmodel\n\t\tORDER BY\n\t\t\tmodel_count DESC\n\t\tLIMIT 3"
+      },
+      "createdAt": "2025-06-16 07:39:17",
+      "updatedAt": "2025-06-16 07:39:17"
+    },
+    "52b30e07-4fba-4954-8599-8fa73b5f804d": {
+      "id": "52b30e07-4fba-4954-8599-8fa73b5f804d",
+      "title": "Avg completion tokens / request",
+      "description": "This determines the average completion (output) tokens being used by per request within the time frame.",
+      "type": "STAT_CARD",
+      "properties": {
+        "value": "0.completion_tokens",
+        "color": "#F36C06",
+        "trend": "0.rate",
+        "trendSuffix": "%"
+      },
+      "config": {
+        "query": "WITH\n    parseDateTimeBestEffort('{{filter.timeLimit.start}}') AS start_time,\n    parseDateTimeBestEffort('{{filter.timeLimit.end}}') AS end_time,\n    (end_time - start_time) AS duration,\n    (start_time - duration) AS prev_start_time,\n    (end_time - duration) AS prev_end_time\n\nSELECT\n    round(avgIf(toInt32OrZero(SpanAttributes['gen_ai.usage.output_tokens']),\n        Timestamp >= start_time AND Timestamp <= end_time\n        AND notEmpty(SpanAttributes['gen_ai.usage.output_tokens'])), 5) AS completion_tokens,\n\n    round(avgIf(toInt32OrZero(SpanAttributes['gen_ai.usage.output_tokens']),\n        Timestamp >= prev_start_time AND Timestamp <= prev_end_time\n        AND notEmpty(SpanAttributes['gen_ai.usage.output_tokens'])), 5) AS completion_tokens_previous,\n\n    round(\n        if(\n            avgIf(toInt32OrZero(SpanAttributes['gen_ai.usage.output_tokens']),\n                Timestamp >= prev_start_time AND Timestamp <= prev_end_time\n                AND notEmpty(SpanAttributes['gen_ai.usage.output_tokens'])) = 0,\n            avgIf(toInt32OrZero(SpanAttributes['gen_ai.usage.output_tokens']),\n                Timestamp >= start_time AND Timestamp <= end_time\n                AND notEmpty(SpanAttributes['gen_ai.usage.output_tokens'])) * 100.0,\n            (\n                avgIf(toInt32OrZero(SpanAttributes['gen_ai.usage.output_tokens']),\n                    Timestamp >= start_time AND Timestamp <= end_time\n                    AND notEmpty(SpanAttributes['gen_ai.usage.output_tokens']))\n                -\n                avgIf(toInt32OrZero(SpanAttributes['gen_ai.usage.output_tokens']),\n                    Timestamp >= prev_start_time AND Timestamp <= prev_end_time\n                    AND notEmpty(SpanAttributes['gen_ai.usage.output_tokens']))\n            )\n            /\n            avgIf(toInt32OrZero(SpanAttributes['gen_ai.usage.output_tokens']),\n                Timestamp >= prev_start_time AND Timestamp <= prev_end_time\n                AND notEmpty(SpanAttributes['gen_ai.usage.output_tokens'])) * 100.0\n        ), 4\n    ) AS rate\nFROM otel_traces\nWHERE\n    SpanAttributes['gen_ai.operation.name'] != 'vectordb'\n    AND StatusCode IN ('STATUS_CODE_OK', 'STATUS_CODE_UNSET', 'Ok', 'Unset')\n    AND Timestamp >= prev_start_time AND Timestamp <= end_time\n"
+      },
+      "createdAt": "2025-06-16 07:39:17",
+      "updatedAt": "2025-06-16 07:39:17"
+    },
+    "33432121-0999-4cdd-94d6-db8c64b32852": {
+      "id": "33432121-0999-4cdd-94d6-db8c64b32852",
+      "title": "Generation by provider",
+      "description": "This has generation by provider based on the time period selected",
+      "type": "PIE_CHART",
+      "properties": {
+        "labelPath": "provider",
+        "valuePath": "count",
+        "color": "#F36C06"
+      },
+      "config": {
+        "query": "WITH\n    parseDateTimeBestEffort('{{filter.timeLimit.start}}') AS start_time,\n    parseDateTimeBestEffort('{{filter.timeLimit.end}}') AS end_time\n\nSELECT \n    SpanAttributes['gen_ai.system'] AS provider,\n    CAST(COUNT(*) AS INTEGER) AS count\n  FROM\n  otel_traces\n  WHERE \n  SpanAttributes['gen_ai.operation.name'] != 'vectordb'\n  AND notEmpty(SpanAttributes['gen_ai.system'])\n  AND StatusCode IN ('STATUS_CODE_OK', 'STATUS_CODE_UNSET', 'Ok', 'Unset')\n  AND Timestamp >= start_time\n    AND Timestamp <= end_time\n  GROUP BY provider;"
+      },
+      "createdAt": "2025-06-16 07:39:17",
+      "updatedAt": "2025-06-16 07:39:17"
+    },
+    "7963675c-db19-4937-8c16-01b047339b8f": {
+      "id": "7963675c-db19-4937-8c16-01b047339b8f",
+      "title": "Tokens Usage",
+      "description": "This determines the tokens being used by request per day within the time frame.",
+      "type": "AREA_CHART",
+      "properties": {
+        "xAxis": "request_time",
+        "yAxis": "total_tokens",
+        "yAxes": [
+          {
+            "key": "prompt_tokens",
+            "color": "#10b981"
+          },
+          {
+            "key": "completion_tokens",
+            "color": "#F36C06"
+          }
+        ]
+      },
+      "config": {
+        "query": "WITH\n    parseDateTimeBestEffort('{{filter.timeLimit.start}}') AS start_time,\n    parseDateTimeBestEffort('{{filter.timeLimit.end}}') AS end_time,\n    dateDiff('day', start_time, end_time) AS days_diff,\n    dateDiff('year', start_time, end_time) AS years_diff,\n    multiIf(\n        years_diff >= 1, 'month',\n        days_diff <= 1, 'hour',\n        'day'\n    ) AS date_granularity\n\n\tSELECT\n\t\tCAST(SUM(toInt64OrZero(SpanAttributes['gen_ai.usage.total_tokens'])) AS INTEGER) AS total_tokens,\n\t\tCAST(SUM(toInt64OrZero(SpanAttributes['gen_ai.usage.input_tokens'])) AS INTEGER) AS prompt_tokens,\n\t\tCAST(SUM(toInt64OrZero(SpanAttributes['gen_ai.usage.output_tokens'])) AS INTEGER) AS completion_tokens,\n\t\tformatDateTime(DATE_TRUNC(date_granularity, Timestamp), '%Y/%m/%d %R') AS request_time\n\t\tFROM otel_traces \n\t\tWHERE \n\t\tSpanAttributes['gen_ai.operation.name'] != 'vectordb'\n\t\tAND StatusCode IN ('STATUS_CODE_OK', 'STATUS_CODE_UNSET', 'Ok', 'Unset')\n\t\tAND Timestamp >= start_time\n    AND Timestamp <= end_time\n\t\tGROUP BY request_time\n\t\tORDER BY request_time;"
+      },
+      "createdAt": "2025-06-16 07:39:17",
+      "updatedAt": "2025-06-16 07:39:17"
+    },
+    "0b6e684f-69e5-48fe-8438-34722939e5ca": {
+      "id": "0b6e684f-69e5-48fe-8438-34722939e5ca",
+      "title": "Requests per time",
+      "description": "Line chart to identify the Requests per time",
+      "type": "LINE_CHART",
+      "properties": {
+        "yAxis": "total",
+        "xAxis": "request_time",
+        "color": "#F36C06"
+      },
+      "config": {
+        "query": "WITH\n    parseDateTimeBestEffort('{{filter.timeLimit.start}}') AS start_time,\n    parseDateTimeBestEffort('{{filter.timeLimit.end}}') AS end_time,\n    dateDiff('day', start_time, end_time) AS days_diff,\n    dateDiff('year', start_time, end_time) AS years_diff,\n    multiIf(\n        years_diff >= 1, 'month',\n        days_diff <= 1, 'hour',\n        'day'\n    ) AS date_granularity\n\nSELECT\n    CAST(COUNT(*) AS INTEGER) AS total,\n    formatDateTime(DATE_TRUNC(date_granularity, Timestamp), '%Y/%m/%d %R') AS request_time\nFROM otel_traces\nWHERE\n    SpanAttributes['gen_ai.operation.name'] != 'vectordb'\n\t\tAND StatusCode IN ('STATUS_CODE_OK', 'STATUS_CODE_UNSET', 'Ok', 'Unset')\n    AND Timestamp >= start_time AND Timestamp <= end_time\nGROUP BY request_time\nORDER BY request_time"
+      },
+      "createdAt": "2025-06-16 07:39:17",
+      "updatedAt": "2025-06-16 07:39:17"
+    },
+    "e1d85a1b-e911-48ae-adf2-abf4b9b3dddc": {
+      "id": "e1d85a1b-e911-48ae-adf2-abf4b9b3dddc",
+      "title": "Cost by application",
+      "description": "This has cost by application based on the time period selected",
+      "type": "PIE_CHART",
+      "properties": {
+        "labelPath": "applicationName",
+        "valuePath": "cost",
+        "color": "#F36C06"
+      },
+      "config": {
+        "query": "WITH\n    parseDateTimeBestEffort('{{filter.timeLimit.start}}') AS start_time,\n    parseDateTimeBestEffort('{{filter.timeLimit.end}}') AS end_time\n\nSELECT \n\t\t\tDISTINCT ResourceAttributes['service.name'] as applicationName, \n\t\t\tROUND(SUM(toFloat64OrZero(SpanAttributes['gen_ai.usage.cost'])), 5) AS cost\n\t\tFROM otel_traces \n\t\tWHERE \n        SpanAttributes['gen_ai.operation.name'] != 'vectordb'\n        AND notEmpty(SpanAttributes['gen_ai.usage.cost']) \n        AND notEmpty(ResourceAttributes['service.name'])\n        AND StatusCode IN ('STATUS_CODE_OK', 'STATUS_CODE_UNSET', 'Ok', 'Unset')\n\t\tAND Timestamp >= start_time\n    AND Timestamp <= end_time\n\t\tGROUP BY applicationName;"
+      },
+      "createdAt": "2025-06-16 07:39:17",
+      "updatedAt": "2025-06-16 07:39:17"
+    },
+    "691426c4-3166-44fd-8af5-e07a8df5e1eb": {
+      "id": "691426c4-3166-44fd-8af5-e07a8df5e1eb",
+      "title": "Models per time",
+      "description": "New Widget Description",
+      "type": "LINE_CHART",
+      "properties": {
+        "yAxis": "total_model_count",
+        "xAxis": "request_time",
+        "color": "#F36C06"
+      },
+      "config": {
+        "query": "WITH\n    parseDateTimeBestEffort('{{filter.timeLimit.start}}') AS start_time,\n    parseDateTimeBestEffort('{{filter.timeLimit.end}}') AS end_time,\n    dateDiff('day', start_time, end_time) AS days_diff,\n    dateDiff('year', start_time, end_time) AS years_diff,\n    multiIf(\n        years_diff >= 1, 'month',\n        days_diff <= 1, 'hour',\n        'day'\n    ) AS date_granularity\n\nSELECT \n    ARRAY_AGG(model) AS models,\n    ARRAY_AGG(model_count) AS model_counts,\n    CAST(SUM(model_count) AS INTEGER) AS total_model_count,\n    request_time\nFROM (\n    SELECT\n        SpanAttributes['gen_ai.request.model'] AS model,\n        COUNT(*) AS model_count,\n        formatDateTime(DATE_TRUNC(date_granularity, Timestamp), '%Y/%m/%d %R') AS request_time\n    FROM otel_traces\n    WHERE\n        Timestamp >= start_time AND Timestamp <= end_time\n        AND SpanAttributes['gen_ai.operation.name'] != 'vectordb'\n        AND notEmpty(SpanAttributes['gen_ai.request.model'])\n        AND StatusCode IN ('STATUS_CODE_OK', 'STATUS_CODE_UNSET', 'Ok', 'Unset')\n    GROUP BY\n        model, request_time\n) AS sub\nGROUP BY\n    request_time\nORDER BY\n    request_time\n"
+      },
+      "createdAt": "2025-06-16 07:39:17",
+      "updatedAt": "2025-06-16 07:39:17"
+    },
+    "433e3791-a8ca-4c9e-b95c-39acfe38baa8": {
+      "id": "433e3791-a8ca-4c9e-b95c-39acfe38baa8",
+      "title": "Total costs",
+      "description": "This defines the total cost for the time period selected",
+      "type": "STAT_CARD",
+      "properties": {
+        "suffix": "",
+        "prefix": "$",
+        "value": "0.total_usage_cost",
+        "color": "#F36C06",
+        "trend": "0.rate",
+        "trendSuffix": "%"
+      },
+      "config": {
+        "query": "WITH\n    parseDateTimeBestEffort('{{filter.timeLimit.start}}') AS start_time,\n    parseDateTimeBestEffort('{{filter.timeLimit.end}}') AS end_time,\n    (end_time - start_time) AS duration,\n    (start_time - duration) AS prev_start_time,\n    (end_time - duration) AS prev_end_time\n\nSELECT\n    round(sumIf(toFloat64OrZero(SpanAttributes['gen_ai.usage.cost']),\n        Timestamp >= start_time AND Timestamp <= end_time), 7) AS total_usage_cost,\n\n    round(sumIf(toFloat64OrZero(SpanAttributes['gen_ai.usage.cost']),\n        Timestamp >= prev_start_time AND Timestamp <= prev_end_time), 7) AS total_usage_cost_previous,\n\n    round(\n        if(\n            sumIf(toFloat64OrZero(SpanAttributes['gen_ai.usage.cost']),\n                Timestamp >= prev_start_time AND Timestamp <= prev_end_time) = 0,\n            sumIf(toFloat64OrZero(SpanAttributes['gen_ai.usage.cost']),\n                Timestamp >= start_time AND Timestamp <= end_time) * 100.0,\n            (\n                sumIf(toFloat64OrZero(SpanAttributes['gen_ai.usage.cost']),\n                    Timestamp >= start_time AND Timestamp <= end_time)\n                -\n                sumIf(toFloat64OrZero(SpanAttributes['gen_ai.usage.cost']),\n                    Timestamp >= prev_start_time AND Timestamp <= prev_end_time)\n            )\n            /\n            sumIf(toFloat64OrZero(SpanAttributes['gen_ai.usage.cost']),\n                Timestamp >= prev_start_time AND Timestamp <= prev_end_time) * 100.0\n        ), 4\n    ) AS rate\nFROM otel_traces\nWHERE\n    SpanAttributes['gen_ai.operation.name'] != 'vectordb'\n    AND StatusCode IN ('STATUS_CODE_OK', 'STATUS_CODE_UNSET', 'Ok', 'Unset')\n    AND Timestamp >= prev_start_time AND Timestamp <= end_time\n"
+      },
+      "createdAt": "2025-06-16 07:39:17",
+      "updatedAt": "2025-06-16 07:39:17"
+    },
+    "e83f15d1-4f9b-47f3-a31a-9cc6a274f713": {
+      "id": "e83f15d1-4f9b-47f3-a31a-9cc6a274f713",
+      "title": "Total bias detected",
+      "description": "This defines the total bias detected all in all for requests for the time period selected",
+      "type": "STAT_CARD",
+      "properties": {
+        "value": "0.total_evaluation_detected",
+        "color": "#F36C06",
+        "trend": "0.rate",
+        "trendSuffix": "%"
+      },
+      "config": {
+        "query": "WITH\n    parseDateTimeBestEffort('{{filter.timeLimit.start}}') AS start_time,\n    parseDateTimeBestEffort('{{filter.timeLimit.end}}') AS end_time,\n    (end_time - start_time) AS duration,\n    (start_time - duration) AS prev_start_time,\n    (end_time - duration) AS prev_end_time\n\nSELECT\n    countDistinctIf(\n        span_id,\n        parseDateTimeBestEffort(meta['traceTimeStamp']) >= start_time\n        AND parseDateTimeBestEffort(meta['traceTimeStamp']) <= end_time\n        AND evaluationData.evaluation = 'Bias'\n        AND evaluationData.verdict = 'yes'\n    ) AS total_evaluation_detected,\n\n    countDistinctIf(\n        span_id,\n        parseDateTimeBestEffort(meta['traceTimeStamp']) >= prev_start_time\n        AND parseDateTimeBestEffort(meta['traceTimeStamp']) <= prev_end_time\n        AND evaluationData.evaluation = 'Bias'\n        AND evaluationData.verdict = 'yes'\n    ) AS previous_total_evaluation_detected,\n\n    round(\n        if(\n            countDistinctIf(\n                span_id,\n                parseDateTimeBestEffort(meta['traceTimeStamp']) >= prev_start_time\n                AND parseDateTimeBestEffort(meta['traceTimeStamp']) <= prev_end_time\n                AND evaluationData.evaluation = 'Bias'\n                AND evaluationData.verdict = 'yes'\n            ) = 0,\n            countDistinctIf(\n                span_id,\n                parseDateTimeBestEffort(meta['traceTimeStamp']) >= start_time\n                AND parseDateTimeBestEffort(meta['traceTimeStamp']) <= end_time\n                AND evaluationData.evaluation = 'Bias'\n                AND evaluationData.verdict = 'yes'\n            ) * 100.0,\n            (\n                countDistinctIf(\n                    span_id,\n                    parseDateTimeBestEffort(meta['traceTimeStamp']) >= start_time\n                    AND parseDateTimeBestEffort(meta['traceTimeStamp']) <= end_time\n                    AND evaluationData.evaluation = 'Bias'\n                    AND evaluationData.verdict = 'yes'\n                ) -\n                countDistinctIf(\n                    span_id,\n                    parseDateTimeBestEffort(meta['traceTimeStamp']) >= prev_start_time\n                    AND parseDateTimeBestEffort(meta['traceTimeStamp']) <= prev_end_time\n                    AND evaluationData.evaluation = 'Bias'\n                    AND evaluationData.verdict = 'yes'\n                )\n            ) /\n            countDistinctIf(\n                span_id,\n                parseDateTimeBestEffort(meta['traceTimeStamp']) >= prev_start_time\n                AND parseDateTimeBestEffort(meta['traceTimeStamp']) <= prev_end_time\n                AND evaluationData.evaluation = 'Bias'\n                AND evaluationData.verdict = 'yes'\n            ) * 100.0\n        ), 4\n    ) AS rate\nFROM openlit_evaluation\nARRAY JOIN evaluationData\nWHERE\n    parseDateTimeBestEffort(meta['traceTimeStamp']) >= prev_start_time\n    AND parseDateTimeBestEffort(meta['traceTimeStamp']) <= end_time\n"
+      },
+      "createdAt": "2025-06-16 07:39:17",
+      "updatedAt": "2025-06-16 07:39:17"
+    },
+    "20de3eb9-86aa-483e-9adc-536961e99ec2": {
+      "id": "20de3eb9-86aa-483e-9adc-536961e99ec2",
+      "title": "Avg prompt tokens / request",
+      "description": "This determines the average prompt (input) tokens being used by per request within the time frame.",
+      "type": "STAT_CARD",
+      "properties": {
+        "value": "0.prompt_tokens",
+        "color": "#F36C06",
+        "trend": "0.rate",
+        "trendSuffix": "%"
+      },
+      "config": {
+        "query": "WITH\n    parseDateTimeBestEffort('{{filter.timeLimit.start}}') AS start_time,\n    parseDateTimeBestEffort('{{filter.timeLimit.end}}') AS end_time,\n    (end_time - start_time) AS duration,\n    (start_time - duration) AS prev_start_time,\n    (end_time - duration) AS prev_end_time\n\nSELECT\n    round(avgIf(toInt32OrZero(SpanAttributes['gen_ai.usage.input_tokens']),\n        Timestamp >= start_time AND Timestamp <= end_time\n        AND notEmpty(SpanAttributes['gen_ai.usage.input_tokens'])), 5) AS prompt_tokens,\n\n    round(avgIf(toInt32OrZero(SpanAttributes['gen_ai.usage.input_tokens']),\n        Timestamp >= prev_start_time AND Timestamp <= prev_end_time\n        AND notEmpty(SpanAttributes['gen_ai.usage.input_tokens'])), 5) AS prompt_tokens_previous,\n\n    round(\n        if(\n            avgIf(toInt32OrZero(SpanAttributes['gen_ai.usage.input_tokens']),\n                Timestamp >= prev_start_time AND Timestamp <= prev_end_time\n                AND notEmpty(SpanAttributes['gen_ai.usage.input_tokens'])) = 0,\n            avgIf(toInt32OrZero(SpanAttributes['gen_ai.usage.input_tokens']),\n                Timestamp >= start_time AND Timestamp <= end_time\n                AND notEmpty(SpanAttributes['gen_ai.usage.input_tokens'])) * 100.0,\n            (\n                avgIf(toInt32OrZero(SpanAttributes['gen_ai.usage.input_tokens']),\n                    Timestamp >= start_time AND Timestamp <= end_time\n                    AND notEmpty(SpanAttributes['gen_ai.usage.input_tokens']))\n                -\n                avgIf(toInt32OrZero(SpanAttributes['gen_ai.usage.input_tokens']),\n                    Timestamp >= prev_start_time AND Timestamp <= prev_end_time\n                    AND notEmpty(SpanAttributes['gen_ai.usage.input_tokens']))\n            )\n            /\n            avgIf(toInt32OrZero(SpanAttributes['gen_ai.usage.input_tokens']),\n                Timestamp >= prev_start_time AND Timestamp <= prev_end_time\n                AND notEmpty(SpanAttributes['gen_ai.usage.input_tokens'])) * 100.0\n        ), 4\n    ) AS rate\nFROM otel_traces\nWHERE\n    SpanAttributes['gen_ai.operation.name'] != 'vectordb'\n    AND StatusCode IN ('STATUS_CODE_OK', 'STATUS_CODE_UNSET', 'Ok', 'Unset')\n    AND Timestamp >= prev_start_time AND Timestamp <= end_time\n"
+      },
+      "createdAt": "2025-06-16 07:39:17",
+      "updatedAt": "2025-06-16 07:39:17"
+    },
+    "b9f59cec-f76d-4f49-a4ea-472392645818": {
+      "id": "b9f59cec-f76d-4f49-a4ea-472392645818",
+      "title": "Total toxicity detected",
+      "description": "This defines the total toxicity detected all in all for requests for the time period selected",
+      "type": "STAT_CARD",
+      "properties": {
+        "value": "0.total_evaluation_detected",
+        "color": "#F36C06",
+        "trend": "0.rate",
+        "trendSuffix": "%"
+      },
+      "config": {
+        "query": "WITH\n    parseDateTimeBestEffort('{{filter.timeLimit.start}}') AS start_time,\n    parseDateTimeBestEffort('{{filter.timeLimit.end}}') AS end_time,\n    (end_time - start_time) AS duration,\n    (start_time - duration) AS prev_start_time,\n    (end_time - duration) AS prev_end_time\n\nSELECT\n    countDistinctIf(\n        span_id,\n        parseDateTimeBestEffort(meta['traceTimeStamp']) >= start_time\n        AND parseDateTimeBestEffort(meta['traceTimeStamp']) <= end_time\n        AND evaluationData.evaluation = 'Toxicity'\n        AND evaluationData.verdict = 'yes'\n    ) AS total_evaluation_detected,\n\n    countDistinctIf(\n        span_id,\n        parseDateTimeBestEffort(meta['traceTimeStamp']) >= prev_start_time\n        AND parseDateTimeBestEffort(meta['traceTimeStamp']) <= prev_end_time\n        AND evaluationData.evaluation = 'Toxicity'\n        AND evaluationData.verdict = 'yes'\n    ) AS previous_total_evaluation_detected,\n\n    round(\n        if(\n            countDistinctIf(\n                span_id,\n                parseDateTimeBestEffort(meta['traceTimeStamp']) >= prev_start_time\n                AND parseDateTimeBestEffort(meta['traceTimeStamp']) <= prev_end_time\n                AND evaluationData.evaluation = 'Toxicity'\n                AND evaluationData.verdict = 'yes'\n            ) = 0,\n            countDistinctIf(\n                span_id,\n                parseDateTimeBestEffort(meta['traceTimeStamp']) >= start_time\n                AND parseDateTimeBestEffort(meta['traceTimeStamp']) <= end_time\n                AND evaluationData.evaluation = 'Toxicity'\n                AND evaluationData.verdict = 'yes'\n            ) * 100.0,\n            (\n                countDistinctIf(\n                    span_id,\n                    parseDateTimeBestEffort(meta['traceTimeStamp']) >= start_time\n                    AND parseDateTimeBestEffort(meta['traceTimeStamp']) <= end_time\n                    AND evaluationData.evaluation = 'Toxicity'\n                    AND evaluationData.verdict = 'yes'\n                ) -\n                countDistinctIf(\n                    span_id,\n                    parseDateTimeBestEffort(meta['traceTimeStamp']) >= prev_start_time\n                    AND parseDateTimeBestEffort(meta['traceTimeStamp']) <= prev_end_time\n                    AND evaluationData.evaluation = 'Toxicity'\n                    AND evaluationData.verdict = 'yes'\n                )\n            ) /\n            countDistinctIf(\n                span_id,\n                parseDateTimeBestEffort(meta['traceTimeStamp']) >= prev_start_time\n                AND parseDateTimeBestEffort(meta['traceTimeStamp']) <= prev_end_time\n                AND evaluationData.evaluation = 'Toxicity'\n                AND evaluationData.verdict = 'yes'\n            ) * 100.0\n        ), 4\n    ) AS rate\nFROM openlit_evaluation\nARRAY JOIN evaluationData\nWHERE\n    parseDateTimeBestEffort(meta['traceTimeStamp']) >= prev_start_time\n    AND parseDateTimeBestEffort(meta['traceTimeStamp']) <= end_time\n"
+      },
+      "createdAt": "2025-06-16 07:39:17",
+      "updatedAt": "2025-06-16 07:39:17"
+    },
+    "b00a0be3-08c3-42e2-9eba-62b1f9bf5bed": {
+      "id": "b00a0be3-08c3-42e2-9eba-62b1f9bf5bed",
+      "title": "Avg Tokens / Request",
+      "description": "This determines the average tokens being used by per request within the time frame.",
+      "type": "STAT_CARD",
+      "properties": {
+        "value": "0.total_tokens",
+        "color": "#F36C06",
+        "trend": "0.rate",
+        "trendSuffix": "%"
+      },
+      "config": {
+        "query": "WITH\n    parseDateTimeBestEffort('{{filter.timeLimit.start}}') AS start_time,\n    parseDateTimeBestEffort('{{filter.timeLimit.end}}') AS end_time,\n    (end_time - start_time) AS duration,\n    (start_time - duration) AS prev_start_time,\n    (end_time - duration) AS prev_end_time\n\nSELECT\n    round(avgIf(toInt32OrZero(SpanAttributes['gen_ai.usage.total_tokens']), \n                Timestamp >= start_time AND Timestamp <= end_time \n                AND notEmpty(SpanAttributes['gen_ai.usage.total_tokens'])), 4) AS total_tokens,\n\n    round(avgIf(toInt32OrZero(SpanAttributes['gen_ai.usage.total_tokens']), \n                Timestamp >= prev_start_time AND Timestamp <= prev_end_time \n                AND notEmpty(SpanAttributes['gen_ai.usage.total_tokens'])), 4) AS total_tokens_previous,\n\n    round(\n        if(\n            avgIf(toInt32OrZero(SpanAttributes['gen_ai.usage.total_tokens']), \n                  Timestamp >= prev_start_time AND Timestamp <= prev_end_time \n                  AND notEmpty(SpanAttributes['gen_ai.usage.total_tokens'])) = 0,\n            avgIf(toInt32OrZero(SpanAttributes['gen_ai.usage.total_tokens']), \n                  Timestamp >= start_time AND Timestamp <= end_time \n                  AND notEmpty(SpanAttributes['gen_ai.usage.total_tokens'])) * 100.0,\n            (\n                avgIf(toInt32OrZero(SpanAttributes['gen_ai.usage.total_tokens']), \n                      Timestamp >= start_time AND Timestamp <= end_time \n                      AND notEmpty(SpanAttributes['gen_ai.usage.total_tokens']))\n                -\n                avgIf(toInt32OrZero(SpanAttributes['gen_ai.usage.total_tokens']), \n                      Timestamp >= prev_start_time AND Timestamp <= prev_end_time \n                      AND notEmpty(SpanAttributes['gen_ai.usage.total_tokens']))\n            )\n            /\n            avgIf(toInt32OrZero(SpanAttributes['gen_ai.usage.total_tokens']), \n                  Timestamp >= prev_start_time AND Timestamp <= prev_end_time \n                  AND notEmpty(SpanAttributes['gen_ai.usage.total_tokens'])) * 100.0\n        ), 4\n    ) AS rate\nFROM otel_traces\nWHERE\n    SpanAttributes['gen_ai.operation.name'] != 'vectordb'\n    AND StatusCode IN ('STATUS_CODE_OK', 'STATUS_CODE_UNSET', 'Ok', 'Unset')\n    AND Timestamp >= prev_start_time AND Timestamp <= end_time\n"
+      },
+      "createdAt": "2025-06-16 07:39:17",
+      "updatedAt": "2025-06-16 07:39:17"
+    },
+    "8241708c-9546-489f-a5c7-31b91b97d233": {
+      "id": "8241708c-9546-489f-a5c7-31b91b97d233",
+      "title": "Cost by Environment",
+      "description": "This has cost by environment based on the time period selected",
+      "type": "PIE_CHART",
+      "properties": {
+        "labelPath": "environment",
+        "valuePath": "cost",
+        "color": "#F36C06"
+      },
+      "config": {
+        "query": "WITH\n    parseDateTimeBestEffort('{{filter.timeLimit.start}}') AS start_time,\n    parseDateTimeBestEffort('{{filter.timeLimit.end}}') AS end_time\n\nSELECT \n\t\t\tDISTINCT ResourceAttributes['deployment.environment'] as environment, \n\t\t\tSUM(toFloat64OrZero(SpanAttributes['gen_ai.usage.cost'])) AS cost\n\t\tFROM otel_traces \n\t\tWHERE \n        SpanAttributes['gen_ai.operation.name'] != 'vectordb'\n        AND notEmpty(SpanAttributes['gen_ai.usage.cost']) \n        AND notEmpty(ResourceAttributes['deployment.environment'])\n        AND StatusCode IN ('STATUS_CODE_OK', 'STATUS_CODE_UNSET', 'Ok', 'Unset')\n\t\tAND Timestamp >= start_time\n    AND Timestamp <= end_time\n\t\tGROUP BY environment;"
+      },
+      "createdAt": "2025-06-16 07:39:17",
+      "updatedAt": "2025-06-16 07:39:17"
+    },
+    "f079e045-0cea-4283-a4a0-bdea0ad00fce": {
+      "id": "f079e045-0cea-4283-a4a0-bdea0ad00fce",
+      "title": "Avg cost per request",
+      "description": "This defines the average cost for the time period selected",
+      "type": "STAT_CARD",
+      "properties": {
+        "value": "0.avg_usage_cost",
+        "prefix": "$",
+        "color": "#F36C06",
+        "trend": "0.rate",
+        "trendSuffix": "%"
+      },
+      "config": {
+        "query": "WITH\n    parseDateTimeBestEffort('{{filter.timeLimit.start}}') AS start_time,\n    parseDateTimeBestEffort('{{filter.timeLimit.end}}') AS end_time,\n    (end_time - start_time) AS duration,\n    (start_time - duration) AS prev_start_time,\n    (end_time - duration) AS prev_end_time\n\nSELECT\n    round(avgIf(toFloat64OrZero(SpanAttributes['gen_ai.usage.cost']),\n        Timestamp >= start_time AND Timestamp <= end_time\n        AND notEmpty(SpanAttributes['gen_ai.usage.cost'])), 7) AS avg_usage_cost,\n\n    round(avgIf(toFloat64OrZero(SpanAttributes['gen_ai.usage.cost']),\n        Timestamp >= prev_start_time AND Timestamp <= prev_end_time\n        AND notEmpty(SpanAttributes['gen_ai.usage.cost'])), 7) AS avg_usage_cost_previous,\n\n    round(\n        if(\n            avgIf(toFloat64OrZero(SpanAttributes['gen_ai.usage.cost']),\n                Timestamp >= prev_start_time AND Timestamp <= prev_end_time\n                AND notEmpty(SpanAttributes['gen_ai.usage.cost'])) = 0,\n            avgIf(toFloat64OrZero(SpanAttributes['gen_ai.usage.cost']),\n                Timestamp >= start_time AND Timestamp <= end_time\n                AND notEmpty(SpanAttributes['gen_ai.usage.cost'])) * 100.0,\n            (\n                avgIf(toFloat64OrZero(SpanAttributes['gen_ai.usage.cost']),\n                    Timestamp >= start_time AND Timestamp <= end_time\n                    AND notEmpty(SpanAttributes['gen_ai.usage.cost']))\n                -\n                avgIf(toFloat64OrZero(SpanAttributes['gen_ai.usage.cost']),\n                    Timestamp >= prev_start_time AND Timestamp <= prev_end_time\n                    AND notEmpty(SpanAttributes['gen_ai.usage.cost']))\n            )\n            /\n            avgIf(toFloat64OrZero(SpanAttributes['gen_ai.usage.cost']),\n                Timestamp >= prev_start_time AND Timestamp <= prev_end_time\n                AND notEmpty(SpanAttributes['gen_ai.usage.cost'])) * 100.0\n        ), 4\n    ) AS rate\nFROM otel_traces\nWHERE\n    SpanAttributes['gen_ai.operation.name'] != 'vectordb'\n    AND StatusCode IN ('STATUS_CODE_OK', 'STATUS_CODE_UNSET', 'Ok', 'Unset')\n    AND Timestamp >= prev_start_time AND Timestamp <= end_time\n"
+      },
+      "createdAt": "2025-06-16 07:39:17",
+      "updatedAt": "2025-06-16 07:39:17"
+    },
+    "e5cb3f7a-6e48-470f-9a8b-ff9d1b1af804": {
+      "id": "e5cb3f7a-6e48-470f-9a8b-ff9d1b1af804",
+      "title": "Generation by categories",
+      "description": "This has generation by categories based on the time period selected",
+      "type": "PIE_CHART",
+      "properties": {
+        "labelPath": "category",
+        "valuePath": "count",
+        "color": "#F36C06"
+      },
+      "config": {
+        "query": "WITH\n    parseDateTimeBestEffort('{{filter.timeLimit.start}}') AS start_time,\n    parseDateTimeBestEffort('{{filter.timeLimit.end}}') AS end_time\n\nSELECT\n    SpanAttributes['gen_ai.operation.name'] AS category,\n    CAST(COUNT(*) AS INTEGER) AS count\nFROM otel_traces\nWHERE\n    SpanAttributes['gen_ai.operation.name'] != 'vectordb'\n    AND notEmpty(SpanAttributes['gen_ai.operation.name'])\n    AND StatusCode IN ('STATUS_CODE_OK', 'STATUS_CODE_UNSET', 'Ok', 'Unset')\n    AND Timestamp >= start_time\n    AND Timestamp <= end_time\nGROUP BY category"
+      },
+      "createdAt": "2025-06-16 07:39:17",
+      "updatedAt": "2025-06-16 07:39:17"
+    },
+    "527f0805-e039-4441-b2ec-4009d648f285": {
+      "id": "527f0805-e039-4441-b2ec-4009d648f285",
+      "title": "Total Requests",
+      "description": "This defines total number of request within the time period selected",
+      "type": "STAT_CARD",
+      "properties": {
+        "value": "0.total_request",
+        "color": "#F36C06",
+        "trend": "0.rate",
+        "trendSuffix": "%"
+      },
+      "config": {
+        "query": "WITH\n    parseDateTimeBestEffort('{{filter.timeLimit.start}}') AS start_time,\n    parseDateTimeBestEffort('{{filter.timeLimit.end}}') AS end_time,\n    (end_time - start_time) AS duration,\n    (start_time - duration) AS prev_start_time,\n    (end_time - duration) AS prev_end_time\n\nSELECT\n    CAST(countIf(\n        Timestamp >= start_time AND Timestamp <= end_time\n    ) AS INTEGER) AS total_request,\n\n    CAST(countIf(\n        Timestamp >= prev_start_time AND Timestamp <= prev_end_time\n    ) AS INTEGER) AS total_request_previous,\n\n    round(\n        if(countIf(Timestamp >= prev_start_time AND Timestamp <= prev_end_time) = 0, \n           (countIf(Timestamp >= start_time AND Timestamp <= end_time) * 100.0), \n           ((countIf(Timestamp >= start_time AND Timestamp <= end_time) - countIf(Timestamp >= prev_start_time AND Timestamp <= prev_end_time)) \n           / countIf(Timestamp >= prev_start_time AND Timestamp <= prev_end_time))*100.0\n        ), 4\n    ) AS rate\n\nFROM otel_traces\nWHERE\n    SpanAttributes['gen_ai.operation.name'] != 'vectordb'\n    AND StatusCode IN ('STATUS_CODE_OK', 'STATUS_CODE_UNSET', 'Ok', 'Unset')\n    AND Timestamp >= prev_start_time AND Timestamp <= end_time;"
+      },
+      "createdAt": "2025-06-16 07:39:17",
+      "updatedAt": "2025-06-16 07:39:17"
+    },
+    "233325ea-7f74-4464-8168-f56105836870": {
+      "id": "233325ea-7f74-4464-8168-f56105836870",
+      "title": "Average Request Duration",
+      "description": "This defines the average request duration for the time period selected",
+      "type": "STAT_CARD",
+      "properties": {
+        "value": "0.average_duration",
+        "suffix": "s",
+        "color": "#F36C06",
+        "trend": "0.rate",
+        "trendSuffix": "%"
+      },
+      "config": {
+        "query": "WITH\n    parseDateTimeBestEffort('{{filter.timeLimit.start}}') AS start_time,\n    parseDateTimeBestEffort('{{filter.timeLimit.end}}') AS end_time,\n    (end_time - start_time) AS duration,\n    (start_time - duration) AS prev_start_time,\n    (end_time - duration) AS prev_end_time\n\nSELECT\n    round(multiply(\n        avgIf(Duration, Timestamp >= start_time AND Timestamp <= end_time),\n        10e-10\n    ), 4) AS average_duration,\n\n    round(multiply(\n        avgIf(Duration, Timestamp >= prev_start_time AND Timestamp <= prev_end_time),\n        10e-10\n    ), 4) AS average_duration_previous,\n\n    round(\n        if(\n            avgIf(Duration, Timestamp >= prev_start_time AND Timestamp <= prev_end_time) = 0,\n            avgIf(Duration, Timestamp >= start_time AND Timestamp <= end_time) * 100.0,\n            (\n                avgIf(Duration, Timestamp >= start_time AND Timestamp <= end_time) -\n                avgIf(Duration, Timestamp >= prev_start_time AND Timestamp <= prev_end_time)\n            ) / avgIf(Duration, Timestamp >= prev_start_time AND Timestamp <= prev_end_time) * 100.0\n        ), 4\n    ) AS rate\nFROM otel_traces\nWHERE\n    SpanAttributes['gen_ai.operation.name'] != 'vectordb'\n    AND isFinite(Duration)\n    AND StatusCode IN ('STATUS_CODE_OK', 'STATUS_CODE_UNSET', 'Ok', 'Unset')\n    AND Timestamp >= prev_start_time AND Timestamp <= end_time\n"
+      },
+      "createdAt": "2025-06-16 07:39:17",
+      "updatedAt": "2025-06-16 07:39:17"
+    }
+  },
+  "tags": "[\"llm\"]",
+  "layouts": {
+    "lg": [
+      {
+        "i": "3a680898-76da-4932-9499-ac8f13b0324d",
+        "x": 1,
+        "y": 1,
+        "w": 1,
+        "h": 1
+      },
+      {
+        "i": "e9b4e3de-0975-4082-912a-fc10ab22f401",
+        "x": 0,
+        "y": 8,
+        "w": 2,
+        "h": 2
+      },
+      {
+        "i": "52b30e07-4fba-4954-8599-8fa73b5f804d",
+        "x": 0,
+        "y": 7,
+        "w": 1,
+        "h": 1
+      },
+      {
+        "i": "33432121-0999-4cdd-94d6-db8c64b32852",
+        "x": 1,
+        "y": 4,
+        "w": 1,
+        "h": 2
+      },
+      {
+        "i": "7963675c-db19-4937-8c16-01b047339b8f",
+        "x": 1,
+        "y": 6,
+        "w": 3,
+        "h": 2
+      },
+      {
+        "i": "0b6e684f-69e5-48fe-8438-34722939e5ca",
+        "x": 0,
+        "y": 2,
+        "w": 4,
+        "h": 2
+      },
+      {
+        "i": "e1d85a1b-e911-48ae-adf2-abf4b9b3dddc",
+        "x": 3,
+        "y": 4,
+        "w": 1,
+        "h": 2
+      },
+      {
+        "i": "691426c4-3166-44fd-8af5-e07a8df5e1eb",
+        "x": 2,
+        "y": 8,
+        "w": 2,
+        "h": 2
+      },
+      {
+        "i": "433e3791-a8ca-4c9e-b95c-39acfe38baa8",
+        "x": 3,
+        "y": 0,
+        "w": 1,
+        "h": 1
+      },
+      {
+        "i": "e83f15d1-4f9b-47f3-a31a-9cc6a274f713",
+        "x": 2,
+        "y": 1,
+        "w": 1,
+        "h": 1
+      },
+      {
+        "i": "20de3eb9-86aa-483e-9adc-536961e99ec2",
+        "x": 0,
+        "y": 6,
+        "w": 1,
+        "h": 1
+      },
+      {
+        "i": "b9f59cec-f76d-4f49-a4ea-472392645818",
+        "x": 3,
+        "y": 1,
+        "w": 1,
+        "h": 1
+      },
+      {
+        "i": "b00a0be3-08c3-42e2-9eba-62b1f9bf5bed",
+        "x": 2,
+        "y": 0,
+        "w": 1,
+        "h": 1
+      },
+      {
+        "i": "8241708c-9546-489f-a5c7-31b91b97d233",
+        "x": 2,
+        "y": 4,
+        "w": 1,
+        "h": 2
+      },
+      {
+        "i": "f079e045-0cea-4283-a4a0-bdea0ad00fce",
+        "x": 0,
+        "y": 1,
+        "w": 1,
+        "h": 1
+      },
+      {
+        "i": "e5cb3f7a-6e48-470f-9a8b-ff9d1b1af804",
+        "x": 0,
+        "y": 4,
+        "w": 1,
+        "h": 2
+      },
+      {
+        "i": "527f0805-e039-4441-b2ec-4009d648f285",
+        "x": 0,
+        "y": 0,
+        "w": 1,
+        "h": 1
+      },
+      {
+        "i": "233325ea-7f74-4464-8168-f56105836870",
+        "x": 1,
+        "y": 0,
+        "w": 1,
+        "h": 1
+      }
+    ]
+  }
+}

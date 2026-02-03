@@ -261,7 +261,7 @@ impl SnowflakeProvider {
                 json!({})
             } else {
                 serde_json::from_str::<Value>(&tool_input)
-                    .unwrap_or_else(|_| json!({"raw_input": tool_input}))
+                    .unwrap_or_else(|_| json!({ "raw_input": tool_input }))
             };
 
             content_list.push(json!({

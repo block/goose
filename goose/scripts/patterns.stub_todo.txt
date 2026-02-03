@@ -1,0 +1,71 @@
+# ============================================================
+# Goose Enterprise Platform - Stub/TODO Detection Patterns
+# ============================================================
+# Used by: run_audit.sh, run_audit.ps1, GitHub Actions CI
+# Purpose: Detect placeholder code that must be removed before release
+#
+# Pattern Types:
+#   1. Standard code markers (TODO, FIXME, XXX, HACK)
+#   2. Rust-specific macros (todo!(), unimplemented!(), panic!())
+#   3. Placeholder terms (stub, placeholder, mock, fake)
+#   4. Work-in-progress indicators (WIP, TEMPORARY, TBD)
+#
+# Note: Patterns are case-insensitive (-S flag in ripgrep)
+# ============================================================
+
+# === Standard Code Markers ===
+TODO
+FIXME
+XXX
+HACK
+BUG
+KLUDGE
+UNDONE
+
+# === Rust-Specific Macros ===
+todo!\(
+unimplemented!\(
+panic!\("TODO
+panic!\("FIXME
+panic!\("not implemented
+unreachable!\("TODO
+
+# === Placeholder Terms ===
+stub
+placeholder
+mock data
+fake data
+dummy data
+test data placeholder
+sample data
+
+# === Work-in-Progress Indicators ===
+not implemented
+WIP
+TEMPORARY
+TBD
+TBC
+NEEDS WORK
+INCOMPLETE
+BROKEN
+REFACTOR
+
+# === Development-Only Code ===
+debug_only
+#\[cfg\(debug_assertions\)\].*todo
+println!\("DEBUG
+eprintln!\("DEBUG
+dbg!\(.*TODO
+
+# === Unsafe Patterns (require review) ===
+unsafe\s*\{.*TODO
+unwrap\(\).*TODO
+expect\("TODO
+
+# === Enterprise-Specific Patterns ===
+# These indicate incomplete enterprise features
+enterprise_stub
+feature_flag_pending
+license_check_disabled
+auth_bypass
+skip_validation

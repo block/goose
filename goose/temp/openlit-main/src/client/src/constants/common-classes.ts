@@ -1,0 +1,1 @@
+export const PRIMARY_BACKGROUND = "bg-stone-100/50 dark:bg-stone-900/70";

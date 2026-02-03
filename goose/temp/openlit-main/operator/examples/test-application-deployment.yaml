@@ -1,0 +1,256 @@
+# OpenLIT Test Application Deployment
+# This deployment runs the Python test application that demonstrates
+# zero-code instrumentation with HTTP and OpenAI API calls.
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: openlit-test-app
+  namespace: default
+  labels:
+    app: openlit-test-app
+    instrumentation: openlit
+    app.type: ai-application
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: openlit-test-app
+  template:
+    metadata:
+      labels:
+        app: openlit-test-app
+        instrumentation: openlit
+        app.type: ai-application
+        environment: production
+        framework: fastapi  # Example framework label
+    spec:
+      containers:
+      - name: test-app
+        image: python:3.11-slim
+        command: ["/bin/bash"]
+        args:
+          - -c
+          - |
+            echo "🔧 Installing dependencies..."
+            pip install --no-cache-dir requests openai
+            echo "📥 Copying test application..."
+            mkdir -p /app
+            cp /scripts/test-application.py /app/test-application.py
+            echo "🚀 Starting test application..."
+            cd /app && python test-application.py
+        
+        # Environment variables for the application
+        env:
+        - name: POD_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.name
+        - name: POD_NAMESPACE
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.namespace
+        
+        # OpenAI API key from secret
+        - name: OPENAI_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: openai-secret
+              key: api-key
+              optional: true  # Don't fail if secret doesn't exist
+        
+        # Volume mount for the test script
+        volumeMounts:
+        - name: test-script
+          mountPath: /scripts
+          readOnly: true
+        
+        # Resource limits
+        resources:
+          requests:
+            memory: "128Mi"
+            cpu: "100m"
+          limits:
+            memory: "256Mi"
+            cpu: "200m"
+      
+      # Volume containing the test script
+      volumes:
+      - name: test-script
+        configMap:
+          name: test-application-script
+
+---
+# ConfigMap containing the test application script
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: test-application-script
+  namespace: default
+data:
+  test-application.py: |
+    #!/usr/bin/env python3
+    """
+    OpenLIT Test Application
+
+    This Python application demonstrates zero-code instrumentation by making
+    HTTP requests and OpenAI API calls. When deployed with OpenLIT instrumentation,
+    all requests will be automatically traced and sent to the configured OTLP endpoint.
+
+    The application includes:
+    - HTTP requests to external APIs
+    - OpenAI completions and chat completions
+    - Error handling and logging
+    - Comprehensive telemetry data generation
+
+    Run this in a Kubernetes pod with OpenLIT instrumentation to see automatic
+    tracing in action without any code modifications!
+    """
+
+    import os
+    import sys
+    import time
+    import logging
+    import requests
+    from datetime import datetime
+
+    # Configure logging
+    logging.basicConfig(
+        level=logging.INFO,
+        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    )
+    logger = logging.getLogger(__name__)
+
+    def test_http_requests():
+        """Test HTTP requests to external APIs"""
+        logger.info("🌐 Testing HTTP requests...")
+        
+        try:
+            # Test basic HTTP GET
+            response = requests.get('https://httpbin.org/get', timeout=10)
+            logger.info(f"✅ HTTP GET successful: {response.status_code}")
+            
+            # Test HTTP POST with JSON data
+            test_data = {
+                'timestamp': datetime.now().isoformat(),
+                'test': 'openlit-instrumentation',
+                'environment': os.getenv('OPENLIT_ENVIRONMENT', 'test')
+            }
+            response = requests.post('https://httpbin.org/post', json=test_data, timeout=10)
+            logger.info(f"✅ HTTP POST successful: {response.status_code}")
+            
+            # Test with custom headers
+            headers = {
+                'User-Agent': 'OpenLIT-Test-App/1.0',
+                'X-Custom-Header': 'instrumentation-test'
+            }
+            response = requests.get('https://httpbin.org/headers', headers=headers, timeout=10)
+            logger.info(f"✅ HTTP with headers successful: {response.status_code}")
+            
+        except Exception as e:
+            logger.error(f"❌ HTTP request failed: {e}")
+
+    def test_openai_calls():
+        """Test OpenAI API calls"""
+        logger.info("🤖 Testing OpenAI API calls...")
+        
+        # Check if OpenAI API key is available
+        api_key = "sk-proj-1234567890"
+        if not api_key:
+            logger.warning("⚠️  OPENAI_API_KEY not found, skipping OpenAI tests")
+            logger.info("💡 To test OpenAI instrumentation, provide an API key in the secret")
+            return
+        
+        try:
+            # Import OpenAI (will be automatically instrumented)
+            import openai
+            
+            # Configure OpenAI client
+            client = openai.OpenAI(api_key=api_key)
+            
+            # Test chat completion
+            logger.info("🔄 Making OpenAI chat completion request...")
+            chat_response = client.chat.completions.create(
+                model="gpt-3.5-turbo",
+                messages=[
+                    {"role": "system", "content": "You are a helpful assistant testing OpenLIT instrumentation."},
+                    {"role": "user", "content": "Say hello and confirm that OpenLIT tracing is working!"}
+                ],
+                max_tokens=50,
+                temperature=0.7
+            )
+            
+            response_content = chat_response.choices[0].message.content
+            logger.info(f"✅ OpenAI Chat Completion successful!")
+            logger.info(f"📝 Response: {response_content}")
+            
+            # Test completion (legacy)
+            logger.info("🔄 Making OpenAI completion request...")
+            completion_response = client.completions.create(
+                model="gpt-3.5-turbo-instruct",
+                prompt="OpenLIT instrumentation test: ",
+                max_tokens=30,
+                temperature=0.5
+            )
+            
+            completion_text = completion_response.choices[0].text.strip()
+            logger.info(f"✅ OpenAI Completion successful!")
+            logger.info(f"📝 Response: {completion_text}")
+            
+        except ImportError:
+            logger.error("❌ OpenAI library not available. Install with: pip install openai")
+        except Exception as e:
+            logger.error(f"❌ OpenAI API call failed: {e}")
+            if "authentication" in str(e).lower():
+                logger.error("🔑 Please check your OpenAI API key")
+
+    def display_environment_info():
+        """Display environment and configuration information"""
+        logger.info("🔧 Environment Information:")
+        logger.info(f"  Python version: {sys.version}")
+        logger.info(f"  Pod name: {os.getenv('POD_NAME', 'unknown')}")
+        logger.info(f"  Pod namespace: {os.getenv('POD_NAMESPACE', 'unknown')}")
+        logger.info(f"  OpenLIT environment: {os.getenv('OPENLIT_ENVIRONMENT', 'not-set')}")
+        logger.info(f"  OpenLIT application: {os.getenv('OPENLIT_APPLICATION_NAME', 'not-set')}")
+        logger.info(f"  OTEL service name: {os.getenv('OTEL_SERVICE_NAME', 'not-set')}")
+        logger.info(f"  OTEL exporter endpoint: {os.getenv('OTEL_EXPORTER_OTLP_ENDPOINT', 'not-set')}")
+        
+        # Check if instrumentation is working
+        pythonpath = os.getenv('PYTHONPATH', '')
+        if '/openlit-sdk' in pythonpath:
+            logger.info("✅ OpenLIT SDK path detected in PYTHONPATH")
+        else:
+            logger.warning("⚠️  OpenLIT SDK path not found in PYTHONPATH")
+
+    def main():
+        """Main application loop"""
+        logger.info("🚀 Starting OpenLIT Test Application")
+        
+        # Display environment information
+        display_environment_info()
+        
+        # Run tests in a loop
+        test_count = 1
+        while True:
+            logger.info(f"\n📊 Test iteration #{test_count}")
+            
+            # Test HTTP requests
+            test_http_requests()
+            
+            # Test OpenAI API calls
+            test_openai_calls()
+            
+            # Wait before next iteration
+            logger.info(f"⏰ Waiting 30 seconds before next test iteration...")
+            time.sleep(30)
+            test_count += 1
+
+    if __name__ == "__main__":
+        try:
+            main()
+        except KeyboardInterrupt:
+            logger.info("\n🛑 Application stopped by user")
+            sys.exit(0)
+        except Exception as e:
+            logger.error(f"💥 Application crashed: {e}")
+            sys.exit(1)

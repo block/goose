@@ -1,0 +1,66 @@
+---
+title: Area Chart Widget
+slug: /widgets/area-chart
+description: Learn how to use the Area Chart Widget in OpenLIT to visualize time-based trends using ClickHouse queries and dynamic parameters.
+---
+
+## When to use
+
+Use the Area Chart when you want to:
+
+- Show trends over time  
+- Emphasize volume or scale changes  
+- Display multiple series stacked
+
+Area charts are particularly effective for metrics that accumulate or change gradually over time.
+
+## How to add an area chart
+
+<iframe className="w-full aspect-video" src="https://www.youtube.com/embed/4ciEi2LcVNk?list=PLgErWFh-dyiGp9yUDnnx67wHEeNqzzMXZ" title="How to Use the Area Chart Widget in OpenLIT – Visualize Trends Over Time" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" referrerpolicy="strict-origin-when-cross-origin" allowfullscreen></iframe>
+
+## Example: 
+
+```sql
+WITH
+	parseDateTimeBestEffort('{{filter.timeLimit.start}}') AS start_time,
+	parseDateTimeBestEffort('{{filter.timeLimit.end}}') AS end_time,
+	dateDiff('day', start_time, end_time) AS days_diff,
+	dateDiff('year', start_time, end_time) AS years_diff,
+	multiIf(
+	    years_diff >= 1, 'month',
+	    days_diff <= 1, 'hour',
+	    'day'
+	) AS date_granularity  
+	
+	SELECT 
+		CAST(SUM(toInt64OrZero(SpanAttributes['gen_ai.usage.input_tokens'])) AS INTEGER) AS prompt_tokens, 
+		CAST(SUM(toInt64OrZero(SpanAttributes['gen_ai.usage.output_tokens'])) AS INTEGER) AS completion_tokens, 
+		formatDateTime(DATE_TRUNC(date_granularity, Timestamp), '%Y/%m/%d %R') AS request_time 
+	FROM otel_traces  
+	WHERE  
+		SpanAttributes['gen_ai.operation.name'] != 'vectordb' 
+		AND StatusCode IN ('STATUS_CODE_OK', 'STATUS_CODE_UNSET', 'Ok', 'Unset') 
+		AND Timestamp >= start_time 
+		AND Timestamp <= end_time 
+	GROUP BY request_time 
+	ORDER BY request_time;
+
+```
+
+## Configuration options
+
+Customize your Area Chart with the following options:
+
+* **X-Axis**: A path to label or the group by param
+* **Y-Axes**: An array of value path and color combination
+
+<Tip>
+Use dynamic bindings like `{{filter.timeLimit.start}}`, `{{filter.timeLimit.end}}` to make your chart respond to dashboard time filters.
+</Tip>
+
+
+## Best practices
+
+* Limit the number of series to keep the chart readable.
+* Apply consistent color palettes for related metrics.
+* Use filters (`{{filter.timeLimit.start}}`, `{{filter.timeLimit.end}}`) to enable dynamic dashboards

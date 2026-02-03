@@ -1,0 +1,212 @@
+[
+  {
+    "name": "AIDBASE__GET_ALL_CHATBOTS",
+    "description": "Get all chatbots associated with the user.",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "GET_ALL_CHATBOTS",
+      "canonical_tool_description_hash": "41d9324f5428cf5be4077e1a56fec5194b99f0900a51d06558b689e8e2dab6d0",
+      "canonical_tool_input_schema_hash": "d746974fa9afd5e951f76f9af38954b0ad7f436f2120dc974da65e5ee39f856f"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": [],
+      "properties": {},
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "AIDBASE__GET_CHATBOT_BY_ID",
+    "description": "Get a specific chatbot by ID.",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "GET_CHATBOT_BY_ID",
+      "canonical_tool_description_hash": "151a60a558ca247225bdda7fc3bc3c6b875b77014c200d65079e821a952e2527",
+      "canonical_tool_input_schema_hash": "b55c83f86fb33f207ae310ede14e72d0d303856c970f43ece698c284142631d1"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["path"],
+      "properties": {
+        "path": {
+          "type": "object",
+          "required": ["id"],
+          "properties": {
+            "id": {
+              "type": "string",
+              "example": "p-8KP033W9GT8xZMEULqa",
+              "description": "Unique identifier for the chatbot"
+            }
+          },
+          "description": "Path parameters.",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "AIDBASE__POST_CHATBOT_REPLY",
+    "description": "Get an AI reply from a chatbot.",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "POST_CHATBOT_REPLY",
+      "canonical_tool_description_hash": "7ae50b08c66e0767700003137b2b56ec5a090645e35aedeaed627bbfd580d287",
+      "canonical_tool_input_schema_hash": "8cd43fdb68faf184cd4adca42ab453814d17b1df26847a829746047816846491"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["path", "body"],
+      "properties": {
+        "body": {
+          "type": "object",
+          "required": ["message"],
+          "properties": {
+            "message": {
+              "type": "string",
+              "example": "How can I get started with Aidbase API?",
+              "description": "The reply message to send."
+            },
+            "session_id": {
+              "type": "string",
+              "example": "tAp_XW4qvRzKw",
+              "description": "Optional session identifier for the chatbot."
+            }
+          },
+          "description": "Reply payload.",
+          "additionalProperties": false
+        },
+        "path": {
+          "type": "object",
+          "required": ["id"],
+          "properties": {
+            "id": {
+              "type": "string",
+              "example": "odguL9hXiB413s3g9ZO3z",
+              "description": "Unique identifier for the chatbot."
+            }
+          },
+          "description": "Path parameters.",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "AIDBASE__GET_CHATBOT_KNOWLEDGE",
+    "description": "Get all knowledge items associated with a chatbot.",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "GET_CHATBOT_KNOWLEDGE",
+      "canonical_tool_description_hash": "2f5fb85fe5269837a2414ea0ef5710bd9974699de11d5226491e8add95f60cca",
+      "canonical_tool_input_schema_hash": "e6058667d24dcd7c20b266026dc5b53473b43074d252b2e40e027640bf215fa9"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["path"],
+      "properties": {
+        "path": {
+          "type": "object",
+          "required": ["id"],
+          "properties": {
+            "id": {
+              "type": "string",
+              "example": "odguL9hXiB413s3g9ZO3z",
+              "description": "Unique identifier for the chatbot."
+            }
+          },
+          "description": "Path parameters.",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "AIDBASE__PUT_CHATBOT_KNOWLEDGE",
+    "description": "Add a new knowledge item to a chatbot.",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "PUT_CHATBOT_KNOWLEDGE",
+      "canonical_tool_description_hash": "114a416d15257cdfb53c44b4e2030e7c52363aa143bd10b5a3393ef2f0417c4a",
+      "canonical_tool_input_schema_hash": "2720359e88d2d6674ece7722c4c1f119045f5dbf92d2ccd480ccb972bbd79a0d"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["path", "body"],
+      "properties": {
+        "body": {
+          "type": "object",
+          "required": ["knowledge_id"],
+          "properties": {
+            "knowledge_id": {
+              "type": "string",
+              "example": "cd2faf2c-464b-421f-a7b1-b856860551f8",
+              "description": "Unique identifier for the knowledge item to update."
+            }
+          },
+          "description": "Knowledge update payload.",
+          "additionalProperties": false
+        },
+        "path": {
+          "type": "object",
+          "required": ["id"],
+          "properties": {
+            "id": {
+              "type": "string",
+              "example": "odguL9hXiB413s3g9ZO3z",
+              "description": "Unique identifier for the chatbot."
+            }
+          },
+          "description": "Path parameters.",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "AIDBASE__REMOVE_CHATBOT_KNOWLEDGE",
+    "description": "Remove a knowledge item from a chatbot.",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "REMOVE_CHATBOT_KNOWLEDGE",
+      "canonical_tool_description_hash": "c1b1d759d3fc297d25c89b7501c86dec6883bb9bd96a47a04d78fc6285dee466",
+      "canonical_tool_input_schema_hash": "edbd315a514131c80dc2bcabdc5d3acd14be56be3eaff566137298eda13df4cf"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["path", "body"],
+      "properties": {
+        "body": {
+          "type": "object",
+          "required": ["knowledge_id"],
+          "properties": {
+            "knowledge_id": {
+              "type": "string",
+              "example": "cd2faf2c-464b-421f-a7b1-b856860551f8",
+              "description": "Unique identifier for the knowledge item to delete."
+            }
+          },
+          "description": "Knowledge delete payload.",
+          "additionalProperties": false
+        },
+        "path": {
+          "type": "object",
+          "required": ["id"],
+          "properties": {
+            "id": {
+              "type": "string",
+              "example": "odguL9hXiB413s3g9ZO3z",
+              "description": "Unique identifier for the chatbot."
+            }
+          },
+          "description": "Path parameters.",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+]

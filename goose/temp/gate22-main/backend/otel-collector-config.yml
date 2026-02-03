@@ -1,0 +1,60 @@
+# OpenTelemetry Collector configuration for forwarding to Dash0
+# This file is used both locally (docker-compose) and in production (AWS Fargate ADOT sidecar)
+
+receivers:
+  otlp:
+    protocols:
+      grpc:
+        endpoint: 0.0.0.0:4317
+      http:
+        endpoint: 0.0.0.0:4318
+
+processors:
+  batch:
+    timeout: 10s
+    send_batch_size: 1024
+    send_batch_max_size: 2048
+
+  # Memory limiter to prevent OOM
+  memory_limiter:
+    check_interval: 1s
+    limit_mib: 512
+
+exporters:
+  # Export to Dash0
+  otlp:
+    endpoint: ${DASH0_ENDPOINT}
+    headers:
+      Authorization: Bearer ${DASH0_AUTH_TOKEN}
+      Dash0-Dataset: ${DASH0_DATASET}
+    compression: gzip
+    tls:
+      insecure: false
+
+  # Debug exporter for local development (outputs to collector logs)
+  debug:
+    verbosity: basic
+    sampling_initial: 5
+    sampling_thereafter: 200
+
+service:
+  pipelines:
+    traces:
+      receivers: [otlp]
+      processors: [memory_limiter, batch]
+      exporters: [otlp]
+
+    metrics:
+      receivers: [otlp]
+      processors: [memory_limiter, batch]
+      exporters: [otlp]
+
+    logs:
+      receivers: [otlp]
+      processors: [memory_limiter, batch]
+      exporters: [otlp]
+
+  # Enable telemetry for the collector itself
+  telemetry:
+    logs:
+      level: info

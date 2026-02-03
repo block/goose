@@ -1,0 +1,625 @@
+[
+  {
+    "name": "ATLASSIAN__ATLASSIANUSERINFO",
+    "description": "Get current user info from Atlassian",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "atlassianUserInfo",
+      "canonical_tool_description_hash": "13e8467466c408128961956687bb77934c48fdbcaa8ccf19e9f6461b91a29d7b",
+      "canonical_tool_input_schema_hash": "f973399805c1c233633f5196cf8e2ad40ee100b94996d711dcd030813b671bc5"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {},
+      "additionalProperties": false,
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    }
+  },
+  {
+    "name": "ATLASSIAN__GETACCESSIBLEATLASSIANRESOURCES",
+    "description": "Get cloudid to construct API calls to Atlassian REST APIs",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "getAccessibleAtlassianResources",
+      "canonical_tool_description_hash": "96daca5667122cc683193747f633c5145cc75802f49e3e4a4abf8adb002ac7dd",
+      "canonical_tool_input_schema_hash": "f973399805c1c233633f5196cf8e2ad40ee100b94996d711dcd030813b671bc5"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {},
+      "additionalProperties": false,
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    }
+  },
+  {
+    "name": "ATLASSIAN__GETJIRAISSUE",
+    "description": "Get the details of a Jira issue by issue id or key.",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "getJiraIssue",
+      "canonical_tool_description_hash": "4ef158fd1f73fd5ea64aeff27da24c5cec5678d067f0b410850be75c9b3a3b8c",
+      "canonical_tool_input_schema_hash": "436cf68da2a6302146e7ce1e0b087e0c3d183f055b359809d6dca653a9245605"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "cloudId": {
+          "type": "string",
+          "description": "Unique identifier for an Atlassian Cloud instance in the form of a UUID. Can also be a site URL or extracted from Atlassian URLs - for example, from https://yoursite.atlassian.net/wiki/.... If not working, use the 'getAccessibleAtlassianResources' tool to find accessible Cloud IDs."
+        },
+        "issueIdOrKey": {
+          "type": "string",
+          "description": "Issue id or key can be used to uniquely identify an existing issue.\nIssue id is a numerical identifier. An example issue id is 10000.\nIssue key is formatted as a project key followed by a hyphen '-' character and then followed by a sequential number.\nAn example issue key is ISSUE-1."
+        },
+        "fields": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "fieldsByKeys": {
+          "type": "boolean"
+        },
+        "expand": {
+          "type": "string"
+        },
+        "properties": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "updateHistory": {
+          "type": "boolean"
+        },
+        "failFast": {
+          "type": "boolean"
+        }
+      },
+      "required": ["cloudId", "issueIdOrKey"],
+      "additionalProperties": false,
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    }
+  },
+  {
+    "name": "ATLASSIAN__EDITJIRAISSUE",
+    "description": "Update the details of an existing Jira issue id or key.",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "editJiraIssue",
+      "canonical_tool_description_hash": "e283962af026f0591bb87b947bc724e17b0bcebf2e6b5d5cdb27003cb2d8f091",
+      "canonical_tool_input_schema_hash": "139572a203eee282bce4e8894b1f5fefa4b4b9c1ad00c9a38dca0c2bf599c3c0"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "cloudId": {
+          "type": "string",
+          "description": "Unique identifier for an Atlassian Cloud instance in the form of a UUID. Can also be a site URL or extracted from Atlassian URLs - for example, from https://yoursite.atlassian.net/wiki/.... If not working, use the 'getAccessibleAtlassianResources' tool to find accessible Cloud IDs."
+        },
+        "issueIdOrKey": {
+          "type": "string",
+          "description": "Issue id or key can be used to uniquely identify an existing issue.\nIssue id is a numerical identifier. An example issue id is 10000.\nIssue key is formatted as a project key followed by a hyphen '-' character and then followed by a sequential number.\nAn example issue key is ISSUE-1."
+        },
+        "fields": {
+          "type": "object",
+          "additionalProperties": {}
+        }
+      },
+      "required": ["cloudId", "issueIdOrKey", "fields"],
+      "additionalProperties": false,
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    }
+  },
+  {
+    "name": "ATLASSIAN__CREATEJIRAISSUE",
+    "description": "Create a new Jira issue in a given project with a given issue type.",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "createJiraIssue",
+      "canonical_tool_description_hash": "6576c0750e7f993e66aa0b2e4950b67563e34cabda1aa47da0f73da76a3d9c89",
+      "canonical_tool_input_schema_hash": "6d37a74d38e04bd976a7a85f0a9b515bf2eed9303e43bdd9023befce841b8a1e"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "cloudId": {
+          "type": "string",
+          "description": "Unique identifier for an Atlassian Cloud instance in the form of a UUID. Can also be a site URL or extracted from Atlassian URLs - for example, from https://yoursite.atlassian.net/wiki/.... If not working, use the 'getAccessibleAtlassianResources' tool to find accessible Cloud IDs."
+        },
+        "projectKey": {
+          "type": "string",
+          "description": "A project key in Jira is a unique identifier (a string of letters, numbers and sometimes underscores) of a project.\n      There is a tool \"getVisibleJiraProjects\" to look up which projects the user has create permission to create a new Jira issue."
+        },
+        "issueTypeName": {
+          "type": "string",
+          "description": "A Jira issue type categorizes and  distinguishes different kinds of work being tracked within a project.\n      It's a way to define what a specific piece of work represents.\n      For example, in a Jira Software project, there are \"Epic\", \"Story\", \"Task\", \"Bug\" or \"Subtask\" issue types by default.\n      Or in Jira Service Management, there are \"Change\", \"IT help\", \"Incident\", \"New feature\", \"Problem\", \"Service request\", \"Service request with approval\" or \"Support\" issue types by default.\n      User can remove those default ones and/or define their own issue types as well.\n      There is a tool \"getJiraProjectIssueTypesMetadata\" to get the available issue types in a given project."
+        },
+        "summary": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string",
+          "description": "The content of the issue's description in Markdown format."
+        },
+        "parent": {
+          "type": "string",
+          "description": "The issue key or id of the parent issue for \"Subtask\" issue types."
+        },
+        "assignee_account_id": {
+          "type": "string",
+          "description": "During issue creation, we can set an assignee for the new issue.\n      The input must be an account id of a valid user in the given cloud id.\n      There is a tool \"atlassianUserInfo\" to get the account id of the current user.\n      There is a tool \"lookupJiraAccountId\" to get the account ids of the existing users in Jira based on the user's display name or email address."
+        },
+        "additional_fields": {
+          "type": "object",
+          "additionalProperties": {}
+        }
+      },
+      "required": ["cloudId", "projectKey", "issueTypeName", "summary"],
+      "additionalProperties": false,
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    }
+  },
+  {
+    "name": "ATLASSIAN__GETTRANSITIONSFORJIRAISSUE",
+    "description": "Get available transitions for an existing Jira issue id or key.",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "getTransitionsForJiraIssue",
+      "canonical_tool_description_hash": "b401ecc53b26e999ee39d8df64c86d83a54ae02e08a18e020ee7b52ed073d9bc",
+      "canonical_tool_input_schema_hash": "f344ce4f03551ec8f950bfff03ee11f1ed6992d67d9d5fe7e5c579656da5c52f"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "cloudId": {
+          "type": "string",
+          "description": "Unique identifier for an Atlassian Cloud instance in the form of a UUID. Can also be a site URL or extracted from Atlassian URLs - for example, from https://yoursite.atlassian.net/wiki/.... If not working, use the 'getAccessibleAtlassianResources' tool to find accessible Cloud IDs."
+        },
+        "issueIdOrKey": {
+          "type": "string",
+          "description": "Issue id or key can be used to uniquely identify an existing issue.\nIssue id is a numerical identifier. An example issue id is 10000.\nIssue key is formatted as a project key followed by a hyphen '-' character and then followed by a sequential number.\nAn example issue key is ISSUE-1."
+        },
+        "expand": {
+          "type": "string"
+        },
+        "transitionId": {
+          "type": "string"
+        },
+        "skipRemoteOnlyCondition": {
+          "type": "boolean"
+        },
+        "includeUnavailableTransitions": {
+          "type": "boolean"
+        },
+        "sortByOpsBarAndStatus": {
+          "type": "boolean"
+        }
+      },
+      "required": ["cloudId", "issueIdOrKey"],
+      "additionalProperties": false,
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    }
+  },
+  {
+    "name": "ATLASSIAN__TRANSITIONJIRAISSUE",
+    "description": "Transition an existing Jira issue (that has issue id or key) to a new status.",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "transitionJiraIssue",
+      "canonical_tool_description_hash": "42067e40d26e27984a26f9e323238bc6e71223ae8cd511642fd0c26da55446ec",
+      "canonical_tool_input_schema_hash": "c07d531da65b1e01af68ab0d71997776cd5f9d365ded60e8d322a1aee8380585"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "cloudId": {
+          "type": "string",
+          "description": "Unique identifier for an Atlassian Cloud instance in the form of a UUID. Can also be a site URL or extracted from Atlassian URLs - for example, from https://yoursite.atlassian.net/wiki/.... If not working, use the 'getAccessibleAtlassianResources' tool to find accessible Cloud IDs."
+        },
+        "issueIdOrKey": {
+          "type": "string",
+          "description": "Issue id or key can be used to uniquely identify an existing issue.\nIssue id is a numerical identifier. An example issue id is 10000.\nIssue key is formatted as a project key followed by a hyphen '-' character and then followed by a sequential number.\nAn example issue key is ISSUE-1."
+        },
+        "transition": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string"
+            }
+          },
+          "required": ["id"],
+          "additionalProperties": false
+        },
+        "fields": {
+          "type": "object",
+          "additionalProperties": {}
+        },
+        "update": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": {
+                "description": "This is the field value. The actual value will depends on the field type."
+              }
+            },
+            "description": "List of operations"
+          }
+        },
+        "historyMetadata": {
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string"
+            },
+            "description": {
+              "type": "string"
+            },
+            "descriptionKey": {
+              "type": "string"
+            },
+            "activityDescription": {
+              "type": "string"
+            },
+            "activityDescriptionKey": {
+              "type": "string"
+            },
+            "emailDescription": {
+              "type": "string"
+            },
+            "emailDescriptionKey": {
+              "type": "string"
+            },
+            "actor": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "displayName": {
+                  "type": "string"
+                },
+                "type": {
+                  "type": "string"
+                },
+                "avatarUrl": {
+                  "type": "string"
+                },
+                "url": {
+                  "type": "string"
+                }
+              },
+              "additionalProperties": false
+            },
+            "generator": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "displayName": {
+                  "type": "string"
+                },
+                "type": {
+                  "type": "string"
+                },
+                "avatarUrl": {
+                  "type": "string"
+                },
+                "url": {
+                  "type": "string"
+                }
+              },
+              "additionalProperties": false
+            },
+            "cause": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "displayName": {
+                  "type": "string"
+                },
+                "type": {
+                  "type": "string"
+                },
+                "avatarUrl": {
+                  "type": "string"
+                },
+                "url": {
+                  "type": "string"
+                }
+              },
+              "additionalProperties": false
+            },
+            "extraData": {
+              "type": "object",
+              "additionalProperties": {
+                "type": "string"
+              }
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "required": ["cloudId", "issueIdOrKey", "transition"],
+      "additionalProperties": false,
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    }
+  },
+  {
+    "name": "ATLASSIAN__LOOKUPJIRAACCOUNTID",
+    "description": "Lookup account ids of existing users in Jira based on the user's display name or email address.",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "lookupJiraAccountId",
+      "canonical_tool_description_hash": "26632f4e7340cd14721e0b933b978af68e2f9ca543c94c725d69e26ae35c2ad7",
+      "canonical_tool_input_schema_hash": "846fa1fd195507cd4c4cb5ed3c4fba931cf509274c134507ffdab88ba8f69873"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "cloudId": {
+          "type": "string",
+          "description": "Unique identifier for an Atlassian Cloud instance in the form of a UUID. Can also be a site URL or extracted from Atlassian URLs - for example, from https://yoursite.atlassian.net/wiki/.... If not working, use the 'getAccessibleAtlassianResources' tool to find accessible Cloud IDs."
+        },
+        "searchString": {
+          "type": "string"
+        }
+      },
+      "required": ["cloudId", "searchString"],
+      "additionalProperties": false,
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    }
+  },
+  {
+    "name": "ATLASSIAN__SEARCHJIRAISSUESUSINGJQL",
+    "description": "Search Jira issues using Jira Query Language (JQL).",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "searchJiraIssuesUsingJql",
+      "canonical_tool_description_hash": "01ceceeface85aadcd33d039e7993c056143c556c0869e0d6c1cd98f720370ec",
+      "canonical_tool_input_schema_hash": "e048797eaec3a900e542635d916d7ff58571143c82b13d05d906520acbfa5611"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "cloudId": {
+          "type": "string",
+          "description": "Unique identifier for an Atlassian Cloud instance in the form of a UUID. Can also be a site URL or extracted from Atlassian URLs - for example, from https://yoursite.atlassian.net/wiki/.... If not working, use the 'getAccessibleAtlassianResources' tool to find accessible Cloud IDs."
+        },
+        "jql": {
+          "type": "string",
+          "description": "A Jira Query Language (JQL) expression to search Jira issues"
+        },
+        "maxResults": {
+          "type": "number",
+          "maximum": 100,
+          "default": 50,
+          "description": "A maximum number of issue to search per page. Default is 50, max is 100"
+        },
+        "fields": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": ["summary", "description", "status", "issuetype", "priority", "created"]
+        },
+        "nextPageToken": {
+          "type": "string",
+          "description": "This is used for pagination purpose to fetch more data if a JQL search has more issues in next pages"
+        }
+      },
+      "required": ["cloudId", "jql"],
+      "additionalProperties": false,
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    }
+  },
+  {
+    "name": "ATLASSIAN__ADDCOMMENTTOJIRAISSUE",
+    "description": "Adds a comment to an existing Jira issue id or key.",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "addCommentToJiraIssue",
+      "canonical_tool_description_hash": "3d512d186c17250cd4ce8f05d2a880ac5b2793ca530d12e642a849357435eda7",
+      "canonical_tool_input_schema_hash": "aad118b4c19aaf129f4f78c9833aa13db6c5c99a98e91c5f3a58366f032ae2a2"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "cloudId": {
+          "type": "string",
+          "description": "Unique identifier for an Atlassian Cloud instance in the form of a UUID. Can also be a site URL or extracted from Atlassian URLs - for example, from https://yoursite.atlassian.net/wiki/.... If not working, use the 'getAccessibleAtlassianResources' tool to find accessible Cloud IDs."
+        },
+        "issueIdOrKey": {
+          "type": "string",
+          "description": "Issue id or key can be used to uniquely identify an existing issue.\nIssue id is a numerical identifier. An example issue id is 10000.\nIssue key is formatted as a project key followed by a hyphen '-' character and then followed by a sequential number.\nAn example issue key is ISSUE-1."
+        },
+        "commentBody": {
+          "type": "string",
+          "description": "The content of the comment in Markdown format."
+        },
+        "commentVisibility": {
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "enum": ["group", "role"],
+              "description": "Whether visibility of this comment is restricted to a group or role."
+            },
+            "value": {
+              "type": "string",
+              "description": "The name of the group or role that visibility of this comment is restricted to."
+            }
+          },
+          "required": ["type", "value"],
+          "additionalProperties": false
+        }
+      },
+      "required": ["cloudId", "issueIdOrKey", "commentBody"],
+      "additionalProperties": false,
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    }
+  },
+  {
+    "name": "ATLASSIAN__GETJIRAISSUEREMOTEISSUELINKS",
+    "description": "Get remote issue links (eg: Confluence links etc...) of an existing Jira issue id or key",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "getJiraIssueRemoteIssueLinks",
+      "canonical_tool_description_hash": "6917aef45d1f1a9bdfa7d53ddfa9c8f78ab4045c6bdb30513c6b35ca0bcf91cc",
+      "canonical_tool_input_schema_hash": "ab14a269a374ae703e7451a98789a175f77dc35ea67874011b584ee99b04d39c"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "cloudId": {
+          "type": "string",
+          "description": "Unique identifier for an Atlassian Cloud instance in the form of a UUID. Can also be a site URL or extracted from Atlassian URLs - for example, from https://yoursite.atlassian.net/wiki/.... If not working, use the 'getAccessibleAtlassianResources' tool to find accessible Cloud IDs."
+        },
+        "issueIdOrKey": {
+          "type": "string",
+          "description": "Issue id or key can be used to uniquely identify an existing issue.\nIssue id is a numerical identifier. An example issue id is 10000.\nIssue key is formatted as a project key followed by a hyphen '-' character and then followed by a sequential number.\nAn example issue key is ISSUE-1."
+        },
+        "globalId": {
+          "type": "string",
+          "description": "An identifier for the remote item in the remote system.\n          For example, the global ID for a remote item in Confluence would consist of the app ID and page ID, like this: appId=456&pageId=123.\n          When a global ID is provided, this tool returns only the remote issue link of the given Jira issue that has the provided global ID.\n          When no global ID is provided, this tool returns all the remote issue links of the given Jira issue."
+        }
+      },
+      "required": ["cloudId", "issueIdOrKey"],
+      "additionalProperties": false,
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    }
+  },
+  {
+    "name": "ATLASSIAN__GETVISIBLEJIRAPROJECTS",
+    "description": "Get visible Jira projects for which the user has either view, browse, edit or create permission on that project.",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "getVisibleJiraProjects",
+      "canonical_tool_description_hash": "30b0ff7b35ee6ddc8092977f658abd3538afb2abe41540bc469e83592a0e52bd",
+      "canonical_tool_input_schema_hash": "c774689cb91dfba58806cd0db01278daefa050e53f3f8ccf79e8749c24c39cb7"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "cloudId": {
+          "type": "string",
+          "description": "Unique identifier for an Atlassian Cloud instance in the form of a UUID. Can also be a site URL or extracted from Atlassian URLs - for example, from https://yoursite.atlassian.net/wiki/.... If not working, use the 'getAccessibleAtlassianResources' tool to find accessible Cloud IDs."
+        },
+        "searchString": {
+          "type": "string",
+          "description": "Filter the results using a literal string. Projects with a matching key or name are returned (case insensitive)"
+        },
+        "action": {
+          "type": "string",
+          "enum": ["view", "browse", "edit", "create"],
+          "default": "create",
+          "description": "\n      Filter results by projects for which the user can:\n      * view the project\n      * browse the project\n      * edit the project\n      * create the project, meaning that they have the Create issues project permission for the project in which the issue is created.\n      "
+        },
+        "startAt": {
+          "type": "number",
+          "default": 0,
+          "description": "The index of the first item to return in a page of results (page offset)."
+        },
+        "maxResults": {
+          "type": "number",
+          "maximum": 50,
+          "default": 50,
+          "description": "The maximum number of items to return per page."
+        },
+        "expandIssueTypes": {
+          "type": "boolean",
+          "default": true,
+          "description": "To include additional information about the issue types associated with the project"
+        }
+      },
+      "required": ["cloudId"],
+      "additionalProperties": false,
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    }
+  },
+  {
+    "name": "ATLASSIAN__GETJIRAPROJECTISSUETYPESMETADATA",
+    "description": "Get a page of issue type metadata for a specified project. The issue type metadata will be used to create issue.",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "getJiraProjectIssueTypesMetadata",
+      "canonical_tool_description_hash": "cab89fc0931d1b29f6705b94af14187dd87bd2ed2e0aec2531f6036ea182fb2d",
+      "canonical_tool_input_schema_hash": "ededf30ea43a07a669551e002a1ae9a58403b46b50e5de4d2c4a5519e42a8cd5"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "cloudId": {
+          "type": "string",
+          "description": "Unique identifier for an Atlassian Cloud instance in the form of a UUID. Can also be a site URL or extracted from Atlassian URLs - for example, from https://yoursite.atlassian.net/wiki/.... If not working, use the 'getAccessibleAtlassianResources' tool to find accessible Cloud IDs."
+        },
+        "projectIdOrKey": {
+          "type": "string"
+        },
+        "startAt": {
+          "type": "number",
+          "default": 0,
+          "description": "The index of the first item to return in a page of results (page offset)."
+        },
+        "maxResults": {
+          "type": "number",
+          "maximum": 200,
+          "default": 50,
+          "description": "The maximum number of items to return per page."
+        }
+      },
+      "required": ["cloudId", "projectIdOrKey"],
+      "additionalProperties": false,
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    }
+  },
+  {
+    "name": "ATLASSIAN__SEARCH",
+    "description": "Search Jira and Confluence using Rovo Search, ALWAYS use this tool to search for Jira and Confluence content unless the word CQL or JQL is used in the context",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "search",
+      "canonical_tool_description_hash": "6da1c2b5abd64014e2b64bf1211b68768d353f396053bd9c28638e133f226904",
+      "canonical_tool_input_schema_hash": "840bd03b7b88e87406f30e4d21029c1aa88a2a50eee513795c7efb24e235d4f7"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "query": {
+          "type": "string",
+          "description": "The search query to use for Rovo Search"
+        }
+      },
+      "required": ["query"],
+      "additionalProperties": false,
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    }
+  },
+  {
+    "name": "ATLASSIAN__FETCH",
+    "description": "Get details of a Jira issue or Confluence page by ARI (Atlassian Resource Identifier), if the id is not an ARI, then use a different tool to fetch the content",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "fetch",
+      "canonical_tool_description_hash": "be1c60f8be5528f6deee0564fc2986eef73bce4dc5b5cdbe2f683a9b897ba6a9",
+      "canonical_tool_input_schema_hash": "8c3aedd73148ff96a31636731a4c0c2ed61a1375d2d7d5ae66666b4ec3a81163"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Atlassian Resource Identifier (ARI) from search results, e.g., \"ari:cloud:jira:cloudId:issue/10107\" or \"ari:cloud:confluence:cloudId:page/123456789\""
+        }
+      },
+      "required": ["id"],
+      "additionalProperties": false,
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    }
+  }
+]

@@ -1,0 +1,336 @@
+[
+  {
+    "name": "SHARE_POINT__LIST_SUBSITES_FOR_A_SITE",
+    "description": "List all subsites for a site.",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "LIST_SUBSITES_FOR_A_SITE",
+      "canonical_tool_description_hash": "b11644258a435f1c663be5c91f685c204fb5deaf510acf13bcf3f539ae5fa333",
+      "canonical_tool_input_schema_hash": "2235d74dd986ce3cadf37c05d9f6df6dfd7ef8e2bf721c080922390662cee59d"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["path"],
+      "properties": {
+        "path": {
+          "type": "object",
+          "required": ["site_id"],
+          "properties": {
+            "site_id": {
+              "type": "string",
+              "description": "The ID of the site to list subsites for. e.g., 'contoso.sharepoint.com,2C712604-1370-44E7-A1F5-426573FDA80A,2D2244C3-251A-49EA-93A8-39E1C3A060FE'"
+            }
+          },
+          "description": "the http path parameters",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "SHARE_POINT__LIST_DRIVES_FOR_A_SITE",
+    "description": "List the document libraries for a site",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "LIST_DRIVES_FOR_A_SITE",
+      "canonical_tool_description_hash": "5a7d6754127f1c6fbdffa14624bd92618d91a06d15f0eee22863d2086a04f7ed",
+      "canonical_tool_input_schema_hash": "617d9a8146e9809c2495c8221ca14a559f1da45a4aa01b1fe534aa6b89af7a0e"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["path"],
+      "properties": {
+        "path": {
+          "type": "object",
+          "required": ["site_id"],
+          "properties": {
+            "site_id": {
+              "type": "string",
+              "description": "The ID of the SharePoint site."
+            }
+          },
+          "description": "the http path parameters",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "SHARE_POINT__SEARCH_FOR_SITES",
+    "description": "Search across a SharePoint tenant for sites that match keywords provided.",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "SEARCH_FOR_SITES",
+      "canonical_tool_description_hash": "6ea6133467ca8a399ec88e66867e0afa90483ba3ed0706cc9bf0a5efe075bf1b",
+      "canonical_tool_input_schema_hash": "9f621f5489e00ad90208923927ac12469d36d4cfcfdc956ca175cbf25c8be9b2"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["path"],
+      "properties": {
+        "path": {
+          "type": "object",
+          "required": ["search_text"],
+          "properties": {
+            "search_text": {
+              "type": "string",
+              "description": "The search filter is a free text search that uses multiple properties when retrieving the search results"
+            }
+          },
+          "description": "the http path parameters",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "SHARE_POINT__GET_ROOT_SITE",
+    "description": "Get the root site of a SharePoint tenant.",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "GET_ROOT_SITE",
+      "canonical_tool_description_hash": "9a70d35f8b7718a506b9573f8e5889a0df57dd25b0ac7cc86b25210a7b0daef9",
+      "canonical_tool_input_schema_hash": "d746974fa9afd5e951f76f9af38954b0ad7f436f2120dc974da65e5ee39f856f"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": [],
+      "properties": {},
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "SHARE_POINT__GET_SITE_BY_ID",
+    "description": "Get a site by its ID.",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "GET_SITE_BY_ID",
+      "canonical_tool_description_hash": "f6d97ffc86927cd6e006eb18f2d368900ab3ca825d5a794d2278a6a57753b952",
+      "canonical_tool_input_schema_hash": "2dd97f49062f88c635f22b9c5236ebbed837cc809e57b983bf37ab887a2f244e"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["path"],
+      "properties": {
+        "path": {
+          "type": "object",
+          "required": ["site_id"],
+          "properties": {
+            "site_id": {
+              "type": "string",
+              "description": "The ID of the site to get. e.g., 'contoso.sharepoint.com,2C712604-1370-44E7-A1F5-426573FDA80A,2D2244C3-251A-49EA-93A8-39E1C3A060FE'"
+            }
+          },
+          "description": "the http path parameters",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "SHARE_POINT__GET_SITE_BY_PATH",
+    "description": "retrieve a site based on server-relative URL path. Site collection hostname and Site path, relative to server hostname.",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "GET_SITE_BY_PATH",
+      "canonical_tool_description_hash": "e140f127a1afe94913ae70716bd33bfbdd50a821c88fdcf4a616e4e13a3d96aa",
+      "canonical_tool_input_schema_hash": "b389d91434c081ecca072d3826565b1e0c8b987702ddf52bee90e26638782fa1"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["path"],
+      "properties": {
+        "path": {
+          "type": "object",
+          "required": ["hostname", "relative_path"],
+          "properties": {
+            "hostname": {
+              "type": "string",
+              "description": "The hostname of the site to get. e.g., 'xxx.sharepoint.com'"
+            },
+            "relative_path": {
+              "type": "string",
+              "description": "The relative path of the site to get. e.g., '/sites/mySite'"
+            }
+          },
+          "description": "the http path parameters",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "SHARE_POINT__SERACH_FOR_ITEMS_IN_A_SITE_DRIVE",
+    "description": "Search the hierarchy of items for items matching a query. searches for a match across several fields in the signed-in user's drive items.",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "SERACH_FOR_ITEMS_IN_A_SITE_DRIVE",
+      "canonical_tool_description_hash": "8f5880162e571bd7e70be31b8a38f8cc0d3a3c05f942cd7269222d922c8c46ca",
+      "canonical_tool_input_schema_hash": "049b4712f704e989a5d62e4a973c6194da5807a2f6dbe721388fff0986281477"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["path"],
+      "properties": {
+        "path": {
+          "type": "object",
+          "required": ["site_id", "search_text"],
+          "properties": {
+            "site_id": {
+              "type": "string",
+              "description": "The ID of the SharePoint site."
+            },
+            "search_text": {
+              "type": "string",
+              "description": "The text to search for."
+            }
+          },
+          "description": "the http path parameters",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "SHARE_POINT__CREATE_FOLDER_IN_SITE_DRIVE",
+    "description": "Create a new folder in a SharePoint site's document library (drive).",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "CREATE_FOLDER_IN_SITE_DRIVE",
+      "canonical_tool_description_hash": "3df2e4a59b9a177f0ec42718c4d97c59c3f596de5decbc15ffb9d6bd3e1dcf95",
+      "canonical_tool_input_schema_hash": "cb26a2d35be5251f6d40f9b4b4bfc2882089e18527010a228084d524bea71393"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["path", "body"],
+      "properties": {
+        "body": {
+          "type": "object",
+          "required": ["name"],
+          "properties": {
+            "name": {
+              "type": "string",
+              "description": "The name of the new folder."
+            },
+            "@microsoft.graph.conflictBehavior": {
+              "enum": ["rename", "fail", "replace"],
+              "type": "string",
+              "description": "Specifies what to do if a folder with the same name already exists."
+            }
+          },
+          "description": "The body payload containing the folder information.",
+          "additionalProperties": false
+        },
+        "path": {
+          "type": "object",
+          "required": ["site_id", "parent_item_id"],
+          "properties": {
+            "site_id": {
+              "type": "string",
+              "description": "The ID of the SharePoint site."
+            },
+            "parent_item_id": {
+              "type": "string",
+              "description": "The ID of the parent folder or 'root' to create in the root directory."
+            }
+          },
+          "description": "The path parameters for the request.",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "SHARE_POINT__DELETE_ITEM_IN_SITE_DRIVE",
+    "description": "Delete a DriveItem by using its ID from a SharePoint site's document library.",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "DELETE_ITEM_IN_SITE_DRIVE",
+      "canonical_tool_description_hash": "85fcf3d3b643f05d7e162ec1241580111b49b49f07130152a122661833b6c4b4",
+      "canonical_tool_input_schema_hash": "b12ad64e410d081e00ffa0769540662c9f9f9a44645ec758c1a0077397ad48b6"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["path"],
+      "properties": {
+        "path": {
+          "type": "object",
+          "required": ["site_id", "item_id"],
+          "properties": {
+            "item_id": {
+              "type": "string",
+              "description": "The ID of the item (file or folder) to delete."
+            },
+            "site_id": {
+              "type": "string",
+              "description": "The ID of the SharePoint site."
+            }
+          },
+          "description": "The path parameters identifying the SharePoint site and the item to delete.",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "SHARE_POINT__CREATE_LIST_IN_A_SITE",
+    "description": "Creates a new list in a SharePoint site.",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "CREATE_LIST_IN_A_SITE",
+      "canonical_tool_description_hash": "07f10972e38e4297eb51c25f009a8516145820c445f25088619fec08c7f78835",
+      "canonical_tool_input_schema_hash": "50e331ba4cfa5927944ee93c3d4a550512127509a20913dbacc20efcbb9207aa"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["path", "body"],
+      "properties": {
+        "body": {
+          "type": "object",
+          "required": ["displayName", "list"],
+          "properties": {
+            "list": {
+              "type": "object",
+              "required": ["template"],
+              "properties": {
+                "template": {
+                  "type": "string",
+                  "description": "The list template to use (e.g., 'genericList', 'task', 'issue')."
+                }
+              },
+              "description": "Metadata for the list creation.",
+              "additionalProperties": false
+            },
+            "displayName": {
+              "type": "string",
+              "description": "The display name of the list."
+            }
+          },
+          "description": "The body payload for creating the list.",
+          "additionalProperties": false
+        },
+        "path": {
+          "type": "object",
+          "required": ["site_id"],
+          "properties": {
+            "site_id": {
+              "type": "string",
+              "description": "The ID of the SharePoint site where the list will be created."
+            }
+          },
+          "description": "The path parameters for the request.",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+]

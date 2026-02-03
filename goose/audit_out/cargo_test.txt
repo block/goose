@@ -1,0 +1,124 @@
+﻿=== LAYER 3: Test Correctness ===
+Goal: All tests pass with comprehensive coverage
+
+cargo test --workspace --all-features:
+cargo :    Compiling hyper v1.8.1
+At C:\Users\Admin\Downloads\projects\goose\goose\scripts\run_audit.ps1:184 char:19
++     $testResult = cargo test --workspace --all-features 2>&1
++                   ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (   Compiling hyper v1.8.1:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+   Compiling assert-json-diff v2.0.2
+   Compiling test-case-core v3.3.1
+   Compiling serial_test_derive v3.3.1
+   Compiling deadpool v0.12.3
+   Compiling mockall_derive v0.13.1
+   Compiling goose-test v1.22.0 (C:\Users\Admin\Downloads\projects\goose\crates\goose-test)
+   Compiling serial_test v3.3.1
+   Compiling test-case-macros v3.3.1
+   Compiling test-case v3.3.1
+   Compiling hyper-util v0.1.19
+   Compiling mockall v0.13.1
+   Compiling hyper-rustls v0.27.7
+   Compiling axum v0.8.8
+   Compiling hyper-timeout v0.5.2
+   Compiling wiremock v0.6.5
+   Compiling tonic v0.12.3
+   Compiling reqwest v0.12.28
+   Compiling aws-smithy-http-client v1.1.5
+   Compiling opentelemetry-proto v0.27.0
+   Compiling aws-smithy-runtime v1.9.5
+   Compiling oauth2 v5.0.0
+   Compiling opentelemetry-http v0.27.0
+   Compiling jsonschema v0.30.0
+   Compiling opentelemetry-otlp v0.27.0
+   Compiling rmcp v0.14.0
+   Compiling aws-runtime v1.5.17
+   Compiling aws-sdk-sso v1.91.0
+   Compiling aws-sdk-ssooidc v1.93.0
+   Compiling aws-sdk-sts v1.95.0
+   Compiling aws-sdk-sagemakerruntime v1.93.0
+   Compiling aws-sdk-bedrockruntime v1.120.0
+   Compiling aws-config v1.8.12
+   Compiling goose v1.22.0 (C:\Users\Admin\Downloads\projects\goose\crates\goose)
+   Compiling goose-mcp v1.22.0 (C:\Users\Admin\Downloads\projects\goose\crates\goose-mcp)
+warning: unused imports: `Duration` and `Instant`
+    --> crates\goose-mcp\src\developer\rmcp_developer.rs:1489:16
+     |
+1489 |         time::{Duration, Instant},
+     |                ^^^^^^^^  ^^^^^^^
+     |
+     = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused import: `tokio::time::timeout`
+    --> crates\goose-mcp\src\developer\rmcp_developer.rs:1492:9
+     |
+1492 |     use tokio::time::timeout;
+     |         ^^^^^^^^^^^^^^^^^^^^
+
+warning: `goose-mcp` (lib test) generated 2 warnings (run `cargo fix --lib -p goose-mcp --tests` 
+to apply 2 suggestions)
+   Compiling goose-acp v1.22.0 (C:\Users\Admin\Downloads\projects\goose\crates\goose-acp)
+   Compiling goose-bench v1.22.0 (C:\Users\Admin\Downloads\projects\goose\crates\goose-bench)
+   Compiling goose-server v1.22.0 (C:\Users\Admin\Downloads\projects\goose\crates\goose-server)
+   Compiling goose-cli v1.22.0 (C:\Users\Admin\Downloads\projects\goose\crates\goose-cli)
+error[E0432]: unresolved import `std::os::unix`
+   --> crates\goose-cli\src\session\editor.rs:312:22
+    |
+312 |         use std::os::unix::fs;
+    |                      ^^^^ could not find `unix` in `os`
+    |
+note: found an item that was configured out
+   --> C:\Users\Admin\.rustup\toolchains\1.92-x86_64-pc-windows-msvc\lib/rustlib/src/rust\library\s
+td\src\os\mod.rs:36:9
+    |
+ 29 |     doc,
+    |     --- the item is gated here
+...
+ 36 | pub mod unix {}
+    |         ^^^^
+note: found an item that was configured out
+   --> C:\Users\Admin\.rustup\toolchains\1.92-x86_64-pc-windows-msvc\lib/rustlib/src/rust\library\s
+td\src\os\mod.rs:85:9
+    |
+ 84 | #[cfg(all(not(target_os = "hermit"), any(unix, doc)))]
+    |                                         ----------- the item is gated here
+ 85 | pub mod unix;
+    |         ^^^^
+
+error[E0432]: unresolved import `std::os::unix`
+   --> crates\goose-cli\src\session\editor.rs:355:22
+    |
+355 |         use std::os::unix::fs;
+    |                      ^^^^ could not find `unix` in `os`
+    |
+note: found an item that was configured out
+   --> C:\Users\Admin\.rustup\toolchains\1.92-x86_64-pc-windows-msvc\lib/rustlib/src/rust\library\s
+td\src\os\mod.rs:36:9
+    |
+ 29 |     doc,
+    |     --- the item is gated here
+...
+ 36 | pub mod unix {}
+    |         ^^^^
+note: found an item that was configured out
+   --> C:\Users\Admin\.rustup\toolchains\1.92-x86_64-pc-windows-msvc\lib/rustlib/src/rust\library\s
+td\src\os\mod.rs:85:9
+    |
+ 84 | #[cfg(all(not(target_os = "hermit"), any(unix, doc)))]
+    |                                         ----------- the item is gated here
+ 85 | pub mod unix;
+    |         ^^^^
+
+error[E0063]: missing fields `approval_policy` and `execution_mode` in initializer of 
+`session::builder::SessionBuilderConfig`
+   --> crates\goose-cli\src\session\builder.rs:673:22
+    |
+673 |         let config = SessionBuilderConfig {
+    |                      ^^^^^^^^^^^^^^^^^^^^ missing `approval_policy` and `execution_mode`
+
+Some errors have detailed explanations: E0063, E0432.
+For more information about an error, try `rustc --explain E0063`.
+error: could not compile `goose-cli` (lib test) due to 3 previous errors
+warning: build failed, waiting for other jobs to finish...

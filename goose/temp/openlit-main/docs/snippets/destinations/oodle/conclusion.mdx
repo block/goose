@@ -1,0 +1,143 @@
+### 4. Import Oodle Dashboard
+
+Once your LLM application is instrumented, you can visualize the metrics in Oodle using our pre-built dashboard:
+
+1. **Log into your Oodle Instance**
+2. **Navigate to Dashboards**: Click **Dashboards** in the primary menu
+3. **Import Dashboard**: Click **New** → **Import** in the drop-down menu
+4. **Copy the Dashboard JSON**: Use the JSON provided in the accordion below
+5. **Paste and Import**: Paste the JSON directly into the text area and click **Import**
+6. **Save the Dashboard**: Save the imported dashboard
+
+<Accordion title="GenAI Observability Dashboard JSON">
+```json
+{
+    "annotations": {
+        "list": [
+        {
+            "builtIn": 1,
+            "datasource": {
+            "type": "grafana",
+            "uid": "-- Grafana --"
+            },
+            "enable": true,
+            "hide": true,
+            "iconColor": "rgba(0, 211, 255, 1)",
+            "name": "Annotations & Alerts",
+            "type": "dashboard"
+        }
+        ]
+    },
+    "editable": true,
+    "fiscalYearStartMonth": 0,
+    "graphTooltip": 1,
+    "id": 748,
+    "links": [
+        {
+        "asDropdown": false,
+        "icon": "bolt",
+        "includeVars": false,
+        "keepTime": false,
+        "tags": [],
+        "targetBlank": true,
+        "title": "OpenLIT Github",
+        "tooltip": "Github",
+        "type": "link",
+        "url": "https://github.com/openlit/openlit"
+        },
+        {
+        "asDropdown": false,
+        "icon": "doc",
+        "includeVars": false,
+        "keepTime": false,
+        "tags": [
+            "GPU",
+            "AI"
+        ],
+        "targetBlank": true,
+        "title": "OpenLIT Docs",
+        "tooltip": "Documentation",
+        "type": "link",
+        "url": "https://docs.openlit.io/"
+        }
+    ],
+    "panels": [
+        {
+        "fieldConfig": {
+            "defaults": {},
+            "overrides": []
+        },
+        "gridPos": {
+            "h": 5,
+            "w": 12,
+            "x": 0,
+            "y": 0
+        },
+        "id": 21,
+        "options": {
+            "code": {
+            "language": "plaintext",
+            "showLineNumbers": false,
+            "showMiniMap": false
+            },
+            "content": "---\\n# GenAI Observability\\n\\nThis dashboard displays the usage stats of LLMs, Vector Databases, tracking OpenTelemetry Metrics sent using [OpenLIT](https://github.com/openlit/openlit).\\n\\n---",
+            "mode": "markdown"
+        },
+        "pluginVersion": "11.3.0",
+        "title": "",
+        "transparent": true,
+        "type": "text"
+        }
+    ],
+    "preload": false,
+    "refresh": "",
+    "schemaVersion": 40,
+    "tags": [
+        "LLM",
+        "VectorDB",
+        "GenAI",
+        "GPU"
+    ],
+    "templating": {
+        "list": [
+        {
+            "current": {
+            "text": "oodle",
+            "value": "P4033CA274A2C2DFE"
+            },
+            "includeAll": false,
+            "label": "Metrics Datasource",
+            "name": "metricsDatasource",
+            "options": [],
+            "query": "prometheus",
+            "refresh": 1,
+            "regex": "",
+            "type": "datasource"
+        }
+        ]
+    },
+    "time": {
+        "from": "now-1h",
+        "to": "now"
+    },
+    "timepicker": {},
+    "timezone": "browser",
+    "title": "GenAI Observability",
+    "uid": "cdiz9piuoa3gge",
+    "version": 34,
+    "weekStart": ""
+}
+```
+</Accordion>
+
+Your OpenLIT-instrumented AI applications will appear in Oodle with comprehensive metrics including:
+- **LLM Request Rates**: Monitor request volume and patterns
+- **Usage Costs**: Track AI model costs and budget allocation  
+- **Token Consumption**: Analyze input/output token usage
+- **Model Performance**: Compare performance across different models
+- **VectorDB Operations**: Monitor database requests and operations
+- **Application Breakdown**: View metrics by application and environment
+
+<Note>
+Currently, Oodle supports **metrics only**. Trace data is handled by the debug exporter for logging purposes.
+</Note>

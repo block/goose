@@ -1,6 +1,6 @@
 # AGENTS Instructions
 
-goose is an AI agent framework in Rust with CLI and Electron desktop interfaces.
+goose is a **sophisticated enterprise AI agent framework** in Rust with CLI and Electron desktop interfaces, featuring advanced multi-agent orchestration, specialist agents, and enterprise workflow automation.
 
 ## Setup
 ```bash
@@ -42,11 +42,38 @@ cd ui/desktop && npm test    # test UI
 ## Structure
 ```
 crates/
-├── goose             # core logic
+├── goose             # core logic with enterprise multi-agent platform
+│   ├── agents/       # Enhanced agent architecture
+│   │   ├── agent.rs           # Core Agent with ExecutionMode, planning, critique
+│   │   ├── orchestrator.rs    # AgentOrchestrator for multi-agent coordination
+│   │   ├── workflow_engine.rs # Enterprise workflow orchestration
+│   │   ├── specialists/       # Specialist agent implementations
+│   │   │   ├── code_agent.rs     # Code generation specialist
+│   │   │   ├── test_agent.rs     # Testing and QA specialist
+│   │   │   ├── deploy_agent.rs   # Deployment specialist
+│   │   │   ├── docs_agent.rs     # Documentation specialist
+│   │   │   └── security_agent.rs # Security analysis specialist
+│   │   ├── persistence/       # LangGraph-style checkpointing
+│   │   ├── reasoning.rs       # ReAct, CoT, ToT patterns
+│   │   ├── reflexion.rs       # Self-improvement via verbal reinforcement
+│   │   ├── critic.rs          # Self-critique system
+│   │   ├── planner.rs         # Multi-step planning system
+│   │   ├── state_graph/       # Self-correcting execution loops
+│   │   ├── shell_guard.rs     # Security and approval system
+│   │   └── done_gate.rs       # Task completion verification
+│   ├── prompts/      # Advanced prompt engineering
+│   │   ├── mod.rs             # PromptManager for pattern coordination
+│   │   ├── patterns.rs        # 20+ reusable patterns (ReAct, CoT, etc.)
+│   │   ├── templates.rs       # Template engine with variable validation
+│   │   └── errors.rs          # Error types for prompt operations
+│   ├── observability/# Token tracking, cost estimation, tracing
+│   ├── policies/     # Rule engine and policy management
+│   ├── guardrails/   # Safety constraints and validation
+│   └── mcp_gateway/  # MCP protocol gateway
 ├── goose-bench       # benchmarking
-├── goose-cli         # CLI entry
+├── goose-cli         # CLI entry with workflow management
 ├── goose-server      # backend (binary: goosed)
-├── goose-mcp         # MCP extensions
+├── goose-mcp         # MCP extensions with security integration
 ├── goose-test        # test utilities
 ├── mcp-client        # MCP client
 ├── mcp-core          # MCP shared
@@ -76,6 +103,14 @@ Provider: Implement Provider trait see providers/base.rs
 MCP: Extensions in crates/goose-mcp/
 Server: Changes need just generate-openapi
 
+## Phase 5 Enterprise Rules
+
+Agent: Implement SpecialistAgent trait see specialists/mod.rs
+Orchestrator: Use AgentOrchestrator for multi-agent coordination
+Workflow: Create workflow templates in WorkflowEngine
+Specialist: Each specialist agent handles specific domain (Code, Test, Deploy, Docs, Security)
+Enterprise: Follow enterprise patterns for scalability and maintainability
+
 ## Code Quality
 
 Comments: Write self-documenting code - prefer clear names over comments
@@ -95,8 +130,95 @@ Never: Skip cargo fmt
 Never: Merge without ./scripts/clippy-lint.sh
 Never: Comment self-evident operations (`// Initialize`, `// Return result`), getters/setters, constructors, or standard Rust idioms
 
+## Phase 7 Claude-Inspired Features
+
+### Task Graph (crates/goose/src/tasks/)
+DAG-based task management with dependencies, concurrency control, and persistence:
+- `Task`, `TaskGraph`, `TaskGraphConfig` - Core task management
+- `TaskPersistence` - Checkpoint/restore for long-running tasks
+- `TaskEventEmitter` - Event-driven task lifecycle
+
+### Hook System (crates/goose/src/hooks/)
+Deterministic lifecycle hooks (13 events) with validators:
+- `PreToolUse`, `PostToolUse`, `OnError`, `OnComplete` - Lifecycle events
+- `HookManager`, `HookConfig` - Hook registration and execution
+- `HookLogger` - Audit-proof logging (JSONL + human-readable)
+
+### Validators (crates/goose/src/validators/)
+Language-specific and security validators:
+- `RustValidator` - cargo build/test/clippy/fmt
+- `PythonValidator` - ruff/mypy/pyright
+- `JavaScriptValidator` - eslint/tsc
+- `SecurityValidator` - Secret detection, dangerous patterns
+- `ContentValidator` - File existence, TODO checking
+
+### Team Agents (crates/goose/src/agents/team/)
+Builder/Validator pairing with enforced roles:
+- `BuilderAgent` - Full write access, auto-validation
+- `ValidatorAgent` - Read-only verification
+- `TeamCoordinator` - Orchestrates build/validate workflows
+
+### Tool Search (crates/goose/src/tools/)
+Dynamic tool discovery (85% token reduction):
+- `ToolSearchTool` - On-demand tool discovery
+- `ToolRegistry` - Central tool management
+- `ProgrammaticToolCall` - Structured tool calling with validation
+
+### Compaction (crates/goose/src/compaction/)
+Context management for long conversations:
+- `CompactionManager` - Automatic context summarization
+- `CompactionConfig` - Trigger thresholds, preservation rules
+- Preserves critical messages while reducing tokens
+
+### Skills Pack (crates/goose/src/skills/)
+Installable enforcement modules:
+- `SkillPack` - Prompts, validators, gates
+- `SkillManager` - Discovery from .goose/skills/
+- `GateConfig` - Pre-complete validation commands
+
+### Status Line (crates/goose/src/status/)
+Real-time feedback for agent operations:
+- `StatusLine` - Ephemeral status updates
+- `StatusUpdate` - Reading, writing, executing states
+- `ToolExecutionStatus` - Progress tracking for tool calls
+
+### Subagents (crates/goose/src/subagents/)
+Task spawning and parallel execution:
+- `SubagentSpawner` - Spawn and track subagents
+- `SubagentConfig` - Type, instructions, timeout
+- `SubagentResult` - Artifacts and summaries
+
+### Agent Capabilities (crates/goose/src/agents/capabilities.rs)
+Unified integration of Phase 7 modules:
+- `AgentCapabilities` - Single interface for hooks, tasks, validators, tools
+- `CapabilitiesConfig` - Feature toggles
+- Hook integration for tool permission checks and done gates
+
+### Slash Commands (crates/goose/src/slash_commands.rs)
+Built-in and custom command handling:
+- 20 built-in commands (/help, /clear, /compact, /status, etc.)
+- `ParsedCommand` - Builtin, Recipe, or Unknown
+- Recipe-based custom commands
+
 ## Entry Points
 - CLI: crates/goose-cli/src/main.rs
 - Server: crates/goose-server/src/main.rs
 - UI: ui/desktop/src/main.ts
 - Agent: crates/goose/src/agents/agent.rs
+- Orchestrator: crates/goose/src/agents/orchestrator.rs
+- WorkflowEngine: crates/goose/src/agents/workflow_engine.rs
+- Specialists: crates/goose/src/agents/specialists/mod.rs
+- Prompts: crates/goose/src/prompts/mod.rs
+- Observability: crates/goose/src/observability/mod.rs
+- Policies: crates/goose/src/policies/mod.rs
+- Tasks: crates/goose/src/tasks/mod.rs
+- Hooks: crates/goose/src/hooks/mod.rs
+- Validators: crates/goose/src/validators/mod.rs
+- Team: crates/goose/src/agents/team/mod.rs
+- Tools: crates/goose/src/tools/mod.rs
+- Compaction: crates/goose/src/compaction/mod.rs
+- Skills: crates/goose/src/skills/mod.rs
+- Status: crates/goose/src/status/mod.rs
+- Subagents: crates/goose/src/subagents/mod.rs
+- Capabilities: crates/goose/src/agents/capabilities.rs
+- SlashCommands: crates/goose/src/slash_commands.rs

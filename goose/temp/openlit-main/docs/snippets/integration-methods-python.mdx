@@ -1,0 +1,65 @@
+    <Step title="Initialize OpenLIT in your Application">
+    <Tabs>
+      <Tab title="Zero Code Instrumentation">
+        Perfect for existing applications - no code modifications needed:
+        
+        <Tabs>
+          <Tab title="Via CLI Arguments">
+          ```bash
+          # Configure via CLI arguments
+          openlit-instrument \
+            --service-name my-ai-app \
+            --environment production \
+            --otlp-endpoint YOUR_OTEL_ENDPOINT \
+            python your_app.py
+          ```
+          </Tab>
+          <Tab title="Via Environment Variables">
+          ```bash
+          # Configure via environment variables
+          export OTEL_SERVICE_NAME=my-ai-app
+          export OTEL_DEPLOYMENT_ENVIRONMENT=production
+          export OTEL_EXPORTER_OTLP_ENDPOINT=YOUR_OTEL_ENDPOINT
+          
+          # Run with zero code changes
+          openlit-instrument python your_app.py
+          ```
+          </Tab>
+        </Tabs>
+        
+        <Info>
+        **Perfect for**: Legacy applications, production systems where code changes need approval, quick testing, or when you want to add observability without touching existing code.
+        </Info>
+      </Tab>
+      <Tab title="One-Line Instrumentation">
+        <Tabs>
+          <Tab title="Via Function Parameters">
+            ```python
+            import openlit
+
+            openlit.init(otlp_endpoint="YOUR_OTEL_ENDPOINT")
+            ```
+          </Tab>
+          <Tab title="Via Environment Variables">
+            Add the following two lines to your application code:
+            ```python
+            import openlit
+
+            openlit.init()
+            ```
+
+            Then, configure the your OTLP endpoint using environment variable:
+            ```shell
+            export OTEL_EXPORTER_OTLP_ENDPOINT=YOUR_OTEL_ENDPOINT
+            ```
+          </Tab>
+        </Tabs>
+      </Tab>
+    </Tabs>
+    
+    **Replace:** `YOUR_OTEL_ENDPOINT` with the URL of your OpenTelemetry backend, such as `http://127.0.0.1:4318` if you are using OpenLIT and a local OTel Collector.
+
+    To send metrics and traces to other Observability tools, refer to the [Connections Guide](/latest/sdk/destinations/overview).
+
+    For more advanced configurations and application use cases, visit the [OpenLIT Python repository](https://github.com/openlit/openlit/tree/main/sdk/python).
+  </Step>

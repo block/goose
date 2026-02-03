@@ -1,0 +1,362 @@
+@import "tailwindcss";
+
+@plugin 'tailwindcss-animate';
+
+@custom-variant dark (&:is(.dark *));
+
+@theme {
+  --color-background: hsl(var(--background));
+  --color-foreground: hsl(var(--foreground));
+
+  --color-card: hsl(var(--card));
+  --color-card-foreground: hsl(var(--card-foreground));
+
+  --color-popover: hsl(var(--popover));
+  --color-popover-foreground: hsl(var(--popover-foreground));
+
+  --color-primary: hsl(var(--primary));
+  --color-primary-foreground: hsl(var(--primary-foreground));
+
+  --color-secondary: hsl(var(--secondary));
+  --color-secondary-foreground: hsl(var(--secondary-foreground));
+
+  --color-muted: hsl(var(--muted));
+  --color-muted-foreground: hsl(var(--muted-foreground));
+
+  --color-accent: hsl(var(--accent));
+  --color-accent-foreground: hsl(var(--accent-foreground));
+
+  --color-destructive: hsl(var(--destructive));
+  --color-destructive-foreground: hsl(var(--destructive-foreground));
+
+  --color-border: hsl(var(--border));
+  --color-input: hsl(var(--input));
+  --color-ring: hsl(var(--ring));
+
+  --color-chart-1: hsl(var(--chart-1));
+  --color-chart-2: hsl(var(--chart-2));
+  --color-chart-3: hsl(var(--chart-3));
+  --color-chart-4: hsl(var(--chart-4));
+  --color-chart-5: hsl(var(--chart-5));
+
+  --color-sidebar: hsl(var(--sidebar-background));
+  --color-sidebar-foreground: hsl(var(--sidebar-foreground));
+  --color-sidebar-primary: hsl(var(--sidebar-primary));
+  --color-sidebar-primary-foreground: hsl(var(--sidebar-primary-foreground));
+  --color-sidebar-accent: hsl(var(--sidebar-accent));
+  --color-sidebar-accent-foreground: hsl(var(--sidebar-accent-foreground));
+  --color-sidebar-border: hsl(var(--sidebar-border));
+  --color-sidebar-ring: hsl(var(--sidebar-ring));
+
+  /* Custom semantic button variants */
+  --color-button-outline: hsl(var(--button-outline));
+  --color-button-outline-foreground: hsl(var(--button-outline-foreground));
+  --color-button-outline-border: hsl(var(--button-outline-border));
+  --color-button-outline-hover: hsl(var(--button-outline-hover));
+  --color-button-disabled: hsl(var(--button-disabled));
+  --color-button-disabled-foreground: hsl(var(--button-disabled-foreground));
+  --color-button-disabled-border: hsl(var(--button-disabled-border));
+
+  --radius-lg: var(--radius);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-sm: calc(var(--radius) - 4px);
+
+  --animate-accordion-down: accordion-down 0.2s ease-out;
+  --animate-accordion-up: accordion-up 0.2s ease-out;
+
+  @keyframes accordion-down {
+    from {
+      height: 0;
+    }
+    to {
+      height: var(--radix-accordion-content-height);
+    }
+  }
+  @keyframes accordion-up {
+    from {
+      height: var(--radix-accordion-content-height);
+    }
+    to {
+      height: 0;
+    }
+  }
+}
+
+@layer utilities {
+  body {
+    font-family: var(--font-geist-sans), system-ui, sans-serif;
+  }
+}
+
+@layer base {
+  :root {
+    --background: 0 0% 100%;
+    --foreground: 0 0% 3.9%;
+    --card: 0 0% 100%;
+    --card-foreground: 0 0% 3.9%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 0 0% 3.9%;
+    --primary: 0 0% 9%;
+    --primary-foreground: 0 0% 98%;
+    --secondary: 0 0% 96.1%;
+    --secondary-foreground: 0 0% 9%;
+    --muted: 0 0% 96.1%;
+    --muted-foreground: 0 0% 45.1%;
+    --accent: 0 0% 96.1%;
+    --accent-foreground: 0 0% 9%;
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 0 0% 89.8%;
+    --input: 0 0% 89.8%;
+    --ring: 0 0% 3.9%;
+    --chart-1: 221.2 83.2% 53.3%;
+    --chart-2: 212 95% 68%;
+    --chart-3: 216 92% 60%;
+    --chart-4: 210 98% 78%;
+    --chart-5: 212 97% 87%;
+    --radius: 0.5rem;
+    --sidebar-background: 0 0% 98%;
+    --sidebar-foreground: 240 5.3% 26.1%;
+    --sidebar-primary: 240 5.9% 10%;
+    --sidebar-primary-foreground: 0 0% 98%;
+    --sidebar-accent: 240 4.8% 95.9%;
+    --sidebar-accent-foreground: 240 5.9% 10%;
+    --sidebar-border: 220 13% 91%;
+    --sidebar-ring: 217.2 91.2% 59.8%;
+
+    /* Custom semantic button variants */
+    --button-outline: 0 0% 100%;
+    --button-outline-foreground: 0 0% 9%;
+    --button-outline-border: 0 0% 89.8%;
+    --button-outline-hover: 0 0% 96.1%;
+    --button-disabled: 0 0% 96.1%;
+    --button-disabled-foreground: 0 0% 45.1%;
+    --button-disabled-border: 0 0% 89.8%;
+  }
+  .dark {
+    --background: 0 0% 3.9%;
+    --foreground: 0 0% 98%;
+    --card: 0 0% 3.9%;
+    --card-foreground: 0 0% 98%;
+    --popover: 0 0% 3.9%;
+    --popover-foreground: 0 0% 98%;
+    --primary: 0 0% 98%;
+    --primary-foreground: 0 0% 9%;
+    --secondary: 0 0% 14.9%;
+    --secondary-foreground: 0 0% 98%;
+    --muted: 0 0% 14.9%;
+    --muted-foreground: 0 0% 63.9%;
+    --accent: 0 0% 14.9%;
+    --accent-foreground: 0 0% 98%;
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 0 0% 14.9%;
+    --input: 0 0% 14.9%;
+    --ring: 0 0% 83.1%;
+    --chart-1: 220 70% 50%;
+    --chart-2: 160 60% 45%;
+    --chart-3: 30 80% 55%;
+    --chart-4: 280 65% 60%;
+    --chart-5: 340 75% 55%;
+    --sidebar-background: 240 5.9% 10%;
+    --sidebar-foreground: 240 4.8% 95.9%;
+    --sidebar-primary: 224.3 76.3% 48%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 240 3.7% 15.9%;
+    --sidebar-accent-foreground: 240 4.8% 95.9%;
+    --sidebar-border: 240 3.7% 15.9%;
+    --sidebar-ring: 217.2 91.2% 59.8%;
+
+    /* Custom semantic button variants - dark mode */
+    --button-outline: 0 0% 14.9%;
+    --button-outline-foreground: 0 0% 98%;
+    --button-outline-border: 0 0% 27.9%;
+    --button-outline-hover: 0 0% 20.9%;
+    --button-disabled: 0 0% 14.9%;
+    --button-disabled-foreground: 0 0% 45.1%;
+    --button-disabled-border: 0 0% 27.9%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  html,
+  body {
+    @apply h-full;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+}
+
+/*
+  ---break---
+*/
+
+:root {
+  --sidebar: hsl(0 0% 98%);
+  --sidebar-foreground: hsl(240 5.3% 26.1%);
+  --sidebar-primary: hsl(240 5.9% 10%);
+  --sidebar-primary-foreground: hsl(0 0% 98%);
+  --sidebar-accent: hsl(240 4.8% 95.9%);
+  --sidebar-accent-foreground: hsl(240 5.9% 10%);
+  --sidebar-border: hsl(220 13% 91%);
+  --sidebar-ring: hsl(217.2 91.2% 59.8%);
+}
+
+/*
+  ---break---
+*/
+
+.dark {
+  --sidebar: hsl(240 5.9% 10%);
+  --sidebar-foreground: hsl(240 4.8% 95.9%);
+  --sidebar-primary: hsl(224.3 76.3% 48%);
+  --sidebar-primary-foreground: hsl(0 0% 100%);
+  --sidebar-accent: hsl(240 3.7% 15.9%);
+  --sidebar-accent-foreground: hsl(240 4.8% 95.9%);
+  --sidebar-border: hsl(240 3.7% 15.9%);
+  --sidebar-ring: hsl(217.2 91.2% 59.8%);
+}
+
+/*
+  ---break---
+*/
+
+@theme inline {
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+}
+
+/*
+  ---break---
+*/
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+}
+
+/* JSON Viewer Styles */
+.json-viewer-container .react-json-view {
+  background-color: transparent !important;
+}
+
+/* Scrollbar styling */
+.json-viewer-container::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+.json-viewer-container::-webkit-scrollbar-track {
+  background: hsl(var(--muted) / 0.3);
+  border-radius: 3px;
+}
+
+.json-viewer-container::-webkit-scrollbar-thumb {
+  background: hsl(var(--muted-foreground) / 0.3);
+  border-radius: 3px;
+}
+
+.json-viewer-container::-webkit-scrollbar-thumb:hover {
+  background: hsl(var(--muted-foreground) / 0.5);
+}
+
+/* Override react-json-view default colors for better contrast */
+.react-json-view .string-value {
+  color: hsl(142 76% 36%) !important;
+}
+
+/* Enhanced tab styling for better visual distinction */
+[role="tablist"] {
+  @apply rounded-lg bg-muted p-1;
+}
+
+[role="tab"] {
+  @apply rounded-md px-3 py-2 text-sm font-medium transition-colors;
+}
+
+[role="tab"][data-state="active"] {
+  @apply border border-border bg-background text-foreground shadow-sm;
+}
+
+[role="tab"][data-state="inactive"] {
+  @apply text-muted-foreground hover:bg-muted/50 hover:text-foreground;
+}
+
+.react-json-view .integer-value,
+.react-json-view .float-value {
+  color: hsl(221 83% 53%) !important;
+}
+
+.react-json-view .boolean-value {
+  color: hsl(280 68% 60%) !important;
+}
+
+.react-json-view .null-value {
+  color: hsl(var(--muted-foreground)) !important;
+}
+
+/* Dark mode specific */
+.dark .react-json-view .string-value {
+  color: hsl(142 71% 45%) !important;
+}
+
+.dark .react-json-view .integer-value,
+.dark .react-json-view .float-value {
+  color: hsl(217 91% 60%) !important;
+}
+
+.dark .react-json-view .boolean-value {
+  color: hsl(280 85% 70%) !important;
+}
+
+/* Icon styling */
+.react-json-view .icon-container {
+  vertical-align: middle !important;
+}
+
+/* Object key styling */
+.react-json-view .object-key {
+  color: hsl(var(--foreground) / 0.7) !important;
+  font-weight: 500 !important;
+}
+
+/* Object size styling */
+.react-json-view .object-size {
+  color: hsl(var(--muted-foreground)) !important;
+  font-size: 10px !important;
+  margin-left: 4px !important;
+}
+
+/* Hover effects */
+.react-json-view .node-ellipsis {
+  color: hsl(var(--muted-foreground)) !important;
+  cursor: pointer;
+}
+
+.react-json-view .node-ellipsis:hover {
+  color: hsl(var(--foreground) / 0.8) !important;
+}
+
+/* Better spacing */
+.react-json-view .pushed-content {
+  margin-left: 2px !important;
+}
+
+.react-json-view .object-content,
+.react-json-view .array-content {
+  margin-left: 8px !important;
+}

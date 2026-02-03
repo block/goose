@@ -1,0 +1,228 @@
+[
+  {
+    "name": "CODA__LIST_DOCS",
+    "description": "Retrieves a list of all accessible Coda documents. Supports pagination via 'limit' and 'pageToken' parameters. Returns metadata for each document, including ID, name, and creation timestamps.",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "LIST_DOCS",
+      "canonical_tool_description_hash": "e6151e73c08b623667faf05bb49c40529e8ad18c5b8a37bfa687be0c1e6ff549",
+      "canonical_tool_input_schema_hash": "39e81e66c0ae25ea746eb14e24d1a7f1c390071d8958829404ae1e4bebf24113"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": [],
+      "properties": {
+        "query": {
+          "type": "object",
+          "required": [],
+          "properties": {
+            "limit": {
+              "type": "integer",
+              "description": "Maximum number of docs to return. Default is 100; maximum is 100."
+            },
+            "pageToken": {
+              "type": "string",
+              "description": "Token to retrieve the next page of results."
+            }
+          },
+          "description": "Query parameters",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "CODA__LIST_TABLES",
+    "description": "Retrieves a list of tables within a specified Coda document. Supports pagination through 'limit' and 'pageToken' parameters. Returns metadata for each table, including ID, name, and creation timestamps.",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "LIST_TABLES",
+      "canonical_tool_description_hash": "1cff1c4eb880f486818d786da6ee7986db60bd306ee4f5fa5f71a2d0e68c3fdf",
+      "canonical_tool_input_schema_hash": "4a949fc3454f5e1db725e6944edeb8ac90ccd1902d68c8f108aa28a3c72881ad"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["path"],
+      "properties": {
+        "path": {
+          "type": "object",
+          "required": ["doc_id"],
+          "properties": {
+            "doc_id": {
+              "type": "string",
+              "description": "The ID of the document containing the tables."
+            }
+          },
+          "description": "Path parameters",
+          "additionalProperties": false
+        },
+        "query": {
+          "type": "object",
+          "required": [],
+          "properties": {
+            "limit": {
+              "type": "integer",
+              "description": "Maximum number of tables to return. Default is 100; maximum is 100."
+            },
+            "pageToken": {
+              "type": "string",
+              "description": "Token to retrieve the next page of results."
+            }
+          },
+          "description": "Query parameters",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "CODA__LIST_ROWS",
+    "description": "Retrieves a list of rows from a specified table within a Coda document. Supports pagination and filtering through query parameters. Returns metadata for each row, including ID and values for each column.",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "LIST_ROWS",
+      "canonical_tool_description_hash": "fbc02391192952f23099d7de6b25fd750d66d53e1df98b10d409e34faff94ea9",
+      "canonical_tool_input_schema_hash": "856e4286e0150a6c0e291b824788e5c8765c796eb02eb601142900e9d3bae05b"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["path"],
+      "properties": {
+        "path": {
+          "type": "object",
+          "required": ["doc_id", "table_id"],
+          "properties": {
+            "doc_id": {
+              "type": "string",
+              "description": "The ID of the document containing the table."
+            },
+            "table_id": {
+              "type": "string",
+              "description": "The ID of the table from which to retrieve rows."
+            }
+          },
+          "description": "Path parameters",
+          "additionalProperties": false
+        },
+        "query": {
+          "type": "object",
+          "required": [],
+          "properties": {
+            "limit": {
+              "type": "integer",
+              "description": "Maximum number of rows to return. Default is 100; maximum is 100."
+            },
+            "query": {
+              "type": "object",
+              "required": [],
+              "properties": {
+                "additionalProp1": {
+                  "type": "string",
+                  "description": "Filter property name and value"
+                }
+              },
+              "description": "Filters to apply when retrieving rows. For example: {\"Column Name\": \"Value\"}. Note: Only one filter can be applied at a time.",
+              "additionalProperties": true
+            },
+            "pageToken": {
+              "type": "string",
+              "description": "Token to retrieve the next page of results."
+            }
+          },
+          "description": "Query parameters",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "CODA__GET_ROW",
+    "description": "Retrieves a specific row from a table within a Coda document using the row ID. Returns the values of all columns for the specified row.",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "GET_ROW",
+      "canonical_tool_description_hash": "23ad9b1710b94fdee0ee000357cb97c6b7cf81a154877b27cb6f1c78fb5e5d0d",
+      "canonical_tool_input_schema_hash": "37b91b3c3db747a657555c38dc228c6d37ca5c450ed3d54638603561e0605378"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["path"],
+      "properties": {
+        "path": {
+          "type": "object",
+          "required": ["doc_id", "table_id", "row_id"],
+          "properties": {
+            "doc_id": {
+              "type": "string",
+              "description": "The ID of the document containing the table."
+            },
+            "row_id": {
+              "type": "string",
+              "description": "The ID of the row to retrieve."
+            },
+            "table_id": {
+              "type": "string",
+              "description": "The ID of the table containing the row."
+            }
+          },
+          "description": "Path parameters",
+          "additionalProperties": false
+        },
+        "query": {
+          "type": "object",
+          "required": [],
+          "properties": {
+            "valueFormat": {
+              "enum": ["user", "rich"],
+              "type": "string",
+              "description": "The format in which to return cell values. Options are 'user' (default) or 'rich'. 'user' returns plain text values, while 'rich' includes rich text formatting and links."
+            }
+          },
+          "description": "Query parameters",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "CODA__DELETE_ROW",
+    "description": "Deletes a specific row from a table within a Coda document using the row ID. This operation is irreversible and permanently removes the row from the table.",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "DELETE_ROW",
+      "canonical_tool_description_hash": "28c1ecbb39405f65ec0046aae851b4468a51f024473c2e20f96259b4798764fe",
+      "canonical_tool_input_schema_hash": "949e817783b46e341f6ff2a8679f456de30ca0e5271b75510ebaa1b777bd0f2e"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["path"],
+      "properties": {
+        "path": {
+          "type": "object",
+          "required": ["doc_id", "table_id", "row_id"],
+          "properties": {
+            "doc_id": {
+              "type": "string",
+              "description": "The ID of the document containing the table."
+            },
+            "row_id": {
+              "type": "string",
+              "description": "The ID of the row to delete."
+            },
+            "table_id": {
+              "type": "string",
+              "description": "The ID of the table containing the row."
+            }
+          },
+          "description": "Path parameters",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+]

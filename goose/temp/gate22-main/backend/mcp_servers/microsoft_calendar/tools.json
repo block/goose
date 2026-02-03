@@ -1,0 +1,1994 @@
+[
+  {
+    "name": "MICROSOFT_CALENDAR__CREATE_EVENT_DEFAULT",
+    "description": "Create an event in the user's default calendar with simplified parameters. Perfect for quick event creation without specifying a calendar ID. Supports all event features including attendees, locations, recurrence patterns, and online meeting details.",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "CREATE_EVENT_DEFAULT",
+      "canonical_tool_description_hash": "d1cd56765c0eacddd1be5c1a51f2e218aa8f3d60f4a9799162c004f828ffe747",
+      "canonical_tool_input_schema_hash": "f4e0ed465f4c278c91de4a5236885207c5545aa4bf145337d9943f281c681e94"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["body"],
+      "properties": {
+        "body": {
+          "type": "object",
+          "required": ["subject", "start", "end"],
+          "properties": {
+            "end": {
+              "type": "object",
+              "required": ["dateTime"],
+              "properties": {
+                "dateTime": {
+                  "type": "string",
+                  "description": "End date and time in ISO 8601 format (e.g., '2024-04-04T15:00:00')"
+                },
+                "timeZone": {
+                  "type": "string",
+                  "description": "Time zone (e.g., 'UTC', 'America/New_York', 'Europe/London')"
+                }
+              },
+              "description": "Event end date and time",
+              "additionalProperties": false
+            },
+            "body": {
+              "type": "object",
+              "required": [],
+              "properties": {
+                "content": {
+                  "type": "string",
+                  "description": "The content of the event description"
+                },
+                "contentType": {
+                  "enum": ["text", "html"],
+                  "type": "string",
+                  "description": "The content type (text or html)"
+                }
+              },
+              "description": "The event description/body",
+              "additionalProperties": false
+            },
+            "start": {
+              "type": "object",
+              "required": ["dateTime"],
+              "properties": {
+                "dateTime": {
+                  "type": "string",
+                  "description": "Start date and time in ISO 8601 format (e.g., '2024-04-04T14:00:00')"
+                },
+                "timeZone": {
+                  "type": "string",
+                  "description": "Time zone (e.g., 'UTC', 'America/New_York', 'Europe/London')"
+                }
+              },
+              "description": "Event start date and time",
+              "additionalProperties": false
+            },
+            "showAs": {
+              "enum": ["free", "tentative", "busy", "oof", "workingElsewhere"],
+              "type": "string",
+              "description": "Show availability as (free, tentative, busy, oof, workingElsewhere)"
+            },
+            "subject": {
+              "type": "string",
+              "description": "The event title/subject"
+            },
+            "isAllDay": {
+              "type": "boolean",
+              "description": "Whether this is an all-day event"
+            },
+            "location": {
+              "type": "object",
+              "required": [],
+              "properties": {
+                "address": {
+                  "type": "object",
+                  "required": [],
+                  "properties": {
+                    "city": {
+                      "type": "string",
+                      "description": "City name"
+                    },
+                    "state": {
+                      "type": "string",
+                      "description": "State or province"
+                    },
+                    "street": {
+                      "type": "string",
+                      "description": "Street address"
+                    },
+                    "postalCode": {
+                      "type": "string",
+                      "description": "Postal or ZIP code"
+                    },
+                    "countryOrRegion": {
+                      "type": "string",
+                      "description": "Country or region"
+                    }
+                  },
+                  "description": "Physical address details",
+                  "additionalProperties": false
+                },
+                "displayName": {
+                  "type": "string",
+                  "description": "Location display name (e.g., 'Conference Room A', 'Microsoft Teams', '123 Main St')"
+                },
+                "locationEmailAddress": {
+                  "type": "string",
+                  "description": "Email address for room or resource (if the location has an email address)"
+                }
+              },
+              "description": "Event location details",
+              "additionalProperties": false
+            },
+            "attendees": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "visible": ["emailAddress", "type"],
+                "required": ["emailAddress"],
+                "properties": {
+                  "type": {
+                    "enum": ["required", "optional", "resource"],
+                    "type": "string",
+                    "description": "Type: 'required' for essential attendees, 'optional' for non-essential, 'resource' for rooms/equipment"
+                  },
+                  "emailAddress": {
+                    "type": "object",
+                    "visible": ["address", "name"],
+                    "required": ["address"],
+                    "properties": {
+                      "name": {
+                        "type": "string",
+                        "description": "Display name of the attendee or resource"
+                      },
+                      "address": {
+                        "type": "string",
+                        "description": "Email address of the attendee or resource"
+                      }
+                    },
+                    "description": "Attendee email details",
+                    "additionalProperties": false
+                  }
+                },
+                "additionalProperties": false
+              },
+              "description": "List of event attendees (including resources like meeting rooms or equipment)"
+            },
+            "categories": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "description": "List of category names for the event"
+            },
+            "importance": {
+              "enum": ["low", "normal", "high"],
+              "type": "string",
+              "description": "Event importance level"
+            },
+            "recurrence": {
+              "type": "object",
+              "required": [],
+              "properties": {
+                "range": {
+                  "type": "object",
+                  "required": [],
+                  "properties": {
+                    "type": {
+                      "enum": ["endDate", "noEnd", "numbered"],
+                      "type": "string",
+                      "description": "The recurrence range type"
+                    },
+                    "endDate": {
+                      "type": "string",
+                      "description": "The date to stop applying the recurrence pattern"
+                    },
+                    "startDate": {
+                      "type": "string",
+                      "description": "The date to start applying the recurrence pattern"
+                    },
+                    "numberOfOccurrences": {
+                      "type": "integer",
+                      "description": "The number of times to repeat the event"
+                    }
+                  },
+                  "description": "The range of the recurrence",
+                  "additionalProperties": false
+                },
+                "pattern": {
+                  "type": "object",
+                  "required": [],
+                  "properties": {
+                    "type": {
+                      "enum": [
+                        "daily",
+                        "weekly",
+                        "absoluteMonthly",
+                        "relativeMonthly",
+                        "absoluteYearly",
+                        "relativeYearly"
+                      ],
+                      "type": "string",
+                      "description": "The recurrence pattern type"
+                    },
+                    "index": {
+                      "enum": ["first", "second", "third", "fourth", "last"],
+                      "type": "string",
+                      "description": "Specifies on which instance of the allowed days specified in daysOfWeek the event occurs"
+                    },
+                    "month": {
+                      "type": "integer",
+                      "description": "The month in which the event occurs"
+                    },
+                    "interval": {
+                      "type": "integer",
+                      "description": "The number of units between occurrences"
+                    },
+                    "dayOfMonth": {
+                      "type": "integer",
+                      "description": "The day of the month on which the event occurs"
+                    },
+                    "daysOfWeek": {
+                      "type": "array",
+                      "items": {
+                        "enum": [
+                          "sunday",
+                          "monday",
+                          "tuesday",
+                          "wednesday",
+                          "thursday",
+                          "friday",
+                          "saturday"
+                        ],
+                        "type": "string"
+                      },
+                      "description": "Days of the week on which the event occurs"
+                    },
+                    "firstDayOfWeek": {
+                      "enum": [
+                        "sunday",
+                        "monday",
+                        "tuesday",
+                        "wednesday",
+                        "thursday",
+                        "friday",
+                        "saturday"
+                      ],
+                      "type": "string",
+                      "description": "The first day of the week"
+                    }
+                  },
+                  "description": "The frequency of the recurrence",
+                  "additionalProperties": false
+                }
+              },
+              "description": "The recurrence pattern for the event",
+              "additionalProperties": false
+            },
+            "sensitivity": {
+              "enum": ["normal", "personal", "private", "confidential"],
+              "type": "string",
+              "description": "Event sensitivity level"
+            },
+            "isReminderOn": {
+              "type": "boolean",
+              "description": "Whether to show a reminder for this event"
+            },
+            "isOnlineMeeting": {
+              "type": "boolean",
+              "description": "Whether this is an online meeting"
+            },
+            "responseRequested": {
+              "type": "boolean",
+              "description": "Whether to request responses from attendees"
+            },
+            "allowNewTimeProposals": {
+              "type": "boolean",
+              "description": "Whether attendees can propose new times (default: true)"
+            },
+            "onlineMeetingProvider": {
+              "enum": ["unknown", "skypeForBusiness", "skypeForConsumer", "teamsForBusiness"],
+              "type": "string",
+              "description": "Online meeting provider"
+            },
+            "reminderMinutesBeforeStart": {
+              "type": "integer",
+              "description": "Minutes before start to show reminder (e.g., 15, 30, 60)"
+            }
+          },
+          "description": "Event details to create in the default calendar",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "MICROSOFT_CALENDAR__LIST_CALENDARS",
+    "description": "Get all the user's calendars. This retrieves calendars from the default calendar group and allows filtering, sorting, and selecting specific properties using OData query parameters.",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "LIST_CALENDARS",
+      "canonical_tool_description_hash": "c870c201b067ec1f05f78e6de3396cdae7249cd6a249c1a03fec1ce037ef1c2e",
+      "canonical_tool_input_schema_hash": "6c454f7adee382df647ec4d9fa2367d9bcd32d19934eaebb2335928d8974dea7"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": [],
+      "properties": {
+        "query": {
+          "type": "object",
+          "required": [],
+          "properties": {
+            "$top": {
+              "type": "integer",
+              "description": "Maximum number of calendars to return"
+            },
+            "$skip": {
+              "type": "integer",
+              "description": "Number of calendars to skip for pagination"
+            },
+            "$expand": {
+              "type": "string",
+              "description": "Expand related entities (e.g., 'events', 'singleValueExtendedProperties')"
+            },
+            "$filter": {
+              "type": "string",
+              "description": "Filter expression to limit calendars returned (e.g., 'canEdit eq true', 'owner/name eq \"John Doe\"')"
+            },
+            "$select": {
+              "type": "string",
+              "description": "Comma-separated list of properties to include in the response (e.g., 'id,name,color,owner')"
+            },
+            "$orderby": {
+              "type": "string",
+              "description": "Property to sort calendars by with direction (e.g., 'name asc', 'createdDateTime desc')"
+            }
+          },
+          "description": "Query parameters for customizing the calendar list",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "MICROSOFT_CALENDAR__CREATE_CALENDAR",
+    "description": "Create a new calendar for the user. This creates a calendar in the user's default calendar group with the specified name and optional properties like color.",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "CREATE_CALENDAR",
+      "canonical_tool_description_hash": "0c4e6b48d4bcd1bc5613aa32a9e084edb85027d2e9ef2702903598f7d922dc0d",
+      "canonical_tool_input_schema_hash": "587979f10069abedec490514c94ad69e8fff9758bc5f9eaa72e4af94207c9336"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["body"],
+      "properties": {
+        "body": {
+          "type": "object",
+          "required": ["name"],
+          "properties": {
+            "name": {
+              "type": "string",
+              "description": "The name of the new calendar. This will be displayed in the calendar list."
+            },
+            "color": {
+              "enum": [
+                "lightBlue",
+                "lightGreen",
+                "lightOrange",
+                "lightGray",
+                "lightYellow",
+                "lightTeal",
+                "lightPink",
+                "lightBrown",
+                "lightRed",
+                "maxColor"
+              ],
+              "type": "string",
+              "description": "The color theme for the calendar. Valid values include: lightBlue, lightGreen, lightOrange, lightGray, lightYellow, lightTeal, lightPink, lightBrown, lightRed, maxColor"
+            },
+            "hexColor": {
+              "type": "string",
+              "description": "The hex color code for the calendar (e.g., '#FF5733'). If provided, this takes precedence over the color property."
+            }
+          },
+          "description": "The calendar properties for creating a new calendar",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "MICROSOFT_CALENDAR__GET_CALENDAR",
+    "description": "Get the properties and relationships of a specific calendar object by its ID. This retrieves detailed information about a calendar including permissions, settings, and metadata.",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "GET_CALENDAR",
+      "canonical_tool_description_hash": "78d409c5e563787550417dfc7eae4ed404f29b9be8f6525cd6d3726bbca8482a",
+      "canonical_tool_input_schema_hash": "5bcebb1d9cf7bcc65d64a2348dca716d9a4b9a1c5e14d55a718f8b29280c3af4"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["path"],
+      "properties": {
+        "path": {
+          "type": "object",
+          "required": ["calendar_id"],
+          "properties": {
+            "calendar_id": {
+              "type": "string",
+              "description": "The unique identifier of the calendar to retrieve"
+            }
+          },
+          "description": "The path parameters",
+          "additionalProperties": false
+        },
+        "query": {
+          "type": "object",
+          "required": [],
+          "properties": {
+            "$expand": {
+              "type": "string",
+              "description": "Expand related entities (e.g., 'events', 'calendarPermissions', 'singleValueExtendedProperties')"
+            },
+            "$select": {
+              "type": "string",
+              "description": "Comma-separated list of properties to include in the response (e.g., 'id,name,color,owner,canEdit')"
+            }
+          },
+          "description": "Query parameters for customizing the calendar details",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "MICROSOFT_CALENDAR__LIST_ALL_EVENTS",
+    "description": "Get a comprehensive list of all event objects across all calendars in the user's mailbox. This provides a unified view of all events from every calendar, supporting timezone preferences and OData query parameters for filtering, sorting, and pagination. Complements the specific calendar LIST_EVENTS function.",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "LIST_ALL_EVENTS",
+      "canonical_tool_description_hash": "4a7db035bb5cb8aef3490332a6f56f885645ec9b8d97c22a68552ffc2deb2a32",
+      "canonical_tool_input_schema_hash": "e2483eb2f35dcde2d5efdcb0ef39ed761b5b46478a6c27969962948f4ff7f591"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": [],
+      "properties": {
+        "query": {
+          "type": "object",
+          "required": [],
+          "properties": {
+            "$top": {
+              "type": "integer",
+              "description": "Maximum number of events to return"
+            },
+            "$skip": {
+              "type": "integer",
+              "description": "Number of events to skip for pagination"
+            },
+            "$expand": {
+              "type": "string",
+              "description": "Expand related entities (e.g., 'attachments', 'calendar', 'instances')"
+            },
+            "$filter": {
+              "type": "string",
+              "description": "Filter expression to limit events (e.g., 'startsWith(subject,\"Meeting\")', 'sensitivity eq normal', 'showAs eq busy'). Note: Cannot filter on recurrence property."
+            },
+            "$select": {
+              "type": "string",
+              "description": "Comma-separated list of properties to include (e.g., 'subject,start,end,organizer,attendees,location,body,bodyPreview')"
+            },
+            "$orderby": {
+              "type": "string",
+              "description": "Property to sort events by (e.g., 'start/dateTime asc', 'subject desc', 'createdDateTime desc')"
+            }
+          },
+          "description": "Query parameters for customizing the event list",
+          "additionalProperties": false
+        },
+        "header": {
+          "type": "object",
+          "required": [],
+          "properties": {
+            "Prefer": {
+              "type": "string",
+              "description": "Use 'outlook.timezone=\"{timezone}\"' to specify the timezone for start and end times in the response (e.g., 'outlook.timezone=\"Pacific Standard Time\"' or 'outlook.timezone=\"America/New_York\"'). If not specified, times are returned in UTC."
+            }
+          },
+          "description": "Optional request headers for customizing the response",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "MICROSOFT_CALENDAR__UPDATE_CALENDAR",
+    "description": "Update the properties of an existing calendar object. You can modify the calendar name, color theme, or default calendar status. Only include properties you want to update.",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "UPDATE_CALENDAR",
+      "canonical_tool_description_hash": "246be53e35dd101153783f83426be182e76ad85b50f350974d0dcc771e2e752f",
+      "canonical_tool_input_schema_hash": "e7c045d5cfbb420dd20dca4e1e89edb0a64d1b69492d82aae30788ef92c68699"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["path", "body"],
+      "properties": {
+        "body": {
+          "type": "object",
+          "required": [],
+          "properties": {
+            "name": {
+              "type": "string",
+              "description": "The new name for the calendar. This will be displayed in the calendar list."
+            },
+            "color": {
+              "enum": [
+                "lightBlue",
+                "lightGreen",
+                "lightOrange",
+                "lightGray",
+                "lightYellow",
+                "lightTeal",
+                "lightPink",
+                "lightBrown",
+                "lightRed",
+                "maxColor",
+                "auto"
+              ],
+              "type": "string",
+              "description": "The color theme for the calendar. Valid values: lightBlue, lightGreen, lightOrange, lightGray, lightYellow, lightTeal, lightPink, lightBrown, lightRed, maxColor, auto"
+            },
+            "hexColor": {
+              "type": "string",
+              "description": "The hex color code for the calendar (e.g., '#FF5733'). If provided, this takes precedence over the color property."
+            },
+            "isDefaultCalendar": {
+              "type": "boolean",
+              "description": "True if this calendar should be the user's default calendar, false otherwise. Note: Only one calendar can be the default."
+            }
+          },
+          "description": "The calendar properties to update. Only include fields you want to change.",
+          "additionalProperties": false
+        },
+        "path": {
+          "type": "object",
+          "required": ["calendar_id"],
+          "properties": {
+            "calendar_id": {
+              "type": "string",
+              "description": "The unique identifier of the calendar to update"
+            }
+          },
+          "description": "The path parameters",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "MICROSOFT_CALENDAR__DELETE_CALENDAR",
+    "description": "Delete a calendar other than the default calendar. This permanently removes the calendar and all its events. The default calendar cannot be deleted.",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "DELETE_CALENDAR",
+      "canonical_tool_description_hash": "1fa14430f420ed65beb78d4993a07b8406032774530bdcc79acbd4bb707a173e",
+      "canonical_tool_input_schema_hash": "c1460303e670bde356c3489acd4a236a43d42a29f5044bec387462a452ccb5cf"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["path"],
+      "properties": {
+        "path": {
+          "type": "object",
+          "required": ["calendar_id"],
+          "properties": {
+            "calendar_id": {
+              "type": "string",
+              "description": "The unique identifier of the calendar to delete. Note: Cannot delete the default calendar (isDefaultCalendar=true)."
+            }
+          },
+          "description": "The path parameters",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "MICROSOFT_CALENDAR__LIST_CALENDAR_VIEW",
+    "description": "Get events, occurrences, exceptions and single instances from a calendar within a specified time range. This returns actual calendar events/appointments between the start and end dates.",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "LIST_CALENDAR_VIEW",
+      "canonical_tool_description_hash": "9ec7d31bf4b3155050489b09e4855cd6e369c5e606c155ff789624e815e1fdb9",
+      "canonical_tool_input_schema_hash": "a67a50bee7acd94f5b5df75a096c14a5eb0a593a5ad88d3bf09cbdfe713478a9"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["path", "query"],
+      "properties": {
+        "path": {
+          "type": "object",
+          "required": ["calendar_id"],
+          "properties": {
+            "calendar_id": {
+              "type": "string",
+              "description": "The unique identifier of the calendar to get events from"
+            }
+          },
+          "description": "The path parameters",
+          "additionalProperties": false
+        },
+        "query": {
+          "type": "object",
+          "required": ["startDateTime", "endDateTime"],
+          "properties": {
+            "$top": {
+              "type": "integer",
+              "description": "Maximum number of events to return (minimum 1, maximum 1000)"
+            },
+            "$skip": {
+              "type": "integer",
+              "description": "Number of events to skip for pagination"
+            },
+            "$filter": {
+              "type": "string",
+              "description": "Filter expression to limit events (e.g., 'sensitivity eq normal', 'showAs eq busy')"
+            },
+            "$select": {
+              "type": "string",
+              "description": "Comma-separated list of properties to include (e.g., 'id,subject,start,end,organizer'). Note: createdDateTime and lastModifiedDateTime don't support $select."
+            },
+            "$orderby": {
+              "type": "string",
+              "description": "Property to sort events by (e.g., 'start/dateTime asc', 'subject desc')"
+            },
+            "endDateTime": {
+              "type": "string",
+              "description": "The end date and time of the time range in ISO 8601 format (e.g., '2024-01-15T17:00:00-08:00' or '2024-01-16T01:00:00Z')"
+            },
+            "startDateTime": {
+              "type": "string",
+              "description": "The start date and time of the time range in ISO 8601 format (e.g., '2024-01-15T09:00:00-08:00' or '2024-01-15T17:00:00Z')"
+            }
+          },
+          "description": "Query parameters for the calendar view. startDateTime and endDateTime are required.",
+          "additionalProperties": false
+        },
+        "header": {
+          "type": "object",
+          "required": [],
+          "properties": {
+            "Prefer": {
+              "type": "string",
+              "description": "Use 'outlook.timezone=\"{timezone}\"' to specify the timezone for start and end times in the response (e.g., 'outlook.timezone=\"Pacific Standard Time\"' or 'outlook.timezone=\"America/New_York\"'). If not specified, times are returned in UTC."
+            }
+          },
+          "description": "Optional request headers for customizing the response",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "MICROSOFT_CALENDAR__LIST_EVENTS",
+    "description": "Retrieve a list of all events in a calendar without date restrictions. This returns single instance meetings, series masters, and recurring events. Use this to get all events in a calendar regardless of time range.",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "LIST_EVENTS",
+      "canonical_tool_description_hash": "ee56f076fecb8efd4cbceb0119ebf76f00fa44191e7cbcc18d5e492652687808",
+      "canonical_tool_input_schema_hash": "b4134f08e0da5c47055089d72d83f67413e799a52dfd3cbfeaf68026b3ed2d71"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["path"],
+      "properties": {
+        "path": {
+          "type": "object",
+          "required": ["calendar_id"],
+          "properties": {
+            "calendar_id": {
+              "type": "string",
+              "description": "The unique identifier of the calendar to get events from"
+            }
+          },
+          "description": "The path parameters",
+          "additionalProperties": false
+        },
+        "query": {
+          "type": "object",
+          "required": [],
+          "properties": {
+            "$top": {
+              "type": "integer",
+              "description": "Maximum number of events to return"
+            },
+            "$skip": {
+              "type": "integer",
+              "description": "Number of events to skip for pagination"
+            },
+            "$expand": {
+              "type": "string",
+              "description": "Expand related entities (e.g., 'attachments', 'calendar', 'instances')"
+            },
+            "$filter": {
+              "type": "string",
+              "description": "Filter expression to limit events (e.g., 'startsWith(subject,\"Meeting\")', 'sensitivity eq normal', 'showAs eq busy')"
+            },
+            "$select": {
+              "type": "string",
+              "description": "Comma-separated list of properties to include (e.g., 'id,subject,start,end,organizer,location')"
+            },
+            "$orderby": {
+              "type": "string",
+              "description": "Property to sort events by (e.g., 'start/dateTime asc', 'subject desc', 'createdDateTime desc')"
+            }
+          },
+          "description": "Query parameters for customizing the event list",
+          "additionalProperties": false
+        },
+        "header": {
+          "type": "object",
+          "required": [],
+          "properties": {
+            "Prefer": {
+              "type": "string",
+              "description": "Use 'outlook.timezone=\"{timezone}\"' to specify the timezone for start and end times in the response (e.g., 'outlook.timezone=\"Pacific Standard Time\"' or 'outlook.timezone=\"America/New_York\"'). If not specified, times are returned in UTC."
+            }
+          },
+          "description": "Optional request headers for customizing the response",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "MICROSOFT_CALENDAR__CREATE_EVENT",
+    "description": "Create a new event in a calendar. This allows creating meetings, appointments, and events with attendees, locations, recurrence patterns, and online meeting details.",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "CREATE_EVENT",
+      "canonical_tool_description_hash": "0527daf8ea95c525dcdcb4098f67c4e1538b8e249cc2a88db2c4d5ee6d303bcb",
+      "canonical_tool_input_schema_hash": "0b683aec92a5115e39b3e62bb00528fece4eab7d564b2d6bfaf52ee0d00e456d"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["path", "body"],
+      "properties": {
+        "body": {
+          "type": "object",
+          "required": ["subject", "start", "end"],
+          "properties": {
+            "end": {
+              "type": "object",
+              "required": ["dateTime"],
+              "properties": {
+                "dateTime": {
+                  "type": "string",
+                  "description": "End date and time in ISO 8601 format (e.g., '2024-04-04T15:00:00')"
+                },
+                "timeZone": {
+                  "type": "string",
+                  "description": "Time zone (e.g., 'UTC', 'America/New_York', 'Europe/London')"
+                }
+              },
+              "description": "Event end date and time",
+              "additionalProperties": false
+            },
+            "body": {
+              "type": "object",
+              "required": [],
+              "properties": {
+                "content": {
+                  "type": "string",
+                  "description": "The content of the event description"
+                },
+                "contentType": {
+                  "enum": ["text", "html"],
+                  "type": "string",
+                  "description": "The content type (text or html)"
+                }
+              },
+              "description": "The event description/body",
+              "additionalProperties": false
+            },
+            "start": {
+              "type": "object",
+              "required": ["dateTime"],
+              "properties": {
+                "dateTime": {
+                  "type": "string",
+                  "description": "Start date and time in ISO 8601 format (e.g., '2024-04-04T14:00:00')"
+                },
+                "timeZone": {
+                  "type": "string",
+                  "description": "Time zone (e.g., 'UTC', 'America/New_York', 'Europe/London')"
+                }
+              },
+              "description": "Event start date and time",
+              "additionalProperties": false
+            },
+            "showAs": {
+              "enum": ["free", "tentative", "busy", "oof", "workingElsewhere"],
+              "type": "string",
+              "description": "Show availability as (free, tentative, busy, oof, workingElsewhere)"
+            },
+            "subject": {
+              "type": "string",
+              "description": "The event title/subject"
+            },
+            "isAllDay": {
+              "type": "boolean",
+              "description": "Whether this is an all-day event"
+            },
+            "location": {
+              "type": "object",
+              "required": [],
+              "properties": {
+                "address": {
+                  "type": "object",
+                  "required": [],
+                  "properties": {
+                    "city": {
+                      "type": "string",
+                      "description": "City name"
+                    },
+                    "state": {
+                      "type": "string",
+                      "description": "State or province"
+                    },
+                    "street": {
+                      "type": "string",
+                      "description": "Street address"
+                    },
+                    "postalCode": {
+                      "type": "string",
+                      "description": "Postal or ZIP code"
+                    },
+                    "countryOrRegion": {
+                      "type": "string",
+                      "description": "Country or region"
+                    }
+                  },
+                  "description": "Physical address details",
+                  "additionalProperties": false
+                },
+                "displayName": {
+                  "type": "string",
+                  "description": "Location display name (e.g., 'Conference Room A', 'Microsoft Teams', '123 Main St')"
+                }
+              },
+              "description": "Event location details",
+              "additionalProperties": false
+            },
+            "attendees": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "visible": ["emailAddress"],
+                "required": ["emailAddress"],
+                "properties": {
+                  "type": {
+                    "enum": ["required", "optional", "resource"],
+                    "type": "string",
+                    "description": "Type of attendee (required, optional, or resource)"
+                  },
+                  "emailAddress": {
+                    "type": "object",
+                    "visible": ["address", "name"],
+                    "required": ["address"],
+                    "properties": {
+                      "name": {
+                        "type": "string",
+                        "description": "Display name of the attendee"
+                      },
+                      "address": {
+                        "type": "string",
+                        "description": "Email address of the attendee"
+                      }
+                    },
+                    "description": "Attendee email details",
+                    "additionalProperties": false
+                  }
+                },
+                "additionalProperties": false
+              },
+              "description": "List of event attendees"
+            },
+            "categories": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "description": "List of category names for the event"
+            },
+            "importance": {
+              "enum": ["low", "normal", "high"],
+              "type": "string",
+              "description": "Event importance level"
+            },
+            "recurrence": {
+              "type": "object",
+              "required": ["pattern", "range"],
+              "properties": {
+                "range": {
+                  "type": "object",
+                  "required": ["type", "startDate"],
+                  "properties": {
+                    "type": {
+                      "enum": ["endDate", "noEnd", "numbered"],
+                      "type": "string",
+                      "description": "Range type"
+                    },
+                    "endDate": {
+                      "type": "string",
+                      "description": "End date in YYYY-MM-DD format (for endDate type)"
+                    },
+                    "startDate": {
+                      "type": "string",
+                      "description": "Start date in YYYY-MM-DD format"
+                    },
+                    "numberOfOccurrences": {
+                      "type": "integer",
+                      "description": "Number of occurrences (for numbered type)"
+                    }
+                  },
+                  "description": "Recurrence range",
+                  "additionalProperties": false
+                },
+                "pattern": {
+                  "type": "object",
+                  "required": ["type"],
+                  "properties": {
+                    "type": {
+                      "enum": [
+                        "daily",
+                        "weekly",
+                        "absoluteMonthly",
+                        "relativeMonthly",
+                        "absoluteYearly",
+                        "relativeYearly"
+                      ],
+                      "type": "string",
+                      "description": "Recurrence pattern type"
+                    },
+                    "interval": {
+                      "type": "integer",
+                      "description": "Interval between occurrences"
+                    },
+                    "daysOfWeek": {
+                      "type": "array",
+                      "items": {
+                        "enum": [
+                          "sunday",
+                          "monday",
+                          "tuesday",
+                          "wednesday",
+                          "thursday",
+                          "friday",
+                          "saturday"
+                        ],
+                        "type": "string"
+                      },
+                      "description": "Days of the week for weekly patterns"
+                    }
+                  },
+                  "description": "Recurrence pattern details",
+                  "additionalProperties": false
+                }
+              },
+              "description": "Recurrence pattern for recurring events",
+              "additionalProperties": false
+            },
+            "sensitivity": {
+              "enum": ["normal", "personal", "private", "confidential"],
+              "type": "string",
+              "description": "Event sensitivity level"
+            },
+            "isReminderOn": {
+              "type": "boolean",
+              "description": "Whether to show a reminder for this event"
+            },
+            "isOnlineMeeting": {
+              "type": "boolean",
+              "description": "Whether this is an online meeting"
+            },
+            "responseRequested": {
+              "type": "boolean",
+              "description": "Whether to request responses from attendees"
+            },
+            "allowNewTimeProposals": {
+              "type": "boolean",
+              "description": "Whether attendees can propose new times"
+            },
+            "onlineMeetingProvider": {
+              "enum": ["unknown", "skypeForBusiness", "skypeForConsumer", "teamsForBusiness"],
+              "type": "string",
+              "description": "Online meeting provider"
+            },
+            "reminderMinutesBeforeStart": {
+              "type": "integer",
+              "description": "Minutes before start to show reminder (e.g., 15, 30, 60)"
+            }
+          },
+          "description": "Event details to create",
+          "additionalProperties": false
+        },
+        "path": {
+          "type": "object",
+          "required": ["calendar_id"],
+          "properties": {
+            "calendar_id": {
+              "type": "string",
+              "description": "The unique identifier of the calendar to create the event in"
+            }
+          },
+          "description": "The path parameters",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "MICROSOFT_CALENDAR__GET_SCHEDULE",
+    "description": "Get the free/busy availability information for a collection of users, distribution lists, or resources (rooms or equipment) for a specified time period. Perfect for finding available meeting times and checking when people are free.",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "GET_SCHEDULE",
+      "canonical_tool_description_hash": "c2c34c0cdeb09609c1ced0a38d752425371e7f3ff81c0607432a0413d6c4cd60",
+      "canonical_tool_input_schema_hash": "8291e71cb6ad0e6a250ec0505757e3623d3239d61c8a1b477dab694566f9aa9e"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["body"],
+      "properties": {
+        "body": {
+          "type": "object",
+          "required": ["schedules", "startTime", "endTime"],
+          "properties": {
+            "endTime": {
+              "type": "object",
+              "required": ["dateTime"],
+              "properties": {
+                "dateTime": {
+                  "type": "string",
+                  "description": "End date and time in ISO 8601 format (e.g., '2024-06-21T17:00:00')"
+                },
+                "timeZone": {
+                  "type": "string",
+                  "description": "Time zone (e.g., 'UTC', 'America/New_York', 'Europe/London')"
+                }
+              },
+              "description": "The date, time, and time zone that the period ends",
+              "additionalProperties": false
+            },
+            "schedules": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "description": "Email address (e.g., 'user@company.com', 'room@company.com')"
+              },
+              "minItems": 1,
+              "description": "Collection of SMTP email addresses of users, distribution lists, or resources to get availability information for"
+            },
+            "startTime": {
+              "type": "object",
+              "required": ["dateTime"],
+              "properties": {
+                "dateTime": {
+                  "type": "string",
+                  "description": "Start date and time in ISO 8601 format (e.g., '2024-06-21T09:00:00')"
+                },
+                "timeZone": {
+                  "type": "string",
+                  "description": "Time zone (e.g., 'UTC', 'America/New_York', 'Europe/London')"
+                }
+              },
+              "description": "The date, time, and time zone that the period starts",
+              "additionalProperties": false
+            },
+            "availabilityViewInterval": {
+              "type": "integer",
+              "maximum": 1440,
+              "minimum": 5,
+              "description": "Duration of a time slot in minutes for the availability view. Default is 30 minutes, minimum is 5, maximum is 1440 (24 hours)"
+            }
+          },
+          "description": "Schedule request parameters",
+          "additionalProperties": false
+        },
+        "header": {
+          "type": "object",
+          "required": [],
+          "properties": {
+            "Prefer": {
+              "type": "string",
+              "description": "Use 'outlook.timezone=\"{timezone}\"' to specify the timezone for free/busy times in the response (e.g., 'outlook.timezone=\"Pacific Standard Time\"' or 'outlook.timezone=\"America/New_York\"'). If not specified, times are returned in UTC."
+            }
+          },
+          "description": "Optional request headers for customizing the response",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "MICROSOFT_CALENDAR__GET_EVENT",
+    "description": "Get the properties and relationships of a specific event. Returns event details including subject, body, attendees, location, start/end times, and all other event properties. Supports timezone preferences and custom property selection.",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "GET_EVENT",
+      "canonical_tool_description_hash": "d09acd5fe443668b475918dec779a16e05c152941cf363a2f8ecede86d434eb7",
+      "canonical_tool_input_schema_hash": "72995522422eff727bcd99c02783664b529a7c1d2a4282891a7e5fdd994b55b2"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["path"],
+      "properties": {
+        "path": {
+          "type": "object",
+          "required": ["eventId"],
+          "properties": {
+            "eventId": {
+              "type": "string",
+              "description": "The unique identifier of the event to retrieve"
+            }
+          },
+          "description": "Path parameters for the event request",
+          "additionalProperties": false
+        },
+        "query": {
+          "type": "object",
+          "required": [],
+          "properties": {
+            "$expand": {
+              "type": "string",
+              "description": "Expand related entities (e.g., 'attachments', 'extensions', 'singleValueExtendedProperties', 'multiValueExtendedProperties')"
+            },
+            "$select": {
+              "type": "string",
+              "description": "Comma-separated list of properties to include in the response (e.g., 'subject,body,start,end,attendees,location,organizer')"
+            }
+          },
+          "description": "Query parameters for customizing the event response",
+          "additionalProperties": false
+        },
+        "header": {
+          "type": "object",
+          "required": [],
+          "properties": {
+            "Prefer": {
+              "type": "string",
+              "description": "Use 'outlook.timezone=\"{timezone}\"' to specify the timezone for start and end times in the response (e.g., 'outlook.timezone=\"Pacific Standard Time\"' or 'outlook.timezone=\"America/New_York\"'). If not specified, times are returned in UTC."
+            }
+          },
+          "description": "Optional request headers for customizing the response",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "MICROSOFT_CALENDAR__UPDATE_EVENT",
+    "description": "Update the properties of an existing event. Can modify subject, attendees, times, location, body, importance, reminders, online meeting settings, and other event properties. Use PATCH to update only specified fields while preserving others.",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "UPDATE_EVENT",
+      "canonical_tool_description_hash": "1e2bff6d459fa5d0f110dc06b81027d4b1131c9e77129d32ad3ce754ff5f1b40",
+      "canonical_tool_input_schema_hash": "5b77bed725439885a14e927e280d2e5561f0264aea400ae0b667414d7bff2e4f"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["path"],
+      "properties": {
+        "body": {
+          "type": "object",
+          "required": [],
+          "properties": {
+            "end": {
+              "type": "object",
+              "required": [],
+              "properties": {
+                "dateTime": {
+                  "type": "string",
+                  "description": "A single point of time in a combined date and time representation ({date}T{time}; for example, 2017-08-29T04:00:00.0000000)"
+                },
+                "timeZone": {
+                  "type": "string",
+                  "description": "Represents a time zone, for example, 'Pacific Standard Time'"
+                }
+              },
+              "description": "The date, time, and time zone that the event ends",
+              "additionalProperties": false
+            },
+            "body": {
+              "type": "object",
+              "required": [],
+              "properties": {
+                "content": {
+                  "type": "string",
+                  "description": "The content of the body"
+                },
+                "contentType": {
+                  "enum": ["text", "html"],
+                  "type": "string",
+                  "description": "The format of the content (text or html)"
+                }
+              },
+              "description": "The body of the message associated with the event",
+              "additionalProperties": false
+            },
+            "start": {
+              "type": "object",
+              "required": [],
+              "properties": {
+                "dateTime": {
+                  "type": "string",
+                  "description": "A single point of time in a combined date and time representation ({date}T{time}; for example, 2017-08-29T04:00:00.0000000)"
+                },
+                "timeZone": {
+                  "type": "string",
+                  "description": "Represents a time zone, for example, 'Pacific Standard Time'"
+                }
+              },
+              "description": "The start date, time, and time zone of the event",
+              "additionalProperties": false
+            },
+            "showAs": {
+              "enum": ["free", "tentative", "busy", "oof", "workingElsewhere", "unknown"],
+              "type": "string",
+              "description": "The status to show during the event time"
+            },
+            "subject": {
+              "type": "string",
+              "description": "The text of the event's subject line"
+            },
+            "isAllDay": {
+              "type": "boolean",
+              "description": "Set to true if the event lasts all day"
+            },
+            "location": {
+              "type": "object",
+              "required": [],
+              "properties": {
+                "address": {
+                  "type": "object",
+                  "required": [],
+                  "properties": {
+                    "city": {
+                      "type": "string",
+                      "description": "City name"
+                    },
+                    "state": {
+                      "type": "string",
+                      "description": "State or province"
+                    },
+                    "street": {
+                      "type": "string",
+                      "description": "Street address"
+                    },
+                    "postalCode": {
+                      "type": "string",
+                      "description": "Postal or ZIP code"
+                    },
+                    "countryOrRegion": {
+                      "type": "string",
+                      "description": "Country or region name"
+                    }
+                  },
+                  "description": "Physical address of the location",
+                  "additionalProperties": false
+                },
+                "uniqueId": {
+                  "type": "string",
+                  "description": "For internal use only"
+                },
+                "coordinates": {
+                  "type": "object",
+                  "required": [],
+                  "properties": {
+                    "latitude": {
+                      "type": "number",
+                      "description": "Latitude coordinate"
+                    },
+                    "longitude": {
+                      "type": "number",
+                      "description": "Longitude coordinate"
+                    }
+                  },
+                  "description": "Geographic coordinates of the location",
+                  "additionalProperties": false
+                },
+                "displayName": {
+                  "type": "string",
+                  "description": "The name of the location"
+                },
+                "locationType": {
+                  "enum": [
+                    "default",
+                    "conferenceRoom",
+                    "homeAddress",
+                    "businessAddress",
+                    "geoCoordinates",
+                    "streetAddress",
+                    "hotel",
+                    "restaurant",
+                    "localBusiness",
+                    "postalAddress"
+                  ],
+                  "type": "string",
+                  "description": "The type of location"
+                },
+                "uniqueIdType": {
+                  "enum": ["unknown", "locationStore", "directory", "private", "bing"],
+                  "type": "string",
+                  "description": "For internal use only"
+                }
+              },
+              "description": "The location of the event",
+              "additionalProperties": false
+            },
+            "attendees": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "visible": ["type", "emailAddress"],
+                "required": [],
+                "properties": {
+                  "type": {
+                    "enum": ["required", "optional", "resource"],
+                    "type": "string",
+                    "description": "The type of attendee"
+                  },
+                  "emailAddress": {
+                    "type": "object",
+                    "visible": ["address", "name"],
+                    "required": [],
+                    "properties": {
+                      "name": {
+                        "type": "string",
+                        "description": "The display name"
+                      },
+                      "address": {
+                        "type": "string",
+                        "description": "The email address"
+                      }
+                    },
+                    "description": "Email address information",
+                    "additionalProperties": false
+                  }
+                },
+                "additionalProperties": false
+              },
+              "description": "The collection of attendees for the event"
+            },
+            "categories": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "description": "The categories associated with the event"
+            },
+            "importance": {
+              "enum": ["low", "normal", "high"],
+              "type": "string",
+              "description": "The importance of the event"
+            },
+            "recurrence": {
+              "type": "object",
+              "required": [],
+              "properties": {
+                "range": {
+                  "type": "object",
+                  "required": [],
+                  "properties": {
+                    "type": {
+                      "enum": ["endDate", "noEnd", "numbered"],
+                      "type": "string",
+                      "description": "The recurrence range type"
+                    },
+                    "endDate": {
+                      "type": "string",
+                      "description": "The date to stop applying the recurrence pattern"
+                    },
+                    "startDate": {
+                      "type": "string",
+                      "description": "The date to start applying the recurrence pattern"
+                    },
+                    "numberOfOccurrences": {
+                      "type": "integer",
+                      "description": "The number of times to repeat the event"
+                    }
+                  },
+                  "description": "The range of the recurrence",
+                  "additionalProperties": false
+                },
+                "pattern": {
+                  "type": "object",
+                  "required": [],
+                  "properties": {
+                    "type": {
+                      "enum": [
+                        "daily",
+                        "weekly",
+                        "absoluteMonthly",
+                        "relativeMonthly",
+                        "absoluteYearly",
+                        "relativeYearly"
+                      ],
+                      "type": "string",
+                      "description": "The recurrence pattern type"
+                    },
+                    "index": {
+                      "enum": ["first", "second", "third", "fourth", "last"],
+                      "type": "string",
+                      "description": "Specifies on which instance of the allowed days specified in daysOfWeek the event occurs"
+                    },
+                    "month": {
+                      "type": "integer",
+                      "description": "The month in which the event occurs"
+                    },
+                    "interval": {
+                      "type": "integer",
+                      "description": "The number of units between occurrences"
+                    },
+                    "dayOfMonth": {
+                      "type": "integer",
+                      "description": "The day of the month on which the event occurs"
+                    },
+                    "daysOfWeek": {
+                      "type": "array",
+                      "items": {
+                        "enum": [
+                          "sunday",
+                          "monday",
+                          "tuesday",
+                          "wednesday",
+                          "thursday",
+                          "friday",
+                          "saturday"
+                        ],
+                        "type": "string"
+                      },
+                      "description": "Days of the week on which the event occurs"
+                    },
+                    "firstDayOfWeek": {
+                      "enum": [
+                        "sunday",
+                        "monday",
+                        "tuesday",
+                        "wednesday",
+                        "thursday",
+                        "friday",
+                        "saturday"
+                      ],
+                      "type": "string",
+                      "description": "The first day of the week"
+                    }
+                  },
+                  "description": "The frequency of the recurrence",
+                  "additionalProperties": false
+                }
+              },
+              "description": "The recurrence pattern for the event",
+              "additionalProperties": false
+            },
+            "sensitivity": {
+              "enum": ["normal", "personal", "private", "confidential"],
+              "type": "string",
+              "description": "The sensitivity level of the event"
+            },
+            "isReminderOn": {
+              "type": "boolean",
+              "description": "Set to true if an alert is set to remind the user of the event"
+            },
+            "hideAttendees": {
+              "type": "boolean",
+              "description": "When set to true, each attendee only sees themselves in the meeting request and meeting tracking list"
+            },
+            "isOnlineMeeting": {
+              "type": "boolean",
+              "description": "True if this event has online meeting information, false otherwise"
+            },
+            "responseRequested": {
+              "type": "boolean",
+              "description": "Set to true if the sender would like a response when the event is accepted or declined"
+            },
+            "onlineMeetingProvider": {
+              "enum": ["teamsForBusiness", "skypeForBusiness", "skypeForConsumer"],
+              "type": "string",
+              "description": "Represents the online meeting service provider"
+            },
+            "reminderMinutesBeforeStart": {
+              "type": "integer",
+              "description": "The number of minutes before the event start time that the reminder alert occurs"
+            }
+          },
+          "description": "Event properties to update. Only include fields you want to change.",
+          "additionalProperties": false
+        },
+        "path": {
+          "type": "object",
+          "required": ["eventId"],
+          "properties": {
+            "eventId": {
+              "type": "string",
+              "description": "The unique identifier of the event to update"
+            }
+          },
+          "description": "Path parameters for the event to update",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "MICROSOFT_CALENDAR__DELETE_EVENT",
+    "description": "Delete a specific event from the calendar. If the event is a meeting, deleting it on the organizer's calendar sends a cancellation message to all attendees. This action cannot be undone.",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "DELETE_EVENT",
+      "canonical_tool_description_hash": "1ddc9a0b5fe89ccc1f24d57626e39dc5b5bf52fdd24694e13a02b60c95fbb15c",
+      "canonical_tool_input_schema_hash": "e3df6144da4c6d248a638225d4d4e5879f2e5b88822883de4961baa507029b64"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["path"],
+      "properties": {
+        "path": {
+          "type": "object",
+          "required": ["eventId"],
+          "properties": {
+            "eventId": {
+              "type": "string",
+              "description": "The unique identifier of the event to delete"
+            }
+          },
+          "description": "Path parameters for the event to delete",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "MICROSOFT_CALENDAR__PERMANENT_DELETE_EVENT",
+    "description": "Permanently delete an event and place it in the purges folder in the dumpster. Unlike regular delete, this action moves the event to a deeper deletion state that cannot be recovered by standard means. Email clients cannot access permanently deleted items.",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "PERMANENT_DELETE_EVENT",
+      "canonical_tool_description_hash": "74371b6fa881f124e88c33a762457b45fb92a9fcb5d1a1b97a1d38956bdd657e",
+      "canonical_tool_input_schema_hash": "eb28cd1f855ec52fec4cb74fcd552e168eaf22aa5e90e800acf9bdac6097c649"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["path"],
+      "properties": {
+        "path": {
+          "type": "object",
+          "required": ["eventId"],
+          "properties": {
+            "eventId": {
+              "type": "string",
+              "description": "The unique identifier of the event to permanently delete"
+            }
+          },
+          "description": "Path parameters for the event to permanently delete",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "MICROSOFT_CALENDAR__DELTA_EVENTS",
+    "description": "Get a set of event resources that have been added, deleted, or updated in a calendarView (a range of events defined by start and end dates) of the user's primary calendar. Supports delta query for incremental sync.",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "DELTA_EVENTS",
+      "canonical_tool_description_hash": "d3508c2ee651862ca08ce8b3e7796c592df3a9cc912f80d8ad3fdce3733abc0e",
+      "canonical_tool_input_schema_hash": "1987fc253a51a7d6d13e74e4451d63b939d7578a2370495141e8139a596c405b"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": [],
+      "properties": {
+        "query": {
+          "type": "object",
+          "required": [],
+          "properties": {
+            "$skiptoken": {
+              "type": "string",
+              "description": "A state token returned in the @odata.nextLink URL of the previous delta function call. Use for pagination."
+            },
+            "$deltatoken": {
+              "type": "string",
+              "description": "A state token returned in the @odata.deltaLink URL of the previous delta function call. Use for incremental sync."
+            },
+            "endDateTime": {
+              "type": "string",
+              "description": "The end date and time of the time range in ISO 8601 format (e.g., '2025-07-22T00:00:00Z')"
+            },
+            "startDateTime": {
+              "type": "string",
+              "description": "The start date and time of the time range in ISO 8601 format (e.g., '2025-07-20T00:00:00Z')"
+            }
+          },
+          "description": "Query parameters for delta sync. Specify startDateTime and endDateTime for the initial call. Use $deltatoken or $skiptoken for subsequent calls.",
+          "additionalProperties": false
+        },
+        "header": {
+          "type": "object",
+          "required": [],
+          "properties": {
+            "Prefer": {
+              "type": "string",
+              "description": "Use 'outlook.timezone=\"{timezone}\"' to specify the timezone for start and end times in the response (e.g., 'outlook.timezone=\"Pacific Standard Time\"' or 'outlook.timezone=\"America/New_York\"'). If not specified, times are returned in UTC."
+            }
+          },
+          "description": "Optional request headers for customizing the response",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "MICROSOFT_CALENDAR__FORWARD_EVENT",
+    "description": "Forward a meeting event to new recipients. Allows the organizer or attendee to forward the meeting request, optionally including a comment. The new recipients will be added to the event and notified.",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "FORWARD_EVENT",
+      "canonical_tool_description_hash": "bda38b4d57745dcd5ff231bf7433f4c773f9577e588de3e2b74bb9f87b7a1924",
+      "canonical_tool_input_schema_hash": "270c7d4f4a5182c4456ebc40a38a6e52cd4194d0ab2b4c7f90b3407b47db0cc4"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["path", "body"],
+      "properties": {
+        "body": {
+          "type": "object",
+          "required": ["ToRecipients"],
+          "properties": {
+            "Comment": {
+              "type": "string",
+              "description": "A comment to include in the forward notification. Can be empty."
+            },
+            "ToRecipients": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "visible": ["EmailAddress"],
+                "required": ["EmailAddress"],
+                "properties": {
+                  "EmailAddress": {
+                    "type": "object",
+                    "visible": ["Address", "Name"],
+                    "required": ["Address"],
+                    "properties": {
+                      "Name": {
+                        "type": "string",
+                        "description": "The display name of the recipient."
+                      },
+                      "Address": {
+                        "type": "string",
+                        "description": "The email address of the recipient."
+                      }
+                    },
+                    "additionalProperties": false
+                  }
+                },
+                "additionalProperties": false
+              },
+              "description": "The list of recipients to forward the event to."
+            }
+          },
+          "description": "Request body for forwarding the event.",
+          "additionalProperties": false
+        },
+        "path": {
+          "type": "object",
+          "required": ["eventId"],
+          "properties": {
+            "eventId": {
+              "type": "string",
+              "description": "The unique identifier of the event to forward"
+            }
+          },
+          "description": "Path parameters for the event to forward",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "MICROSOFT_CALENDAR__ACCEPT_EVENT",
+    "description": "Accept the specified event in a user calendar. Optionally include a comment and choose whether to send a response to the organizer.",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "ACCEPT_EVENT",
+      "canonical_tool_description_hash": "b936da39dc3451d98195f860af32b572a34cc9d91029a33b22d8bc50d4166bc0",
+      "canonical_tool_input_schema_hash": "80a4eb0a091243be45345e6f162a6dcb59e1aa336ab9808fbd222b68c77e7f47"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["path"],
+      "properties": {
+        "body": {
+          "type": "object",
+          "required": [],
+          "properties": {
+            "comment": {
+              "type": "string",
+              "description": "Text included in the response. Optional."
+            },
+            "sendResponse": {
+              "type": "boolean",
+              "description": "true if a response is to be sent to the organizer; otherwise, false. Optional. Default is true."
+            }
+          },
+          "description": "Request body for accepting the event.",
+          "additionalProperties": false
+        },
+        "path": {
+          "type": "object",
+          "required": ["eventId"],
+          "properties": {
+            "eventId": {
+              "type": "string",
+              "description": "The unique identifier of the event to accept"
+            }
+          },
+          "description": "Path parameters for the event to accept",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "MICROSOFT_CALENDAR__TENTATIVELY_ACCEPT_EVENT",
+    "description": "Tentatively accept the specified event in a user calendar. Optionally include a comment, propose a new time, and choose whether to send a response to the organizer.",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "TENTATIVELY_ACCEPT_EVENT",
+      "canonical_tool_description_hash": "66f17bc59353de1aaac6ec154b867fbdca12757fd448c18a6746acae71f297d6",
+      "canonical_tool_input_schema_hash": "63e73e3c22a5dee982995803dcccfe2c370fb43b936c9ab34c3a9eb1d72cae85"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["path"],
+      "properties": {
+        "body": {
+          "type": "object",
+          "required": [],
+          "properties": {
+            "comment": {
+              "type": "string",
+              "description": "Text included in the response. Optional."
+            },
+            "sendResponse": {
+              "type": "boolean",
+              "description": "true if a response is to be sent to the organizer; otherwise, false. Optional. Default is true."
+            },
+            "proposedNewTime": {
+              "type": "object",
+              "required": ["start", "end"],
+              "properties": {
+                "end": {
+                  "type": "object",
+                  "required": ["dateTime", "timeZone"],
+                  "properties": {
+                    "dateTime": {
+                      "type": "string",
+                      "description": "End date and time in ISO 8601 format (e.g., '2025-07-22T11:00:00')"
+                    },
+                    "timeZone": {
+                      "type": "string",
+                      "description": "Time zone for the end time (e.g., 'UTC', 'Pacific Standard Time')"
+                    }
+                  },
+                  "description": "Proposed new end time.",
+                  "additionalProperties": false
+                },
+                "start": {
+                  "type": "object",
+                  "required": ["dateTime", "timeZone"],
+                  "properties": {
+                    "dateTime": {
+                      "type": "string",
+                      "description": "Start date and time in ISO 8601 format (e.g., '2025-07-22T10:00:00')"
+                    },
+                    "timeZone": {
+                      "type": "string",
+                      "description": "Time zone for the start time (e.g., 'UTC', 'Pacific Standard Time')"
+                    }
+                  },
+                  "description": "Proposed new start time.",
+                  "additionalProperties": false
+                }
+              },
+              "description": "An alternate date/time proposed by an invitee for a meeting request to start and end. Valid only for events that allow new time proposals. Optional.",
+              "additionalProperties": false
+            }
+          },
+          "description": "Request body for tentatively accepting the event.",
+          "additionalProperties": false
+        },
+        "path": {
+          "type": "object",
+          "required": ["eventId"],
+          "properties": {
+            "eventId": {
+              "type": "string",
+              "description": "The unique identifier of the event to tentatively accept"
+            }
+          },
+          "description": "Path parameters for the event to tentatively accept",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "MICROSOFT_CALENDAR__DISMISS_REMINDER",
+    "description": "Dismiss a reminder that has been triggered for an event in a user calendar.",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "DISMISS_REMINDER",
+      "canonical_tool_description_hash": "14f9f3a0d9ea9cd9bd7f14e55126636a342992594e1e8f853fa0d342995251a5",
+      "canonical_tool_input_schema_hash": "ab9a9553c230e48b7f7c9369a87c38fc89c47eb0938be546f3f12ee4d9e38ca7"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["path"],
+      "properties": {
+        "path": {
+          "type": "object",
+          "required": ["eventId"],
+          "properties": {
+            "eventId": {
+              "type": "string",
+              "description": "The unique identifier of the event to dismiss the reminder for"
+            }
+          },
+          "description": "Path parameters for the event to dismiss the reminder for",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "MICROSOFT_CALENDAR__SNOOZE_REMINDER",
+    "description": "Postpone a reminder for an event in a user calendar until a new time.",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "SNOOZE_REMINDER",
+      "canonical_tool_description_hash": "4ca5ebd9b7d59e9db8c1c111bb72bfc5eba4e1aefc968a19fceb54b2cbe1cb8d",
+      "canonical_tool_input_schema_hash": "0fa00a03e918639a26f6dfd79acaac64395e3b1d3f5005dfa51e1005e16be73e"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["path", "body"],
+      "properties": {
+        "body": {
+          "type": "object",
+          "required": ["newReminderTime"],
+          "properties": {
+            "newReminderTime": {
+              "type": "object",
+              "required": ["dateTime", "timeZone"],
+              "properties": {
+                "dateTime": {
+                  "type": "string",
+                  "description": "The new reminder time in ISO 8601 format (e.g., '2025-07-21T09:00:00')"
+                },
+                "timeZone": {
+                  "type": "string",
+                  "description": "The time zone for the new reminder time (e.g., 'UTC', 'Pacific Standard Time')"
+                }
+              },
+              "description": "The new date and time to trigger the reminder.",
+              "additionalProperties": false
+            }
+          },
+          "description": "Request body for snoozing the reminder.",
+          "additionalProperties": false
+        },
+        "path": {
+          "type": "object",
+          "required": ["eventId"],
+          "properties": {
+            "eventId": {
+              "type": "string",
+              "description": "The unique identifier of the event to snooze the reminder for"
+            }
+          },
+          "description": "Path parameters for the event to snooze the reminder for",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "MICROSOFT_CALENDAR__LIST_INSTANCES",
+    "description": "Get the instances (occurrences) of an event for a specified time range. If the event is a seriesMaster, returns the occurrences and exceptions in the range.",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "LIST_INSTANCES",
+      "canonical_tool_description_hash": "9a95630bd4d115b564414d7e9b3d51818e1c6a3d54ad682be98ab69566da9447",
+      "canonical_tool_input_schema_hash": "4a80aaefd50f820450577dd54c49c0452dd69b812572b666a98ee7cb3c0892a9"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["path", "query"],
+      "properties": {
+        "path": {
+          "type": "object",
+          "required": ["eventId"],
+          "properties": {
+            "eventId": {
+              "type": "string",
+              "description": "The unique identifier of the event (series master or single event)"
+            }
+          },
+          "description": "Path parameters for the event to get instances for",
+          "additionalProperties": false
+        },
+        "query": {
+          "type": "object",
+          "required": ["startDateTime", "endDateTime"],
+          "properties": {
+            "$top": {
+              "type": "integer",
+              "description": "Maximum number of instances to return"
+            },
+            "$skip": {
+              "type": "integer",
+              "description": "Number of instances to skip for pagination"
+            },
+            "$select": {
+              "type": "string",
+              "description": "Comma-separated list of properties to include in the response (e.g., 'subject,start,end,recurrence,type')"
+            },
+            "$orderby": {
+              "type": "string",
+              "description": "Property to sort instances by (e.g., 'start/dateTime asc')"
+            },
+            "endDateTime": {
+              "type": "string",
+              "description": "The end date and time of the time range in ISO 8601 format (e.g., '2025-07-22T00:00:00Z')"
+            },
+            "startDateTime": {
+              "type": "string",
+              "description": "The start date and time of the time range in ISO 8601 format (e.g., '2025-07-20T00:00:00Z')"
+            }
+          },
+          "description": "Query parameters for the time range and OData options.",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+]

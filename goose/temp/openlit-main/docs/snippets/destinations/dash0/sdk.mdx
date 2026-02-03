@@ -1,0 +1,84 @@
+### 2. Instrument your application
+    <Tabs>
+      <Tab title="SDK">
+        **For direct integration into your Python applications:**
+
+        <Tabs>
+          <Tab title="Function Arguments">
+          ```python
+          import openlit
+
+          openlit.init(
+            otlp_endpoint="https://ingress.eu-west-1.aws.dash0.com:4318",
+            otlp_headers={"Authorization": "Bearer auth_your_token_here"}
+          )
+          ```
+
+          Replace:
+          1. `ingress.eu-west-1.aws.dash0.com:4318` with your Dash0 ingestion endpoint
+          2. `auth_your_token_here` with your Dash0 authorization token
+          </Tab>
+
+          <Tab title="Environment Variables">
+          ```python
+          import openlit
+
+          openlit.init()
+          ```
+
+          Set these environment variables:
+          ```shell
+          export OTEL_EXPORTER_OTLP_ENDPOINT="https://ingress.eu-west-1.aws.dash0.com:4318"
+          export OTEL_EXPORTER_OTLP_HEADERS="Authorization=Bearer auth_your_token_here"
+          ```
+
+          Replace:
+          1. `ingress.eu-west-1.aws.dash0.com:4318` with your Dash0 ingestion endpoint
+          2. `auth_your_token_here` with your Dash0 authorization token
+          </Tab>
+        </Tabs>
+
+        Refer to the OpenLIT [Python SDK repository](https://github.com/openlit/openlit/tree/main/sdk/python) for more advanced configurations and use cases.
+      </Tab>
+
+      <Tab title="CLI">
+        **For zero-code auto-instrumentation via command line:**
+
+        <Tabs>
+          <Tab title="CLI Arguments">
+          ```shell
+          # Using CLI arguments
+          openlit-instrument \
+            --otlp-endpoint "https://ingress.eu-west-1.aws.dash0.com:4318" \
+            --otlp-headers "Authorization=Bearer auth_your_token_here" \
+            --service-name "my-ai-service" \
+            --deployment-environment "production" \
+            python app.py
+          ```
+
+          Replace:
+          1. `ingress.eu-west-1.aws.dash0.com:4318` with your Dash0 ingestion endpoint
+          2. `auth_your_token_here` with your Dash0 authorization token
+          </Tab>
+
+          <Tab title="Environment Variables">
+          ```shell
+          # Set environment variables (takes precedence over CLI args)
+          export OTEL_EXPORTER_OTLP_ENDPOINT="https://ingress.eu-west-1.aws.dash0.com:4318"
+          export OTEL_EXPORTER_OTLP_HEADERS="Authorization=Bearer auth_your_token_here"
+          export OTEL_SERVICE_NAME="my-ai-service"
+          export OTEL_DEPLOYMENT_ENVIRONMENT="production"
+
+          # Run your application
+          openlit-instrument python app.py
+          ```
+
+          Replace:
+          1. `ingress.eu-west-1.aws.dash0.com:4318` with your Dash0 ingestion endpoint
+          2. `auth_your_token_here` with your Dash0 authorization token
+          </Tab>
+        </Tabs>
+
+        Refer to the OpenLIT [Python SDK repository](https://github.com/openlit/openlit/tree/main/sdk/python) for more advanced configurations and use cases.
+      </Tab>
+    </Tabs>

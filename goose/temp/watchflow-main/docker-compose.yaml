@@ -1,0 +1,17 @@
+services:
+  api:
+    container_name: watchflow
+    image: watchflow-dev
+    env_file:
+      - .env
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    volumes:
+      - ./:/src
+    ports:
+      - "8000:8000"
+
+    environment:
+      - HOST=0.0.0.0
+      - PORT=8000

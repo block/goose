@@ -1,0 +1,47 @@
+---
+title: Table Widget
+description: Learn how to use the Table Widget in OpenLIT to display structured data with sorting, scrolling, and pagination using ClickHouse queries.
+---
+
+The **Table Widget** in OpenLIT is designed to display raw or structured data in a readable, paginated table format. It's perfect for logs, event traces, audit trails, or any dataset you want to explore row by row.
+
+## When to use
+
+- Displaying raw logs or error records  
+- Viewing user activity, API calls, or event data  
+- Showing detailed reports or audit trails  
+- Exploring top rows of a complex query result  
+
+## How to add a table
+
+<iframe className="w-full aspect-video" src="https://www.youtube.com/embed/PsBBCKXlwsI?list=PLgErWFh-dyiGp9yUDnnx67wHEeNqzzMXZ" title="How to Use the Table Widget in OpenLIT – Visualize Trends Over Time" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" referrerpolicy="strict-origin-when-cross-origin" allowfullscreen></iframe>
+
+Example:
+
+```sql
+SELECT
+  user_id,
+  action,
+  timestamp,
+  properties
+FROM user_events
+WHERE event_time BETWEEN {{filter.timeLimit.start}} AND {{filter.timeLimit.end}}
+ORDER BY timestamp DESC
+LIMIT 100
+````
+
+## Features
+
+* **Horizontal and vertical scrolling**
+* Choose **colors theme**
+* **Dynamic bindings** for time ranges or filters
+
+<Tip>
+Use dynamic filters like `{{filter.timeLimit.start}}`, `{{filter.timeLimit.end}}` to make the stat card responsive to dashboard-level controls.
+</Tip>
+
+## Best practices
+
+* Use aliases for column names for readability (`AS user_email`, `AS created_at`)
+* Limit unnecessary columns—focus on actionable fields
+* Use `{{filter.timeLimit.start}}`, `{{filter.timeLimit.end}}` to make tables dynamic

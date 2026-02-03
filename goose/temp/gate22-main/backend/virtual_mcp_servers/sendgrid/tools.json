@@ -1,0 +1,4420 @@
+[
+  {
+    "name": "SENDGRID__SEND_EMAIL",
+    "description": "Send email over SendGrid's v3 Web API",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "POST",
+      "endpoint": "https://api.sendgrid.com/v3/mail/send"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "header": {
+          "type": "object",
+          "description": "Headers for the HTTP request",
+          "properties": {
+            "Content-Type": {
+              "type": "string",
+              "description": "Content type of the request",
+              "default": "application/json"
+            }
+          },
+          "required": [
+            "Content-Type"
+          ],
+          "visible": [],
+          "additionalProperties": false
+        },
+        "body": {
+          "type": "object",
+          "description": "Email content and configuration",
+          "properties": {
+            "from": {
+              "type": "object",
+              "description": "Sender information",
+              "properties": {
+                "email": {
+                  "type": "string",
+                  "description": "Email address of the sender",
+                  "format": "email"
+                },
+                "name": {
+                  "type": "string",
+                  "description": "Name of the sender"
+                }
+              },
+              "required": [
+                "email"
+              ],
+              "visible": [
+                "email",
+                "name"
+              ],
+              "additionalProperties": false
+            },
+            "personalizations": {
+              "type": "array",
+              "description": "An array of different recipient groups",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "to": {
+                    "type": "array",
+                    "description": "Recipients of the email",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "email": {
+                          "type": "string",
+                          "description": "Email address of the recipient",
+                          "format": "email"
+                        },
+                        "name": {
+                          "type": "string",
+                          "description": "Name of the recipient"
+                        }
+                      },
+                      "required": [
+                        "email"
+                      ],
+                      "visible": [
+                        "email",
+                        "name"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "cc": {
+                    "type": "array",
+                    "description": "Carbon copy recipients",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "email": {
+                          "type": "string",
+                          "description": "Email address of the CC recipient",
+                          "format": "email"
+                        },
+                        "name": {
+                          "type": "string",
+                          "description": "Name of the CC recipient"
+                        }
+                      },
+                      "required": [
+                        "email"
+                      ],
+                      "visible": [
+                        "email",
+                        "name"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "bcc": {
+                    "type": "array",
+                    "description": "Blind carbon copy recipients",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "email": {
+                          "type": "string",
+                          "description": "Email address of the BCC recipient",
+                          "format": "email"
+                        },
+                        "name": {
+                          "type": "string",
+                          "description": "Name of the BCC recipient"
+                        }
+                      },
+                      "required": [
+                        "email"
+                      ],
+                      "visible": [
+                        "email",
+                        "name"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "subject": {
+                    "type": "string",
+                    "description": "Subject line of the email"
+                  }
+                },
+                "required": [
+                  "to"
+                ],
+                "visible": [
+                  "to",
+                  "cc",
+                  "bcc"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "content": {
+              "type": "array",
+              "description": "Content of the email",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "type": {
+                    "type": "string",
+                    "description": "MIME type of the content (e.g., text/plain, text/html)",
+                    "default": "text/plain"
+                  },
+                  "value": {
+                    "type": "string",
+                    "description": "The actual content of the email"
+                  }
+                },
+                "required": [
+                  "type",
+                  "value"
+                ],
+                "visible": [
+                  "type",
+                  "value"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "template_id": {
+              "type": "string",
+              "description": "ID of a SendGrid template to use"
+            },
+            "attachments": {
+              "type": "array",
+              "description": "Files to attach to the email",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "content": {
+                    "type": "string",
+                    "description": "Base64 encoded content of the attachment"
+                  },
+                  "filename": {
+                    "type": "string",
+                    "description": "Filename of the attachment"
+                  },
+                  "type": {
+                    "type": "string",
+                    "description": "MIME type of the attachment"
+                  },
+                  "disposition": {
+                    "type": "string",
+                    "description": "How the attachment should be displayed (attachment or inline)",
+                    "default": "attachment"
+                  }
+                },
+                "required": [],
+                "visible": [],
+                "additionalProperties": false
+              }
+            },
+            "send_at": {
+              "type": "integer",
+              "description": "Unix timestamp of when to send the email (for scheduling)"
+            },
+            "subject": {
+              "type": "string",
+              "description": "Subject line of the email"
+            }
+          },
+          "required": [
+            "from",
+            "personalizations",
+            "content",
+            "subject"
+          ],
+          "visible": [
+            "from",
+            "personalizations",
+            "content",
+            "subject"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "header",
+        "body"
+      ],
+      "visible": [
+        "body"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "SENDGRID__CREATE_DOMAIN_AUTHENTICATION",
+    "description": "Create a new authenticated domain",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "POST",
+      "endpoint": "https://api.sendgrid.com/v3/whitelabel/domains"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "header": {
+          "type": "object",
+          "description": "Headers for the HTTP request",
+          "properties": {
+            "Content-Type": {
+              "type": "string",
+              "description": "Content type of the request",
+              "default": "application/json"
+            },
+            "on-behalf-of": {
+              "type": "string",
+              "description": "Make API calls on behalf of a Subuser or customer account. For customer accounts use format 'account-id <account-id>', for Subusers use format '<subuser-username>'."
+            }
+          },
+          "required": [
+            "Content-Type"
+          ],
+          "visible": [
+            "on-behalf-of"
+          ],
+          "additionalProperties": false
+        },
+        "body": {
+          "type": "object",
+          "description": "Domain authentication configuration",
+          "properties": {
+            "domain": {
+              "type": "string",
+              "description": "Domain to authenticate"
+            },
+            "subdomain": {
+              "type": "string",
+              "description": "Subdomain for authentication"
+            },
+            "username": {
+              "type": "string",
+              "description": "Username associated with the domain",
+              "format": "email"
+            },
+            "ips": {
+              "type": "array",
+              "description": "List of IPs to associate with the domain",
+              "items": {
+                "type": "string"
+              }
+            },
+            "custom_spf": {
+              "type": "boolean",
+              "description": "Whether to use custom SPF"
+            },
+            "default": {
+              "type": "boolean",
+              "description": "Whether this is the default domain"
+            },
+            "automatic_security": {
+              "type": "boolean",
+              "description": "Whether to enable automatic security"
+            }
+          },
+          "required": [
+            "domain"
+          ],
+          "visible": [
+            "domain",
+            "subdomain",
+            "username",
+            "ips",
+            "custom_spf",
+            "default",
+            "automatic_security"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "header",
+        "body"
+      ],
+      "visible": [
+        "body"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "SENDGRID__GET_DEFAULT_DOMAIN_AUTHENTICATION",
+    "description": "Retrieve the default authentication for a domain. Returns default domain and its details if a default is set. If no default domain is set, returns general information about domain authentication status.",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "GET",
+      "endpoint": "https://api.sendgrid.com/v3/whitelabel/domains/default"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "header": {
+          "type": "object",
+          "description": "Headers for the HTTP request",
+          "properties": {
+            "Content-Type": {
+              "type": "string",
+              "description": "Content type of the request",
+              "default": "application/json"
+            },
+            "on-behalf-of": {
+              "type": "string",
+              "description": "Make API calls on behalf of a Subuser or customer account. For customer accounts use format 'account-id <account-id>', for Subusers use format '<subuser-username>'."
+            }
+          },
+          "required": [
+            "Content-Type"
+          ],
+          "visible": [
+            "on-behalf-of"
+          ],
+          "additionalProperties": false
+        },
+        "query": {
+          "type": "object",
+          "description": "Query parameters for the request",
+          "properties": {
+            "domain": {
+              "type": "string",
+              "description": "The domain to find a default authentication"
+            }
+          },
+          "required": [],
+          "visible": [
+            "domain"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "header"
+      ],
+      "visible": [
+        "query"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "SENDGRID__GET_DOMAIN_AUTHENTICATION_BY_ID",
+    "description": "Retrieve a specific domain authentication by ID. Returns detailed information about the authenticated domain including DNS records and validation status.",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "GET",
+      "endpoint": "https://api.sendgrid.com/v3/whitelabel/domains/{id}"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "header": {
+          "type": "object",
+          "description": "Headers for the HTTP request",
+          "properties": {
+            "Content-Type": {
+              "type": "string",
+              "description": "Content type of the request",
+              "default": "application/json"
+            },
+            "on-behalf-of": {
+              "type": "string",
+              "description": "Make API calls on behalf of a Subuser or customer account. For customer accounts use format 'account-id <account-id>', for Subusers use format '<subuser-username>'."
+            }
+          },
+          "required": [
+            "Content-Type"
+          ],
+          "visible": [
+            "on-behalf-of"
+          ],
+          "additionalProperties": false
+        },
+        "path": {
+          "type": "object",
+          "description": "Path parameters for the request",
+          "properties": {
+            "id": {
+              "type": "string",
+              "description": "The ID of the domain authentication to retrieve"
+            }
+          },
+          "required": [
+            "id"
+          ],
+          "visible": [
+            "id"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "header",
+        "path"
+      ],
+      "visible": [
+        "path"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "SENDGRID__LIST_AUTHENTICATED_DOMAINS",
+    "description": "List all authenticated domains",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "GET",
+      "endpoint": "https://api.sendgrid.com/v3/whitelabel/domains"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "header": {
+          "type": "object",
+          "description": "Headers for the HTTP request",
+          "properties": {
+            "Content-Type": {
+              "type": "string",
+              "description": "Content type of the request",
+              "default": "application/json"
+            },
+            "on-behalf-of": {
+              "type": "string",
+              "description": "Make API calls on behalf of a Subuser or customer account. For customer accounts use format 'account-id <account-id>', for Subusers use format '<subuser-username>'."
+            }
+          },
+          "required": [
+            "Content-Type"
+          ],
+          "visible": [
+            "on-behalf-of"
+          ],
+          "additionalProperties": false
+        },
+        "query": {
+          "type": "object",
+          "description": "Query parameters",
+          "properties": {
+            "limit": {
+              "type": "integer",
+              "description": "Number of domains to return",
+              "minimum": 1
+            },
+            "offset": {
+              "type": "integer",
+              "description": "Paging offset",
+              "minimum": 0
+            }
+          },
+          "required": [],
+          "visible": [
+            "limit",
+            "offset"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "header"
+      ],
+      "visible": [
+        "query"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "SENDGRID__VALIDATE_DOMAIN_AUTHENTICATION",
+    "description": "Validate a domain authentication",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "POST",
+      "endpoint": "https://api.sendgrid.com/v3/whitelabel/domains/{domain_id}/validate"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "header": {
+          "type": "object",
+          "description": "Headers for the HTTP request",
+          "properties": {
+            "Content-Type": {
+              "type": "string",
+              "description": "Content type of the request",
+              "default": "application/json"
+            },
+            "on-behalf-of": {
+              "type": "string",
+              "description": "Make API calls on behalf of a Subuser or customer account. For customer accounts use format 'account-id <account-id>', for Subusers use format '<subuser-username>'."
+            }
+          },
+          "required": [
+            "Content-Type"
+          ],
+          "visible": [
+            "on-behalf-of"
+          ],
+          "additionalProperties": false
+        },
+        "path": {
+          "type": "object",
+          "description": "Path parameters",
+          "properties": {
+            "domain_id": {
+              "type": "integer",
+              "description": "ID of the domain to validate"
+            }
+          },
+          "required": [
+            "domain_id"
+          ],
+          "visible": [
+            "domain_id"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "header",
+        "path"
+      ],
+      "visible": [
+        "path"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "SENDGRID__UPDATE_DOMAIN_AUTHENTICATION",
+    "description": "Update the settings for an authenticated domain",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "PATCH",
+      "endpoint": "https://api.sendgrid.com/v3/whitelabel/domains/{domain_id}"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "header": {
+          "type": "object",
+          "description": "Headers for the HTTP request",
+          "properties": {
+            "Content-Type": {
+              "type": "string",
+              "description": "Content type of the request",
+              "default": "application/json"
+            },
+            "on-behalf-of": {
+              "type": "string",
+              "description": "Make API calls on behalf of a Subuser or customer account. For customer accounts use format 'account-id <account-id>', for Subusers use format '<subuser-username>'."
+            }
+          },
+          "required": [
+            "Content-Type"
+          ],
+          "visible": [
+            "on-behalf-of"
+          ],
+          "additionalProperties": false
+        },
+        "path": {
+          "type": "object",
+          "description": "Path parameters",
+          "properties": {
+            "domain_id": {
+              "type": "integer",
+              "description": "ID of the domain authentication to update"
+            }
+          },
+          "required": [
+            "domain_id"
+          ],
+          "visible": [
+            "domain_id"
+          ],
+          "additionalProperties": false
+        },
+        "body": {
+          "type": "object",
+          "description": "Update settings for the domain authentication",
+          "properties": {
+            "custom_spf": {
+              "type": "boolean",
+              "description": "Indicates whether to generate a custom SPF record for manual security"
+            },
+            "default": {
+              "type": "boolean",
+              "description": "Indicates whether this is the default authenticated domain"
+            }
+          },
+          "required": [],
+          "visible": [
+            "custom_spf",
+            "default"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "header",
+        "path"
+      ],
+      "visible": [
+        "path",
+        "body"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "SENDGRID__DELETE_DOMAIN_AUTHENTICATION",
+    "description": "Delete an authenticated domain",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "DELETE",
+      "endpoint": "https://api.sendgrid.com/v3/whitelabel/domains/{domain_id}"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "header": {
+          "type": "object",
+          "description": "Headers for the HTTP request",
+          "properties": {
+            "Content-Type": {
+              "type": "string",
+              "description": "Content type of the request",
+              "default": "application/json"
+            },
+            "on-behalf-of": {
+              "type": "string",
+              "description": "Make API calls on behalf of a Subuser or customer account. For customer accounts use format 'account-id <account-id>', for Subusers use format '<subuser-username>'."
+            }
+          },
+          "required": [
+            "Content-Type"
+          ],
+          "visible": [
+            "on-behalf-of"
+          ],
+          "additionalProperties": false
+        },
+        "path": {
+          "type": "object",
+          "description": "Path parameters",
+          "properties": {
+            "domain_id": {
+              "type": "integer",
+              "description": "ID of the domain authentication to delete"
+            }
+          },
+          "required": [
+            "domain_id"
+          ],
+          "visible": [
+            "domain_id"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "header",
+        "path"
+      ],
+      "visible": [
+        "path"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "SENDGRID__ASSOCIATE_DOMAIN_WITH_SUBUSER",
+    "description": "Associate a specific authenticated domain with a subuser. This allows subusers to send mail using their parent's authenticated domain.",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "POST",
+      "endpoint": "https://api.sendgrid.com/v3/whitelabel/domains/{domain_id}/subuser"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "header": {
+          "type": "object",
+          "description": "Headers for the HTTP request",
+          "properties": {
+            "Content-Type": {
+              "type": "string",
+              "description": "Content type of the request",
+              "default": "application/json"
+            }
+          },
+          "required": [
+            "Content-Type"
+          ],
+          "visible": [],
+          "additionalProperties": false
+        },
+        "path": {
+          "type": "object",
+          "description": "Path parameters",
+          "properties": {
+            "domain_id": {
+              "type": "integer",
+              "description": "ID of the authenticated domain to associate with the subuser"
+            }
+          },
+          "required": [
+            "domain_id"
+          ],
+          "visible": [
+            "domain_id"
+          ],
+          "additionalProperties": false
+        },
+        "body": {
+          "type": "object",
+          "description": "Request body parameters",
+          "properties": {
+            "username": {
+              "type": "string",
+              "description": "Username of the subuser to associate with the authenticated domain"
+            }
+          },
+          "required": [
+            "username"
+          ],
+          "visible": [
+            "username"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "header",
+        "path",
+        "body"
+      ],
+      "visible": [
+        "path",
+        "body"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "SENDGRID__EMAIL_DNS_RECORDS",
+    "description": "Share DNS records with a colleague to help them enter it into your DNS provider to validate your domain and link branding. The email includes a direct link to the DNS records which expires after some time.",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "POST",
+      "endpoint": "https://api.sendgrid.com/v3/whitelabel/dns/email"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "header": {
+          "type": "object",
+          "description": "Headers for the HTTP request",
+          "properties": {
+            "Content-Type": {
+              "type": "string",
+              "description": "Content type of the request",
+              "default": "application/json"
+            }
+          },
+          "required": [
+            "Content-Type"
+          ],
+          "visible": [],
+          "additionalProperties": false
+        },
+        "body": {
+          "type": "object",
+          "description": "Request body parameters",
+          "properties": {
+            "domain_id": {
+              "type": "integer",
+              "description": "The ID of your SendGrid domain record",
+              "minimum": 0
+            },
+            "link_id": {
+              "type": "integer",
+              "description": "The ID of the branded link",
+              "minimum": 0
+            },
+            "email": {
+              "type": "string",
+              "description": "The email address to send the DNS information to",
+              "format": "email"
+            },
+            "message": {
+              "type": "string",
+              "description": "Optional custom text block to include in the email body sent with the records",
+              "default": "Please set these DNS records in our hosting solution."
+            }
+          },
+          "required": [
+            "email"
+          ],
+          "visible": [
+            "domain_id",
+            "link_id",
+            "email",
+            "message"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "header",
+        "body"
+      ],
+      "visible": [
+        "body"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "SENDGRID__CREATE_BRANDED_LINK",
+    "description": "Create a new branded link for your SendGrid account. Link branding allows all click-tracked links and images in your emails to be served from your domain rather than sendgrid.net.",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "POST",
+      "endpoint": "https://api.sendgrid.com/v3/whitelabel/links"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "header": {
+          "type": "object",
+          "description": "Headers for the HTTP request",
+          "properties": {
+            "Content-Type": {
+              "type": "string",
+              "description": "Content type of the request",
+              "default": "application/json"
+            }
+          },
+          "required": [
+            "Content-Type"
+          ],
+          "visible": [],
+          "additionalProperties": false
+        },
+        "body": {
+          "type": "object",
+          "description": "Link branding configuration",
+          "properties": {
+            "domain": {
+              "type": "string",
+              "description": "The domain to be branded"
+            },
+            "subdomain": {
+              "type": "string",
+              "description": "The subdomain to use for branding"
+            },
+            "default": {
+              "type": "boolean",
+              "description": "Whether this should be the default branded link"
+            }
+          },
+          "required": [
+            "domain"
+          ],
+          "visible": [
+            "domain",
+            "subdomain",
+            "default"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "header",
+        "body"
+      ],
+      "visible": [
+        "body"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "SENDGRID__VALIDATE_BRANDED_LINK",
+    "description": "Validate a branded link. Returns validation results for the DNS records.",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "POST",
+      "endpoint": "https://api.sendgrid.com/v3/whitelabel/links/{id}/validate"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "header": {
+          "type": "object",
+          "description": "Headers for the HTTP request",
+          "properties": {
+            "Content-Type": {
+              "type": "string",
+              "description": "Content type of the request",
+              "default": "application/json"
+            }
+          },
+          "required": [
+            "Content-Type"
+          ],
+          "visible": [],
+          "additionalProperties": false
+        },
+        "path": {
+          "type": "object",
+          "description": "Path parameters",
+          "properties": {
+            "id": {
+              "type": "integer",
+              "description": "ID of the branded link to validate"
+            }
+          },
+          "required": [
+            "id"
+          ],
+          "visible": [
+            "id"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "header",
+        "path"
+      ],
+      "visible": [
+        "path"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "SENDGRID__GET_DEFAULT_BRANDED_LINK",
+    "description": "Retrieve the default branded link. Returns the default branded link if one exists.",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "GET",
+      "endpoint": "https://api.sendgrid.com/v3/whitelabel/links/default"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "header": {
+          "type": "object",
+          "description": "Headers for the HTTP request",
+          "properties": {
+            "Content-Type": {
+              "type": "string",
+              "description": "Content type of the request",
+              "default": "application/json"
+            }
+          },
+          "required": [
+            "Content-Type"
+          ],
+          "visible": [],
+          "additionalProperties": false
+        },
+        "query": {
+          "type": "object",
+          "description": "Query parameters",
+          "properties": {
+            "domain": {
+              "type": "string",
+              "description": "The domain to find a default branded link for"
+            }
+          },
+          "required": [],
+          "visible": [
+            "domain"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "header"
+      ],
+      "visible": [
+        "query"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "SENDGRID__GET_BRANDED_LINK",
+    "description": "Retrieve a specific branded link by ID.",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "GET",
+      "endpoint": "https://api.sendgrid.com/v3/whitelabel/links/{id}"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "header": {
+          "type": "object",
+          "description": "Headers for the HTTP request",
+          "properties": {
+            "Content-Type": {
+              "type": "string",
+              "description": "Content type of the request",
+              "default": "application/json"
+            }
+          },
+          "required": [
+            "Content-Type"
+          ],
+          "visible": [],
+          "additionalProperties": false
+        },
+        "path": {
+          "type": "object",
+          "description": "Path parameters",
+          "properties": {
+            "id": {
+              "type": "integer",
+              "description": "ID of the branded link to retrieve"
+            }
+          },
+          "required": [
+            "id"
+          ],
+          "visible": [
+            "id"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "header",
+        "path"
+      ],
+      "visible": [
+        "path"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "SENDGRID__LIST_BRANDED_LINKS",
+    "description": "Retrieve all branded links.",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "GET",
+      "endpoint": "https://api.sendgrid.com/v3/whitelabel/links"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "header": {
+          "type": "object",
+          "description": "Headers for the HTTP request",
+          "properties": {
+            "Content-Type": {
+              "type": "string",
+              "description": "Content type of the request",
+              "default": "application/json"
+            }
+          },
+          "required": [
+            "Content-Type"
+          ],
+          "visible": [],
+          "additionalProperties": false
+        },
+        "query": {
+          "type": "object",
+          "description": "Query parameters",
+          "properties": {
+            "limit": {
+              "type": "integer",
+              "description": "Number of links to return",
+              "minimum": 1
+            },
+            "offset": {
+              "type": "integer",
+              "description": "Paging offset",
+              "minimum": 0
+            }
+          },
+          "required": [],
+          "visible": [
+            "limit",
+            "offset"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "header"
+      ],
+      "visible": [
+        "query"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "SENDGRID__UPDATE_BRANDED_LINK",
+    "description": "Update a branded link.",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "PATCH",
+      "endpoint": "https://api.sendgrid.com/v3/whitelabel/links/{id}"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "header": {
+          "type": "object",
+          "description": "Headers for the HTTP request",
+          "properties": {
+            "Content-Type": {
+              "type": "string",
+              "description": "Content type of the request",
+              "default": "application/json"
+            }
+          },
+          "required": [
+            "Content-Type"
+          ],
+          "visible": [],
+          "additionalProperties": false
+        },
+        "path": {
+          "type": "object",
+          "description": "Path parameters",
+          "properties": {
+            "id": {
+              "type": "integer",
+              "description": "ID of the branded link to update"
+            }
+          },
+          "required": [
+            "id"
+          ],
+          "visible": [
+            "id"
+          ],
+          "additionalProperties": false
+        },
+        "body": {
+          "type": "object",
+          "description": "Update settings for the branded link",
+          "properties": {
+            "default": {
+              "type": "boolean",
+              "description": "Whether this should be the default branded link"
+            }
+          },
+          "required": [],
+          "visible": [
+            "default"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "header",
+        "path"
+      ],
+      "visible": [
+        "path",
+        "body"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "SENDGRID__DELETE_BRANDED_LINK",
+    "description": "Delete a branded link.",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "DELETE",
+      "endpoint": "https://api.sendgrid.com/v3/whitelabel/links/{id}"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "header": {
+          "type": "object",
+          "description": "Headers for the HTTP request",
+          "properties": {
+            "Content-Type": {
+              "type": "string",
+              "description": "Content type of the request",
+              "default": "application/json"
+            }
+          },
+          "required": [
+            "Content-Type"
+          ],
+          "visible": [],
+          "additionalProperties": false
+        },
+        "path": {
+          "type": "object",
+          "description": "Path parameters",
+          "properties": {
+            "id": {
+              "type": "integer",
+              "description": "ID of the branded link to delete"
+            }
+          },
+          "required": [
+            "id"
+          ],
+          "visible": [
+            "id"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "header",
+        "path"
+      ],
+      "visible": [
+        "path"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "SENDGRID__CREATE_VERIFIED_SENDER",
+    "description": "Create a new verified sender identity for your SendGrid account.",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "POST",
+      "endpoint": "https://api.sendgrid.com/v3/verified_senders"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "header": {
+          "type": "object",
+          "description": "Headers for the HTTP request",
+          "properties": {
+            "Content-Type": {
+              "type": "string",
+              "description": "Content type of the request",
+              "default": "application/json"
+            }
+          },
+          "required": [
+            "Content-Type"
+          ],
+          "visible": [],
+          "additionalProperties": false
+        },
+        "body": {
+          "type": "object",
+          "description": "Verified sender details",
+          "properties": {
+            "nickname": {
+              "type": "string",
+              "description": "A nickname for the sender identity"
+            },
+            "from_email": {
+              "type": "string",
+              "description": "The email address to be verified",
+              "format": "email"
+            },
+            "from_name": {
+              "type": "string",
+              "description": "The name to be associated with the sender"
+            },
+            "reply_to": {
+              "type": "string",
+              "description": "The reply-to email address",
+              "format": "email"
+            },
+            "reply_to_name": {
+              "type": "string",
+              "description": "The name associated with the reply-to address"
+            },
+            "address": {
+              "type": "string",
+              "description": "The physical address of the sender"
+            },
+            "address2": {
+              "type": "string",
+              "description": "Additional address information"
+            },
+            "city": {
+              "type": "string",
+              "description": "The city of the sender"
+            },
+            "state": {
+              "type": "string",
+              "description": "The state/province of the sender"
+            },
+            "zip": {
+              "type": "string",
+              "description": "The zip/postal code of the sender"
+            },
+            "country": {
+              "type": "string",
+              "description": "The country of the sender"
+            }
+          },
+          "required": [
+            "from_email",
+            "from_name",
+            "address",
+            "city",
+            "country"
+          ],
+          "visible": [
+            "nickname",
+            "from_email",
+            "from_name",
+            "reply_to",
+            "reply_to_name",
+            "address",
+            "address2",
+            "city",
+            "state",
+            "zip",
+            "country"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "header",
+        "body"
+      ],
+      "visible": [
+        "body"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "SENDGRID__GET_ALL_VERIFIED_SENDERS",
+    "description": "Retrieve all verified senders for your account.",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "GET",
+      "endpoint": "https://api.sendgrid.com/v3/verified_senders"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "header": {
+          "type": "object",
+          "description": "Headers for the HTTP request",
+          "properties": {
+            "Content-Type": {
+              "type": "string",
+              "description": "Content type of the request",
+              "default": "application/json"
+            }
+          },
+          "required": [
+            "Content-Type"
+          ],
+          "visible": [],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "header"
+      ],
+      "visible": [],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "SENDGRID__EDIT_VERIFIED_SENDER",
+    "description": "Update the details of a verified sender.",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "PATCH",
+      "endpoint": "https://api.sendgrid.com/v3/verified_senders/{sender_id}"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "header": {
+          "type": "object",
+          "description": "Headers for the HTTP request",
+          "properties": {
+            "Content-Type": {
+              "type": "string",
+              "description": "Content type of the request",
+              "default": "application/json"
+            }
+          },
+          "required": [
+            "Content-Type"
+          ],
+          "visible": [],
+          "additionalProperties": false
+        },
+        "path": {
+          "type": "object",
+          "description": "Path parameters",
+          "properties": {
+            "sender_id": {
+              "type": "integer",
+              "description": "ID of the sender identity to update"
+            }
+          },
+          "required": [
+            "sender_id"
+          ],
+          "visible": [
+            "sender_id"
+          ],
+          "additionalProperties": false
+        },
+        "body": {
+          "type": "object",
+          "description": "Updated sender details",
+          "properties": {
+            "nickname": {
+              "type": "string",
+              "description": "A nickname for the sender identity"
+            },
+            "from_name": {
+              "type": "string",
+              "description": "The name to be associated with the sender"
+            },
+            "reply_to": {
+              "type": "string",
+              "description": "The reply-to email address",
+              "format": "email"
+            },
+            "reply_to_name": {
+              "type": "string",
+              "description": "The name associated with the reply-to address"
+            },
+            "address": {
+              "type": "string",
+              "description": "The physical address of the sender"
+            },
+            "address2": {
+              "type": "string",
+              "description": "Additional address information"
+            },
+            "city": {
+              "type": "string",
+              "description": "The city of the sender"
+            },
+            "state": {
+              "type": "string",
+              "description": "The state/province of the sender"
+            },
+            "zip": {
+              "type": "string",
+              "description": "The zip/postal code of the sender"
+            },
+            "country": {
+              "type": "string",
+              "description": "The country of the sender"
+            }
+          },
+          "required": [
+            "from_name",
+            "address",
+            "city",
+            "country"
+          ],
+          "visible": [
+            "nickname",
+            "from_name",
+            "reply_to",
+            "reply_to_name",
+            "address",
+            "address2",
+            "city",
+            "state",
+            "zip",
+            "country"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "header",
+        "path"
+      ],
+      "visible": [
+        "path",
+        "body"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "SENDGRID__DELETE_VERIFIED_SENDER",
+    "description": "Delete a verified sender identity.",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "DELETE",
+      "endpoint": "https://api.sendgrid.com/v3/verified_senders/{sender_id}"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "header": {
+          "type": "object",
+          "description": "Headers for the HTTP request",
+          "properties": {
+            "Content-Type": {
+              "type": "string",
+              "description": "Content type of the request",
+              "default": "application/json"
+            }
+          },
+          "required": [
+            "Content-Type"
+          ],
+          "visible": [],
+          "additionalProperties": false
+        },
+        "path": {
+          "type": "object",
+          "description": "Path parameters",
+          "properties": {
+            "sender_id": {
+              "type": "integer",
+              "description": "ID of the sender identity to delete"
+            }
+          },
+          "required": [
+            "sender_id"
+          ],
+          "visible": [
+            "sender_id"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "header",
+        "path"
+      ],
+      "visible": [
+        "path"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "SENDGRID__GET_COMPLETED_STEPS",
+    "description": "Get the completed verification steps for a sender identity.",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "GET",
+      "endpoint": "https://api.sendgrid.com/v3/verified_senders/steps_completed"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "header": {
+          "type": "object",
+          "description": "Headers for the HTTP request",
+          "properties": {
+            "Content-Type": {
+              "type": "string",
+              "description": "Content type of the request",
+              "default": "application/json"
+            }
+          },
+          "required": [
+            "Content-Type"
+          ],
+          "visible": [],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "header"
+      ],
+      "visible": [],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "SENDGRID__GET_DOMAIN_WARN_LIST",
+    "description": "Get a list of domains known to implement DMARC.",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "GET",
+      "endpoint": "https://api.sendgrid.com/v3/verified_senders/domains"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "header": {
+          "type": "object",
+          "description": "Headers for the HTTP request",
+          "properties": {
+            "Content-Type": {
+              "type": "string",
+              "description": "Content type of the request",
+              "default": "application/json"
+            }
+          },
+          "required": [
+            "Content-Type"
+          ],
+          "visible": [],
+          "additionalProperties": false
+        },
+        "query": {
+          "type": "object",
+          "description": "Query parameters",
+          "properties": {
+            "domain": {
+              "type": "string",
+              "description": "Domain to check against the warn list"
+            }
+          },
+          "required": [
+            "domain"
+          ],
+          "visible": [
+            "domain"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "header",
+        "query"
+      ],
+      "visible": [
+        "query"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "SENDGRID__GET_ENGAGEMENT_QUALITY_SCORES",
+    "description": "Retrieve SendGrid Engagement Quality (SEQ) scores for a specified date range. SEQ scores indicate the quality of your email program based on factors like engagement recency, open rates, bounce rates, and spam rates. Scores range from 1 to 5, with higher numbers representing better engagement quality. To receive scores, you must have open tracking enabled and send at least 1,000 messages during the previous 30 days.",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "GET",
+      "endpoint": "https://api.sendgrid.com/v3/engagementquality/scores"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "header": {
+          "type": "object",
+          "description": "Headers for the HTTP request",
+          "properties": {
+            "Content-Type": {
+              "type": "string",
+              "description": "Content type of the request",
+              "default": "application/json"
+            },
+            "on-behalf-of": {
+              "type": "string",
+              "description": "Make API calls on behalf of a Subuser or customer account. For customer accounts use format 'account-id <account-id>', for Subusers use format '<subuser-username>'."
+            }
+          },
+          "required": [
+            "Content-Type"
+          ],
+          "visible": [
+            "on-behalf-of"
+          ],
+          "additionalProperties": false
+        },
+        "query": {
+          "type": "object",
+          "description": "Query parameters for the request",
+          "properties": {
+            "from": {
+              "type": "string",
+              "description": "The starting date in YYYY-MM-DD format (UTC) for which you want to retrieve scores",
+              "format": "date"
+            },
+            "to": {
+              "type": "string",
+              "description": "The ending date in YYYY-MM-DD format (UTC) for which you want to retrieve scores",
+              "format": "date"
+            }
+          },
+          "required": [
+            "from",
+            "to"
+          ],
+          "visible": [
+            "from",
+            "to"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "header",
+        "query"
+      ],
+      "visible": [
+        "query"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "SENDGRID__GET_SUBUSERS_ENGAGEMENT_QUALITY_SCORES",
+    "description": "Retrieve SendGrid Engagement Quality (SEQ) scores for your Subusers or customer accounts for a specific date. SEQ scores indicate the quality of your email program based on factors like engagement recency, open rates, bounce rates, and spam rates. Scores range from 1 to 5, with higher numbers representing better engagement quality.",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "GET",
+      "endpoint": "https://api.sendgrid.com/v3/engagementquality/subusers/scores"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "header": {
+          "type": "object",
+          "description": "Headers for the HTTP request",
+          "properties": {
+            "Content-Type": {
+              "type": "string",
+              "description": "Content type of the request",
+              "default": "application/json"
+            },
+            "on-behalf-of": {
+              "type": "string",
+              "description": "Make API calls on behalf of a Subuser or customer account. For customer accounts use format 'account-id <account-id>', for Subusers use format '<subuser-username>'."
+            }
+          },
+          "required": [
+            "Content-Type"
+          ],
+          "visible": [
+            "on-behalf-of"
+          ],
+          "additionalProperties": false
+        },
+        "query": {
+          "type": "object",
+          "description": "Query parameters for the request",
+          "properties": {
+            "date": {
+              "type": "string",
+              "description": "The date in YYYY-MM-DD format (UTC) for which you want to retrieve a SendGrid Engagement Quality score",
+              "format": "date"
+            },
+            "limit": {
+              "type": "integer",
+              "description": "Specifies the number of results to be returned by the API. Can be used to limit results or with after_key for pagination.",
+              "minimum": 0,
+              "maximum": 1000,
+              "default": 1000
+            },
+            "after_key": {
+              "type": "string",
+              "description": "Specifies which items to be returned by the API. Used with limit for pagination. Value should be the after_key from the previous response."
+            }
+          },
+          "required": [
+            "date"
+          ],
+          "visible": [
+            "date",
+            "limit",
+            "after_key"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "header",
+        "query"
+      ],
+      "visible": [
+        "query"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "SENDGRID__CREATE_DESIGN",
+    "description": "Create a new design in the SendGrid Design Library",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "POST",
+      "endpoint": "https://api.sendgrid.com/v3/designs"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "header": {
+          "type": "object",
+          "description": "Headers for the HTTP request",
+          "properties": {
+            "Content-Type": {
+              "type": "string",
+              "description": "Content type of the request",
+              "default": "application/json"
+            }
+          },
+          "required": [
+            "Content-Type"
+          ],
+          "visible": [],
+          "additionalProperties": false
+        },
+        "body": {
+          "type": "object",
+          "description": "Design configuration",
+          "properties": {
+            "name": {
+              "type": "string",
+              "description": "Name of the design"
+            },
+            "html_content": {
+              "type": "string",
+              "description": "HTML content of the design"
+            },
+            "plain_content": {
+              "type": "string",
+              "description": "Plain text content of the design"
+            },
+            "categories": {
+              "type": "array",
+              "description": "Categories to associate with the design",
+              "items": {
+                "type": "string"
+              }
+            },
+            "generate_plain_content": {
+              "type": "boolean",
+              "description": "Whether to automatically generate plain content from HTML"
+            }
+          },
+          "required": [
+            "name"
+          ],
+          "visible": [
+            "name",
+            "html_content",
+            "plain_content",
+            "categories",
+            "generate_plain_content"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "header",
+        "body"
+      ],
+      "visible": [
+        "body"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "SENDGRID__DUPLICATE_DESIGN",
+    "description": "Duplicate an existing design in the SendGrid Design Library",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "POST",
+      "endpoint": "https://api.sendgrid.com/v3/designs/duplicate/{id}"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "header": {
+          "type": "object",
+          "description": "Headers for the HTTP request",
+          "properties": {
+            "Content-Type": {
+              "type": "string",
+              "description": "Content type of the request",
+              "default": "application/json"
+            }
+          },
+          "required": [
+            "Content-Type"
+          ],
+          "visible": [],
+          "additionalProperties": false
+        },
+        "path": {
+          "type": "object",
+          "description": "Path parameters",
+          "properties": {
+            "id": {
+              "type": "string",
+              "description": "ID of the design to duplicate"
+            }
+          },
+          "required": [
+            "id"
+          ],
+          "visible": [
+            "id"
+          ],
+          "additionalProperties": false
+        },
+        "body": {
+          "type": "object",
+          "description": "Duplicate design options",
+          "properties": {
+            "name": {
+              "type": "string",
+              "description": "Name for the duplicated design"
+            },
+            "editor": {
+              "type": "string",
+              "description": "Editor type (design or code)",
+              "enum": [
+                "design",
+                "code"
+              ]
+            }
+          },
+          "required": [
+            "name"
+          ],
+          "visible": [
+            "name",
+            "editor"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "header",
+        "path"
+      ],
+      "visible": [
+        "path",
+        "body"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "SENDGRID__GET_DESIGN",
+    "description": "Retrieve a specific design from the SendGrid Design Library",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "GET",
+      "endpoint": "https://api.sendgrid.com/v3/designs/{id}"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "header": {
+          "type": "object",
+          "description": "Headers for the HTTP request",
+          "properties": {
+            "Content-Type": {
+              "type": "string",
+              "description": "Content type of the request",
+              "default": "application/json"
+            }
+          },
+          "required": [
+            "Content-Type"
+          ],
+          "visible": [],
+          "additionalProperties": false
+        },
+        "path": {
+          "type": "object",
+          "description": "Path parameters",
+          "properties": {
+            "id": {
+              "type": "string",
+              "description": "ID of the design to retrieve"
+            }
+          },
+          "required": [
+            "id"
+          ],
+          "visible": [
+            "id"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "header",
+        "path"
+      ],
+      "visible": [
+        "path"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "SENDGRID__LIST_DESIGNS",
+    "description": "List all designs in the SendGrid Design Library",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "GET",
+      "endpoint": "https://api.sendgrid.com/v3/designs"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "header": {
+          "type": "object",
+          "description": "Headers for the HTTP request",
+          "properties": {
+            "Content-Type": {
+              "type": "string",
+              "description": "Content type of the request",
+              "default": "application/json"
+            }
+          },
+          "required": [
+            "Content-Type"
+          ],
+          "visible": [],
+          "additionalProperties": false
+        },
+        "query": {
+          "type": "object",
+          "description": "Query parameters",
+          "properties": {
+            "page_size": {
+              "type": "integer",
+              "description": "Number of results to return per page",
+              "minimum": 1
+            },
+            "page_token": {
+              "type": "string",
+              "description": "Token for pagination"
+            },
+            "summary": {
+              "type": "boolean",
+              "description": "Whether to return only summary information"
+            }
+          },
+          "required": [],
+          "visible": [
+            "page_size",
+            "page_token",
+            "summary"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "header"
+      ],
+      "visible": [
+        "query"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "SENDGRID__UPDATE_DESIGN",
+    "description": "Update an existing design in the SendGrid Design Library",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "PATCH",
+      "endpoint": "https://api.sendgrid.com/v3/designs/{id}"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "header": {
+          "type": "object",
+          "description": "Headers for the HTTP request",
+          "properties": {
+            "Content-Type": {
+              "type": "string",
+              "description": "Content type of the request",
+              "default": "application/json"
+            }
+          },
+          "required": [
+            "Content-Type"
+          ],
+          "visible": [],
+          "additionalProperties": false
+        },
+        "path": {
+          "type": "object",
+          "description": "Path parameters",
+          "properties": {
+            "id": {
+              "type": "string",
+              "description": "ID of the design to update"
+            }
+          },
+          "required": [
+            "id"
+          ],
+          "visible": [
+            "id"
+          ],
+          "additionalProperties": false
+        },
+        "body": {
+          "type": "object",
+          "description": "Updated design properties",
+          "properties": {
+            "name": {
+              "type": "string",
+              "description": "New name for the design"
+            },
+            "html_content": {
+              "type": "string",
+              "description": "Updated HTML content"
+            },
+            "plain_content": {
+              "type": "string",
+              "description": "Updated plain text content"
+            },
+            "categories": {
+              "type": "array",
+              "description": "Updated categories",
+              "items": {
+                "type": "string"
+              }
+            },
+            "generate_plain_content": {
+              "type": "boolean",
+              "description": "Whether to automatically generate plain content from HTML"
+            }
+          },
+          "required": [],
+          "visible": [
+            "name",
+            "html_content",
+            "plain_content",
+            "categories",
+            "generate_plain_content"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "header",
+        "path"
+      ],
+      "visible": [
+        "path",
+        "body"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "SENDGRID__DUPLICATE_PREBUILT_DESIGN",
+    "description": "Duplicate a SendGrid pre-built design template",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "POST",
+      "endpoint": "https://api.sendgrid.com/v3/designs/pre-builts/{id}"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "header": {
+          "type": "object",
+          "description": "Headers for the HTTP request",
+          "properties": {
+            "Content-Type": {
+              "type": "string",
+              "description": "Content type of the request",
+              "default": "application/json"
+            }
+          },
+          "required": [
+            "Content-Type"
+          ],
+          "visible": [],
+          "additionalProperties": false
+        },
+        "path": {
+          "type": "object",
+          "description": "Path parameters",
+          "properties": {
+            "id": {
+              "type": "string",
+              "description": "ID of the pre-built design to duplicate"
+            }
+          },
+          "required": [
+            "id"
+          ],
+          "visible": [
+            "id"
+          ],
+          "additionalProperties": false
+        },
+        "body": {
+          "type": "object",
+          "description": "Duplication options",
+          "properties": {
+            "name": {
+              "type": "string",
+              "description": "Name for the duplicated design"
+            },
+            "editor": {
+              "type": "string",
+              "description": "Editor type (design or code)",
+              "enum": [
+                "design",
+                "code"
+              ]
+            }
+          },
+          "required": [
+            "name"
+          ],
+          "visible": [
+            "name",
+            "editor"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "header",
+        "path"
+      ],
+      "visible": [
+        "path",
+        "body"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "SENDGRID__GET_PREBUILT_DESIGN",
+    "description": "Retrieve a SendGrid pre-built design template",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "GET",
+      "endpoint": "https://api.sendgrid.com/v3/designs/pre-builts/{id}"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "header": {
+          "type": "object",
+          "description": "Headers for the HTTP request",
+          "properties": {
+            "Content-Type": {
+              "type": "string",
+              "description": "Content type of the request",
+              "default": "application/json"
+            }
+          },
+          "required": [
+            "Content-Type"
+          ],
+          "visible": [],
+          "additionalProperties": false
+        },
+        "path": {
+          "type": "object",
+          "description": "Path parameters",
+          "properties": {
+            "id": {
+              "type": "string",
+              "description": "ID of the pre-built design to retrieve"
+            }
+          },
+          "required": [
+            "id"
+          ],
+          "visible": [
+            "id"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "header",
+        "path"
+      ],
+      "visible": [
+        "path"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "SENDGRID__LIST_PREBUILT_DESIGNS",
+    "description": "List all SendGrid pre-built design templates",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "GET",
+      "endpoint": "https://api.sendgrid.com/v3/designs/pre-builts"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "header": {
+          "type": "object",
+          "description": "Headers for the HTTP request",
+          "properties": {
+            "Content-Type": {
+              "type": "string",
+              "description": "Content type of the request",
+              "default": "application/json"
+            }
+          },
+          "required": [
+            "Content-Type"
+          ],
+          "visible": [],
+          "additionalProperties": false
+        },
+        "query": {
+          "type": "object",
+          "description": "Query parameters",
+          "properties": {
+            "page_size": {
+              "type": "integer",
+              "description": "Number of results to return per page",
+              "minimum": 1
+            },
+            "page_token": {
+              "type": "string",
+              "description": "Token for pagination"
+            }
+          },
+          "required": [],
+          "visible": [
+            "page_size",
+            "page_token"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "header"
+      ],
+      "visible": [
+        "query"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "SENDGRID__DELETE_DESIGN",
+    "description": "Delete a design from the SendGrid Design Library",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "DELETE",
+      "endpoint": "https://api.sendgrid.com/v3/designs/{id}"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "header": {
+          "type": "object",
+          "description": "Headers for the HTTP request",
+          "properties": {
+            "Content-Type": {
+              "type": "string",
+              "description": "Content type of the request",
+              "default": "application/json"
+            }
+          },
+          "required": [
+            "Content-Type"
+          ],
+          "visible": [],
+          "additionalProperties": false
+        },
+        "path": {
+          "type": "object",
+          "description": "Path parameters",
+          "properties": {
+            "id": {
+              "type": "string",
+              "description": "ID of the design to delete"
+            }
+          },
+          "required": [
+            "id"
+          ],
+          "visible": [
+            "id"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "header",
+        "path"
+      ],
+      "visible": [
+        "path"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "SENDGRID__GET_TRACKING_SETTINGS",
+    "description": "Retrieve all tracking settings for your SendGrid account",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "GET",
+      "endpoint": "https://api.sendgrid.com/v3/tracking_settings"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "header": {
+          "type": "object",
+          "description": "Headers for the HTTP request",
+          "properties": {
+            "Content-Type": {
+              "type": "string",
+              "description": "Content type of the request",
+              "default": "application/json"
+            }
+          },
+          "required": [
+            "Content-Type"
+          ],
+          "visible": [],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "header"
+      ],
+      "visible": [],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "SENDGRID__GET_CLICK_TRACKING_SETTINGS",
+    "description": "Retrieve click tracking settings for your SendGrid account",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "GET",
+      "endpoint": "https://api.sendgrid.com/v3/tracking_settings/click"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "header": {
+          "type": "object",
+          "description": "Headers for the HTTP request",
+          "properties": {
+            "Content-Type": {
+              "type": "string",
+              "description": "Content type of the request",
+              "default": "application/json"
+            }
+          },
+          "required": [
+            "Content-Type"
+          ],
+          "visible": [],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "header"
+      ],
+      "visible": [],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "SENDGRID__UPDATE_CLICK_TRACKING_SETTINGS",
+    "description": "Update click tracking settings for your SendGrid account",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "PATCH",
+      "endpoint": "https://api.sendgrid.com/v3/tracking_settings/click"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "header": {
+          "type": "object",
+          "description": "Headers for the HTTP request",
+          "properties": {
+            "Content-Type": {
+              "type": "string",
+              "description": "Content type of the request",
+              "default": "application/json"
+            }
+          },
+          "required": [
+            "Content-Type"
+          ],
+          "visible": [],
+          "additionalProperties": false
+        },
+        "body": {
+          "type": "object",
+          "description": "Click tracking settings",
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "description": "Indicates if click tracking is enabled"
+            }
+          },
+          "required": [
+            "enabled"
+          ],
+          "visible": [
+            "enabled"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "header",
+        "body"
+      ],
+      "visible": [
+        "body"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "SENDGRID__GET_GOOGLE_ANALYTICS_SETTINGS",
+    "description": "Retrieve Google Analytics settings for your SendGrid account",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "GET",
+      "endpoint": "https://api.sendgrid.com/v3/tracking_settings/google_analytics"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "header": {
+          "type": "object",
+          "description": "Headers for the HTTP request",
+          "properties": {
+            "Content-Type": {
+              "type": "string",
+              "description": "Content type of the request",
+              "default": "application/json"
+            }
+          },
+          "required": [
+            "Content-Type"
+          ],
+          "visible": [],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "header"
+      ],
+      "visible": [],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "SENDGRID__UPDATE_GOOGLE_ANALYTICS_SETTINGS",
+    "description": "Update Google Analytics settings for your SendGrid account",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "PATCH",
+      "endpoint": "https://api.sendgrid.com/v3/tracking_settings/google_analytics"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "header": {
+          "type": "object",
+          "description": "Headers for the HTTP request",
+          "properties": {
+            "Content-Type": {
+              "type": "string",
+              "description": "Content type of the request",
+              "default": "application/json"
+            }
+          },
+          "required": [
+            "Content-Type"
+          ],
+          "visible": [],
+          "additionalProperties": false
+        },
+        "body": {
+          "type": "object",
+          "description": "Google Analytics settings",
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "description": "Indicates if Google Analytics tracking is enabled"
+            },
+            "utm_source": {
+              "type": "string",
+              "description": "Name of the referrer source"
+            },
+            "utm_medium": {
+              "type": "string",
+              "description": "Name of the marketing medium"
+            },
+            "utm_term": {
+              "type": "string",
+              "description": "Identify paid keywords"
+            },
+            "utm_content": {
+              "type": "string",
+              "description": "Use to differentiate ads"
+            },
+            "utm_campaign": {
+              "type": "string",
+              "description": "Name of the campaign"
+            }
+          },
+          "required": [
+            "enabled"
+          ],
+          "visible": [
+            "enabled",
+            "utm_source",
+            "utm_medium",
+            "utm_term",
+            "utm_content",
+            "utm_campaign"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "header",
+        "body"
+      ],
+      "visible": [
+        "body"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "SENDGRID__GET_OPEN_TRACKING_SETTINGS",
+    "description": "Retrieve open tracking settings for your SendGrid account",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "GET",
+      "endpoint": "https://api.sendgrid.com/v3/tracking_settings/open"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "header": {
+          "type": "object",
+          "description": "Headers for the HTTP request",
+          "properties": {
+            "Content-Type": {
+              "type": "string",
+              "description": "Content type of the request",
+              "default": "application/json"
+            }
+          },
+          "required": [
+            "Content-Type"
+          ],
+          "visible": [],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "header"
+      ],
+      "visible": [],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "SENDGRID__UPDATE_OPEN_TRACKING_SETTINGS",
+    "description": "Update open tracking settings for your SendGrid account",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "PATCH",
+      "endpoint": "https://api.sendgrid.com/v3/tracking_settings/open"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "header": {
+          "type": "object",
+          "description": "Headers for the HTTP request",
+          "properties": {
+            "Content-Type": {
+              "type": "string",
+              "description": "Content type of the request",
+              "default": "application/json"
+            }
+          },
+          "required": [
+            "Content-Type"
+          ],
+          "visible": [],
+          "additionalProperties": false
+        },
+        "body": {
+          "type": "object",
+          "description": "Open tracking settings",
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "description": "Indicates if open tracking is enabled"
+            }
+          },
+          "required": [
+            "enabled"
+          ],
+          "visible": [
+            "enabled"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "header",
+        "body"
+      ],
+      "visible": [
+        "body"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "SENDGRID__GET_SUBSCRIPTION_TRACKING_SETTINGS",
+    "description": "Retrieve subscription tracking settings for your SendGrid account",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "GET",
+      "endpoint": "https://api.sendgrid.com/v3/tracking_settings/subscription"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "header": {
+          "type": "object",
+          "description": "Headers for the HTTP request",
+          "properties": {
+            "Content-Type": {
+              "type": "string",
+              "description": "Content type of the request",
+              "default": "application/json"
+            }
+          },
+          "required": [
+            "Content-Type"
+          ],
+          "visible": [],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "header"
+      ],
+      "visible": [],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "SENDGRID__UPDATE_SUBSCRIPTION_TRACKING_SETTINGS",
+    "description": "Update subscription tracking settings for your SendGrid account",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "PATCH",
+      "endpoint": "https://api.sendgrid.com/v3/tracking_settings/subscription"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "header": {
+          "type": "object",
+          "description": "Headers for the HTTP request",
+          "properties": {
+            "Content-Type": {
+              "type": "string",
+              "description": "Content type of the request",
+              "default": "application/json"
+            }
+          },
+          "required": [
+            "Content-Type"
+          ],
+          "visible": [],
+          "additionalProperties": false
+        },
+        "body": {
+          "type": "object",
+          "description": "Subscription tracking settings",
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "description": "Indicates if subscription tracking is enabled"
+            },
+            "landing": {
+              "type": "string",
+              "description": "URL of the landing page where users are sent after unsubscribing"
+            },
+            "url": {
+              "type": "string",
+              "description": "URL that allows a recipient to unsubscribe"
+            },
+            "html_content": {
+              "type": "string",
+              "description": "HTML content of the unsubscribe link"
+            },
+            "text_content": {
+              "type": "string",
+              "description": "Text content of the unsubscribe link"
+            },
+            "replace": {
+              "type": "string",
+              "description": "Text to be replaced with the unsubscribe link"
+            }
+          },
+          "required": [
+            "enabled"
+          ],
+          "visible": [
+            "enabled",
+            "landing",
+            "url",
+            "html_content",
+            "text_content",
+            "replace"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "header",
+        "body"
+      ],
+      "visible": [
+        "body"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "SENDGRID__GET_GLOBAL_STATS",
+    "description": "Retrieve global email statistics for your SendGrid account. Returns statistics about your email activity including requests, deliveries, opens, clicks, bounces, spam reports, and more.",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "GET",
+      "endpoint": "https://api.sendgrid.com/v3/stats"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "header": {
+          "type": "object",
+          "description": "Headers for the HTTP request",
+          "properties": {
+            "Content-Type": {
+              "type": "string",
+              "description": "Content type of the request",
+              "default": "application/json"
+            }
+          },
+          "required": [
+            "Content-Type"
+          ],
+          "visible": [],
+          "additionalProperties": false
+        },
+        "query": {
+          "type": "object",
+          "description": "Query parameters",
+          "properties": {
+            "start_date": {
+              "type": "string",
+              "description": "The starting date of the statistics to retrieve (YYYY-MM-DD)",
+              "format": "date"
+            },
+            "end_date": {
+              "type": "string",
+              "description": "The end date of the statistics to retrieve (YYYY-MM-DD)",
+              "format": "date"
+            },
+            "aggregated_by": {
+              "type": "string",
+              "description": "How to group the statistics (day, week, or month)",
+              "enum": [
+                "day",
+                "week",
+                "month"
+              ]
+            }
+          },
+          "required": [
+            "start_date"
+          ],
+          "visible": [
+            "start_date",
+            "end_date",
+            "aggregated_by"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "header",
+        "query"
+      ],
+      "visible": [
+        "query"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "SENDGRID__GET_BROWSER_STATS",
+    "description": "Retrieve email statistics by browser. Returns statistics about email activity broken down by browser (Chrome, Firefox, etc.).",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "GET",
+      "endpoint": "https://api.sendgrid.com/v3/browsers/stats"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "header": {
+          "type": "object",
+          "description": "Headers for the HTTP request",
+          "properties": {
+            "Content-Type": {
+              "type": "string",
+              "description": "Content type of the request",
+              "default": "application/json"
+            }
+          },
+          "required": [
+            "Content-Type"
+          ],
+          "visible": [],
+          "additionalProperties": false
+        },
+        "query": {
+          "type": "object",
+          "description": "Query parameters",
+          "properties": {
+            "start_date": {
+              "type": "string",
+              "description": "The starting date of the statistics to retrieve (YYYY-MM-DD)",
+              "format": "date"
+            },
+            "end_date": {
+              "type": "string",
+              "description": "The end date of the statistics to retrieve (YYYY-MM-DD)",
+              "format": "date"
+            },
+            "aggregated_by": {
+              "type": "string",
+              "description": "How to group the statistics (day, week, or month)",
+              "enum": [
+                "day",
+                "week",
+                "month"
+              ]
+            }
+          },
+          "required": [
+            "start_date"
+          ],
+          "visible": [
+            "start_date",
+            "end_date",
+            "aggregated_by"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "header",
+        "query"
+      ],
+      "visible": [
+        "query"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "SENDGRID__GET_CLIENT_TYPE_STATS",
+    "description": "Retrieve email statistics by specific client type (e.g., phone). Returns statistics about email activity broken down by client type.",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "GET",
+      "endpoint": "https://api.sendgrid.com/v3/clients/{client_type}/stats"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "header": {
+          "type": "object",
+          "description": "Headers for the HTTP request",
+          "properties": {
+            "Content-Type": {
+              "type": "string",
+              "description": "Content type of the request",
+              "default": "application/json"
+            }
+          },
+          "required": [
+            "Content-Type"
+          ],
+          "visible": [],
+          "additionalProperties": false
+        },
+        "path": {
+          "type": "object",
+          "description": "Path parameters",
+          "properties": {
+            "client_type": {
+              "type": "string",
+              "description": "The type of client to get statistics for (e.g., phone, webmail, desktop)",
+              "enum": [
+                "phone",
+                "webmail",
+                "desktop"
+              ]
+            }
+          },
+          "required": [
+            "client_type"
+          ],
+          "visible": [
+            "client_type"
+          ],
+          "additionalProperties": false
+        },
+        "query": {
+          "type": "object",
+          "description": "Query parameters",
+          "properties": {
+            "start_date": {
+              "type": "string",
+              "description": "The starting date of the statistics to retrieve (YYYY-MM-DD)",
+              "format": "date"
+            },
+            "end_date": {
+              "type": "string",
+              "description": "The end date of the statistics to retrieve (YYYY-MM-DD)",
+              "format": "date"
+            },
+            "aggregated_by": {
+              "type": "string",
+              "description": "How to group the statistics (day, week, or month)",
+              "enum": [
+                "day",
+                "week",
+                "month"
+              ]
+            }
+          },
+          "required": [
+            "start_date"
+          ],
+          "visible": [
+            "start_date",
+            "end_date",
+            "aggregated_by"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "header",
+        "path",
+        "query"
+      ],
+      "visible": [
+        "path",
+        "query"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "SENDGRID__GET_CLIENTS_STATS",
+    "description": "Retrieve email statistics by all client types. Returns statistics about email activity broken down by all client types.",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "GET",
+      "endpoint": "https://api.sendgrid.com/v3/clients/stats"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "header": {
+          "type": "object",
+          "description": "Headers for the HTTP request",
+          "properties": {
+            "Content-Type": {
+              "type": "string",
+              "description": "Content type of the request",
+              "default": "application/json"
+            }
+          },
+          "required": [
+            "Content-Type"
+          ],
+          "visible": [],
+          "additionalProperties": false
+        },
+        "query": {
+          "type": "object",
+          "description": "Query parameters",
+          "properties": {
+            "start_date": {
+              "type": "string",
+              "description": "The starting date of the statistics to retrieve (YYYY-MM-DD)",
+              "format": "date"
+            },
+            "end_date": {
+              "type": "string",
+              "description": "The end date of the statistics to retrieve (YYYY-MM-DD)",
+              "format": "date"
+            },
+            "aggregated_by": {
+              "type": "string",
+              "description": "How to group the statistics (day, week, or month)",
+              "enum": [
+                "day",
+                "week",
+                "month"
+              ]
+            }
+          },
+          "required": [
+            "start_date"
+          ],
+          "visible": [
+            "start_date",
+            "end_date",
+            "aggregated_by"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "header",
+        "query"
+      ],
+      "visible": [
+        "query"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "SENDGRID__GET_GEO_STATS",
+    "description": "Retrieve email statistics by geographical location (country and state/province). Returns statistics about email activity broken down by geographic location.",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "GET",
+      "endpoint": "https://api.sendgrid.com/v3/geo/stats"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "header": {
+          "type": "object",
+          "description": "Headers for the HTTP request",
+          "properties": {
+            "Content-Type": {
+              "type": "string",
+              "description": "Content type of the request",
+              "default": "application/json"
+            }
+          },
+          "required": [
+            "Content-Type"
+          ],
+          "visible": [],
+          "additionalProperties": false
+        },
+        "query": {
+          "type": "object",
+          "description": "Query parameters",
+          "properties": {
+            "start_date": {
+              "type": "string",
+              "description": "The starting date of the statistics to retrieve (YYYY-MM-DD)",
+              "format": "date"
+            },
+            "end_date": {
+              "type": "string",
+              "description": "The end date of the statistics to retrieve (YYYY-MM-DD)",
+              "format": "date"
+            },
+            "aggregated_by": {
+              "type": "string",
+              "description": "How to group the statistics (day, week, or month)",
+              "enum": [
+                "day",
+                "week",
+                "month"
+              ]
+            }
+          },
+          "required": [
+            "start_date"
+          ],
+          "visible": [
+            "start_date",
+            "end_date",
+            "aggregated_by"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "header",
+        "query"
+      ],
+      "visible": [
+        "query"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "SENDGRID__GET_DEVICES_STATS",
+    "description": "Retrieve email statistics by device type. Returns statistics about email activity broken down by device type (desktop, mobile, etc.).",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "GET",
+      "endpoint": "https://api.sendgrid.com/v3/devices/stats"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "header": {
+          "type": "object",
+          "description": "Headers for the HTTP request",
+          "properties": {
+            "Content-Type": {
+              "type": "string",
+              "description": "Content type of the request",
+              "default": "application/json"
+            }
+          },
+          "required": [
+            "Content-Type"
+          ],
+          "visible": [],
+          "additionalProperties": false
+        },
+        "query": {
+          "type": "object",
+          "description": "Query parameters",
+          "properties": {
+            "start_date": {
+              "type": "string",
+              "description": "The starting date of the statistics to retrieve (YYYY-MM-DD)",
+              "format": "date"
+            },
+            "end_date": {
+              "type": "string",
+              "description": "The end date of the statistics to retrieve (YYYY-MM-DD)",
+              "format": "date"
+            },
+            "aggregated_by": {
+              "type": "string",
+              "description": "How to group the statistics (day, week, or month)",
+              "enum": [
+                "day",
+                "week",
+                "month"
+              ]
+            }
+          },
+          "required": [
+            "start_date"
+          ],
+          "visible": [
+            "start_date",
+            "end_date",
+            "aggregated_by"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "header",
+        "query"
+      ],
+      "visible": [
+        "query"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "SENDGRID__GET_MAILBOX_PROVIDERS_STATS",
+    "description": "Retrieve email statistics by mailbox provider. Returns statistics about email activity broken down by recipient's mailbox provider (Gmail, Yahoo, etc.).",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "GET",
+      "endpoint": "https://api.sendgrid.com/v3/mailbox_providers/stats"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "header": {
+          "type": "object",
+          "description": "Headers for the HTTP request",
+          "properties": {
+            "Content-Type": {
+              "type": "string",
+              "description": "Content type of the request",
+              "default": "application/json"
+            }
+          },
+          "required": [
+            "Content-Type"
+          ],
+          "visible": [],
+          "additionalProperties": false
+        },
+        "query": {
+          "type": "object",
+          "description": "Query parameters",
+          "properties": {
+            "start_date": {
+              "type": "string",
+              "description": "The starting date of the statistics to retrieve (YYYY-MM-DD)",
+              "format": "date"
+            },
+            "end_date": {
+              "type": "string",
+              "description": "The end date of the statistics to retrieve (YYYY-MM-DD)",
+              "format": "date"
+            },
+            "aggregated_by": {
+              "type": "string",
+              "description": "How to group the statistics (day, week, or month)",
+              "enum": [
+                "day",
+                "week",
+                "month"
+              ]
+            }
+          },
+          "required": [
+            "start_date"
+          ],
+          "visible": [
+            "start_date",
+            "end_date",
+            "aggregated_by"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "header",
+        "query"
+      ],
+      "visible": [
+        "query"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "SENDGRID__CREATE_EVENT_WEBHOOK",
+    "description": "Create a new event webhook to receive real-time event notifications from SendGrid",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "POST",
+      "endpoint": "https://api.sendgrid.com/v3/user/webhooks/event/settings"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "header": {
+          "type": "object",
+          "description": "Headers for the HTTP request",
+          "properties": {
+            "Content-Type": {
+              "type": "string",
+              "description": "Content type of the request",
+              "default": "application/json"
+            }
+          },
+          "required": [
+            "Content-Type"
+          ],
+          "visible": [],
+          "additionalProperties": false
+        },
+        "body": {
+          "type": "object",
+          "description": "Event webhook configuration",
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "description": "Enable/disable the webhook"
+            },
+            "url": {
+              "type": "string",
+              "description": "URL to receive webhook notifications"
+            },
+            "group_resubscribe": {
+              "type": "boolean",
+              "description": "Receive group resubscribe events"
+            },
+            "delivered": {
+              "type": "boolean",
+              "description": "Receive delivered email events"
+            },
+            "group_unsubscribe": {
+              "type": "boolean",
+              "description": "Receive group unsubscribe events"
+            },
+            "spam_report": {
+              "type": "boolean",
+              "description": "Receive spam report events"
+            },
+            "bounce": {
+              "type": "boolean",
+              "description": "Receive bounce events"
+            },
+            "deferred": {
+              "type": "boolean",
+              "description": "Receive deferred email events"
+            },
+            "unsubscribe": {
+              "type": "boolean",
+              "description": "Receive unsubscribe events"
+            },
+            "processed": {
+              "type": "boolean",
+              "description": "Receive processed email events"
+            },
+            "open": {
+              "type": "boolean",
+              "description": "Receive open events"
+            },
+            "click": {
+              "type": "boolean",
+              "description": "Receive click events"
+            },
+            "dropped": {
+              "type": "boolean",
+              "description": "Receive dropped email events"
+            }
+          },
+          "required": [
+            "enabled",
+            "url"
+          ],
+          "visible": [
+            "enabled",
+            "url",
+            "group_resubscribe",
+            "delivered",
+            "group_unsubscribe",
+            "spam_report",
+            "bounce",
+            "deferred",
+            "unsubscribe",
+            "processed",
+            "open",
+            "click",
+            "dropped"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "header",
+        "body"
+      ],
+      "visible": [
+        "body"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "SENDGRID__TEST_EVENT_WEBHOOK",
+    "description": "Test event notification settings by sending a test event to your webhook URL",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "POST",
+      "endpoint": "https://api.sendgrid.com/v3/user/webhooks/event/test"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "header": {
+          "type": "object",
+          "description": "Headers for the HTTP request",
+          "properties": {
+            "Content-Type": {
+              "type": "string",
+              "description": "Content type of the request",
+              "default": "application/json"
+            }
+          },
+          "required": [
+            "Content-Type"
+          ],
+          "visible": [],
+          "additionalProperties": false
+        },
+        "body": {
+          "type": "object",
+          "description": "Test webhook configuration",
+          "properties": {
+            "url": {
+              "type": "string",
+              "description": "URL to test webhook notifications"
+            }
+          },
+          "required": [
+            "url"
+          ],
+          "visible": [
+            "url"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "header",
+        "body"
+      ],
+      "visible": [
+        "body"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "SENDGRID__GET_EVENT_WEBHOOK_SETTINGS",
+    "description": "Retrieve current event webhook settings",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "GET",
+      "endpoint": "https://api.sendgrid.com/v3/user/webhooks/event/settings/{id}"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "header": {
+          "type": "object",
+          "description": "Headers for the HTTP request",
+          "properties": {
+            "Content-Type": {
+              "type": "string",
+              "description": "Content type of the request",
+              "default": "application/json"
+            }
+          },
+          "required": [
+            "Content-Type"
+          ],
+          "visible": [],
+          "additionalProperties": false
+        },
+        "path": {
+          "type": "object",
+          "description": "Path parameters",
+          "properties": {
+            "id": {
+              "type": "string",
+              "description": "ID of the event webhook to retrieve settings for"
+            }
+          },
+          "required": [
+            "id"
+          ],
+          "visible": [
+            "id"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "header",
+        "path"
+      ],
+      "visible": [
+        "path"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "SENDGRID__UPDATE_EVENT_WEBHOOK_SETTINGS",
+    "description": "Update event webhook settings",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "PATCH",
+      "endpoint": "https://api.sendgrid.com/v3/user/webhooks/event/settings/{id}"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "header": {
+          "type": "object",
+          "description": "Headers for the HTTP request",
+          "properties": {
+            "Content-Type": {
+              "type": "string",
+              "description": "Content type of the request",
+              "default": "application/json"
+            }
+          },
+          "required": [
+            "Content-Type"
+          ],
+          "visible": [],
+          "additionalProperties": false
+        },
+        "path": {
+          "type": "object",
+          "description": "Path parameters",
+          "properties": {
+            "id": {
+              "type": "string",
+              "description": "ID of the webhook to update"
+            }
+          },
+          "required": [
+            "id"
+          ],
+          "visible": [
+            "id"
+          ],
+          "additionalProperties": false
+        },
+        "body": {
+          "type": "object",
+          "description": "Updated webhook settings",
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "description": "Enable/disable the webhook"
+            },
+            "url": {
+              "type": "string",
+              "description": "URL to receive webhook notifications"
+            },
+            "bounce": {
+              "type": "boolean",
+              "description": "Receive bounce events"
+            },
+            "click": {
+              "type": "boolean",
+              "description": "Receive click events"
+            },
+            "deferred": {
+              "type": "boolean",
+              "description": "Receive deferred email events"
+            },
+            "delivered": {
+              "type": "boolean",
+              "description": "Receive delivered email events"
+            },
+            "dropped": {
+              "type": "boolean",
+              "description": "Receive dropped email events"
+            },
+            "group_resubscribe": {
+              "type": "boolean",
+              "description": "Receive group resubscribe events"
+            },
+            "group_unsubscribe": {
+              "type": "boolean",
+              "description": "Receive group unsubscribe events"
+            },
+            "open": {
+              "type": "boolean",
+              "description": "Receive open events"
+            },
+            "processed": {
+              "type": "boolean",
+              "description": "Receive processed email events"
+            },
+            "spam_report": {
+              "type": "boolean",
+              "description": "Receive spam report events"
+            },
+            "unsubscribe": {
+              "type": "boolean",
+              "description": "Receive unsubscribe events"
+            }
+          },
+          "required": [
+            "enabled",
+            "url"
+          ],
+          "visible": [
+            "enabled",
+            "url",
+            "bounce",
+            "click",
+            "deferred",
+            "delivered",
+            "dropped",
+            "group_resubscribe",
+            "group_unsubscribe",
+            "open",
+            "processed",
+            "spam_report",
+            "unsubscribe"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "header",
+        "path",
+        "body"
+      ],
+      "visible": [
+        "path",
+        "body"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "SENDGRID__DELETE_EVENT_WEBHOOK",
+    "description": "Delete the event webhook",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "DELETE",
+      "endpoint": "https://api.sendgrid.com/v3/user/webhooks/event/settings/{id}"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "header": {
+          "type": "object",
+          "description": "Headers for the HTTP request",
+          "properties": {
+            "Content-Type": {
+              "type": "string",
+              "description": "Content type of the request",
+              "default": "application/json"
+            }
+          },
+          "required": [
+            "Content-Type"
+          ],
+          "visible": [],
+          "additionalProperties": false
+        },
+        "path": {
+          "type": "object",
+          "description": "Path parameters",
+          "properties": {
+            "id": {
+              "type": "string",
+              "description": "ID of the webhook to delete"
+            }
+          },
+          "required": [
+            "id"
+          ],
+          "visible": [
+            "id"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "header",
+        "path"
+      ],
+      "visible": [
+        "path"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "SENDGRID__TOGGLE_SIGNATURE_VERIFICATION",
+    "description": "Toggle signature verification for event webhook",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "PATCH",
+      "endpoint": "https://api.sendgrid.com/v3/user/webhooks/event/settings/signed/{id}"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "header": {
+          "type": "object",
+          "description": "Headers for the HTTP request",
+          "properties": {
+            "Content-Type": {
+              "type": "string",
+              "description": "Content type of the request",
+              "default": "application/json"
+            }
+          },
+          "required": [
+            "Content-Type"
+          ],
+          "visible": [],
+          "additionalProperties": false
+        },
+        "path": {
+          "type": "object",
+          "description": "Path parameters",
+          "properties": {
+            "id": {
+              "type": "string",
+              "description": "ID of the webhook to toggle signature verification for"
+            }
+          },
+          "required": [
+            "id"
+          ],
+          "visible": [
+            "id"
+          ],
+          "additionalProperties": false
+        },
+        "body": {
+          "type": "object",
+          "description": "Signature verification settings",
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "description": "Enable/disable signature verification"
+            }
+          },
+          "required": [
+            "enabled"
+          ],
+          "visible": [
+            "enabled"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "header",
+        "path",
+        "body"
+      ],
+      "visible": [
+        "path",
+        "body"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "SENDGRID__GET_SIGNED_WEBHOOK_PUBLIC_KEY",
+    "description": "Retrieve the public key for signed event webhook verification",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "GET",
+      "endpoint": "https://api.sendgrid.com/v3/user/webhooks/event/settings/signed/{id}"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "header": {
+          "type": "object",
+          "description": "Headers for the HTTP request",
+          "properties": {
+            "Content-Type": {
+              "type": "string",
+              "description": "Content type of the request",
+              "default": "application/json"
+            }
+          },
+          "required": [
+            "Content-Type"
+          ],
+          "visible": [],
+          "additionalProperties": false
+        },
+        "path": {
+          "type": "object",
+          "description": "Path parameters",
+          "properties": {
+            "id": {
+              "type": "string",
+              "description": "ID of the signed webhook to get public key for"
+            }
+          },
+          "required": [
+            "id"
+          ],
+          "visible": [
+            "id"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "header",
+        "path"
+      ],
+      "visible": [
+        "path"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "SENDGRID__GET_PARSE_WEBHOOK_SETTINGS",
+    "description": "Retrieve Parse Webhook settings",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "GET",
+      "endpoint": "https://api.sendgrid.com/v3/user/webhooks/parse/settings"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "header": {
+          "type": "object",
+          "description": "Headers for the HTTP request",
+          "properties": {
+            "Content-Type": {
+              "type": "string",
+              "description": "Content type of the request",
+              "default": "application/json"
+            }
+          },
+          "required": [
+            "Content-Type"
+          ],
+          "visible": [],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "header"
+      ],
+      "visible": [],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "SENDGRID__GET_PARSE_WEBHOOK_STATS",
+    "description": "Retrieve Inbound Parse Webhook statistics",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "GET",
+      "endpoint": "https://api.sendgrid.com/v3/user/webhooks/parse/stats"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "header": {
+          "type": "object",
+          "description": "Headers for the HTTP request",
+          "properties": {
+            "Content-Type": {
+              "type": "string",
+              "description": "Content type of the request",
+              "default": "application/json"
+            }
+          },
+          "required": [
+            "Content-Type"
+          ],
+          "visible": [],
+          "additionalProperties": false
+        },
+        "query": {
+          "type": "object",
+          "description": "Query parameters for statistics",
+          "properties": {
+            "start_date": {
+              "type": "string",
+              "description": "The starting date of the statistics to retrieve (YYYY-MM-DD)"
+            },
+            "end_date": {
+              "type": "string",
+              "description": "The end date of the statistics to retrieve (YYYY-MM-DD)"
+            }
+          },
+          "required": [
+            "start_date"
+          ],
+          "visible": [
+            "start_date",
+            "end_date"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "header",
+        "query"
+      ],
+      "visible": [
+        "query"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "SENDGRID__GET_ALL_EVENT_WEBHOOKS",
+    "description": "Retrieve all event webhooks configured for your account",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "GET",
+      "endpoint": "https://api.sendgrid.com/v3/user/webhooks/event/settings"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "header": {
+          "type": "object",
+          "description": "Headers for the HTTP request",
+          "properties": {
+            "Content-Type": {
+              "type": "string",
+              "description": "Content type of the request",
+              "default": "application/json"
+            }
+          },
+          "required": [
+            "Content-Type"
+          ],
+          "visible": [],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "header"
+      ],
+      "visible": [],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "SENDGRID__CREATE_PARSE_WEBHOOK",
+    "description": "Create a new parse webhook setting for inbound email parsing",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "POST",
+      "endpoint": "https://api.sendgrid.com/v3/user/webhooks/parse/settings"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "header": {
+          "type": "object",
+          "description": "Headers for the HTTP request",
+          "properties": {
+            "Content-Type": {
+              "type": "string",
+              "description": "Content type of the request",
+              "default": "application/json"
+            }
+          },
+          "required": [
+            "Content-Type"
+          ],
+          "visible": [],
+          "additionalProperties": false
+        },
+        "body": {
+          "type": "object",
+          "description": "Parse webhook settings",
+          "properties": {
+            "url": {
+              "type": "string",
+              "description": "The URL that you would like your parsed data to be POSTed to"
+            },
+            "hostname": {
+              "type": "string",
+              "description": "The domain that will receive the emails to be parsed"
+            },
+            "spam_check": {
+              "type": "boolean",
+              "description": "Whether to check incoming emails for spam"
+            },
+            "send_raw": {
+              "type": "boolean",
+              "description": "Whether to send the raw email content in the webhook POST"
+            }
+          },
+          "required": [
+            "url",
+            "hostname"
+          ],
+          "visible": [
+            "url",
+            "hostname",
+            "spam_check",
+            "send_raw"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "header",
+        "body"
+      ],
+      "visible": [
+        "body"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "SENDGRID__LIST_PARSE_WEBHOOKS",
+    "description": "Retrieve all parse webhook settings",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "GET",
+      "endpoint": "https://api.sendgrid.com/v3/user/webhooks/parse/settings"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "header": {
+          "type": "object",
+          "description": "Headers for the HTTP request",
+          "properties": {
+            "Content-Type": {
+              "type": "string",
+              "description": "Content type of the request",
+              "default": "application/json"
+            }
+          },
+          "required": [
+            "Content-Type"
+          ],
+          "visible": [],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "header"
+      ],
+      "visible": [],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "SENDGRID__GET_PARSE_WEBHOOK",
+    "description": "Retrieve a specific parse webhook setting by hostname",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "GET",
+      "endpoint": "https://api.sendgrid.com/v3/user/webhooks/parse/settings/{hostname}"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "header": {
+          "type": "object",
+          "description": "Headers for the HTTP request",
+          "properties": {
+            "Content-Type": {
+              "type": "string",
+              "description": "Content type of the request",
+              "default": "application/json"
+            }
+          },
+          "required": [
+            "Content-Type"
+          ],
+          "visible": [],
+          "additionalProperties": false
+        },
+        "path": {
+          "type": "object",
+          "description": "Path parameters",
+          "properties": {
+            "hostname": {
+              "type": "string",
+              "description": "The hostname of the parse webhook setting to retrieve"
+            }
+          },
+          "required": [
+            "hostname"
+          ],
+          "visible": [
+            "hostname"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "header",
+        "path"
+      ],
+      "visible": [
+        "path"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "SENDGRID__UPDATE_PARSE_WEBHOOK",
+    "description": "Update a specific parse webhook setting",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "PATCH",
+      "endpoint": "https://api.sendgrid.com/v3/user/webhooks/parse/settings/{hostname}"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "header": {
+          "type": "object",
+          "description": "Headers for the HTTP request",
+          "properties": {
+            "Content-Type": {
+              "type": "string",
+              "description": "Content type of the request",
+              "default": "application/json"
+            }
+          },
+          "required": [
+            "Content-Type"
+          ],
+          "visible": [],
+          "additionalProperties": false
+        },
+        "path": {
+          "type": "object",
+          "description": "Path parameters",
+          "properties": {
+            "hostname": {
+              "type": "string",
+              "description": "The hostname of the parse webhook setting to update"
+            }
+          },
+          "required": [
+            "hostname"
+          ],
+          "visible": [
+            "hostname"
+          ],
+          "additionalProperties": false
+        },
+        "body": {
+          "type": "object",
+          "description": "Updated parse webhook settings",
+          "properties": {
+            "url": {
+              "type": "string",
+              "description": "The new URL that you would like your parsed data to be POSTed to"
+            },
+            "spam_check": {
+              "type": "boolean",
+              "description": "Whether to check incoming emails for spam"
+            },
+            "send_raw": {
+              "type": "boolean",
+              "description": "Whether to send the raw email content in the webhook POST"
+            }
+          },
+          "required": [
+            "url"
+          ],
+          "visible": [
+            "url",
+            "spam_check",
+            "send_raw"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "header",
+        "path",
+        "body"
+      ],
+      "visible": [
+        "path",
+        "body"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "SENDGRID__DELETE_PARSE_WEBHOOK",
+    "description": "Delete a specific parse webhook setting",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "DELETE",
+      "endpoint": "https://api.sendgrid.com/v3/user/webhooks/parse/settings/{hostname}"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "header": {
+          "type": "object",
+          "description": "Headers for the HTTP request",
+          "properties": {
+            "Content-Type": {
+              "type": "string",
+              "description": "Content type of the request",
+              "default": "application/json"
+            }
+          },
+          "required": [
+            "Content-Type"
+          ],
+          "visible": [],
+          "additionalProperties": false
+        },
+        "path": {
+          "type": "object",
+          "description": "Path parameters",
+          "properties": {
+            "hostname": {
+              "type": "string",
+              "description": "The hostname of the parse webhook setting to delete"
+            }
+          },
+          "required": [
+            "hostname"
+          ],
+          "visible": [
+            "hostname"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "header",
+        "path"
+      ],
+      "visible": [
+        "path"
+      ],
+      "additionalProperties": false
+    }
+  }
+]

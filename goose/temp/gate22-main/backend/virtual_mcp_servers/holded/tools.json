@@ -1,0 +1,538 @@
+[
+  {
+    "name": "HOLDED__LIST_EMPLOYEES",
+    "description": "List all employees with pagination",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "GET",
+      "endpoint": "https://api.holded.com/api/team/v1/employees"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "header": {
+          "type": "object",
+          "description": "Headers for the HTTP request",
+          "properties": {
+            "Content-Type": {
+              "type": "string",
+              "description": "Content-Type header",
+              "default": "application/json"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "Content-Type"
+          ],
+          "visible": []
+        },
+        "query": {
+          "type": "object",
+          "description": "Query parameters",
+          "properties": {
+            "page": {
+              "type": "integer",
+              "description": "Page number for pagination",
+              "default": 1
+            }
+          },
+          "required": [],
+          "visible": [
+            "page"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "header"
+      ],
+      "visible": [
+        "query"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "HOLDED__CREATE_EMPLOYEE",
+    "description": "Create a new employee",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "POST",
+      "endpoint": "https://api.holded.com/api/team/v1/employees"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "header": {
+          "type": "object",
+          "description": "Headers for the HTTP request",
+          "properties": {
+            "Content-Type": {
+              "type": "string",
+              "description": "Content-Type header",
+              "default": "application/json"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "Content-Type"
+          ],
+          "visible": []
+        },
+        "body": {
+          "type": "object",
+          "description": "Employee creation parameters",
+          "properties": {
+            "name": {
+              "type": "string",
+              "description": "First name of the employee"
+            },
+            "lastName": {
+              "type": "string",
+              "description": "Last name of the employee"
+            },
+            "email": {
+              "type": "string",
+              "description": "Email address of the employee"
+            },
+            "sendInvite": {
+              "type": "boolean",
+              "description": "Whether to send an invite email to the employee",
+              "default": true
+            }
+          },
+          "required": [
+            "name",
+            "lastName",
+            "email"
+          ],
+          "visible": [
+            "name",
+            "lastName",
+            "email",
+            "sendInvite"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "header",
+        "body"
+      ],
+      "visible": [
+        "body"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "HOLDED__GET_EMPLOYEE",
+    "description": "Get details of a specific employee",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "GET",
+      "endpoint": "https://api.holded.com/api/team/v1/employees/{employeeId}"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "header": {
+          "type": "object",
+          "description": "Headers for the HTTP request",
+          "properties": {
+            "Content-Type": {
+              "type": "string",
+              "description": "Content-Type header",
+              "default": "application/json"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "Content-Type"
+          ],
+          "visible": []
+        },
+        "path": {
+          "type": "object",
+          "description": "Path parameters",
+          "properties": {
+            "employeeId": {
+              "type": "string",
+              "description": "ID of the employee to retrieve"
+            }
+          },
+          "required": [
+            "employeeId"
+          ],
+          "visible": [
+            "employeeId"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "header",
+        "path"
+      ],
+      "visible": [
+        "path"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "HOLDED__UPDATE_EMPLOYEE",
+    "description": "Update an existing employee's information",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "PUT",
+      "endpoint": "https://api.holded.com/api/team/v1/employees/{employeeId}"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "header": {
+          "type": "object",
+          "description": "Headers for the HTTP request",
+          "properties": {
+            "Content-Type": {
+              "type": "string",
+              "description": "Content-Type header",
+              "default": "application/json"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "Content-Type"
+          ],
+          "visible": []
+        },
+        "path": {
+          "type": "object",
+          "description": "Path parameters",
+          "properties": {
+            "employeeId": {
+              "type": "string",
+              "description": "ID of the employee to update"
+            }
+          },
+          "required": [
+            "employeeId"
+          ],
+          "visible": [
+            "employeeId"
+          ],
+          "additionalProperties": false
+        },
+        "body": {
+          "type": "object",
+          "description": "Employee update parameters",
+          "properties": {
+            "name": {
+              "type": "string",
+              "description": "First name of the employee"
+            },
+            "lastName": {
+              "type": "string",
+              "description": "Last name of the employee"
+            },
+            "mainEmail": {
+              "type": "string",
+              "description": "Main email address of the employee"
+            },
+            "email": {
+              "type": "string",
+              "description": "Email address of the employee"
+            },
+            "nationality": {
+              "type": "string",
+              "description": "Nationality of the employee"
+            },
+            "phone": {
+              "type": "string",
+              "description": "Phone number of the employee"
+            },
+            "mobile": {
+              "type": "string",
+              "description": "Mobile phone number of the employee"
+            },
+            "dateOfBirth": {
+              "type": "string",
+              "description": "Date of birth in format dd/mm/yyyy"
+            },
+            "gender": {
+              "type": "string",
+              "description": "Gender of the employee",
+              "enum": [
+                "male",
+                "female"
+              ]
+            },
+            "mainLanguage": {
+              "type": "string",
+              "description": "Main language of the employee",
+              "enum": [
+                "English",
+                "English(UK)",
+                "English(US)",
+                "English(Canada)",
+                "Spanish",
+                "Spanish(Spain)",
+                "Spanish(Mexico)",
+                "Spanish(Argentina)",
+                "Spanish(Colombia)",
+                "Portuguese",
+                "Portuguese(Portugal)",
+                "Portuguese(Brazil)",
+                "Catalan",
+                "Galician",
+                "Euskera",
+                "French",
+                "German(Deutsch)",
+                "Italian",
+                "Greek",
+                "Swedish",
+                "Dutch",
+                "Finnish",
+                "Irish",
+                "Norwegian",
+                "Danish",
+                "Czech",
+                "Croatian",
+                "Russian",
+                "Polish"
+              ]
+            },
+            "iban": {
+              "type": "string",
+              "description": "International Bank Account Number"
+            },
+            "code": {
+              "type": "string",
+              "description": "Employee code or NIF"
+            },
+            "socialSecurityNum": {
+              "type": "string",
+              "description": "Social security number"
+            },
+            "address": {
+              "type": "object",
+              "description": "Employee's address information",
+              "properties": {
+                "address": {
+                  "type": "string",
+                  "description": "Street address"
+                },
+                "city": {
+                  "type": "string",
+                  "description": "City"
+                },
+                "postalCode": {
+                  "type": "string",
+                  "description": "Postal or ZIP code"
+                },
+                "province": {
+                  "type": "string",
+                  "description": "Province or state"
+                },
+                "country": {
+                  "type": "string",
+                  "description": "Country"
+                }
+              },
+              "required": [],
+              "visible": [
+                "address",
+                "city",
+                "postalCode",
+                "province",
+                "country"
+              ],
+              "additionalProperties": false
+            },
+            "fiscalResidence": {
+              "type": "boolean",
+              "description": "Whether the fiscal residence is the same as the regular address"
+            },
+            "timeOffPolicyId": {
+              "type": "string",
+              "description": "ID of the time off policy for the employee"
+            },
+            "timeOffSupervisors": {
+              "type": "array",
+              "description": "List of employee IDs who are supervisors for time off",
+              "items": {
+                "type": "string"
+              }
+            },
+            "reportingTo": {
+              "type": "string",
+              "description": "ID of the employee this employee reports to"
+            },
+            "fiscalAddress": {
+              "type": "object",
+              "description": "Fiscal address information. This object is only used when fiscalResidence is set to false.",
+              "properties": {
+                "idNum": {
+                  "type": "string",
+                  "description": "Identification number"
+                },
+                "address": {
+                  "type": "string",
+                  "description": "Street address"
+                },
+                "city": {
+                  "type": "string",
+                  "description": "City"
+                },
+                "cityOfBirth": {
+                  "type": "string",
+                  "description": "City of birth"
+                },
+                "postalCode": {
+                  "type": "string",
+                  "description": "Postal or ZIP code"
+                },
+                "province": {
+                  "type": "string",
+                  "description": "Province or state"
+                },
+                "country": {
+                  "type": "string",
+                  "description": "Country"
+                },
+                "countryOfBirth": {
+                  "type": "string",
+                  "description": "Country of birth"
+                },
+                "endSituationDate": {
+                  "type": "string",
+                  "description": "End date of the situation"
+                }
+              },
+              "required": [],
+              "visible": [
+                "idNum",
+                "address",
+                "city",
+                "cityOfBirth",
+                "postalCode",
+                "province",
+                "country",
+                "countryOfBirth",
+                "endSituationDate"
+              ],
+              "additionalProperties": false
+            },
+            "workplace": {
+              "type": "string",
+              "description": "ID of the workplace"
+            },
+            "holdedUserId": {
+              "type": "string",
+              "description": "Holded user ID"
+            },
+            "teams": {
+              "type": "array",
+              "description": "List of team IDs the employee belongs to",
+              "items": {
+                "type": "string"
+              }
+            }
+          },
+          "required": [],
+          "visible": [
+            "name",
+            "lastName",
+            "mainEmail",
+            "email",
+            "nationality",
+            "phone",
+            "mobile",
+            "dateOfBirth",
+            "gender",
+            "mainLanguage",
+            "iban",
+            "code",
+            "socialSecurityNum",
+            "address",
+            "fiscalResidence",
+            "fiscalAddress",
+            "workplace",
+            "teams",
+            "timeOffPolicyId",
+            "timeOffSupervisors",
+            "reportingTo",
+            "holdedUserId"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "header",
+        "path",
+        "body"
+      ],
+      "visible": [
+        "path",
+        "body"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "HOLDED__DELETE_EMPLOYEE",
+    "description": "Delete an employee",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "DELETE",
+      "endpoint": "https://api.holded.com/api/team/v1/employees/{employeeId}"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "header": {
+          "type": "object",
+          "description": "Headers for the HTTP request",
+          "properties": {
+            "Content-Type": {
+              "type": "string",
+              "description": "Content-Type header",
+              "default": "application/json"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "Content-Type"
+          ],
+          "visible": []
+        },
+        "path": {
+          "type": "object",
+          "description": "Path parameters",
+          "properties": {
+            "employeeId": {
+              "type": "string",
+              "description": "ID of the employee to delete"
+            }
+          },
+          "required": [
+            "employeeId"
+          ],
+          "visible": [
+            "employeeId"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "header",
+        "path"
+      ],
+      "visible": [
+        "path"
+      ],
+      "additionalProperties": false
+    }
+  }
+]

@@ -1,0 +1,914 @@
+[
+  {
+    "name": "X__GET_POST_BY_ID",
+    "description": "Retrieve a specific post by its ID. Returns detailed post information including metrics and context.",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "GET_POST_BY_ID",
+      "canonical_tool_description_hash": "ca2575510c8c795f8ccc93c88a980f66b046bed5234aa6ed1312c50ab7ce855a",
+      "canonical_tool_input_schema_hash": "2cb542d7d10d55d58d0d7554fd793dfce4e603a4bef0ccae5117a88b9c56b755"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["path"],
+      "properties": {
+        "path": {
+          "type": "object",
+          "required": ["id"],
+          "properties": {
+            "id": {
+              "type": "string",
+              "description": "The ID of the post to retrieve"
+            }
+          },
+          "description": "Path parameters",
+          "additionalProperties": false
+        },
+        "query": {
+          "type": "object",
+          "required": [],
+          "properties": {
+            "user.fields": {
+              "type": "string",
+              "default": "id,name,username,verified",
+              "description": "Comma-separated list of user fields to include"
+            },
+            "tweet.fields": {
+              "type": "string",
+              "default": "id,text,author_id,created_at,public_metrics,context_annotations",
+              "description": "Comma-separated list of tweet fields to include"
+            }
+          },
+          "description": "Query parameters",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "X__GET_POSTS_BY_IDS",
+    "description": "Retrieve multiple posts by their IDs. Returns detailed information for up to 100 posts.",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "GET_POSTS_BY_IDS",
+      "canonical_tool_description_hash": "2e431886998d2f58865376573da7503ab4055233ddd8b5b45f8025e804ac2854",
+      "canonical_tool_input_schema_hash": "d573d5582c3b38384facf798624ebe876bb9c02ac2945adc42379525e20fa46e"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["query"],
+      "properties": {
+        "query": {
+          "type": "object",
+          "required": ["ids"],
+          "properties": {
+            "ids": {
+              "type": "string",
+              "description": "Comma-separated list of post IDs (up to 100)"
+            },
+            "user.fields": {
+              "type": "string",
+              "default": "id,name,username",
+              "description": "Comma-separated list of user fields to include"
+            },
+            "tweet.fields": {
+              "type": "string",
+              "default": "id,text,author_id,created_at,public_metrics",
+              "description": "Comma-separated list of tweet fields to include"
+            }
+          },
+          "description": "Query parameters",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "X__SEARCH_POSTS",
+    "description": "Search for posts published in the last 7 days using a query. Returns matching posts with comprehensive metadata.",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "SEARCH_POSTS",
+      "canonical_tool_description_hash": "aae49c961ab425bdbddfb0230633d72271d65aa150a46bbd2e2c757a7ffa0881",
+      "canonical_tool_input_schema_hash": "5ac02149fcf1529d8cd866156c8e9e01b7024d446e0f35404a60493ffd0b23f8"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["query"],
+      "properties": {
+        "query": {
+          "type": "object",
+          "required": ["query"],
+          "properties": {
+            "query": {
+              "type": "string",
+              "description": "Search query string. Supports boolean operators, hashtags, mentions, and advanced search syntax."
+            },
+            "max_results": {
+              "type": "integer",
+              "default": 10,
+              "maximum": 100,
+              "minimum": 10,
+              "description": "Maximum number of results to return (10-100, default: 10)"
+            },
+            "user.fields": {
+              "type": "string",
+              "default": "id,name,username",
+              "description": "Comma-separated list of user fields to include"
+            },
+            "tweet.fields": {
+              "type": "string",
+              "default": "id,text,author_id,created_at,public_metrics",
+              "description": "Comma-separated list of tweet fields to include"
+            }
+          },
+          "description": "Query parameters for the search",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "X__GET_USER_POSTS",
+    "description": "Get posts from a specific user's timeline. Returns the user's recent posts with engagement metrics.",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "GET_USER_POSTS",
+      "canonical_tool_description_hash": "0f70d310a46166f299504c4bda992d0b60f247ac06c765013894d8cd31694a9e",
+      "canonical_tool_input_schema_hash": "7190756ea36ce660d99743d9850ffd03d146c703cfc9436b40dde5b2d797f1ad"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["path"],
+      "properties": {
+        "path": {
+          "type": "object",
+          "required": ["id"],
+          "properties": {
+            "id": {
+              "type": "string",
+              "description": "The ID of the user whose posts to retrieve"
+            }
+          },
+          "description": "Path parameters",
+          "additionalProperties": false
+        },
+        "query": {
+          "type": "object",
+          "required": [],
+          "properties": {
+            "max_results": {
+              "type": "integer",
+              "default": 10,
+              "maximum": 100,
+              "minimum": 5,
+              "description": "Maximum number of posts to return (5-100, default: 10)"
+            },
+            "tweet.fields": {
+              "type": "string",
+              "default": "id,text,created_at,public_metrics,context_annotations",
+              "description": "Comma-separated list of tweet fields to include"
+            }
+          },
+          "description": "Query parameters",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "X__GET_POST_RETWEETS",
+    "description": "Get users who have retweeted a specific post. Returns user information for those who retweeted.",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "GET_POST_RETWEETS",
+      "canonical_tool_description_hash": "d941566cc6d51d955dcc0e787297c5f9c2af10cbdd803674a424a4b75d72a7d2",
+      "canonical_tool_input_schema_hash": "6b68561f701fff00866adc310718ae0a341f983e70eb561bb41c9c47278e59e9"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["path"],
+      "properties": {
+        "path": {
+          "type": "object",
+          "required": ["id"],
+          "properties": {
+            "id": {
+              "type": "string",
+              "description": "The ID of the post to get retweets for"
+            }
+          },
+          "description": "Path parameters",
+          "additionalProperties": false
+        },
+        "query": {
+          "type": "object",
+          "required": [],
+          "properties": {
+            "max_results": {
+              "type": "integer",
+              "default": 100,
+              "maximum": 100,
+              "minimum": 1,
+              "description": "Maximum number of users to return (1-100, default: 100)"
+            },
+            "user.fields": {
+              "type": "string",
+              "default": "id,name,username,public_metrics",
+              "description": "Comma-separated list of user fields to include"
+            }
+          },
+          "description": "Query parameters",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "X__GET_USER_BY_ID",
+    "description": "Retrieve user information by user ID. Returns detailed user profile data including metrics and verification status.",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "GET_USER_BY_ID",
+      "canonical_tool_description_hash": "65b65462dd6846d00314e8d49276d3ff793e23ef5f738718b2f598ab449f8758",
+      "canonical_tool_input_schema_hash": "942f0ea41830f13ae9c3113be27087eb5e0d63ff1ca87d47214a8edb4972bdee"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["path"],
+      "properties": {
+        "path": {
+          "type": "object",
+          "required": ["id"],
+          "properties": {
+            "id": {
+              "type": "string",
+              "description": "The ID of the user to retrieve"
+            }
+          },
+          "description": "Path parameters",
+          "additionalProperties": false
+        },
+        "query": {
+          "type": "object",
+          "required": [],
+          "properties": {
+            "user.fields": {
+              "type": "string",
+              "default": "id,name,username,description,public_metrics,verified,created_at",
+              "description": "Comma-separated list of user fields to include"
+            }
+          },
+          "description": "Query parameters",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "X__GET_USERS_BY_IDS",
+    "description": "Retrieve multiple users by their IDs. Returns detailed user profile data for up to 100 users.",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "GET_USERS_BY_IDS",
+      "canonical_tool_description_hash": "b12afcb057bd70e22d4dbbb8cc4e7606a71260c079d6691b8b858256642a21ec",
+      "canonical_tool_input_schema_hash": "bfc2f9d5aa5c4f05a3282240766abd9802f44811ea8087b18968deb80684be58"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["query"],
+      "properties": {
+        "query": {
+          "type": "object",
+          "required": ["ids"],
+          "properties": {
+            "ids": {
+              "type": "string",
+              "description": "Comma-separated list of user IDs (up to 100)"
+            },
+            "user.fields": {
+              "type": "string",
+              "default": "id,name,username,description,public_metrics,verified",
+              "description": "Comma-separated list of user fields to include"
+            }
+          },
+          "description": "Query parameters",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "X__GET_USER_BY_USERNAME",
+    "description": "Retrieve user information by username. Returns detailed user profile data including metrics and verification status.",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "GET_USER_BY_USERNAME",
+      "canonical_tool_description_hash": "6a102171a94c26dc03d300760349f91e5a13497c5a68b93fa70b38e78d4b5ed8",
+      "canonical_tool_input_schema_hash": "2d0bc1abfda9e51a3b2f61e4fb692292af15ecd39459b085ecb4aafb9d73c35a"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["path"],
+      "properties": {
+        "path": {
+          "type": "object",
+          "required": ["username"],
+          "properties": {
+            "username": {
+              "type": "string",
+              "description": "The username (handle) of the user to retrieve, without the @ symbol"
+            }
+          },
+          "description": "Path parameters",
+          "additionalProperties": false
+        },
+        "query": {
+          "type": "object",
+          "required": [],
+          "properties": {
+            "user.fields": {
+              "type": "string",
+              "default": "id,name,username,description,public_metrics,verified,created_at",
+              "description": "Comma-separated list of user fields to include"
+            }
+          },
+          "description": "Query parameters",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "X__GET_USERS_BY_USERNAMES",
+    "description": "Retrieve multiple users by their usernames. Returns detailed user profile data for up to 100 users.",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "GET_USERS_BY_USERNAMES",
+      "canonical_tool_description_hash": "a25b4ac0803fca9544e25f2a76c9fc9bbb9ae618595e2d1f0687e80827422f68",
+      "canonical_tool_input_schema_hash": "882acea35fee4236a64ada268085c2f4cb6282fdcbffd13334b1d19416a354c2"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["query"],
+      "properties": {
+        "query": {
+          "type": "object",
+          "required": ["usernames"],
+          "properties": {
+            "usernames": {
+              "type": "string",
+              "description": "Comma-separated list of usernames (up to 100, without @ symbol)"
+            },
+            "user.fields": {
+              "type": "string",
+              "default": "id,name,username,description,public_metrics,verified",
+              "description": "Comma-separated list of user fields to include"
+            }
+          },
+          "description": "Query parameters",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "X__GET_LIST_BY_ID",
+    "description": "Retrieve detailed information about a specific list by its ID. Returns list metadata and settings.",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "GET_LIST_BY_ID",
+      "canonical_tool_description_hash": "241fbd1bf6c7c97776e329196599816a08292790f5d48095113c258108ca6bfb",
+      "canonical_tool_input_schema_hash": "07775e14d755ddccb5076f522376bd2a1a619bce16454db1b29fa47d374a03b5"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["path"],
+      "properties": {
+        "path": {
+          "type": "object",
+          "required": ["id"],
+          "properties": {
+            "id": {
+              "type": "string",
+              "description": "The ID of the list to retrieve"
+            }
+          },
+          "description": "Path parameters",
+          "additionalProperties": false
+        },
+        "query": {
+          "type": "object",
+          "required": [],
+          "properties": {
+            "list.fields": {
+              "type": "string",
+              "default": "id,name,description,member_count,private,owner_id",
+              "description": "Comma-separated list of list fields to include"
+            },
+            "user.fields": {
+              "type": "string",
+              "default": "id,name,username",
+              "description": "Comma-separated list of user fields to include"
+            }
+          },
+          "description": "Query parameters",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "X__GET_USER_OWNED_LISTS",
+    "description": "Get lists owned by a specific user. Returns list information for lists they created.",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "GET_USER_OWNED_LISTS",
+      "canonical_tool_description_hash": "ba31d37e6acff40b7f0929530be392aa9f838b268e95baeccb8152b3ec06b246",
+      "canonical_tool_input_schema_hash": "132090f89c9836076e1aba48713793cb3cbe41c743b7c17ad9ff8c2175becc99"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["path"],
+      "properties": {
+        "path": {
+          "type": "object",
+          "required": ["id"],
+          "properties": {
+            "id": {
+              "type": "string",
+              "description": "The ID of the user whose owned lists to retrieve"
+            }
+          },
+          "description": "Path parameters",
+          "additionalProperties": false
+        },
+        "query": {
+          "type": "object",
+          "required": [],
+          "properties": {
+            "list.fields": {
+              "type": "string",
+              "default": "id,name,description,member_count,private",
+              "description": "Comma-separated list of list fields to include"
+            },
+            "max_results": {
+              "type": "integer",
+              "default": 100,
+              "maximum": 100,
+              "minimum": 1,
+              "description": "Maximum number of lists to return (1-100, default: 100)"
+            }
+          },
+          "description": "Query parameters",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "X__GET_LIST_POSTS",
+    "description": "Get posts from a specific list. Returns recent posts from list members.",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "GET_LIST_POSTS",
+      "canonical_tool_description_hash": "9d58144f524cc1bbe50224dca1aa94229d7f59e0fc57556af7cd558d89ba87aa",
+      "canonical_tool_input_schema_hash": "fafc5ad0b33bf0d7c6095df9cf42e5cbad2a03eaad8cf516989dd8921233679f"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["path"],
+      "properties": {
+        "path": {
+          "type": "object",
+          "required": ["id"],
+          "properties": {
+            "id": {
+              "type": "string",
+              "description": "The ID of the list whose posts to retrieve"
+            }
+          },
+          "description": "Path parameters",
+          "additionalProperties": false
+        },
+        "query": {
+          "type": "object",
+          "required": [],
+          "properties": {
+            "max_results": {
+              "type": "integer",
+              "default": 100,
+              "maximum": 100,
+              "minimum": 5,
+              "description": "Maximum number of posts to return (5-100, default: 100)"
+            },
+            "user.fields": {
+              "type": "string",
+              "default": "id,name,username",
+              "description": "Comma-separated list of user fields to include"
+            },
+            "tweet.fields": {
+              "type": "string",
+              "default": "id,text,author_id,created_at,public_metrics",
+              "description": "Comma-separated list of tweet fields to include"
+            }
+          },
+          "description": "Query parameters",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "X__GET_LIST_MEMBERS",
+    "description": "Get members of a specific list. Returns user information for list members.",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "GET_LIST_MEMBERS",
+      "canonical_tool_description_hash": "318ba5f28ed1239ed799ebda84c9c12b52b7c352440f05c53c68c3019ae0f964",
+      "canonical_tool_input_schema_hash": "f6973acace1bb9cccf98f48a259afdd713ff5e0eb1709f0ad8ea63af1fb50088"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["path"],
+      "properties": {
+        "path": {
+          "type": "object",
+          "required": ["id"],
+          "properties": {
+            "id": {
+              "type": "string",
+              "description": "The ID of the list whose members to retrieve"
+            }
+          },
+          "description": "Path parameters",
+          "additionalProperties": false
+        },
+        "query": {
+          "type": "object",
+          "required": [],
+          "properties": {
+            "max_results": {
+              "type": "integer",
+              "default": 100,
+              "maximum": 100,
+              "minimum": 1,
+              "description": "Maximum number of members to return (1-100, default: 100)"
+            },
+            "user.fields": {
+              "type": "string",
+              "default": "id,name,username,description,public_metrics",
+              "description": "Comma-separated list of user fields to include"
+            }
+          },
+          "description": "Query parameters",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "X__GET_USER_LIST_MEMBERSHIPS",
+    "description": "Get lists that a specific user is a member of. Returns list information for their memberships.",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "GET_USER_LIST_MEMBERSHIPS",
+      "canonical_tool_description_hash": "d6b5dcf91c1cb40f0619f4c18614c10aa798b1127c6da0288e62c3919573283f",
+      "canonical_tool_input_schema_hash": "886cbc0251b971f5ca436bde3019347f6d428b1aae56464aad70a3ec6279f88d"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["path"],
+      "properties": {
+        "path": {
+          "type": "object",
+          "required": ["id"],
+          "properties": {
+            "id": {
+              "type": "string",
+              "description": "The ID of the user whose list memberships to retrieve"
+            }
+          },
+          "description": "Path parameters",
+          "additionalProperties": false
+        },
+        "query": {
+          "type": "object",
+          "required": [],
+          "properties": {
+            "list.fields": {
+              "type": "string",
+              "default": "id,name,description,member_count,private,owner_id",
+              "description": "Comma-separated list of list fields to include"
+            },
+            "max_results": {
+              "type": "integer",
+              "default": 100,
+              "maximum": 100,
+              "minimum": 1,
+              "description": "Maximum number of lists to return (1-100, default: 100)"
+            },
+            "user.fields": {
+              "type": "string",
+              "default": "id,name,username",
+              "description": "Comma-separated list of user fields to include"
+            }
+          },
+          "description": "Query parameters",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "X__GET_USER_FOLLOWED_LISTS",
+    "description": "Get lists that a specific user follows. Returns list information for lists they follow.",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "GET_USER_FOLLOWED_LISTS",
+      "canonical_tool_description_hash": "f23f8801eabc6e923fd75fc3b1874852b0924148ceea278739ee7ef0d9e12471",
+      "canonical_tool_input_schema_hash": "bfb2dd27e1b717ce53f943309f3bc0e649e3c306709eb907873da3bbba53738e"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["path"],
+      "properties": {
+        "path": {
+          "type": "object",
+          "required": ["id"],
+          "properties": {
+            "id": {
+              "type": "string",
+              "description": "The ID of the user whose followed lists to retrieve"
+            }
+          },
+          "description": "Path parameters",
+          "additionalProperties": false
+        },
+        "query": {
+          "type": "object",
+          "required": [],
+          "properties": {
+            "list.fields": {
+              "type": "string",
+              "default": "id,name,description,member_count,private,owner_id",
+              "description": "Comma-separated list of list fields to include"
+            },
+            "max_results": {
+              "type": "integer",
+              "default": 100,
+              "maximum": 100,
+              "minimum": 1,
+              "description": "Maximum number of lists to return (1-100, default: 100)"
+            },
+            "user.fields": {
+              "type": "string",
+              "default": "id,name,username",
+              "description": "Comma-separated list of user fields to include"
+            }
+          },
+          "description": "Query parameters",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "X__GET_SPACE_BY_ID",
+    "description": "Retrieve detailed information about a specific Space by its ID. Returns Space metadata and settings.",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "GET_SPACE_BY_ID",
+      "canonical_tool_description_hash": "927d533fac9ffc9eea338ca457739e4bd0dc6cc5c44acaccc2bd1eb335be8d41",
+      "canonical_tool_input_schema_hash": "08273caddea7b13c2b4b0702ab4f8e8249051c751b396d855d27b95c09681a97"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["path"],
+      "properties": {
+        "path": {
+          "type": "object",
+          "required": ["id"],
+          "properties": {
+            "id": {
+              "type": "string",
+              "description": "The ID of the Space to retrieve"
+            }
+          },
+          "description": "Path parameters",
+          "additionalProperties": false
+        },
+        "query": {
+          "type": "object",
+          "required": [],
+          "properties": {
+            "user.fields": {
+              "type": "string",
+              "default": "id,name,username",
+              "description": "Comma-separated list of user fields to include"
+            },
+            "space.fields": {
+              "type": "string",
+              "default": "id,state,created_at,title,host_ids,speaker_ids,participant_count",
+              "description": "Comma-separated list of Space fields to include"
+            }
+          },
+          "description": "Query parameters",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "X__GET_SPACES_BY_IDS",
+    "description": "Retrieve multiple Spaces by their IDs. Returns detailed information for up to 100 Spaces.",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "GET_SPACES_BY_IDS",
+      "canonical_tool_description_hash": "e14d70c57fd88aa18594dc105f0e8906280b1633ea7fe3fe8a54b140abe1e83d",
+      "canonical_tool_input_schema_hash": "0b3e47c31b5b4a113223b77c250c8eda62a69ab0608072a8bb1c00d120b51880"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["query"],
+      "properties": {
+        "query": {
+          "type": "object",
+          "required": ["ids"],
+          "properties": {
+            "ids": {
+              "type": "string",
+              "description": "Comma-separated list of Space IDs (up to 100)"
+            },
+            "user.fields": {
+              "type": "string",
+              "default": "id,name,username",
+              "description": "Comma-separated list of user fields to include"
+            },
+            "space.fields": {
+              "type": "string",
+              "default": "id,state,created_at,title,host_ids,participant_count",
+              "description": "Comma-separated list of Space fields to include"
+            }
+          },
+          "description": "Query parameters",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "X__GET_SPACES_BY_CREATOR_IDS",
+    "description": "Get Spaces created by specific users. Returns Space information for Spaces they created.",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "GET_SPACES_BY_CREATOR_IDS",
+      "canonical_tool_description_hash": "daaf918e79b3906dea983b9d92c0ba40868289b30369a9db39ec4fbf5c8c7e90",
+      "canonical_tool_input_schema_hash": "42bdee974df1908f2bd935c8d551ff9e5968985dd83e0391c7c1e5f0056337c5"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["query"],
+      "properties": {
+        "query": {
+          "type": "object",
+          "required": ["user_ids"],
+          "properties": {
+            "user_ids": {
+              "type": "string",
+              "description": "Comma-separated list of user IDs whose created Spaces to retrieve (up to 100)"
+            },
+            "user.fields": {
+              "type": "string",
+              "default": "id,name,username",
+              "description": "Comma-separated list of user fields to include"
+            },
+            "space.fields": {
+              "type": "string",
+              "default": "id,state,created_at,title,host_ids,participant_count",
+              "description": "Comma-separated list of Space fields to include"
+            }
+          },
+          "description": "Query parameters",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "X__SEARCH_SPACES",
+    "description": "Search for live or scheduled Spaces matching specified search terms. Returns matching Spaces.",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "SEARCH_SPACES",
+      "canonical_tool_description_hash": "47a20fe46ca5b301c7300af5fc1781ba5660468157608c39e003d422aa6faf02",
+      "canonical_tool_input_schema_hash": "8e0bbe320181724720d797cf0bff890c0f2463c0312db76963b763352d96e955"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["query"],
+      "properties": {
+        "query": {
+          "type": "object",
+          "required": ["query"],
+          "properties": {
+            "query": {
+              "type": "string",
+              "description": "Search query for Spaces"
+            },
+            "max_results": {
+              "type": "integer",
+              "default": 10,
+              "maximum": 100,
+              "minimum": 1,
+              "description": "Maximum number of Spaces to return (1-100, default: 10)"
+            },
+            "user.fields": {
+              "type": "string",
+              "default": "id,name,username",
+              "description": "Comma-separated list of user fields to include"
+            },
+            "space.fields": {
+              "type": "string",
+              "default": "id,state,created_at,title,host_ids,participant_count",
+              "description": "Comma-separated list of Space fields to include"
+            }
+          },
+          "description": "Query parameters",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "X__PUBLISH_POST",
+    "description": "Creates and publishes a text post on X.com with optional poll support. For basic text posts, only provide the 'text' field. To create a poll, include both 'text' and 'poll' fields. The poll field should only be included when creating a poll with valid options (2-4 options) and duration.",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "PUBLISH_POST",
+      "canonical_tool_description_hash": "f66b57d7ba5b31d3b2946d97be39ed8b95eeac307af15d57f7551079c43af252",
+      "canonical_tool_input_schema_hash": "c83c6f950ff2e22afe77fce7ec5519a716d603e4856e7afeba495b4b5ff3a799"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["body"],
+      "properties": {
+        "body": {
+          "type": "object",
+          "required": [],
+          "properties": {
+            "poll": {
+              "type": "object",
+              "required": [],
+              "properties": {
+                "options": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "maxItems": 4,
+                  "minItems": 2,
+                  "description": "Poll options (2-4 options required)"
+                },
+                "duration_minutes": {
+                  "type": "integer",
+                  "maximum": 10080,
+                  "minimum": 5,
+                  "description": "Poll duration in minutes (5 minutes to 7 days)"
+                }
+              },
+              "description": "Poll options for a Tweet with a poll. IMPORTANT: Only include this object if you want to create a poll. If not creating a poll, completely omit this field from the request. This is mutually exclusive from Media, Quote Tweet Id, and Card URI.",
+              "additionalProperties": false
+            },
+            "text": {
+              "type": "string",
+              "description": "The content of the Tweet."
+            }
+          },
+          "description": "Request body for creating a post",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+]

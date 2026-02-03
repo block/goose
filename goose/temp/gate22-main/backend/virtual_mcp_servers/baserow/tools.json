@@ -1,0 +1,474 @@
+[
+  {
+    "name": "BASEROW__LIST_TEAMS_FIELDS",
+    "description": "List all fields in the Teams table",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "GET",
+      "endpoint": "https://api.baserow.io/api/database/fields/table/{table_id}/"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "path": {
+          "type": "object",
+          "description": "Path parameters",
+          "properties": {
+            "table_id": {
+              "type": "integer",
+              "description": "The unique identifier of the table"
+            }
+          },
+          "required": [
+            "table_id"
+          ],
+          "visible": [
+            "table_id"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "path"
+      ],
+      "visible": [
+        "path"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "BASEROW__LIST_TEAMS_ROWS",
+    "description": "List all rows in the Teams table with pagination and filtering options",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "GET",
+      "endpoint": "https://api.baserow.io/api/database/rows/table/{table_id}/"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "path": {
+          "type": "object",
+          "description": "Path parameters",
+          "properties": {
+            "table_id": {
+              "type": "integer",
+              "description": "The unique identifier of the table"
+            }
+          },
+          "required": [
+            "table_id"
+          ],
+          "visible": [
+            "table_id"
+          ],
+          "additionalProperties": false
+        },
+        "query": {
+          "type": "object",
+          "description": "Query parameters for filtering and pagination",
+          "properties": {
+            "page": {
+              "type": "integer",
+              "description": "Defines which page of rows should be returned",
+              "default": 1
+            },
+            "size": {
+              "type": "integer",
+              "description": "Defines how many rows should be returned per page",
+              "default": 100
+            },
+            "user_field_names": {
+              "type": "string",
+              "description": "When provided, returns field names instead of field IDs",
+              "enum": [
+                "y",
+                "yes",
+                "true",
+                "t",
+                "on",
+                "1",
+                ""
+              ]
+            },
+            "search": {
+              "type": "string",
+              "description": "If provided, only rows matching the search query are returned"
+            },
+            "order_by": {
+              "type": "string",
+              "description": "Comma-separated list of fields to order by. Prepend with '-' for descending order"
+            },
+            "filters": {
+              "type": "string",
+              "description": "JSON serialized string containing the filter tree to apply"
+            },
+            "filter_type": {
+              "type": "string",
+              "description": "Type of filter combination (AND/OR)",
+              "enum": [
+                "AND",
+                "OR"
+              ],
+              "default": "AND"
+            },
+            "include": {
+              "type": "string",
+              "description": "Comma-separated list of fields to include in results"
+            },
+            "exclude": {
+              "type": "string",
+              "description": "Comma-separated list of fields to exclude from results"
+            },
+            "view_id": {
+              "type": "integer",
+              "description": "ID of the view to apply its filters and sorts"
+            },
+            "link_row_field__join": {
+              "type": "string",
+              "description": "Comma-separated list of fields to lookup from linked tables. Format: {link_field_name}__join={target_field1},{target_field2}"
+            },
+            "field_filters": {
+              "type": "object",
+              "description": "Field-specific filters using the format filter__{field}__{filter}=value",
+              "properties": {
+                "field_name": {
+                  "type": "string",
+                  "description": "Field name or field ID (e.g., 'Name' or 'field_1')"
+                },
+                "filter_type": {
+                  "type": "string",
+                  "description": "Type of filter to apply",
+                  "enum": [
+                    "equal",
+                    "not_equal",
+                    "contains",
+                    "not_contains",
+                    "empty",
+                    "not_empty",
+                    "before",
+                    "after",
+                    "higher_than",
+                    "lower_than"
+                  ]
+                },
+                "value": {
+                  "type": "string",
+                  "description": "Value to filter by"
+                }
+              },
+              "required": [
+                "field_name",
+                "filter_type",
+                "value"
+              ],
+              "visible": [
+                "field_name",
+                "filter_type",
+                "value"
+              ],
+              "additionalProperties": true
+            }
+          },
+          "required": [],
+          "visible": [
+            "page",
+            "size",
+            "user_field_names",
+            "search",
+            "order_by",
+            "filters",
+            "filter_type",
+            "include",
+            "exclude",
+            "view_id",
+            "link_row_field__join",
+            "field_filters"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "path"
+      ],
+      "visible": [
+        "path",
+        "query"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "BASEROW__GET_TEAMS_ROW",
+    "description": "Get a single row from the Teams table",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "GET",
+      "endpoint": "https://api.baserow.io/api/database/rows/table/{table_id}/{row_id}/"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "path": {
+          "type": "object",
+          "description": "Path parameters",
+          "properties": {
+            "table_id": {
+              "type": "integer",
+              "description": "The unique identifier of the table"
+            },
+            "row_id": {
+              "type": "integer",
+              "description": "The unique identifier of the row that is requested"
+            }
+          },
+          "required": [
+            "table_id",
+            "row_id"
+          ],
+          "visible": [
+            "table_id",
+            "row_id"
+          ],
+          "additionalProperties": false
+        },
+        "query": {
+          "type": "object",
+          "description": "Query parameters",
+          "properties": {
+            "user_field_names": {
+              "type": "string",
+              "description": "When provided, returns field names instead of field IDs",
+              "enum": [
+                "y",
+                "yes",
+                "true",
+                "t",
+                "on",
+                "1",
+                ""
+              ]
+            }
+          },
+          "required": [],
+          "visible": [
+            "user_field_names"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "path"
+      ],
+      "visible": [
+        "path",
+        "query"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "BASEROW__CREATE_TEAMS_ROW",
+    "description": "Create a new row in the Teams table",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "POST",
+      "endpoint": "https://api.baserow.io/api/database/rows/table/{table_id}/"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "path": {
+          "type": "object",
+          "description": "Path parameters",
+          "properties": {
+            "table_id": {
+              "type": "integer",
+              "description": "The unique identifier of the table"
+            }
+          },
+          "required": [
+            "table_id"
+          ],
+          "visible": [
+            "table_id"
+          ],
+          "additionalProperties": false
+        },
+        "query": {
+          "type": "object",
+          "description": "Query parameters",
+          "properties": {
+            "user_field_names": {
+              "type": "string",
+              "description": "When provided, returns field names instead of field IDs",
+              "enum": [
+                "y",
+                "yes",
+                "true",
+                "t",
+                "on",
+                "1",
+                ""
+              ]
+            },
+            "before": {
+              "type": "integer",
+              "description": "If provided, the new row will be positioned before the row with this ID"
+            },
+            "send_webhook_events": {
+              "type": "string",
+              "description": "Trigger webhooks after the operation",
+              "enum": [
+                "y",
+                "yes",
+                "true",
+                "t",
+                "on",
+                "1",
+                ""
+              ],
+              "default": "true"
+            }
+          },
+          "required": [],
+          "visible": [
+            "user_field_names",
+            "before",
+            "send_webhook_events"
+          ],
+          "additionalProperties": false
+        },
+        "body": {
+          "type": "object",
+          "description": "Row data to create",
+          "properties": {
+            "Name": {
+              "type": "string",
+              "description": "Team name"
+            }
+          },
+          "required": [
+            "Name"
+          ],
+          "visible": [
+            "Name"
+          ],
+          "additionalProperties": true
+        }
+      },
+      "required": [
+        "path",
+        "body"
+      ],
+      "visible": [
+        "path",
+        "query",
+        "body"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "BASEROW__UPDATE_TEAMS_ROW",
+    "description": "Update an existing row in the Teams table",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "PATCH",
+      "endpoint": "https://api.baserow.io/api/database/rows/table/{table_id}/{row_id}/"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "path": {
+          "type": "object",
+          "description": "Path parameters",
+          "properties": {
+            "table_id": {
+              "type": "integer",
+              "description": "The unique identifier of the table"
+            },
+            "row_id": {
+              "type": "integer",
+              "description": "The unique identifier of the row that needs to be updated"
+            }
+          },
+          "required": [
+            "table_id",
+            "row_id"
+          ],
+          "visible": [
+            "table_id",
+            "row_id"
+          ],
+          "additionalProperties": false
+        },
+        "query": {
+          "type": "object",
+          "description": "Query parameters",
+          "properties": {
+            "user_field_names": {
+              "type": "string",
+              "description": "When provided, returns field names instead of field IDs",
+              "enum": [
+                "y",
+                "yes",
+                "true",
+                "t",
+                "on",
+                "1",
+                ""
+              ]
+            },
+            "send_webhook_events": {
+              "type": "string",
+              "description": "Trigger webhooks after the operation",
+              "enum": [
+                "y",
+                "yes",
+                "true",
+                "t",
+                "on",
+                "1",
+                ""
+              ],
+              "default": "true"
+            }
+          },
+          "required": [],
+          "visible": [
+            "user_field_names",
+            "send_webhook_events"
+          ],
+          "additionalProperties": false
+        },
+        "body": {
+          "type": "object",
+          "description": "Row data to update",
+          "properties": {
+            "Name": {
+              "type": "string",
+              "description": "Team name"
+            }
+          },
+          "required": [],
+          "visible": [
+            "Name"
+          ],
+          "additionalProperties": true
+        }
+      },
+      "required": [
+        "path",
+        "body"
+      ],
+      "visible": [
+        "path",
+        "query",
+        "body"
+      ],
+      "additionalProperties": false
+    }
+  }
+]

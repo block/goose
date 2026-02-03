@@ -1,0 +1,23 @@
+### 3. Visualize in Langfuse
+
+Once your LLM application is instrumented, you can explore the telemetry data in Langfuse:
+
+1. **Navigate to Langfuse**: Go to your [Langfuse Dashboard](https://cloud.langfuse.com) (or your self-hosted instance)
+2. **Explore Traces**: Click on **Traces** in the sidebar to view your AI application traces
+3. **View Detailed Traces**: Each trace includes:
+   - **LLM requests** with detailed timing and token usage
+   - **Model performance** analytics and latency metrics
+   - **Request/response payloads** for debugging
+   - **Cost tracking** and token consumption
+   - **Hierarchical spans** showing the complete request flow
+4. **Sessions and Users**: Link traces to user sessions for comprehensive observability
+5. **Datasets and Evaluations**: Use Langfuse's evaluation features to assess model performance
+6. **Analytics Dashboard**: Monitor trends, costs, and performance over time
+
+<Frame>
+  <img src="https://langfuse.com/images/cookbook/otel-integration-openlit/openlit-openai-trace.png" />
+</Frame>
+
+**Example**: You can view this [sample trace](https://cloud.langfuse.com/project/cloramnkj0002jz088vzn1ja4/traces/64902f6a5b4f27738be939b7ad38eab3?timestamp=2025-02-02T22%3A09%3A53.053Z) to see how OpenLIT traces appear in Langfuse.
+
+Your OpenLIT-instrumented AI applications will appear automatically in Langfuse with comprehensive observability including LLM costs, token usage, model performance, and detailed execution traces with full context and debugging capabilities.

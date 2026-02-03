@@ -1,0 +1,36 @@
+from beeai_framework.agents.react import ReActAgent
+from beeai_framework.agents.types import AgentMeta
+from beeai_framework.memory import TokenMemory, UnconstrainedMemory
+from beeai_framework.backend.chat import ChatModel
+from beeai_framework.tools.tool import Tool
+
+class WeatherAgentInitializer:
+    """Agent that provides weather information for locations.
+    This agent can answer questions about current weather, forecasts, and historical weather data."""
+    
+    @staticmethod
+    def create_agent(llm: ChatModel, tools: List[Tool] = None) -> ReActAgent:
+        # Define which tools the agent will use (if they're not provided)
+        if tools is None:
+            # No tools available - this is just an example
+            tools = []
+        
+        # Create agent metadata
+        meta = AgentMeta(
+            name="WeatherAgent",
+            description=(
+                "I am a weather assistant that can provide current weather conditions, "
+                "forecasts, and historical weather data for locations around the world."
+            ),
+            tools=tools
+        )
+        
+        # Create the agent with proper memory
+        agent = ReActAgent(
+            llm=llm,
+            tools=tools,
+            memory=TokenMemory(llm),
+            meta=meta
+        )
+        
+        return agent

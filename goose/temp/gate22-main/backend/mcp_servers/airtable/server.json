@@ -1,0 +1,19 @@
+{
+  "name": "AIRTABLE",
+  "url": "https://mcp.aci.dev/virtual/mcp?server_name=AIRTABLE",
+  "transport_type": "streamable_http",
+  "description": "Airtable is a cloud-based platform that combines the functionality of a database with the visual interface of a spreadsheet. It allows users to organize and track information, collaborate with team members, and create custom applications.",
+  "logo": "https://raw.githubusercontent.com/aipotheosis-labs/aipolabs-icons/refs/heads/main/apps/airtable.svg",
+  "categories": ["Data & Analytics", "Productivity"],
+  "auth_configs": [
+    {
+      "type": "api_key",
+      "location": "header",
+      "name": "Authorization",
+      "prefix": "Bearer"
+    }
+  ],
+  "server_metadata": {
+    "is_virtual_mcp_server": true
+  }
+}

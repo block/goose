@@ -1,0 +1,243 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>__TITLE__</title>
+    <script>globalThis.process = { env: { NODE_ENV: "production" } };</script>
+    <script src="https://unpkg.com/@babel/standalone@7.26.0/babel.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+    <style>
+      :root {
+        /* Core colors */
+        --vibes-black: #0f172a;
+        --vibes-white: #ffffff;
+        --vibes-near-black: #1a1a1a;
+        --vibes-cream: #fffff0;
+
+        /* Gray scale */
+        --vibes-gray-lightest: #f1f5f9;
+        --vibes-gray-ultralight: #f8fafc;
+        --vibes-gray-mid: #555555;
+
+        /* Menu colors */
+        --vibes-menu-bg: #CCCDC8;
+        --vibes-menu-grid: rgba(255, 255, 255, 0.5);
+
+        /* Button variant colors */
+        --vibes-variant-blue: #009ACE;
+        --vibes-variant-red: #DA291C;
+        --vibes-variant-yellow: #DA291C;
+        --vibes-variant-gray: #6b7280;
+
+        /* Button styling */
+        --vibes-button-bg: var(--vibes-cream);
+        --vibes-button-text: var(--vibes-near-black);
+        --vibes-button-border: var(--vibes-near-black);
+        --vibes-button-icon-bg: #fff;
+        --vibes-button-icon-fill: #2a2a2a;
+
+        /* Dark-aware button variants (for components using ignoreDarkMode=false) */
+        --vibes-button-bg-dark-aware: var(--vibes-cream);
+        --vibes-button-text-dark-aware: var(--vibes-near-black);
+        --vibes-button-border-dark-aware: var(--vibes-near-black);
+        --vibes-button-icon-bg-dark-aware: var(--vibes-white);
+
+        /* Card colors */
+        --vibes-card-bg: var(--vibes-cream);
+        --vibes-card-text: var(--vibes-near-black);
+        --vibes-card-border: var(--vibes-near-black);
+
+        /* Status colors */
+        --vibes-green: #22c55e;
+        --vibes-red-accent: #ef4444;
+        --vibes-yellow-accent: #eab308;
+        --vibes-shadow-color: rgba(0, 0, 0, 0.2);
+
+        /* Text colors */
+        --vibes-text-primary: var(--vibes-near-black);
+
+        /* Landing page theming (customize these for brand) */
+        --landing-accent: #0f172a;
+        --landing-accent-hover: #1e293b;
+
+        /* Admin dashboard theming */
+        --admin-bg: oklch(0.97 0.01 250);
+        --admin-card-bg: white;
+        --admin-text: #0f172a;
+        --admin-text-muted: #64748b;
+        --admin-accent: oklch(0.6 0.2 145);
+        --admin-border: #0f172a;
+        --admin-shadow: #0f172a;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --vibes-button-bg-dark-aware: #2a2a2a;
+          --vibes-button-text-dark-aware: var(--vibes-gray-ultralight);
+          --vibes-button-border-dark-aware: var(--vibes-gray-mid);
+          --vibes-button-icon-bg-dark-aware: #404040;
+        }
+      }
+
+      /* Admin menu overrides - scoped to VibesPanel in HiddenMenuWrapper */
+      #hidden-menu {
+        /* Gray scale needed by components */
+        --vibes-gray-lighter: #cccccc;
+        --vibes-gray-pale: #e5e5e5;
+        --vibes-gray-dark: #333333;
+
+        /* Variant colors (fix yellow being red) */
+        --vibes-variant-blue: #3b82f6;
+        --vibes-variant-red: #ef4444;
+        --vibes-variant-yellow: #eab308;
+
+        /* Button styling */
+        --vibes-button-bg: var(--vibes-cream);
+        --vibes-button-text: var(--vibes-near-black);
+        --vibes-button-border: var(--vibes-near-black);
+        --vibes-button-icon-bg: #2a2a2a;
+        --vibes-button-icon-fill: var(--vibes-white);
+
+        /* Dark-aware variants (used when ignoreDarkMode=false) */
+        --vibes-button-bg-dark-aware: var(--vibes-cream);
+        --vibes-button-text-dark-aware: var(--vibes-near-black);
+        --vibes-button-border-dark-aware: var(--vibes-near-black);
+        --vibes-button-icon-bg-dark-aware: var(--vibes-white);
+
+        /* Card styling */
+        --vibes-card-bg: var(--vibes-gray-pale);
+        --vibes-card-text: var(--vibes-near-black);
+        --vibes-card-border: var(--vibes-near-black);
+
+        /* Text */
+        --vibes-text-primary: var(--vibes-gray-dark);
+
+        /* Shadows */
+        --vibes-shadow-color: var(--vibes-near-black);
+      }
+
+      @media (prefers-color-scheme: dark) {
+        #hidden-menu {
+          --vibes-button-bg-dark-aware: #2a2a2a;
+          --vibes-button-text-dark-aware: var(--vibes-gray-ultralight);
+          --vibes-button-border-dark-aware: var(--vibes-gray-mid);
+          --vibes-button-icon-bg-dark-aware: #404040;
+          --vibes-card-bg: var(--vibes-near-black);
+          --vibes-card-text: var(--vibes-white);
+          --vibes-card-border: var(--vibes-gray-mid);
+        }
+      }
+
+      body {
+        margin: 0;
+        padding: 0;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      }
+      #container {
+        width: 100%;
+        height: 100vh;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="container"></div>
+    <script type="importmap">
+      {
+        "imports": {
+          "react": "https://esm.sh/stable/react@19.2.4",
+          "react/jsx-runtime": "https://esm.sh/stable/react@19.2.4/jsx-runtime",
+          "react/jsx-dev-runtime": "https://esm.sh/stable/react@19.2.4/jsx-dev-runtime",
+          "react-dom": "https://esm.sh/stable/react-dom@19.2.4",
+          "react-dom/client": "https://esm.sh/stable/react-dom@19.2.4/client",
+          "multiformats": "https://esm.sh/stable/multiformats@13.3.1",
+          "multiformats/": "https://esm.sh/stable/multiformats@13.3.1/",
+          "@ipld/dag-cbor": "https://esm.sh/stable/@ipld/dag-cbor@9.2.2?external=multiformats",
+          "@ipld/dag-json": "https://esm.sh/stable/@ipld/dag-json@10.2.3?external=multiformats",
+          "@clerk/clerk-react": "https://esm.sh/stable/@clerk/clerk-react@5.59.2?external=react,react-dom",
+          "use-fireproof": "/fireproof-clerk-bundle.js",
+          "@fireproof/clerk": "/fireproof-clerk-bundle.js"
+        }
+      }
+    </script>
+    <!-- Connect configuration - populated by assemble.js from .env -->
+    <script>
+      window.__VIBES_CONFIG__ = {
+        tokenApiUri: "__VITE_API_URL__",
+        cloudBackendUrl: "__VITE_CLOUD_URL__",
+        clerkPublishableKey: "__VITE_CLERK_PUBLISHABLE_KEY__"
+      };
+    </script>
+    <!-- Load React globally for menu components -->
+    <script type="module">
+      import * as React from "react";
+      window.React = React;
+
+      // === COMPONENTS_PLACEHOLDER ===
+
+      // === useAI Hook ===
+      // AI hook for proxied OpenRouter calls with metering
+      function useAI() {
+        const [loading, setLoading] = React.useState(false);
+        const [error, setError] = React.useState(null);
+
+        const callAI = React.useCallback(async (options) => {
+          setLoading(true);
+          setError(null);
+
+          try {
+            // Get auth token if Clerk is available (sell apps)
+            let authHeader = {};
+            if (typeof window !== 'undefined' && window.Clerk?.session) {
+              const token = await window.Clerk.session.getToken();
+              if (token) {
+                authHeader = { 'Authorization': 'Bearer ' + token };
+              }
+            }
+
+            const response = await fetch('/api/ai/chat', {
+              method: 'POST',
+              headers: Object.assign({ 'Content-Type': 'application/json' }, authHeader),
+              body: JSON.stringify(Object.assign({
+                model: options.model || 'anthropic/claude-sonnet-4',
+                messages: options.messages
+              }, options))
+            });
+
+            // Handle limit exceeded (402 from OpenRouter)
+            if (response.status === 402) {
+              const err = { code: 'LIMIT_EXCEEDED', message: 'AI usage limit reached for this month.' };
+              setError(err);
+              throw err;
+            }
+
+            // Handle other errors
+            if (!response.ok) {
+              const errorData = await response.json().catch(function() { return {}; });
+              const err = {
+                code: 'API_ERROR',
+                message: (errorData.error && errorData.error.message) || ('API error: ' + response.status),
+                status: response.status
+              };
+              setError(err);
+              throw err;
+            }
+
+            return await response.json();
+
+          } catch (err) {
+            if (!error) {
+              setError({ code: 'NETWORK_ERROR', message: err.message || 'Network error' });
+            }
+            throw err;
+          } finally {
+            setLoading(false);
+          }
+        }, [error]);
+
+        return { callAI: callAI, loading: loading, error: error, clearError: function() { setError(null); } };
+      }
+      window.useAI = useAI;
+    </script>
+    <!-- === DELTA_PLACEHOLDER === -->
+  </body>
+</html>

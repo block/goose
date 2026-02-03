@@ -1,0 +1,782 @@
+[
+  {
+    "name": "SERPAPI__GOOGLE_SEARCH",
+    "description": "Perform web searches using Google Search API",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "GET",
+      "endpoint": "https://serpapi.com/search.json"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "header": {
+          "type": "object",
+          "description": "Headers for the http request",
+          "properties": {
+            "accept": {
+              "type": "string",
+              "description": "Accept header",
+              "default": "application/json"
+            }
+          },
+          "required": [
+            "accept"
+          ],
+          "visible": [],
+          "additionalProperties": false
+        },
+        "query": {
+          "type": "object",
+          "description": "Query parameters for the http request",
+          "properties": {
+            "engine": {
+              "type": "string",
+              "description": "Search engine",
+              "default": "google"
+            },
+            "q": {
+              "type": "string",
+              "description": "Search query"
+            },
+            "num": {
+              "type": "integer",
+              "description": "Number of results to return",
+              "default": 10
+            },
+            "gl": {
+              "type": "string",
+              "description": "Country to search from",
+              "default": "us"
+            },
+            "hl": {
+              "type": "string",
+              "description": "Search language",
+              "default": "en"
+            },
+            "safe": {
+              "type": "string",
+              "description": "Safe search filter",
+              "default": "active"
+            },
+            "start": {
+              "type": "integer",
+              "description": "Starting position for results",
+              "default": 0
+            },
+            "device": {
+              "type": "string",
+              "description": "Device to use for results (desktop, tablet, mobile)",
+              "default": "desktop"
+            },
+            "no_cache": {
+              "type": "boolean",
+              "description": "Force fresh results instead of cached ones",
+              "default": false
+            },
+            "async": {
+              "type": "boolean",
+              "description": "Submit search asynchronously",
+              "default": false
+            },
+            "output": {
+              "type": "string",
+              "description": "Output format (json, html)",
+              "default": "json"
+            },
+            "google_domain": {
+              "type": "string",
+              "description": "Google domain",
+              "default": "google.com"
+            },
+            "location": {
+              "type": "string",
+              "description": "Search location",
+              "default": "United States"
+            },
+            "uule": {
+              "type": "string",
+              "description": "Encoded location parameter"
+            },
+            "tbm": {
+              "type": "string",
+              "description": "Search type (nws, isch, vid, shop, bks, app)"
+            },
+            "tbs": {
+              "type": "string",
+              "description": "Time range (qdr:d, qdr:w, qdr:m, qdr:y)"
+            },
+            "filter": {
+              "type": "integer",
+              "description": "Filter duplicate results (0 or 1)",
+              "default": 0
+            },
+            "nfpr": {
+              "type": "integer",
+              "description": "Include spelling check results (0 or 1)",
+              "default": 1
+            }
+          },
+          "required": [
+            "engine",
+            "q"
+          ],
+          "visible": [
+            "engine",
+            "q",
+            "num",
+            "gl",
+            "hl",
+            "safe",
+            "start",
+            "device",
+            "no_cache",
+            "async",
+            "output",
+            "google_domain",
+            "location",
+            "tbm",
+            "tbs",
+            "filter"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "header",
+        "query"
+      ],
+      "visible": [
+        "query"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "SERPAPI__GOOGLE_IMAGES",
+    "description": "Search for images using Google Images API",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "GET",
+      "endpoint": "https://serpapi.com/search"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "header": {
+          "type": "object",
+          "description": "Headers for the http request",
+          "properties": {
+            "accept": {
+              "type": "string",
+              "description": "Accept header",
+              "default": "application/json"
+            }
+          },
+          "required": [
+            "accept"
+          ],
+          "visible": [],
+          "additionalProperties": false
+        },
+        "query": {
+          "type": "object",
+          "description": "Query parameters for the http request",
+          "properties": {
+            "engine": {
+              "type": "string",
+              "description": "Search engine",
+              "default": "google_images"
+            },
+            "q": {
+              "type": "string",
+              "description": "Image search query"
+            },
+            "num": {
+              "type": "integer",
+              "description": "Number of images to return",
+              "default": 10
+            },
+            "safe": {
+              "type": "string",
+              "description": "Safe search filter",
+              "default": "active"
+            },
+            "device": {
+              "type": "string",
+              "description": "Device to use for results (desktop, tablet, mobile)",
+              "default": "desktop"
+            },
+            "no_cache": {
+              "type": "boolean",
+              "description": "Force fresh results instead of cached ones",
+              "default": false
+            },
+            "async": {
+              "type": "boolean",
+              "description": "Submit search asynchronously",
+              "default": false
+            },
+            "zero_trace": {
+              "type": "boolean",
+              "description": "Enterprise only: Enable ZeroTrace mode",
+              "default": false
+            },
+            "output": {
+              "type": "string",
+              "description": "Output format (json, html)",
+              "default": "json"
+            },
+            "gl": {
+              "type": "string",
+              "description": "Country to search from",
+              "default": "us"
+            },
+            "hl": {
+              "type": "string",
+              "description": "Search language",
+              "default": "en"
+            },
+            "google_domain": {
+              "type": "string",
+              "description": "Google domain",
+              "default": "google.com"
+            },
+            "location": {
+              "type": "string",
+              "description": "Search location",
+              "default": "United States"
+            },
+            "uule": {
+              "type": "string",
+              "description": "Encoded location parameter"
+            },
+            "ijn": {
+              "type": "integer",
+              "description": "Page number for pagination",
+              "default": 0
+            },
+            "start": {
+              "type": "integer",
+              "description": "Starting position for results",
+              "default": 0
+            },
+            "tbm": {
+              "type": "string",
+              "description": "Search type (isch for images)",
+              "default": "isch"
+            },
+            "tbs": {
+              "type": "string",
+              "description": "Time range (qdr:d, qdr:w, qdr:m, qdr:y)"
+            },
+            "filter": {
+              "type": "integer",
+              "description": "Filter duplicate results (0 or 1)",
+              "default": 0
+            },
+            "nfpr": {
+              "type": "integer",
+              "description": "Include spelling check results (0 or 1)",
+              "default": 1
+            },
+            "imgar": {
+              "type": "string",
+              "description": "Image aspect ratio (s, w, h, sq, t, p)",
+              "default": "s"
+            },
+            "imgcolor": {
+              "type": "string",
+              "description": "Image color (black, blue, brown, gray, green, orange, pink, purple, red, teal, white, yellow)"
+            },
+            "imgtype": {
+              "type": "string",
+              "description": "Image type (photo, clipart, lineart, face, animated)",
+              "default": "photo"
+            },
+            "imgc": {
+              "type": "string",
+              "description": "Image colorization (color, gray, trans)",
+              "default": "color"
+            },
+            "imgdims": {
+              "type": "string",
+              "description": "Image dimensions (large, medium, icon)"
+            }
+          },
+          "required": [
+            "engine",
+            "q"
+          ],
+          "visible": [
+            "q",
+            "num",
+            "safe",
+            "device",
+            "no_cache",
+            "async",
+            "output",
+            "gl",
+            "hl",
+            "google_domain",
+            "location",
+            "ijn",
+            "start",
+            "imgar",
+            "imgcolor",
+            "imgtype",
+            "imgc",
+            "imgdims"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "header",
+        "query"
+      ],
+      "visible": [
+        "query"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "SERPAPI__GOOGLE_NEWS",
+    "description": "Search news articles using Google News API",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "GET",
+      "endpoint": "https://serpapi.com/search.json"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "header": {
+          "type": "object",
+          "description": "Headers for the http request",
+          "properties": {
+            "accept": {
+              "type": "string",
+              "description": "Accept header",
+              "default": "application/json"
+            }
+          },
+          "required": [
+            "accept"
+          ],
+          "visible": [],
+          "additionalProperties": false
+        },
+        "query": {
+          "type": "object",
+          "description": "Query parameters for the http request",
+          "properties": {
+            "engine": {
+              "type": "string",
+              "description": "Search engine",
+              "default": "google_news"
+            },
+            "q": {
+              "type": "string",
+              "description": "News search query"
+            },
+            "tbm": {
+              "type": "string",
+              "description": "Time range (d, w, m, y)",
+              "default": "d"
+            },
+            "num": {
+              "type": "integer",
+              "description": "Number of news articles to return",
+              "default": 10
+            },
+            "gl": {
+              "type": "string",
+              "description": "Country to search from",
+              "default": "us"
+            },
+            "hl": {
+              "type": "string",
+              "description": "Search language",
+              "default": "en"
+            },
+            "google_domain": {
+              "type": "string",
+              "description": "Google domain",
+              "default": "google.com"
+            },
+            "location": {
+              "type": "string",
+              "description": "Search location",
+              "default": "United States"
+            },
+            "uule": {
+              "type": "string",
+              "description": "Encoded location parameter"
+            },
+            "device": {
+              "type": "string",
+              "description": "Device to use for results (desktop, tablet, mobile)",
+              "default": "desktop"
+            },
+            "no_cache": {
+              "type": "boolean",
+              "description": "Force fresh results instead of cached ones",
+              "default": false
+            },
+            "async": {
+              "type": "boolean",
+              "description": "Submit search asynchronously",
+              "default": false
+            },
+            "output": {
+              "type": "string",
+              "description": "Output format (json, html)",
+              "default": "json"
+            },
+            "filter": {
+              "type": "integer",
+              "description": "Filter duplicate results (0 or 1)",
+              "default": 0
+            },
+            "nfpr": {
+              "type": "integer",
+              "description": "Include spelling check results (0 or 1)",
+              "default": 1
+            },
+            "topic_token": {
+              "type": "string",
+              "description": "Topic token for specific news topics"
+            },
+            "story_token": {
+              "type": "string",
+              "description": "Story token for specific news stories"
+            },
+            "section_token": {
+              "type": "string",
+              "description": "Section token for specific news sections"
+            },
+            "publication_token": {
+              "type": "string",
+              "description": "Publication token for specific news publications"
+            }
+          },
+          "required": [
+            "engine",
+            "q"
+          ],
+          "visible": [
+            "engine",
+            "q",
+            "tbm",
+            "num",
+            "gl",
+            "hl",
+            "google_domain",
+            "location",
+            "device",
+            "no_cache",
+            "async",
+            "output",
+            "topic_token",
+            "story_token",
+            "section_token",
+            "publication_token"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "header",
+        "query"
+      ],
+      "visible": [
+        "query"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "SERPAPI__GOOGLE_SCHOLAR",
+    "description": "Search academic papers using Google Scholar API",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "GET",
+      "endpoint": "https://serpapi.com/search.json"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "header": {
+          "type": "object",
+          "description": "Headers for the http request",
+          "properties": {
+            "accept": {
+              "type": "string",
+              "description": "Accept header",
+              "default": "application/json"
+            }
+          },
+          "required": [
+            "accept"
+          ],
+          "visible": [],
+          "additionalProperties": false
+        },
+        "query": {
+          "type": "object",
+          "description": "Query parameters for the http request",
+          "properties": {
+            "engine": {
+              "type": "string",
+              "description": "Search engine",
+              "default": "google_scholar"
+            },
+            "q": {
+              "type": "string",
+              "description": "Scholar search query"
+            },
+            "as_ylo": {
+              "type": "integer",
+              "description": "Year from which to start the search",
+              "default": 2020
+            },
+            "as_yhi": {
+              "type": "integer",
+              "description": "Year until which to search",
+              "default": 2024
+            },
+            "scisbd": {
+              "type": "integer",
+              "description": "Sort by date (0=relevance, 1=date)",
+              "default": 0
+            },
+            "hl": {
+              "type": "string",
+              "description": "Search language",
+              "default": "en"
+            },
+            "as_sdt": {
+              "type": "string",
+              "description": "Include/exclude patents and citations (0=include, 1=exclude)",
+              "default": "0,5"
+            },
+            "as_vis": {
+              "type": "integer",
+              "description": "Include/exclude patents (0=include, 1=exclude)",
+              "default": 0
+            },
+            "as_rss": {
+              "type": "integer",
+              "description": "Return results in RSS format (0=no, 1=yes)",
+              "default": 0
+            },
+            "start": {
+              "type": "integer",
+              "description": "Starting position for results",
+              "default": 0
+            },
+            "num": {
+              "type": "integer",
+              "description": "Number of results to return",
+              "default": 10
+            },
+            "as_sdtp": {
+              "type": "string",
+              "description": "Include/exclude patents (0=include, 1=exclude)",
+              "default": "0"
+            },
+            "as_sdts": {
+              "type": "string",
+              "description": "Include/exclude citations (0=include, 1=exclude)",
+              "default": "5"
+            },
+            "as_qdr": {
+              "type": "string",
+              "description": "Time range (y=year, m=month, w=week, d=day)",
+              "default": "y"
+            },
+            "as_occt": {
+              "type": "string",
+              "description": "Occurrence type (any=anywhere, title=in title, author=in author, pub=in publication)",
+              "default": "any"
+            },
+            "as_rights": {
+              "type": "string",
+              "description": "Access rights (cc=Creative Commons, cc_deriv=CC with derivatives, cc_share=CC with share alike, cc_nd=CC with no derivatives, cc_nc=CC with non-commercial, cc_nc_deriv=CC with non-commercial and derivatives, cc_nc_share=CC with non-commercial and share alike, cc_nc_nd=CC with non-commercial and no derivatives)",
+              "default": ""
+            },
+            "as_publication": {
+              "type": "string",
+              "description": "Publication name"
+            },
+            "as_author": {
+              "type": "string",
+              "description": "Author name"
+            },
+            "as_subj": {
+              "type": "string",
+              "description": "Subject area (eng=Engineering, med=Medicine, soc=Social Sciences, etc.)"
+            },
+            "cluster": {
+              "type": "string",
+              "description": "Cluster ID for specific paper versions"
+            },
+            "cites": {
+              "type": "string",
+              "description": "Cited by ID for papers citing a specific paper"
+            }
+          },
+          "required": [
+            "engine",
+            "q"
+          ],
+          "visible": [
+            "engine",
+            "q",
+            "as_ylo",
+            "as_yhi",
+            "scisbd",
+            "hl",
+            "as_sdt",
+            "as_vis",
+            "start",
+            "num",
+            "as_qdr",
+            "as_occt",
+            "as_author",
+            "as_publication",
+            "cluster",
+            "cites"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "header",
+        "query"
+      ],
+      "visible": [
+        "query"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "SERPAPI__GOOGLE_TRENDS",
+    "description": "Get trending topics and search analytics using Google Trends API",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "GET",
+      "endpoint": "https://serpapi.com/search.json"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "header": {
+          "type": "object",
+          "description": "Headers for the http request",
+          "properties": {
+            "accept": {
+              "type": "string",
+              "description": "Accept header",
+              "default": "application/json"
+            }
+          },
+          "required": [
+            "accept"
+          ],
+          "visible": [],
+          "additionalProperties": false
+        },
+        "query": {
+          "type": "object",
+          "description": "Query parameters for the http request",
+          "properties": {
+            "engine": {
+              "type": "string",
+              "description": "Search engine",
+              "default": "google_trends"
+            },
+            "q": {
+              "type": "string",
+              "description": "Trend search query"
+            },
+            "geo": {
+              "type": "string",
+              "description": "Geographic location",
+              "default": "US"
+            },
+            "date": {
+              "type": "string",
+              "description": "Time range (today 12-m, today 5-y, 2020-01-01 2020-12-31, now 1-H, now 1-d, now 7-d)",
+              "default": "today 12-m"
+            },
+            "hl": {
+              "type": "string",
+              "description": "Language",
+              "default": "en"
+            },
+            "tz": {
+              "type": "string",
+              "description": "Timezone offset in minutes (e.g., -420 for US Pacific Time)",
+              "default": "-420"
+            },
+            "data_type": {
+              "type": "string",
+              "description": "Data type (TIMESERIES, GEO_MAP, RELATED_TOPICS, RELATED_QUERIES)",
+              "default": "TIMESERIES"
+            },
+            "category": {
+              "type": "integer",
+              "description": "Category ID (0=All categories, 5=Arts & Entertainment, 12=Beauty & Fitness, etc.)",
+              "default": 0
+            },
+            "property": {
+              "type": "string",
+              "description": "Property type (empty=Web searches, NEWS=News searches, YOUTUBE=YouTube searches, IMAGES=Image searches, SHOPPING=Shopping searches)",
+              "default": ""
+            },
+            "include_low_search_volume": {
+              "type": "boolean",
+              "description": "Include low search volume regions in results",
+              "default": false
+            },
+            "include_geo_restrictions": {
+              "type": "boolean",
+              "description": "Include geo-restricted regions in results",
+              "default": false
+            }
+          },
+          "required": [
+            "engine",
+            "q"
+          ],
+          "visible": [
+            "engine",
+            "q",
+            "geo",
+            "date",
+            "hl",
+            "tz",
+            "data_type",
+            "category",
+            "property",
+            "include_low_search_volume",
+            "include_geo_restrictions"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "header",
+        "query"
+      ],
+      "visible": [
+        "query"
+      ],
+      "additionalProperties": false
+    }
+  }
+]

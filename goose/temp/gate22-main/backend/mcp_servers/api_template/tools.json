@@ -1,0 +1,118 @@
+[
+  {
+    "name": "API_TEMPLATE__LIST_TEMPLATES",
+    "description": "List all templates from APITemplate.io",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "LIST_TEMPLATES",
+      "canonical_tool_description_hash": "18c4d83aa3a05d472f9be92d3d84cafde73bcc49931516b34522c218d189173c",
+      "canonical_tool_input_schema_hash": "0882716f390523efb64c5654a68a434de7e6ee36f3b1130218d8af9f1ac74ff5"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": [],
+      "properties": {
+        "query": {
+          "type": "object",
+          "required": [],
+          "properties": {
+            "limit": {
+              "type": "string",
+              "default": "300",
+              "description": "Retrieve only the number of records specified. Default to 300"
+            },
+            "format": {
+              "enum": ["PDF", "JPEG"],
+              "type": "string",
+              "description": "To filter the templates by either 'PDF' or 'JPEG'"
+            },
+            "offset": {
+              "type": "string",
+              "default": "0",
+              "description": "Offset is used to skip the number of records from the results. Default to 0"
+            },
+            "group_name": {
+              "type": "string",
+              "description": "To filter the templates by the group name"
+            },
+            "template_id": {
+              "type": "string",
+              "description": "To filter the templates by template id"
+            },
+            "with_layer_info": {
+              "enum": ["0", "1"],
+              "type": "string",
+              "default": "0",
+              "description": "Return along with layer information for image templates, 0=false , 1=true. Default to '0'"
+            }
+          },
+          "description": "Query parameters",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "API_TEMPLATE__GET_TEMPLATE",
+    "description": "Get a specific template details from APITemplate.io",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "GET_TEMPLATE",
+      "canonical_tool_description_hash": "89632f15701d18b71bf4b739bd809bdf95a195817042cf693ea27c0fc48466f0",
+      "canonical_tool_input_schema_hash": "351303c9a8b8a9b7fdc171318a89224b4ce625bfac301514724ad70b2ff3ec38"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["query"],
+      "properties": {
+        "query": {
+          "type": "object",
+          "required": ["template_id"],
+          "properties": {
+            "template_id": {
+              "type": "string",
+              "description": "The ID of the template to retrieve"
+            }
+          },
+          "description": "Query parameters",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "API_TEMPLATE__UPDATE_TEMPLATE",
+    "description": "Update a specific template in APITemplate.io",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "UPDATE_TEMPLATE",
+      "canonical_tool_description_hash": "400334c3dcd5bd055794064ec86123d090f5a7394a416d3e2dd326fe91ef0a7b",
+      "canonical_tool_input_schema_hash": "3dffb684f23a52c6da98d5dacac42bf4470bdcad170b13a8270b4a4a0e11aefb"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["body"],
+      "properties": {
+        "body": {
+          "type": "object",
+          "required": ["template_id", "css"],
+          "properties": {
+            "css": {
+              "type": "string",
+              "description": "The new template HTML content"
+            },
+            "template_id": {
+              "type": "string",
+              "description": "The ID of the template to update"
+            }
+          },
+          "description": "Template update parameters",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+]

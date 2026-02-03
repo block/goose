@@ -13,18 +13,22 @@ use super::final_output_tool::FinalOutputTool;
 use super::platform_tools;
 use super::tool_execution::{ToolCallResult, CHAT_MODE_TOOL_SKIPPED_RESPONSE, DECLINED_RESPONSE};
 use crate::action_required_manager::ActionRequiredManager;
+use crate::agents::critic::{AggregatedCritique, CriticManager, CritiqueContext};
 use crate::agents::extension::{ExtensionConfig, ExtensionResult, ToolInfo};
 use crate::agents::extension_manager::{get_parameter_names, ExtensionManager};
 use crate::agents::extension_manager_extension::MANAGE_EXTENSIONS_TOOL_NAME_COMPLETE;
 use crate::agents::final_output_tool::{FINAL_OUTPUT_CONTINUATION_MESSAGE, FINAL_OUTPUT_TOOL_NAME};
+use crate::agents::planner::{PlanContext, PlanManager};
 use crate::agents::platform_tools::PLATFORM_MANAGE_SCHEDULE_TOOL_NAME;
 use crate::agents::prompt_manager::PromptManager;
 use crate::agents::retry::{RetryManager, RetryResult};
+use crate::agents::shell_guard::ShellGuard;
 use crate::agents::subagent_task_config::TaskConfig;
 use crate::agents::subagent_tool::{
     create_subagent_tool, handle_subagent_tool, SUBAGENT_TOOL_NAME,
 };
 use crate::agents::types::{FrontendTool, SessionConfig, SharedProvider, ToolResultReceiver};
+use crate::approval::ApprovalPreset;
 use crate::config::permission::PermissionManager;
 use crate::config::{get_enabled_extensions, Config, GooseMode};
 use crate::context_mgmt::{
@@ -112,6 +116,67 @@ impl AgentConfig {
     }
 }
 
+/// Execution mode determines how the agent processes tasks
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum ExecutionMode {
+    /// Freeform mode: LLM has full autonomy to decide tool usage and iteration
+    /// This is the traditional agent behavior
+    #[default]
+    Freeform,
+    /// Structured mode: Agent follows a state graph (Code → Test → Fix → Done)
+    /// with validation gates before completion
+    Structured,
+}
+
+impl std::fmt::Display for ExecutionMode {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            ExecutionMode::Freeform => write!(f, "freeform"),
+            ExecutionMode::Structured => write!(f, "structured"),
+        }
+    }
+}
+
+impl std::str::FromStr for ExecutionMode {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s.to_lowercase().as_str() {
+            "freeform" | "free" | "auto" => Ok(ExecutionMode::Freeform),
+            "structured" | "struct" | "graph" => Ok(ExecutionMode::Structured),
+            _ => Err(format!(
+                "Unknown execution mode: '{}'. Use 'freeform' or 'structured'",
+                s
+            )),
+        }
+    }
+}
+
+/// Decision made after self-critique
+#[derive(Debug, Clone)]
+pub enum CritiqueDecision {
+    /// Work is complete, all critics passed
+    Complete,
+    /// Work is complete but has non-blocking warnings
+    CompleteWithWarnings { warnings: usize },
+    /// Work needs more effort - has blocking issues
+    NeedsWork { blocking_issues: Vec<String> },
+}
+
+impl CritiqueDecision {
+    pub fn is_complete(&self) -> bool {
+        matches!(
+            self,
+            CritiqueDecision::Complete | CritiqueDecision::CompleteWithWarnings { .. }
+        )
+    }
+
+    pub fn needs_work(&self) -> bool {
+        matches!(self, CritiqueDecision::NeedsWork { .. })
+    }
+}
+
 /// The main goose Agent
 pub struct Agent {
     pub(super) provider: SharedProvider,
@@ -131,6 +196,11 @@ pub struct Agent {
     pub(super) retry_manager: RetryManager,
     pub(super) tool_inspection_manager: ToolInspectionManager,
     container: Mutex<Option<Container>>,
+    shell_guard: Mutex<Option<ShellGuard>>,
+    execution_mode: Mutex<ExecutionMode>,
+    plan_manager: Mutex<PlanManager>,
+    critic_manager: Mutex<CriticManager>,
+    last_critique: Mutex<Option<AggregatedCritique>>,
 }
 
 #[derive(Clone, Debug)]
@@ -216,6 +286,11 @@ impl Agent {
             retry_manager: RetryManager::new(),
             tool_inspection_manager: Self::create_tool_inspection_manager(permission_manager),
             container: Mutex::new(None),
+            shell_guard: Mutex::new(None),
+            execution_mode: Mutex::new(ExecutionMode::default()),
+            plan_manager: Mutex::new(PlanManager::new()),
+            critic_manager: Mutex::new(CriticManager::with_defaults()),
+            last_critique: Mutex::new(None),
         }
     }
 
@@ -428,6 +503,282 @@ impl Agent {
         self.container.lock().await.clone()
     }
 
+    /// Set the approval policy for shell command execution
+    pub async fn set_approval_policy(&self, policy: ApprovalPreset) {
+        let mut guard = self.shell_guard.lock().await;
+        *guard = Some(ShellGuard::new(policy));
+    }
+
+    /// Get the current shell guard if set
+    pub async fn shell_guard(&self) -> Option<ShellGuard> {
+        self.shell_guard.lock().await.clone()
+    }
+
+    /// Set the execution mode for the agent
+    pub async fn set_execution_mode(&self, mode: ExecutionMode) {
+        let mut current = self.execution_mode.lock().await;
+        *current = mode;
+
+        // Enable planning when in structured mode
+        let mut plan_manager = self.plan_manager.lock().await;
+        match mode {
+            ExecutionMode::Structured => {
+                plan_manager.enable();
+                tracing::info!("Agent execution mode set to: {} (planning enabled)", mode);
+            }
+            ExecutionMode::Freeform => {
+                plan_manager.disable();
+                plan_manager.clear_plan();
+                tracing::info!("Agent execution mode set to: {} (planning disabled)", mode);
+            }
+        }
+    }
+
+    /// Get the current execution mode
+    pub async fn execution_mode(&self) -> ExecutionMode {
+        *self.execution_mode.lock().await
+    }
+
+    /// Check if agent is in structured execution mode
+    pub async fn is_structured_mode(&self) -> bool {
+        *self.execution_mode.lock().await == ExecutionMode::Structured
+    }
+
+    /// Enable planning for the agent
+    pub async fn enable_planning(&self) {
+        let mut manager = self.plan_manager.lock().await;
+        manager.enable();
+        tracing::info!("Planning enabled for agent");
+    }
+
+    /// Disable planning for the agent
+    pub async fn disable_planning(&self) {
+        let mut manager = self.plan_manager.lock().await;
+        manager.disable();
+        tracing::info!("Planning disabled for agent");
+    }
+
+    /// Check if planning is enabled
+    pub async fn is_planning_enabled(&self) -> bool {
+        self.plan_manager.lock().await.is_enabled()
+    }
+
+    /// Check if there's an active plan
+    pub async fn has_active_plan(&self) -> bool {
+        self.plan_manager.lock().await.has_plan()
+    }
+
+    /// Create a plan for the given task
+    pub async fn create_plan(
+        &self,
+        task: &str,
+        tools: Vec<String>,
+        working_dir: &str,
+    ) -> Result<()> {
+        let context = PlanContext::new(task)
+            .with_tools(tools)
+            .with_working_dir(working_dir);
+
+        let mut manager = self.plan_manager.lock().await;
+        manager.create_plan(&context).await?;
+
+        tracing::info!("Created plan for task: {}", task);
+        Ok(())
+    }
+
+    /// Get the current plan context for injection into prompts
+    pub async fn get_plan_context(&self) -> Option<String> {
+        self.plan_manager.lock().await.get_step_context()
+    }
+
+    /// Advance to the next step in the plan
+    pub async fn advance_plan(&self) -> bool {
+        let mut manager = self.plan_manager.lock().await;
+        manager.advance_plan()
+    }
+
+    /// Mark the current plan step as completed
+    pub async fn complete_plan_step(&self, output: Option<String>) {
+        let mut manager = self.plan_manager.lock().await;
+        manager.complete_current_step(output);
+    }
+
+    /// Mark the current plan step as failed
+    pub async fn fail_plan_step(&self, error: &str) {
+        let mut manager = self.plan_manager.lock().await;
+        manager.fail_current_step(error);
+    }
+
+    /// Check if the current plan is complete
+    pub async fn is_plan_complete(&self) -> bool {
+        self.plan_manager.lock().await.is_plan_complete()
+    }
+
+    /// Clear the current plan
+    pub async fn clear_plan(&self) {
+        let mut manager = self.plan_manager.lock().await;
+        manager.clear_plan();
+    }
+
+    /// Process plan progress after tool execution
+    /// This is called after tools have been executed to potentially advance the plan
+    pub async fn process_plan_progress(&self, tools_executed: &[String], all_succeeded: bool) {
+        if !self.is_planning_enabled().await {
+            return;
+        }
+
+        let mut manager = self.plan_manager.lock().await;
+        if !manager.has_plan() {
+            return;
+        }
+
+        // Get the current step's tool hints to see if we completed the expected tools
+        let should_advance = if let Some(plan) = manager.current_plan() {
+            if let Some(current_step) = plan.current() {
+                // If current step has tool hints, check if any were executed
+                if current_step.tool_hints.is_empty() {
+                    // No specific tools required, advance if any tools executed successfully
+                    all_succeeded && !tools_executed.is_empty()
+                } else {
+                    // Check if any of the hinted tools were used
+                    let hint_matched = current_step.tool_hints.iter().any(|hint| {
+                        tools_executed
+                            .iter()
+                            .any(|executed| executed.contains(hint) || hint.contains(executed))
+                    });
+                    hint_matched && all_succeeded
+                }
+            } else {
+                false
+            }
+        } else {
+            false
+        };
+
+        if should_advance {
+            // Mark current step as completed
+            manager.complete_current_step(Some(format!(
+                "Executed tools: {}",
+                tools_executed.join(", ")
+            )));
+
+            // Try to advance to next step
+            if manager.advance_plan() {
+                if let Some(plan) = manager.current_plan() {
+                    if let Some(step) = plan.current() {
+                        tracing::info!(
+                            "Plan advanced to step {}: {}",
+                            plan.current_step + 1,
+                            step.description
+                        );
+                    }
+                }
+            } else if manager.is_plan_complete() {
+                tracing::info!("Plan completed successfully");
+                if let Some(plan) = manager.current_plan_mut() {
+                    plan.mark_completed();
+                }
+            }
+        }
+    }
+
+    // ==================== Self-Critique Methods ====================
+
+    /// Perform self-critique on completed work
+    pub async fn self_critique(
+        &self,
+        task_description: &str,
+        modified_files: Vec<String>,
+        working_dir: &str,
+        build_output: Option<String>,
+        test_output: Option<String>,
+    ) -> Result<AggregatedCritique> {
+        let context = CritiqueContext::new(task_description)
+            .with_modified_files(modified_files)
+            .with_working_dir(working_dir);
+
+        let context = if let Some(output) = build_output {
+            context.with_build_output(output)
+        } else {
+            context
+        };
+
+        let context = if let Some(output) = test_output {
+            context.with_test_output(output)
+        } else {
+            context
+        };
+
+        let critic_manager = self.critic_manager.lock().await;
+        let result = critic_manager.critique(&context).await?;
+
+        tracing::info!(
+            "Self-critique completed: {} (issues: {}, blocking: {})",
+            if result.passed {
+                "PASSED"
+            } else {
+                "NEEDS_WORK"
+            },
+            result.total_issues,
+            result.blocking_issues
+        );
+
+        // Store the result for later retrieval
+        *self.last_critique.lock().await = Some(result.clone());
+
+        Ok(result)
+    }
+
+    /// Get the last critique result
+    pub async fn get_last_critique(&self) -> Option<AggregatedCritique> {
+        self.last_critique.lock().await.clone()
+    }
+
+    /// Clear the last critique result
+    pub async fn clear_last_critique(&self) {
+        *self.last_critique.lock().await = None;
+    }
+
+    /// Get the last critique context for injection into prompts (if available)
+    pub async fn get_last_critique_context(&self) -> Option<String> {
+        self.last_critique
+            .lock()
+            .await
+            .as_ref()
+            .map(|c| c.format_for_llm())
+    }
+
+    /// Get a critique context string for injection into prompts
+    pub async fn get_critique_context(&self, critique: &AggregatedCritique) -> String {
+        critique.format_for_llm()
+    }
+
+    /// Check if the work passes all critics
+    pub async fn work_passes_critique(&self, critique: &AggregatedCritique) -> bool {
+        critique.passed
+    }
+
+    /// Run self-critique after plan completion and determine if more work is needed
+    pub async fn critique_and_decide(&self, critique: &AggregatedCritique) -> CritiqueDecision {
+        if critique.passed {
+            CritiqueDecision::Complete
+        } else if critique.blocking_issues > 0 {
+            let blocking: Vec<String> = critique
+                .all_blocking_issues()
+                .iter()
+                .map(|i| i.description.clone())
+                .collect();
+            CritiqueDecision::NeedsWork {
+                blocking_issues: blocking,
+            }
+        } else {
+            // Non-blocking issues only - can proceed but log warnings
+            CritiqueDecision::CompleteWithWarnings {
+                warnings: critique.total_issues,
+            }
+        }
+    }
+
     /// Check if a tool is a frontend tool
     pub async fn is_frontend_tool(&self, name: &str) -> bool {
         self.frontend_tools.lock().await.contains_key(name)
@@ -576,12 +927,14 @@ impl Agent {
             )))
         } else {
             // Clone the result to ensure no references to extension_manager are returned
+            let shell_guard = self.shell_guard().await;
             let result = self
                 .extension_manager
-                .dispatch_tool_call(
+                .dispatch_tool_call_with_guard(
                     &session.id,
                     tool_call.clone(),
                     cancellation_token.unwrap_or_default(),
+                    shell_guard.as_ref(),
                 )
                 .await;
             result.unwrap_or_else(|e| {
@@ -1448,6 +1801,36 @@ impl Agent {
                                         messages_to_add.push(final_response);
                                     }
                                 }
+
+                                // Track executed tools for plan progress
+                                let executed_tool_names: Vec<String> = frontend_requests
+                                    .iter()
+                                    .chain(remaining_requests.iter())
+                                    .filter_map(|req| req.tool_call.as_ref().ok())
+                                    .map(|tc| tc.name.to_string())
+                                    .collect();
+
+                                // Check for tool execution errors
+                                let mut all_tools_succeeded = true;
+                                for msg in tool_response_messages.iter() {
+                                    let response = msg.lock().await;
+                                    for content in &response.content {
+                                        if let MessageContent::ToolResponse(tool_resp) = content {
+                                            if let Ok(result) = &tool_resp.tool_result {
+                                                if result.is_error == Some(true) {
+                                                    all_tools_succeeded = false;
+                                                    break;
+                                                }
+                                            } else {
+                                                all_tools_succeeded = false;
+                                                break;
+                                            }
+                                        }
+                                    }
+                                }
+
+                                // Update plan progress if applicable
+                                self.process_plan_progress(&executed_tool_names, all_tools_succeeded).await;
 
                                 no_tools_called = false;
                             }

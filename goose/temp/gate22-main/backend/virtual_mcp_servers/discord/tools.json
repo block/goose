@@ -1,0 +1,18 @@
+[
+  {
+    "name": "DISCORD__GET_CURRENT_USER",
+    "description": "Get a user object for the current user.",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "GET",
+      "endpoint": "https://discord.com/api/v10/users/@me"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {},
+      "required": [],
+      "visible": [],
+      "additionalProperties": false
+    }
+  }
+]

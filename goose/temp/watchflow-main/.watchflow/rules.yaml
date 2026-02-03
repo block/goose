@@ -1,0 +1,44 @@
+rules:
+  # Essential Open Source Rules
+  - description: "Pull requests must have descriptive titles following conventional commit format"
+    enabled: true
+    severity: "medium"
+    event_types: ["pull_request"]
+    parameters:
+      title_pattern: "^feat|^fix|^docs|^style|^refactor|^test|^chore|^perf|^ci|^build|^revert"
+
+  - description: "New contributors require approval from at least one past contributor"
+    enabled: true
+    severity: "medium"
+    event_types: ["pull_request"]
+    parameters:
+      min_past_contributors: 1
+
+  - description: "Code changes must include corresponding tests"
+    enabled: true
+    severity: "medium"
+    event_types: ["pull_request"]
+    parameters:
+      pattern: "tests/.*\\.py$|test_.*\\.py$"
+      condition_type: "files_match_pattern"
+
+  - description: "Changes to critical files require review from code owners"
+    enabled: true
+    severity: "high"
+    event_types: ["pull_request"]
+    parameters:
+      critical_owners: []
+
+  - description: "When a PR modifies paths with CODEOWNERS, those owners must be added as reviewers"
+    enabled: true
+    severity: "high"
+    event_types: ["pull_request"]
+    parameters:
+      require_code_owner_reviewers: true
+
+  - description: "No direct pushes to main branch - all changes must go through PRs"
+    enabled: true
+    severity: "critical"
+    event_types: ["push"]
+    parameters:
+      no_force_push: true

@@ -1,0 +1,19 @@
+{
+  "name": "EXA",
+  "url": "https://mcp.exa.ai/mcp",
+  "transport_type": "streamable_http",
+  "description": "Exa is a search engine made for AIs. Exa finds the exact content you’re looking for on the web, with five core functionalities:\n/search ->\nFind webpages using Exa’s embeddings-based or Google-style keyword search.\n/contents ->\nObtain clean, up-to-date, parsed HTML from Exa search results.\n/findsimilar ->\nBased on a link, find and return pages that are similar in meaning.\n/answer ->\nGet direct answers to questions using Exa’s Answer API.\n/research ->\nAutomate in-depth web research and receive structured JSON results with citations.",
+  "logo": "https://raw.githubusercontent.com/aipotheosis-labs/aipolabs-icons/refs/heads/main/apps/exa.svg",
+  "categories": ["Search"],
+  "auth_configs": [
+    {
+      "type": "oauth2",
+      "client_id": "{{ CLIENT_ID }}",
+      "scope": "",
+      "authorize_url": "https://mcp.exa.ai/auth/authorize",
+      "access_token_url": "https://mcp.exa.ai/auth/token",
+      "refresh_token_url": "https://mcp.exa.ai/auth/token"
+    }
+  ],
+  "server_metadata": {}
+}

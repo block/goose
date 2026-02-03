@@ -1,0 +1,19 @@
+/* Hide footer completely */
+.md-footer {
+    display: none !important;
+}
+
+/* Hide any remaining TOC elements */
+.md-content__inner > .md-content__inner {
+    margin-right: 0 !important;
+}
+
+/* Ensure content takes full width */
+.md-content {
+    margin-right: 0 !important;
+}
+
+/* Hide any TOC sidebar */
+.md-sidebar--secondary {
+    display: none !important;
+}

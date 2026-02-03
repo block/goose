@@ -1,0 +1,64 @@
+---
+title: 'Jaeger'
+description: 'Configure Jaeger as an observability destination for AI applications'
+---
+
+Send AI observability data to Jaeger for open-source distributed tracing. Jaeger provides excellent trace visualization and search capabilities for AI applications and workflows.
+
+## 🚀 Quick Setup
+
+<Tabs>
+  <Tab title="Operator">
+    **For Kubernetes deployments with zero-code instrumentation:**
+    
+    <snippet file="destination-operator-config.mdx" args='{
+      "name": "jaeger",
+      "endpoint": "http://jaeger-collector.observability:4318",
+      "headers": "",
+      "environment": "production",
+      "service_name": "my-ai-service"
+    }' />
+  </Tab>
+  
+  <Tab title="SDK">
+    **For direct integration into your Python applications:**
+    
+    <snippet file="destination-sdk-config.mdx" args='{
+      "endpoint": "http://jaeger-collector:4318",
+      "headers": {}
+    }' />
+  </Tab>
+  
+  <Tab title="CLI">
+    **For auto-instrumentation via command line:**
+    
+    <snippet file="destination-cli-config.mdx" args='{
+      "endpoint": "http://jaeger-collector:4318",
+      "headers": "",
+      "service_name": "my-ai-service"
+    }' />
+  </Tab>
+</Tabs>
+
+<snippet file="destinations/jaeger-setup.mdx" />
+
+<snippet file="destination-verification.mdx" args='{"endpoint": "http://jaeger-collector:4318", "headers": ""}' />
+
+<snippet file="destination-troubleshooting.mdx" args='{"destination_name": "Jaeger", "endpoint": "http://jaeger-collector:4318", "headers": "", "host": "jaeger-collector"}' />
+
+## 📖 Additional Resources
+
+<CardGroup cols={2}>
+  <Card title="📊 Jaeger Documentation" href="https://www.jaegertracing.io/docs/" icon="book">
+    Jaeger official documentation  
+  </Card>
+  <Card title="🔧 OpenTelemetry Setup" href="https://www.jaegertracing.io/docs/latest/opentelemetry/" icon="gear">
+    OpenTelemetry integration guide
+  </Card>
+  <Card title="🎯 OpenLIT GitHub" href="https://github.com/openlit/openlit" icon="github">
+    OpenLIT source code and examples
+  </Card>
+  <Card title="💬 Community" href="https://github.com/openlit/openlit/discussions" icon="messages">
+    Get help and share experiences
+  </Card>
+</CardGroup>

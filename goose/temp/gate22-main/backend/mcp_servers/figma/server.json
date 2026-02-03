@@ -1,0 +1,27 @@
+{
+  "name": "FIGMA",
+  "url": "https://mcp.aci.dev/virtual/mcp?server_name=FIGMA",
+  "transport_type": "streamable_http",
+  "description": "Figma is a browser-based collaborative interface design tool. This integration allows access to and processing of Figma design files and resources.",
+  "logo": "https://raw.githubusercontent.com/aipotheosis-labs/aipolabs-icons/refs/heads/main/apps/figma.svg",
+  "categories": ["Media & Design"],
+  "auth_configs": [
+    {
+      "type": "api_key",
+      "location": "header",
+      "name": "X-Figma-Token"
+    },
+    {
+      "type": "oauth2",
+      "client_id": "{{ CLIENT_ID }}",
+      "client_secret": "{{ CLIENT_SECRET }}",
+      "scope": "current_user:read file_comments:read file_comments:write file_content:read file_dev_resources:read file_dev_resources:write file_metadata:read file_variables:read file_variables:write file_versions:read files:read library_analytics:read library_assets:read library_content:read projects:read team_library_content:read webhooks:read webhooks:write",
+      "authorize_url": "https://www.figma.com/oauth",
+      "access_token_url": "https://api.figma.com/v1/oauth/token",
+      "refresh_token_url": "https://api.figma.com/v1/oauth/refresh"
+    }
+  ],
+  "server_metadata": {
+    "is_virtual_mcp_server": true
+  }
+}

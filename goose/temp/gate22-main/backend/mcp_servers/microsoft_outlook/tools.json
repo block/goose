@@ -1,0 +1,1381 @@
+[
+  {
+    "name": "MICROSOFT_OUTLOOK__LIST_MESSAGES",
+    "description": "List email messages from the user's inbox.",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "LIST_MESSAGES",
+      "canonical_tool_description_hash": "3b8bafbb7905fbf23b39adcd7492c30f0a093a20b14a1ef70099da6e04df75e3",
+      "canonical_tool_input_schema_hash": "d49a24d52e58602505e311ad6add14c7d4e7b08abeb85b46c92aa6ce60093a3c"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": [],
+      "properties": {
+        "query": {
+          "type": "object",
+          "required": [],
+          "properties": {
+            "$top": {
+              "type": "integer",
+              "description": "Limits the number of items returned from a collection"
+            },
+            "$skip": {
+              "type": "integer",
+              "description": "Skips items in a result set. Also used by some APIs to implement paging and can be used with $top to manually page results"
+            },
+            "$filter": {
+              "type": "string",
+              "description": "OData filter expression"
+            },
+            "$orderby": {
+              "type": "string",
+              "description": "Order by expression like 'receivedDateTime desc'"
+            }
+          },
+          "description": "Query parameters for filtering messages",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "MICROSOFT_OUTLOOK__LIST_MESSAGES_IN_FOLDER",
+    "description": "Get all messages in a specified mail folder. Supports filtering, pagination, and sorting using OData query parameters. This allows you to retrieve messages from any specific folder in the mailbox.",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "LIST_MESSAGES_IN_FOLDER",
+      "canonical_tool_description_hash": "76abc767a598e05f13472e72bc254a3b6328a5ae9fb940ded9e6bd22fabb1f76",
+      "canonical_tool_input_schema_hash": "65cac7339403484459964bd3fd84fe80e563153de0f0c39b2a449daacacc5341"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["path"],
+      "properties": {
+        "path": {
+          "type": "object",
+          "required": ["folder_id"],
+          "properties": {
+            "folder_id": {
+              "type": "string",
+              "description": "The unique identifier of the mail folder, or a well-known folder name (e.g., 'inbox', 'drafts', 'sentitems')"
+            }
+          },
+          "description": "The path parameters",
+          "additionalProperties": false
+        },
+        "query": {
+          "type": "object",
+          "required": [],
+          "properties": {
+            "$top": {
+              "type": "integer",
+              "description": "Maximum number of messages to return (default 10, max 1000)"
+            },
+            "$skip": {
+              "type": "integer",
+              "description": "Number of messages to skip for pagination"
+            },
+            "$expand": {
+              "type": "string",
+              "description": "Expand related entities (e.g., 'attachments', 'extensions')"
+            },
+            "$filter": {
+              "type": "string",
+              "description": "Filter expression to limit messages (e.g., 'hasAttachments eq true', 'from/emailAddress/address eq \"example@domain.com\"')"
+            },
+            "$search": {
+              "type": "string",
+              "description": "Search query string to find messages containing specific text"
+            },
+            "$select": {
+              "type": "string",
+              "description": "Comma-separated list of properties to include (e.g., 'id,subject,sender,receivedDateTime')"
+            },
+            "$orderby": {
+              "type": "string",
+              "description": "Property to sort by with direction (e.g., 'receivedDateTime desc', 'subject asc')"
+            }
+          },
+          "description": "Query parameters for filtering and customizing the message list",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "MICROSOFT_OUTLOOK__SEND",
+    "description": "Send an existing draft message. The draft can be a new message draft, reply draft, reply-all draft, or forward draft. This saves the message in the Sent Items folder.",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "SEND",
+      "canonical_tool_description_hash": "6b2a3ba2194f03c18d144372798fc2d5bff4101891a0a107f9344b4e54298a36",
+      "canonical_tool_input_schema_hash": "b5a972f39e2720e691694d87055e125c479bed47419be51c5d88e139c8f32210"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["path"],
+      "properties": {
+        "path": {
+          "type": "object",
+          "required": ["message_id"],
+          "properties": {
+            "message_id": {
+              "type": "string",
+              "description": "The unique identifier of the draft message to send"
+            }
+          },
+          "description": "The path parameters",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "MICROSOFT_OUTLOOK__LIST_MAIL_FOLDERS",
+    "description": "Get the mail folder collection directly under the root folder of the signed-in user. Includes mail search folders and can optionally include hidden folders.",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "LIST_MAIL_FOLDERS",
+      "canonical_tool_description_hash": "4ffcd00d8c55345cf6f6f13d0730515448d1a4dbfdf39ce27353f5807dafdd54",
+      "canonical_tool_input_schema_hash": "13484e7ae6d1ee9ebb1c778c972450e99395eed64621829797681a663151edc0"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": [],
+      "properties": {
+        "query": {
+          "type": "object",
+          "required": [],
+          "properties": {
+            "$top": {
+              "type": "integer",
+              "description": "Limits the number of folders returned from a collection"
+            },
+            "$skip": {
+              "type": "integer",
+              "description": "Skips folders in a result set"
+            },
+            "$filter": {
+              "type": "string",
+              "description": "OData filter expression to filter folders"
+            },
+            "$select": {
+              "type": "string",
+              "description": "Select specific properties like 'id,displayName,parentFolderId'"
+            },
+            "$orderby": {
+              "type": "string",
+              "description": "Order by expression like 'displayName asc'"
+            },
+            "includeHiddenFolders": {
+              "type": "boolean",
+              "description": "Include hidden folders in the response (folders where isHidden property is true)"
+            }
+          },
+          "description": "Query parameters for customizing the folder list",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "MICROSOFT_OUTLOOK__GET_MAIL_FOLDER",
+    "description": "Retrieve the properties and relationships of a specific mail folder object by its ID. Returns detailed folder information including permissions and relationships.",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "GET_MAIL_FOLDER",
+      "canonical_tool_description_hash": "60c963892478c968ad25cc633e0261ca34649ae7d6224f5f04e76aabaf591299",
+      "canonical_tool_input_schema_hash": "9c45740ddb02092ef452c1ca6a16eb69f06bda0d2cab6a5ad603c57361deac32"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["path"],
+      "properties": {
+        "path": {
+          "type": "object",
+          "required": ["folder_id"],
+          "properties": {
+            "folder_id": {
+              "type": "string",
+              "description": "The unique identifier of the mail folder to retrieve"
+            }
+          },
+          "description": "The path parameters",
+          "additionalProperties": false
+        },
+        "query": {
+          "type": "object",
+          "required": [],
+          "properties": {
+            "$expand": {
+              "type": "string",
+              "description": "Expand related entities like 'childFolders' or 'messages'"
+            },
+            "$select": {
+              "type": "string",
+              "description": "Select specific properties like 'id,displayName,parentFolderId,childFolderCount'"
+            }
+          },
+          "description": "Query parameters for customizing the folder details",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "MICROSOFT_OUTLOOK__UPDATE_MAIL_FOLDER",
+    "description": "Update the properties of a mail folder object. Currently supports updating the display name of the folder. This allows you to rename folders for better organization.",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "UPDATE_MAIL_FOLDER",
+      "canonical_tool_description_hash": "e207a555a9bf543d7d6b64f056e78663566a6021f1ec48041677d4000a796c88",
+      "canonical_tool_input_schema_hash": "7904ddbda5a59a1bf8462646013b02be0b4fe8d83d4926ec73d7ee0a319972bb"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["path", "body"],
+      "properties": {
+        "body": {
+          "type": "object",
+          "required": ["displayName"],
+          "properties": {
+            "displayName": {
+              "type": "string",
+              "description": "The new display name for the mail folder. This will be the name shown in the user's mailbox."
+            }
+          },
+          "description": "The mail folder properties to update",
+          "additionalProperties": false
+        },
+        "path": {
+          "type": "object",
+          "required": ["folder_id"],
+          "properties": {
+            "folder_id": {
+              "type": "string",
+              "description": "The unique identifier of the mail folder to update"
+            }
+          },
+          "description": "The path parameters",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "MICROSOFT_OUTLOOK__LIST_CHILD_FOLDERS",
+    "description": "Get the collection of child folders under a specified mail folder. By default, hidden folders are excluded unless explicitly requested. Supports OData query parameters for filtering and customization.",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "LIST_CHILD_FOLDERS",
+      "canonical_tool_description_hash": "82dfc362c3afa9212201cfbde0281415368ac33ce92b860fcff3df1e8c0c369e",
+      "canonical_tool_input_schema_hash": "53ca12cb76b18de05a4b23afc59bd10a92e4f658e378ce289aece4ebd4c88329"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["path"],
+      "properties": {
+        "path": {
+          "type": "object",
+          "required": ["folder_id"],
+          "properties": {
+            "folder_id": {
+              "type": "string",
+              "description": "The unique identifier of the parent mail folder whose child folders to retrieve"
+            }
+          },
+          "description": "The path parameters",
+          "additionalProperties": false
+        },
+        "query": {
+          "type": "object",
+          "required": [],
+          "properties": {
+            "$top": {
+              "type": "integer",
+              "description": "Maximum number of child folders to return"
+            },
+            "$skip": {
+              "type": "integer",
+              "description": "Number of child folders to skip (for pagination)"
+            },
+            "$filter": {
+              "type": "string",
+              "description": "Filter expression to limit the child folders returned (e.g., 'totalItemCount gt 0')"
+            },
+            "$select": {
+              "type": "string",
+              "description": "Comma-separated list of properties to include in the response (e.g., 'id,displayName,totalItemCount')"
+            },
+            "$orderby": {
+              "type": "string",
+              "description": "Property to sort the child folders by, optionally with 'asc' or 'desc' (e.g., 'displayName asc')"
+            },
+            "includeHiddenFolders": {
+              "type": "boolean",
+              "description": "Whether to include hidden child folders in the response. Default is false."
+            }
+          },
+          "description": "Query parameters for customizing the child folder list",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "MICROSOFT_OUTLOOK__CREATE_MESSAGE_IN_FOLDER",
+    "description": "Create a new message directly in a specific mail folder. This creates an actual message in the folder, not a draft. The message will appear in the specified folder immediately.",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "CREATE_MESSAGE_IN_FOLDER",
+      "canonical_tool_description_hash": "c7234bf010e5d8bf491c7214a8ebc5334de390724d45018b2382c78841ee7e5a",
+      "canonical_tool_input_schema_hash": "6e1a961e8f70f27b86442bacdafb4450199a3e7370e64cf027fc00a228c7d2a6"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["path", "body"],
+      "properties": {
+        "body": {
+          "type": "object",
+          "required": ["subject", "body"],
+          "properties": {
+            "body": {
+              "type": "object",
+              "required": ["contentType", "content"],
+              "properties": {
+                "content": {
+                  "type": "string",
+                  "description": "The content of the message body"
+                },
+                "contentType": {
+                  "type": "string",
+                  "description": "The content type of the body. Either 'text' or 'html'"
+                }
+              },
+              "description": "The body of the message",
+              "additionalProperties": false
+            },
+            "isRead": {
+              "type": "boolean",
+              "description": "Indicates whether the message has been read"
+            },
+            "subject": {
+              "type": "string",
+              "description": "The subject line of the message"
+            },
+            "importance": {
+              "enum": ["low", "normal", "high"],
+              "type": "string",
+              "description": "The importance of the message. Values: low, normal, high"
+            },
+            "ccRecipients": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "visible": ["emailAddress"],
+                "required": ["emailAddress"],
+                "properties": {
+                  "emailAddress": {
+                    "type": "object",
+                    "visible": ["address", "name"],
+                    "required": ["address"],
+                    "properties": {
+                      "name": {
+                        "type": "string",
+                        "description": "The display name of the recipient"
+                      },
+                      "address": {
+                        "type": "string",
+                        "description": "The email address"
+                      }
+                    },
+                    "additionalProperties": false
+                  }
+                },
+                "additionalProperties": false
+              },
+              "description": "The recipients in the CC field"
+            },
+            "toRecipients": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "visible": ["emailAddress"],
+                "required": ["emailAddress"],
+                "properties": {
+                  "emailAddress": {
+                    "type": "object",
+                    "visible": ["address", "name"],
+                    "required": ["address"],
+                    "properties": {
+                      "name": {
+                        "type": "string",
+                        "description": "The display name of the recipient"
+                      },
+                      "address": {
+                        "type": "string",
+                        "description": "The email address"
+                      }
+                    },
+                    "additionalProperties": false
+                  }
+                },
+                "additionalProperties": false
+              },
+              "description": "The recipients in the To field"
+            },
+            "bccRecipients": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "visible": ["emailAddress"],
+                "required": ["emailAddress"],
+                "properties": {
+                  "emailAddress": {
+                    "type": "object",
+                    "visible": ["address", "name"],
+                    "required": ["address"],
+                    "properties": {
+                      "name": {
+                        "type": "string",
+                        "description": "The display name of the recipient"
+                      },
+                      "address": {
+                        "type": "string",
+                        "description": "The email address"
+                      }
+                    },
+                    "additionalProperties": false
+                  }
+                },
+                "additionalProperties": false
+              },
+              "description": "The recipients in the BCC field"
+            }
+          },
+          "description": "The message properties to create",
+          "additionalProperties": false
+        },
+        "path": {
+          "type": "object",
+          "required": ["folder_id"],
+          "properties": {
+            "folder_id": {
+              "type": "string",
+              "description": "The unique identifier of the mail folder where the message will be created"
+            }
+          },
+          "description": "The path parameters",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "MICROSOFT_OUTLOOK__CREATE_MAIL_FOLDER",
+    "description": "Create a new mail folder in the root folder of the user's mailbox. You can set the folder name and whether it should be hidden. Hidden folders cannot be unhidden later.",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "CREATE_MAIL_FOLDER",
+      "canonical_tool_description_hash": "42235827766992b023434974185d0f512ca8ed8cf0708fc548771f33e7fd2f34",
+      "canonical_tool_input_schema_hash": "34a3edc6e452c9c98a167b075f4d25d94b040ddf8032709fe931b204fb20b731"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["body"],
+      "properties": {
+        "body": {
+          "type": "object",
+          "required": ["displayName"],
+          "properties": {
+            "isHidden": {
+              "type": "boolean",
+              "description": "Indicates whether the new folder should be hidden. Default is false. Once set to true, this property cannot be changed later."
+            },
+            "displayName": {
+              "type": "string",
+              "description": "The display name of the new folder. This is the name that will appear in the user's mailbox."
+            }
+          },
+          "description": "The mail folder properties to create",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "MICROSOFT_OUTLOOK__CREATE_CHILD_FOLDER",
+    "description": "Create a new child mail folder under a specific parent folder. You can set the folder name and whether it should be hidden. Hidden folders cannot be unhidden later. This is useful for organizing emails in a hierarchical structure.",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "CREATE_CHILD_FOLDER",
+      "canonical_tool_description_hash": "0d839a0830fa75669efa2f58d0340304cc7bc95e49bc8284033bcb5a5e8cd8ed",
+      "canonical_tool_input_schema_hash": "34c69a7d1cfa4b5b8fa1164f6aa9dfbf81887c3ddd5007b446ce94bf0018f2cb"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["path", "body"],
+      "properties": {
+        "body": {
+          "type": "object",
+          "required": ["displayName"],
+          "properties": {
+            "isHidden": {
+              "type": "boolean",
+              "description": "Indicates whether the new child folder should be hidden. Default is false. Once set to true, this property cannot be changed later."
+            },
+            "displayName": {
+              "type": "string",
+              "description": "The display name of the new child folder. This is the name that will appear in the user's mailbox under the parent folder."
+            }
+          },
+          "description": "The child folder properties to create",
+          "additionalProperties": false
+        },
+        "path": {
+          "type": "object",
+          "required": ["folder_id"],
+          "properties": {
+            "folder_id": {
+              "type": "string",
+              "description": "The unique identifier of the parent mail folder under which to create the child folder"
+            }
+          },
+          "description": "The path parameters",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "MICROSOFT_OUTLOOK__GET_MESSAGE",
+    "description": "Get a specific email message by its ID with detailed information including sender, recipients, subject, body, and attachments.",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "GET_MESSAGE",
+      "canonical_tool_description_hash": "744ca2b68ea046a19e5fc77ec4352d4ab8dd960a1910d82879e2ba6d858113fc",
+      "canonical_tool_input_schema_hash": "b921b82296283e2e35438d131f924007b9133ad72bc62c3c23094f6c395a09df"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["path"],
+      "properties": {
+        "path": {
+          "type": "object",
+          "required": ["message_id"],
+          "properties": {
+            "message_id": {
+              "type": "string",
+              "description": "The unique identifier of the message to retrieve"
+            }
+          },
+          "description": "The path parameters",
+          "additionalProperties": false
+        },
+        "query": {
+          "type": "object",
+          "required": [],
+          "properties": {
+            "$expand": {
+              "type": "string",
+              "description": "Comma-separated list of relationships to expand (e.g., 'attachments')"
+            },
+            "$select": {
+              "type": "string",
+              "description": "Comma-separated list of properties to include in the response (e.g., 'subject,sender,receivedDateTime')"
+            }
+          },
+          "description": "Query parameters for customizing the response",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "MICROSOFT_OUTLOOK__DELETE_MESSAGE",
+    "description": "Delete a specific email message by its ID. This operation moves the message to the Deleted Items folder.",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "DELETE_MESSAGE",
+      "canonical_tool_description_hash": "539eacaee56c5bfae5d6aa79c3dc32dbc42075823001e6601c1fb30235a24ef8",
+      "canonical_tool_input_schema_hash": "c39ee6a73e0dea5dccdf9d06d229dbe10d4e2da436aa7fd2a2cc7d72b87ddd1b"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["path"],
+      "properties": {
+        "path": {
+          "type": "object",
+          "required": ["message_id"],
+          "properties": {
+            "message_id": {
+              "type": "string",
+              "description": "The unique identifier of the message to delete"
+            }
+          },
+          "description": "The path parameters",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "MICROSOFT_OUTLOOK__PERMANENT_DELETE",
+    "description": "Permanently delete a message and place it in the purges folder in the dumpster. Unlike regular delete, this cannot be recovered by email clients and items are permanently deleted after a set period.",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "PERMANENT_DELETE",
+      "canonical_tool_description_hash": "7d30ec59ada6e794d1ae22b1e828d3ec7aa3e47a8b0a21143f90562f643d23b1",
+      "canonical_tool_input_schema_hash": "1f7d9af647a5b3ea65280f0506f6391cfd9a2a77f4497965bac4049c183784c1"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["path"],
+      "properties": {
+        "path": {
+          "type": "object",
+          "required": ["message_id"],
+          "properties": {
+            "message_id": {
+              "type": "string",
+              "description": "The unique identifier of the message to permanently delete"
+            }
+          },
+          "description": "The path parameters",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "MICROSOFT_OUTLOOK__COPY_MESSAGE",
+    "description": "Copy a message to a folder within the user's mailbox. You can specify a destination folder ID or use well-known folder names like 'inbox', 'drafts', 'sentitems', 'deleteditems'.",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "COPY_MESSAGE",
+      "canonical_tool_description_hash": "081187bea61a0ee5e38a0a1b390bd4cf48e92eb7a48869931065dd2f98b28754",
+      "canonical_tool_input_schema_hash": "d05911ca23b751e3e6c5cb997571a48a392b8c38b174cd491e4fffe6c85c01fc"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["path", "body"],
+      "properties": {
+        "body": {
+          "type": "object",
+          "required": ["destinationId"],
+          "properties": {
+            "destinationId": {
+              "type": "string",
+              "description": "The destination folder ID, or a well-known folder name (e.g., 'inbox', 'drafts', 'sentitems', 'deleteditems', 'archive', 'junkfolder')"
+            }
+          },
+          "description": "The copy operation parameters",
+          "additionalProperties": false
+        },
+        "path": {
+          "type": "object",
+          "required": ["message_id"],
+          "properties": {
+            "message_id": {
+              "type": "string",
+              "description": "The unique identifier of the message to copy"
+            }
+          },
+          "description": "The path parameters",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "MICROSOFT_OUTLOOK__CREATE_FORWARD",
+    "description": "Create a draft to forward an existing message. You can optionally add a comment and specify recipients. The draft can be updated later or sent in a subsequent operation.",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "CREATE_FORWARD",
+      "canonical_tool_description_hash": "a223acc0cb1b4c81c32d48c8fc7283a8e5ddf1eecf2af9773b5970ce268a3ef6",
+      "canonical_tool_input_schema_hash": "32e0700a04c921a55e39eeaeacb665508a27ba7ea3a2ec7afd9663f50fc2be7a"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["path"],
+      "properties": {
+        "body": {
+          "type": "object",
+          "required": [],
+          "properties": {
+            "comment": {
+              "type": "string",
+              "description": "A comment to include with the forward (alternative to message body)"
+            },
+            "message": {
+              "type": "object",
+              "required": [],
+              "properties": {
+                "body": {
+                  "type": "object",
+                  "required": ["contentType", "content"],
+                  "properties": {
+                    "content": {
+                      "type": "string",
+                      "description": "The actual content of the message body"
+                    },
+                    "contentType": {
+                      "enum": ["text", "html"],
+                      "type": "string",
+                      "description": "The content type of the message body"
+                    }
+                  },
+                  "description": "The body content of the forward message",
+                  "additionalProperties": false
+                },
+                "toRecipients": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "visible": ["emailAddress"],
+                    "required": ["emailAddress"],
+                    "properties": {
+                      "emailAddress": {
+                        "type": "object",
+                        "visible": ["address", "name"],
+                        "required": ["address"],
+                        "properties": {
+                          "name": {
+                            "type": "string",
+                            "description": "The display name of the recipient"
+                          },
+                          "address": {
+                            "type": "string",
+                            "description": "The email address of the recipient"
+                          }
+                        },
+                        "additionalProperties": false
+                      }
+                    },
+                    "additionalProperties": false
+                  },
+                  "description": "The list of recipients (alternative to top-level toRecipients)"
+                }
+              },
+              "description": "Message properties for the forward draft",
+              "additionalProperties": false
+            },
+            "toRecipients": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "visible": ["emailAddress"],
+                "required": ["emailAddress"],
+                "properties": {
+                  "emailAddress": {
+                    "type": "object",
+                    "visible": ["address", "name"],
+                    "required": ["address"],
+                    "properties": {
+                      "name": {
+                        "type": "string",
+                        "description": "The display name of the recipient"
+                      },
+                      "address": {
+                        "type": "string",
+                        "description": "The email address of the recipient"
+                      }
+                    },
+                    "additionalProperties": false
+                  }
+                },
+                "additionalProperties": false
+              },
+              "description": "The list of recipients to forward the message to"
+            }
+          },
+          "description": "Optional parameters for the forward draft",
+          "additionalProperties": false
+        },
+        "path": {
+          "type": "object",
+          "required": ["message_id"],
+          "properties": {
+            "message_id": {
+              "type": "string",
+              "description": "The unique identifier of the message to forward"
+            }
+          },
+          "description": "The path parameters",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "MICROSOFT_OUTLOOK__CREATE_REPLY",
+    "description": "Create a draft reply to an existing message. The reply will automatically include the original sender as the recipient and reference the original message.",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "CREATE_REPLY",
+      "canonical_tool_description_hash": "f92b8b4c30a7b7a8d05509dbaff85eee1955769bf900a5fb41a6d6686f318c0b",
+      "canonical_tool_input_schema_hash": "bfb6d32ae4610aea8b8b9fb03f68e5189e9b847a76d5e1b428b0b2f0c0000638"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["path"],
+      "properties": {
+        "path": {
+          "type": "object",
+          "required": ["message_id"],
+          "properties": {
+            "message_id": {
+              "type": "string",
+              "description": "The unique identifier of the message to reply to"
+            }
+          },
+          "description": "The path parameters",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "MICROSOFT_OUTLOOK__CREATE_REPLY_ALL",
+    "description": "Create a draft to reply to the sender and all recipients of a message. The reply will automatically include all original recipients (To, CC) and follow proper reply-to logic.",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "CREATE_REPLY_ALL",
+      "canonical_tool_description_hash": "f82ea1e04ff14b2b7372642b183c41acc243e135410311d518469d66832c349b",
+      "canonical_tool_input_schema_hash": "ea493652da0303a99b7a145e86a8d01864d8aaff106a4a006ba28f7d4aeffb09"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["path"],
+      "properties": {
+        "path": {
+          "type": "object",
+          "required": ["message_id"],
+          "properties": {
+            "message_id": {
+              "type": "string",
+              "description": "The unique identifier of the message to reply to all recipients"
+            }
+          },
+          "description": "The path parameters",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "MICROSOFT_OUTLOOK__FORWARD",
+    "description": "Forward a message immediately (not as draft). The message will be sent right away and saved in the Sent Items folder. You can add a comment and specify recipients.",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "FORWARD",
+      "canonical_tool_description_hash": "13c3365999ae6e2330c98b7933540d2dc9719edc375a6c61a6b6100aec70c6dc",
+      "canonical_tool_input_schema_hash": "e3e2d2fcf01c78c2be9ddce7bdeec3096fe3100bad7b9b3a6c37b7c7adabd14a"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["path", "body"],
+      "properties": {
+        "body": {
+          "type": "object",
+          "required": [],
+          "properties": {
+            "comment": {
+              "type": "string",
+              "description": "A comment to include with the forwarded message. Cannot be used together with message.body property."
+            },
+            "message": {
+              "type": "object",
+              "required": [],
+              "properties": {
+                "body": {
+                  "type": "object",
+                  "required": [],
+                  "properties": {
+                    "content": {
+                      "type": "string",
+                      "description": "The content of the body"
+                    },
+                    "contentType": {
+                      "enum": ["text", "html"],
+                      "type": "string",
+                      "description": "The content type of the body"
+                    }
+                  },
+                  "description": "The body of the forwarded message. Cannot be used together with comment parameter.",
+                  "additionalProperties": false
+                },
+                "toRecipients": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "visible": ["emailAddress"],
+                    "required": ["emailAddress"],
+                    "properties": {
+                      "emailAddress": {
+                        "type": "object",
+                        "visible": ["address", "name"],
+                        "required": ["address"],
+                        "properties": {
+                          "name": {
+                            "type": "string",
+                            "description": "The display name"
+                          },
+                          "address": {
+                            "type": "string",
+                            "description": "The email address"
+                          }
+                        },
+                        "additionalProperties": false
+                      }
+                    },
+                    "additionalProperties": false
+                  },
+                  "description": "Recipients in message format. Cannot be used together with toRecipients parameter."
+                }
+              },
+              "description": "Alternative way to specify message properties",
+              "additionalProperties": false
+            },
+            "toRecipients": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "visible": ["emailAddress"],
+                "required": ["emailAddress"],
+                "properties": {
+                  "emailAddress": {
+                    "type": "object",
+                    "visible": ["address", "name"],
+                    "required": ["address"],
+                    "properties": {
+                      "name": {
+                        "type": "string",
+                        "description": "The display name for the email address"
+                      },
+                      "address": {
+                        "type": "string",
+                        "description": "The email address"
+                      }
+                    },
+                    "additionalProperties": false
+                  }
+                },
+                "additionalProperties": false
+              },
+              "description": "The recipients for the forwarded message. Cannot be used together with message.toRecipients property."
+            }
+          },
+          "description": "The request body for forwarding the message",
+          "additionalProperties": false
+        },
+        "path": {
+          "type": "object",
+          "required": ["message_id"],
+          "properties": {
+            "message_id": {
+              "type": "string",
+              "description": "The unique identifier of the message to forward"
+            }
+          },
+          "description": "The path parameters",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "MICROSOFT_OUTLOOK__REPLY",
+    "description": "Reply to the sender of a message immediately (not as draft). The reply will be sent right away and saved in the Sent Items folder. You can add a comment or custom body.",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "REPLY",
+      "canonical_tool_description_hash": "e4b72e3a6a1d526c08d367eadc334b055f63fe9b4d27b27928470a00d8f9dd7b",
+      "canonical_tool_input_schema_hash": "e82627eca5d843a8d55822f30fe482f69cb59166b5d3cc1d04fe6965de368422"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["path", "body"],
+      "properties": {
+        "body": {
+          "type": "object",
+          "required": [],
+          "properties": {
+            "comment": {
+              "type": "string",
+              "description": "A comment to include with the reply. Cannot be used together with message.body property."
+            },
+            "message": {
+              "type": "object",
+              "required": [],
+              "properties": {
+                "body": {
+                  "type": "object",
+                  "required": [],
+                  "properties": {
+                    "content": {
+                      "type": "string",
+                      "description": "The content of the body"
+                    },
+                    "contentType": {
+                      "enum": ["text", "html"],
+                      "type": "string",
+                      "description": "The content type of the body"
+                    }
+                  },
+                  "description": "The body of the reply message. Cannot be used together with comment parameter.",
+                  "additionalProperties": false
+                }
+              },
+              "description": "Alternative way to specify message properties",
+              "additionalProperties": false
+            }
+          },
+          "description": "The request body for the reply",
+          "additionalProperties": false
+        },
+        "path": {
+          "type": "object",
+          "required": ["message_id"],
+          "properties": {
+            "message_id": {
+              "type": "string",
+              "description": "The unique identifier of the message to reply to"
+            }
+          },
+          "description": "The path parameters",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "MICROSOFT_OUTLOOK__REPLY_ALL",
+    "description": "Reply to all recipients of a message immediately (not as draft). The reply will be sent right away to all original recipients and saved in the Sent Items folder. You can add a comment or custom body.",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "REPLY_ALL",
+      "canonical_tool_description_hash": "072009d0bafdcb7ef00eb84623ccef9ea4d11612833fb77ac54aee3e266dc11e",
+      "canonical_tool_input_schema_hash": "0dfeebd4ec7679d49f4b2dc405f2e38e4d7c7fb6e1425dc0f5c7b0c5f6d90b4c"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["path", "body"],
+      "properties": {
+        "body": {
+          "type": "object",
+          "required": [],
+          "properties": {
+            "comment": {
+              "type": "string",
+              "description": "A comment to include with the reply all. Cannot be used together with message.body property."
+            },
+            "message": {
+              "type": "object",
+              "required": [],
+              "properties": {
+                "body": {
+                  "type": "object",
+                  "required": [],
+                  "properties": {
+                    "content": {
+                      "type": "string",
+                      "description": "The content of the body"
+                    },
+                    "contentType": {
+                      "enum": ["text", "html"],
+                      "type": "string",
+                      "description": "The content type of the body"
+                    }
+                  },
+                  "description": "The body of the reply all message. Cannot be used together with comment parameter.",
+                  "additionalProperties": false
+                }
+              },
+              "description": "Alternative way to specify message properties",
+              "additionalProperties": false
+            }
+          },
+          "description": "The request body for the reply all",
+          "additionalProperties": false
+        },
+        "path": {
+          "type": "object",
+          "required": ["message_id"],
+          "properties": {
+            "message_id": {
+              "type": "string",
+              "description": "The unique identifier of the message to reply all to"
+            }
+          },
+          "description": "The path parameters",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "MICROSOFT_OUTLOOK__CREATE_DRAFT_MESSAGE",
+    "description": "Create a draft of a new message in JSON format. By default, this operation saves the draft in the Drafts folder. You can update the draft later to add content or change properties, or send it in a subsequent operation.",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "CREATE_DRAFT_MESSAGE",
+      "canonical_tool_description_hash": "1b61d37f316eeeafdd99bc162807ee062d46196e2a700d138d90f8b583fcaa1d",
+      "canonical_tool_input_schema_hash": "e35960bf2fc49dcee900f3ed295da944653cc16a65815a819b2b72a9dda9459f"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["body"],
+      "properties": {
+        "body": {
+          "type": "object",
+          "required": [],
+          "properties": {
+            "body": {
+              "type": "object",
+              "required": ["contentType", "content"],
+              "properties": {
+                "content": {
+                  "type": "string",
+                  "description": "The actual content of the message body"
+                },
+                "contentType": {
+                  "enum": ["text", "html"],
+                  "type": "string",
+                  "description": "The content type of the message body"
+                }
+              },
+              "description": "The body content of the message",
+              "additionalProperties": false
+            },
+            "subject": {
+              "type": "string",
+              "description": "The subject of the message"
+            },
+            "importance": {
+              "enum": ["low", "normal", "high"],
+              "type": "string",
+              "description": "The importance level of the message"
+            },
+            "ccRecipients": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "visible": ["emailAddress"],
+                "required": ["emailAddress"],
+                "properties": {
+                  "emailAddress": {
+                    "type": "object",
+                    "visible": ["address", "name"],
+                    "required": ["address"],
+                    "properties": {
+                      "name": {
+                        "type": "string",
+                        "description": "The display name of the CC recipient"
+                      },
+                      "address": {
+                        "type": "string",
+                        "description": "The email address of the CC recipient"
+                      }
+                    },
+                    "additionalProperties": false
+                  }
+                },
+                "additionalProperties": false
+              },
+              "description": "The list of CC recipients"
+            },
+            "toRecipients": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "visible": ["emailAddress"],
+                "required": ["emailAddress"],
+                "properties": {
+                  "emailAddress": {
+                    "type": "object",
+                    "visible": ["address", "name"],
+                    "required": ["address"],
+                    "properties": {
+                      "name": {
+                        "type": "string",
+                        "description": "The display name of the recipient"
+                      },
+                      "address": {
+                        "type": "string",
+                        "description": "The email address of the recipient"
+                      }
+                    },
+                    "additionalProperties": false
+                  }
+                },
+                "additionalProperties": false
+              },
+              "description": "The list of recipients to send the message to"
+            },
+            "bccRecipients": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "visible": ["emailAddress"],
+                "required": ["emailAddress"],
+                "properties": {
+                  "emailAddress": {
+                    "type": "object",
+                    "visible": ["address", "name"],
+                    "required": ["address"],
+                    "properties": {
+                      "name": {
+                        "type": "string",
+                        "description": "The display name of the BCC recipient"
+                      },
+                      "address": {
+                        "type": "string",
+                        "description": "The email address of the BCC recipient"
+                      }
+                    },
+                    "additionalProperties": false
+                  }
+                },
+                "additionalProperties": false
+              },
+              "description": "The list of BCC recipients"
+            }
+          },
+          "description": "The message properties for creating a draft email",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "MICROSOFT_OUTLOOK__DELTA_MAIL_FOLDERS",
+    "description": "Get incremental changes (added, deleted, or updated) in mail folders since the last delta query. This allows efficient synchronization by tracking only changes rather than fetching all folders every time. Use deltatoken for completed rounds and skiptoken for pagination.",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "DELTA_MAIL_FOLDERS",
+      "canonical_tool_description_hash": "4477bccaa12efe2c8ce9b3a34bc4b3209af34d3749204f30ccbab408e02072c1",
+      "canonical_tool_input_schema_hash": "fb7b7333a3158e2acabfe458de5a35db7fee81927f1ceec2744d4025d8e3a771"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": [],
+      "properties": {
+        "query": {
+          "type": "object",
+          "required": [],
+          "properties": {
+            "$select": {
+              "type": "string",
+              "description": "Comma-separated list of properties to include in the response for performance optimization (e.g., 'id,displayName,parentFolderId'). The 'id' property is always returned."
+            },
+            "$skiptoken": {
+              "type": "string",
+              "description": "State token from the @odata.nextLink URL of the previous delta call, indicating there are more changes to be tracked in the same round."
+            },
+            "$deltatoken": {
+              "type": "string",
+              "description": "State token from the @odata.deltaLink URL of the previous delta call, indicating completion of a change tracking round. Use this to start the next round of change tracking."
+            }
+          },
+          "description": "Query parameters for delta tracking and customization",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "MICROSOFT_OUTLOOK__COPY_MAIL_FOLDER",
+    "description": "Copy a mail folder and its contents to another mail folder. You can specify a destination folder ID or use well-known folder names like 'inbox', 'drafts', 'sentitems', 'deleteditems'. The entire folder structure and contents will be duplicated.",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "COPY_MAIL_FOLDER",
+      "canonical_tool_description_hash": "691416b381daaa2eb038da3b6b3e879a01a3824c2c957dfd641b0425698ae7d9",
+      "canonical_tool_input_schema_hash": "6cfd1cd6a215ee36ccdf4d90a5f9acdc0c7a3010b5a587e089e40d3248eb3c8d"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["path", "body"],
+      "properties": {
+        "body": {
+          "type": "object",
+          "required": ["destinationId"],
+          "properties": {
+            "destinationId": {
+              "type": "string",
+              "description": "The destination folder ID, or a well-known folder name (e.g., 'inbox', 'drafts', 'sentitems', 'deleteditems', 'archive', 'junkfolder')"
+            }
+          },
+          "description": "The copy operation parameters",
+          "additionalProperties": false
+        },
+        "path": {
+          "type": "object",
+          "required": ["folder_id"],
+          "properties": {
+            "folder_id": {
+              "type": "string",
+              "description": "The unique identifier of the mail folder to copy"
+            }
+          },
+          "description": "The path parameters",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "MICROSOFT_OUTLOOK__DELETE_MAIL_FOLDER",
+    "description": "Delete a mail folder by its ID. The folder can be a mailSearchFolder. You can specify a mail folder by its folder ID, or by its well-known folder name. Note: You may not be able to delete items in the recoverable items deletions folder.",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "DELETE_MAIL_FOLDER",
+      "canonical_tool_description_hash": "8c0cd940aeefcefc94ce8075be1165454535a485e29835033666379dd20e191d",
+      "canonical_tool_input_schema_hash": "97c5c8365f883624375a6d44b47e23508190fc3e8a607e5860e148254cf15a75"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["path"],
+      "properties": {
+        "path": {
+          "type": "object",
+          "required": ["folder_id"],
+          "properties": {
+            "folder_id": {
+              "type": "string",
+              "description": "The unique identifier of the mail folder to delete, or a well-known folder name"
+            }
+          },
+          "description": "The path parameters",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+]

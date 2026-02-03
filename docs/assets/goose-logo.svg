@@ -1,0 +1,137 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 400" width="800" height="400">
+  <defs>
+    <!-- Gradients for the geese -->
+    <linearGradient id="whiteGooseGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#FFFFFF;stop-opacity:1" />
+      <stop offset="50%" style="stop-color:#F5F5F5;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#E8E8E8;stop-opacity:1" />
+    </linearGradient>
+    <linearGradient id="blackGooseGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#2D2D2D;stop-opacity:1" />
+      <stop offset="50%" style="stop-color:#1A1A1A;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#0D0D0D;stop-opacity:1" />
+    </linearGradient>
+    <linearGradient id="beakGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#FF9500;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#E68600;stop-opacity:1" />
+    </linearGradient>
+    <linearGradient id="bgGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#667eea;stop-opacity:1" />
+      <stop offset="50%" style="stop-color:#764ba2;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#f093fb;stop-opacity:1" />
+    </linearGradient>
+    <!-- Glow effects -->
+    <filter id="glow" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="3" result="coloredBlur"/>
+      <feMerge>
+        <feMergeNode in="coloredBlur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="2" dy="4" stdDeviation="4" flood-color="#000" flood-opacity="0.3"/>
+    </filter>
+    <!-- Feather texture pattern -->
+    <pattern id="featherPattern" patternUnits="userSpaceOnUse" width="10" height="10">
+      <path d="M0,5 Q5,0 10,5 Q5,10 0,5" fill="none" stroke="rgba(0,0,0,0.05)" stroke-width="0.5"/>
+    </pattern>
+  </defs>
+
+  <!-- Background -->
+  <rect width="800" height="400" fill="url(#bgGradient)" rx="20"/>
+
+  <!-- Decorative elements -->
+  <circle cx="100" cy="80" r="40" fill="rgba(255,255,255,0.1)"/>
+  <circle cx="700" cy="320" r="60" fill="rgba(255,255,255,0.08)"/>
+  <circle cx="750" cy="100" r="25" fill="rgba(255,255,255,0.12)"/>
+
+  <!-- WHITE GOOSE (Left) - Representing Light/Day/Transparency -->
+  <g transform="translate(80, 80)" filter="url(#shadow)">
+    <!-- Body -->
+    <ellipse cx="120" cy="180" rx="90" ry="70" fill="url(#whiteGooseGradient)" stroke="#DDD" stroke-width="2"/>
+    <ellipse cx="120" cy="180" rx="90" ry="70" fill="url(#featherPattern)"/>
+
+    <!-- Wing detail -->
+    <path d="M60,150 Q80,120 130,130 Q160,140 170,170 Q140,160 100,165 Q70,170 60,150"
+          fill="#F0F0F0" stroke="#E0E0E0" stroke-width="1"/>
+    <path d="M70,160 Q90,140 120,145 Q150,150 155,165" fill="none" stroke="#DDD" stroke-width="1"/>
+    <path d="M80,170 Q100,155 125,158 Q145,162 150,172" fill="none" stroke="#DDD" stroke-width="1"/>
+
+    <!-- Neck -->
+    <path d="M170,160 Q200,100 180,50 Q175,30 160,25"
+          fill="url(#whiteGooseGradient)" stroke="#DDD" stroke-width="2"/>
+
+    <!-- Head -->
+    <ellipse cx="155" cy="30" rx="25" ry="22" fill="url(#whiteGooseGradient)" stroke="#DDD" stroke-width="2"/>
+
+    <!-- Eye -->
+    <ellipse cx="145" cy="25" rx="6" ry="7" fill="#1A1A1A"/>
+    <ellipse cx="144" cy="23" rx="2" ry="2" fill="#FFF"/>
+
+    <!-- Beak -->
+    <path d="M125,30 Q115,25 105,30 Q115,35 125,30" fill="url(#beakGradient)" stroke="#CC7700" stroke-width="1"/>
+    <path d="M125,30 L105,30" fill="none" stroke="#AA6600" stroke-width="0.5"/>
+
+    <!-- Tail feathers -->
+    <path d="M30,170 Q10,160 5,140" fill="none" stroke="#E8E8E8" stroke-width="3" stroke-linecap="round"/>
+    <path d="M35,175 Q15,170 8,155" fill="none" stroke="#E8E8E8" stroke-width="3" stroke-linecap="round"/>
+    <path d="M40,180 Q20,180 12,170" fill="none" stroke="#E8E8E8" stroke-width="3" stroke-linecap="round"/>
+
+    <!-- Feet -->
+    <g fill="url(#beakGradient)" stroke="#CC7700" stroke-width="1">
+      <path d="M90,245 L85,280 L70,275 M85,280 L85,285 M85,280 L95,275"/>
+      <path d="M140,245 L145,280 L130,275 M145,280 L145,285 M145,280 L155,275"/>
+    </g>
+  </g>
+
+  <!-- BLACK GOOSE (Right) - Representing Dark/Night/Power -->
+  <g transform="translate(420, 80)" filter="url(#shadow)">
+    <!-- Body -->
+    <ellipse cx="120" cy="180" rx="90" ry="70" fill="url(#blackGooseGradient)" stroke="#444" stroke-width="2"/>
+
+    <!-- Wing detail -->
+    <path d="M60,150 Q80,120 130,130 Q160,140 170,170 Q140,160 100,165 Q70,170 60,150"
+          fill="#252525" stroke="#333" stroke-width="1"/>
+    <path d="M70,160 Q90,140 120,145 Q150,150 155,165" fill="none" stroke="#333" stroke-width="1"/>
+    <path d="M80,170 Q100,155 125,158 Q145,162 150,172" fill="none" stroke="#333" stroke-width="1"/>
+
+    <!-- Neck -->
+    <path d="M170,160 Q200,100 180,50 Q175,30 160,25"
+          fill="url(#blackGooseGradient)" stroke="#444" stroke-width="2"/>
+
+    <!-- Head -->
+    <ellipse cx="155" cy="30" rx="25" ry="22" fill="url(#blackGooseGradient)" stroke="#444" stroke-width="2"/>
+
+    <!-- Eye (brighter for contrast) -->
+    <ellipse cx="145" cy="25" rx="6" ry="7" fill="#FFD700"/>
+    <ellipse cx="145" cy="25" rx="3" ry="4" fill="#1A1A1A"/>
+    <ellipse cx="144" cy="23" rx="1" ry="1" fill="#FFF"/>
+
+    <!-- Beak -->
+    <path d="M125,30 Q115,25 105,30 Q115,35 125,30" fill="url(#beakGradient)" stroke="#CC7700" stroke-width="1"/>
+    <path d="M125,30 L105,30" fill="none" stroke="#AA6600" stroke-width="0.5"/>
+
+    <!-- Tail feathers -->
+    <path d="M30,170 Q10,160 5,140" fill="none" stroke="#2D2D2D" stroke-width="3" stroke-linecap="round"/>
+    <path d="M35,175 Q15,170 8,155" fill="none" stroke="#2D2D2D" stroke-width="3" stroke-linecap="round"/>
+    <path d="M40,180 Q20,180 12,170" fill="none" stroke="#2D2D2D" stroke-width="3" stroke-linecap="round"/>
+
+    <!-- Feet -->
+    <g fill="url(#beakGradient)" stroke="#CC7700" stroke-width="1">
+      <path d="M90,245 L85,280 L70,275 M85,280 L85,285 M85,280 L95,275"/>
+      <path d="M140,245 L145,280 L130,275 M145,280 L145,285 M145,280 L155,275"/>
+    </g>
+
+    <!-- Subtle glow effect for dark goose -->
+    <ellipse cx="120" cy="180" rx="95" ry="75" fill="none" stroke="rgba(102,126,234,0.3)" stroke-width="2"/>
+  </g>
+
+  <!-- Title Text -->
+  <text x="400" y="360" text-anchor="middle" font-family="'Segoe UI', Arial, sans-serif" font-size="48" font-weight="700" fill="#FFF" filter="url(#glow)">
+    GOOSE
+  </text>
+  <text x="400" y="385" text-anchor="middle" font-family="'Segoe UI', Arial, sans-serif" font-size="14" font-weight="400" fill="rgba(255,255,255,0.8)" letter-spacing="4">
+    ENTERPRISE AI AGENT PLATFORM
+  </text>
+</svg>

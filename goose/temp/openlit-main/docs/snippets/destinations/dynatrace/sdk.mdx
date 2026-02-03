@@ -1,0 +1,88 @@
+### 2. Instrument your application
+    <Tabs>
+      <Tab title="SDK">
+        **For direct integration into your Python applications:**
+        
+        <Tabs>
+          <Tab title="Function Arguments">
+          ```python
+          import openlit
+
+          openlit.init(
+            otlp_endpoint="https://YOUR_ENVIRONMENT_ID.live.dynatrace.com/api/v2/otlp", 
+            otlp_headers="Authorization=Api-Token YOUR_DYNATRACE_API_TOKEN"
+          )
+          ```
+
+          Replace:
+          1. `YOUR_ENVIRONMENT_ID` with your Dynatrace environment ID.
+             * Example: `abc12345.live.dynatrace.com`
+          1. `YOUR_DYNATRACE_API_TOKEN` with the API token you generated in Step 1.
+          </Tab>
+          
+          <Tab title="Environment Variables">
+          ```python
+          import openlit
+
+          openlit.init()
+          ```
+
+          Set these environment variables:
+          ```shell
+          export OTEL_EXPORTER_OTLP_ENDPOINT="https://YOUR_ENVIRONMENT_ID.live.dynatrace.com/api/v2/otlp"
+          export OTEL_EXPORTER_OTLP_HEADERS="Authorization=Api-Token YOUR_DYNATRACE_API_TOKEN"
+          ```
+
+          Replace:
+          1. `YOUR_ENVIRONMENT_ID` with your Dynatrace environment ID.
+             * Example: `abc12345.live.dynatrace.com`
+          1. `YOUR_DYNATRACE_API_TOKEN` with the API token you generated in Step 1.
+          </Tab>
+        </Tabs>
+
+        Refer to the OpenLIT [Python SDK repository](https://github.com/openlit/openlit/tree/main/sdk/python) for more advanced configurations and use cases.
+      </Tab>
+      
+      <Tab title="CLI">
+        **For zero-code auto-instrumentation via command line:**
+        
+        <Tabs>
+          <Tab title="CLI Arguments">
+          ```shell
+          # Using CLI arguments
+          openlit-instrument \
+            --otlp-endpoint "https://YOUR_ENVIRONMENT_ID.live.dynatrace.com/api/v2/otlp" \
+            --otlp-headers "Authorization=Api-Token YOUR_DYNATRACE_API_TOKEN" \
+            --service-name "my-ai-service" \
+            --deployment-environment "production" \
+            python app.py
+          ```
+          
+          Replace:
+          1. `YOUR_ENVIRONMENT_ID` with your Dynatrace environment ID.
+             * Example: `abc12345.live.dynatrace.com`
+          1. `YOUR_DYNATRACE_API_TOKEN` with the API token you generated in Step 1.
+          </Tab>
+          
+          <Tab title="Environment Variables">
+          ```shell
+          # Set environment variables (takes precedence over CLI args)
+          export OTEL_EXPORTER_OTLP_ENDPOINT="https://YOUR_ENVIRONMENT_ID.live.dynatrace.com/api/v2/otlp"
+          export OTEL_EXPORTER_OTLP_HEADERS="Authorization=Api-Token YOUR_DYNATRACE_API_TOKEN"
+          export OTEL_SERVICE_NAME="my-ai-service"
+          export OTEL_DEPLOYMENT_ENVIRONMENT="production"
+          
+          # Run your application
+          openlit-instrument python app.py
+          ```
+          
+          Replace:
+          1. `YOUR_ENVIRONMENT_ID` with your Dynatrace environment ID.
+             * Example: `abc12345.live.dynatrace.com`
+          1. `YOUR_DYNATRACE_API_TOKEN` with the API token you generated in Step 1.
+          </Tab>
+        </Tabs>
+
+        Refer to the OpenLIT [Python SDK repository](https://github.com/openlit/openlit/tree/main/sdk/python) for more advanced configurations and use cases.
+      </Tab>
+    </Tabs>

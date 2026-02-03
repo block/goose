@@ -1214,9 +1214,7 @@ mod tests {
         let jwks_uri = format!("{}/jwks", server.uri());
         Mock::given(method("GET"))
             .and(path("/.well-known/openid-configuration"))
-            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
-                "jwks_uri": jwks_uri
-            })))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({ "jwks_uri": jwks_uri })))
             .mount(&server)
             .await;
 

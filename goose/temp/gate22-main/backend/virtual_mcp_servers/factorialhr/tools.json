@@ -1,0 +1,161 @@
+[
+  {
+    "name": "FACTORIAL_HR__READS_ALL_CREDENTIALS",
+    "description": "Get a list of all credentials",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "GET",
+      "endpoint": "https://api.factorialhr.com/api/2025-04-01/resources/api_public/credentials"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "query": {
+          "type": "object",
+          "description": "query parameters",
+          "properties": {},
+          "required": [],
+          "visible": [],
+          "additionalProperties": true
+        }
+      },
+      "required": [],
+      "visible": [],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "FACTORIAL_HR__READS_ALL_WEBHOOK_SUBSCRIPTIONS",
+    "description": "Get a list of all webhook subscriptions",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "GET",
+      "endpoint": "https://api.factorialhr.com/api/2025-04-01/resources/api_public/webhook_subscriptions"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "query": {
+          "type": "object",
+          "description": "Query parameters for filtering webhook subscriptions",
+          "properties": {
+            "id": {
+              "type": "integer",
+              "description": "Identifier of the webhook subscription"
+            },
+            "company_id": {
+              "type": "integer",
+              "description": "Company identifier of the webhook subscription"
+            },
+            "type": {
+              "type": "string",
+              "description": "Type of the webhook subscription"
+            },
+            "enabled": {
+              "type": "boolean",
+              "description": "List only enabled webhook subscriptions"
+            }
+          },
+          "required": [],
+          "visible": [
+            "id",
+            "company_id",
+            "type",
+            "enabled"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [],
+      "visible": [
+        "query"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "FACTORIAL_HR__CREATES_A_WEBHOOK_SUBSCRIPTION",
+    "description": "Create a new webhook subscription",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "POST",
+      "endpoint": "https://api.factorialhr.com/api/2025-04-01/resources/api_public/webhook_subscriptions"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "header": {
+          "type": "object",
+          "description": "Headers for the HTTP request",
+          "properties": {
+            "Content-Type": {
+              "type": "string",
+              "description": "Content type of the request",
+              "default": "application/json"
+            }
+          },
+          "required": [
+            "Content-Type"
+          ],
+          "visible": [],
+          "additionalProperties": false
+        },
+        "body": {
+          "type": "object",
+          "description": "Webhook subscription details",
+          "properties": {
+            "subscription_type": {
+              "type": "string",
+              "description": "The type of webhook subscription (e.g., ats/candidate/create)"
+            },
+            "target_url": {
+              "type": "string",
+              "description": "The URL where webhook events will be sent"
+            },
+            "name": {
+              "type": "string",
+              "description": "Name of the webhook subscription"
+            },
+            "company_id": {
+              "type": "integer",
+              "description": "ID of the company"
+            },
+            "challenge": {
+              "type": "string",
+              "description": "Verification challenge string"
+            },
+            "enabled": {
+              "type": "boolean",
+              "description": "Boolean to enable/disable the subscription"
+            },
+            "api_version": {
+              "type": "string",
+              "description": "API version of the webhook subscription that determines the schema of the payload"
+            }
+          },
+          "required": [
+            "subscription_type",
+            "target_url",
+            "company_id"
+          ],
+          "visible": [
+            "subscription_type",
+            "target_url",
+            "company_id",
+            "name",
+            "challenge"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "header",
+        "body"
+      ],
+      "visible": [
+        "body"
+      ],
+      "additionalProperties": false
+    }
+  }
+]

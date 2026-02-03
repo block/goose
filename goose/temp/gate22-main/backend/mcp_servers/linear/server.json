@@ -1,0 +1,20 @@
+{
+  "name": "LINEAR",
+  "url": "https://mcp.linear.app/mcp",
+  "transport_type": "streamable_http",
+  "description": "Linear is a purpose-built tool for modern product development. Streamline issues, projects, and product roadmaps.",
+  "logo": "https://raw.githubusercontent.com/aipotheosis-labs/aipolabs-icons/refs/heads/main/apps/linear.svg",
+  "categories": ["Developer Tools", "Project Management"],
+  "auth_configs": [
+    {
+      "type": "oauth2",
+      "client_id": "{{ CLIENT_ID }}",
+      "client_secret": "{{ CLIENT_SECRET }}",
+      "scope": "",
+      "authorize_url": "https://mcp.linear.app/authorize",
+      "access_token_url": "https://mcp.linear.app/token",
+      "refresh_token_url": "https://mcp.linear.app/token"
+    }
+  ],
+  "server_metadata": {}
+}

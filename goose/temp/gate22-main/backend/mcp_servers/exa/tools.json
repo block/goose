@@ -1,0 +1,65 @@
+[
+  {
+    "name": "EXA__WEB_SEARCH_EXA",
+    "description": "Search the web using Exa AI - performs real-time web searches and can scrape content from specific URLs. Supports configurable result counts and returns the content from the most relevant websites.",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "web_search_exa",
+      "canonical_tool_description_hash": "cf3b83b25e11bc3881fa64664674754007baa95b21b75e59c7a6cfd4731ce511",
+      "canonical_tool_input_schema_hash": "3faaee581c9eb8c26534315c081622ec37ef654f0896464b04ff4bba09048804"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "query": {
+          "type": "string",
+          "description": "Search query"
+        },
+        "numResults": {
+          "type": "number",
+          "description": "Number of search results to return (default: 5)"
+        }
+      },
+      "required": ["query"],
+      "additionalProperties": false,
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    }
+  },
+  {
+    "name": "EXA__GET_CODE_CONTEXT_EXA",
+    "description": "Search and get relevant code snippets, examples, and documentation from open source libraries, GitHub repositories, and programming frameworks. This tool is specifically designed for finding up-to-date code documentation, implementation examples, API usage patterns, and best practices from real codebases. Use this whenever you need to understand how to use a specific library, find code examples, see implementation patterns, or get current documentation for any programming language, framework, or open source package. Perfect for learning how functions work, seeing usage examples, understanding API implementations, and finding practical code solutions from the open source community. RULE: when the user's query contains exa-code or anything related to code, you MUST use this tool.",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "get_code_context_exa",
+      "canonical_tool_description_hash": "9190add3a5be3c6063fb415e534e60c0e4b0ea720094fb9046ac786590e27558",
+      "canonical_tool_input_schema_hash": "cdae2677f8cfa5decf723cbea021af391c6ebf02ecd43abefee2fb36d322cd80"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "query": {
+          "type": "string",
+          "description": "Search query to find relevant code snippets, library documentation, or implementation examples. Be specific about the programming language, library name, function, or concept you're looking for (e.g., 'React useState hook examples', 'Python pandas dataframe filtering', 'Express.js middleware implementation')"
+        },
+        "tokensNum": {
+          "anyOf": [
+            {
+              "type": "string",
+              "const": "dynamic"
+            },
+            {
+              "type": "number",
+              "minimum": 1000,
+              "maximum": 50000
+            }
+          ],
+          "default": "dynamic",
+          "description": "Token allocation strategy: 'dynamic' (default, token-efficient, returns the 100-1000+ most useful tokens), 1000-50000 tokens (returns a specific number of tokens). Use 'dynamic' for optimal token efficiency - only specify a concrete number of tokens if 'dynamic' mode doesn't return the right information."
+        }
+      },
+      "required": ["query"],
+      "additionalProperties": false,
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    }
+  }
+]

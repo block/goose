@@ -1,0 +1,27 @@
+# OpenInference Provider Requirements  
+# Core OpenTelemetry packages
+opentelemetry-api
+opentelemetry-sdk
+opentelemetry-exporter-otlp
+opentelemetry-instrumentation
+opentelemetry-semantic-conventions
+
+# Core OpenInference packages
+openinference-semantic-conventions
+openinference-instrumentation
+
+# ALL Available OpenInference Instrumentors
+openinference-instrumentation-openai
+openinference-instrumentation-anthropic
+openinference-instrumentation-langchain
+openinference-instrumentation-llama-index
+openinference-instrumentation-bedrock
+openinference-instrumentation-mistralai
+openinference-instrumentation-groq
+openinference-instrumentation-vertexai
+openinference-instrumentation-dspy
+openinference-instrumentation-instructor
+openinference-instrumentation-litellm
+openinference-instrumentation-haystack
+openinference-instrumentation-guardrails
+openinference-instrumentation-portkey

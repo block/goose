@@ -1,0 +1,14 @@
+# custom ignores
+**/.env
+**/.env.example
+**/__pycache__
+**/*.pyc
+
+# Python
+__pycache__
+app.egg-info
+*.pyc
+.mypy_cache
+.coverage
+htmlcov
+.venv

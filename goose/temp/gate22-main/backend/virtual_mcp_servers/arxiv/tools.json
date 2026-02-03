@@ -1,0 +1,300 @@
+[
+  {
+    "name": "ARXIV__SEARCH_PAPERS",
+    "description": "Search for papers on arXiv by query, category, and other criteria. Returns results in Atom XML format that needs to be parsed into JSON.",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "GET",
+      "endpoint": "https://export.arxiv.org/api/query"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "query": {
+          "type": "object",
+          "description": "Query parameters for searching papers",
+          "properties": {
+            "search_query": {
+              "type": "string",
+              "description": "Search query string. Supports Boolean operators (AND, OR, NOT), grouping with parentheses, and field-specific searches."
+            },
+            "id_list": {
+              "type": "string",
+              "description": "Comma-separated list of arXiv IDs to return"
+            },
+            "start": {
+              "type": "integer",
+              "description": "Starting index for results (for pagination)",
+              "default": 0,
+              "minimum": 0
+            },
+            "max_results": {
+              "type": "integer",
+              "description": "Maximum number of results to return (1-1000)",
+              "default": 10,
+              "minimum": 1,
+              "maximum": 1000
+            },
+            "sortBy": {
+              "type": "string",
+              "description": "Sorting criterion for results",
+              "enum": [
+                "relevance",
+                "lastUpdatedDate",
+                "submittedDate"
+              ],
+              "default": "relevance"
+            },
+            "sortOrder": {
+              "type": "string",
+              "description": "Order of sorting",
+              "enum": [
+                "ascending",
+                "descending"
+              ],
+              "default": "descending"
+            }
+          },
+          "required": [
+            "search_query"
+          ],
+          "visible": [
+            "search_query",
+            "id_list",
+            "start",
+            "max_results",
+            "sortBy",
+            "sortOrder"
+          ],
+          "additionalProperties": false
+        },
+        "header": {
+          "type": "object",
+          "properties": {
+            "Accept": {
+              "type": "string",
+              "default": "application/atom+xml"
+            }
+          },
+          "required": [],
+          "visible": [],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "query"
+      ],
+      "visible": [
+        "query"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "ARXIV__GET_PAPER_METADATA",
+    "description": "Retrieve detailed metadata for a specific paper on arXiv by its ID.",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "GET",
+      "endpoint": "https://export.arxiv.org/api/query/"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "query": {
+          "type": "object",
+          "description": "Query parameters for retrieving paper metadata",
+          "properties": {
+            "id_list": {
+              "type": "string",
+              "description": "arXiv ID of the paper (e.g., '2108.07258' or 'cs/0703041')"
+            }
+          },
+          "required": [
+            "id_list"
+          ],
+          "visible": [
+            "id_list"
+          ],
+          "additionalProperties": false
+        },
+        "header": {
+          "type": "object",
+          "properties": {
+            "Accept": {
+              "type": "string",
+              "default": "application/json"
+            }
+          },
+          "required": [],
+          "visible": [],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "query"
+      ],
+      "visible": [
+        "query"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "ARXIV__DOWNLOAD_PAPER",
+    "description": "Download a paper from arXiv in PDF format.",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "GET",
+      "endpoint": "https://arxiv.org/pdf/{paper_id}"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "path": {
+          "type": "object",
+          "description": "Path parameters for downloading paper",
+          "properties": {
+            "paper_id": {
+              "type": "string",
+              "description": "arXiv ID of the paper (e.g., '2108.07258' or 'cs/0703041')"
+            }
+          },
+          "required": [
+            "paper_id"
+          ],
+          "visible": [
+            "paper_id"
+          ],
+          "additionalProperties": false
+        },
+        "header": {
+          "type": "object",
+          "properties": {
+            "Accept": {
+              "type": "string",
+              "default": "application/pdf"
+            }
+          },
+          "required": [],
+          "visible": [],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "path"
+      ],
+      "visible": [
+        "path"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "ARXIV__GET_CATEGORIES",
+    "description": "Retrieve a list of all available categories on arXiv.",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "GET",
+      "endpoint": "https://arxiv.org/category_taxonomy"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "header": {
+          "type": "object",
+          "properties": {
+            "Accept": {
+              "type": "string",
+              "default": "text/html"
+            }
+          },
+          "required": [],
+          "visible": [],
+          "additionalProperties": false
+        }
+      },
+      "required": [],
+      "visible": [],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "ARXIV__GET_DAILY_UPDATES",
+    "description": "Retrieve the latest papers from specific categories, published within the last day.",
+    "tool_metadata": {
+      "type": "rest",
+      "method": "GET",
+      "endpoint": "https://export.arxiv.org/api/query"
+    },
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "query": {
+          "type": "object",
+          "description": "Query parameters for getting daily updates",
+          "properties": {
+            "search_query": {
+              "type": "string",
+              "description": "Comma-separated list of arXiv categories to fetch updates from (e.g., 'cat:cs.AI,cat:physics.gen-ph')"
+            },
+            "max_results": {
+              "type": "integer",
+              "description": "Maximum number of results to return (1-100)",
+              "default": 10,
+              "minimum": 1,
+              "maximum": 100
+            },
+            "sortBy": {
+              "type": "string",
+              "description": "Sorting criterion for results",
+              "enum": [
+                "lastUpdatedDate",
+                "submittedDate"
+              ],
+              "default": "submittedDate"
+            },
+            "sortOrder": {
+              "type": "string",
+              "description": "Order of sorting",
+              "enum": [
+                "ascending",
+                "descending"
+              ],
+              "default": "descending"
+            }
+          },
+          "required": [
+            "search_query"
+          ],
+          "visible": [
+            "search_query",
+            "max_results",
+            "sortBy",
+            "sortOrder"
+          ],
+          "additionalProperties": false
+        },
+        "header": {
+          "type": "object",
+          "properties": {
+            "Accept": {
+              "type": "string",
+              "default": "application/json"
+            }
+          },
+          "required": [],
+          "visible": [],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "query"
+      ],
+      "visible": [
+        "query"
+      ],
+      "additionalProperties": false
+    }
+  }
+]

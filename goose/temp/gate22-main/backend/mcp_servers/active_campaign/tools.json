@@ -1,0 +1,355 @@
+[
+  {
+    "name": "ACTIVE_CAMPAIGN__CREATE_CONTACT",
+    "description": "Creates a new contact in ActiveCampaign. Accepts contact details including email, first name, last name, phone, and custom field values, and returns the created contact object.",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "CREATE_CONTACT",
+      "canonical_tool_description_hash": "ea6a8f0eef198420062df29be421be8eba240b961cefb1ecb1cf3e6b432b1f46",
+      "canonical_tool_input_schema_hash": "2a9eae3f20526451d4e9eed23964e94c2d90745753802f502879cea0411f6641"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["body", "path"],
+      "properties": {
+        "body": {
+          "type": "object",
+          "required": ["contact"],
+          "properties": {
+            "contact": {
+              "type": "object",
+              "required": ["email"],
+              "properties": {
+                "email": {
+                  "type": "string",
+                  "description": "Contact's email address."
+                },
+                "phone": {
+                  "type": "string",
+                  "description": "Contact's phone number."
+                },
+                "lastName": {
+                  "type": "string",
+                  "description": "Contact's last name."
+                },
+                "firstName": {
+                  "type": "string",
+                  "description": "Contact's first name."
+                },
+                "fieldValues": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "required": ["field", "value"],
+                    "properties": {
+                      "field": {
+                        "type": "number",
+                        "description": "ID of the custom field."
+                      },
+                      "value": {
+                        "type": "string",
+                        "description": "Value for the custom field."
+                      }
+                    },
+                    "additionalProperties": false
+                  },
+                  "description": "List of custom field values for the contact."
+                }
+              },
+              "description": "Contact object with details.",
+              "additionalProperties": false
+            }
+          },
+          "description": "The request body containing contact data.",
+          "additionalProperties": false
+        },
+        "path": {
+          "type": "object",
+          "required": ["account_name"],
+          "properties": {
+            "account_name": {
+              "type": "string",
+              "description": "Your ActiveCampaign account name"
+            }
+          },
+          "description": "Path parameters for the URL",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "ACTIVE_CAMPAIGN__RETRIEVE_CONTACT",
+    "description": "Retrieves a contact from ActiveCampaign using the contact ID. Returns the contact's details including email, first name, last name, phone, and custom field values.",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "RETRIEVE_CONTACT",
+      "canonical_tool_description_hash": "a8ae2b5abb5cdf56c4f7610a2c5749377b1123805609ff7824f55540c8d25209",
+      "canonical_tool_input_schema_hash": "d738bfeb40e7b0c4c60a3c6abde29752186af95e33637e699fddd3e675ae2c4b"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["path"],
+      "properties": {
+        "path": {
+          "type": "object",
+          "required": ["account_name", "contact_id"],
+          "properties": {
+            "contact_id": {
+              "type": "string",
+              "description": "The ID of the contact to retrieve"
+            },
+            "account_name": {
+              "type": "string",
+              "description": "Your ActiveCampaign account name"
+            }
+          },
+          "description": "Path parameters for the URL",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "ACTIVE_CAMPAIGN__UPDATE_CONTACT",
+    "description": "Updates an existing contact in ActiveCampaign using the contact ID. Accepts updated contact details including email, first name, last name, phone, and custom field values.",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "UPDATE_CONTACT",
+      "canonical_tool_description_hash": "7d190c5a5a00f57f7297a8cb5ccd3897ee36cfde0826a46ffbde4eae43dc433c",
+      "canonical_tool_input_schema_hash": "bf1d12b8dac1612ad0fe61c269f43b1c74016f0f869ce3c6f32180ac394f6225"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["path", "body"],
+      "properties": {
+        "body": {
+          "type": "object",
+          "required": ["contact"],
+          "properties": {
+            "contact": {
+              "type": "object",
+              "required": [],
+              "properties": {
+                "email": {
+                  "type": "string",
+                  "description": "Contact's email address."
+                },
+                "phone": {
+                  "type": "string",
+                  "description": "Contact's phone number."
+                },
+                "lastName": {
+                  "type": "string",
+                  "description": "Contact's last name."
+                },
+                "firstName": {
+                  "type": "string",
+                  "description": "Contact's first name."
+                },
+                "fieldValues": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "required": ["field", "value"],
+                    "properties": {
+                      "field": {
+                        "type": "number",
+                        "description": "ID of the custom field."
+                      },
+                      "value": {
+                        "type": "string",
+                        "description": "Value for the custom field."
+                      }
+                    },
+                    "additionalProperties": false
+                  },
+                  "description": "List of custom field values for the contact."
+                }
+              },
+              "description": "Contact object with updated details.",
+              "additionalProperties": false
+            }
+          },
+          "description": "The request body containing updated contact data.",
+          "additionalProperties": false
+        },
+        "path": {
+          "type": "object",
+          "required": ["account_name", "contact_id"],
+          "properties": {
+            "contact_id": {
+              "type": "string",
+              "description": "The ID of the contact to update"
+            },
+            "account_name": {
+              "type": "string",
+              "description": "Your ActiveCampaign account name"
+            }
+          },
+          "description": "Path parameters for the URL",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "ACTIVE_CAMPAIGN__CREATE_LIST",
+    "description": "Creates a new list in ActiveCampaign. Accepts list details including name, stringid, sender_url, sender_reminder, and sender address information, and returns the created list object.",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "CREATE_LIST",
+      "canonical_tool_description_hash": "4f852aa7fc48acc3f867cf651b58abd7bc188dc373264e63b4accc6a2ddcc3f4",
+      "canonical_tool_input_schema_hash": "fba8f0758d593987fdc3c6d43e9e8c0ff1ae4edcc44d9d1f1e4e756cccea59ec"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["path", "body"],
+      "properties": {
+        "body": {
+          "type": "object",
+          "required": ["list"],
+          "properties": {
+            "list": {
+              "type": "object",
+              "required": [
+                "name",
+                "stringid",
+                "sender_url",
+                "sender_reminder",
+                "sender_name",
+                "sender_addr1",
+                "sender_city",
+                "sender_zip",
+                "sender_country"
+              ],
+              "properties": {
+                "name": {
+                  "type": "string",
+                  "description": "Name of the list."
+                },
+                "stringid": {
+                  "type": "string",
+                  "description": "Unique string identifier for the list."
+                },
+                "sender_url": {
+                  "type": "string",
+                  "description": "URL displayed in the footer of the email."
+                },
+                "sender_zip": {
+                  "type": "string",
+                  "description": "ZIP code of the sender."
+                },
+                "sender_city": {
+                  "type": "string",
+                  "description": "City of the sender."
+                },
+                "sender_name": {
+                  "type": "string",
+                  "description": "Name of the sender."
+                },
+                "sender_addr1": {
+                  "type": "string",
+                  "description": "Address line 1 of the sender."
+                },
+                "sender_addr2": {
+                  "type": "string",
+                  "description": "Address line 2 of the sender."
+                },
+                "sender_state": {
+                  "type": "string",
+                  "description": "State of the sender."
+                },
+                "sender_country": {
+                  "type": "string",
+                  "description": "Country of the sender."
+                },
+                "sender_reminder": {
+                  "type": "string",
+                  "description": "Reminder message displayed in the footer of the email."
+                }
+              },
+              "description": "List object with details.",
+              "additionalProperties": false
+            }
+          },
+          "description": "The request body containing list data.",
+          "additionalProperties": false
+        },
+        "path": {
+          "type": "object",
+          "required": ["account_name"],
+          "properties": {
+            "account_name": {
+              "type": "string",
+              "description": "Your ActiveCampaign account name"
+            }
+          },
+          "description": "Path parameters for the URL",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "ACTIVE_CAMPAIGN__UPDATE_CONTACT_LIST_STATUS",
+    "description": "Subscribes or unsubscribes a contact to/from a list in ActiveCampaign. Accepts contact ID, list ID, and status to update the contact's subscription status.",
+    "tags": [],
+    "tool_metadata": {
+      "canonical_tool_name": "UPDATE_CONTACT_LIST_STATUS",
+      "canonical_tool_description_hash": "c15a4d897b18672e8d0c7807b0e7da7fd025da022aab2ce574ab912067c1f48f",
+      "canonical_tool_input_schema_hash": "0146cee5d292db1ce99647ce50ca897017360724e52847e73e2421b4cb941140"
+    },
+    "input_schema": {
+      "type": "object",
+      "required": ["path", "body"],
+      "properties": {
+        "body": {
+          "type": "object",
+          "required": ["contactList"],
+          "properties": {
+            "contactList": {
+              "type": "object",
+              "required": ["list", "contact", "status"],
+              "properties": {
+                "list": {
+                  "type": "string",
+                  "description": "The ID of the list."
+                },
+                "status": {
+                  "type": "string",
+                  "description": "The status of the contact in the list. '1' for active (subscribed), '2' for unsubscribed."
+                },
+                "contact": {
+                  "type": "string",
+                  "description": "The ID of the contact."
+                }
+              },
+              "description": "Contact list status object.",
+              "additionalProperties": false
+            }
+          },
+          "description": "The request body containing contact list status data.",
+          "additionalProperties": false
+        },
+        "path": {
+          "type": "object",
+          "required": ["account_name"],
+          "properties": {
+            "account_name": {
+              "type": "string",
+              "description": "Your ActiveCampaign account name"
+            }
+          },
+          "description": "Path parameters for the URL",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+]

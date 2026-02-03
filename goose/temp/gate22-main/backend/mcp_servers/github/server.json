@@ -1,0 +1,26 @@
+{
+  "name": "GITHUB",
+  "url": "https://api.githubcopilot.com/mcp",
+  "transport_type": "streamable_http",
+  "description": "The GitHub API allows you to interact with GitHub programmatically, including repository management, pull requests, issues, commits, and more.",
+  "logo": "https://raw.githubusercontent.com/aipotheosis-labs/aipolabs-icons/refs/heads/main/apps/github.svg",
+  "categories": ["Dev Tools"],
+  "auth_configs": [
+    {
+      "type": "oauth2",
+      "client_id": "{{ CLIENT_ID }}",
+      "client_secret": "{{ CLIENT_SECRET }}",
+      "scope": "repo delete_repo admin:org gist user workflow",
+      "authorize_url": "https://github.com/login/oauth/authorize",
+      "access_token_url": "https://github.com/login/oauth/access_token",
+      "refresh_token_url": "https://github.com/login/oauth/access_token"
+    },
+    {
+      "type": "api_key",
+      "location": "header",
+      "name": "Authorization",
+      "prefix": "Bearer"
+    }
+  ],
+  "server_metadata": {}
+}

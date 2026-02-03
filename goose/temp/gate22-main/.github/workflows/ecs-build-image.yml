@@ -1,0 +1,39 @@
+name: Build Image
+on:
+  workflow_call:
+    inputs:
+      ecr_repository_url:
+        type: string
+        description: The ECR repository URL to use
+        required: true
+      image_tag:
+        type: string
+        description: The image tag to use
+        required: true
+      dockerfile:
+        type: string
+        description: The Dockerfile to use
+        required: true
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.CICD_AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.CICD_AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ vars.CICD_AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build & Push Image
+        working-directory: backend
+        run: |
+          docker build -f ${{ inputs.dockerfile }} -t ${{ inputs.ecr_repository_url }}:${{ inputs.image_tag }} .
+          docker push ${{ inputs.ecr_repository_url }}:${{ inputs.image_tag }}

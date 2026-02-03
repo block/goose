@@ -1,0 +1,9 @@
+# Run all pre-commit hooks on all files
+pre-commit run --all-files
+
+# Run ruff linter and formatter directly (if needed)
+ruff check src/
+ruff format src/
+
+# Run mypy for type checking
+mypy src/

@@ -1,0 +1,16 @@
+{
+  "name": "ANCHOR_BROWSER",
+  "url": "https://api.anchorbrowser.io/mcp",
+  "transport_type": "streamable_http",
+  "description": "Anchor is the platform for AI Agentic browser automation, which solves the challenge of automating workflows for web applications that lack APIs or have limited API coverage.",
+  "logo": "https://raw.githubusercontent.com/aipotheosis-labs/aipolabs-icons/refs/heads/main/apps/anchor_browser.svg",
+  "categories": ["Browser"],
+  "auth_configs": [
+    {
+      "type": "api_key",
+      "location": "header",
+      "name": "anchor-api-key"
+    }
+  ],
+  "server_metadata": {}
+}

@@ -1,0 +1,264 @@
+{
+  "id": "70072a30-a88c-4eb5-8058-a5dca6536b8d",
+  "title": "GPU dashboard",
+  "description": "The dashboard helps detect GPU performance bottlenecks, thermal or power inefficiencies, and optimize resource utilization across your infrastructure.",
+  "parentId": null,
+  "isMainDashboard": false,
+  "isPinned": true,
+  "createdAt": "2025-06-27 05:46:43",
+  "updatedAt": "2025-06-27 05:46:43",
+  "widgets": {
+    "953b08e7-5158-4806-b52e-8b58880b0cfd": {
+      "id": "953b08e7-5158-4806-b52e-8b58880b0cfd",
+      "title": "Power (Watt)",
+      "description": "Visualization to identify the Power over time",
+      "type": "AREA_CHART",
+      "properties": {
+        "xAxis": "request_time",
+        "yAxes": [
+          {
+            "key": "power_draw",
+            "color": "#F36C06"
+          },
+          {
+            "key": "power_limit",
+            "color": "#10b981"
+          }
+        ]
+      },
+      "config": {
+        "query": "WITH\n    parseDateTimeBestEffort('{{filter.timeLimit.start}}') AS start_time,\n    parseDateTimeBestEffort('{{filter.timeLimit.end}}') AS end_time,\n    dateDiff('day', start_time, end_time) AS days_diff,\n    dateDiff('year', start_time, end_time) AS years_diff,\n    multiIf(\n        years_diff >= 1, 'month',\n        days_diff <= 1, 'hour',\n        'day'\n    ) AS date_granularity\n\nSELECT\n    MAX(power_draw) AS power_draw,\n    MAX(power_limit) AS power_limit,\n    request_time\nFROM (\n    SELECT\n        ROUND(AVG(IF(MetricName = 'gpu.power.draw', Value, NULL)), 2) AS power_draw,\n        ROUND(AVG(IF(MetricName = 'gpu.power.limit', Value, NULL)), 2) AS power_limit,\n        formatDateTime(DATE_TRUNC(date_granularity, TimeUnix), '%Y/%m/%d %R') AS request_time\n    FROM otel_metrics_gauge\n    WHERE\n        MetricName IN ('gpu.power.draw', 'gpu.power.limit')\n        AND TimeUnix >= start_time AND TimeUnix <= end_time\n    GROUP BY request_time\n)\nGROUP BY request_time\nORDER BY request_time\n"
+      },
+      "createdAt": "2025-06-27 07:13:12",
+      "updatedAt": "2025-06-27 07:13:59"
+    },
+    "bab582ed-c163-4614-bec5-1b99d1157740": {
+      "id": "bab582ed-c163-4614-bec5-1b99d1157740",
+      "title": "Memory (MB)",
+      "description": "Visualization to identify the Memory in (MB) over time",
+      "type": "AREA_CHART",
+      "properties": {
+        "xAxis": "request_time",
+        "yAxes": [
+          {
+            "key": "memory_available",
+            "color": "#10b981"
+          },
+          {
+            "key": "memory_used",
+            "color": "#f59e0b"
+          },
+          {
+            "key": "memory_total",
+            "color": "#F36C06"
+          }
+        ]
+      },
+      "config": {
+        "query": "WITH\n    parseDateTimeBestEffort('{{filter.timeLimit.start}}') AS start_time,\n    parseDateTimeBestEffort('{{filter.timeLimit.end}}') AS end_time,\n    dateDiff('day', start_time, end_time) AS days_diff,\n    dateDiff('year', start_time, end_time) AS years_diff,\n    multiIf(\n        years_diff >= 1, 'month',\n        days_diff <= 1, 'hour',\n        'day'\n    ) AS date_granularity\n\nSELECT\n    MAX(memory_available) AS memory_available,\n    MAX(memory_total) AS memory_total,\n    MAX(memory_used) AS memory_used,\n    MAX(memory_free) AS memory_free,\n    request_time\nFROM (\n    SELECT\n        SUM(IF(MetricName = 'gpu.memory.available', Value, 0)) AS memory_available,\n        SUM(IF(MetricName = 'gpu.memory.total', Value, 0)) AS memory_total,\n        SUM(IF(MetricName = 'gpu.memory.used', Value, 0)) AS memory_used,\n        SUM(IF(MetricName = 'gpu.memory.free', Value, 0)) AS memory_free,\n        formatDateTime(DATE_TRUNC(date_granularity, TimeUnix), '%Y/%m/%d %R') AS request_time\n    FROM otel_metrics_gauge\n    WHERE\n        MetricName IN (\n            'gpu.memory.available',\n            'gpu.memory.total',\n            'gpu.memory.used',\n            'gpu.memory.free'\n        )\n        AND TimeUnix >= start_time AND TimeUnix <= end_time\n    GROUP BY request_time\n)\nGROUP BY request_time\nORDER BY request_time\n"
+      },
+      "createdAt": "2025-06-27 07:10:26",
+      "updatedAt": "2025-06-27 07:12:29"
+    },
+    "8cd8b0f1-7661-4a0e-ada8-a7718d86700c": {
+      "id": "8cd8b0f1-7661-4a0e-ada8-a7718d86700c",
+      "title": "Avg Utilization Percentage (%)",
+      "description": "Visualization to identify the Avg Utilization Percentage over time",
+      "type": "AREA_CHART",
+      "properties": {
+        "xAxis": "request_time",
+        "yAxes": [
+          {
+            "key": "utilization",
+            "color": "#F36C06"
+          },
+          {
+            "key": "enc_utilization",
+            "color": "#0ea5e9"
+          },
+          {
+            "key": "dec_utilization",
+            "color": "#10b981"
+          }
+        ]
+      },
+      "config": {
+        "query": "WITH\n    parseDateTimeBestEffort('{{filter.timeLimit.start}}') AS start_time,\n    parseDateTimeBestEffort('{{filter.timeLimit.end}}') AS end_time,\n    dateDiff('day', start_time, end_time) AS days_diff,\n    dateDiff('year', start_time, end_time) AS years_diff,\n    -- Apply JS logic in SQL: if ≥1 year → month, ≤1 day → hour, else → day\n    multiIf(\n        years_diff >= 1, 'month',\n        days_diff <= 1, 'hour',\n        'day'\n    ) AS date_granularity\n\nSELECT\n    MAX(utilization) AS utilization,\n    MAX(enc_utilization) AS enc_utilization,\n    MAX(dec_utilization) AS dec_utilization,\n    request_time\nFROM (\n    SELECT\n        ROUND(AVG(IF(MetricName = 'gpu.utilization', Value, NULL)), 2) AS utilization,\n        ROUND(AVG(IF(MetricName = 'gpu.enc.utilization', Value, NULL)), 2) AS enc_utilization,\n        ROUND(AVG(IF(MetricName = 'gpu.dec.utilization', Value, NULL)), 2) AS dec_utilization,\n        formatDateTime(DATE_TRUNC(date_granularity, TimeUnix), '%Y/%m/%d %H:%i') AS request_time\n    FROM otel_metrics_gauge\n    WHERE\n        MetricName IN (\n            'gpu.utilization',\n            'gpu.enc.utilization',\n            'gpu.dec.utilization'\n        )\n        AND TimeUnix >= start_time AND TimeUnix <= end_time\n    GROUP BY request_time\n)\nGROUP BY request_time\nORDER BY request_time\n"
+      },
+      "createdAt": "2025-06-27 06:56:44",
+      "updatedAt": "2025-06-27 07:01:30"
+    },
+    "0952942c-dd5a-484b-8449-224aef6264a8": {
+      "id": "0952942c-dd5a-484b-8449-224aef6264a8",
+      "title": "Avg power draw",
+      "description": "This defines average power drawn within the time period selected",
+      "type": "STAT_CARD",
+      "properties": {
+        "color": "#F36C06",
+        "value": "0.power_draw",
+        "suffix": "W",
+        "trend": "0.rate",
+        "trendSuffix": "%"
+      },
+      "config": {
+        "query": "WITH\n    parseDateTimeBestEffort('{{filter.timeLimit.start}}') AS start_time,\n    parseDateTimeBestEffort('{{filter.timeLimit.end}}') AS end_time,\n    (end_time - start_time) AS duration,\n    (start_time - duration) AS prev_start_time,\n    (end_time - duration) AS prev_end_time\n\nSELECT\n    round(avgIf(Value,\n        TimeUnix >= start_time AND TimeUnix <= end_time AND MetricName = 'gpu.power.draw'\n    ), 2) AS power_draw,\n\n    round(avgIf(Value,\n        TimeUnix >= prev_start_time AND TimeUnix <= prev_end_time AND MetricName = 'gpu.power.draw'\n    ), 2) AS power_draw_previous,\n\n    round(\n        if(\n            avgIf(Value,\n                TimeUnix >= prev_start_time AND TimeUnix <= prev_end_time AND MetricName = 'gpu.power.draw'\n            ) = 0,\n            avgIf(Value,\n                TimeUnix >= start_time AND TimeUnix <= end_time AND MetricName = 'gpu.power.draw'\n            ) * 100.0,\n            (\n                avgIf(Value,\n                    TimeUnix >= start_time AND TimeUnix <= end_time AND MetricName = 'gpu.power.draw'\n                ) -\n                avgIf(Value,\n                    TimeUnix >= prev_start_time AND TimeUnix <= prev_end_time AND MetricName = 'gpu.power.draw'\n                )\n            )\n            /\n            avgIf(Value,\n                TimeUnix >= prev_start_time AND TimeUnix <= prev_end_time AND MetricName = 'gpu.power.draw'\n            ) * 100.0\n        ), 2\n    ) AS rate\nFROM otel_metrics_gauge\nWHERE\n    MetricName = 'gpu.power.draw'\n    AND TimeUnix >= prev_start_time AND TimeUnix <= end_time\n"
+      },
+      "createdAt": "2025-06-27 06:48:22",
+      "updatedAt": "2025-06-27 06:51:58"
+    },
+    "c1e14dcc-d345-4201-9468-54cb73356dd4": {
+      "id": "c1e14dcc-d345-4201-9468-54cb73356dd4",
+      "title": "Avg Temperature (°C)",
+      "description": "Visualization to identify the Average Temperature over time",
+      "type": "LINE_CHART",
+      "properties": {
+        "color": "#F36C06",
+        "xAxis": "request_time",
+        "yAxis": "temperature"
+      },
+      "config": {
+        "query": "WITH\n    parseDateTimeBestEffort('{{filter.timeLimit.start}}') AS start_time,\n    parseDateTimeBestEffort('{{filter.timeLimit.end}}') AS end_time,\n    dateDiff('day', start_time, end_time) AS days_diff,\n    dateDiff('year', start_time, end_time) AS years_diff,\n    multiIf(\n        years_diff >= 1, 'month',\n        days_diff <= 1, 'hour',\n        'day'\n    ) AS date_granularity\n\nSELECT\n    ROUND(AVG(Value), 2) AS temperature,\n    formatDateTime(DATE_TRUNC(date_granularity, TimeUnix), '%Y/%m/%d %R') AS request_time\nFROM otel_metrics_gauge\nWHERE\n    MetricName = 'gpu.temperature'\n    AND TimeUnix >= start_time AND TimeUnix <= end_time\nGROUP BY\n    request_time\nORDER BY\n    request_time\n"
+      },
+      "createdAt": "2025-06-27 07:01:46",
+      "updatedAt": "2025-06-27 07:08:44"
+    },
+    "fefb9f0e-5ee5-497a-b4e0-4e95a79c08c7": {
+      "id": "fefb9f0e-5ee5-497a-b4e0-4e95a79c08c7",
+      "title": "Fan Speed (0 - 100)",
+      "description": "Visualization to identify the Fan Speed over time",
+      "type": "LINE_CHART",
+      "properties": {
+        "color": "#F36C06",
+        "xAxis": "request_time",
+        "yAxis": "fan_speed"
+      },
+      "config": {
+        "query": "WITH\n    parseDateTimeBestEffort('{{filter.timeLimit.start}}') AS start_time,\n    parseDateTimeBestEffort('{{filter.timeLimit.end}}') AS end_time,\n    dateDiff('day', start_time, end_time) AS days_diff,\n    dateDiff('year', start_time, end_time) AS years_diff,\n    multiIf(\n        years_diff >= 1, 'month',\n        days_diff <= 1, 'hour',\n        'day'\n    ) AS date_granularity\n\nSELECT\n    ROUND(AVG(Value), 2) AS fan_speed,\n    formatDateTime(DATE_TRUNC(date_granularity, TimeUnix), '%Y/%m/%d %R') AS request_time\nFROM otel_metrics_gauge\nWHERE\n    MetricName = 'gpu.fan_speed'\n    AND TimeUnix >= start_time AND TimeUnix <= end_time\nGROUP BY request_time\nORDER BY request_time\n"
+      },
+      "createdAt": "2025-06-27 07:14:29",
+      "updatedAt": "2025-06-27 07:15:24"
+    },
+    "74c4fc4b-c062-468d-b35b-8b7ea3aa0cbf": {
+      "id": "74c4fc4b-c062-468d-b35b-8b7ea3aa0cbf",
+      "title": "Average memory used",
+      "description": "This defines average memory used within the time period selected",
+      "type": "STAT_CARD",
+      "properties": {
+        "color": "#F36C06",
+        "suffix": "MB",
+        "trendSuffix": "%",
+        "trend": "0.rate",
+        "value": "0.memory_used"
+      },
+      "config": {
+        "query": "WITH\n    parseDateTimeBestEffort('{{filter.timeLimit.start}}') AS start_time,\n    parseDateTimeBestEffort('{{filter.timeLimit.end}}') AS end_time,\n    (end_time - start_time) AS duration,\n    (start_time - duration) AS prev_start_time,\n    (end_time - duration) AS prev_end_time\n\nSELECT\n    round(avgIf(Value,\n        TimeUnix >= start_time AND TimeUnix <= end_time AND MetricName = 'gpu.memory.used'\n    ), 2) AS memory_used,\n\n    round(avgIf(Value,\n        TimeUnix >= prev_start_time AND TimeUnix <= prev_end_time AND MetricName = 'gpu.memory.used'\n    ), 2) AS memory_used_previous,\n\n    round(\n        if(\n            avgIf(Value,\n                TimeUnix >= prev_start_time AND TimeUnix <= prev_end_time AND MetricName = 'gpu.memory.used'\n            ) = 0,\n            avgIf(Value,\n                TimeUnix >= start_time AND TimeUnix <= end_time AND MetricName = 'gpu.memory.used'\n            ) * 100.0,\n            (\n                avgIf(Value,\n                    TimeUnix >= start_time AND TimeUnix <= end_time AND MetricName = 'gpu.memory.used'\n                ) -\n                avgIf(Value,\n                    TimeUnix >= prev_start_time AND TimeUnix <= prev_end_time AND MetricName = 'gpu.memory.used'\n                )\n            )\n            /\n            avgIf(Value,\n                TimeUnix >= prev_start_time AND TimeUnix <= prev_end_time AND MetricName = 'gpu.memory.used'\n            ) * 100.0\n        ), 2\n    ) AS rate\nFROM otel_metrics_gauge\nWHERE\n    MetricName = 'gpu.memory.used'\n    AND TimeUnix >= prev_start_time AND TimeUnix <= end_time\n"
+      },
+      "createdAt": "2025-06-27 06:49:58",
+      "updatedAt": "2025-06-27 06:51:32"
+    },
+    "17dda542-b991-455b-b92c-2a3ae74381ea": {
+      "id": "17dda542-b991-455b-b92c-2a3ae74381ea",
+      "title": "Avg utilization percentage",
+      "description": "This defines average utilization percentage within the time period selected",
+      "type": "STAT_CARD",
+      "properties": {
+        "color": "#F36C06",
+        "value": "0.utilization",
+        "trend": "0.rate",
+        "trendSuffix": "%",
+        "suffix": "%"
+      },
+      "config": {
+        "query": "WITH\n    parseDateTimeBestEffort('{{filter.timeLimit.start}}') AS start_time,\n    parseDateTimeBestEffort('{{filter.timeLimit.end}}') AS end_time,\n    (end_time - start_time) AS duration,\n    (start_time - duration) AS prev_start_time,\n    (end_time - duration) AS prev_end_time\n\nSELECT\n    round(avgIf(Value,\n        TimeUnix >= start_time AND TimeUnix <= end_time AND MetricName = 'gpu.utilization'\n    ), 2) AS utilization,\n\n    round(avgIf(Value,\n        TimeUnix >= prev_start_time AND TimeUnix <= prev_end_time AND MetricName = 'gpu.utilization'\n    ), 2) AS utilization_previous,\n\n    round(\n        if(\n            avgIf(Value,\n                TimeUnix >= prev_start_time AND TimeUnix <= prev_end_time AND MetricName = 'gpu.utilization'\n            ) = 0,\n            avgIf(Value,\n                TimeUnix >= start_time AND TimeUnix <= end_time AND MetricName = 'gpu.utilization'\n            ) * 100.0,\n            (\n                avgIf(Value,\n                    TimeUnix >= start_time AND TimeUnix <= end_time AND MetricName = 'gpu.utilization'\n                ) -\n                avgIf(Value,\n                    TimeUnix >= prev_start_time AND TimeUnix <= prev_end_time AND MetricName = 'gpu.utilization'\n                )\n            ) /\n            avgIf(Value,\n                TimeUnix >= prev_start_time AND TimeUnix <= prev_end_time AND MetricName = 'gpu.utilization'\n            ) * 100.0\n        ), 2\n    ) AS rate\nFROM otel_metrics_gauge\nWHERE\n    MetricName = 'gpu.utilization'\n    AND TimeUnix >= prev_start_time AND TimeUnix <= end_time\n"
+      },
+      "createdAt": "2025-06-27 06:06:03",
+      "updatedAt": "2025-06-27 06:30:44"
+    },
+    "903d54ac-f41b-4e0c-9c3f-aaa1543c77bc": {
+      "id": "903d54ac-f41b-4e0c-9c3f-aaa1543c77bc",
+      "title": "Avg temperature",
+      "description": "This defines average temperature within the time period selected",
+      "type": "STAT_CARD",
+      "properties": {
+        "color": "#F36C06",
+        "value": "0.temperature",
+        "suffix": "°C",
+        "trend": "rate",
+        "trendSuffix": "%"
+      },
+      "config": {
+        "query": "WITH\n    parseDateTimeBestEffort('{{filter.timeLimit.start}}') AS start_time,\n    parseDateTimeBestEffort('{{filter.timeLimit.end}}') AS end_time,\n    (end_time - start_time) AS duration,\n    (start_time - duration) AS prev_start_time,\n    (end_time - duration) AS prev_end_time\n\nSELECT\n    round(avgIf(Value,\n        TimeUnix >= start_time AND TimeUnix <= end_time AND MetricName = 'gpu.temperature'\n    ), 2) AS temperature,\n\n    round(avgIf(Value,\n        TimeUnix >= prev_start_time AND TimeUnix <= prev_end_time AND MetricName = 'gpu.temperature'\n    ), 2) AS temperature_previous,\n\n    round(\n        if(\n            avgIf(Value,\n                TimeUnix >= prev_start_time AND TimeUnix <= prev_end_time AND MetricName = 'gpu.temperature'\n            ) = 0,\n            avgIf(Value,\n                TimeUnix >= start_time AND TimeUnix <= end_time AND MetricName = 'gpu.temperature'\n            ) * 100.0,\n            (\n                avgIf(Value,\n                    TimeUnix >= start_time AND TimeUnix <= end_time AND MetricName = 'gpu.temperature'\n                ) -\n                avgIf(Value,\n                    TimeUnix >= prev_start_time AND TimeUnix <= prev_end_time AND MetricName = 'gpu.temperature'\n                )\n            )\n            /\n            avgIf(Value,\n                TimeUnix >= prev_start_time AND TimeUnix <= prev_end_time AND MetricName = 'gpu.temperature'\n            ) * 100.0\n        ), 2\n    ) AS rate\nFROM otel_metrics_gauge\nWHERE\n    MetricName = 'gpu.temperature'\n    AND TimeUnix >= prev_start_time AND TimeUnix <= end_time\n"
+      },
+      "createdAt": "2025-06-27 06:45:31",
+      "updatedAt": "2025-06-27 06:47:46"
+    }
+  },
+  "tags": "[\"gpu\"]",
+  "layouts": {
+    "lg": [
+      {
+        "i": "953b08e7-5158-4806-b52e-8b58880b0cfd",
+        "x": 2,
+        "y": 3,
+        "w": 2,
+        "h": 2
+      },
+      {
+        "i": "bab582ed-c163-4614-bec5-1b99d1157740",
+        "x": 0,
+        "y": 3,
+        "w": 2,
+        "h": 2
+      },
+      {
+        "i": "8cd8b0f1-7661-4a0e-ada8-a7718d86700c",
+        "x": 0,
+        "y": 1,
+        "w": 2,
+        "h": 2
+      },
+      {
+        "i": "0952942c-dd5a-484b-8449-224aef6264a8",
+        "x": 2,
+        "y": 0,
+        "w": 1,
+        "h": 1
+      },
+      {
+        "i": "c1e14dcc-d345-4201-9468-54cb73356dd4",
+        "x": 2,
+        "y": 1,
+        "w": 2,
+        "h": 2
+      },
+      {
+        "i": "fefb9f0e-5ee5-497a-b4e0-4e95a79c08c7",
+        "x": 0,
+        "y": 5,
+        "w": 2,
+        "h": 2
+      },
+      {
+        "i": "74c4fc4b-c062-468d-b35b-8b7ea3aa0cbf",
+        "x": 3,
+        "y": 0,
+        "w": 1,
+        "h": 1
+      },
+      {
+        "i": "17dda542-b991-455b-b92c-2a3ae74381ea",
+        "x": 0,
+        "y": 0,
+        "w": 1,
+        "h": 1
+      },
+      {
+        "i": "903d54ac-f41b-4e0c-9c3f-aaa1543c77bc",
+        "x": 1,
+        "y": 0,
+        "w": 1,
+        "h": 1
+      }
+    ]
+  }
+}

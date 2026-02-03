@@ -1,0 +1,18 @@
+{
+  "name": "LMNT",
+  "url": "https://mcp.aci.dev/virtual/mcp?server_name=LMNT",
+  "transport_type": "streamable_http",
+  "description": "LMNT is an API for text-to-speech and voice cloning.",
+  "logo": "https://raw.githubusercontent.com/aipotheosis-labs/aipolabs-icons/refs/heads/main/apps/lmnt.jpg",
+  "categories": ["Media"],
+  "auth_configs": [
+    {
+      "type": "api_key",
+      "location": "header",
+      "name": "X-API-Key"
+    }
+  ],
+  "server_metadata": {
+    "is_virtual_mcp_server": true
+  }
+}

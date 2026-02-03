@@ -1,0 +1,31 @@
+[
+    {
+        "name": "GITHUB__CREATE_REPOSITORY",
+        "description": "Create a new repository.",
+        "tags": [],
+        "tool_metadata": {
+            "canonical_tool_name": "create-repository",
+            "canonical_tool_description_hash": "dummy_canonical_tool_description_hash",
+            "canonical_tool_input_schema_hash": "dummy_canonical_tool_input_schema_hash"
+        },
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "name": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "Name of the repository"
+                },
+                "description": {
+                    "type": "string",
+                    "description": "Description of the repository"
+                }
+            },
+            "required": [
+                "name"
+            ],
+            "additionalProperties": false,
+            "$schema": "http://json-schema.org/draft-07/schema#"
+        }
+    }
+]

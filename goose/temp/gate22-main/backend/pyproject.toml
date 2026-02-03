@@ -1,0 +1,131 @@
+[project]
+name = "MCP-Gateway"
+version = "0.0.1-beta.1"
+description = "MCP Gateway"
+authors = [{ name = "ACI.dev", email = "support@aipolabs.xyz" }]
+requires-python = ">=3.12"
+dependencies = [
+    "fastapi[standard]>=0.115.12",
+    "uvicorn[standard]>=0.31.1",
+    "pydantic>=2.11.3",
+    "sqlalchemy>=2.0.40",
+    "pgvector>=0.4.1",
+    "authlib>=1.5.2",
+    "psycopg[binary]>=3.2.9",
+    "httpx>=0.27.2",
+    "itsdangerous>=2.2.0",
+    "openai>=1.80.0",
+    "click>=8.1.8",
+    "openapi-spec-validator>=0.7.1",
+    "jsonschema>=4.23.0",
+    "limits>=5.2.0",
+    "jinja2>=3.1.6",
+    "deepdiff>=8.5.0",
+    "python-json-logger>=3.3.0",
+    "sentry-sdk[fastapi]>=2.26.1",
+    "google-api-python-client>=2.167.0",
+    "aws-encryption-sdk[mpl]>=4.0.1",
+    "boto3>=1.37.36",
+    "rich>=13.9.4",
+    "svix>=1.65.0",
+    "stripe>=12.1.0",
+    "python-gitlab>=6.0.0",
+    "bcrypt>=4.3.0",
+    "pyjwt>=2.10.1",
+    "google-auth-oauthlib>=1.2.2",
+    "mcp[cli]>=1.13.1",
+    "humanize>=4.11.0",
+    "e2b-code-interpreter>=2.0.0",
+    "elevenlabs>=2.16.0",
+    "favicon>=0.7.0",
+    "tldextract>=5.3.0",
+    "tenacity>=9.1.2",
+    "opentelemetry-api>=1.36.0",
+    "opentelemetry-sdk>=1.36.0",
+    "opentelemetry-instrumentation-fastapi>=0.57b0",
+    "opentelemetry-instrumentation-httpx>=0.57b0",
+    "opentelemetry-instrumentation-sqlalchemy>=0.57b0",
+    "opentelemetry-instrumentation-psycopg>=0.57b0",
+    "opentelemetry-instrumentation-botocore>=0.57b0",
+    "opentelemetry-instrumentation-logging>=0.57b0",
+    "opentelemetry-instrumentation-openai-v2>=0.57b0",
+    "opentelemetry-exporter-otlp-proto-grpc>=1.36.0",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=8.3.5",
+    "pytest-asyncio>=1.2.0",
+    "pytest-mock>=3.15.1",
+    "pytest-subtests>=0.14.1",
+    "mypy>=1.15.0",
+    "alembic>=1.15.2",
+    "ruff>=0.11.10",
+    "pre-commit>=4.2.0",
+    "responses>=0.25.7",
+    "respx>=0.22.0",
+    "types-jsonschema>=4.23.0.20250516",
+    "google-api-python-client-stubs>=1.29.0",
+    "import-linter>=2.1",
+]
+
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+extend-exclude = [".venv", "venv", "build", "dist", "aci/alembic/versions"]
+
+[tool.ruff.lint]
+select = [
+    "E",   # pycodestyle errors
+    "F",   # pyflakes
+    "I",   # isort
+    "B",   # flake8-bugbear
+    "N",   # pep8-naming
+    "UP",  # pyupgrade
+    "RUF", # ruff-specific rules
+    "C4",  # flake8-comprehensions
+]
+
+# N501 is line to long error, we current have 200 comments that are longer than 100
+# characters, need to fix them gradually. Ignoring this error for now.
+ignore = ["W", "D", "ERA001", "N806", "N805", "RUF012"]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+skip-magic-trailing-comma = false
+line-ending = "auto"
+
+[tool.mypy]
+python_version = "3.12"
+# Keep import-not-found errors
+ignore_missing_imports = false
+disallow_untyped_calls = true
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+check_untyped_defs = true
+warn_unused_ignores = true
+warn_return_any = true
+warn_unused_configs = true
+warn_redundant_casts = true
+warn_unreachable = true
+strict_equality = true
+
+# Ignore missing type stubs for specific modules
+[[tool.mypy.overrides]]
+module = "pgvector.sqlalchemy"
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = "authlib.*"
+ignore_missing_imports = true
+
+
+[[tool.mypy.overrides]]
+module = "e2b_code_interpreter"
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+log_cli = true
+log_cli_level = "INFO"

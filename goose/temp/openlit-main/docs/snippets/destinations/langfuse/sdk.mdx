@@ -1,0 +1,114 @@
+### 2. Instrument your application
+    <Tabs>
+      <Tab title="SDK">
+        **For direct integration into your Python applications:**
+        
+        <Tabs>
+          <Tab title="Function Arguments">
+          ```python
+          import openlit
+          import base64
+
+          # Create Base64 encoded auth header
+          LANGFUSE_PUBLIC_KEY = "pk-lf-..."
+          LANGFUSE_SECRET_KEY = "sk-lf-..."
+          LANGFUSE_AUTH = base64.b64encode(f"{LANGFUSE_PUBLIC_KEY}:{LANGFUSE_SECRET_KEY}".encode()).decode()
+
+          openlit.init(
+            otlp_endpoint="https://cloud.langfuse.com/api/public/otel",
+            otlp_headers=f"Authorization=Basic {LANGFUSE_AUTH}",
+            disable_batch=True  # Process traces immediately for better Langfuse integration
+          )
+          ```
+
+          Replace:
+          1. `LANGFUSE_PUBLIC_KEY` with your Langfuse public key from Step 1.
+          2. `LANGFUSE_SECRET_KEY` with your Langfuse secret key from Step 1.
+          3. Update the endpoint for your region:
+             * **EU**: `https://cloud.langfuse.com/api/public/otel`
+             * **US**: `https://us.cloud.langfuse.com/api/public/otel`
+             * **Self-hosted**: `https://your-langfuse-instance.com/api/public/otel`
+          </Tab>
+          
+          <Tab title="Environment Variables">
+          ```python
+          import openlit
+
+          openlit.init()
+          ```
+
+          Set these environment variables:
+          ```shell
+          # Create Base64 encoded auth (replace with your actual keys)
+          export LANGFUSE_PUBLIC_KEY="pk-lf-..."
+          export LANGFUSE_SECRET_KEY="sk-lf-..."
+          export LANGFUSE_AUTH=$(echo -n "$LANGFUSE_PUBLIC_KEY:$LANGFUSE_SECRET_KEY" | base64)
+
+          # Configure OpenTelemetry
+          export OTEL_EXPORTER_OTLP_ENDPOINT="https://cloud.langfuse.com/api/public/otel"
+          export OTEL_EXPORTER_OTLP_HEADERS="Authorization=Basic $LANGFUSE_AUTH"
+          export OTEL_SERVICE_NAME="my-ai-service"
+          export OTEL_DEPLOYMENT_ENVIRONMENT="production"
+          ```
+
+          Replace:
+          1. `LANGFUSE_PUBLIC_KEY` and `LANGFUSE_SECRET_KEY` with your actual keys.
+          2. Update the endpoint for your region as needed.
+          </Tab>
+        </Tabs>
+
+        Refer to the OpenLIT [Python SDK repository](https://github.com/openlit/openlit/tree/main/sdk/python) for more advanced configurations and use cases.
+      </Tab>
+      
+      <Tab title="CLI">
+        **For zero-code auto-instrumentation via command line:**
+        
+        <Tabs>
+          <Tab title="CLI Arguments">
+          ```shell
+          # Create Base64 encoded auth (replace with your actual keys)
+          export LANGFUSE_PUBLIC_KEY="pk-lf-..."
+          export LANGFUSE_SECRET_KEY="sk-lf-..."
+          export LANGFUSE_AUTH=$(echo -n "$LANGFUSE_PUBLIC_KEY:$LANGFUSE_SECRET_KEY" | base64)
+
+          # Using CLI arguments
+          openlit-instrument \
+            --otlp-endpoint "https://cloud.langfuse.com/api/public/otel" \
+            --otlp-headers "Authorization=Basic $LANGFUSE_AUTH" \
+            --service-name "my-ai-service" \
+            --deployment-environment "production" \
+            --disable-batch \
+            python app.py
+          ```
+          
+          Replace:
+          1. `LANGFUSE_PUBLIC_KEY` and `LANGFUSE_SECRET_KEY` with your actual keys.
+          2. Update the endpoint for your region as needed.
+          </Tab>
+          
+          <Tab title="Environment Variables">
+          ```shell
+          # Create Base64 encoded auth (replace with your actual keys)
+          export LANGFUSE_PUBLIC_KEY="pk-lf-..."
+          export LANGFUSE_SECRET_KEY="sk-lf-..."
+          export LANGFUSE_AUTH=$(echo -n "$LANGFUSE_PUBLIC_KEY:$LANGFUSE_SECRET_KEY" | base64)
+
+          # Set environment variables (takes precedence over CLI args)
+          export OTEL_EXPORTER_OTLP_ENDPOINT="https://cloud.langfuse.com/api/public/otel"
+          export OTEL_EXPORTER_OTLP_HEADERS="Authorization=Basic $LANGFUSE_AUTH"
+          export OTEL_SERVICE_NAME="my-ai-service"
+          export OTEL_DEPLOYMENT_ENVIRONMENT="production"
+          
+          # Run your application
+          openlit-instrument python app.py
+          ```
+          
+          Replace:
+          1. `LANGFUSE_PUBLIC_KEY` and `LANGFUSE_SECRET_KEY` with your actual keys.
+          2. Update the endpoint for your region as needed.
+          </Tab>
+        </Tabs>
+
+        Refer to the OpenLIT [Python SDK repository](https://github.com/openlit/openlit/tree/main/sdk/python) for more advanced configurations and use cases.
+      </Tab>
+    </Tabs>
