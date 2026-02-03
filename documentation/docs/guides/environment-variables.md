@@ -75,7 +75,7 @@ Define custom model configurations with provider-specific parameters and context
 | `context_limit` | No | number | Override the default context window size in tokens |
 | `request_params` | No | object | Provider-specific parameters included in API requests |
 
-When a custom model's `context_limit` is specified, it takes precedence over pattern-matching but can still be overridden by explicit environment variables like `GOOSE_CONTEXT_LIMIT`. See [Model Context Limit Overrides](#model-context-limit-overrides) for details on precedence.
+When a custom model's `context_limit` is specified, it takes precedence over pattern-matching but can still be overridden by explicit environment variables like [`GOOSE_CONTEXT_LIMIT`](#model-context-limit-overrides).
 
 **Examples**
 
