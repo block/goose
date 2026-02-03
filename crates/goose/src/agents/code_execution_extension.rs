@@ -679,7 +679,7 @@ impl CodeExecutionClient {
                         arguments: serde_json::from_str(&arguments).ok(),
                     };
                     match manager
-                        .dispatch_tool_call(&session_id, tool_call, CancellationToken::new())
+                        .dispatch_tool_call(&session_id, tool_call, None, CancellationToken::new())
                         .await
                     {
                         Ok(dispatch_result) => match dispatch_result.result.await {
@@ -841,6 +841,7 @@ impl McpClientTrait for CodeExecutionClient {
         session_id: &str,
         name: &str,
         arguments: Option<JsonObject>,
+        _working_dir: Option<&str>,
         _cancellation_token: CancellationToken,
     ) -> Result<CallToolResult, Error> {
         let content = match name {
@@ -919,6 +920,7 @@ mod tests {
                 "test-session-id",
                 "execute_code",
                 Some(args),
+                None,
                 CancellationToken::new(),
             )
             .await
@@ -956,6 +958,7 @@ mod tests {
                 "test-session-id",
                 "execute_code",
                 Some(args),
+                None,
                 CancellationToken::new(),
             )
             .await
