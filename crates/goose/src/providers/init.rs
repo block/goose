@@ -43,48 +43,27 @@ static REGISTRY: OnceCell<RwLock<ProviderRegistry>> = OnceCell::const_new();
 
 async fn init_registry() -> RwLock<ProviderRegistry> {
     let mut registry = ProviderRegistry::new().with_providers(|registry| {
-        registry
-            .register::<AnthropicProvider, _>(|m| Box::pin(AnthropicProvider::from_env(m)), true);
-        registry.register::<AzureProvider, _>(|m| Box::pin(AzureProvider::from_env(m)), false);
-        registry.register::<BedrockProvider, _>(|m| Box::pin(BedrockProvider::from_env(m)), false);
-        registry.register::<ChatGptCodexProvider, _>(
-            |m| Box::pin(ChatGptCodexProvider::from_env(m)),
-            true,
-        );
-        registry
-            .register::<ClaudeCodeProvider, _>(|m| Box::pin(ClaudeCodeProvider::from_env(m)), true);
-        registry.register::<CodexProvider, _>(|m| Box::pin(CodexProvider::from_env(m)), true);
-        registry.register::<CursorAgentProvider, _>(
-            |m| Box::pin(CursorAgentProvider::from_env(m)),
-            false,
-        );
-        registry
-            .register::<DatabricksProvider, _>(|m| Box::pin(DatabricksProvider::from_env(m)), true);
-        registry.register::<GcpVertexAIProvider, _>(
-            |m| Box::pin(GcpVertexAIProvider::from_env(m)),
-            false,
-        );
-        registry
-            .register::<GeminiCliProvider, _>(|m| Box::pin(GeminiCliProvider::from_env(m)), false);
-        registry.register::<GithubCopilotProvider, _>(
-            |m| Box::pin(GithubCopilotProvider::from_env(m)),
-            false,
-        );
-        registry.register::<GoogleProvider, _>(|m| Box::pin(GoogleProvider::from_env(m)), true);
-        registry.register::<LiteLLMProvider, _>(|m| Box::pin(LiteLLMProvider::from_env(m)), false);
-        registry.register::<OllamaProvider, _>(|m| Box::pin(OllamaProvider::from_env(m)), true);
-        registry.register::<OpenAiProvider, _>(|m| Box::pin(OpenAiProvider::from_env(m)), true);
-        registry
-            .register::<OpenRouterProvider, _>(|m| Box::pin(OpenRouterProvider::from_env(m)), true);
-        registry.register::<SageMakerTgiProvider, _>(
-            |m| Box::pin(SageMakerTgiProvider::from_env(m)),
-            false,
-        );
-        registry
-            .register::<SnowflakeProvider, _>(|m| Box::pin(SnowflakeProvider::from_env(m)), false);
-        registry.register::<TetrateProvider, _>(|m| Box::pin(TetrateProvider::from_env(m)), true);
-        registry.register::<VeniceProvider, _>(|m| Box::pin(VeniceProvider::from_env(m)), false);
-        registry.register::<XaiProvider, _>(|m| Box::pin(XaiProvider::from_env(m)), false);
+        registry.register::<AnthropicProvider>(true);
+        registry.register::<AzureProvider>(false);
+        registry.register::<BedrockProvider>(false);
+        registry.register::<ChatGptCodexProvider>(true);
+        registry.register::<ClaudeCodeProvider>(true);
+        registry.register::<CodexProvider>(true);
+        registry.register::<CursorAgentProvider>(false);
+        registry.register::<DatabricksProvider>(true);
+        registry.register::<GcpVertexAIProvider>(false);
+        registry.register::<GeminiCliProvider>(false);
+        registry.register::<GithubCopilotProvider>(false);
+        registry.register::<GoogleProvider>(true);
+        registry.register::<LiteLLMProvider>(false);
+        registry.register::<OllamaProvider>(true);
+        registry.register::<OpenAiProvider>(true);
+        registry.register::<OpenRouterProvider>(true);
+        registry.register::<SageMakerTgiProvider>(false);
+        registry.register::<SnowflakeProvider>(false);
+        registry.register::<TetrateProvider>(true);
+        registry.register::<VeniceProvider>(false);
+        registry.register::<XaiProvider>(false);
     });
     if let Err(e) = load_custom_providers_into_registry(&mut registry) {
         tracing::warn!("Failed to load custom providers: {}", e);
@@ -260,6 +239,7 @@ mod tests {
             ("GOOSE_LEAD_FAILURE_THRESHOLD", failure_threshold),
             ("GOOSE_LEAD_FALLBACK_TURNS", fallback_turns),
             ("OPENAI_API_KEY", Some("fake-openai-no-keyring")),
+            ("OPENAI_CUSTOM_HEADERS", Some("")),
         ]);
 
         let provider = create("openai", ModelConfig::new_or_fail("gpt-4o-mini"))
@@ -284,6 +264,7 @@ mod tests {
             ("GOOSE_LEAD_FAILURE_THRESHOLD", None),
             ("GOOSE_LEAD_FALLBACK_TURNS", None),
             ("OPENAI_API_KEY", Some("fake-openai-no-keyring")),
+            ("OPENAI_CUSTOM_HEADERS", Some("")),
         ]);
 
         let provider = create("openai", ModelConfig::new_or_fail("gpt-4o-mini"))
