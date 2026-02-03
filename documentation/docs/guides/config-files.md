@@ -20,6 +20,10 @@ The configuration files allow you to set default behaviors, configure language m
 - **secrets.yaml** - API keys and secrets (only when keyring is disabled)
 - **permissions/tool_permissions.json** - Runtime permission decisions (auto-managed)
 
+In addition to editing configuration files directly, many settings can be managed from goose Desktop and goose CLI:
+- **goose Desktop**: From the `Settings` page and the bottom toolbar
+- **goose CLI**: Run the `goose configure` command
+
 ## Global Settings
 
 The following settings can be configured at the root level of your config.yaml file:
@@ -47,9 +51,11 @@ The following settings can be configured at the root level of your config.yaml f
 | `OTEL_EXPORTER_OTLP_ENDPOINT` | OTLP endpoint URL for [observability](/docs/guides/environment-variables#opentelemetry-protocol-otlp) | URL (e.g., `http://localhost:4318`) | None | No |
 | `OTEL_EXPORTER_OTLP_TIMEOUT` | Export timeout in milliseconds for [observability](/docs/guides/environment-variables#opentelemetry-protocol-otlp) | Integer (ms) | 10000 | No |
 | `SECURITY_PROMPT_ENABLED` | Enable [prompt injection detection](/docs/guides/security/prompt-injection-detection) to identify potentially harmful commands | true/false | false | No |
-| `SECURITY_PROMPT_THRESHOLD` | Sensitivity threshold for [prompt injection detection](/docs/guides/security/prompt-injection-detection) (higher = stricter) | Float between 0.01 and 1.0 | 0.7 | No |
-<!-- | `SECURITY_PROMPT_CLASSIFIER_ENABLED` | Enable ML-based prompt injection detection for advanced threat identification | true/false | false | No | -->
-<!-- | `SECURITY_PROMPT_CLASSIFIER_MODEL` | Specify the BERT ML model to use for prompt injection detection | String | "ProtectAI DeBERTa" | No | -->
+| `SECURITY_PROMPT_THRESHOLD` | Sensitivity threshold for prompt injection detection (higher = stricter) | Float between 0.01 and 1.0 | 0.8 | No |
+| `SECURITY_PROMPT_CLASSIFIER_ENABLED` | Enable ML-based prompt injection detection for advanced threat identification | true/false | false | No |
+| `SECURITY_PROMPT_CLASSIFIER_ENDPOINT` | Classification endpoint URL for ML-based prompt injection detection | URL (e.g., "https://api.example.com/classify") | None | No |
+| `SECURITY_PROMPT_CLASSIFIER_TOKEN` | Authentication token for `SECURITY_PROMPT_CLASSIFIER_ENDPOINT` | String | None | No |
+| `GOOSE_TELEMETRY_ENABLED` | Enable [anonymous usage data](/docs/guides/usage-data) collection | true/false | false | No |
 
 ## Experimental Features
 

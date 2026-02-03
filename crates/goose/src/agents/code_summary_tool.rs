@@ -145,8 +145,10 @@ async fn execute_summarize(
 
     let user_message = Message::user().with_text(&prompt);
 
+    // Use a unique session ID for this one-shot summarization
+    let session_id = uuid::Uuid::new_v4().to_string();
     let (response, _usage) = provider
-        .complete(system, &[user_message], &[])
+        .complete(&session_id, system, &[user_message], &[])
         .await
         .map_err(|e| ErrorData {
             code: ErrorCode::INTERNAL_ERROR,

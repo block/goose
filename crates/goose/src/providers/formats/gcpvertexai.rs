@@ -29,6 +29,8 @@ pub enum GcpLocation {
     Iowa,
     /// Represents the us-east5 region in Ohio
     Ohio,
+    /// Represents the global endpoint (required for Gemini 3 models)
+    Global,
 }
 
 impl fmt::Display for GcpLocation {
@@ -36,18 +38,7 @@ impl fmt::Display for GcpLocation {
         match self {
             Self::Iowa => write!(f, "us-central1"),
             Self::Ohio => write!(f, "us-east5"),
-        }
-    }
-}
-
-impl TryFrom<&str> for GcpLocation {
-    type Error = ModelError;
-
-    fn try_from(s: &str) -> Result<Self, Self::Error> {
-        match s {
-            "us-central1" => Ok(Self::Iowa),
-            "us-east5" => Ok(Self::Ohio),
-            _ => Err(ModelError::UnsupportedLocation(s.to_string())),
+            Self::Global => write!(f, "global"),
         }
     }
 }
@@ -82,8 +73,8 @@ pub const KNOWN_MODELS: &[&str] = &[
     "claude-sonnet-4@20250514",
     "claude-3-5-haiku@20241022",
     "claude-3-haiku@20240307",
-    "gemini-3-pro",
-    "gemini-3-flash",
+    "gemini-3-pro-preview",
+    "gemini-3-flash-preview",
     "gemini-2.5-pro",
     "gemini-2.5-flash",
     "gemini-2.5-flash-lite",

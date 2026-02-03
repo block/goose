@@ -8,7 +8,7 @@ use goose::conversation::message::{
 use goose::providers::canonical::maybe_get_canonical_model;
 use goose::utils::safe_truncate;
 use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
-use rmcp::model::{CallToolRequestParam, JsonObject, PromptArgument};
+use rmcp::model::{CallToolRequestParams, JsonObject, PromptArgument};
 use serde_json::Value;
 use std::cell::RefCell;
 use std::collections::HashMap;
@@ -16,6 +16,8 @@ use std::io::{Error, IsTerminal, Write};
 use std::path::Path;
 use std::sync::Arc;
 use std::time::Duration;
+
+pub const DEFAULT_MIN_PRIORITY: f32 = 0.0;
 
 // Re-export theme for use in main
 #[derive(Clone, Copy)]
@@ -160,6 +162,33 @@ pub fn hide_thinking() {
     }
 }
 
+pub fn run_status_hook(status: &str) {
+    if let Ok(hook) = Config::global().get_param::<String>("GOOSE_STATUS_HOOK") {
+        let status = status.to_string();
+        std::thread::spawn(move || {
+            #[cfg(target_os = "windows")]
+            let result = std::process::Command::new("cmd")
+                .arg("/C")
+                .arg(format!("{} {}", hook, status))
+                .stdin(std::process::Stdio::null())
+                .stdout(std::process::Stdio::null())
+                .stderr(std::process::Stdio::null())
+                .status();
+
+            #[cfg(not(target_os = "windows"))]
+            let result = std::process::Command::new("sh")
+                .arg("-c")
+                .arg(format!("{} {}", hook, status))
+                .stdin(std::process::Stdio::null())
+                .stdout(std::process::Stdio::null())
+                .stderr(std::process::Stdio::null())
+                .status();
+
+            let _ = result;
+        });
+    }
+}
+
 pub fn is_showing_thinking() -> bool {
     THINKING.with(|t| t.borrow().is_shown())
 }
@@ -218,6 +247,7 @@ pub fn render_message(message: &Message, debug: bool) {
                         set_thinking_message(&notification.msg);
                     }
                     SystemNotificationType::InlineMessage => {
+                        hide_thinking();
                         println!("\n{}", style(&notification.msg).yellow());
                     }
                 }
@@ -308,7 +338,7 @@ fn render_tool_response(resp: &ToolResponse, theme: Theme, debug: bool) {
                 let min_priority = config
                     .get_param::<f32>("GOOSE_CLI_MIN_PRIORITY")
                     .ok()
-                    .unwrap_or(0.5);
+                    .unwrap_or(DEFAULT_MIN_PRIORITY);
 
                 if content
                     .priority()
@@ -424,7 +454,7 @@ pub fn render_builtin_error(names: &str, error: &str) {
     println!();
 }
 
-fn render_text_editor_request(call: &CallToolRequestParam, debug: bool) {
+fn render_text_editor_request(call: &CallToolRequestParams, debug: bool) {
     print_tool_header(call);
 
     // Print path first with special formatting
@@ -453,13 +483,13 @@ fn render_text_editor_request(call: &CallToolRequestParam, debug: bool) {
     println!();
 }
 
-fn render_shell_request(call: &CallToolRequestParam, debug: bool) {
+fn render_shell_request(call: &CallToolRequestParams, debug: bool) {
     print_tool_header(call);
     print_params(&call.arguments, 0, debug);
     println!();
 }
 
-fn render_execute_code_request(call: &CallToolRequestParam, debug: bool) {
+fn render_execute_code_request(call: &CallToolRequestParams, debug: bool) {
     let tool_graph = call
         .arguments
         .as_ref()
@@ -514,7 +544,7 @@ fn render_execute_code_request(call: &CallToolRequestParam, debug: bool) {
     println!();
 }
 
-fn render_subagent_request(call: &CallToolRequestParam, debug: bool) {
+fn render_subagent_request(call: &CallToolRequestParams, debug: bool) {
     print_tool_header(call);
 
     if let Some(args) = &call.arguments {
@@ -555,7 +585,7 @@ fn render_subagent_request(call: &CallToolRequestParam, debug: bool) {
     println!();
 }
 
-fn render_todo_request(call: &CallToolRequestParam, _debug: bool) {
+fn render_todo_request(call: &CallToolRequestParams, _debug: bool) {
     print_tool_header(call);
 
     if let Some(args) = &call.arguments {
@@ -566,7 +596,7 @@ fn render_todo_request(call: &CallToolRequestParam, _debug: bool) {
     println!();
 }
 
-fn render_default_request(call: &CallToolRequestParam, debug: bool) {
+fn render_default_request(call: &CallToolRequestParams, debug: bool) {
     print_tool_header(call);
     print_params(&call.arguments, 0, debug);
     println!();
@@ -574,7 +604,7 @@ fn render_default_request(call: &CallToolRequestParam, debug: bool) {
 
 // Helper functions
 
-fn print_tool_header(call: &CallToolRequestParam) {
+fn print_tool_header(call: &CallToolRequestParams) {
     let parts: Vec<_> = call.name.rsplit("__").collect();
     let tool_header = format!(
         "─── {} | {} ──────────────────────────",
@@ -871,8 +901,8 @@ fn estimate_cost_usd(
 ) -> Option<f64> {
     let canonical_model = maybe_get_canonical_model(provider, model)?;
 
-    let input_cost_per_token = canonical_model.pricing.prompt?;
-    let output_cost_per_token = canonical_model.pricing.completion?;
+    let input_cost_per_token = canonical_model.cost.input? / 1_000_000.0;
+    let output_cost_per_token = canonical_model.cost.output? / 1_000_000.0;
 
     let input_cost = input_cost_per_token * input_tokens as f64;
     let output_cost = output_cost_per_token * output_tokens as f64;

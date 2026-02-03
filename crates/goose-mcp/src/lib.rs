@@ -24,12 +24,8 @@ pub use developer::rmcp_developer::DeveloperServer;
 pub use memory::MemoryServer;
 pub use tutorial::TutorialServer;
 
+/// Type definition for a function that spawns and serves a builtin extension server
 pub type SpawnServerFn = fn(tokio::io::DuplexStream, tokio::io::DuplexStream);
-
-pub struct BuiltinDef {
-    pub name: &'static str,
-    pub spawn_server: SpawnServerFn,
-}
 
 fn spawn_and_serve<S>(
     name: &'static str,
@@ -53,17 +49,11 @@ macro_rules! builtin {
         fn spawn(r: tokio::io::DuplexStream, w: tokio::io::DuplexStream) {
             spawn_and_serve(stringify!($name), <$server_ty>::new(), (r, w));
         }
-        (
-            stringify!($name),
-            BuiltinDef {
-                name: stringify!($name),
-                spawn_server: spawn,
-            },
-        )
+        (stringify!($name), spawn as SpawnServerFn)
     }};
 }
 
-pub static BUILTIN_EXTENSIONS: Lazy<HashMap<&'static str, BuiltinDef>> = Lazy::new(|| {
+pub static BUILTIN_EXTENSIONS: Lazy<HashMap<&'static str, SpawnServerFn>> = Lazy::new(|| {
     HashMap::from([
         builtin!(develop, DevelopServer),
         builtin!(developer, DeveloperServer),

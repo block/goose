@@ -3,7 +3,7 @@ use crate::model::ModelConfig;
 use crate::providers::base::Usage;
 use crate::providers::errors::ProviderError;
 use anyhow::{anyhow, Result};
-use rmcp::model::{object, CallToolRequestParam, Role, Tool};
+use rmcp::model::{object, CallToolRequestParams, Role, Tool};
 use rmcp::object;
 use serde_json::{json, Value};
 use std::collections::HashSet;
@@ -12,8 +12,7 @@ use std::collections::HashSet;
 pub fn format_messages(messages: &[Message]) -> Vec<Value> {
     let mut snowflake_messages = Vec::new();
 
-    // Convert messages to Snowflake format
-    for message in messages.iter().filter(|m| m.is_agent_visible()) {
+    for message in messages {
         let role = match message.role {
             Role::User => "user",
             Role::Assistant => "assistant",
@@ -184,7 +183,8 @@ pub fn parse_streaming_response(sse_data: &str) -> Result<Message> {
         if !tool_input.is_empty() {
             let input_value = serde_json::from_str::<Value>(&tool_input)
                 .unwrap_or_else(|_| Value::String(tool_input.clone()));
-            let tool_call = CallToolRequestParam {
+            let tool_call = CallToolRequestParams {
+                meta: None,
                 task: None,
                 name: name.into(),
                 arguments: Some(object(input_value)),
@@ -192,7 +192,8 @@ pub fn parse_streaming_response(sse_data: &str) -> Result<Message> {
             message = message.with_tool_request(&id, Ok(tool_call));
         } else {
             // Tool with no input - use empty object
-            let tool_call = CallToolRequestParam {
+            let tool_call = CallToolRequestParams {
+                meta: None,
                 task: None,
                 name: name.into(),
                 arguments: Some(object!({})),
@@ -253,7 +254,8 @@ pub fn response_to_message(response: &Value) -> Result<Message> {
                     .ok_or_else(|| anyhow!("Missing tool input"))?
                     .clone();
 
-                let tool_call = CallToolRequestParam {
+                let tool_call = CallToolRequestParams {
+                    meta: None,
                     task: None,
                     name: name.into(),
                     arguments: Some(object(input)),
@@ -693,7 +695,8 @@ data: {"id":"a9537c2c-2017-4906-9817-2456168d89fa","model":"claude-sonnet-4-2025
         use crate::conversation::message::Message;
 
         // Create a conversation with text, tool requests, and tool responses
-        let tool_call = CallToolRequestParam {
+        let tool_call = CallToolRequestParams {
+            meta: None,
             task: None,
             name: "calculator".into(),
             arguments: Some(object!({"expression": "2 + 2"})),

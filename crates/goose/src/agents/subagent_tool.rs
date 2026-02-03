@@ -51,6 +51,7 @@ pub struct SubagentSettings {
     pub provider: Option<String>,
     pub model: Option<String>,
     pub temperature: Option<f32>,
+    pub max_turns: Option<usize>,
     /// Arbitrary extra parameters to forward to the provider API (e.g., top_p, disable_reasoning)
     #[serde(flatten)]
     pub extra: Option<std::collections::HashMap<String, serde_json::Value>>,
@@ -85,7 +86,8 @@ pub fn create_subagent_tool(sub_recipes: &[SubRecipe]) -> Tool {
                 "properties": {
                     "provider": {"type": "string", "description": "Override LLM provider"},
                     "model": {"type": "string", "description": "Override model"},
-                    "temperature": {"type": "number", "description": "Override temperature"}
+                    "temperature": {"type": "number", "description": "Override temperature"},
+                    "max_turns": {"type": "number", "description": "Override max turns"}
                 },
                 "additionalProperties": true,
                 "description": "Override model/provider settings. Additional properties (e.g., top_p, disable_reasoning) are forwarded to the provider API."
@@ -396,6 +398,10 @@ async fn apply_settings_overrides(
     params: &SubagentParams,
 ) -> Result<TaskConfig> {
     if let Some(settings) = &params.settings {
+        if let Some(max_turns) = settings.max_turns {
+            task_config.max_turns = Some(max_turns);
+        }
+
         // Check if we have any settings to apply (known fields or extra params)
         let has_extra = settings.extra.as_ref().is_some_and(|e| !e.is_empty());
         if settings.provider.is_some()

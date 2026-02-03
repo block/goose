@@ -3,7 +3,7 @@ use crate::conversation::message::{Message, ToolRequest};
 use crate::tool_inspection::{InspectionAction, InspectionResult, ToolInspector};
 use anyhow::Result;
 use async_trait::async_trait;
-use rmcp::model::CallToolRequestParam;
+use rmcp::model::CallToolRequestParams;
 use serde_json::Value;
 use std::collections::HashMap;
 
@@ -19,7 +19,7 @@ impl InternalToolCall {
         self.name == other.name && self.parameters == other.parameters
     }
 
-    fn from_tool_call(tool_call: &CallToolRequestParam) -> Self {
+    fn from_tool_call(tool_call: &CallToolRequestParams) -> Self {
         let name = tool_call.name.to_string();
         let parameters = tool_call
             .arguments
@@ -48,7 +48,7 @@ impl RepetitionInspector {
         }
     }
 
-    pub fn check_tool_call(&mut self, tool_call: CallToolRequestParam) -> bool {
+    pub fn check_tool_call(&mut self, tool_call: CallToolRequestParams) -> bool {
         let internal_call = InternalToolCall::from_tool_call(&tool_call);
         let total_calls = self
             .call_counts

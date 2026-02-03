@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { IoIosCloseCircle, IoIosWarning, IoIosInformationCircle } from 'react-icons/io';
 import { FaPencilAlt, FaSave } from 'react-icons/fa';
 import { cn } from '../../utils';
+import { errorMessage } from '../../utils/conversionUtils';
 import { Alert, AlertType } from './types';
 import { upsertConfig } from '../../api';
 import { useConfig } from '../ConfigContext';
@@ -89,9 +90,7 @@ export const AlertBox = ({ alert, className }: AlertBoxProps) => {
       }
     } catch (error) {
       console.error('Error saving threshold:', error);
-      window.alert(
-        `Failed to save threshold: ${error instanceof Error ? error.message : 'Unknown error'}`
-      );
+      window.alert(`Failed to save threshold: ${errorMessage(error, 'Unknown error')}`);
     } finally {
       setIsSaving(false);
     }

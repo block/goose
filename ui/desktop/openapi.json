@@ -10,7 +10,7 @@
     "license": {
       "name": "Apache-2.0"
     },
-    "version": "1.20.0"
+    "version": "1.22.0"
   },
   "paths": {
     "/action-required/tool-confirmation": {
@@ -126,6 +126,117 @@
             "description": "Internal server error"
           }
         }
+      }
+    },
+    "/agent/export_app/{name}": {
+      "get": {
+        "tags": [
+          "Agent"
+        ],
+        "operationId": "export_app",
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "description": "Name of the app to export",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "App HTML exported successfully",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "App not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ]
+      }
+    },
+    "/agent/import_app": {
+      "post": {
+        "tags": [
+          "Agent"
+        ],
+        "operationId": "import_app",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ImportAppRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "App imported successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ImportAppResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request - Invalid HTML",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ]
       }
     },
     "/agent/list_apps": {
@@ -1214,6 +1325,33 @@
         }
       }
     },
+    "/config/providers/{name}/oauth": {
+      "post": {
+        "tags": [
+          "super::routes::config_management"
+        ],
+        "operationId": "configure_provider_oauth",
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "description": "Provider name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OAuth configuration completed"
+          },
+          "400": {
+            "description": "OAuth configuration failed"
+          }
+        }
+      }
+    },
     "/config/read": {
       "post": {
         "tags": [
@@ -1429,6 +1567,86 @@
           },
           "500": {
             "description": "Failed to generate diagnostics"
+          }
+        }
+      }
+    },
+    "/dictation/config": {
+      "get": {
+        "tags": [
+          "super::routes::dictation"
+        ],
+        "operationId": "get_dictation_config",
+        "responses": {
+          "200": {
+            "description": "Audio transcription provider configurations",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": {
+                    "$ref": "#/components/schemas/DictationProviderStatus"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/dictation/transcribe": {
+      "post": {
+        "tags": [
+          "super::routes::dictation"
+        ],
+        "operationId": "transcribe_dictation",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TranscribeRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Audio transcribed successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TranscribeResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request (bad base64 or unsupported format)"
+          },
+          "401": {
+            "description": "Invalid API key"
+          },
+          "412": {
+            "description": "DictationProvider not configured"
+          },
+          "413": {
+            "description": "Audio file too large (max 25MB)"
+          },
+          "429": {
+            "description": "Rate limit exceeded"
+          },
+          "500": {
+            "description": "Internal server error"
+          },
+          "502": {
+            "description": "DictationProvider API error"
+          },
+          "503": {
+            "description": "Service unavailable"
+          },
+          "504": {
+            "description": "Request timeout"
           }
         }
       }
@@ -2472,64 +2690,6 @@
         ]
       }
     },
-    "/sessions/{session_id}/edit_message": {
-      "post": {
-        "tags": [
-          "Session Management"
-        ],
-        "operationId": "edit_message",
-        "parameters": [
-          {
-            "name": "session_id",
-            "in": "path",
-            "description": "Unique identifier for the session",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/EditMessageRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "Session prepared for editing - frontend should submit the edited message",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/EditMessageResponse"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Bad request - Invalid message timestamp"
-          },
-          "401": {
-            "description": "Unauthorized - Invalid or missing API key"
-          },
-          "404": {
-            "description": "Session or message not found"
-          },
-          "500": {
-            "description": "Internal server error"
-          }
-        },
-        "security": [
-          {
-            "api_key": []
-          }
-        ]
-      }
-    },
     "/sessions/{session_id}/export": {
       "get": {
         "tags": [
@@ -2602,6 +2762,64 @@
                 }
               }
             }
+          },
+          "401": {
+            "description": "Unauthorized - Invalid or missing API key"
+          },
+          "404": {
+            "description": "Session not found"
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ]
+      }
+    },
+    "/sessions/{session_id}/fork": {
+      "post": {
+        "tags": [
+          "Session Management"
+        ],
+        "operationId": "fork_session",
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "path",
+            "description": "Unique identifier for the session",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ForkRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Session forked successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ForkResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request - truncate=true requires timestamp"
           },
           "401": {
             "description": "Unauthorized - Invalid or missing API key"
@@ -3299,7 +3517,7 @@
         "type": "object",
         "required": [
           "id",
-          "recipe_source",
+          "recipe",
           "cron"
         ],
         "properties": {
@@ -3309,8 +3527,8 @@
           "id": {
             "type": "string"
           },
-          "recipe_source": {
-            "type": "string"
+          "recipe": {
+            "$ref": "#/components/schemas/Recipe"
           }
         }
       },
@@ -3342,7 +3560,6 @@
           "name",
           "engine",
           "display_name",
-          "api_key_env",
           "base_url",
           "models"
         ],
@@ -3378,6 +3595,9 @@
           },
           "name": {
             "type": "string"
+          },
+          "requires_auth": {
+            "type": "boolean"
           },
           "supports_streaming": {
             "type": "boolean",
@@ -3453,38 +3673,49 @@
           }
         }
       },
-      "EditMessageRequest": {
-        "type": "object",
-        "required": [
-          "timestamp"
-        ],
-        "properties": {
-          "editType": {
-            "$ref": "#/components/schemas/EditType"
-          },
-          "timestamp": {
-            "type": "integer",
-            "format": "int64"
-          }
-        }
-      },
-      "EditMessageResponse": {
-        "type": "object",
-        "required": [
-          "sessionId"
-        ],
-        "properties": {
-          "sessionId": {
-            "type": "string"
-          }
-        }
-      },
-      "EditType": {
+      "DictationProvider": {
         "type": "string",
         "enum": [
-          "fork",
-          "edit"
+          "openai",
+          "elevenlabs"
         ]
+      },
+      "DictationProviderStatus": {
+        "type": "object",
+        "required": [
+          "configured",
+          "description",
+          "uses_provider_config"
+        ],
+        "properties": {
+          "config_key": {
+            "type": "string",
+            "description": "Config key name if uses_provider_config is false",
+            "nullable": true
+          },
+          "configured": {
+            "type": "boolean",
+            "description": "Whether the provider is fully configured and ready to use"
+          },
+          "description": {
+            "type": "string",
+            "description": "Description of what this provider does"
+          },
+          "host": {
+            "type": "string",
+            "description": "Custom host URL if configured (only for providers that support it)",
+            "nullable": true
+          },
+          "settings_path": {
+            "type": "string",
+            "description": "Path to settings if uses_provider_config is true",
+            "nullable": true
+          },
+          "uses_provider_config": {
+            "type": "boolean",
+            "description": "Whether this provider uses the main provider config (true) or has its own key (false)"
+          }
+        }
       },
       "EmbeddedResource": {
         "type": "object",
@@ -3705,6 +3936,10 @@
               },
               "description": {
                 "type": "string"
+              },
+              "display_name": {
+                "type": "string",
+                "nullable": true
               },
               "name": {
                 "type": "string",
@@ -3961,6 +4196,37 @@
           }
         }
       },
+      "ForkRequest": {
+        "type": "object",
+        "required": [
+          "truncate",
+          "copy"
+        ],
+        "properties": {
+          "copy": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "type": "integer",
+            "format": "int64",
+            "nullable": true
+          },
+          "truncate": {
+            "type": "boolean"
+          }
+        }
+      },
+      "ForkResponse": {
+        "type": "object",
+        "required": [
+          "sessionId"
+        ],
+        "properties": {
+          "sessionId": {
+            "type": "string"
+          }
+        }
+      },
       "FrontendToolRequest": {
         "type": "object",
         "required": [
@@ -4007,14 +4273,19 @@
           {
             "type": "object",
             "properties": {
-              "mcpServer": {
+              "mcpServers": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "prd": {
                 "type": "string",
                 "nullable": true
               }
             }
           }
-        ],
-        "description": "A Goose App combining MCP resource data with Goose-specific metadata"
+        ]
       },
       "Icon": {
         "type": "object",
@@ -4061,6 +4332,32 @@
             "type": "string"
           },
           "mimeType": {
+            "type": "string"
+          }
+        }
+      },
+      "ImportAppRequest": {
+        "type": "object",
+        "required": [
+          "html"
+        ],
+        "properties": {
+          "html": {
+            "type": "string"
+          }
+        }
+      },
+      "ImportAppResponse": {
+        "type": "object",
+        "required": [
+          "name",
+          "message"
+        ],
+        "properties": {
+          "message": {
+            "type": "string"
+          },
+          "name": {
             "type": "string"
           }
         }
@@ -4705,7 +5002,7 @@
           "input_token_cost": {
             "type": "number",
             "format": "double",
-            "description": "Cost per token for input (optional)",
+            "description": "Cost per token for input in USD (optional)",
             "nullable": true
           },
           "name": {
@@ -4715,7 +5012,7 @@
           "output_token_cost": {
             "type": "number",
             "format": "double",
-            "description": "Cost per token for output (optional)",
+            "description": "Cost per token for output in USD (optional)",
             "nullable": true
           },
           "supports_cache_control": {
@@ -5926,6 +6223,11 @@
             "type": "string",
             "nullable": true
           },
+          "max_turns": {
+            "type": "integer",
+            "nullable": true,
+            "minimum": 0
+          },
           "temperature": {
             "type": "number",
             "format": "float",
@@ -6128,6 +6430,9 @@
           "msg"
         ],
         "properties": {
+          "data": {
+            "nullable": true
+          },
           "msg": {
             "type": "string"
           },
@@ -6437,6 +6742,39 @@
           }
         }
       },
+      "TranscribeRequest": {
+        "type": "object",
+        "required": [
+          "audio",
+          "mime_type",
+          "provider"
+        ],
+        "properties": {
+          "audio": {
+            "type": "string",
+            "description": "Base64 encoded audio data"
+          },
+          "mime_type": {
+            "type": "string",
+            "description": "MIME type of the audio (e.g., \"audio/webm\", \"audio/wav\")"
+          },
+          "provider": {
+            "$ref": "#/components/schemas/DictationProvider"
+          }
+        }
+      },
+      "TranscribeResponse": {
+        "type": "object",
+        "required": [
+          "text"
+        ],
+        "properties": {
+          "text": {
+            "type": "string",
+            "description": "Transcribed text from the audio"
+          }
+        }
+      },
       "TunnelInfo": {
         "type": "object",
         "required": [
@@ -6528,6 +6866,9 @@
             "items": {
               "type": "string"
             }
+          },
+          "requires_auth": {
+            "type": "boolean"
           },
           "supports_streaming": {
             "type": "boolean",

@@ -42,25 +42,25 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # pin@v4
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8  # v6.0.1
         with:
           ref: ${{ inputs.ref != '' && inputs.ref || '' }}
           fetch-depth: 0
 
       - name: Configure AWS credentials
         if: inputs.signing && inputs.signing == true
-        uses: aws-actions/configure-aws-credentials@e3dd6a429d7300a6a4c196c26e071d42e0343502 # ratchet:aws-actions/configure-aws-credentials@v4
+        uses: aws-actions/configure-aws-credentials@61815dcd50bd041e203e49132bacad1fd04d2708  # v5.1.1
         with:
           role-to-assume: ${{ github.ref == 'refs/heads/main' && secrets.WINDOW_SIGNING_ROLE || secrets.WINDOW_SIGNING_ROLE_TAG }}
           aws-region: us-west-2
 
       - name: Set up Node.js
-        uses: actions/setup-node@1a4442cacd436585916779262731d5b162bc6ec7 # pin@v3
+        uses: actions/setup-node@6044e13b5dc448c55e2357c09f80417699197238  # v6.2.0
         with:
           node-version: 22
 
       - name: Cache node_modules
-        uses: actions/cache@2f8e54208210a422b2efd51efaa6bd6d7ca8920f # pin@v3
+        uses: actions/cache@8b402f58fbc84540c8b491a91e594a4576fec3d7  # v5.0.2
         with:
           path: |
             node_modules
@@ -326,7 +326,7 @@ jobs:
           cp Goose-win32-x64.zip out/Goose-win32-x64/
 
       - name: Upload Windows build artifacts
-        uses: actions/upload-artifact@4cec3d8aa04e39d1a68397de0c4cd6fb9dce8ec1 # pin@v4
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f  # v6.0.0
         with:
           name: Goose-win32-x64
           path: ui/desktop/out/Goose-win32-x64/Goose-win32-x64.zip

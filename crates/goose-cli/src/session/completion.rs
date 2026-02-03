@@ -390,7 +390,11 @@ impl Hinter for GooseCompleter {
     fn hint(&self, line: &str, _pos: usize, _ctx: &Context<'_>) -> Option<Self::Hint> {
         // Only show hint when line is empty
         if line.is_empty() {
-            Some("Press Enter to send, Ctrl-J for new line".to_string())
+            let newline_key = super::input::get_newline_key().to_ascii_uppercase();
+            Some(format!(
+                "Press Enter to send, Ctrl-{} for new line",
+                newline_key
+            ))
         } else {
             None
         }

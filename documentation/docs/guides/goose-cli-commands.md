@@ -5,6 +5,9 @@ sidebar_label: CLI Commands
 toc_max_heading_level: 4
 ---
 
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+
 goose provides a command-line interface (CLI) with several commands for managing sessions, configurations and extensions. This guide covers all available CLI commands and interactive session features.
 
 ## Flag Naming Conventions
@@ -85,6 +88,87 @@ goose update --canary
 # Update and reconfigure settings
 goose update --reconfigure
 ```
+
+---
+
+#### completion
+Generate shell-specific scripts to enable tab completion of goose commands, subcommands, and options. The script is printed to stdout, so you need to redirect it to the appropriate location for your shell and then reload or source your shell configuration.
+
+Once installed, you can:
+- Press Tab to see available commands and subcommands
+- Complete command names and flags automatically
+- Discover options without checking `--help`
+
+**Arguments:**
+- **`<SHELL>`**: The shell to generate completions for. Supported shells: `bash`, `elvish`, `fish`, `powershell`, `zsh`
+
+**Usage:**
+```bash
+# Generate completion script for your shell (outputs to stdout)
+goose completion bash
+goose completion zsh
+goose completion fish
+```
+
+**Installation by Shell:**
+
+<Tabs groupId="shells">
+<TabItem value="zsh" label="Zsh" default>
+
+Add this line to your `~/.zshrc`:
+
+```bash
+eval "$(goose completion zsh)"
+```
+
+Then reload your shell:
+```bash
+source ~/.zshrc
+```
+
+</TabItem>
+<TabItem value="bash" label="Bash">
+
+Add this line to your `~/.bashrc` or `~/.bash_profile`:
+
+```bash
+eval "$(goose completion bash)"
+```
+
+Then reload your shell:
+```bash
+source ~/.bashrc
+```
+
+</TabItem>
+<TabItem value="fish" label="Fish">
+
+```bash
+goose completion fish > ~/.config/fish/completions/goose.fish
+```
+
+Then restart your terminal or run `exec fish`.
+
+</TabItem>
+<TabItem value="powershell" label="PowerShell">
+
+Add this line to your PowerShell profile:
+
+```powershell
+goose completion powershell | Out-String | Invoke-Expression
+```
+
+Then reload your profile:
+```powershell
+. $PROFILE
+```
+
+</TabItem>
+</Tabs>
+
+:::tip Testing
+After installing and reloading your shell, test completion by typing `goose ` and pressing Tab to see available commands, or `goose session --` and Tab to see available options.
+:::
 
 ---
 
@@ -581,6 +665,7 @@ Once you're in an interactive session (via `goose session` or `goose run --inter
 - **`/prompts [--extension <name>]`** - List all available prompts, optionally filtered by extension
 - **`/recipe [filepath]`** - Generate a recipe from the current conversation and save it to the specified filepath (must end with .yaml). If no filepath is provided, it will be saved to ./recipe.yaml
 - **`/compact`** - Compact and summarize the current conversation to reduce context length while preserving key information
+- **`/r`** - Toggle full tool output display (show complete tool parameters without truncation)
 - **`/t`** - Toggle between `light`, `dark`, and `ansi` themes. [More info](#themes).
 - **`/t <name>`** - Set theme directly (light, dark, ansi)
 
@@ -646,8 +731,8 @@ goose session --name use-custom-theme
 ### Keyboard Shortcuts
 
 **Session Control:**
-- **`Ctrl+C`** - Interrupt the current request
-- **`Ctrl+J`** - Add a newline
+- **`Ctrl+C`** - Clear the current line if text is entered, interrupt the current request if processing, or exit the session if line is empty
+- **`Ctrl+J`** - Add a newline. Can customize the character via `GOOSE_CLI_NEWLINE_KEY` in the [config file](/docs/guides/config-files) (e.g. `GOOSE_CLI_NEWLINE_KEY: n`) or as an [environment variable](/docs/guides/environment-variables#session-management). Avoid "c" and common terminal shortcuts like "r", "w", "z".
 
 **Navigation:**
 - **`Cmd+Up/Down arrows`** - Navigate through command history

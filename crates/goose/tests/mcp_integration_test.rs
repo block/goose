@@ -6,7 +6,7 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use std::{env, fs};
 
-use rmcp::model::{CallToolRequestParam, CallToolResult, Tool};
+use rmcp::model::{CallToolRequestParams, CallToolResult, Tool};
 use rmcp::object;
 use tokio_util::sync::CancellationToken;
 
@@ -18,7 +18,7 @@ use test_case::test_case;
 
 use async_trait::async_trait;
 use goose::conversation::message::Message;
-use goose::providers::base::{Provider, ProviderMetadata, ProviderUsage, Usage};
+use goose::providers::base::{Provider, ProviderDef, ProviderMetadata, ProviderUsage, Usage};
 use goose::providers::errors::ProviderError;
 use once_cell::sync::Lazy;
 use std::process::Command;
@@ -47,19 +47,27 @@ impl MockProvider {
     }
 }
 
-#[async_trait]
-impl Provider for MockProvider {
+impl ProviderDef for MockProvider {
+    type Provider = Self;
+
     fn metadata() -> ProviderMetadata {
         ProviderMetadata::empty()
     }
 
+    fn from_env(model: ModelConfig) -> futures::future::BoxFuture<'static, anyhow::Result<Self>> {
+        Box::pin(async move { Ok(Self::new(model)) })
+    }
+}
+
+#[async_trait]
+impl Provider for MockProvider {
     fn get_name(&self) -> &str {
         "mock"
     }
 
     async fn complete_with_model(
         &self,
-        _session_id: &str,
+        _session_id: Option<&str>,
         _model_config: &ModelConfig,
         _system: &str,
         _messages: &[Message],
@@ -120,20 +128,20 @@ enum TestMode {
 }
 
 #[test_case(
-    vec!["npx", "-y", "@modelcontextprotocol/server-everything"],
+    vec!["npx", "-y", "@modelcontextprotocol/server-everything@2026.1.14"],
     vec![
-        CallToolRequestParam { task: None, name: "echo".into(), arguments: Some(object!({"message": "Hello, world!" })) },
-        CallToolRequestParam { task: None, name: "add".into(), arguments: Some(object!({"a": 1, "b": 2 })) },
-        CallToolRequestParam { task: None, name: "longRunningOperation".into(), arguments: Some(object!({"duration": 1, "steps": 5 })) },
-        CallToolRequestParam { task: None, name: "structuredContent".into(), arguments: Some(object!({"location": "11238"})) },
-        CallToolRequestParam { task: None, name: "sampleLLM".into(), arguments: Some(object!({"prompt": "Please provide a quote from The Great Gatsby", "maxTokens": 100 })) }
+        CallToolRequestParams { meta: None, task: None, name: "echo".into(), arguments: Some(object!({"message": "Hello, world!" })) },
+        CallToolRequestParams { meta: None, task: None, name: "get-sum".into(), arguments: Some(object!({"a": 1, "b": 2 })) },
+        CallToolRequestParams { meta: None, task: None, name: "trigger-long-running-operation".into(), arguments: Some(object!({"duration": 1, "steps": 5 })) },
+        CallToolRequestParams { meta: None, task: None, name: "get-structured-content".into(), arguments: Some(object!({"location": "New York"})) },
+        CallToolRequestParams { meta: None, task: None, name: "trigger-sampling-request".into(), arguments: Some(object!({"prompt": "Please provide a quote from The Great Gatsby", "maxTokens": 100 })) }
     ],
     vec![]
 )]
 #[test_case(
     vec!["github-mcp-server", "stdio"],
     vec![
-        CallToolRequestParam { task: None, name: "get_file_contents".into(), arguments: Some(object!({
+        CallToolRequestParams { meta: None, task: None, name: "get_file_contents".into(), arguments: Some(object!({
             "owner": "block",
             "repo": "goose",
             "path": "README.md",
@@ -145,44 +153,26 @@ enum TestMode {
 #[test_case(
     vec!["uvx", "mcp-server-fetch"],
     vec![
-        CallToolRequestParam { task: None, name: "fetch".into(), arguments: Some(object!({
+        CallToolRequestParams { meta: None, task: None, name: "fetch".into(), arguments: Some(object!({
             "url": "https://example.com",
         })) }
     ],
     vec![]
 )]
 #[test_case(
-    vec!["cargo", "run", "--quiet", "-p", "goose-server", "--bin", "goosed", "--", "mcp", "developer"],
+    vec!["uv", "run", "--with", "fastmcp==2.14.4", "fastmcp", "run", "tests/fastmcp_test_server.py"],
     vec![
-        CallToolRequestParam { task: None, name: "text_editor".into(), arguments: Some(object!({
-            "command": "view",
-            "path": "/tmp/goose_test/goose.txt"
-        }))},
-        CallToolRequestParam { task: None, name: "text_editor".into(), arguments: Some(object!({
-            "command": "str_replace",
-            "path": "/tmp/goose_test/goose.txt",
-            "old_str": "# goose",
-            "new_str": "# goose (modified by test)"
-        }))},
-        // Test shell command to verify file was modified
-        CallToolRequestParam { task: None, name: "shell".into(), arguments: Some(object!({
-            "command": "cat /tmp/goose_test/goose.txt"
-        })) },
-        // Test text_editor tool to restore original content
-        CallToolRequestParam { task: None, name: "text_editor".into(), arguments: Some(object!({
-            "command": "str_replace",
-            "path": "/tmp/goose_test/goose.txt",
-            "old_str": "# goose (modified by test)",
-            "new_str": "# goose"
-        }))},
-        CallToolRequestParam { task: None, name: "list_windows".into(), arguments: Some(object!({})) },
+        CallToolRequestParams { meta: None, task: None, name: "divide".into(), arguments: Some(object!({
+            "dividend": 10,
+            "divisor": 2
+        })) }
     ],
     vec![]
 )]
 #[tokio::test]
 async fn test_replayed_session(
     command: Vec<&str>,
-    tool_calls: Vec<CallToolRequestParam>,
+    tool_calls: Vec<CallToolRequestParams>,
     required_envs: Vec<&str>,
 ) {
     std::env::set_var("GOOSE_MCP_CLIENT_VERSION", "0.0.0");
@@ -266,11 +256,12 @@ async fn test_replayed_session(
     #[allow(clippy::redundant_closure_call)]
     let result = (async || -> Result<(), Box<dyn std::error::Error>> {
         extension_manager
-            .add_extension_with_working_dir(extension_config, None)
+            .add_extension(extension_config, None, None)
             .await?;
         let mut results = Vec::new();
         for tool_call in tool_calls {
-            let tool_call = CallToolRequestParam {
+            let tool_call = CallToolRequestParams {
+                meta: None,
                 task: None,
                 name: format!("test__{}", tool_call.name).into(),
                 arguments: tool_call.arguments,

@@ -34,7 +34,7 @@ impl Shell {
 }
 
 static BASH_CONFIG: ShellConfig = ShellConfig {
-    script_template: r#"export GOOSE_SESSION_ID="{session_id}"
+    script_template: r#"export AGENT_SESSION_ID="{session_id}"
 alias @goose='{goose_bin} term run'
 alias @g='{goose_bin} term run'
 
@@ -60,7 +60,7 @@ command_not_found_handle() {
 };
 
 static ZSH_CONFIG: ShellConfig = ShellConfig {
-    script_template: r#"export GOOSE_SESSION_ID="{session_id}"
+    script_template: r#"export AGENT_SESSION_ID="{session_id}"
 alias @goose='{goose_bin} term run'
 alias @g='{goose_bin} term run'
 
@@ -84,7 +84,7 @@ command_not_found_handler() {
 };
 
 static FISH_CONFIG: ShellConfig = ShellConfig {
-    script_template: r#"set -gx GOOSE_SESSION_ID "{session_id}"
+    script_template: r#"set -gx AGENT_SESSION_ID "{session_id}"
 function @goose; {goose_bin} term run $argv; end
 function @g; {goose_bin} term run $argv; end
 
@@ -97,7 +97,7 @@ end"#,
 };
 
 static POWERSHELL_CONFIG: ShellConfig = ShellConfig {
-    script_template: r#"$env:GOOSE_SESSION_ID = "{session_id}"
+    script_template: r#"$env:AGENT_SESSION_ID = "{session_id}"
 function @goose {{ & '{goose_bin}' term run @args }}
 function @g {{ & '{goose_bin}' term run @args }}
 
@@ -177,8 +177,8 @@ pub async fn handle_term_init(
 }
 
 pub async fn handle_term_log(command: String) -> Result<()> {
-    let session_id = std::env::var("GOOSE_SESSION_ID").map_err(|_| {
-        anyhow!("GOOSE_SESSION_ID not set. Run 'eval \"$(goose term init <shell>)\"' first.")
+    let session_id = std::env::var("AGENT_SESSION_ID").map_err(|_| {
+        anyhow!("AGENT_SESSION_ID not set. Run 'eval \"$(goose term init <shell>)\"' first.")
     })?;
 
     let message = Message::new(
@@ -186,7 +186,8 @@ pub async fn handle_term_log(command: String) -> Result<()> {
         chrono::Utc::now().timestamp_millis(),
         vec![MessageContent::text(command)],
     )
-    .with_metadata(MessageMetadata::user_only());
+    .with_metadata(MessageMetadata::user_only())
+    .with_generated_id();
 
     let session_manager = SessionManager::instance();
     session_manager.add_message(&session_id, &message).await?;
@@ -196,9 +197,9 @@ pub async fn handle_term_log(command: String) -> Result<()> {
 
 pub async fn handle_term_run(prompt: Vec<String>) -> Result<()> {
     let prompt = prompt.join(" ");
-    let session_id = std::env::var("GOOSE_SESSION_ID").map_err(|_| {
+    let session_id = std::env::var("AGENT_SESSION_ID").map_err(|_| {
         anyhow!(
-            "GOOSE_SESSION_ID not set.\n\n\
+            "AGENT_SESSION_ID not set.\n\n\
              Add to your shell config (~/.zshrc or ~/.bashrc):\n    \
              eval \"$(goose term init zsh)\"\n\n\
              Then restart your terminal or run: source ~/.zshrc"
@@ -265,7 +266,7 @@ pub async fn handle_term_run(prompt: Vec<String>) -> Result<()> {
 
 /// Handle `goose term info` - print compact session info for prompt integration
 pub async fn handle_term_info() -> Result<()> {
-    let session_id = match std::env::var("GOOSE_SESSION_ID") {
+    let session_id = match std::env::var("AGENT_SESSION_ID") {
         Ok(id) => id,
         Err(_) => return Ok(()),
     };

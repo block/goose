@@ -96,11 +96,32 @@ pub fn check_provider_configured(metadata: &ProviderMetadata, provider_type: Pro
 
     if provider_type == ProviderType::Custom || provider_type == ProviderType::Declarative {
         if let Ok(loaded_provider) = load_provider(metadata.name.as_str()) {
-            return config
-                .get_secret::<String>(&loaded_provider.config.api_key_env)
-                .is_ok();
+            if !loaded_provider.config.requires_auth {
+                return true;
+            }
+
+            if !loaded_provider.config.api_key_env.is_empty() {
+                let api_key_result =
+                    config.get_secret::<String>(&loaded_provider.config.api_key_env);
+                if api_key_result.is_ok() {
+                    return true;
+                }
+            }
+
+            // Custom providers with config files are intentionally created
+            return provider_type == ProviderType::Custom;
         }
     }
+
+    // Special case: OAuth providers - check for configured marker
+    let has_oauth_key = metadata.config_keys.iter().any(|key| key.oauth_flow);
+    if has_oauth_key {
+        let configured_marker = format!("{}_configured", metadata.name);
+        if matches!(config.get_param::<bool>(&configured_marker), Ok(true)) {
+            return true;
+        }
+    }
+
     // Special case: Zero-config providers (no config keys)
     if metadata.config_keys.is_empty() {
         // Check if the provider has been explicitly configured via the UI

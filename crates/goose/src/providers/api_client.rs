@@ -16,11 +16,13 @@ pub struct ApiClient {
     host: String,
     auth: AuthMethod,
     default_headers: HeaderMap,
+    default_query: Vec<(String, String)>,
     timeout: Duration,
     tls_config: Option<TlsConfig>,
 }
 
 pub enum AuthMethod {
+    NoAuth,
     BearerToken(String),
     ApiKey {
         header_name: String,
@@ -172,6 +174,7 @@ pub struct ApiResponse {
 impl fmt::Debug for AuthMethod {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            AuthMethod::NoAuth => f.debug_tuple("NoAuth").finish(),
             AuthMethod::BearerToken(_) => f.debug_tuple("BearerToken").field(&"[hidden]").finish(),
             AuthMethod::ApiKey { header_name, .. } => f
                 .debug_struct("ApiKey")
@@ -196,7 +199,7 @@ pub struct ApiRequestBuilder<'a> {
     client: &'a ApiClient,
     path: &'a str,
     headers: HeaderMap,
-    session_id: &'a str,
+    session_id: Option<&'a str>,
 }
 
 impl ApiClient {
@@ -220,6 +223,7 @@ impl ApiClient {
             host,
             auth,
             default_headers: HeaderMap::new(),
+            default_query: Vec::new(),
             timeout,
             tls_config,
         })
@@ -265,6 +269,11 @@ impl ApiClient {
         Ok(self)
     }
 
+    pub fn with_query(mut self, params: Vec<(String, String)>) -> Self {
+        self.default_query = params;
+        self
+    }
+
     pub fn with_header(mut self, key: &str, value: &str) -> Result<Self> {
         let header_name = HeaderName::from_bytes(key.as_bytes())?;
         let header_value = HeaderValue::from_str(value)?;
@@ -273,10 +282,15 @@ impl ApiClient {
         Ok(self)
     }
 
-    pub fn request<'a>(&'a self, session_id: &'a str, path: &'a str) -> ApiRequestBuilder<'a> {
+    /// - `session_id`: Use `None` only for configuration or pre-session tasks.
+    pub fn request<'a>(
+        &'a self,
+        session_id: Option<&'a str>,
+        path: &'a str,
+    ) -> ApiRequestBuilder<'a> {
         ApiRequestBuilder {
             client: self,
-            session_id,
+            session_id: session_id.filter(|id| !id.is_empty()),
             path,
             headers: HeaderMap::new(),
         }
@@ -284,7 +298,7 @@ impl ApiClient {
 
     pub async fn api_post(
         &self,
-        session_id: &str,
+        session_id: Option<&str>,
         path: &str,
         payload: &Value,
     ) -> Result<ApiResponse> {
@@ -293,18 +307,18 @@ impl ApiClient {
 
     pub async fn response_post(
         &self,
-        session_id: &str,
+        session_id: Option<&str>,
         path: &str,
         payload: &Value,
     ) -> Result<Response> {
         self.request(session_id, path).response_post(payload).await
     }
 
-    pub async fn api_get(&self, session_id: &str, path: &str) -> Result<ApiResponse> {
+    pub async fn api_get(&self, session_id: Option<&str>, path: &str) -> Result<ApiResponse> {
         self.request(session_id, path).api_get().await
     }
 
-    pub async fn response_get(&self, session_id: &str, path: &str) -> Result<Response> {
+    pub async fn response_get(&self, session_id: Option<&str>, path: &str) -> Result<Response> {
         self.request(session_id, path).response_get().await
     }
 
@@ -318,9 +332,15 @@ impl ApiClient {
             base_url.set_path(&format!("{}/", base_path));
         }
 
-        base_url
+        let mut url = base_url
             .join(path)
-            .map_err(|e| anyhow::anyhow!("Failed to construct URL: {}", e))
+            .map_err(|e| anyhow::anyhow!("Failed to construct URL: {}", e))?;
+
+        for (key, value) in &self.default_query {
+            url.query_pairs_mut().append_pair(key, value);
+        }
+
+        Ok(url)
     }
 
     async fn get_oauth_token(&self, config: &OAuthConfig) -> Result<String> {
@@ -354,14 +374,13 @@ impl<'a> ApiRequestBuilder<'a> {
     }
 
     pub async fn response_post(self, payload: &Value) -> Result<Response> {
-        // Log the JSON payload being sent to the LLM
-        tracing::debug!(
-            "LLM_REQUEST: {}",
-            serde_json::to_string(payload).unwrap_or_else(|_| "{}".to_string())
-        );
-
         let request = self.send_request(|url, client| client.post(url)).await?;
         Ok(request.json(payload).send().await?)
+    }
+
+    pub async fn multipart_post(self, form: reqwest::multipart::Form) -> Result<Response> {
+        let request = self.send_request(|url, client| client.post(url)).await?;
+        Ok(request.multipart(form).send().await?)
     }
 
     pub async fn api_get(self) -> Result<ApiResponse> {
@@ -379,12 +398,19 @@ impl<'a> ApiRequestBuilder<'a> {
         F: FnOnce(url::Url, &Client) -> reqwest::RequestBuilder,
     {
         let url = self.client.build_url(self.path)?;
-        let mut request = request_builder(url, &self.client.client);
-        request = request.headers(self.headers.clone());
+        let mut headers = self.headers.clone();
+        headers.remove(SESSION_ID_HEADER);
+        if let Some(session_id) = self.session_id {
+            let header_name = HeaderName::from_static(SESSION_ID_HEADER);
+            let header_value = HeaderValue::from_str(session_id)?;
+            headers.insert(header_name, header_value);
+        }
 
-        request = request.header(SESSION_ID_HEADER, self.session_id);
+        let mut request = request_builder(url, &self.client.client);
+        request = request.headers(headers);
 
         request = match &self.client.auth {
+            AuthMethod::NoAuth => request,
             AuthMethod::BearerToken(token) => {
                 request.header("Authorization", format!("Bearer {}", token))
             }
@@ -417,69 +443,40 @@ impl fmt::Debug for ApiClient {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use test_case::test_case;
 
-    #[tokio::test]
-    async fn test_session_id_header_injection() {
-        let client = ApiClient::new(
-            "http://localhost:8080".to_string(),
-            AuthMethod::BearerToken("test-token".to_string()),
-        )
-        .unwrap();
-
-        let builder = client.request("test-session_id-456", "/test");
-        let request = builder
-            .send_request(|url, client| client.get(url))
-            .await
+    #[test_case(Some("test-session_id-456"), None, Some("test-session_id-456"); "header set")]
+    #[test_case(Some("new-session"), Some(("Agent-Session-Id", "old-session")), Some("new-session"); "replaces existing")]
+    #[test_case(None, Some(("Agent-Session-Id", "old-session")), None; "removes existing on none")]
+    #[test_case(Some(""), Some(("agent-session-id", "old-session")), None; "removes existing on empty")]
+    fn test_session_id_header(
+        session_id: Option<&str>,
+        existing_header: Option<(&str, &str)>,
+        expected: Option<&str>,
+    ) {
+        let runtime = tokio::runtime::Runtime::new().unwrap();
+        runtime.block_on(async {
+            let client = ApiClient::new(
+                "http://localhost:8080".to_string(),
+                AuthMethod::BearerToken("test-token".to_string()),
+            )
             .unwrap();
 
-        let headers = request.build().unwrap().headers().clone();
+            let mut builder = client.request(session_id, "/test");
+            if let Some((key, value)) = existing_header {
+                builder = builder.header(key, value).unwrap();
+            }
+            let request = builder
+                .send_request(|url, client| client.get(url))
+                .await
+                .unwrap();
 
-        assert!(headers.contains_key(SESSION_ID_HEADER));
-        assert_eq!(
-            headers.get(SESSION_ID_HEADER).unwrap().to_str().unwrap(),
-            "test-session_id-456"
-        );
-    }
+            let headers = request.build().unwrap().headers().clone();
 
-    #[tokio::test]
-    async fn test_session_id_header_with_different_id() {
-        let client = ApiClient::new(
-            "http://localhost:8080".to_string(),
-            AuthMethod::BearerToken("test-token".to_string()),
-        )
-        .unwrap();
-
-        let builder = client.request("another-session_id-789", "/test");
-        let request = builder
-            .send_request(|url, client| client.get(url))
-            .await
-            .unwrap();
-
-        let headers = request.build().unwrap().headers().clone();
-
-        assert!(headers.contains_key(SESSION_ID_HEADER));
-        assert_eq!(
-            headers.get(SESSION_ID_HEADER).unwrap().to_str().unwrap(),
-            "another-session_id-789"
-        );
-    }
-
-    #[tokio::test]
-    async fn test_session_id_header_always_present() {
-        let client = ApiClient::new(
-            "http://localhost:8080".to_string(),
-            AuthMethod::BearerToken("test-token".to_string()),
-        )
-        .unwrap();
-
-        let builder = client.request("required-session_id", "/test");
-        let request = builder
-            .send_request(|url, client| client.get(url))
-            .await
-            .unwrap();
-
-        let headers = request.build().unwrap().headers().clone();
-
-        assert!(headers.contains_key(SESSION_ID_HEADER));
+            let actual = headers
+                .get(SESSION_ID_HEADER)
+                .and_then(|value| value.to_str().ok());
+            assert_eq!(actual, expected);
+        });
     }
 }

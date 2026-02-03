@@ -1,6 +1,6 @@
 import { AppEvents } from '../constants/events';
 import React, { useRef, useState, useEffect, useMemo, useCallback } from 'react';
-import { Bug, ScrollText, ChefHat } from 'lucide-react';
+import { Bug, ChefHat, ScrollText } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipTrigger } from './ui/Tooltip';
 import { Button } from './ui/button';
 import type { View } from '../utils/navigationUtils';
@@ -16,16 +16,14 @@ import { BottomMenuExtensionSelection } from './bottom_menu/BottomMenuExtensionS
 import { AlertType, useAlerts } from './alerts';
 import { useConfig } from './ConfigContext';
 import { useModelAndProvider } from './ModelAndProviderContext';
-import { useWhisper } from '../hooks/useWhisper';
-import { WaveformVisualizer } from './WaveformVisualizer';
+import { useAudioRecorder } from '../hooks/useAudioRecorder';
 import { toastError } from '../toasts';
 import MentionPopover, { DisplayItemWithMatch } from './MentionPopover';
-import { useDictationSettings } from '../hooks/useDictationSettings';
-import { COST_TRACKING_ENABLED, VOICE_DICTATION_ELEVENLABS_ENABLED } from '../updates';
+import { COST_TRACKING_ENABLED } from '../updates';
 import { CostTracker } from './bottom_menu/CostTracker';
 import { DroppedFile, useFileDrop } from '../hooks/useFileDrop';
 import { Recipe } from '../recipe';
-import MessageQueue from './MessageQueue';
+import { MessageQueue, QueuedMessage } from './MessageQueue';
 import { detectInterruption } from '../utils/interruptionDetector';
 import { DiagnosticsModal } from './ui/Diagnostics';
 import { getSession, Message } from '../api';
@@ -41,24 +39,17 @@ import {
   trackEditRecipeOpened,
 } from '../utils/analytics';
 import { getNavigationShortcutText } from '../utils/keyboardShortcuts';
-
-interface QueuedMessage {
-  id: string;
-  content: string;
-  timestamp: number;
-}
+import { UserInput, ImageData } from '../types/message';
+import { compressImageDataUrl } from '../utils/conversionUtils';
 
 interface PastedImage {
   id: string;
-  dataUrl: string; // For immediate preview
-  filePath?: string; // Path on filesystem after saving
+  dataUrl: string;
   isLoading: boolean;
   error?: string;
 }
 
-// Constants for image handling
-const MAX_IMAGES_PER_MESSAGE = 5;
-const MAX_IMAGE_SIZE_MB = 5;
+const MAX_IMAGES_PER_MESSAGE = 10;
 
 // Constants for token and tool alerts
 const TOKEN_LIMIT_DEFAULT = 128000; // fallback for custom models that the backend doesn't know about
@@ -74,7 +65,7 @@ interface ModelLimit {
 
 interface ChatInputProps {
   sessionId: string | null;
-  handleSubmit: (e: React.FormEvent) => void;
+  handleSubmit: (input: UserInput) => void;
   chatState: ChatState;
   setChatState?: (state: ChatState) => void;
   onStop?: () => void;
@@ -219,11 +210,7 @@ export default function ChatInput({
       if (shouldProcessQueue) {
         const nextMessage = queuedMessages[0];
         LocalMessageStorage.addMessage(nextMessage.content);
-        handleSubmit(
-          new CustomEvent('submit', {
-            detail: { value: nextMessage.content },
-          }) as unknown as React.FormEvent
-        );
+        handleSubmit({ msg: nextMessage.content, images: nextMessage.images });
         setQueuedMessages((prev) => {
           const newQueue = prev.slice(1);
           // If queue becomes empty after processing, clear the paused state
@@ -265,18 +252,17 @@ export default function ChatInput({
     selectFile: (index: number) => void;
   }>(null);
 
-  // Whisper hook for voice dictation
+  // Audio recorder hook for voice dictation
   const {
+    isEnabled,
+    dictationProvider,
     isRecording,
     isTranscribing,
-    canUseDictation,
-    audioContext,
-    analyser,
     startRecording,
     stopRecording,
     recordingDuration,
     estimatedSize,
-  } = useWhisper({
+  } = useAudioRecorder({
     onTranscription: (text) => {
       trackVoiceDictation('transcribed');
       // Append transcribed text to the current input
@@ -285,23 +271,15 @@ export default function ChatInput({
       setValue(newValue);
       textAreaRef.current?.focus();
     },
-    onError: (error) => {
-      const errorType = error.name || 'DictationError';
+    onError: (message) => {
+      const errorType = 'DictationError';
       trackVoiceDictation('error', undefined, errorType);
       toastError({
         title: 'Dictation Error',
-        msg: error.message,
-      });
-    },
-    onSizeWarning: (sizeMB) => {
-      toastError({
-        title: 'Recording Size Warning',
-        msg: `Recording is ${sizeMB.toFixed(1)}MB. Maximum size is 25MB.`,
+        msg: message,
       });
     },
   });
-
-  const { settings: dictationSettings } = useDictationSettings();
   const internalTextAreaRef = useRef<HTMLTextAreaElement>(null);
   const textAreaRef = inputRef || internalTextAreaRef;
   const timeoutRefsRef = useRef<Set<ReturnType<typeof setTimeout>>>(new Set());
@@ -309,15 +287,7 @@ export default function ChatInput({
   useEffect(() => {
     setValue(initialValue);
     setDisplayValue(initialValue);
-    setPastedImages((currentPastedImages) => {
-      currentPastedImages.forEach((img) => {
-        if (img.filePath) {
-          window.electron.deleteTempFile(img.filePath);
-        }
-      });
-      return [];
-    });
-
+    setPastedImages([]);
     setHistoryIndex(-1);
     setIsInGlobalHistory(false);
     setHasUserTyped(false);
@@ -366,41 +336,7 @@ export default function ChatInput({
   };
 
   const handleRemovePastedImage = (idToRemove: string) => {
-    const imageToRemove = pastedImages.find((img) => img.id === idToRemove);
-    if (imageToRemove?.filePath) {
-      window.electron.deleteTempFile(imageToRemove.filePath);
-    }
     setPastedImages((currentImages) => currentImages.filter((img) => img.id !== idToRemove));
-  };
-
-  const handleRetryImageSave = async (imageId: string) => {
-    const imageToRetry = pastedImages.find((img) => img.id === imageId);
-    if (!imageToRetry || !imageToRetry.dataUrl) return;
-
-    // Set the image to loading state
-    setPastedImages((prev) =>
-      prev.map((img) => (img.id === imageId ? { ...img, isLoading: true, error: undefined } : img))
-    );
-
-    try {
-      const result = await window.electron.saveDataUrlToTemp(imageToRetry.dataUrl, imageId);
-      setPastedImages((prev) =>
-        prev.map((img) =>
-          img.id === result.id
-            ? { ...img, filePath: result.filePath, error: result.error, isLoading: false }
-            : img
-        )
-      );
-    } catch (err) {
-      console.error('Error retrying image save:', err);
-      setPastedImages((prev) =>
-        prev.map((img) =>
-          img.id === imageId
-            ? { ...img, error: 'Failed to save image via Electron.', isLoading: false }
-            : img
-        )
-      );
-    }
   };
 
   useEffect(() => {
@@ -423,7 +359,6 @@ export default function ChatInput({
     return [];
   };
 
-  // Helper function to find model limit using pattern matching
   const findModelLimit = (modelName: string, modelLimits: ModelLimit[]): number | null => {
     if (!modelName) return null;
     const matchingLimit = modelLimits.find((limit) =>
@@ -512,12 +447,7 @@ export default function ChatInput({
         compactButtonDisabled: !totalTokens,
         onCompact: () => {
           window.dispatchEvent(new CustomEvent(AppEvents.HIDE_ALERT_POPOVER));
-
-          const customEvent = new CustomEvent('submit', {
-            detail: { value: MANUAL_COMPACT_TRIGGER },
-          }) as unknown as React.FormEvent;
-
-          handleSubmit(customEvent);
+          handleSubmit({ msg: MANUAL_COMPACT_TRIGGER, images: [] });
         },
         compactIcon: <ScrollText size={12} />,
       });
@@ -542,20 +472,6 @@ export default function ChatInput({
   // Cleanup effect for component unmount - prevent memory leaks
   useEffect(() => {
     return () => {
-      // Clear any pending timeouts from image processing
-      setPastedImages((currentImages) => {
-        currentImages.forEach((img) => {
-          if (img.filePath) {
-            try {
-              window.electron.deleteTempFile(img.filePath);
-            } catch (error) {
-              console.error('Error deleting temp file:', error);
-            }
-          }
-        });
-        return [];
-      });
-
       // Clear all tracked timeouts
       // eslint-disable-next-line react-hooks/exhaustive-deps
       const timeouts = timeoutRefsRef.current;
@@ -659,6 +575,65 @@ export default function ChatInput({
     }));
   };
 
+  const convertImagesToImageData = useCallback((): ImageData[] => {
+    const pastedImageData: ImageData[] = pastedImages
+      .filter((img) => img.dataUrl && !img.error && !img.isLoading)
+      .map((img) => {
+        const matches = img.dataUrl.match(/^data:([^;]+);base64,(.+)$/);
+        if (matches) {
+          return {
+            data: matches[2],
+            mimeType: matches[1],
+          };
+        }
+        return null;
+      })
+      .filter((img): img is ImageData => img !== null);
+
+    const droppedImageData: ImageData[] = allDroppedFiles
+      .filter((file) => file.isImage && file.dataUrl && !file.error && !file.isLoading)
+      .map((file) => {
+        const matches = file.dataUrl!.match(/^data:([^;]+);base64,(.+)$/);
+        if (matches) {
+          return {
+            data: matches[2],
+            mimeType: matches[1],
+          };
+        }
+        return null;
+      })
+      .filter((img): img is ImageData => img !== null);
+
+    return [...pastedImageData, ...droppedImageData];
+  }, [pastedImages, allDroppedFiles]);
+
+  const appendDroppedFilePaths = useCallback(
+    (text: string): string => {
+      const droppedFilePaths = allDroppedFiles
+        .filter((file) => !file.isImage && !file.error && !file.isLoading)
+        .map((file) => file.path);
+
+      if (droppedFilePaths.length > 0) {
+        const pathsString = droppedFilePaths.join(' ');
+        return text ? `${text} ${pathsString}` : pathsString;
+      }
+      return text;
+    },
+    [allDroppedFiles]
+  );
+
+  const clearInputState = useCallback(() => {
+    setDisplayValue('');
+    setValue('');
+    setPastedImages([]);
+    if (onFilesProcessed && droppedFiles.length > 0) {
+      onFilesProcessed();
+    }
+    if (localDroppedFiles.length > 0) {
+      setLocalDroppedFiles([]);
+    }
+  }, [droppedFiles.length, localDroppedFiles.length, onFilesProcessed, setLocalDroppedFiles]);
+
   const handlePaste = async (evt: React.ClipboardEvent<HTMLTextAreaElement>) => {
     const files = Array.from(evt.clipboardData.files || []);
     const imageFiles = files.filter((file) => file.type.startsWith('image/'));
@@ -694,26 +669,6 @@ export default function ChatInput({
     const newImages: PastedImage[] = [];
 
     for (const file of imageFiles) {
-      // Check individual file size before processing
-      if (file.size > MAX_IMAGE_SIZE_MB * 1024 * 1024) {
-        const errorId = `error-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
-        newImages.push({
-          id: errorId,
-          dataUrl: '',
-          isLoading: false,
-          error: `Image too large (${Math.round(file.size / (1024 * 1024))}MB). Maximum ${MAX_IMAGE_SIZE_MB}MB allowed.`,
-        });
-
-        // Remove the error message after 5 seconds with cleanup tracking
-        const timeoutId = setTimeout(() => {
-          setPastedImages((prev) => prev.filter((img) => img.id !== errorId));
-          timeoutRefsRef.current.delete(timeoutId);
-        }, 5000);
-        timeoutRefsRef.current.add(timeoutId);
-
-        continue;
-      }
-
       const imageId = `img-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
 
       // Add the image with loading state
@@ -728,30 +683,12 @@ export default function ChatInput({
       reader.onload = async (e) => {
         const dataUrl = e.target?.result as string;
         if (dataUrl) {
-          // Update the image with the data URL
+          const compressedDataUrl = await compressImageDataUrl(dataUrl);
           setPastedImages((prev) =>
-            prev.map((img) => (img.id === imageId ? { ...img, dataUrl, isLoading: true } : img))
+            prev.map((img) =>
+              img.id === imageId ? { ...img, dataUrl: compressedDataUrl, isLoading: false } : img
+            )
           );
-
-          try {
-            const result = await window.electron.saveDataUrlToTemp(dataUrl, imageId);
-            setPastedImages((prev) =>
-              prev.map((img) =>
-                img.id === result.id
-                  ? { ...img, filePath: result.filePath, error: result.error, isLoading: false }
-                  : img
-              )
-            );
-          } catch (err) {
-            console.error('Error saving pasted image:', err);
-            setPastedImages((prev) =>
-              prev.map((img) =>
-                img.id === imageId
-                  ? { ...img, error: 'Failed to save image via Electron.', isLoading: false }
-                  : img
-              )
-            );
-          }
         }
       };
       reader.onerror = () => {
@@ -865,25 +802,13 @@ export default function ChatInput({
     }
   };
 
-  // Helper function to handle interruption and queue logic when loading
   const handleInterruptionAndQueue = () => {
     if (!isLoading || !hasSubmittableContent) {
       return false;
     }
 
-    const validPastedImageFilesPaths = pastedImages
-      .filter((img) => img.filePath && !img.error && !img.isLoading)
-      .map((img) => img.filePath as string);
-    const droppedFilePaths = allDroppedFiles
-      .filter((file) => !file.error && !file.isLoading)
-      .map((file) => file.path);
-
-    let contentToQueue = displayValue.trim();
-    const allFilePaths = [...validPastedImageFilesPaths, ...droppedFilePaths];
-    if (allFilePaths.length > 0) {
-      const pathsString = allFilePaths.join(' ');
-      contentToQueue = contentToQueue ? `${contentToQueue} ${pathsString}` : pathsString;
-    }
+    const imageData = convertImagesToImageData();
+    const contentToQueue = appendDroppedFilePaths(displayValue.trim());
 
     const interruptionMatch = detectInterruption(displayValue.trim());
 
@@ -894,31 +819,25 @@ export default function ChatInput({
 
       // For interruptions, we need to queue the message to be sent after the stop completes
       // rather than trying to send it immediately while the system is still loading
-      const interruptionMessage = {
+      const interruptionMessage: QueuedMessage = {
         id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
         content: contentToQueue,
         timestamp: Date.now(),
+        images: imageData,
       };
 
       // Add the interruption message to the front of the queue so it gets sent first
       setQueuedMessages((prev) => [interruptionMessage, ...prev]);
 
-      setDisplayValue('');
-      setValue('');
-      setPastedImages([]);
-      if (onFilesProcessed && droppedFiles.length > 0) {
-        onFilesProcessed();
-      }
-      if (localDroppedFiles.length > 0) {
-        setLocalDroppedFiles([]);
-      }
+      clearInputState();
       return true;
     }
 
-    const newMessage = {
+    const newMessage: QueuedMessage = {
       id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
       content: contentToQueue,
       timestamp: Date.now(),
+      images: imageData,
     };
     setQueuedMessages((prev) => {
       const newQueue = [...prev, newMessage];
@@ -929,53 +848,35 @@ export default function ChatInput({
       }
       return newQueue;
     });
-    setDisplayValue('');
-    setValue('');
-    setPastedImages([]);
-    if (onFilesProcessed && droppedFiles.length > 0) {
-      onFilesProcessed();
-    }
-    if (localDroppedFiles.length > 0) {
-      setLocalDroppedFiles([]);
-    }
+    clearInputState();
     return true;
   };
 
   const canSubmit =
     !isLoading &&
     (displayValue.trim() ||
-      pastedImages.some((img) => img.filePath && !img.error && !img.isLoading) ||
+      pastedImages.some((img) => img.dataUrl && !img.error && !img.isLoading) ||
       allDroppedFiles.some((file) => !file.error && !file.isLoading));
 
   const performSubmit = useCallback(
     (text?: string) => {
-      const validPastedImageFilesPaths = pastedImages
-        .filter((img) => img.filePath && !img.error && !img.isLoading)
-        .map((img) => img.filePath as string);
-      // Get paths from all dropped files (both parent and local)
-      const droppedFilePaths = allDroppedFiles
-        .filter((file) => !file.error && !file.isLoading)
-        .map((file) => file.path);
+      const imageData = convertImagesToImageData();
+      const textToSend = appendDroppedFilePaths(text ?? displayValue.trim());
 
-      let textToSend = text ?? displayValue.trim();
-
-      // Combine pasted images and dropped files
-      const allFilePaths = [...validPastedImageFilesPaths, ...droppedFilePaths];
-      if (allFilePaths.length > 0) {
-        const pathsString = allFilePaths.join(' ');
-        textToSend = textToSend ? `${textToSend} ${pathsString}` : pathsString;
-      }
-
-      if (textToSend) {
+      if (textToSend || imageData.length > 0) {
+        // Store original message in history
         if (displayValue.trim()) {
           LocalMessageStorage.addMessage(displayValue);
-        } else if (allFilePaths.length > 0) {
-          LocalMessageStorage.addMessage(allFilePaths.join(' '));
+        } else {
+          const droppedFilePaths = allDroppedFiles
+            .filter((file) => !file.isImage && !file.error && !file.isLoading)
+            .map((file) => file.path);
+          if (droppedFilePaths.length > 0) {
+            LocalMessageStorage.addMessage(droppedFilePaths.join(' '));
+          }
         }
 
-        handleSubmit(
-          new CustomEvent('submit', { detail: { value: textToSend } }) as unknown as React.FormEvent
-        );
+        handleSubmit({ msg: textToSend, images: imageData });
 
         // Auto-resume queue after sending a NON-interruption message (if it was paused due to interruption)
         if (
@@ -988,33 +889,21 @@ export default function ChatInput({
           setLastInterruption(null);
         }
 
-        setDisplayValue('');
-        setValue('');
-        setPastedImages([]);
+        clearInputState();
         setHistoryIndex(-1);
         setSavedInput('');
         setIsInGlobalHistory(false);
         setHasUserTyped(false);
-
-        // Clear both parent and local dropped files after processing
-        if (onFilesProcessed && droppedFiles.length > 0) {
-          onFilesProcessed();
-        }
-        if (localDroppedFiles.length > 0) {
-          setLocalDroppedFiles([]);
-        }
       }
     },
     [
-      allDroppedFiles,
+      convertImagesToImageData,
+      appendDroppedFilePaths,
       displayValue,
-      droppedFiles.length,
+      allDroppedFiles,
       handleSubmit,
       lastInterruption,
-      localDroppedFiles.length,
-      onFilesProcessed,
-      pastedImages,
-      setLocalDroppedFiles,
+      clearInputState,
     ]
   );
 
@@ -1090,29 +979,85 @@ export default function ChatInput({
     const canSubmit =
       !isLoading &&
       (displayValue.trim() ||
-        pastedImages.some((img) => img.filePath && !img.error && !img.isLoading) ||
+        pastedImages.some((img) => img.dataUrl && !img.error && !img.isLoading) ||
         allDroppedFiles.some((file) => !file.error && !file.isLoading));
     if (canSubmit) {
       performSubmit();
     }
   };
 
-  const handleFileSelect = async () => {
-    if (isFilePickerOpen) return;
-    setIsFilePickerOpen(true);
-    try {
-      const path = await window.electron.selectFileOrDirectory();
-      if (path) {
-        const isDirectory = !path.includes('.') || path.endsWith('/');
-        trackFileAttached(isDirectory ? 'directory' : 'file');
+  const fileInputRef = React.useRef<HTMLInputElement>(null);
 
-        const newValue = displayValue.trim() ? `${displayValue.trim()} ${path}` : path;
-        setDisplayValue(newValue);
-        setValue(newValue);
-        textAreaRef.current?.focus();
+  const handleFileSelect = () => {
+    if (isFilePickerOpen) return;
+    fileInputRef.current?.click();
+  };
+
+  const handleFileInputChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+
+    setIsFilePickerOpen(true);
+    const file = files[0];
+    const isImage = file.type.startsWith('image/');
+
+    if (isImage) {
+      trackFileAttached('file');
+
+      if (pastedImages.length >= MAX_IMAGES_PER_MESSAGE) {
+        console.warn(`Maximum ${MAX_IMAGES_PER_MESSAGE} images per message`);
+        setIsFilePickerOpen(false);
+        return;
       }
-    } finally {
-      setIsFilePickerOpen(false);
+
+      const uniqueId = `upload-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+
+      setPastedImages((prev) => [
+        ...prev,
+        {
+          id: uniqueId,
+          dataUrl: '',
+          isLoading: true,
+          error: undefined,
+        },
+      ]);
+
+      const reader = new FileReader();
+      reader.onload = async (evt) => {
+        const dataUrl = evt.target?.result as string;
+        if (dataUrl) {
+          const compressedDataUrl = await compressImageDataUrl(dataUrl);
+          setPastedImages((prev) =>
+            prev.map((img) =>
+              img.id === uniqueId
+                ? { ...img, dataUrl: compressedDataUrl, isLoading: false, error: undefined }
+                : img
+            )
+          );
+        }
+      };
+      reader.onerror = () => {
+        setPastedImages((prev) =>
+          prev.map((img) =>
+            img.id === uniqueId
+              ? { ...img, isLoading: false, error: 'Failed to read image file' }
+              : img
+          )
+        );
+      };
+      reader.readAsDataURL(file);
+    } else {
+      trackFileAttached('file');
+      const path = window.electron.getPathForFile(file);
+      const newValue = displayValue.trim() ? `${displayValue.trim()} ${path}` : path;
+      setDisplayValue(newValue);
+      setValue(newValue);
+    }
+
+    textAreaRef.current?.focus();
+    setIsFilePickerOpen(false);
+    if (e.target) {
+      e.target.value = '';
     }
   };
 
@@ -1140,7 +1085,7 @@ export default function ChatInput({
 
   const hasSubmittableContent =
     displayValue.trim() ||
-    pastedImages.some((img) => img.filePath && !img.error && !img.isLoading) ||
+    pastedImages.some((img) => img.dataUrl && !img.error && !img.isLoading) ||
     allDroppedFiles.some((file) => !file.error && !file.isLoading);
   const isAnyImageLoading = pastedImages.some((img) => img.isLoading);
   const isAnyDroppedFileLoading = allDroppedFiles.some((file) => file.isLoading);
@@ -1196,11 +1141,7 @@ export default function ChatInput({
     // Remove the message from queue and send it immediately
     setQueuedMessages((prev) => prev.filter((msg) => msg.id !== messageId));
     LocalMessageStorage.addMessage(messageToSend.content);
-    handleSubmit(
-      new CustomEvent('submit', {
-        detail: { value: messageToSend.content },
-      }) as unknown as React.FormEvent
-    );
+    handleSubmit({ msg: messageToSend.content, images: messageToSend.images });
 
     // Restore previous pause state after a brief delay to prevent race condition
     setTimeout(() => {
@@ -1214,11 +1155,7 @@ export default function ChatInput({
     if (!isLoading && queuedMessages.length > 0) {
       const nextMessage = queuedMessages[0];
       LocalMessageStorage.addMessage(nextMessage.content);
-      handleSubmit(
-        new CustomEvent('submit', {
-          detail: { value: nextMessage.content },
-        }) as unknown as React.FormEvent
-      );
+      handleSubmit({ msg: nextMessage.content, images: nextMessage.images });
       setQueuedMessages((prev) => {
         const newQueue = prev.slice(1);
         // If queue becomes empty after processing, clear the paused state
@@ -1244,6 +1181,13 @@ export default function ChatInput({
       onDrop={handleLocalDrop}
       onDragOver={handleLocalDragOver}
     >
+      <input
+        ref={fileInputRef}
+        type="file"
+        onChange={handleFileInputChange}
+        style={{ display: 'none' }}
+        accept="*/*"
+      />
       {/* Message Queue Display */}
       {queuedMessages.length > 0 && (
         <MessageQueue
@@ -1282,25 +1226,25 @@ export default function ChatInput({
               maxHeight: `${maxHeight}px`,
               overflowY: 'auto',
               opacity: isRecording ? 0 : 1,
+              paddingRight: dictationProvider ? '180px' : '120px',
             }}
-            className="w-full outline-none border-none focus:ring-0 bg-transparent px-3 pt-3 pb-1.5 pr-32 text-sm resize-none text-textStandard placeholder:text-textPlaceholder"
+            className="w-full outline-none border-none focus:ring-0 bg-transparent px-3 pt-3 pb-1.5 text-sm resize-none text-textStandard placeholder:text-textPlaceholder"
           />
           {isRecording && (
             <div className="absolute inset-0 flex items-center pl-4 pr-32 pt-3 pb-1.5">
-              <WaveformVisualizer
-                audioContext={audioContext}
-                analyser={analyser}
-                isRecording={isRecording}
-              />
+              <div className="flex items-center gap-2 text-textSubtle">
+                <span className="inline-block w-2 h-2 bg-red-500 rounded-full animate-pulse" />
+                <span>Recording...</span>
+              </div>
             </div>
           )}
 
           {/* Inline action buttons - absolutely positioned on the right */}
           <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1">
-            {/* Microphone button - show only if dictation is enabled */}
-            {dictationSettings?.enabled && (
+            {/* Microphone button - show only if provider is selected */}
+            {dictationProvider && (
               <>
-                {!canUseDictation ? (
+                {!isEnabled ? (
                   <Tooltip>
                     <TooltipTrigger asChild>
                       <span className="inline-flex">
@@ -1318,20 +1262,14 @@ export default function ChatInput({
                       </span>
                     </TooltipTrigger>
                     <TooltipContent>
-                      {dictationSettings.provider === 'openai' ? (
+                      {dictationProvider === 'openai' ? (
                         <p>
                           OpenAI API key is not configured. Set it up in <b>Settings</b> {'>'}{' '}
                           <b>Models.</b>
                         </p>
-                      ) : VOICE_DICTATION_ELEVENLABS_ENABLED &&
-                        dictationSettings.provider === 'elevenlabs' ? (
+                      ) : dictationProvider === 'elevenlabs' ? (
                         <p>
                           ElevenLabs API key is not configured. Set it up in <b>Settings</b> {'>'}{' '}
-                          <b>Chat</b> {'>'} <b>Voice Dictation.</b>
-                        </p>
-                      ) : dictationSettings.provider === null ? (
-                        <p>
-                          Dictation is not configured. Configure it in <b>Settings</b> {'>'}{' '}
                           <b>Chat</b> {'>'} <b>Voice Dictation.</b>
                         </p>
                       ) : (
@@ -1451,20 +1389,9 @@ export default function ChatInput({
               )}
               {img.error && !img.isLoading && (
                 <div className="absolute inset-0 flex flex-col items-center justify-center bg-black bg-opacity-75 rounded p-1 text-center">
-                  <p className="text-red-400 text-[10px] leading-tight break-all mb-1">
+                  <p className="text-red-400 text-[10px] leading-tight break-all">
                     {img.error.substring(0, 50)}
                   </p>
-                  {img.dataUrl && (
-                    <Button
-                      type="button"
-                      onClick={() => handleRetryImageSave(img.id)}
-                      title="Retry saving image"
-                      variant="outline"
-                      size="xs"
-                    >
-                      Retry
-                    </Button>
-                  )}
                 </div>
               )}
               {!img.isLoading && (
@@ -1570,7 +1497,7 @@ export default function ChatInput({
               <Attach className="w-4 h-4" />
             </Button>
           </TooltipTrigger>
-          <TooltipContent>Attach file or directory</TooltipContent>
+          <TooltipContent>Attach file</TooltipContent>
         </Tooltip>
         <div className="w-px h-4 bg-border-default mx-2" />
         {/* Model selector, mode selector, alerts, summarize button */}

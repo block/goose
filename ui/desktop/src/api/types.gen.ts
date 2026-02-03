@@ -135,7 +135,7 @@ export type CreateRecipeResponse = {
 export type CreateScheduleRequest = {
     cron: string;
     id: string;
-    recipe_source: string;
+    recipe: Recipe;
 };
 
 /**
@@ -154,7 +154,7 @@ export type CspMetadata = {
 };
 
 export type DeclarativeProviderConfig = {
-    api_key_env: string;
+    api_key_env?: string;
     base_url: string;
     description?: string | null;
     display_name: string;
@@ -164,6 +164,7 @@ export type DeclarativeProviderConfig = {
     } | null;
     models: Array<ModelInfo>;
     name: string;
+    requires_auth?: boolean;
     supports_streaming?: boolean | null;
     timeout_seconds?: number | null;
 };
@@ -189,16 +190,34 @@ export type DetectProviderResponse = {
     provider_name: string;
 };
 
-export type EditMessageRequest = {
-    editType?: EditType;
-    timestamp: number;
-};
+export type DictationProvider = 'openai' | 'elevenlabs';
 
-export type EditMessageResponse = {
-    sessionId: string;
+export type DictationProviderStatus = {
+    /**
+     * Config key name if uses_provider_config is false
+     */
+    config_key?: string | null;
+    /**
+     * Whether the provider is fully configured and ready to use
+     */
+    configured: boolean;
+    /**
+     * Description of what this provider does
+     */
+    description: string;
+    /**
+     * Custom host URL if configured (only for providers that support it)
+     */
+    host?: string | null;
+    /**
+     * Path to settings if uses_provider_config is true
+     */
+    settings_path?: string | null;
+    /**
+     * Whether this provider uses the main provider config (true) or has its own key (false)
+     */
+    uses_provider_config: boolean;
 };
-
-export type EditType = 'fork' | 'edit';
 
 export type EmbeddedResource = {
     _meta?: {
@@ -263,6 +282,7 @@ export type ExtensionConfig = {
     available_tools?: Array<string>;
     bundled?: boolean | null;
     description: string;
+    display_name?: string | null;
     /**
      * The name used to identify this extension
      */
@@ -352,6 +372,16 @@ export type ExtensionResponse = {
     warnings?: Array<string>;
 };
 
+export type ForkRequest = {
+    copy: boolean;
+    timestamp?: number | null;
+    truncate: boolean;
+};
+
+export type ForkResponse = {
+    sessionId: string;
+};
+
 export type FrontendToolRequest = {
     id: string;
     toolCall: {
@@ -364,11 +394,9 @@ export type GetToolsQuery = {
     session_id: string;
 };
 
-/**
- * A Goose App combining MCP resource data with Goose-specific metadata
- */
 export type GooseApp = McpAppResource & (WindowProps | null) & {
-    mcpServer?: string | null;
+    mcpServers?: Array<string>;
+    prd?: string | null;
 };
 
 export type Icon = {
@@ -386,6 +414,15 @@ export type ImageContent = {
     };
     data: string;
     mimeType: string;
+};
+
+export type ImportAppRequest = {
+    html: string;
+};
+
+export type ImportAppResponse = {
+    message: string;
+    name: string;
 };
 
 export type ImportSessionRequest = {
@@ -572,7 +609,7 @@ export type ModelInfo = {
      */
     currency?: string | null;
     /**
-     * Cost per token for input (optional)
+     * Cost per token for input in USD (optional)
      */
     input_token_cost?: number | null;
     /**
@@ -580,7 +617,7 @@ export type ModelInfo = {
      */
     name: string;
     /**
-     * Cost per token for output (optional)
+     * Cost per token for output in USD (optional)
      */
     output_token_cost?: number | null;
     /**
@@ -987,6 +1024,7 @@ export type SetSlashCommandRequest = {
 export type Settings = {
     goose_model?: string | null;
     goose_provider?: string | null;
+    max_turns?: number | null;
     temperature?: number | null;
 };
 
@@ -1049,6 +1087,7 @@ export type SystemInfo = {
 };
 
 export type SystemNotificationContent = {
+    data?: unknown;
     msg: string;
     notificationType: SystemNotificationType;
 };
@@ -1169,6 +1208,25 @@ export type ToolResponse = {
     };
 };
 
+export type TranscribeRequest = {
+    /**
+     * Base64 encoded audio data
+     */
+    audio: string;
+    /**
+     * MIME type of the audio (e.g., "audio/webm", "audio/wav")
+     */
+    mime_type: string;
+    provider: DictationProvider;
+};
+
+export type TranscribeResponse = {
+    /**
+     * Transcribed text from the audio
+     */
+    text: string;
+};
+
 export type TunnelInfo = {
     hostname: string;
     secret: string;
@@ -1202,6 +1260,7 @@ export type UpdateCustomProviderRequest = {
         [key: string]: string;
     } | null;
     models: Array<string>;
+    requires_auth?: boolean;
     supports_streaming?: boolean | null;
 };
 
@@ -1354,6 +1413,69 @@ export type CallToolResponses = {
 };
 
 export type CallToolResponse2 = CallToolResponses[keyof CallToolResponses];
+
+export type ExportAppData = {
+    body?: never;
+    path: {
+        /**
+         * Name of the app to export
+         */
+        name: string;
+    };
+    query?: never;
+    url: '/agent/export_app/{name}';
+};
+
+export type ExportAppErrors = {
+    /**
+     * App not found
+     */
+    404: ErrorResponse;
+    /**
+     * Internal server error
+     */
+    500: ErrorResponse;
+};
+
+export type ExportAppError = ExportAppErrors[keyof ExportAppErrors];
+
+export type ExportAppResponses = {
+    /**
+     * App HTML exported successfully
+     */
+    200: string;
+};
+
+export type ExportAppResponse = ExportAppResponses[keyof ExportAppResponses];
+
+export type ImportAppData = {
+    body: ImportAppRequest;
+    path?: never;
+    query?: never;
+    url: '/agent/import_app';
+};
+
+export type ImportAppErrors = {
+    /**
+     * Bad request - Invalid HTML
+     */
+    400: ErrorResponse;
+    /**
+     * Internal server error
+     */
+    500: ErrorResponse;
+};
+
+export type ImportAppError = ImportAppErrors[keyof ImportAppErrors];
+
+export type ImportAppResponses = {
+    /**
+     * App imported successfully
+     */
+    201: ImportAppResponse;
+};
+
+export type ImportAppResponse2 = ImportAppResponses[keyof ImportAppResponses];
 
 export type ListAppsData = {
     body?: never;
@@ -2197,6 +2319,32 @@ export type GetProviderModelsResponses = {
 
 export type GetProviderModelsResponse = GetProviderModelsResponses[keyof GetProviderModelsResponses];
 
+export type ConfigureProviderOauthData = {
+    body?: never;
+    path: {
+        /**
+         * Provider name
+         */
+        name: string;
+    };
+    query?: never;
+    url: '/config/providers/{name}/oauth';
+};
+
+export type ConfigureProviderOauthErrors = {
+    /**
+     * OAuth configuration failed
+     */
+    400: unknown;
+};
+
+export type ConfigureProviderOauthResponses = {
+    /**
+     * OAuth configuration completed
+     */
+    200: unknown;
+};
+
 export type ReadConfigData = {
     body: ConfigKeyQuery;
     path?: never;
@@ -2361,6 +2509,79 @@ export type DiagnosticsResponses = {
 };
 
 export type DiagnosticsResponse = DiagnosticsResponses[keyof DiagnosticsResponses];
+
+export type GetDictationConfigData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/dictation/config';
+};
+
+export type GetDictationConfigResponses = {
+    /**
+     * Audio transcription provider configurations
+     */
+    200: {
+        [key: string]: DictationProviderStatus;
+    };
+};
+
+export type GetDictationConfigResponse = GetDictationConfigResponses[keyof GetDictationConfigResponses];
+
+export type TranscribeDictationData = {
+    body: TranscribeRequest;
+    path?: never;
+    query?: never;
+    url: '/dictation/transcribe';
+};
+
+export type TranscribeDictationErrors = {
+    /**
+     * Invalid request (bad base64 or unsupported format)
+     */
+    400: unknown;
+    /**
+     * Invalid API key
+     */
+    401: unknown;
+    /**
+     * DictationProvider not configured
+     */
+    412: unknown;
+    /**
+     * Audio file too large (max 25MB)
+     */
+    413: unknown;
+    /**
+     * Rate limit exceeded
+     */
+    429: unknown;
+    /**
+     * Internal server error
+     */
+    500: unknown;
+    /**
+     * DictationProvider API error
+     */
+    502: unknown;
+    /**
+     * Service unavailable
+     */
+    503: unknown;
+    /**
+     * Request timeout
+     */
+    504: unknown;
+};
+
+export type TranscribeDictationResponses = {
+    /**
+     * Audio transcribed successfully
+     */
+    200: TranscribeResponse;
+};
+
+export type TranscribeDictationResponse = TranscribeDictationResponses[keyof TranscribeDictationResponses];
 
 export type StartOpenrouterSetupData = {
     body?: never;
@@ -3184,46 +3405,6 @@ export type GetSessionResponses = {
 
 export type GetSessionResponse = GetSessionResponses[keyof GetSessionResponses];
 
-export type EditMessageData = {
-    body: EditMessageRequest;
-    path: {
-        /**
-         * Unique identifier for the session
-         */
-        session_id: string;
-    };
-    query?: never;
-    url: '/sessions/{session_id}/edit_message';
-};
-
-export type EditMessageErrors = {
-    /**
-     * Bad request - Invalid message timestamp
-     */
-    400: unknown;
-    /**
-     * Unauthorized - Invalid or missing API key
-     */
-    401: unknown;
-    /**
-     * Session or message not found
-     */
-    404: unknown;
-    /**
-     * Internal server error
-     */
-    500: unknown;
-};
-
-export type EditMessageResponses = {
-    /**
-     * Session prepared for editing - frontend should submit the edited message
-     */
-    200: EditMessageResponse;
-};
-
-export type EditMessageResponse2 = EditMessageResponses[keyof EditMessageResponses];
-
 export type ExportSessionData = {
     body?: never;
     path: {
@@ -3295,6 +3476,46 @@ export type GetSessionExtensionsResponses = {
 };
 
 export type GetSessionExtensionsResponse = GetSessionExtensionsResponses[keyof GetSessionExtensionsResponses];
+
+export type ForkSessionData = {
+    body: ForkRequest;
+    path: {
+        /**
+         * Unique identifier for the session
+         */
+        session_id: string;
+    };
+    query?: never;
+    url: '/sessions/{session_id}/fork';
+};
+
+export type ForkSessionErrors = {
+    /**
+     * Bad request - truncate=true requires timestamp
+     */
+    400: unknown;
+    /**
+     * Unauthorized - Invalid or missing API key
+     */
+    401: unknown;
+    /**
+     * Session not found
+     */
+    404: unknown;
+    /**
+     * Internal server error
+     */
+    500: unknown;
+};
+
+export type ForkSessionResponses = {
+    /**
+     * Session forked successfully
+     */
+    200: ForkResponse;
+};
+
+export type ForkSessionResponse = ForkSessionResponses[keyof ForkSessionResponses];
 
 export type UpdateSessionNameData = {
     body: UpdateSessionNameRequest;

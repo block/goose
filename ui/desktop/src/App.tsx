@@ -20,10 +20,11 @@ import { createSession } from './sessions';
 
 import { ChatType } from './types/chat';
 import Hub from './components/Hub';
+import { UserInput } from './types/message';
 
 interface PairRouteState {
   resumeSessionId?: string;
-  initialMessage?: string;
+  initialMessage?: UserInput;
 }
 import SettingsView, { SettingsViewOptions } from './components/settings/SettingsView';
 import SessionsView from './components/sessions/SessionsView';
@@ -52,6 +53,7 @@ import { getInitialWorkingDir } from './utils/workingDir';
 import { usePageViewTracking } from './hooks/useAnalytics';
 import { trackOnboardingCompleted, trackErrorWithContext } from './utils/analytics';
 import { AppEvents } from './constants/events';
+import { registerPlatformEventHandlers } from './utils/platform_events';
 
 function PageViewTracker() {
   usePageViewTracking();
@@ -67,8 +69,11 @@ const HubRouteWrapper = () => {
 const PairRouteWrapper = ({
   activeSessions,
 }: {
-  activeSessions: Array<{ sessionId: string; initialMessage?: string }>;
-  setActiveSessions: (sessions: Array<{ sessionId: string; initialMessage?: string }>) => void;
+  activeSessions: Array<{
+    sessionId: string;
+    initialMessage?: UserInput;
+  }>;
+  setActiveSessions: (sessions: Array<{ sessionId: string; initialMessage?: UserInput }>) => void;
 }) => {
   const { extensionsList } = useConfig();
   const location = useLocation();
@@ -353,13 +358,16 @@ export function AppInner() {
   const MAX_ACTIVE_SESSIONS = 10;
 
   const [activeSessions, setActiveSessions] = useState<
-    Array<{ sessionId: string; initialMessage?: string }>
+    Array<{ sessionId: string; initialMessage?: UserInput }>
   >([]);
 
   useEffect(() => {
     const handleAddActiveSession = (event: Event) => {
       const { sessionId, initialMessage } = (
-        event as CustomEvent<{ sessionId: string; initialMessage?: string }>
+        event as CustomEvent<{
+          sessionId: string;
+          initialMessage?: UserInput;
+        }>
       ).detail;
 
       setActiveSessions((prev) => {
@@ -410,9 +418,7 @@ export function AppInner() {
       window.electron.reactReady();
     } catch (error) {
       console.error('Error sending reactReady:', error);
-      setFatalError(
-        `React ready notification failed: ${error instanceof Error ? error.message : 'Unknown error'}`
-      );
+      setFatalError(`React ready notification failed: ${errorMessage(error, 'Unknown error')}`);
     }
   }, []);
 
@@ -437,7 +443,7 @@ export function AppInner() {
         const shareToken = link.replace('goose://sessions/', '');
         const options = {
           sessionDetails: null,
-          error: error instanceof Error ? error.message : 'Unknown error',
+          error: errorMessage(error, 'Unknown error'),
           shareToken,
         };
         navigate('/shared-session', { state: options });
@@ -602,6 +608,11 @@ export function AppInner() {
       window.electron.off('set-initial-message', handleSetInitialMessage);
     };
   }, [navigate]);
+
+  // Register platform event handlers for app lifecycle management
+  useEffect(() => {
+    return registerPlatformEventHandlers();
+  }, []);
 
   if (fatalError) {
     return <ErrorUI error={errorMessage(fatalError)} />;

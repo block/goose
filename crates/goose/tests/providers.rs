@@ -16,7 +16,7 @@ use goose::providers::sagemaker_tgi::SAGEMAKER_TGI_DEFAULT_MODEL;
 use goose::providers::snowflake::SNOWFLAKE_DEFAULT_MODEL;
 use goose::providers::xai::XAI_DEFAULT_MODEL;
 use rmcp::model::{AnnotateAble, Content, RawImageContent};
-use rmcp::model::{CallToolRequestParam, Tool};
+use rmcp::model::{CallToolRequestParams, Tool};
 use rmcp::object;
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -247,10 +247,10 @@ impl ProviderTester {
         dbg!(&result);
         println!("===================");
 
-        if self.name.to_lowercase() == "ollama" {
+        if self.name.to_lowercase() == "ollama" || self.name.to_lowercase() == "openrouter" {
             assert!(
                 result.is_ok(),
-                "Expected to succeed because of default truncation"
+                "Expected to succeed because of default truncation or large context window"
             );
             return Ok(());
         }
@@ -329,7 +329,8 @@ impl ProviderTester {
         let user_message = Message::user().with_text("Take a screenshot please");
         let tool_request = Message::assistant().with_tool_request(
             "test_id",
-            Ok(CallToolRequestParam {
+            Ok(CallToolRequestParams {
+                meta: None,
                 task: None,
                 name: "get_screenshot".into(),
                 arguments: Some(object!({})),
@@ -394,6 +395,15 @@ async fn test_provider(
 
         load_env();
 
+        // Check required_vars BEFORE applying env_modifications to avoid
+        // leaving the environment mutated when skipping
+        let missing_vars = required_vars.iter().any(|var| std::env::var(var).is_err());
+        if missing_vars {
+            println!("Skipping {} tests - credentials not configured", name);
+            TEST_REPORT.record_skip(name);
+            return Ok(());
+        }
+
         let mut original_env = HashMap::new();
         for &var in required_vars {
             if let Ok(val) = std::env::var(var) {
@@ -415,13 +425,6 @@ async fn test_provider(
                     None => std::env::remove_var(var),
                 }
             }
-        }
-
-        let missing_vars = required_vars.iter().any(|var| std::env::var(var).is_err());
-        if missing_vars {
-            println!("Skipping {} tests - credentials not configured", name);
-            TEST_REPORT.record_skip(name);
-            return Ok(());
         }
 
         original_env
@@ -487,7 +490,7 @@ async fn test_azure_provider() -> Result<()> {
 #[tokio::test]
 async fn test_bedrock_provider_long_term_credentials() -> Result<()> {
     test_provider(
-        "Bedrock",
+        "aws_bedrock",
         BEDROCK_DEFAULT_MODEL,
         &["AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY"],
         None,
@@ -501,9 +504,27 @@ async fn test_bedrock_provider_aws_profile_credentials() -> Result<()> {
         HashMap::from_iter([("AWS_ACCESS_KEY_ID", None), ("AWS_SECRET_ACCESS_KEY", None)]);
 
     test_provider(
-        "Bedrock",
+        "aws_bedrock",
         BEDROCK_DEFAULT_MODEL,
         &["AWS_PROFILE"],
+        Some(env_mods),
+    )
+    .await
+}
+
+#[tokio::test]
+async fn test_bedrock_provider_bearer_token() -> Result<()> {
+    // Clear standard AWS credentials to ensure bearer token auth is used
+    let env_mods = HashMap::from_iter([
+        ("AWS_ACCESS_KEY_ID", None),
+        ("AWS_SECRET_ACCESS_KEY", None),
+        ("AWS_PROFILE", None),
+    ]);
+
+    test_provider(
+        "aws_bedrock",
+        BEDROCK_DEFAULT_MODEL,
+        &["AWS_BEARER_TOKEN_BEDROCK", "AWS_REGION"],
         Some(env_mods),
     )
     .await

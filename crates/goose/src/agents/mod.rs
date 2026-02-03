@@ -1,7 +1,10 @@
 mod agent;
+pub(crate) mod apps_extension;
+mod builtin_skills;
 pub(crate) mod chatrecall_extension;
 pub(crate) mod code_execution_extension;
 pub mod code_summary_tool;
+pub mod container;
 pub mod execute_commands;
 pub mod extension;
 pub mod extension_malware_check;
@@ -26,9 +29,10 @@ mod tool_execution;
 pub mod types;
 
 pub use agent::{Agent, AgentConfig, AgentEvent, ExtensionLoadResult};
+pub use container::Container;
 pub use execute_commands::COMPACT_TRIGGERS;
 pub use extension::ExtensionConfig;
-pub use extension_manager::{normalize, ExtensionManager};
+pub use extension_manager::ExtensionManager;
 pub use prompt_manager::PromptManager;
 pub use subagent_task_config::TaskConfig;
 pub use types::{FrontendTool, RetryConfig, SessionConfig, SuccessCheck};
