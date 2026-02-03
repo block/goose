@@ -314,7 +314,7 @@ fn render_tool_request(req: &ToolRequest, theme: Theme, debug: bool) {
         Ok(call) => match call.name.to_string().as_str() {
             "developer__text_editor" => render_text_editor_request(call, debug),
             "developer__shell" => render_shell_request(call, debug),
-            "code_execution__execute_code" => render_execute_code_request(call, debug),
+            "code_execution__execute" => render_execute_code_request(call, debug),
             "subagent" => render_subagent_request(call, debug),
             "todo__write" => render_todo_request(call, debug),
             _ => render_default_request(call, debug),
@@ -508,7 +508,7 @@ fn render_execute_code_request(call: &CallToolRequestParams, debug: bool) {
         "─── {} tool call{} | {} ──────────────────────────",
         style(count).cyan(),
         plural,
-        style("execute_code").magenta().dim()
+        style("execute").magenta().dim()
     );
 
     for (i, node) in tool_graph.iter().filter_map(Value::as_object).enumerate() {
@@ -541,6 +541,17 @@ fn render_execute_code_request(call: &CallToolRequestParams, debug: bool) {
             style(deps_str).dim()
         );
     }
+
+    let code = call
+        .arguments
+        .as_ref()
+        .and_then(|args| args.get("code"))
+        .and_then(Value::as_str)
+        .filter(|c| !c.is_empty());
+    if code.is_some_and(|_| debug) {
+        println!("{}", style(code.unwrap_or_default()).green());
+    }
+
     println!();
 }
 
