@@ -1,4 +1,4 @@
-use crate::agents::{Agent, AgentConfig};
+use crate::agents::{Agent, AgentConfig, GoosePlatform};
 use crate::config::paths::Paths;
 use crate::config::permission::PermissionManager;
 use crate::config::{Config, GooseMode};
@@ -89,6 +89,7 @@ impl AgentManager {
             permission_manager,
             Some(Arc::clone(&self.scheduler)),
             mode,
+            GoosePlatform::GooseDesktop,
         );
         let agent = Arc::new(Agent::with_config(config));
         if let Some(provider) = &*self.default_provider.read().await {

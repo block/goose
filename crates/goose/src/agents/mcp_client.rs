@@ -1,5 +1,6 @@
 use crate::action_required_manager::ActionRequiredManager;
 use crate::agents::types::SharedProvider;
+use crate::agents::GoosePlatform;
 use crate::session_context::{SESSION_ID_HEADER, WORKING_DIR_HEADER};
 use rmcp::model::{
     Content, CreateElicitationRequestParams, CreateElicitationResult, ElicitationAction, ErrorCode,
@@ -108,17 +109,20 @@ pub struct GooseClient {
     provider: SharedProvider,
     // Single-slot because calls are serialized per MCP client.
     current_session_id: Arc<Mutex<Option<String>>>,
+    goose_platform: GoosePlatform,
 }
 
 impl GooseClient {
     pub fn new(
         handlers: Arc<Mutex<Vec<Sender<ServerNotification>>>>,
         provider: SharedProvider,
+        goose_platform: GoosePlatform,
     ) -> Self {
         GooseClient {
             notification_handlers: handlers,
             provider,
             current_session_id: Arc::new(Mutex::new(None)),
+            goose_platform,
         }
     }
 
@@ -315,15 +319,24 @@ impl ClientHandler for GooseClient {
     }
 
     fn get_info(&self) -> ClientInfo {
+        let capabilities = ClientCapabilities::builder()
+            .enable_sampling()
+            .enable_elicitation()
+            .build();
+        let mut client_name = "goose-cli";
+
+        if let GoosePlatform::GooseDesktop = self.goose_platform {
+            client_name = "goose-desktop";
+
+            // TODO: Declaring MCP App support by mutating capabilities
+        }
+
         ClientInfo {
             meta: None,
             protocol_version: ProtocolVersion::V_2025_03_26,
-            capabilities: ClientCapabilities::builder()
-                .enable_sampling()
-                .enable_elicitation()
-                .build(),
+            capabilities,
             client_info: Implementation {
-                name: "goose".to_string(),
+                name: client_name.to_string(),
                 version: std::env::var("GOOSE_MCP_CLIENT_VERSION")
                     .unwrap_or(env!("CARGO_PKG_VERSION").to_owned()),
                 icons: None,
@@ -348,12 +361,13 @@ impl McpClient {
         transport: T,
         timeout: std::time::Duration,
         provider: SharedProvider,
+        goose_platform: GoosePlatform,
     ) -> Result<Self, ClientInitializeError>
     where
         T: IntoTransport<RoleClient, E, A>,
         E: std::error::Error + From<std::io::Error> + Send + Sync + 'static,
     {
-        Self::connect_with_container(transport, timeout, provider, None).await
+        Self::connect_with_container(transport, timeout, provider, None, goose_platform).await
     }
 
     pub async fn connect_with_container<T, E, A>(
@@ -361,6 +375,7 @@ impl McpClient {
         timeout: std::time::Duration,
         provider: SharedProvider,
         docker_container: Option<String>,
+        goose_platform: GoosePlatform,
     ) -> Result<Self, ClientInitializeError>
     where
         T: IntoTransport<RoleClient, E, A>,
@@ -369,7 +384,7 @@ impl McpClient {
         let notification_subscribers =
             Arc::new(Mutex::new(Vec::<mpsc::Sender<ServerNotification>>::new()));
 
-        let client = GooseClient::new(notification_subscribers.clone(), provider);
+        let client = GooseClient::new(notification_subscribers.clone(), provider, goose_platform);
         let client: rmcp::service::RunningService<rmcp::RoleClient, GooseClient> =
             client.serve(transport).await?;
         let server_info = client.peer_info().cloned();
@@ -725,7 +740,11 @@ mod tests {
     use test_case::test_case;
 
     fn new_client() -> GooseClient {
-        GooseClient::new(Arc::new(Mutex::new(Vec::new())), Arc::new(Mutex::new(None)))
+        GooseClient::new(
+            Arc::new(Mutex::new(Vec::new())),
+            Arc::new(Mutex::new(None)),
+            GoosePlatform::GooseCli,
+        )
     }
 
     fn request_extensions(request: &ClientRequest) -> Option<&Extensions> {

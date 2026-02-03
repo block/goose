@@ -35,6 +35,7 @@ use super::types::SharedProvider;
 use crate::agents::extension::{Envs, ProcessExit};
 use crate::agents::extension_malware_check;
 use crate::agents::mcp_client::{McpClient, McpClientTrait};
+use crate::agents::GoosePlatform;
 use crate::builtin_extension::get_builtin_extension;
 use crate::config::extensions::name_to_key;
 use crate::config::search_path::SearchPaths;
@@ -100,6 +101,7 @@ pub struct ExtensionManager {
     provider: SharedProvider,
     tools_cache: Mutex<Option<Arc<Vec<Tool>>>>,
     tools_cache_version: AtomicU64,
+    goose_platform: GoosePlatform,
 }
 
 /// A flattened representation of a resource used by the agent to prepare inference
@@ -205,6 +207,7 @@ async fn child_process_client(
     provider: SharedProvider,
     working_dir: Option<&PathBuf>,
     docker_container: Option<String>,
+    goose_platform: GoosePlatform,
 ) -> ExtensionResult<McpClient> {
     #[cfg(unix)]
     command.process_group(0);
@@ -253,6 +256,7 @@ async fn child_process_client(
         Duration::from_secs(timeout.unwrap_or(crate::config::DEFAULT_EXTENSION_TIMEOUT)),
         provider,
         docker_container,
+        goose_platform,
     )
     .await;
 
@@ -379,6 +383,7 @@ async fn create_streamable_http_client(
     name: &str,
     all_envs: &HashMap<String, String>,
     provider: SharedProvider,
+    goose_platform: GoosePlatform,
 ) -> ExtensionResult<Box<dyn McpClientTrait>> {
     let mut default_headers = HeaderMap::new();
     for (key, value) in headers {
@@ -408,7 +413,13 @@ async fn create_streamable_http_client(
     let timeout_duration =
         Duration::from_secs(timeout.unwrap_or(crate::config::DEFAULT_EXTENSION_TIMEOUT));
 
-    let client_res = McpClient::connect(transport, timeout_duration, provider.clone()).await;
+    let client_res = McpClient::connect(
+        transport,
+        timeout_duration,
+        provider.clone(),
+        goose_platform.clone(),
+    )
+    .await;
 
     if extract_auth_error(&client_res).is_some() {
         let am = oauth_flow(&uri.to_string(), &name.to_string())
@@ -423,7 +434,7 @@ async fn create_streamable_http_client(
             },
         );
         Ok(Box::new(
-            McpClient::connect(transport, timeout_duration, provider).await?,
+            McpClient::connect(transport, timeout_duration, provider, goose_platform).await?,
         ))
     } else {
         Ok(Box::new(client_res?))
@@ -434,6 +445,7 @@ impl ExtensionManager {
     pub fn new(
         provider: SharedProvider,
         session_manager: Arc<crate::session::SessionManager>,
+        goose_platform: GoosePlatform,
     ) -> Self {
         Self {
             extensions: Mutex::new(HashMap::new()),
@@ -444,13 +456,18 @@ impl ExtensionManager {
             provider,
             tools_cache: Mutex::new(None),
             tools_cache_version: AtomicU64::new(0),
+            goose_platform,
         }
     }
 
     #[cfg(test)]
     pub fn new_without_provider(data_dir: std::path::PathBuf) -> Self {
         let session_manager = Arc::new(crate::session::SessionManager::new(data_dir));
-        Self::new(Arc::new(Mutex::new(None)), session_manager)
+        Self::new(
+            Arc::new(Mutex::new(None)),
+            session_manager,
+            GoosePlatform::GooseCli,
+        )
     }
 
     pub fn get_context(&self) -> &PlatformExtensionContext {
@@ -514,6 +531,7 @@ impl ExtensionManager {
                     name,
                     &all_envs,
                     self.provider.clone(),
+                    self.goose_platform.clone(),
                 )
                 .await?
             }
@@ -559,6 +577,7 @@ impl ExtensionManager {
                     self.provider.clone(),
                     Some(&effective_working_dir),
                     container.map(|c| c.id().to_string()),
+                    self.goose_platform.clone(),
                 )
                 .await?;
                 Box::new(client)
@@ -595,6 +614,7 @@ impl ExtensionManager {
                         self.provider.clone(),
                         Some(&effective_working_dir),
                         Some(container_id.to_string()),
+                        self.goose_platform.clone(),
                     )
                     .await?;
                     Box::new(client)
@@ -607,6 +627,7 @@ impl ExtensionManager {
                             (client_read, client_write),
                             timeout_duration,
                             self.provider.clone(),
+                            self.goose_platform.clone(),
                         )
                         .await?,
                     )
@@ -649,6 +670,7 @@ impl ExtensionManager {
                     self.provider.clone(),
                     Some(&effective_working_dir),
                     container.map(|c| c.id().to_string()),
+                    self.goose_platform.clone(),
                 )
                 .await?;
 
