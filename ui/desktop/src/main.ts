@@ -671,7 +671,6 @@ const createChat = async (
       return { action: 'deny' };
     }
 
-    // Open URL in system default handler
     shell.openExternal(url);
     return { action: 'deny' };
   });
@@ -1181,11 +1180,9 @@ ipcMain.on('react-ready', (event) => {
   log.info('React ready - window is prepared for deep links');
 });
 
-// Handle external URL opening with security checks
 ipcMain.handle('open-external', async (_event, url: string) => {
   const parsedUrl = new URL(url);
 
-  // Block dangerous protocols
   if (BLOCKED_PROTOCOLS.includes(parsedUrl.protocol)) {
     console.warn(`[Main] Blocked dangerous protocol: ${parsedUrl.protocol}`);
     return;
