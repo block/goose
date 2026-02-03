@@ -60,7 +60,7 @@ In your first session, goose prompts you to [set up an LLM (Large Language Model
         2. Click `Settings`
         3. Click the `Keyboard` tab
         
-        Changes to global shortcuts (Focus Window, Quick Launcher) take effect immediately. Changes to application shortcuts (New Session, Settings, etc.) require restarting goose.
+        Changes to global shortcuts (Focus Window, Quick Launcher) take effect immediately. Changes to application shortcuts (New Chat, Settings, etc.) require restarting goose.
         
         #### Quick Launcher
         Start a new session by typing your prompt into a popup:
