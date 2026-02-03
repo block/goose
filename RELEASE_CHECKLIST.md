@@ -1,4 +1,4 @@
-# Goose Release Manual Testing Checklist
+# goose Release Manual Testing Checklist
 
 ## Version: _____
 
