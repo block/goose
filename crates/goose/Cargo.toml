@@ -42,6 +42,7 @@ reqwest = { workspace = true, features = [
     "http2",
     "stream",
     "blocking",
+    "multipart"
 ], default-features = false }
 tokio = { workspace = true }
 serde = { version = "1.0", features = ["derive"] }
