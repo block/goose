@@ -2,7 +2,7 @@ use crate::agents::apps_extension;
 use crate::agents::chatrecall_extension;
 use crate::agents::code_execution_extension;
 use crate::agents::extension_manager_extension;
-use crate::agents::skills_extension;
+use crate::agents::summon_extension;
 use crate::agents::todo_extension;
 use std::collections::HashMap;
 
@@ -95,13 +95,13 @@ pub static PLATFORM_EXTENSIONS: Lazy<HashMap<&'static str, PlatformExtensionDef>
         );
 
         map.insert(
-            skills_extension::EXTENSION_NAME,
+            summon_extension::EXTENSION_NAME,
             PlatformExtensionDef {
-                name: skills_extension::EXTENSION_NAME,
-                display_name: "Skills",
-                description: "Load and use skills from relevant directories",
+                name: summon_extension::EXTENSION_NAME,
+                display_name: "Summon",
+                description: "Load knowledge and delegate tasks to subagents",
                 default_enabled: true,
-                client_factory: |ctx| Box::new(skills_extension::SkillsClient::new(ctx).unwrap()),
+                client_factory: |ctx| Box::new(summon_extension::SummonClient::new(ctx).unwrap()),
             },
         );
 

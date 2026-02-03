@@ -400,11 +400,7 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> CliSession {
     };
 
     agent
-        .apply_recipe_components(
-            recipe.and_then(|r| r.sub_recipes.clone()),
-            recipe.and_then(|r| r.response.clone()),
-            true,
-        )
+        .apply_recipe_components(recipe.and_then(|r| r.response.clone()), true)
         .await;
 
     let new_provider = match create(&provider_name, model_config).await {
