@@ -17,24 +17,20 @@ export const BLOCKED_PROTOCOLS = [
 
 // Protocols that are safe to open without confirmation
 export const SAFE_PROTOCOLS = [
-  // Web
   'http:',
   'https:',
-  // Communication
   'mailto:',
   'tel:',
   'sms:',
   'facetime:',
   'facetime-audio:',
-  // Messaging apps
   'slack:',
   'discord:',
-  'tg:', // Telegram
+  'tg:',
   'telegram:',
   'whatsapp:',
   'skype:',
-  'msteams:', // Microsoft Teams
-  // Development tools
+  'msteams:',
   'vscode:',
   'vscode-insiders:',
   'vscodium:',
@@ -45,17 +41,14 @@ export const SAFE_PROTOCOLS = [
   'github-windows:',
   'sourcetree:',
   'cursor:',
-  // Media
   'spotify:',
-  'music:', // Apple Music
-  'itmss:', // iTunes
+  'music:',
+  'itmss:',
   'vlc:',
-  // Video conferencing
   'zoommtg:',
   'zoomus:',
   'webex:',
-  'meet:', // Google Meet
-  // Productivity
+  'meet:',
   'notion:',
   'obsidian:',
   'bear:',
@@ -64,15 +57,12 @@ export const SAFE_PROTOCOLS = [
   'todoist:',
   'evernote:',
   'onenote:',
-  // Cloud storage
   'dropbox:',
   'googledrive:',
   'onedrive:',
-  // Browsers
   'googlechrome:',
   'firefox:',
   'safari:',
-  // Goose
   'goose:',
 ];
 
