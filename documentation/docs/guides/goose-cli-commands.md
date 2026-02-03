@@ -187,6 +187,7 @@ Start or resume interactive chat sessions.
 - **`-n, --name <name>`**: Give the session a name
 - **`--path <path>`**: Legacy parameter for specifying session by file path
 - **`-r, --resume`**: Resume a previous session
+- **`--fork`**: Create a new duplicate session with copied history. Must be used with `--resume`. Provide `--name` or `--session-id` to fork a specific session. Otherwise forks the most recent session.
 - **`--history`**: Show previous messages when resuming a session
 - **`--debug`**: Enable debug mode to output complete tool responses, detailed parameter values, and full file paths
 - **`--max-tool-repetitions <NUMBER>`**: Set the maximum number of times the same tool can be called consecutively with identical parameters. Helps prevent infinite loops.
@@ -207,6 +208,12 @@ goose session --resume -n my-project
 goose session --resume --session-id 20251108_2
 goose session --resume --path ./session.json    # exported session
 goose session --resume --path ./session.jsonl   # legacy session storage
+
+# Fork a specific session by name
+goose session --resume --fork --name my-project
+
+# Fork the most recent session and show message history
+goose session --resume --fork --history
 
 # Start with extensions
 goose session --with-extension "npx -y @modelcontextprotocol/server-memory"
