@@ -93,9 +93,9 @@ unicode-normalization = "0.1"
 goose-mcp = { path = "../goose-mcp" }
 
 # For local Whisper transcription
-candle-core = { version = "0.8.4" }
-candle-nn = { version = "0.8.4" }
-candle-transformers = { version = "0.8.4" }
+candle-core = { version = "0.9", default-features = false }
+candle-nn = { version = "0.9", default-features = false }
+candle-transformers = { version = "0.9", default-features = false }
 byteorder = "1.5.0"
 tokenizers = "0.21.0"
 hf-hub = { version = "0.4.3", default-features = false, features = ["tokio"] }
@@ -120,8 +120,8 @@ winapi = { version = "0.3", features = ["wincred"] }
 
 # Platform-specific GPU acceleration for Whisper
 [target.'cfg(target_os = "macos")'.dependencies]
-candle-core = { version = "0.8.4", features = ["metal"] }
-candle-nn = { version = "0.8.4", features = ["metal"] }
+candle-core = { version = "0.9", default-features = false, features = ["metal"] }
+candle-nn = { version = "0.9", default-features = false, features = ["metal"] }
 
 [dev-dependencies]
 serial_test = { workspace = true }

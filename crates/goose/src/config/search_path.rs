@@ -33,7 +33,7 @@ impl SearchPaths {
         Self {
             paths: paths
                 .into_iter()
-                .map(|s| PathBuf::from(shellexpand::tilde(&s).as_ref()))
+                .map(|s| PathBuf::from(&*shellexpand::tilde(&s)))
                 .collect(),
         }
     }

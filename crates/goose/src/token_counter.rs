@@ -65,8 +65,7 @@ impl TokenCounter {
                 let name = &tool.name;
                 let description = &tool
                     .description
-                    .as_ref()
-                    .map(|d| d.as_ref())
+                    .as_deref()
                     .unwrap_or_default()
                     .trim_end_matches('.');
 
