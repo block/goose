@@ -134,8 +134,7 @@ pub trait ProviderRetry {
         Fut: Future<Output = Result<T, ProviderError>> + Send,
         T: Send,
     {
-        self.with_retry_config(operation, self.retry_config())
-            .await
+        self.with_retry_config(operation, self.retry_config()).await
     }
 
     async fn with_retry_config<F, Fut, T>(

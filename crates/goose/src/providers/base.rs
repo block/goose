@@ -432,7 +432,7 @@ pub trait Provider: Send + Sync {
                         messages,
                         tools,
                     )
-                    .await 
+                    .await
                 } else {
                     Err(e)
                 }
