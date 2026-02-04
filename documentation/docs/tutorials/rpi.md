@@ -42,7 +42,7 @@ Now that the recipes are imported, to quickly invoke them in-session [add custom
 
 | Recipe | Slash Command |
 |--------|---------------|
-| RPI Research Codebase | `research_plan`|
+| RPI Research Codebase | `research_codebase`|
 | RPI Create Plan | `create_plan` |
 | RPI Implement Plan | `implement_plan` |
 | RPI Iterate | `iterate_plan` |
@@ -52,7 +52,7 @@ Now that the recipes are imported, to quickly invoke them in-session [add custom
 
 In goose, we use a structured RPI workflow using recipes to systematically tackle complex codebase changes. The workflow consists of slash commands that guide goose through disciplined phases of work:
 
-1. `research_plan`– Document what exists today. No opinions.
+1. `research_codebase`– Document what exists today. No opinions.
 2. `create_plan` - Design the change with clear phases and success criteria.
 3. `implement_plan` - Execute the plan step by step with verification.
 4. `iterate_plan` – (optional) Adjust the plan if necessary.
