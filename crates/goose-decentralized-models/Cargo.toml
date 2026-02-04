@@ -26,6 +26,7 @@ url = { workspace = true }
 dirs = "5.0"
 reqwest = { workspace = true, features = ["json"] }
 clap = { version = "4.5.57", features = ["derive"] }
+which.workspace = true
 
 [dev-dependencies]
 tokio = { workspace = true }

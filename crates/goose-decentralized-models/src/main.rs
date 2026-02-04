@@ -29,6 +29,12 @@ enum Commands {
     Discover,
     /// Show your Nostr public key
     ShowKey,
+    /// Discover a model and launch goose with it
+    Run {
+        /// Preferred model name (optional, uses first available if not specified)
+        #[arg(long)]
+        model: Option<String>,
+    },
 }
 
 #[tokio::main]
@@ -42,6 +48,7 @@ async fn main() -> Result<()> {
         Commands::List => list().await,
         Commands::Discover => discover().await,
         Commands::ShowKey => show_key().await,
+        Commands::Run { model } => run_goose(model).await,
     }
 }
 
@@ -320,4 +327,50 @@ async fn show_key() -> Result<()> {
     println!("Public key (npub): {}", key_manager.npub());
     println!("Public key (hex):  {}", key_manager.public_key_hex());
     Ok(())
+}
+
+async fn run_goose(preferred_model: Option<String>) -> Result<()> {
+    let config = NostrShareConfig::load_default()?;
+
+    eprintln!("Discovering models via Nostr...");
+
+    let discovery = ModelDiscovery::new(config.relays).await?;
+    discovery.connect().await;
+
+    let models = discovery.discover().await?;
+
+    if models.is_empty() {
+        anyhow::bail!("No models discovered. Make sure someone has published a model.");
+    }
+
+    // Select model: prefer the specified one, otherwise take first available
+    let selected = if let Some(ref name) = preferred_model {
+        models
+            .iter()
+            .find(|m| m.model_name.contains(name))
+            .or_else(|| models.first())
+    } else {
+        models.first()
+    };
+
+    let selected = selected.ok_or_else(|| anyhow::anyhow!("No suitable model found"))?;
+
+    eprintln!();
+    eprintln!("Selected: {} at {}", selected.model_name, selected.endpoint);
+    eprintln!();
+
+    // Find goose binary
+    let goose_path = which::which("goose")
+        .or_else(|_| which::which("./target/debug/goose"))
+        .or_else(|_| which::which("./target/release/goose"))
+        .map_err(|_| anyhow::anyhow!("Could not find goose binary in PATH or target/"))?;
+
+    // Shell out with env vars
+    let status = std::process::Command::new(goose_path)
+        .env("GOOSE_PROVIDER", "ollama")
+        .env("GOOSE_MODEL", &selected.model_name)
+        .env("OLLAMA_HOST", &selected.endpoint)
+        .status()?;
+
+    std::process::exit(status.code().unwrap_or(1));
 }

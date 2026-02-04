@@ -16,6 +16,9 @@ cargo run -p goose-decentralized-models -- publish
 
 # 4. Discover models from others
 cargo run -p goose-decentralized-models -- discover
+
+# 5. Discover and launch goose with a remote model
+cargo run -p goose-decentralized-models -- run
 ```
 
 ## Commands
@@ -28,6 +31,21 @@ cargo run -p goose-decentralized-models -- discover
 | `list` | Show your published models |
 | `unpublish <name>` | Remove a specific model |
 | `show-key` | Display your Nostr public key |
+| `run` | Discover a model and launch goose with it |
+
+## Run Command
+
+The `run` command discovers models published on Nostr and launches goose connected to the first available one:
+
+```bash
+# Use first available model
+cargo run -p goose-decentralized-models -- run
+
+# Prefer a specific model (falls back to first available)
+cargo run -p goose-decentralized-models -- run --model qwen3
+```
+
+This sets `OLLAMA_HOST` to the discovered endpoint and launches `goose --provider ollama --model <model>`.
 
 ## Config
 
