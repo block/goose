@@ -216,7 +216,10 @@ async fn benchmark_concurrent_workflow_execution() -> Result<()> {
     println!("   Average Duration: {:?}", final_stats.average_duration);
 
     // Performance assertions
-    assert!(!workflow_ids.is_empty(), "Should start at least one workflow");
+    assert!(
+        !workflow_ids.is_empty(),
+        "Should start at least one workflow"
+    );
     assert!(
         startup_time < Duration::from_secs(10),
         "Concurrent startup should be under 10 seconds"

@@ -49,8 +49,7 @@ pub struct ProjectState {
 }
 
 /// Current execution context
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[derive(Default)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct ExecutionContext {
     /// Tools and commands run
     pub commands_run: Vec<String>,
@@ -76,7 +75,6 @@ impl Default for ProjectState {
         }
     }
 }
-
 
 impl HandoffMemo {
     /// Generate a new handoff memo for a provider switch

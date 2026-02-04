@@ -136,8 +136,7 @@ impl EndpointConfig {
 }
 
 /// Health status of an endpoint
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[derive(Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 pub enum EndpointHealth {
     /// Endpoint is healthy and responding
     Healthy,
@@ -149,7 +148,6 @@ pub enum EndpointHealth {
     #[default]
     Unknown,
 }
-
 
 /// Health check result for an endpoint
 #[derive(Debug, Clone, Serialize, Deserialize)]

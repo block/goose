@@ -482,8 +482,6 @@ impl PortableContextPack {
 
     /// Extract archive to directory
     async fn extract_archive(archive_path: &Path, target_dir: &Path) -> RoutingResult<()> {
-        
-
         let file = std::fs::File::open(archive_path)?;
         let mut archive = zip::ZipArchive::new(file)
             .map_err(|e| RoutingError::ExportImportError(format!("Zip read error: {}", e)))?;

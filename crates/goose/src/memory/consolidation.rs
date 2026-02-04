@@ -141,7 +141,9 @@ impl MemoryConsolidator {
 
         for mut entry in working_to_promote {
             // Skip if below prune threshold (will be pruned in step 3)
-            if self.config.prune_low_importance && entry.importance_score < self.config.prune_threshold {
+            if self.config.prune_low_importance
+                && entry.importance_score < self.config.prune_threshold
+            {
                 continue;
             }
             entry.memory_type = MemoryType::Episodic;

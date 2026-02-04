@@ -35,7 +35,6 @@ pub enum PatternCategory {
     Custom,
 }
 
-
 /// Metadata about a pattern
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PatternMetadata {

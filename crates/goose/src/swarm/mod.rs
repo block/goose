@@ -28,23 +28,24 @@
 //! let result = swarm.execute(task).await?;
 //! ```
 
-mod agent_pool;
-mod batch_client;
-mod communication;
-mod consensus;
-mod controller;
-mod errors;
-mod shared_memory;
-mod topology;
+// TODO: Implement missing swarm sub-modules (Phase 6.1)
+// mod agent_pool;
+// mod batch_client;
+// mod communication;
+// mod consensus;
+// mod controller;
+// mod errors;
+// mod shared_memory;
+// mod topology;
 
-pub use agent_pool::{AgentPool, AgentPoolConfig, PooledAgent, AgentState};
-pub use batch_client::{BatchClient, BatchRequest, BatchResponse, BatchConfig};
-pub use communication::{MessageBus, Message, MessageType, Channel, Subscription};
-pub use consensus::{ConsensusStrategy, VotingResult, MergeStrategy, ConflictResolution};
-pub use controller::{SwarmController, SwarmConfig, SwarmResult, SwarmMetrics};
-pub use errors::{SwarmError, SwarmErrorKind};
-pub use shared_memory::{SharedMemory, MemoryEntry, MemoryScope};
-pub use topology::{SwarmTopology, TopologyConfig, NodeRole, ConnectionGraph};
+// pub use agent_pool::{AgentPool, AgentPoolConfig, PooledAgent, AgentState};
+// pub use batch_client::{BatchClient, BatchRequest, BatchResponse, BatchConfig};
+// pub use communication::{MessageBus, Message, MessageType, Channel, Subscription};
+// pub use consensus::{ConsensusStrategy, VotingResult, MergeStrategy, ConflictResolution};
+// pub use controller::{SwarmController, SwarmConfig, SwarmResult, SwarmMetrics};
+// pub use errors::{SwarmError, SwarmErrorKind};
+// pub use shared_memory::{SharedMemory, MemoryEntry, MemoryScope};
+// pub use topology::{SwarmTopology, TopologyConfig, NodeRole, ConnectionGraph};
 
 use serde::{Deserialize, Serialize};
 use std::fmt;

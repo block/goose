@@ -4,8 +4,8 @@ use std::sync::Arc;
 use tokio::sync::RwLock;
 
 use super::{
-    ErrorCategory, HandoffMemo, ProjectId, ProjectProviderPolicy, ProviderConfig,
-    ProviderRegistry, RoutingError, RoutingResult, RunId, RunProviderState, SwitchReason,
+    ErrorCategory, HandoffMemo, ProjectId, ProjectProviderPolicy, ProviderConfig, ProviderRegistry,
+    RoutingError, RoutingResult, RunId, RunProviderState, SwitchReason,
 };
 
 /// Configuration for the provider router
@@ -98,9 +98,11 @@ impl ProviderRouter {
         let policy = self.get_project_policy(project_id).await?;
 
         // Determine effective provider and model
-        let provider = preferred_provider.as_deref()
+        let provider = preferred_provider
+            .as_deref()
             .unwrap_or_else(|| policy.get_effective_provider());
-        let model = preferred_model.as_deref()
+        let model = preferred_model
+            .as_deref()
             .unwrap_or_else(|| policy.get_effective_model());
 
         // Validate provider is allowed

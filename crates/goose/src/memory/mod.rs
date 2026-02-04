@@ -34,12 +34,12 @@
 //! let memories = manager.recall("user preferences", &context).await?;
 //! ```
 
-pub mod errors;
-pub mod working_memory;
-pub mod episodic_memory;
-pub mod semantic_store;
 pub mod consolidation;
+pub mod episodic_memory;
+pub mod errors;
 pub mod retrieval;
+pub mod semantic_store;
+pub mod working_memory;
 
 pub use errors::{MemoryError, MemoryResult};
 
@@ -51,11 +51,11 @@ use tokio::sync::RwLock;
 use uuid::Uuid;
 
 // Re-exports
-pub use working_memory::WorkingMemory;
-pub use episodic_memory::EpisodicMemory;
-pub use semantic_store::SemanticStore;
 pub use consolidation::MemoryConsolidator;
+pub use episodic_memory::EpisodicMemory;
 pub use retrieval::MemoryRetriever;
+pub use semantic_store::SemanticStore;
+pub use working_memory::WorkingMemory;
 
 /// Memory types supported by the system
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -74,10 +74,10 @@ impl MemoryType {
     /// Get the default decay factor for this memory type
     pub fn default_decay_factor(&self) -> f64 {
         match self {
-            Self::Semantic => 0.99,    // Very slow decay
-            Self::Procedural => 0.98,  // Slow decay
-            Self::Episodic => 0.90,    // Moderate decay
-            Self::Working => 0.70,     // Fast decay
+            Self::Semantic => 0.99,   // Very slow decay
+            Self::Procedural => 0.98, // Slow decay
+            Self::Episodic => 0.90,   // Moderate decay
+            Self::Working => 0.70,    // Fast decay
         }
     }
 
@@ -562,7 +562,9 @@ impl MemoryManager {
     /// Create a new memory manager
     pub fn new(config: MemoryConfig) -> MemoryResult<Self> {
         let working = Arc::new(RwLock::new(WorkingMemory::new(config.max_working_memory)));
-        let episodic = Arc::new(RwLock::new(EpisodicMemory::new(config.max_episodic_per_session)));
+        let episodic = Arc::new(RwLock::new(EpisodicMemory::new(
+            config.max_episodic_per_session,
+        )));
         let semantic = Arc::new(RwLock::new(SemanticStore::new(
             config.max_semantic_memories,
             config.embedding_dimension,
@@ -707,7 +709,8 @@ impl MemoryManager {
         let mut episodic = self.episodic.write().await;
         let mut semantic = self.semantic.write().await;
 
-        self.consolidator.consolidate(&mut working, &mut episodic, &mut semantic)
+        self.consolidator
+            .consolidate(&mut working, &mut episodic, &mut semantic)
     }
 
     /// Apply decay to all memories
@@ -844,8 +847,14 @@ mod tests {
 
     #[test]
     fn test_memory_type_decay_factors() {
-        assert!(MemoryType::Semantic.default_decay_factor() > MemoryType::Episodic.default_decay_factor());
-        assert!(MemoryType::Episodic.default_decay_factor() > MemoryType::Working.default_decay_factor());
+        assert!(
+            MemoryType::Semantic.default_decay_factor()
+                > MemoryType::Episodic.default_decay_factor()
+        );
+        assert!(
+            MemoryType::Episodic.default_decay_factor()
+                > MemoryType::Working.default_decay_factor()
+        );
     }
 
     #[test]
@@ -1026,7 +1035,10 @@ mod tests {
 
         // Recall
         let context = RecallContext::working_only();
-        let results = manager.recall("dark mode preference", &context).await.unwrap();
+        let results = manager
+            .recall("dark mode preference", &context)
+            .await
+            .unwrap();
 
         assert!(!results.is_empty());
         assert_eq!(results[0].id, id);
@@ -1037,8 +1049,7 @@ mod tests {
         let config = MemoryConfig::minimal();
         let manager = MemoryManager::new(config).unwrap();
 
-        let entry = MemoryEntry::new(MemoryType::Working, "test content")
-            .with_id("test-id-123");
+        let entry = MemoryEntry::new(MemoryType::Working, "test content").with_id("test-id-123");
         manager.store(entry).await.unwrap();
 
         let retrieved = manager.get("test-id-123").await.unwrap();
@@ -1051,8 +1062,7 @@ mod tests {
         let config = MemoryConfig::minimal();
         let manager = MemoryManager::new(config).unwrap();
 
-        let entry = MemoryEntry::new(MemoryType::Working, "to be deleted")
-            .with_id("delete-me");
+        let entry = MemoryEntry::new(MemoryType::Working, "to be deleted").with_id("delete-me");
         manager.store(entry).await.unwrap();
 
         let deleted = manager.delete("delete-me").await.unwrap();

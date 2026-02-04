@@ -143,11 +143,16 @@ impl HookResult {
 pub enum HookDecision {
     #[default]
     Continue,
-    Approve { reason: String },
-    Block { reason: String },
-    Ask { reason: String },
+    Approve {
+        reason: String,
+    },
+    Block {
+        reason: String,
+    },
+    Ask {
+        reason: String,
+    },
 }
-
 
 impl HookHandler {
     /// Check if this handler should run for the given event

@@ -4,8 +4,8 @@
 //! workflow from pattern registration through template rendering and prompt composition.
 
 use goose::prompts::{
-    Pattern, PatternCategory, PromptManager, Template, TemplateEngine,
-    TemplateVariable, VariableType,
+    Pattern, PatternCategory, PromptManager, Template, TemplateEngine, TemplateVariable,
+    VariableType,
 };
 use std::collections::HashMap;
 
@@ -15,7 +15,10 @@ async fn test_prompt_manager_full_workflow() {
 
     // Test getting default patterns
     let chain_of_thought = manager.get_pattern("chain_of_thought");
-    assert!(chain_of_thought.is_some(), "Chain of thought pattern should exist");
+    assert!(
+        chain_of_thought.is_some(),
+        "Chain of thought pattern should exist"
+    );
 
     let pattern = chain_of_thought.unwrap();
     assert_eq!(pattern.category, PatternCategory::Reasoning);
@@ -27,7 +30,10 @@ async fn test_prompt_manager_full_workflow() {
         .expect("Should compose patterns successfully");
 
     assert!(composed.contains("role"), "Should contain role content");
-    assert!(composed.contains("step"), "Should contain step-by-step content");
+    assert!(
+        composed.contains("step"),
+        "Should contain step-by-step content"
+    );
 }
 
 #[tokio::test]
@@ -239,7 +245,10 @@ async fn test_template_validation_and_error_handling() {
     invalid_variables.insert("age".to_string(), "not_a_number".to_string());
 
     let result = engine.render("validated_template", &invalid_variables);
-    assert!(result.is_err(), "Should fail validation with invalid number");
+    assert!(
+        result.is_err(),
+        "Should fail validation with invalid number"
+    );
 }
 
 #[tokio::test]
@@ -249,16 +258,29 @@ async fn test_prompt_manager_statistics_and_monitoring() {
     let stats = manager.get_stats();
 
     // Verify we have patterns loaded
-    assert!(stats.total_patterns > 10, "Should have substantial pattern library");
+    assert!(
+        stats.total_patterns > 10,
+        "Should have substantial pattern library"
+    );
     // Note: Template engine in PromptManager doesn't auto-load defaults by default
     // Check that template count is returned (can be 0 for new instance)
 
     // Verify we have patterns in each category
-    assert!(stats.patterns_by_category.contains_key(&PatternCategory::Reasoning));
-    assert!(stats.patterns_by_category.contains_key(&PatternCategory::Structure));
-    assert!(stats.patterns_by_category.contains_key(&PatternCategory::Safety));
-    assert!(stats.patterns_by_category.contains_key(&PatternCategory::Task));
-    assert!(stats.patterns_by_category.contains_key(&PatternCategory::Meta));
+    assert!(stats
+        .patterns_by_category
+        .contains_key(&PatternCategory::Reasoning));
+    assert!(stats
+        .patterns_by_category
+        .contains_key(&PatternCategory::Structure));
+    assert!(stats
+        .patterns_by_category
+        .contains_key(&PatternCategory::Safety));
+    assert!(stats
+        .patterns_by_category
+        .contains_key(&PatternCategory::Task));
+    assert!(stats
+        .patterns_by_category
+        .contains_key(&PatternCategory::Meta));
 
     // Test pattern listing
     let patterns = manager.list_patterns();
@@ -277,7 +299,7 @@ async fn test_enterprise_ai_agent_integration() {
     let manager = PromptManager::new();
 
     // Simulate an enterprise AI agent workflow using patterns
-    
+
     // Step 1: Role definition
     let role_result = manager
         .build_prompt("role_definition")
@@ -292,7 +314,10 @@ async fn test_enterprise_ai_agent_integration() {
     let reasoning_result = manager
         .build_prompt("chain_of_thought")
         .expect("Should find chain of thought")
-        .set("task", "Design a scalable microservices architecture for an AI platform")
+        .set(
+            "task",
+            "Design a scalable microservices architecture for an AI platform",
+        )
         .build()
         .expect("Should build reasoning prompt");
 
@@ -302,7 +327,10 @@ async fn test_enterprise_ai_agent_integration() {
         .expect("Should find code generation")
         .set("language", "Rust")
         .set("task", "Implement a high-performance message queue")
-        .set("requirements", "- Async/await support\n- Backpressure handling\n- Monitoring integration")
+        .set(
+            "requirements",
+            "- Async/await support\n- Backpressure handling\n- Monitoring integration",
+        )
         .build()
         .expect("Should build code prompt");
 
@@ -314,13 +342,22 @@ async fn test_enterprise_ai_agent_integration() {
 
     // Test validation
     let validation_result = manager.validate_prompt(&role_result);
-    assert!(validation_result.is_ok(), "Role prompt should pass validation");
+    assert!(
+        validation_result.is_ok(),
+        "Role prompt should pass validation"
+    );
 
     let validation_result = manager.validate_prompt(&reasoning_result);
-    assert!(validation_result.is_ok(), "Reasoning prompt should pass validation");
+    assert!(
+        validation_result.is_ok(),
+        "Reasoning prompt should pass validation"
+    );
 
     let validation_result = manager.validate_prompt(&code_result);
-    assert!(validation_result.is_ok(), "Code prompt should pass validation");
+    assert!(
+        validation_result.is_ok(),
+        "Code prompt should pass validation"
+    );
 }
 
 #[tokio::test]
@@ -380,9 +417,15 @@ async fn test_prompt_manager_configuration() {
     // Test validation with custom length limit
     let long_prompt = "x".repeat(60_000);
     let validation_result = manager.validate_prompt(&long_prompt);
-    assert!(validation_result.is_err(), "Should fail validation for too long prompt");
+    assert!(
+        validation_result.is_err(),
+        "Should fail validation for too long prompt"
+    );
 
     let short_prompt = "This is a reasonable length prompt.";
     let validation_result = manager.validate_prompt(&short_prompt);
-    assert!(validation_result.is_ok(), "Should pass validation for reasonable prompt");
+    assert!(
+        validation_result.is_ok(),
+        "Should pass validation for reasonable prompt"
+    );
 }

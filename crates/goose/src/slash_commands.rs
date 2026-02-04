@@ -239,7 +239,11 @@ pub fn parse_command(input: &str) -> Option<ParsedCommand> {
     // Check custom recipe commands
     if let Some(recipe) = resolve_slash_command(command_name) {
         if let Some(path) = get_recipe_for_command(command_name) {
-            return Some(ParsedCommand::Recipe { path, recipe: Box::new(recipe), args });
+            return Some(ParsedCommand::Recipe {
+                path,
+                recipe: Box::new(recipe),
+                args,
+            });
         }
     }
 

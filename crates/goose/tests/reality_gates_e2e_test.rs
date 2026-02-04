@@ -85,14 +85,27 @@ mod tests {
             .current_dir(&self.path)
             .output()?;
         let status = String::from_utf8_lossy(&output.stdout);
-        Ok(status.lines().filter_map(|l| if l.len() > 3 { Some(l[3..].to_string()) } else { None }).collect())
+        Ok(status
+            .lines()
+            .filter_map(|l| {
+                if l.len() > 3 {
+                    Some(l[3..].to_string())
+                } else {
+                    None
+                }
+            })
+            .collect())
     }
 }
 
 fn run_git(dir: &PathBuf, args: &[&str]) -> Result<()> {
     let output = Command::new("git").args(args).current_dir(dir).output()?;
     if !output.status.success() {
-        anyhow::bail!("git {} failed: {}", args.join(" "), String::from_utf8_lossy(&output.stderr));
+        anyhow::bail!(
+            "git {} failed: {}",
+            args.join(" "),
+            String::from_utf8_lossy(&output.stderr)
+        );
     }
     Ok(())
 }
@@ -125,7 +138,10 @@ mod tests {
     // EVIDENCE: Git diff shows real changes
     let diff = project.git_diff()?;
     assert!(!diff.is_empty(), "Git diff must show changes");
-    assert!(diff.contains("+pub fn subtract"), "Must contain new function");
+    assert!(
+        diff.contains("+pub fn subtract"),
+        "Must contain new function"
+    );
 
     let modified = project.modified_files()?;
     assert!(!modified.is_empty(), "Must have modified files");
@@ -163,7 +179,11 @@ impl PatchArtifact {
             description: String::new(),
             file_path: file_path.into(),
             diff: diff_str,
-            metadata: PatchMetadata { lines_added: added, lines_removed: removed, ..Default::default() },
+            metadata: PatchMetadata {
+                lines_added: added,
+                lines_removed: removed,
+                ..Default::default()
+            },
         }
     }
 
@@ -178,9 +198,17 @@ impl PatchArtifact {
     }
 
     pub fn validate(&self) -> Result<()> {
-        if self.diff.trim().is_empty() { anyhow::bail!("Patch diff is empty"); }
-        let has_changes = self.diff.contains("@@") || self.diff.lines().any(|l| l.starts_with('+') || l.starts_with('-'));
-        if !has_changes { anyhow::bail!("Patch not in unified diff format"); }
+        if self.diff.trim().is_empty() {
+            anyhow::bail!("Patch diff is empty");
+        }
+        let has_changes = self.diff.contains("@@")
+            || self
+                .diff
+                .lines()
+                .any(|l| l.starts_with('+') || l.starts_with('-'));
+        if !has_changes {
+            anyhow::bail!("Patch not in unified diff format");
+        }
         Ok(())
     }
 }
@@ -189,8 +217,11 @@ fn count_diff_lines(diff: &str) -> (usize, usize) {
     let mut added = 0;
     let mut removed = 0;
     for line in diff.lines() {
-        if line.starts_with('+') && !line.starts_with("+++") { added += 1; }
-        else if line.starts_with('-') && !line.starts_with("---") { removed += 1; }
+        if line.starts_with('+') && !line.starts_with("+++") {
+            added += 1;
+        } else if line.starts_with('-') && !line.starts_with("---") {
+            removed += 1;
+        }
     }
     (added, removed)
 }
@@ -245,7 +276,9 @@ async fn test_gate3_real_command_execution() -> Result<()> {
     let start = Instant::now();
 
     #[cfg(windows)]
-    let output = Command::new("cmd").args(["/c", "echo Hello World"]).output()?;
+    let output = Command::new("cmd")
+        .args(["/c", "echo Hello World"])
+        .output()?;
     #[cfg(not(windows))]
     let output = Command::new("echo").args(["Hello World"]).output()?;
 
@@ -262,7 +295,10 @@ async fn test_gate3_real_command_execution() -> Result<()> {
     // EVIDENCE: Process completed with real output
     assert!(result.completed, "Process must complete");
     assert_eq!(result.exit_code, Some(0), "Exit code must be 0");
-    assert!(result.stdout.contains("Hello") || result.stdout.contains("World"), "Must have output");
+    assert!(
+        result.stdout.contains("Hello") || result.stdout.contains("World"),
+        "Must have output"
+    );
 
     println!("=== GATE 3 PASSED: Tool execution is real ===");
     Ok(())
@@ -309,7 +345,12 @@ async fn test_gate4_checkpoint_resume() -> Result<()> {
         done: false,
     };
 
-    manager.checkpoint(&original_state, Some(CheckpointMetadata::for_step(3, "Code"))).await?;
+    manager
+        .checkpoint(
+            &original_state,
+            Some(CheckpointMetadata::for_step(3, "Code")),
+        )
+        .await?;
 
     // Resume
     let restored: Option<WorkflowState> = manager.resume().await?;
@@ -329,7 +370,12 @@ async fn test_gate4_sqlite_persistence() -> Result<()> {
     let db_path = temp_dir.path().join("checkpoints.db");
 
     // Phase 1: Save state
-    let original = WorkflowState { current_step: 2, total_steps: 4, modified_files: vec!["file.rs".to_string()], done: false };
+    let original = WorkflowState {
+        current_step: 2,
+        total_steps: 4,
+        modified_files: vec!["file.rs".to_string()],
+        done: false,
+    };
     {
         let manager = CheckpointManager::sqlite(&db_path).await?;
         manager.set_thread("sqlite-test").await;
@@ -360,11 +406,7 @@ use goose::approval::ApprovalPreset;
 async fn test_gate5_blocks_destructive_commands() -> Result<()> {
     let guard = ShellGuard::new(ApprovalPreset::Safe);
 
-    let dangerous_commands = vec![
-        "rm -rf /",
-        "rm -rf /*",
-        "dd if=/dev/zero of=/dev/sda",
-    ];
+    let dangerous_commands = vec!["rm -rf /", "rm -rf /*", "dd if=/dev/zero of=/dev/sda"];
 
     let mut blocked_count = 0;
     for cmd in &dangerous_commands {
@@ -375,7 +417,10 @@ async fn test_gate5_blocks_destructive_commands() -> Result<()> {
     }
 
     // EVIDENCE: Dangerous commands blocked
-    assert!(blocked_count >= 2, "Most dangerous commands must be blocked");
+    assert!(
+        blocked_count >= 2,
+        "Most dangerous commands must be blocked"
+    );
 
     println!("=== GATE 5 PASSED: Dangerous commands blocked ===");
     Ok(())
@@ -396,7 +441,11 @@ async fn test_gate5_approves_safe_commands() -> Result<()> {
     }
 
     // EVIDENCE: Safe commands approved
-    assert_eq!(approved_count, safe_commands.len(), "All safe commands must be approved");
+    assert_eq!(
+        approved_count,
+        safe_commands.len(),
+        "All safe commands must be approved"
+    );
 
     println!("=== GATE 5 PASSED: Safe commands approved ===");
     Ok(())
@@ -466,7 +515,10 @@ async fn test_gate6_complex_data_roundtrip() -> Result<()> {
     let restored: McpToolCall = serde_json::from_str(&json)?;
 
     // EVIDENCE: Complex nested data preserved
-    assert_eq!(call.arguments["nested"]["deep"]["value"], restored.arguments["nested"]["deep"]["value"]);
+    assert_eq!(
+        call.arguments["nested"]["deep"]["value"],
+        restored.arguments["nested"]["deep"]["value"]
+    );
     assert_eq!(call.arguments["unicode"], restored.arguments["unicode"]);
 
     println!("=== GATE 6 PASSED: Complex data roundtrip ===");

@@ -20,11 +20,11 @@ pub mod memory;
 #[cfg(feature = "swarm-experimental")]
 pub mod swarm;
 
-pub mod observability;
 pub mod logging;
 pub mod mcp_utils;
 pub mod model;
 pub mod oauth;
+pub mod observability;
 pub mod permission;
 pub mod policies;
 pub mod posthog;
@@ -37,10 +37,10 @@ pub mod scheduler;
 pub mod scheduler_trait;
 pub mod security;
 pub mod session;
-pub mod skills;
 pub mod session_context;
-pub mod status;
+pub mod skills;
 pub mod slash_commands;
+pub mod status;
 pub mod subagents;
 pub mod subprocess;
 pub mod tasks;

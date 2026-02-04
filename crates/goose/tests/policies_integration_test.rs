@@ -302,12 +302,14 @@ async fn test_numeric_conditions() {
 
     engine.add_rule_set(rule_set).await;
 
-    let high_event = Event::new(EventType::Custom("transaction".to_string())).with_data("amount", 5000);
+    let high_event =
+        Event::new(EventType::Custom("transaction".to_string())).with_data("amount", 5000);
 
     let result = engine.evaluate(&high_event).await.unwrap();
     assert!(result.matched);
 
-    let low_event = Event::new(EventType::Custom("transaction".to_string())).with_data("amount", 500);
+    let low_event =
+        Event::new(EventType::Custom("transaction".to_string())).with_data("amount", 500);
 
     let result = engine.evaluate(&low_event).await.unwrap();
     assert!(!result.matched);
@@ -698,7 +700,8 @@ async fn test_rule_evaluation_performance() {
     let start = std::time::Instant::now();
 
     for _ in 0..iterations {
-        let event = Event::new(EventType::ToolExecution).with_data("command", "some random command");
+        let event =
+            Event::new(EventType::ToolExecution).with_data("command", "some random command");
         let _ = engine.evaluate(&event).await;
     }
 
@@ -785,7 +788,9 @@ rules:
 
     let decision = engine.evaluate(&dangerous_event).await.unwrap();
     assert_eq!(decision.decision, Decision::Deny);
-    assert!(decision.matched_rules.contains(&"block-dangerous".to_string()));
+    assert!(decision
+        .matched_rules
+        .contains(&"block-dangerous".to_string()));
 
     // Test safe command
     let safe_event = Event::new(EventType::ToolExecution)
@@ -795,7 +800,9 @@ rules:
     let decision = engine.evaluate(&safe_event).await.unwrap();
     // Should match the audit rule but not the block rule
     assert!(decision.is_allowed());
-    assert!(decision.matched_rules.contains(&"audit-all-tools".to_string()));
+    assert!(decision
+        .matched_rules
+        .contains(&"audit-all-tools".to_string()));
 }
 
 /// Test dry-run mode

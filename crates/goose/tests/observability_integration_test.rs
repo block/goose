@@ -8,8 +8,7 @@ use goose::observability::{
     exporters::prometheus::{GrafanaDashboard, PrometheusExporter},
     metrics::ObservabilityMetrics,
     semantic_conventions::{gen_ai, goose as goose_conv, mcp},
-    GenAiSpanBuilder, McpSpanBuilder, Observability, ObservabilityConfig,
-    ReportFormat,
+    GenAiSpanBuilder, McpSpanBuilder, Observability, ObservabilityConfig, ReportFormat,
 };
 use opentelemetry::global;
 use std::collections::HashMap;
@@ -24,9 +23,15 @@ async fn test_full_cost_tracking_pipeline() {
 
     // Simulate a realistic session with multiple models
     let models = vec![
-        ("claude-3-5-sonnet-20241022", TokenUsage::with_cache(1500, 800, 200)),
+        (
+            "claude-3-5-sonnet-20241022",
+            TokenUsage::with_cache(1500, 800, 200),
+        ),
         ("gpt-4o-mini", TokenUsage::new(500, 300)),
-        ("claude-3-5-sonnet-20241022", TokenUsage::with_cache(2000, 1200, 500)),
+        (
+            "claude-3-5-sonnet-20241022",
+            TokenUsage::with_cache(2000, 1200, 500),
+        ),
         ("gpt-4o", TokenUsage::new(1000, 600)),
     ];
 
@@ -35,7 +40,10 @@ async fn test_full_cost_tracking_pipeline() {
     }
 
     // Verify session cost
-    let session = tracker.get_session_cost("session-integration").await.unwrap();
+    let session = tracker
+        .get_session_cost("session-integration")
+        .await
+        .unwrap();
 
     assert_eq!(session.requests.len(), 4);
     assert!(session.total_cost_usd > 0.0);
@@ -85,11 +93,15 @@ async fn test_custom_pricing_override() {
 
     // Set custom pricing for a hypothetical model
     let custom_pricing = ModelPricing::with_cache_cost(0.05, 0.1, 0.01);
-    tracker.set_pricing("custom-expensive-model", custom_pricing).await;
+    tracker
+        .set_pricing("custom-expensive-model", custom_pricing)
+        .await;
 
     // Record usage with the custom model
     let usage = TokenUsage::new(1000, 1000);
-    tracker.record("custom-session", &usage, "custom-expensive-model").await;
+    tracker
+        .record("custom-session", &usage, "custom-expensive-model")
+        .await;
 
     let session = tracker.get_session_cost("custom-session").await.unwrap();
 
@@ -129,7 +141,9 @@ async fn test_cache_cost_savings() {
 async fn test_json_export_format() {
     let tracker = CostTracker::new();
 
-    tracker.record("json-test", &TokenUsage::new(100, 50), "gpt-4o-mini").await;
+    tracker
+        .record("json-test", &TokenUsage::new(100, 50), "gpt-4o-mini")
+        .await;
 
     let json = tracker.export_report(ReportFormat::Json).await.unwrap();
 
@@ -142,7 +156,9 @@ async fn test_json_export_format() {
 async fn test_csv_export_format() {
     let tracker = CostTracker::new();
 
-    tracker.record("csv-test", &TokenUsage::new(100, 50), "gpt-4o-mini").await;
+    tracker
+        .record("csv-test", &TokenUsage::new(100, 50), "gpt-4o-mini")
+        .await;
 
     let csv = tracker.export_report(ReportFormat::Csv).await.unwrap();
 
@@ -158,7 +174,9 @@ async fn test_csv_export_format() {
 async fn test_markdown_export_format() {
     let tracker = CostTracker::new();
 
-    tracker.record("md-test", &TokenUsage::new(100, 50), "gpt-4o-mini").await;
+    tracker
+        .record("md-test", &TokenUsage::new(100, 50), "gpt-4o-mini")
+        .await;
 
     let md = tracker.export_report(ReportFormat::Markdown).await.unwrap();
 
@@ -180,9 +198,23 @@ async fn test_prometheus_export_complete() {
     let exporter = PrometheusExporter::new();
 
     // Add test data
-    tracker.record("prom-session-1", &TokenUsage::new(1000, 500), "claude-3-5-sonnet-20241022").await;
-    tracker.record("prom-session-1", &TokenUsage::new(500, 250), "gpt-4o-mini").await;
-    tracker.record("prom-session-2", &TokenUsage::new(2000, 1000), "claude-3-5-sonnet-20241022").await;
+    tracker
+        .record(
+            "prom-session-1",
+            &TokenUsage::new(1000, 500),
+            "claude-3-5-sonnet-20241022",
+        )
+        .await;
+    tracker
+        .record("prom-session-1", &TokenUsage::new(500, 250), "gpt-4o-mini")
+        .await;
+    tracker
+        .record(
+            "prom-session-2",
+            &TokenUsage::new(2000, 1000),
+            "claude-3-5-sonnet-20241022",
+        )
+        .await;
 
     let output = exporter.export_cost_metrics(&tracker).await;
 
@@ -212,7 +244,10 @@ async fn test_grafana_dashboard_export() {
     let parsed: serde_json::Value = serde_json::from_str(&json).unwrap();
 
     // Verify structure
-    assert!(parsed["dashboard"]["title"].as_str().unwrap().contains("Goose"));
+    assert!(parsed["dashboard"]["title"]
+        .as_str()
+        .unwrap()
+        .contains("Goose"));
     assert!(parsed["dashboard"]["panels"].is_array());
 
     let panels = parsed["dashboard"]["panels"].as_array().unwrap();
@@ -245,7 +280,14 @@ async fn test_observability_orchestrator() {
 
     // Record GenAI request
     let usage = TokenUsage::new(1000, 500);
-    obs.record_genai_request("orchestrator-session", "claude-3-5-sonnet-20241022", &usage, 150.0, true).await;
+    obs.record_genai_request(
+        "orchestrator-session",
+        "claude-3-5-sonnet-20241022",
+        &usage,
+        150.0,
+        true,
+    )
+    .await;
 
     // Record MCP operations
     obs.record_mcp_tool_call("read_file", "filesystem", 25.0, true);
@@ -284,7 +326,14 @@ async fn test_observability_disabled_features() {
 
     // Record operations (should be no-ops)
     let usage = TokenUsage::new(1000, 500);
-    obs.record_genai_request("disabled-session", "claude-3-5-sonnet-20241022", &usage, 150.0, true).await;
+    obs.record_genai_request(
+        "disabled-session",
+        "claude-3-5-sonnet-20241022",
+        &usage,
+        150.0,
+        true,
+    )
+    .await;
     obs.record_mcp_tool_call("test", "server", 10.0, true);
 
     // Cost tracking is disabled, so session should not exist
@@ -364,14 +413,26 @@ fn test_metrics_recording() {
 
     // Record GenAI metrics
     let usage = TokenUsage::with_cache(1000, 500, 200);
-    metrics.genai.record_request("claude-3-5-sonnet", &usage, 150.0, true);
-    metrics.genai.record_request("gpt-4o", &TokenUsage::new(500, 250), 100.0, false);
-    metrics.genai.record_error("claude-3-5-sonnet", "rate_limit");
+    metrics
+        .genai
+        .record_request("claude-3-5-sonnet", &usage, 150.0, true);
+    metrics
+        .genai
+        .record_request("gpt-4o", &TokenUsage::new(500, 250), 100.0, false);
+    metrics
+        .genai
+        .record_error("claude-3-5-sonnet", "rate_limit");
 
     // Record MCP metrics
-    metrics.mcp.record_tool_call("read_file", "filesystem", 25.0, true);
-    metrics.mcp.record_tool_call("write_file", "filesystem", 50.0, false);
-    metrics.mcp.record_permission_denial("execute_command", "not_in_allow_list");
+    metrics
+        .mcp
+        .record_tool_call("read_file", "filesystem", 25.0, true);
+    metrics
+        .mcp
+        .record_tool_call("write_file", "filesystem", 50.0, false);
+    metrics
+        .mcp
+        .record_permission_denial("execute_command", "not_in_allow_list");
     metrics.mcp.record_server_connection("filesystem", true);
     metrics.mcp.record_cache_hit_ratio("search", 0.85);
 
@@ -401,8 +462,12 @@ async fn test_clear_operations() {
     let tracker = CostTracker::new();
 
     // Add data
-    tracker.record("session-1", &TokenUsage::new(100, 50), "gpt-4o-mini").await;
-    tracker.record("session-2", &TokenUsage::new(100, 50), "gpt-4o-mini").await;
+    tracker
+        .record("session-1", &TokenUsage::new(100, 50), "gpt-4o-mini")
+        .await;
+    tracker
+        .record("session-2", &TokenUsage::new(100, 50), "gpt-4o-mini")
+        .await;
 
     // Clear one session
     tracker.clear_session("session-1").await;
@@ -421,7 +486,9 @@ async fn test_very_large_token_counts() {
 
     // Simulate a very large request (1M tokens each)
     let usage = TokenUsage::new(1_000_000, 1_000_000);
-    tracker.record("large-session", &usage, "claude-3-5-sonnet-20241022").await;
+    tracker
+        .record("large-session", &usage, "claude-3-5-sonnet-20241022")
+        .await;
 
     let session = tracker.get_session_cost("large-session").await.unwrap();
 
@@ -456,13 +523,19 @@ async fn test_high_throughput_recording() {
     // Record 1000 requests
     for i in 0..1000 {
         let usage = TokenUsage::new(100, 50);
-        tracker.record(&format!("perf-session-{}", i % 10), &usage, "gpt-4o-mini").await;
+        tracker
+            .record(&format!("perf-session-{}", i % 10), &usage, "gpt-4o-mini")
+            .await;
     }
 
     let elapsed = start.elapsed();
 
     // Should complete in under 1 second
-    assert!(elapsed.as_secs() < 1, "Recording 1000 requests took {:?}", elapsed);
+    assert!(
+        elapsed.as_secs() < 1,
+        "Recording 1000 requests took {:?}",
+        elapsed
+    );
 
     // Verify data integrity
     assert_eq!(tracker.get_total_requests().await, 1000);
@@ -475,7 +548,13 @@ async fn test_export_performance() {
     // Create substantial data
     for i in 0..100 {
         let usage = TokenUsage::with_cache(1000, 500, 200);
-        tracker.record(&format!("export-perf-{}", i % 10), &usage, "claude-3-5-sonnet-20241022").await;
+        tracker
+            .record(
+                &format!("export-perf-{}", i % 10),
+                &usage,
+                "claude-3-5-sonnet-20241022",
+            )
+            .await;
     }
 
     let exporter = PrometheusExporter::new();

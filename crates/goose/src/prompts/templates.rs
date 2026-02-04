@@ -28,7 +28,6 @@ pub enum VariableType {
     Any,
 }
 
-
 /// Template variable definition
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TemplateVariable {

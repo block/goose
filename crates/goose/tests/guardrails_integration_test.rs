@@ -2,9 +2,7 @@
 //!
 //! End-to-end tests verifying the complete guardrails security pipeline.
 
-use goose::guardrails::{
-    DetectionContext, GuardrailsConfig, GuardrailsEngine, Sensitivity,
-};
+use goose::guardrails::{DetectionContext, GuardrailsConfig, GuardrailsEngine, Sensitivity};
 
 /// Test the full guardrails engine with all detectors enabled
 #[tokio::test]
@@ -42,7 +40,10 @@ async fn test_guardrails_detects_prompt_injection() {
     ];
 
     for input in malicious_inputs {
-        let result = engine.scan(input, &context).await.expect("Scan should succeed");
+        let result = engine
+            .scan(input, &context)
+            .await
+            .expect("Scan should succeed");
 
         let pi_result = result
             .results
@@ -71,7 +72,10 @@ async fn test_guardrails_detects_pii() {
     ];
 
     for (input, pii_type) in pii_inputs {
-        let result = engine.scan(input, &context).await.expect("Scan should succeed");
+        let result = engine
+            .scan(input, &context)
+            .await
+            .expect("Scan should succeed");
 
         let pii_result = result.results.iter().find(|r| r.detector_name == "pii");
 
@@ -93,12 +97,18 @@ async fn test_guardrails_detects_secrets() {
     let secret_inputs = vec![
         ("AKIAIOSFODNN7EXAMPLE", "AWS Access Key"),
         ("ghp_aBcDeFgHiJkLmNoPqRsTuVwXyZ1234567890", "GitHub Token"),
-        ("sk-ant-abcdefghijklmnopqrstuvwxyz123456789012345678", "Anthropic API Key"),
+        (
+            "sk-ant-abcdefghijklmnopqrstuvwxyz123456789012345678",
+            "Anthropic API Key",
+        ),
         ("-----BEGIN RSA PRIVATE KEY-----", "Private Key"),
     ];
 
     for (input, secret_type) in secret_inputs {
-        let result = engine.scan(input, &context).await.expect("Scan should succeed");
+        let result = engine
+            .scan(input, &context)
+            .await
+            .expect("Scan should succeed");
 
         let secret_result = result.results.iter().find(|r| r.detector_name == "secret");
 
@@ -125,7 +135,10 @@ async fn test_guardrails_detects_jailbreak() {
     ];
 
     for input in jailbreak_inputs {
-        let result = engine.scan(input, &context).await.expect("Scan should succeed");
+        let result = engine
+            .scan(input, &context)
+            .await
+            .expect("Scan should succeed");
 
         let jb_result = result
             .results

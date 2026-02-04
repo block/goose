@@ -126,10 +126,7 @@ impl EpisodicMemory {
             .entry(session_id.clone())
             .or_insert_with(|| Session::new(&session_id));
 
-        let session_entry_list = self
-            .session_entries
-            .entry(session_id.clone())
-            .or_default();
+        let session_entry_list = self.session_entries.entry(session_id.clone()).or_default();
 
         // Check per-session capacity
         if session_entry_list.len() >= self.max_per_session && !self.entries.contains_key(&id) {
