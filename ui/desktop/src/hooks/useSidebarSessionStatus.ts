@@ -24,8 +24,6 @@ export function useSidebarSessionStatus() {
         const existing = prev.get(sessionId);
         const wasStreaming = existing?.streamState === 'streaming';
         const isNowIdle = streamState === 'idle';
-
-        // Mark unread if streaming just finished (shows green dot until clicked)
         const shouldMarkUnread = wasStreaming && isNowIdle;
 
         const next = new Map(prev);

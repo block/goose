@@ -73,23 +73,17 @@ export default function BaseChat({
   const navigate = useNavigate();
   const scrollRef = useRef<ScrollAreaHandle>(null);
   const chatInputRef = useRef<HTMLTextAreaElement>(null);
-
   const disableAnimation = location.state?.disableAnimation || false;
   const [hasStartedUsingRecipe, setHasStartedUsingRecipe] = React.useState(false);
   const [hasNotAcceptedRecipe, setHasNotAcceptedRecipe] = useState<boolean>();
   const [hasRecipeSecurityWarnings, setHasRecipeSecurityWarnings] = useState(false);
-
   const isMobile = useIsMobile();
   const navContext = useNavigationContextSafe();
   const setView = useNavigation();
-
-  // Determine if we need extra top padding (when nav is collapsed or on mobile)
   const isNavCollapsed = !navContext?.isNavExpanded;
   const contentClassName = cn('pr-1 pb-10 pt-10', (isMobile || isNavCollapsed) && 'pt-14');
   const { droppedFiles, setDroppedFiles, handleDrop, handleDragOver } = useFileDrop();
-
   const onStreamFinish = useCallback(() => {}, []);
-
   const [isCreateRecipeModalOpen, setIsCreateRecipeModalOpen] = useState(false);
 
   const {

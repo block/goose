@@ -23,12 +23,9 @@ interface AppSettingsSectionProps {
   scrollToSection?: string;
 }
 
-// Inner component that uses the navigation context
 const NavigationSettingsContent: React.FC = () => {
   const [isExpanded, setIsExpanded] = useState(false);
   const navContext = useNavigationContextSafe();
-  
-  // Check if overlay mode is selected
   const isOverlayMode = navContext?.navigationMode === 'overlay';
 
   return (
@@ -51,29 +48,22 @@ const NavigationSettingsContent: React.FC = () => {
       </CardHeader>
       {isExpanded && (
         <CardContent className="pt-4 px-4 space-y-6">
-          {/* Navigation Mode */}
           <div>
             <h3 className="text-sm font-medium text-text-default mb-3">Mode</h3>
             <NavigationModeSelector />
           </div>
-
-          {/* Navigation Style - only show for push mode */}
           {!isOverlayMode && (
             <div>
               <h3 className="text-sm font-medium text-text-default mb-3">Style</h3>
               <NavigationStyleSelector />
             </div>
           )}
-
-          {/* Navigation Position - only show for push mode */}
           {!isOverlayMode && (
             <div>
               <h3 className="text-sm font-medium text-text-default mb-3">Position</h3>
               <NavigationPositionSelector />
             </div>
           )}
-
-          {/* Item Customization */}
           <div>
             <h3 className="text-sm font-medium text-text-default mb-3">Customize Items</h3>
             <NavigationCustomizationSettings />
@@ -111,25 +101,19 @@ export default function AppSettingsSection({ scrollToSection }: AppSettingsSecti
   const [showPricing, setShowPricing] = useState(true);
   const [isDarkMode, setIsDarkMode] = useState(false);
   const updateSectionRef = useRef<HTMLDivElement>(null);
-
-  // Check if GOOSE_VERSION is set to determine if Updates section should be shown
   const shouldShowUpdates = !window.appConfig.get('GOOSE_VERSION');
 
-  // Check if running on macOS
   useEffect(() => {
     setIsMacOS(window.electron.platform === 'darwin');
   }, []);
 
-  // Detect theme changes
   useEffect(() => {
     const updateTheme = () => {
       setIsDarkMode(document.documentElement.classList.contains('dark'));
     };
 
-    // Initial check
     updateTheme();
 
-    // Listen for theme changes
     const observer = new MutationObserver(updateTheme);
     observer.observe(document.documentElement, {
       attributes: true,
@@ -139,23 +123,19 @@ export default function AppSettingsSection({ scrollToSection }: AppSettingsSecti
     return () => observer.disconnect();
   }, []);
 
-  // Load show pricing setting
   useEffect(() => {
     const stored = localStorage.getItem('show_pricing');
     setShowPricing(stored !== 'false');
   }, []);
 
-  // Handle scrolling to update section
   useEffect(() => {
     if (scrollToSection === 'update' && updateSectionRef.current) {
-      // Use a timeout to ensure the DOM is ready
       setTimeout(() => {
         updateSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
       }, 100);
     }
   }, [scrollToSection]);
 
-  // Load menu bar and dock icon states
   useEffect(() => {
     window.electron.getMenuBarIconState().then((enabled) => {
       setMenuBarIconEnabled(enabled);

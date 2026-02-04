@@ -1,11 +1,11 @@
 import React, {
   createContext,
-  useContext,
-  useState,
-  useEffect,
-  useCallback,
-  useRef,
   ReactNode,
+  useCallback,
+  useContext,
+  useEffect,
+  useRef,
+  useState,
 } from 'react';
 
 export type NavigationMode = 'push' | 'overlay';
@@ -30,43 +30,23 @@ export const DEFAULT_ITEM_ORDER = [
 
 export const DEFAULT_ENABLED_ITEMS = [...DEFAULT_ITEM_ORDER];
 
-// Breakpoint for responsive behavior (overlay mode for expanded, icon-only for condensed left/right)
 const RESPONSIVE_BREAKPOINT = 700;
 
 interface NavigationContextValue {
-  // Navigation state
   isNavExpanded: boolean;
   setIsNavExpanded: (expanded: boolean) => void;
-
-  // Mode: push content or overlay (user preference)
   navigationMode: NavigationMode;
   setNavigationMode: (mode: NavigationMode) => void;
-
-  // Effective mode: accounts for responsive breakpoints
   effectiveNavigationMode: NavigationMode;
-
-  // Style: expanded tiles or condensed list (user preference)
   navigationStyle: NavigationStyle;
   setNavigationStyle: (style: NavigationStyle) => void;
-
-  // Effective style: overlay mode forces expanded
   effectiveNavigationStyle: NavigationStyle;
-
-  // Position: where nav appears
   navigationPosition: NavigationPosition;
   setNavigationPosition: (position: NavigationPosition) => void;
-
-  // Item customization
   preferences: NavigationPreferences;
   updatePreferences: (prefs: NavigationPreferences) => void;
-
-  // Helpers
   isHorizontalNav: boolean;
-
-  // Whether condensed nav should show icon-only (small screens + left/right position)
   isCondensedIconOnly: boolean;
-
-  // Chat sessions list expansion state
   isChatExpanded: boolean;
   setIsChatExpanded: (expanded: boolean) => void;
 }
@@ -83,8 +63,7 @@ export const useNavigationContext = () => {
 
 // Safe hook that returns defaults if outside provider
 export const useNavigationContextSafe = () => {
-  const context = useContext(NavigationContext);
-  return context;
+  return useContext(NavigationContext);
 };
 
 interface NavigationProviderProps {
@@ -92,13 +71,11 @@ interface NavigationProviderProps {
 }
 
 export const NavigationProvider: React.FC<NavigationProviderProps> = ({ children }) => {
-  // Load initial state from localStorage
   const [isNavExpanded, setIsNavExpandedState] = useState<boolean>(() => {
     const stored = localStorage.getItem('navigation_expanded');
     return stored === 'true';
   });
 
-  // Track if window is below breakpoint for responsive behavior (using matchMedia like use-mobile.ts)
   const [isBelowBreakpoint, setIsBelowBreakpoint] = useState<boolean>(
     () => window.innerWidth < RESPONSIVE_BREAKPOINT
   );
@@ -138,7 +115,6 @@ export const NavigationProvider: React.FC<NavigationProviderProps> = ({ children
     return stored !== 'false';
   });
 
-  // Track window resize using matchMedia (more reliable than resize event)
   useEffect(() => {
     const mql = window.matchMedia(`(max-width: ${RESPONSIVE_BREAKPOINT - 1}px)`);
     const onChange = () => {
@@ -146,12 +122,10 @@ export const NavigationProvider: React.FC<NavigationProviderProps> = ({ children
       setIsBelowBreakpoint(below);
     };
     mql.addEventListener('change', onChange);
-    // Set initial value
     setIsBelowBreakpoint(window.innerWidth < RESPONSIVE_BREAKPOINT);
     return () => mql.removeEventListener('change', onChange);
   }, []);
 
-  // Persist changes to localStorage and dispatch events
   const setIsNavExpanded = useCallback((expanded: boolean) => {
     setIsNavExpandedState(expanded);
     localStorage.setItem('navigation_expanded', String(expanded));
@@ -202,7 +176,6 @@ export const NavigationProvider: React.FC<NavigationProviderProps> = ({ children
     };
   }, [setIsNavExpanded]);
 
-  // Listen for external changes (e.g., from settings in another window)
   useEffect(() => {
     const handleModeChange = (e: Event) => {
       const { mode } = (e as CustomEvent).detail;
@@ -235,17 +208,10 @@ export const NavigationProvider: React.FC<NavigationProviderProps> = ({ children
   }, []);
 
   const isHorizontalNav = navigationPosition === 'top' || navigationPosition === 'bottom';
-
-  // Force overlay mode for expanded navigation when window is narrow
   const effectiveNavigationMode: NavigationMode =
     navigationStyle === 'expanded' && isBelowBreakpoint ? 'overlay' : navigationMode;
-
-  // Force expanded style when overlay mode is selected (overlay is always expanded and centered)
   const effectiveNavigationStyle: NavigationStyle =
     navigationMode === 'overlay' ? 'expanded' : navigationStyle;
-
-  // Condensed nav should show icon-only on small screens when positioned left/right
-  // Uses the same breakpoint as expanded overlay
   const isCondensedIconOnly = !isHorizontalNav && isBelowBreakpoint;
 
   const value: NavigationContextValue = {
