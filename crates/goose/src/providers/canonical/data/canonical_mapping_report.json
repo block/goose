@@ -1,6 +1,18 @@
 {
-  "timestamp": "2026-02-03T00:38:43.150867902+00:00",
+  "timestamp": "2026-02-04T17:11:39.018061820+00:00",
   "unmapped_models": [
+    {
+      "provider": "anthropic",
+      "model": "claude-cobbler-eap-cc"
+    },
+    {
+      "provider": "anthropic",
+      "model": "claude-fudge-eap"
+    },
+    {
+      "provider": "anthropic",
+      "model": "claude-fudge-eap-cc"
+    },
     {
       "provider": "google",
       "model": "aqa"
@@ -2751,18 +2763,6 @@
     },
     {
       "provider": "openrouter",
-      "model": "nvidia/nemotron-3-nano-30b-a3b:free"
-    },
-    {
-      "provider": "openrouter",
-      "model": "nvidia/nemotron-nano-12b-v2-vl:free"
-    },
-    {
-      "provider": "openrouter",
-      "model": "nvidia/nemotron-nano-9b-v2:free"
-    },
-    {
-      "provider": "openrouter",
       "model": "openai/gpt-3.5-turbo"
     },
     {
@@ -2824,14 +2824,6 @@
     {
       "provider": "openrouter",
       "model": "openai/gpt-5-image-mini"
-    },
-    {
-      "provider": "openrouter",
-      "model": "openai/gpt-oss-120b:free"
-    },
-    {
-      "provider": "openrouter",
-      "model": "openai/gpt-oss-20b:free"
     },
     {
       "provider": "openrouter",
@@ -2931,19 +2923,15 @@
     },
     {
       "provider": "openrouter",
-      "model": "qwen/qwen3-4b:free"
-    },
-    {
-      "provider": "openrouter",
       "model": "qwen/qwen3-8b"
     },
     {
       "provider": "openrouter",
-      "model": "qwen/qwen3-coder-plus"
+      "model": "qwen/qwen3-coder-next"
     },
     {
       "provider": "openrouter",
-      "model": "qwen/qwen3-next-80b-a3b-instruct:free"
+      "model": "qwen/qwen3-coder-plus"
     },
     {
       "provider": "openrouter",
@@ -3011,10 +2999,6 @@
     },
     {
       "provider": "openrouter",
-      "model": "tngtech/tng-r1t-chimera:free"
-    },
-    {
-      "provider": "openrouter",
       "model": "upstage/solar-pro-3:free"
     },
     {
@@ -3028,10 +3012,6 @@
     {
       "provider": "openrouter",
       "model": "z-ai/glm-4.6v"
-    },
-    {
-      "provider": "openrouter",
-      "model": "z-ai/glm-4.7-flash"
     },
     {
       "provider": "xai",
@@ -3579,8 +3559,20 @@
         "canonical_model": "openrouter/nousresearch/hermes-4-70b"
       },
       {
+        "provider_model": "nvidia/nemotron-3-nano-30b-a3b:free",
+        "canonical_model": "openrouter/nvidia/nemotron-3-nano-30b-a3b:free"
+      },
+      {
+        "provider_model": "nvidia/nemotron-nano-12b-v2-vl:free",
+        "canonical_model": "openrouter/nvidia/nemotron-nano-12b-v2-vl:free"
+      },
+      {
         "provider_model": "nvidia/nemotron-nano-9b-v2",
         "canonical_model": "openrouter/nvidia/nemotron-nano-9b-v2"
+      },
+      {
+        "provider_model": "nvidia/nemotron-nano-9b-v2:free",
+        "canonical_model": "openrouter/nvidia/nemotron-nano-9b-v2:free"
       },
       {
         "provider_model": "openai/gpt-4.1",
@@ -3667,8 +3659,16 @@
         "canonical_model": "openrouter/openai/gpt-oss-120b:exacto"
       },
       {
+        "provider_model": "openai/gpt-oss-120b:free",
+        "canonical_model": "openrouter/openai/gpt-oss-120b:free"
+      },
+      {
         "provider_model": "openai/gpt-oss-20b",
         "canonical_model": "openrouter/openai/gpt-oss-20b"
+      },
+      {
+        "provider_model": "openai/gpt-oss-20b:free",
+        "canonical_model": "openrouter/openai/gpt-oss-20b:free"
       },
       {
         "provider_model": "openai/gpt-oss-safeguard-20b",
@@ -3689,6 +3689,10 @@
       {
         "provider_model": "qwen/qwen3-30b-a3b-thinking-2507",
         "canonical_model": "openrouter/qwen/qwen3-30b-a3b-thinking"
+      },
+      {
+        "provider_model": "qwen/qwen3-4b:free",
+        "canonical_model": "openrouter/qwen/qwen3-4b:free"
       },
       {
         "provider_model": "qwen/qwen3-coder",
@@ -3719,8 +3723,16 @@
         "canonical_model": "openrouter/qwen/qwen3-next-80b-a3b-instruct"
       },
       {
+        "provider_model": "qwen/qwen3-next-80b-a3b-instruct:free",
+        "canonical_model": "openrouter/qwen/qwen3-next-80b-a3b-instruct:free"
+      },
+      {
         "provider_model": "qwen/qwen3-next-80b-a3b-thinking",
         "canonical_model": "openrouter/qwen/qwen3-next-80b-a3b-thinking"
+      },
+      {
+        "provider_model": "tngtech/tng-r1t-chimera:free",
+        "canonical_model": "openrouter/tngtech/tng-r1t-chimera:free"
       },
       {
         "provider_model": "x-ai/grok-3",
@@ -3781,6 +3793,10 @@
       {
         "provider_model": "z-ai/glm-4.7",
         "canonical_model": "openrouter/z-ai/glm-4.7"
+      },
+      {
+        "provider_model": "z-ai/glm-4.7-flash",
+        "canonical_model": "openrouter/z-ai/glm-4.7-flash"
       }
     ],
     "tetrate": [],
@@ -4607,8 +4623,26 @@
     },
     {
       "provider": "openrouter",
+      "model": "nvidia/nemotron-3-nano-30b-a3b:free",
+      "canonical": "openrouter/nvidia/nemotron-3-nano-30b-a3b:free",
+      "recommended": true
+    },
+    {
+      "provider": "openrouter",
+      "model": "nvidia/nemotron-nano-12b-v2-vl:free",
+      "canonical": "openrouter/nvidia/nemotron-nano-12b-v2-vl:free",
+      "recommended": true
+    },
+    {
+      "provider": "openrouter",
       "model": "nvidia/nemotron-nano-9b-v2",
       "canonical": "openrouter/nvidia/nemotron-nano-9b-v2",
+      "recommended": true
+    },
+    {
+      "provider": "openrouter",
+      "model": "nvidia/nemotron-nano-9b-v2:free",
+      "canonical": "openrouter/nvidia/nemotron-nano-9b-v2:free",
       "recommended": true
     },
     {
@@ -4739,8 +4773,20 @@
     },
     {
       "provider": "openrouter",
+      "model": "openai/gpt-oss-120b:free",
+      "canonical": "openrouter/openai/gpt-oss-120b:free",
+      "recommended": true
+    },
+    {
+      "provider": "openrouter",
       "model": "openai/gpt-oss-20b",
       "canonical": "openrouter/openai/gpt-oss-20b",
+      "recommended": true
+    },
+    {
+      "provider": "openrouter",
+      "model": "openai/gpt-oss-20b:free",
+      "canonical": "openrouter/openai/gpt-oss-20b:free",
       "recommended": true
     },
     {
@@ -4771,6 +4817,12 @@
       "provider": "openrouter",
       "model": "qwen/qwen3-30b-a3b-thinking-2507",
       "canonical": "openrouter/qwen/qwen3-30b-a3b-thinking",
+      "recommended": true
+    },
+    {
+      "provider": "openrouter",
+      "model": "qwen/qwen3-4b:free",
+      "canonical": "openrouter/qwen/qwen3-4b:free",
       "recommended": true
     },
     {
@@ -4817,8 +4869,20 @@
     },
     {
       "provider": "openrouter",
+      "model": "qwen/qwen3-next-80b-a3b-instruct:free",
+      "canonical": "openrouter/qwen/qwen3-next-80b-a3b-instruct:free",
+      "recommended": true
+    },
+    {
+      "provider": "openrouter",
       "model": "qwen/qwen3-next-80b-a3b-thinking",
       "canonical": "openrouter/qwen/qwen3-next-80b-a3b-thinking",
+      "recommended": true
+    },
+    {
+      "provider": "openrouter",
+      "model": "tngtech/tng-r1t-chimera:free",
+      "canonical": "openrouter/tngtech/tng-r1t-chimera:free",
       "recommended": true
     },
     {
@@ -4912,6 +4976,12 @@
       "recommended": true
     },
     {
+      "provider": "openrouter",
+      "model": "z-ai/glm-4.7-flash",
+      "canonical": "openrouter/z-ai/glm-4.7-flash",
+      "recommended": true
+    },
+    {
       "provider": "xai",
       "model": "grok-2-vision-1212",
       "canonical": "x-ai/grok-2-vision",
@@ -4967,14 +5037,14 @@
     }
   ],
   "model_counts": {
-    "anthropic": 9,
+    "anthropic": 12,
     "aws_bedrock": 0,
     "azure_openai": 0,
     "databricks": 0,
     "gcp_vertex_ai": 0,
     "google": 47,
     "openai": 653,
-    "openrouter": 230,
+    "openrouter": 231,
     "tetrate": 0,
     "venice": 0,
     "xai": 12
@@ -5082,7 +5152,10 @@
     "openrouter/moonshotai/kimi-k2-thinking",
     "openrouter/moonshotai/kimi-k2.5",
     "openrouter/nousresearch/hermes-4-70b",
+    "openrouter/nvidia/nemotron-3-nano-30b-a3b:free",
+    "openrouter/nvidia/nemotron-nano-12b-v2-vl:free",
     "openrouter/nvidia/nemotron-nano-9b-v2",
+    "openrouter/nvidia/nemotron-nano-9b-v2:free",
     "openrouter/openai/gpt-4.1",
     "openrouter/openai/gpt-4.1-mini",
     "openrouter/openai/gpt-4o-mini",
@@ -5103,12 +5176,15 @@
     "openrouter/openai/gpt-5.2-pro",
     "openrouter/openai/gpt-oss-120b",
     "openrouter/openai/gpt-oss-120b:exacto",
+    "openrouter/openai/gpt-oss-120b:free",
     "openrouter/openai/gpt-oss-20b",
+    "openrouter/openai/gpt-oss-20b:free",
     "openrouter/openai/gpt-oss-safeguard-20b",
     "openrouter/openai/o4-mini",
     "openrouter/qwen/qwen3-235b-a22b-thinking",
     "openrouter/qwen/qwen3-30b-a3b-instruct",
     "openrouter/qwen/qwen3-30b-a3b-thinking",
+    "openrouter/qwen/qwen3-4b:free",
     "openrouter/qwen/qwen3-coder",
     "openrouter/qwen/qwen3-coder-30b-a3b-instruct",
     "openrouter/qwen/qwen3-coder-flash",
@@ -5116,7 +5192,9 @@
     "openrouter/qwen/qwen3-coder:free",
     "openrouter/qwen/qwen3-max",
     "openrouter/qwen/qwen3-next-80b-a3b-instruct",
+    "openrouter/qwen/qwen3-next-80b-a3b-instruct:free",
     "openrouter/qwen/qwen3-next-80b-a3b-thinking",
+    "openrouter/tngtech/tng-r1t-chimera:free",
     "openrouter/x-ai/grok-3",
     "openrouter/x-ai/grok-3-beta",
     "openrouter/x-ai/grok-3-mini",
@@ -5132,6 +5210,7 @@
     "openrouter/z-ai/glm-4.6",
     "openrouter/z-ai/glm-4.6:exacto",
     "openrouter/z-ai/glm-4.7",
+    "openrouter/z-ai/glm-4.7-flash",
     "x-ai/grok-2-vision",
     "x-ai/grok-3",
     "x-ai/grok-3-mini",

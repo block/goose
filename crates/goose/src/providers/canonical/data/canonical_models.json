@@ -58,36 +58,6 @@
     }
   },
   {
-    "id": "amazon-bedrock/amazon.nova-2-lite-v1:0",
-    "name": "Nova 2 Lite",
-    "family": "nova",
-    "attachment": false,
-    "reasoning": false,
-    "tool_call": true,
-    "temperature": true,
-    "release_date": "2024-12-01",
-    "last_updated": "2024-12-01",
-    "modalities": {
-      "input": [
-        "text",
-        "image",
-        "video"
-      ],
-      "output": [
-        "text"
-      ]
-    },
-    "open_weights": false,
-    "cost": {
-      "input": 0.33,
-      "output": 2.75
-    },
-    "limit": {
-      "context": 128000,
-      "output": 4096
-    }
-  },
-  {
     "id": "amazon-bedrock/amazon.nova-lite-v1:0",
     "name": "Nova Lite",
     "family": "nova-lite",
@@ -150,37 +120,6 @@
     }
   },
   {
-    "id": "amazon-bedrock/amazon.nova-premier-v1:0",
-    "name": "Nova Premier",
-    "family": "nova",
-    "attachment": true,
-    "reasoning": true,
-    "tool_call": true,
-    "temperature": true,
-    "knowledge": "2024-10",
-    "release_date": "2024-12-03",
-    "last_updated": "2024-12-03",
-    "modalities": {
-      "input": [
-        "text",
-        "image",
-        "video"
-      ],
-      "output": [
-        "text"
-      ]
-    },
-    "open_weights": false,
-    "cost": {
-      "input": 2.5,
-      "output": 12.5
-    },
-    "limit": {
-      "context": 1000000,
-      "output": 16384
-    }
-  },
-  {
     "id": "amazon-bedrock/amazon.nova-pro-v1:0",
     "name": "Nova Pro",
     "family": "nova-pro",
@@ -210,62 +149,6 @@
     "limit": {
       "context": 300000,
       "output": 8192
-    }
-  },
-  {
-    "id": "amazon-bedrock/amazon.titan-text-express-v1",
-    "name": "Titan Text G1 - Express",
-    "family": "titan",
-    "attachment": false,
-    "reasoning": false,
-    "tool_call": true,
-    "temperature": true,
-    "release_date": "2024-12-01",
-    "last_updated": "2024-12-01",
-    "modalities": {
-      "input": [
-        "text"
-      ],
-      "output": [
-        "text"
-      ]
-    },
-    "open_weights": false,
-    "cost": {
-      "input": 0.2,
-      "output": 0.6
-    },
-    "limit": {
-      "context": 128000,
-      "output": 4096
-    }
-  },
-  {
-    "id": "amazon-bedrock/amazon.titan-text-express-v1:0:8k",
-    "name": "Titan Text G1 - Express",
-    "family": "titan",
-    "attachment": false,
-    "reasoning": false,
-    "tool_call": true,
-    "temperature": true,
-    "release_date": "2024-12-01",
-    "last_updated": "2024-12-01",
-    "modalities": {
-      "input": [
-        "text"
-      ],
-      "output": [
-        "text"
-      ]
-    },
-    "open_weights": false,
-    "cost": {
-      "input": 0.2,
-      "output": 0.6
-    },
-    "limit": {
-      "context": 128000,
-      "output": 4096
     }
   },
   {
@@ -461,353 +344,6 @@
     }
   },
   {
-    "id": "amazon-bedrock/anthropic.claude-3.7-sonnet-20250219-v1:0",
-    "name": "Claude Sonnet 3.7",
-    "family": "claude-sonnet",
-    "attachment": true,
-    "reasoning": false,
-    "tool_call": true,
-    "temperature": true,
-    "knowledge": "2024-04",
-    "release_date": "2025-02-19",
-    "last_updated": "2025-02-19",
-    "modalities": {
-      "input": [
-        "text",
-        "image",
-        "pdf"
-      ],
-      "output": [
-        "text"
-      ]
-    },
-    "open_weights": false,
-    "cost": {
-      "input": 3.0,
-      "output": 15.0,
-      "cache_read": 0.3,
-      "cache_write": 3.75
-    },
-    "limit": {
-      "context": 200000,
-      "output": 8192
-    }
-  },
-  {
-    "id": "amazon-bedrock/anthropic.claude-haiku-4.5-20251001-v1:0",
-    "name": "Claude Haiku 4.5",
-    "family": "claude-haiku",
-    "attachment": true,
-    "reasoning": true,
-    "tool_call": true,
-    "temperature": true,
-    "knowledge": "2025-02-28",
-    "release_date": "2025-10-15",
-    "last_updated": "2025-10-15",
-    "modalities": {
-      "input": [
-        "text",
-        "image",
-        "pdf"
-      ],
-      "output": [
-        "text"
-      ]
-    },
-    "open_weights": false,
-    "cost": {
-      "input": 1.0,
-      "output": 5.0,
-      "cache_read": 0.1,
-      "cache_write": 1.25
-    },
-    "limit": {
-      "context": 200000,
-      "output": 64000
-    }
-  },
-  {
-    "id": "amazon-bedrock/anthropic.claude-instant-v1",
-    "name": "Claude Instant",
-    "family": "claude",
-    "attachment": false,
-    "reasoning": false,
-    "tool_call": false,
-    "temperature": true,
-    "knowledge": "2023-08",
-    "release_date": "2023-03-01",
-    "last_updated": "2023-03-01",
-    "modalities": {
-      "input": [
-        "text"
-      ],
-      "output": [
-        "text"
-      ]
-    },
-    "open_weights": false,
-    "cost": {
-      "input": 0.8,
-      "output": 2.4
-    },
-    "limit": {
-      "context": 100000,
-      "output": 4096
-    }
-  },
-  {
-    "id": "amazon-bedrock/anthropic.claude-opus-4-20250514-v1:0",
-    "name": "Claude Opus 4",
-    "family": "claude-opus",
-    "attachment": true,
-    "reasoning": true,
-    "tool_call": true,
-    "temperature": true,
-    "knowledge": "2024-04",
-    "release_date": "2025-05-22",
-    "last_updated": "2025-05-22",
-    "modalities": {
-      "input": [
-        "text",
-        "image",
-        "pdf"
-      ],
-      "output": [
-        "text"
-      ]
-    },
-    "open_weights": false,
-    "cost": {
-      "input": 15.0,
-      "output": 75.0,
-      "cache_read": 1.5,
-      "cache_write": 18.75
-    },
-    "limit": {
-      "context": 200000,
-      "output": 32000
-    }
-  },
-  {
-    "id": "amazon-bedrock/anthropic.claude-opus-4.1-20250805-v1:0",
-    "name": "Claude Opus 4.1",
-    "family": "claude-opus",
-    "attachment": true,
-    "reasoning": true,
-    "tool_call": true,
-    "temperature": true,
-    "knowledge": "2025-03-31",
-    "release_date": "2025-08-05",
-    "last_updated": "2025-08-05",
-    "modalities": {
-      "input": [
-        "text",
-        "image",
-        "pdf"
-      ],
-      "output": [
-        "text"
-      ]
-    },
-    "open_weights": false,
-    "cost": {
-      "input": 15.0,
-      "output": 75.0,
-      "cache_read": 1.5,
-      "cache_write": 18.75
-    },
-    "limit": {
-      "context": 200000,
-      "output": 32000
-    }
-  },
-  {
-    "id": "amazon-bedrock/anthropic.claude-opus-4.5-20251101-v1:0",
-    "name": "Claude Opus 4.5",
-    "family": "claude-opus",
-    "attachment": true,
-    "reasoning": true,
-    "tool_call": true,
-    "temperature": true,
-    "knowledge": "2025-03-31",
-    "release_date": "2025-11-24",
-    "last_updated": "2025-08-01",
-    "modalities": {
-      "input": [
-        "text",
-        "image",
-        "pdf"
-      ],
-      "output": [
-        "text"
-      ]
-    },
-    "open_weights": false,
-    "cost": {
-      "input": 5.0,
-      "output": 25.0,
-      "cache_read": 0.5,
-      "cache_write": 6.25
-    },
-    "limit": {
-      "context": 200000,
-      "output": 64000
-    }
-  },
-  {
-    "id": "amazon-bedrock/anthropic.claude-sonnet-4-20250514-v1:0",
-    "name": "Claude Sonnet 4",
-    "family": "claude-sonnet",
-    "attachment": true,
-    "reasoning": true,
-    "tool_call": true,
-    "temperature": true,
-    "knowledge": "2024-04",
-    "release_date": "2025-05-22",
-    "last_updated": "2025-05-22",
-    "modalities": {
-      "input": [
-        "text",
-        "image",
-        "pdf"
-      ],
-      "output": [
-        "text"
-      ]
-    },
-    "open_weights": false,
-    "cost": {
-      "input": 3.0,
-      "output": 15.0,
-      "cache_read": 0.3,
-      "cache_write": 3.75
-    },
-    "limit": {
-      "context": 200000,
-      "output": 64000
-    }
-  },
-  {
-    "id": "amazon-bedrock/anthropic.claude-sonnet-4.5-20250929-v1:0",
-    "name": "Claude Sonnet 4.5",
-    "family": "claude-sonnet",
-    "attachment": true,
-    "reasoning": true,
-    "tool_call": true,
-    "temperature": true,
-    "knowledge": "2025-07-31",
-    "release_date": "2025-09-29",
-    "last_updated": "2025-09-29",
-    "modalities": {
-      "input": [
-        "text",
-        "image",
-        "pdf"
-      ],
-      "output": [
-        "text"
-      ]
-    },
-    "open_weights": false,
-    "cost": {
-      "input": 3.0,
-      "output": 15.0,
-      "cache_read": 0.3,
-      "cache_write": 3.75
-    },
-    "limit": {
-      "context": 200000,
-      "output": 64000
-    }
-  },
-  {
-    "id": "amazon-bedrock/anthropic.claude-v2",
-    "name": "Claude 2",
-    "family": "claude",
-    "attachment": false,
-    "reasoning": false,
-    "tool_call": false,
-    "temperature": true,
-    "knowledge": "2023-08",
-    "release_date": "2023-07-11",
-    "last_updated": "2023-07-11",
-    "modalities": {
-      "input": [
-        "text"
-      ],
-      "output": [
-        "text"
-      ]
-    },
-    "open_weights": false,
-    "cost": {
-      "input": 8.0,
-      "output": 24.0
-    },
-    "limit": {
-      "context": 100000,
-      "output": 4096
-    }
-  },
-  {
-    "id": "amazon-bedrock/anthropic.claude-v2:1",
-    "name": "Claude 2.1",
-    "family": "claude",
-    "attachment": false,
-    "reasoning": false,
-    "tool_call": false,
-    "temperature": true,
-    "knowledge": "2023-08",
-    "release_date": "2023-11-21",
-    "last_updated": "2023-11-21",
-    "modalities": {
-      "input": [
-        "text"
-      ],
-      "output": [
-        "text"
-      ]
-    },
-    "open_weights": false,
-    "cost": {
-      "input": 8.0,
-      "output": 24.0
-    },
-    "limit": {
-      "context": 200000,
-      "output": 4096
-    }
-  },
-  {
-    "id": "amazon-bedrock/cohere.command-light-text-v14",
-    "name": "Command Light",
-    "family": "command-light",
-    "attachment": false,
-    "reasoning": false,
-    "tool_call": false,
-    "temperature": true,
-    "knowledge": "2023-08",
-    "release_date": "2023-11-01",
-    "last_updated": "2023-11-01",
-    "modalities": {
-      "input": [
-        "text"
-      ],
-      "output": [
-        "text"
-      ]
-    },
-    "open_weights": true,
-    "cost": {
-      "input": 0.3,
-      "output": 0.6
-    },
-    "limit": {
-      "context": 4096,
-      "output": 4096
-    }
-  },
-  {
     "id": "amazon-bedrock/cohere.command-r-plus-v1:0",
     "name": "Command R+",
     "family": "command-r",
@@ -863,64 +399,6 @@
     "limit": {
       "context": 128000,
       "output": 4096
-    }
-  },
-  {
-    "id": "amazon-bedrock/cohere.command-text-v14",
-    "name": "Command",
-    "family": "command",
-    "attachment": false,
-    "reasoning": false,
-    "tool_call": false,
-    "temperature": true,
-    "knowledge": "2023-08",
-    "release_date": "2023-11-01",
-    "last_updated": "2023-11-01",
-    "modalities": {
-      "input": [
-        "text"
-      ],
-      "output": [
-        "text"
-      ]
-    },
-    "open_weights": true,
-    "cost": {
-      "input": 1.5,
-      "output": 2.0
-    },
-    "limit": {
-      "context": 4096,
-      "output": 4096
-    }
-  },
-  {
-    "id": "amazon-bedrock/deepseek.r1-v1:0",
-    "name": "DeepSeek-R1",
-    "family": "deepseek-thinking",
-    "attachment": false,
-    "reasoning": true,
-    "tool_call": true,
-    "temperature": true,
-    "knowledge": "2024-07",
-    "release_date": "2025-01-20",
-    "last_updated": "2025-05-29",
-    "modalities": {
-      "input": [
-        "text"
-      ],
-      "output": [
-        "text"
-      ]
-    },
-    "open_weights": false,
-    "cost": {
-      "input": 1.35,
-      "output": 5.4
-    },
-    "limit": {
-      "context": 128000,
-      "output": 32768
     }
   },
   {
@@ -1364,153 +842,6 @@
     }
   },
   {
-    "id": "amazon-bedrock/meta.llama3-2-11b-instruct-v1:0",
-    "name": "Llama 3.2 11B Instruct",
-    "family": "llama",
-    "attachment": true,
-    "reasoning": false,
-    "tool_call": true,
-    "temperature": true,
-    "knowledge": "2023-12",
-    "release_date": "2024-09-25",
-    "last_updated": "2024-09-25",
-    "modalities": {
-      "input": [
-        "text",
-        "image"
-      ],
-      "output": [
-        "text"
-      ]
-    },
-    "open_weights": true,
-    "cost": {
-      "input": 0.16,
-      "output": 0.16
-    },
-    "limit": {
-      "context": 128000,
-      "output": 4096
-    }
-  },
-  {
-    "id": "amazon-bedrock/meta.llama3-2-1b-instruct-v1:0",
-    "name": "Llama 3.2 1B Instruct",
-    "family": "llama",
-    "attachment": false,
-    "reasoning": false,
-    "tool_call": true,
-    "temperature": true,
-    "knowledge": "2023-12",
-    "release_date": "2024-09-25",
-    "last_updated": "2024-09-25",
-    "modalities": {
-      "input": [
-        "text"
-      ],
-      "output": [
-        "text"
-      ]
-    },
-    "open_weights": true,
-    "cost": {
-      "input": 0.1,
-      "output": 0.1
-    },
-    "limit": {
-      "context": 131000,
-      "output": 4096
-    }
-  },
-  {
-    "id": "amazon-bedrock/meta.llama3-2-3b-instruct-v1:0",
-    "name": "Llama 3.2 3B Instruct",
-    "family": "llama",
-    "attachment": false,
-    "reasoning": false,
-    "tool_call": true,
-    "temperature": true,
-    "knowledge": "2023-12",
-    "release_date": "2024-09-25",
-    "last_updated": "2024-09-25",
-    "modalities": {
-      "input": [
-        "text"
-      ],
-      "output": [
-        "text"
-      ]
-    },
-    "open_weights": true,
-    "cost": {
-      "input": 0.15,
-      "output": 0.15
-    },
-    "limit": {
-      "context": 131000,
-      "output": 4096
-    }
-  },
-  {
-    "id": "amazon-bedrock/meta.llama3-2-90b-instruct-v1:0",
-    "name": "Llama 3.2 90B Instruct",
-    "family": "llama",
-    "attachment": true,
-    "reasoning": false,
-    "tool_call": true,
-    "temperature": true,
-    "knowledge": "2023-12",
-    "release_date": "2024-09-25",
-    "last_updated": "2024-09-25",
-    "modalities": {
-      "input": [
-        "text",
-        "image"
-      ],
-      "output": [
-        "text"
-      ]
-    },
-    "open_weights": true,
-    "cost": {
-      "input": 0.72,
-      "output": 0.72
-    },
-    "limit": {
-      "context": 128000,
-      "output": 4096
-    }
-  },
-  {
-    "id": "amazon-bedrock/meta.llama3-3-70b-instruct-v1:0",
-    "name": "Llama 3.3 70B Instruct",
-    "family": "llama",
-    "attachment": false,
-    "reasoning": false,
-    "tool_call": true,
-    "temperature": true,
-    "knowledge": "2023-12",
-    "release_date": "2024-12-06",
-    "last_updated": "2024-12-06",
-    "modalities": {
-      "input": [
-        "text"
-      ],
-      "output": [
-        "text"
-      ]
-    },
-    "open_weights": true,
-    "cost": {
-      "input": 0.72,
-      "output": 0.72
-    },
-    "limit": {
-      "context": 128000,
-      "output": 4096
-    }
-  },
-  {
     "id": "amazon-bedrock/meta.llama3-70b-instruct-v1:0",
     "name": "Llama 3 70B Instruct",
     "family": "llama",
@@ -1566,66 +897,6 @@
     "limit": {
       "context": 8192,
       "output": 2048
-    }
-  },
-  {
-    "id": "amazon-bedrock/meta.llama4-maverick-17b-instruct-v1:0",
-    "name": "Llama 4 Maverick 17B Instruct",
-    "family": "llama",
-    "attachment": true,
-    "reasoning": false,
-    "tool_call": true,
-    "temperature": true,
-    "knowledge": "2024-08",
-    "release_date": "2025-04-05",
-    "last_updated": "2025-04-05",
-    "modalities": {
-      "input": [
-        "text",
-        "image"
-      ],
-      "output": [
-        "text"
-      ]
-    },
-    "open_weights": true,
-    "cost": {
-      "input": 0.24,
-      "output": 0.97
-    },
-    "limit": {
-      "context": 1000000,
-      "output": 16384
-    }
-  },
-  {
-    "id": "amazon-bedrock/meta.llama4-scout-17b-instruct-v1:0",
-    "name": "Llama 4 Scout 17B Instruct",
-    "family": "llama",
-    "attachment": true,
-    "reasoning": false,
-    "tool_call": true,
-    "temperature": true,
-    "knowledge": "2024-08",
-    "release_date": "2025-04-05",
-    "last_updated": "2025-04-05",
-    "modalities": {
-      "input": [
-        "text",
-        "image"
-      ],
-      "output": [
-        "text"
-      ]
-    },
-    "open_weights": true,
-    "cost": {
-      "input": 0.17,
-      "output": 0.66
-    },
-    "limit": {
-      "context": 3500000,
-      "output": 16384
     }
   },
   {
@@ -2224,6 +1495,100 @@
     }
   },
   {
+    "id": "amazon-bedrock/us.amazon.nova-2-lite-v1:0",
+    "name": "Nova 2 Lite (US)",
+    "family": "nova",
+    "attachment": false,
+    "reasoning": false,
+    "tool_call": true,
+    "temperature": true,
+    "release_date": "2024-12-01",
+    "last_updated": "2024-12-01",
+    "modalities": {
+      "input": [
+        "text",
+        "image",
+        "video"
+      ],
+      "output": [
+        "text"
+      ]
+    },
+    "open_weights": false,
+    "cost": {
+      "input": 0.33,
+      "output": 2.75
+    },
+    "limit": {
+      "context": 128000,
+      "output": 4096
+    }
+  },
+  {
+    "id": "amazon-bedrock/us.amazon.nova-premier-v1:0",
+    "name": "Nova Premier (US)",
+    "family": "nova",
+    "attachment": true,
+    "reasoning": true,
+    "tool_call": true,
+    "temperature": true,
+    "knowledge": "2024-10",
+    "release_date": "2024-12-03",
+    "last_updated": "2024-12-03",
+    "modalities": {
+      "input": [
+        "text",
+        "image",
+        "video"
+      ],
+      "output": [
+        "text"
+      ]
+    },
+    "open_weights": false,
+    "cost": {
+      "input": 2.5,
+      "output": 12.5
+    },
+    "limit": {
+      "context": 1000000,
+      "output": 16384
+    }
+  },
+  {
+    "id": "amazon-bedrock/us.anthropic.claude-3.7-sonnet-20250219-v1:0",
+    "name": "Claude Sonnet 3.7 (US)",
+    "family": "claude-sonnet",
+    "attachment": true,
+    "reasoning": false,
+    "tool_call": true,
+    "temperature": true,
+    "knowledge": "2024-04",
+    "release_date": "2025-02-19",
+    "last_updated": "2025-02-19",
+    "modalities": {
+      "input": [
+        "text",
+        "image",
+        "pdf"
+      ],
+      "output": [
+        "text"
+      ]
+    },
+    "open_weights": false,
+    "cost": {
+      "input": 3.0,
+      "output": 15.0,
+      "cache_read": 0.3,
+      "cache_write": 3.75
+    },
+    "limit": {
+      "context": 200000,
+      "output": 8192
+    }
+  },
+  {
     "id": "amazon-bedrock/us.anthropic.claude-haiku-4.5-20251001-v1:0",
     "name": "Claude Haiku 4.5 (US)",
     "family": "claude-haiku",
@@ -2419,6 +1784,242 @@
     "limit": {
       "context": 200000,
       "output": 64000
+    }
+  },
+  {
+    "id": "amazon-bedrock/us.deepseek.r1-v1:0",
+    "name": "DeepSeek-R1 (US)",
+    "family": "deepseek-thinking",
+    "attachment": false,
+    "reasoning": true,
+    "tool_call": true,
+    "temperature": true,
+    "knowledge": "2024-07",
+    "release_date": "2025-01-20",
+    "last_updated": "2025-05-29",
+    "modalities": {
+      "input": [
+        "text"
+      ],
+      "output": [
+        "text"
+      ]
+    },
+    "open_weights": false,
+    "cost": {
+      "input": 1.35,
+      "output": 5.4
+    },
+    "limit": {
+      "context": 128000,
+      "output": 32768
+    }
+  },
+  {
+    "id": "amazon-bedrock/us.meta.llama3-2-11b-instruct-v1:0",
+    "name": "Llama 3.2 11B Instruct (US)",
+    "family": "llama",
+    "attachment": true,
+    "reasoning": false,
+    "tool_call": true,
+    "temperature": true,
+    "knowledge": "2023-12",
+    "release_date": "2024-09-25",
+    "last_updated": "2024-09-25",
+    "modalities": {
+      "input": [
+        "text",
+        "image"
+      ],
+      "output": [
+        "text"
+      ]
+    },
+    "open_weights": true,
+    "cost": {
+      "input": 0.16,
+      "output": 0.16
+    },
+    "limit": {
+      "context": 128000,
+      "output": 4096
+    }
+  },
+  {
+    "id": "amazon-bedrock/us.meta.llama3-2-1b-instruct-v1:0",
+    "name": "Llama 3.2 1B Instruct (US)",
+    "family": "llama",
+    "attachment": false,
+    "reasoning": false,
+    "tool_call": true,
+    "temperature": true,
+    "knowledge": "2023-12",
+    "release_date": "2024-09-25",
+    "last_updated": "2024-09-25",
+    "modalities": {
+      "input": [
+        "text"
+      ],
+      "output": [
+        "text"
+      ]
+    },
+    "open_weights": true,
+    "cost": {
+      "input": 0.1,
+      "output": 0.1
+    },
+    "limit": {
+      "context": 131000,
+      "output": 4096
+    }
+  },
+  {
+    "id": "amazon-bedrock/us.meta.llama3-2-3b-instruct-v1:0",
+    "name": "Llama 3.2 3B Instruct (US)",
+    "family": "llama",
+    "attachment": false,
+    "reasoning": false,
+    "tool_call": true,
+    "temperature": true,
+    "knowledge": "2023-12",
+    "release_date": "2024-09-25",
+    "last_updated": "2024-09-25",
+    "modalities": {
+      "input": [
+        "text"
+      ],
+      "output": [
+        "text"
+      ]
+    },
+    "open_weights": true,
+    "cost": {
+      "input": 0.15,
+      "output": 0.15
+    },
+    "limit": {
+      "context": 131000,
+      "output": 4096
+    }
+  },
+  {
+    "id": "amazon-bedrock/us.meta.llama3-2-90b-instruct-v1:0",
+    "name": "Llama 3.2 90B Instruct (US)",
+    "family": "llama",
+    "attachment": true,
+    "reasoning": false,
+    "tool_call": true,
+    "temperature": true,
+    "knowledge": "2023-12",
+    "release_date": "2024-09-25",
+    "last_updated": "2024-09-25",
+    "modalities": {
+      "input": [
+        "text",
+        "image"
+      ],
+      "output": [
+        "text"
+      ]
+    },
+    "open_weights": true,
+    "cost": {
+      "input": 0.72,
+      "output": 0.72
+    },
+    "limit": {
+      "context": 128000,
+      "output": 4096
+    }
+  },
+  {
+    "id": "amazon-bedrock/us.meta.llama3-3-70b-instruct-v1:0",
+    "name": "Llama 3.3 70B Instruct (US)",
+    "family": "llama",
+    "attachment": false,
+    "reasoning": false,
+    "tool_call": true,
+    "temperature": true,
+    "knowledge": "2023-12",
+    "release_date": "2024-12-06",
+    "last_updated": "2024-12-06",
+    "modalities": {
+      "input": [
+        "text"
+      ],
+      "output": [
+        "text"
+      ]
+    },
+    "open_weights": true,
+    "cost": {
+      "input": 0.72,
+      "output": 0.72
+    },
+    "limit": {
+      "context": 128000,
+      "output": 4096
+    }
+  },
+  {
+    "id": "amazon-bedrock/us.meta.llama4-maverick-17b-instruct-v1:0",
+    "name": "Llama 4 Maverick 17B Instruct (US)",
+    "family": "llama",
+    "attachment": true,
+    "reasoning": false,
+    "tool_call": true,
+    "temperature": true,
+    "knowledge": "2024-08",
+    "release_date": "2025-04-05",
+    "last_updated": "2025-04-05",
+    "modalities": {
+      "input": [
+        "text",
+        "image"
+      ],
+      "output": [
+        "text"
+      ]
+    },
+    "open_weights": true,
+    "cost": {
+      "input": 0.24,
+      "output": 0.97
+    },
+    "limit": {
+      "context": 1000000,
+      "output": 16384
+    }
+  },
+  {
+    "id": "amazon-bedrock/us.meta.llama4-scout-17b-instruct-v1:0",
+    "name": "Llama 4 Scout 17B Instruct (US)",
+    "family": "llama",
+    "attachment": true,
+    "reasoning": false,
+    "tool_call": true,
+    "temperature": true,
+    "knowledge": "2024-08",
+    "release_date": "2025-04-05",
+    "last_updated": "2025-04-05",
+    "modalities": {
+      "input": [
+        "text",
+        "image"
+      ],
+      "output": [
+        "text"
+      ]
+    },
+    "open_weights": true,
+    "cost": {
+      "input": 0.17,
+      "output": 0.66
+    },
+    "limit": {
+      "context": 3500000,
+      "output": 16384
     }
   },
   {
@@ -9165,7 +8766,7 @@
     "family": "allenai",
     "attachment": false,
     "reasoning": true,
-    "tool_call": true,
+    "tool_call": false,
     "temperature": true,
     "knowledge": "2025-06",
     "release_date": "2026-01-09",
@@ -9673,7 +9274,7 @@
     "family": "mistral",
     "attachment": false,
     "reasoning": false,
-    "tool_call": true,
+    "tool_call": false,
     "temperature": true,
     "knowledge": "2025-06",
     "release_date": "2025-07-09",
@@ -10831,7 +10432,7 @@
     "family": "liquid",
     "attachment": false,
     "reasoning": false,
-    "tool_call": true,
+    "tool_call": false,
     "temperature": true,
     "knowledge": "2025-06",
     "release_date": "2026-01-20",
@@ -10860,7 +10461,7 @@
     "family": "liquid",
     "attachment": false,
     "reasoning": true,
-    "tool_call": true,
+    "tool_call": false,
     "temperature": true,
     "knowledge": "2025-06",
     "release_date": "2026-01-20",
@@ -10889,7 +10490,7 @@
     "family": "llama",
     "attachment": true,
     "reasoning": false,
-    "tool_call": true,
+    "tool_call": false,
     "temperature": true,
     "knowledge": "2024-08",
     "release_date": "2024-07-23",
@@ -10948,7 +10549,7 @@
     "family": "llama",
     "attachment": true,
     "reasoning": false,
-    "tool_call": true,
+    "tool_call": false,
     "temperature": true,
     "knowledge": "2023-12",
     "release_date": "2024-09-25",
@@ -11770,7 +11371,7 @@
     "family": "hermes",
     "attachment": false,
     "reasoning": true,
-    "tool_call": true,
+    "tool_call": false,
     "temperature": true,
     "knowledge": "2023-12",
     "release_date": "2024-08-16",
@@ -13782,7 +13383,7 @@
     "family": "tngtech",
     "attachment": false,
     "reasoning": true,
-    "tool_call": false,
+    "tool_call": true,
     "temperature": true,
     "knowledge": "2025-07",
     "release_date": "2025-11-26",
