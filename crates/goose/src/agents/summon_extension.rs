@@ -360,7 +360,7 @@ impl SummonClient {
              - `extensions`: Limit which extensions the subagent can use\n\
              - `provider`, `model`, `temperature`: Override model/provider settings\n\
              - `async`: Run in background (default: false)\n\n\
-             For parallel execution, make multiple delegate calls in the same message.\n\
+             Parallel execution requires `async: true`.\n\
              Background tasks report status automatically in context."
                 .to_string(),
             schema.as_object().unwrap().clone(),

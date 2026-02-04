@@ -204,13 +204,28 @@ prompt: |
 
   ### Parallel Delegate Test
   {% if parallel_tests == "true" %}
-  Create 3 delegate calls simultaneously (parallel execution) in a single message:
-  1. `delegate(instructions: "Count Python files in current directory and report the count")`
-  2. `delegate(instructions: "Get current date and time using shell command")`
-  3. `delegate(instructions: "Create a file called parallel_test.txt with content 'Parallel delegate'")`
+  **Important**: Synchronous delegates always run in serial, even when called in the same tool call message.
+  Async delegates (`async: true`) run in parallel when called in the same tool call message.
 
-  Make all three `delegate` tool calls at once to execute them in parallel.
-  Verify all three complete and return results.
+  First, test sync delegates (will run sequentially):
+  Make these 3 delegate calls in a single message:
+  1. `delegate(instructions: "Sleep 2 seconds, then create /tmp/sync_parallel_1.txt with timestamp from 'date +%H:%M:%S'")`
+  2. `delegate(instructions: "Sleep 2 seconds, then create /tmp/sync_parallel_2.txt with timestamp from 'date +%H:%M:%S'")`
+  3. `delegate(instructions: "Sleep 2 seconds, then create /tmp/sync_parallel_3.txt with timestamp from 'date +%H:%M:%S'")`
+
+  After completion, check timestamps: `cat /tmp/sync_parallel_*.txt`
+  **Expected**: Timestamps should be ~6+ seconds apart (sequential execution).
+
+  Then, test async delegates (will run in parallel):
+  Make these 3 delegate calls in a single message:
+  1. `delegate(instructions: "Sleep 2 seconds, then create /tmp/async_parallel_1.txt with timestamp from 'date +%H:%M:%S'", async: true)`
+  2. `delegate(instructions: "Sleep 2 seconds, then create /tmp/async_parallel_2.txt with timestamp from 'date +%H:%M:%S'", async: true)`
+  3. `delegate(instructions: "Sleep 2 seconds, then create /tmp/async_parallel_3.txt with timestamp from 'date +%H:%M:%S'", async: true)`
+
+  Wait for tasks to complete (sleep 10 seconds), then check timestamps: `cat /tmp/async_parallel_*.txt`
+  **Expected**: Timestamps should be within ~5 seconds of each other (parallel execution).
+
+  Document both results to validate the parallel execution behavior.
   {% endif %}
 
   ### Async Delegate Test (Background Execution)
