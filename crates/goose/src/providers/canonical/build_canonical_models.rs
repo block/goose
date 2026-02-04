@@ -408,11 +408,8 @@ async fn build_canonical_models() -> Result<()> {
             );
 
             for (model_id, model_data) in models {
-                // Skip models without pricing information
-                let cost_data = match model_data.get("cost") {
-                    Some(c) if !c.is_null() => c,
-                    _ => continue,
-                };
+                // Get cost data if available (optional for catalog providers)
+                let cost_data = model_data.get("cost");
 
                 let name = model_data["name"]
                     .as_str()
@@ -486,11 +483,20 @@ async fn build_canonical_models() -> Result<()> {
 
                 let open_weights = model_data.get("open_weights").and_then(|v| v.as_bool());
 
-                let cost = Pricing {
-                    input: cost_data.get("input").and_then(|v| v.as_f64()),
-                    output: cost_data.get("output").and_then(|v| v.as_f64()),
-                    cache_read: cost_data.get("cache_read").and_then(|v| v.as_f64()),
-                    cache_write: cost_data.get("cache_write").and_then(|v| v.as_f64()),
+                let cost = if let Some(c) = cost_data {
+                    Pricing {
+                        input: c.get("input").and_then(|v| v.as_f64()),
+                        output: c.get("output").and_then(|v| v.as_f64()),
+                        cache_read: c.get("cache_read").and_then(|v| v.as_f64()),
+                        cache_write: c.get("cache_write").and_then(|v| v.as_f64()),
+                    }
+                } else {
+                    Pricing {
+                        input: None,
+                        output: None,
+                        cache_read: None,
+                        cache_write: None,
+                    }
                 };
 
                 let limit = Limit {

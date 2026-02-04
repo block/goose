@@ -240,7 +240,7 @@
     "env": [
       "SILICONFLOW_CN_API_KEY"
     ],
-    "model_count": 72
+    "model_count": 73
   },
   {
     "id": "vivgrid",
@@ -328,7 +328,7 @@
     "env": [
       "SILICONFLOW_API_KEY"
     ],
-    "model_count": 74
+    "model_count": 75
   },
   {
     "id": "helicone",
@@ -384,6 +384,18 @@
       "MINIMAX_API_KEY"
     ],
     "model_count": 2
+  },
+  {
+    "id": "cloudflare-workers-ai",
+    "display_name": "Cloudflare Workers AI",
+    "npm": "@ai-sdk/openai-compatible",
+    "api": "https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/ai/v1",
+    "doc": "https://developers.cloudflare.com/workers-ai/models/",
+    "env": [
+      "CLOUDFLARE_ACCOUNT_ID",
+      "CLOUDFLARE_API_KEY"
+    ],
+    "model_count": 39
   },
   {
     "id": "inception",
@@ -452,17 +464,6 @@
       "MINIMAX_API_KEY"
     ],
     "model_count": 2
-  },
-  {
-    "id": "openrouter",
-    "display_name": "OpenRouter",
-    "npm": "@ai-sdk/openai-compatible",
-    "api": "https://openrouter.ai/api/v1",
-    "doc": "https://openrouter.ai/models",
-    "env": [
-      "OPENROUTER_API_KEY"
-    ],
-    "model_count": 173
   },
   {
     "id": "zenmux",
