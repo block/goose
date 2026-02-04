@@ -36,7 +36,7 @@ const DEFAULT_TIMEOUT_SECS: u64 = 600;
 
 const DATABRICKS_PROVIDER_NAME: &str = "databricks";
 pub const DATABRICKS_DEFAULT_MODEL: &str = "databricks-claude-sonnet-4";
-const DATABRICKS_DEFAULT_FAST_MODEL: &str = "claude-haiku-4-5";
+const DATABRICKS_DEFAULT_FAST_MODEL: &str = "databricks-claude-haiku-4-5";
 pub const DATABRICKS_KNOWN_MODELS: &[&str] = &[
     "databricks-claude-sonnet-4-5",
     "databricks-claude-3-7-sonnet",
