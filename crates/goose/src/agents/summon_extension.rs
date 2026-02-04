@@ -182,9 +182,9 @@ fn parse_agent_content(content: &str, path: PathBuf) -> Option<Source> {
         let model_info = metadata
             .model
             .as_ref()
-            .map(|m| format!(" ({})", translate_model_shorthand(m)))
+            .map(|m| format!(" ({})", m))
             .unwrap_or_default();
-        format!("Claude agent{}", model_info)
+        format!("Agent{}", model_info)
     });
 
     Some(Source {
@@ -194,15 +194,6 @@ fn parse_agent_content(content: &str, path: PathBuf) -> Option<Source> {
         path,
         content: body,
     })
-}
-
-fn translate_model_shorthand(shorthand: &str) -> &str {
-    match shorthand.to_lowercase().as_str() {
-        "sonnet" => "claude-sonnet-4-20250514",
-        "opus" => "claude-opus-4-20250514",
-        "haiku" => "claude-haiku-3-20250514",
-        _ => shorthand,
-    }
 }
 
 fn round_duration(d: Duration) -> String {
@@ -1158,9 +1149,7 @@ impl SummonClient {
         let (metadata, _): (AgentMetadata, String) =
             parse_frontmatter(&agent_content).ok_or("Failed to parse agent frontmatter")?;
 
-        let model = metadata
-            .model
-            .map(|m| translate_model_shorthand(&m).to_string());
+        let model = metadata.model;
 
         let settings = model.map(|m| Settings {
             goose_model: Some(m),
@@ -1239,7 +1228,7 @@ impl SummonClient {
             .unwrap_or_else(|| crate::model::ModelConfig::new("default").unwrap());
 
         if let Some(model) = &params.model {
-            model_config.model_name = translate_model_shorthand(model).to_string();
+            model_config.model_name = model.clone();
         } else if let Some(model) = recipe
             .settings
             .as_ref()
@@ -1602,7 +1591,7 @@ model: sonnet
 You review code."#;
         let source = parse_agent_content(agent, PathBuf::new()).unwrap();
         assert_eq!(source.name, "reviewer");
-        assert!(source.description.contains("claude-sonnet-4-20250514"));
+        assert!(source.description.contains("sonnet"));
 
         assert!(parse_skill_content("no frontmatter", PathBuf::new()).is_none());
         assert!(parse_skill_content("---\nunclosed", PathBuf::new()).is_none());
