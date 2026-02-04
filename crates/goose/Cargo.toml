@@ -31,34 +31,34 @@ rmcp = { workspace = true, features = [
     "transport-streamable-http-client-reqwest",
 ] }
 anyhow = { workspace = true }
-thiserror = "1.0"
+thiserror = { workspace = true }
 futures = { workspace = true }
-dirs = "5.0"
+dirs = { workspace = true }
 reqwest = { workspace = true, features = ["rustls-tls-native-roots", "json", "cookies", "gzip", "brotli", "deflate", "zstd", "charset", "http2", "stream", "blocking", "multipart"], default-features = false }
 tokio = { workspace = true }
-serde = { version = "1.0", features = ["derive"] }
+serde = { workspace = true }
 serde_json = { workspace = true }
 serde_urlencoded = "0.7"
 jsonschema = "0.30.0"
-uuid = { version = "1.0", features = ["v4"] }
+uuid = { workspace = true }
 regex = { workspace = true }
-async-trait = "0.1.89"
+async-trait = { workspace = true }
 async-stream = "0.3"
 minijinja = { version = "2.12.0", features = ["loader"] }
-include_dir = "0.7.4"
+include_dir = { workspace = true }
 tiktoken-rs = "0.6.0"
-chrono = { version = "0.4.38", features = ["serde"] }
-clap = { version = "4.4", features = ["derive"] }
-indoc = "2.0.5"
+chrono = { workspace = true }
+clap = { workspace = true }
+indoc = { workspace = true }
 nanoid = "0.4"
 sha2 = "0.10"
 base64 = { workspace = true }
 url = { workspace = true }
-axum = "0.8.1"
+axum = { workspace = true }
 webbrowser = { workspace = true }
 lazy_static = "1.5.0"
 tracing = { workspace = true }
-tracing-subscriber = "0.3"
+tracing-subscriber = { workspace = true }
 tracing-opentelemetry = "0.28"
 opentelemetry = "0.27"
 opentelemetry-appender-tracing = "0.27"
@@ -73,11 +73,11 @@ keyring = { version = "3.6.2", features = [
     "sync-secret-service",
     "vendored",
 ] }
-serde_yaml = "0.9.34"
-once_cell = "1.20.2"
+serde_yaml = { workspace = true }
+once_cell = { workspace = true }
 etcetera = { workspace = true }
 rand = "0.8.5"
-utoipa = { version = "4.1", features = ["chrono"] }
+utoipa = { workspace = true }
 tokio-cron-scheduler = "0.14.0"
 urlencoding = "2.1"
 v_htmlescape = "0.15"
@@ -101,11 +101,11 @@ jsonwebtoken = "9.3.1"
 
 blake3 = "1.5"
 fs2 = "0.4.3"
-tokio-stream = "0.1.17"
-tempfile = "3.15.0"
+tokio-stream = { workspace = true }
+tempfile = { workspace = true }
 dashmap = "6.1"
 ahash = "0.8"
-tokio-util = { version = "0.7.15", features = ["compat"] }
+tokio-util = { workspace = true }
 unicode-normalization = "0.1"
 goose-mcp = { path = "../goose-mcp" }
 
@@ -147,7 +147,7 @@ serial_test = { workspace = true }
 mockall = "0.13.1"
 wiremock = { workspace = true }
 tokio = { workspace = true }
-tokio-util = { version = "0.7.15", features = ["compat"] }
+tokio-util = { workspace = true }
 dotenvy = "0.15.7"
 ctor = "0.2.9"
 test-case = { workspace = true }
