@@ -9,20 +9,17 @@ fn default_ttl() -> u64 {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ModelConfig {
     pub name: String,
+    pub endpoint: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub display_name: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub description: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub context_size: Option<u32>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct AdvertiseEndpoint {
-    pub host: String,
-    pub port: u16,
-    #[serde(default)]
-    pub https: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub cost: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub geo: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -31,8 +28,6 @@ pub struct NostrShareConfig {
     pub private_key: Option<String>,
     pub relays: Vec<String>,
     pub models: Vec<ModelConfig>,
-    pub ollama_endpoint: String,
-    pub advertise_endpoint: AdvertiseEndpoint,
     #[serde(default = "default_ttl")]
     pub ttl_seconds: u64,
 }
@@ -40,9 +35,9 @@ pub struct NostrShareConfig {
 pub async fn detect_public_ip() -> Result<String> {
     let client = reqwest::Client::new();
     let services = [
-        "https://api.ipify.org",
-        "https://ifconfig.me/ip",
-        "https://icanhazip.com",
+        "http://api.ipify.org",
+        "http://ifconfig.me/ip",
+        "http://icanhazip.com",
     ];
 
     for service in services {
@@ -97,13 +92,6 @@ impl NostrShareConfig {
         Ok(path)
     }
 
-    pub async fn resolve_endpoint(&self) -> Result<AdvertiseEndpoint> {
-        let mut endpoint = self.advertise_endpoint.clone();
-        if endpoint.host == "auto" || endpoint.host == "YOUR_IP" {
-            endpoint.host = detect_public_ip().await?;
-        }
-        Ok(endpoint)
-    }
 }
 
 #[cfg(test)]
@@ -117,22 +105,22 @@ mod tests {
             relays: vec!["wss://relay.damus.io".to_string()],
             models: vec![ModelConfig {
                 name: "qwen3".to_string(),
+                endpoint: "http://192.168.1.1:11434".to_string(),
                 display_name: Some("Qwen 3".to_string()),
                 description: None,
                 context_size: Some(32000),
+                cost: Some(0.0),
+                geo: Some("US".to_string()),
             }],
-            ollama_endpoint: "http://localhost:11434".to_string(),
-            advertise_endpoint: AdvertiseEndpoint {
-                host: "auto".to_string(),
-                port: 11434,
-                https: false,
-            },
             ttl_seconds: 3600,
         };
 
         let json = serde_json::to_string(&config).unwrap();
         let parsed: NostrShareConfig = serde_json::from_str(&json).unwrap();
         assert_eq!(parsed.models[0].name, "qwen3");
+        assert_eq!(parsed.models[0].endpoint, "http://192.168.1.1:11434");
+        assert_eq!(parsed.models[0].cost, Some(0.0));
+        assert_eq!(parsed.models[0].geo, Some("US".to_string()));
         assert_eq!(parsed.ttl_seconds, 3600);
     }
 }

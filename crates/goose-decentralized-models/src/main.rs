@@ -1,9 +1,7 @@
 use anyhow::Result;
 use clap::{Parser, Subcommand};
 
-use goose_decentralized_models::config::{
-    detect_public_ip, AdvertiseEndpoint, ModelConfig, NostrShareConfig,
-};
+use goose_decentralized_models::config::{detect_public_ip, ModelConfig, NostrShareConfig};
 use goose_decentralized_models::keys::KeyManager;
 use goose_decentralized_models::publisher::{ModelDiscovery, ModelPublisher};
 
@@ -62,14 +60,14 @@ async fn init() -> Result<()> {
     }
 
     // Detect public IP
-    let host = match detect_public_ip().await {
+    let endpoint = match detect_public_ip().await {
         Ok(ip) => {
             println!("Detected public IP: {}", ip);
-            ip
+            format!("http://{}:11434", ip)
         }
         Err(_) => {
             println!("Could not detect public IP, using placeholder");
-            "YOUR_IP".to_string()
+            "http://YOUR_IP:11434".to_string()
         }
     };
 
@@ -79,9 +77,12 @@ async fn init() -> Result<()> {
         println!("No Ollama models found, using placeholder");
         vec![ModelConfig {
             name: "qwen3:latest".to_string(),
+            endpoint: endpoint.clone(),
             display_name: Some("Qwen 3".to_string()),
             description: Some("Local Qwen 3 model".to_string()),
             context_size: Some(32000),
+            cost: Some(0.0),
+            geo: None,
         }]
     } else {
         println!("Found {} Ollama models:", models.len());
@@ -92,9 +93,12 @@ async fn init() -> Result<()> {
             .into_iter()
             .map(|name| ModelConfig {
                 name: name.clone(),
+                endpoint: endpoint.clone(),
                 display_name: Some(name.replace(":latest", "").replace(':', " ")),
                 description: None,
                 context_size: Some(32000),
+                cost: Some(0.0),
+                geo: None,
             })
             .collect()
     };
@@ -107,12 +111,6 @@ async fn init() -> Result<()> {
             "wss://relay.nostr.band".to_string(),
         ],
         models: model_configs,
-        ollama_endpoint: "http://localhost:11434".to_string(),
-        advertise_endpoint: AdvertiseEndpoint {
-            host,
-            port: 11434,
-            https: false,
-        },
         ttl_seconds: 3600,
     };
 
@@ -160,13 +158,6 @@ async fn publish() -> Result<()> {
     let publisher = ModelPublisher::new(key_manager.keys().clone(), config.relays.clone()).await?;
     publisher.connect().await;
 
-    let endpoint = config.resolve_endpoint().await?;
-    println!(
-        "Advertising endpoint: {}://{}:{}",
-        if endpoint.https { "https" } else { "http" },
-        endpoint.host,
-        endpoint.port
-    );
     println!(
         "TTL: {} seconds ({} minutes)",
         config.ttl_seconds,
@@ -176,14 +167,15 @@ async fn publish() -> Result<()> {
     println!("Publishing {} models:", config.models.len());
     for model in &config.models {
         println!(
-            "  - {} ({})",
+            "  - {} ({}) @ {}",
             model.display_name.as_ref().unwrap_or(&model.name),
-            model.name
+            model.name,
+            model.endpoint
         );
     }
 
     let ids = publisher
-        .publish_all(&config.models, &endpoint, config.ttl_seconds)
+        .publish_all(&config.models, config.ttl_seconds)
         .await?;
 
     println!("Published {} events:", ids.len());
@@ -342,9 +334,10 @@ async fn run_goose(preferred_model: Option<String>) -> Result<()> {
         .map_err(|_| anyhow::anyhow!("Could not find goose binary"))?;
 
     let status = std::process::Command::new(goose_path)
-        .env("GOOSE_PROVIDER", "ollama")
+        .env("GOOSE_PROVIDER", "openai")
         .env("GOOSE_MODEL", &model.model_name)
-        .env("OLLAMA_HOST", &model.endpoint)
+        .env("OPENAI_HOST", &model.endpoint)
+        .env("OPENAI_API_KEY", "not-needed")
         .status()?;
 
     std::process::exit(status.code().unwrap_or(1));

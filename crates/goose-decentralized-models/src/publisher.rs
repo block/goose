@@ -5,7 +5,7 @@ use nostr_sdk::{
 };
 use std::time::Duration;
 
-use crate::config::{AdvertiseEndpoint, ModelConfig};
+use crate::config::ModelConfig;
 
 pub const LLM_SERVICE_KIND: u16 = 31990;
 
@@ -31,31 +31,18 @@ impl ModelPublisher {
         self.keys.public_key().to_bech32().unwrap_or_default()
     }
 
-    pub async fn publish_model(
-        &self,
-        model: &ModelConfig,
-        endpoint: &AdvertiseEndpoint,
-        ttl_seconds: u64,
-    ) -> Result<EventId> {
-        let endpoint_url = format!(
-            "{}://{}:{}",
-            if endpoint.https { "https" } else { "http" },
-            endpoint.host,
-            endpoint.port
-        );
-
+    pub async fn publish_model(&self, model: &ModelConfig, ttl_seconds: u64) -> Result<EventId> {
         let content = serde_json::json!({
             "name": model.display_name.as_ref().unwrap_or(&model.name),
             "model": model.name,
-            "endpoint": endpoint_url,
+            "endpoint": model.endpoint,
             "api_type": "openai_compatible",
             "description": model.description,
         });
 
-        // Calculate expiration timestamp
         let expiration = Timestamp::now().as_secs() + ttl_seconds;
 
-        let tags = vec![
+        let mut tags = vec![
             Tag::custom(
                 TagKind::Custom("d".into()),
                 vec![format!("llm-{}", model.name)],
@@ -65,7 +52,10 @@ impl ModelPublisher {
                 vec!["llm-openai-compatible".to_string()],
             ),
             Tag::custom(TagKind::Custom("model".into()), vec![model.name.clone()]),
-            Tag::custom(TagKind::Custom("endpoint".into()), vec![endpoint_url]),
+            Tag::custom(
+                TagKind::Custom("endpoint".into()),
+                vec![model.endpoint.clone()],
+            ),
             Tag::custom(
                 TagKind::Custom("context".into()),
                 vec![model.context_size.unwrap_or(32000).to_string()],
@@ -76,6 +66,16 @@ impl ModelPublisher {
             ),
         ];
 
+        if let Some(cost) = model.cost {
+            tags.push(Tag::custom(
+                TagKind::Custom("cost".into()),
+                vec![cost.to_string()],
+            ));
+        }
+        if let Some(ref geo) = model.geo {
+            tags.push(Tag::custom(TagKind::Custom("geo".into()), vec![geo.clone()]));
+        }
+
         let builder =
             EventBuilder::new(Kind::Custom(LLM_SERVICE_KIND), content.to_string()).tags(tags);
 
@@ -83,15 +83,10 @@ impl ModelPublisher {
         Ok(*output.id())
     }
 
-    pub async fn publish_all(
-        &self,
-        models: &[ModelConfig],
-        endpoint: &AdvertiseEndpoint,
-        ttl_seconds: u64,
-    ) -> Result<Vec<EventId>> {
+    pub async fn publish_all(&self, models: &[ModelConfig], ttl_seconds: u64) -> Result<Vec<EventId>> {
         let mut ids = Vec::new();
         for model in models {
-            let id = self.publish_model(model, endpoint, ttl_seconds).await?;
+            let id = self.publish_model(model, ttl_seconds).await?;
             ids.push(id);
         }
         Ok(ids)
@@ -132,6 +127,8 @@ pub struct DiscoveredModel {
     pub endpoint: String,
     pub description: Option<String>,
     pub context_size: Option<u32>,
+    pub cost: Option<f64>,
+    pub geo: Option<String>,
     pub publisher_npub: String,
     pub event_id: String,
     pub expires_at: Option<u64>,
@@ -142,6 +139,8 @@ impl DiscoveredModel {
         let mut model_name = String::new();
         let mut endpoint = String::new();
         let mut context_size = None;
+        let mut cost = None;
+        let mut geo = None;
         let mut expires_at = None;
 
         for tag in event.tags.iter() {
@@ -151,6 +150,8 @@ impl DiscoveredModel {
                     "model" => model_name = tag_vec[1].to_string(),
                     "endpoint" => endpoint = tag_vec[1].to_string(),
                     "context" => context_size = tag_vec[1].parse().ok(),
+                    "cost" => cost = tag_vec[1].parse().ok(),
+                    "geo" => geo = Some(tag_vec[1].to_string()),
                     "expiration" => expires_at = tag_vec[1].parse().ok(),
                     _ => {}
                 }
@@ -173,6 +174,8 @@ impl DiscoveredModel {
             endpoint,
             description,
             context_size,
+            cost,
+            geo,
             publisher_npub: event.pubkey.to_bech32().unwrap_or_default(),
             event_id: event.id.to_hex(),
             expires_at,
@@ -249,6 +252,8 @@ mod tests {
             endpoint: "http://localhost:11434".to_string(),
             description: None,
             context_size: None,
+            cost: None,
+            geo: None,
             publisher_npub: "npub1test".to_string(),
             event_id: "abc123".to_string(),
             expires_at: Some(1), // Expired (timestamp 1 is way in the past)
