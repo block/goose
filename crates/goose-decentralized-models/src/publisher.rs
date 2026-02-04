@@ -3,11 +3,43 @@ use nostr_sdk::prelude::*;
 use nostr_sdk::{
     Client, Event, EventBuilder, EventId, Filter, Keys, Kind, Tag, TagKind, Timestamp,
 };
+use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use std::time::Duration;
 
 use crate::config::ModelConfig;
 
 pub const LLM_SERVICE_KIND: u16 = 31990;
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct PublishedModel {
+    name: String,
+    endpoint: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    display_name: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    description: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    context_size: Option<u32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    cost: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    geo: Option<String>,
+}
+
+impl From<&ModelConfig> for PublishedModel {
+    fn from(m: &ModelConfig) -> Self {
+        Self {
+            name: m.name.clone(),
+            endpoint: m.endpoint.clone(),
+            display_name: m.display_name.clone(),
+            description: m.description.clone(),
+            context_size: m.context_size,
+            cost: m.cost,
+            geo: m.geo.clone(),
+        }
+    }
+}
 
 pub struct ModelPublisher {
     client: Client,
@@ -31,50 +63,26 @@ impl ModelPublisher {
         self.keys.public_key().to_bech32().unwrap_or_default()
     }
 
-    pub async fn publish_model(&self, model: &ModelConfig, ttl_seconds: u64) -> Result<EventId> {
-        let content = serde_json::json!({
-            "name": model.display_name.as_ref().unwrap_or(&model.name),
-            "model": model.name,
-            "endpoint": model.endpoint,
-            "api_type": "openai_compatible",
-            "description": model.description,
-        });
-
+    pub async fn publish(&self, models: &[ModelConfig], ttl_seconds: u64) -> Result<EventId> {
         let expiration = Timestamp::now().as_secs() + ttl_seconds;
 
-        let mut tags = vec![
-            Tag::custom(
-                TagKind::Custom("d".into()),
-                vec![format!("llm-{}", model.name)],
-            ),
+        let published_models: Vec<PublishedModel> = models.iter().map(|m| m.into()).collect();
+        let content = serde_json::json!({
+            "models": published_models,
+            "api_type": "openai_compatible",
+        });
+
+        let tags = vec![
+            Tag::custom(TagKind::Custom("d".into()), vec!["llm-offerings".to_string()]),
             Tag::custom(
                 TagKind::Custom("k".into()),
                 vec!["llm-openai-compatible".to_string()],
-            ),
-            Tag::custom(TagKind::Custom("model".into()), vec![model.name.clone()]),
-            Tag::custom(
-                TagKind::Custom("endpoint".into()),
-                vec![model.endpoint.clone()],
-            ),
-            Tag::custom(
-                TagKind::Custom("context".into()),
-                vec![model.context_size.unwrap_or(32000).to_string()],
             ),
             Tag::custom(
                 TagKind::Custom("expiration".into()),
                 vec![expiration.to_string()],
             ),
         ];
-
-        if let Some(cost) = model.cost {
-            tags.push(Tag::custom(
-                TagKind::Custom("cost".into()),
-                vec![cost.to_string()],
-            ));
-        }
-        if let Some(ref geo) = model.geo {
-            tags.push(Tag::custom(TagKind::Custom("geo".into()), vec![geo.clone()]));
-        }
 
         let builder =
             EventBuilder::new(Kind::Custom(LLM_SERVICE_KIND), content.to_string()).tags(tags);
@@ -83,16 +91,7 @@ impl ModelPublisher {
         Ok(*output.id())
     }
 
-    pub async fn publish_all(&self, models: &[ModelConfig], ttl_seconds: u64) -> Result<Vec<EventId>> {
-        let mut ids = Vec::new();
-        for model in models {
-            let id = self.publish_model(model, ttl_seconds).await?;
-            ids.push(id);
-        }
-        Ok(ids)
-    }
-
-    pub async fn list_own_models(&self) -> Result<Vec<Event>> {
+    pub async fn list_own_events(&self) -> Result<Vec<Event>> {
         let filter = Filter::new()
             .kind(Kind::Custom(LLM_SERVICE_KIND))
             .author(self.keys.public_key())
@@ -104,15 +103,24 @@ impl ModelPublisher {
         Ok(events.into_iter().collect())
     }
 
-    pub async fn clear_all(&self) -> Result<()> {
-        let events = self.list_own_models().await?;
+    pub async fn clear_old_events(&self) -> Result<usize> {
+        let events = self.list_own_events().await?;
+        let mut deleted = 0;
         for event in events {
-            let _ = self.unpublish(&event.id).await;
+            // Delete old per-model events (have "model" tag) 
+            let has_model_tag = event
+                .tags
+                .iter()
+                .any(|t| t.as_slice().first().map(|s| s.as_str()) == Some("model"));
+            if has_model_tag {
+                let _ = self.delete_event(&event.id).await;
+                deleted += 1;
+            }
         }
-        Ok(())
+        Ok(deleted)
     }
 
-    pub async fn unpublish(&self, event_id: &EventId) -> Result<EventId> {
+    pub async fn delete_event(&self, event_id: &EventId) -> Result<EventId> {
         let request = EventDeletionRequest::new().id(*event_id);
         let delete_builder = EventBuilder::delete(request);
         let output = self.client.send_event_builder(delete_builder).await?;
@@ -130,58 +138,10 @@ pub struct DiscoveredModel {
     pub cost: Option<f64>,
     pub geo: Option<String>,
     pub publisher_npub: String,
-    pub event_id: String,
     pub expires_at: Option<u64>,
 }
 
 impl DiscoveredModel {
-    fn from_event(event: &Event) -> Result<Self> {
-        let mut model_name = String::new();
-        let mut endpoint = String::new();
-        let mut context_size = None;
-        let mut cost = None;
-        let mut geo = None;
-        let mut expires_at = None;
-
-        for tag in event.tags.iter() {
-            let tag_vec: Vec<&str> = tag.as_slice().iter().map(|s| s.as_str()).collect();
-            if tag_vec.len() >= 2 {
-                match tag_vec[0] {
-                    "model" => model_name = tag_vec[1].to_string(),
-                    "endpoint" => endpoint = tag_vec[1].to_string(),
-                    "context" => context_size = tag_vec[1].parse().ok(),
-                    "cost" => cost = tag_vec[1].parse().ok(),
-                    "geo" => geo = Some(tag_vec[1].to_string()),
-                    "expiration" => expires_at = tag_vec[1].parse().ok(),
-                    _ => {}
-                }
-            }
-        }
-
-        let content: serde_json::Value = serde_json::from_str(&event.content).unwrap_or_default();
-        let display_name = content
-            .get("name")
-            .and_then(|v| v.as_str())
-            .map(String::from);
-        let description = content
-            .get("description")
-            .and_then(|v| v.as_str())
-            .map(String::from);
-
-        Ok(Self {
-            model_name,
-            display_name,
-            endpoint,
-            description,
-            context_size,
-            cost,
-            geo,
-            publisher_npub: event.pubkey.to_bech32().unwrap_or_default(),
-            event_id: event.id.to_hex(),
-            expires_at,
-        })
-    }
-
     pub fn is_expired(&self) -> bool {
         if let Some(exp) = self.expires_at {
             exp < Timestamp::now().as_secs()
@@ -222,14 +182,87 @@ impl ModelDiscovery {
             .fetch_events(filter, Duration::from_secs(10))
             .await?;
 
-        // Filter to models published in the last 30 minutes and not expired
-        let thirty_mins_ago = Timestamp::now().as_secs() - 1800;
-        let models: Vec<DiscoveredModel> = events
-            .iter()
-            .filter(|e| e.created_at.as_secs() > thirty_mins_ago)
-            .filter_map(|e| DiscoveredModel::from_event(e).ok())
-            .filter(|m| !m.is_expired())
-            .collect();
+        // Dedupe by publisher+d_tag (keep latest per publisher)
+        let mut latest: HashMap<(String, String), (u64, &Event)> = HashMap::new();
+        for event in events.iter() {
+            let d_tag = event
+                .tags
+                .iter()
+                .find(|t| t.as_slice().first().map(|s| s.as_str()) == Some("d"))
+                .and_then(|t| t.as_slice().get(1))
+                .map(|s| s.to_string())
+                .unwrap_or_default();
+
+            let pubkey = event.pubkey.to_hex();
+            let key = (pubkey, d_tag);
+            let created = event.created_at.as_secs();
+
+            if let Some((existing_ts, _)) = latest.get(&key) {
+                if created > *existing_ts {
+                    latest.insert(key, (created, event));
+                }
+            } else {
+                latest.insert(key, (created, event));
+            }
+        }
+
+        // Parse models from each event's content
+        let mut models = Vec::new();
+        for (_, event) in latest.values() {
+            let expires_at = event
+                .tags
+                .iter()
+                .find(|t| t.as_slice().first().map(|s| s.as_str()) == Some("expiration"))
+                .and_then(|t| t.as_slice().get(1))
+                .and_then(|s| s.parse::<u64>().ok());
+
+            // Skip expired events
+            if let Some(exp) = expires_at {
+                if exp < Timestamp::now().as_secs() {
+                    continue;
+                }
+            }
+
+            let publisher_npub = event.pubkey.to_bech32().unwrap_or_default();
+
+            if let Ok(content) = serde_json::from_str::<serde_json::Value>(&event.content) {
+                if let Some(model_array) = content.get("models").and_then(|m| m.as_array()) {
+                    for m in model_array {
+                        let model = DiscoveredModel {
+                            model_name: m
+                                .get("name")
+                                .and_then(|v| v.as_str())
+                                .unwrap_or_default()
+                                .to_string(),
+                            display_name: m
+                                .get("display_name")
+                                .and_then(|v| v.as_str())
+                                .map(String::from),
+                            endpoint: m
+                                .get("endpoint")
+                                .and_then(|v| v.as_str())
+                                .unwrap_or_default()
+                                .to_string(),
+                            description: m
+                                .get("description")
+                                .and_then(|v| v.as_str())
+                                .map(String::from),
+                            context_size: m
+                                .get("context_size")
+                                .and_then(|v| v.as_u64())
+                                .map(|v| v as u32),
+                            cost: m.get("cost").and_then(|v| v.as_f64()),
+                            geo: m.get("geo").and_then(|v| v.as_str()).map(String::from),
+                            publisher_npub: publisher_npub.clone(),
+                            expires_at,
+                        };
+                        if !model.model_name.is_empty() && !model.endpoint.is_empty() {
+                            models.push(model);
+                        }
+                    }
+                }
+            }
+        }
 
         Ok(models)
     }
@@ -255,7 +288,6 @@ mod tests {
             cost: None,
             geo: None,
             publisher_npub: "npub1test".to_string(),
-            event_id: "abc123".to_string(),
             expires_at: Some(1), // Expired (timestamp 1 is way in the past)
         };
         assert!(model.is_expired());

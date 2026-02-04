@@ -17,11 +17,11 @@ struct Cli {
 enum Commands {
     /// Initialize config and generate keys
     Init,
-    /// Publish your models to Nostr
+    /// Publish your models to Nostr (single event, replaces previous)
     Publish,
-    /// Remove a published model
-    Unpublish { model_name: String },
-    /// List your published models
+    /// Clear old per-model events (cleanup from previous format)
+    Clear,
+    /// List your published events
     List,
     /// Discover models from others
     Discover,
@@ -42,7 +42,7 @@ async fn main() -> Result<()> {
     match cli.command {
         Commands::Init => init().await,
         Commands::Publish => publish().await,
-        Commands::Unpublish { model_name } => unpublish(&model_name).await,
+        Commands::Clear => clear().await,
         Commands::List => list().await,
         Commands::Discover => discover().await,
         Commands::ShowKey => show_key().await,
@@ -174,15 +174,9 @@ async fn publish() -> Result<()> {
         );
     }
 
-    let ids = publisher
-        .publish_all(&config.models, config.ttl_seconds)
-        .await?;
+    let event_id = publisher.publish(&config.models, config.ttl_seconds).await?;
 
-    println!("Published {} events:", ids.len());
-    for id in &ids {
-        println!("  - {}", id.to_hex());
-    }
-
+    println!("Published event: {}", event_id.to_hex());
     println!(
         "Done! Models will expire in {} minutes. Run 'publish' again to refresh.",
         config.ttl_seconds / 60
@@ -190,31 +184,17 @@ async fn publish() -> Result<()> {
     Ok(())
 }
 
-async fn unpublish(model_name: &str) -> Result<()> {
+async fn clear() -> Result<()> {
     let config = NostrShareConfig::load_default()?;
     let key_manager = KeyManager::load_default_or_generate()?;
+
+    println!("Connecting to {} relays...", config.relays.len());
 
     let publisher = ModelPublisher::new(key_manager.keys().clone(), config.relays.clone()).await?;
     publisher.connect().await;
 
-    let events = publisher.list_own_models().await?;
-    let mut found = false;
-
-    for event in &events {
-        for tag in event.tags.iter() {
-            let tag_vec: Vec<&str> = tag.as_slice().iter().map(|s| s.as_str()).collect();
-            if tag_vec.len() >= 2 && tag_vec[0] == "model" && tag_vec[1] == model_name {
-                publisher.unpublish(&event.id).await?;
-                println!("Unpublished: {}", model_name);
-                found = true;
-                break;
-            }
-        }
-    }
-
-    if !found {
-        println!("Model not found: {}", model_name);
-    }
+    let deleted = publisher.clear_old_events().await?;
+    println!("Deleted {} old per-model events", deleted);
 
     Ok(())
 }
@@ -226,28 +206,29 @@ async fn list() -> Result<()> {
     let publisher = ModelPublisher::new(key_manager.keys().clone(), config.relays.clone()).await?;
     publisher.connect().await;
 
-    let events = publisher.list_own_models().await?;
+    let events = publisher.list_own_events().await?;
 
     if events.is_empty() {
-        println!("No published models found.");
+        println!("No published events found.");
         return Ok(());
     }
 
-    println!("Your published models ({}):", events.len());
+    println!("Your published events ({}):", events.len());
     for event in &events {
-        let mut model_name = "unknown".to_string();
-        let mut expiration: Option<u64> = None;
+        let d_tag = event
+            .tags
+            .iter()
+            .find(|t| t.as_slice().first().map(|s| s.as_str()) == Some("d"))
+            .and_then(|t| t.as_slice().get(1))
+            .map(|s| s.as_str())
+            .unwrap_or("unknown");
 
-        for tag in event.tags.iter() {
-            let tag_vec: Vec<&str> = tag.as_slice().iter().map(|s| s.as_str()).collect();
-            if tag_vec.len() >= 2 {
-                match tag_vec[0] {
-                    "model" => model_name = tag_vec[1].to_string(),
-                    "expiration" => expiration = tag_vec[1].parse().ok(),
-                    _ => {}
-                }
-            }
-        }
+        let expiration: Option<u64> = event
+            .tags
+            .iter()
+            .find(|t| t.as_slice().first().map(|s| s.as_str()) == Some("expiration"))
+            .and_then(|t| t.as_slice().get(1))
+            .and_then(|s| s.parse().ok());
 
         let exp_str = if let Some(exp) = expiration {
             let now = std::time::SystemTime::now()
@@ -263,7 +244,16 @@ async fn list() -> Result<()> {
             "no expiration".to_string()
         };
 
-        println!("  - {} ({})", model_name, exp_str);
+        // Count models in content if it's the new format
+        let model_count = serde_json::from_str::<serde_json::Value>(&event.content)
+            .ok()
+            .and_then(|c| c.get("models")?.as_array().map(|a| a.len()));
+
+        if let Some(count) = model_count {
+            println!("  - {} ({} models, {})", d_tag, count, exp_str);
+        } else {
+            println!("  - {} (old format, {})", d_tag, exp_str);
+        }
     }
 
     Ok(())
