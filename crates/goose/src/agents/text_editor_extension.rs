@@ -421,29 +421,17 @@ impl TextEditorClient {
         matches as f64 / max_len as f64
     }
 
-    fn resolve_path(&self, path_str: &str, working_dir: Option<&str>) -> Result<PathBuf, String> {
-        let path = PathBuf::from(path_str);
+    fn resolve_path(&self, path_str: &str) -> Result<PathBuf, String> {
+        let cwd =
+            std::env::current_dir().map_err(|e| format!("Cannot get current directory: {}", e))?;
+        let expanded: String = shellexpand::tilde(path_str).into();
+        let path = Path::new(&expanded);
 
-        let resolved = if path.is_absolute() {
-            path
-        } else if let Some(wd) = working_dir {
-            PathBuf::from(wd).join(path)
+        if path.is_absolute() {
+            Ok(path.to_path_buf())
         } else {
-            std::env::current_dir()
-                .map_err(|e| format!("Cannot get current directory: {}", e))?
-                .join(path)
-        };
-
-        if let Some(wd) = working_dir {
-            let canonical_wd = std::fs::canonicalize(wd).unwrap_or_else(|_| PathBuf::from(wd));
-            if let Ok(canonical_path) = std::fs::canonicalize(&resolved) {
-                if !canonical_path.starts_with(&canonical_wd) {
-                    return Err(format!("Path '{}' is outside working directory", path_str));
-                }
-            }
+            Ok(cwd.join(path))
         }
-
-        Ok(resolved)
     }
 }
 
@@ -478,7 +466,7 @@ impl McpClientTrait for TextEditorClient {
         _session_id: &str,
         name: &str,
         arguments: Option<JsonObject>,
-        working_dir: Option<&str>,
+        _working_dir: Option<&str>,
         _cancellation_token: CancellationToken,
     ) -> Result<CallToolResult, Error> {
         if name != "text_editor" {
@@ -505,7 +493,7 @@ impl McpClientTrait for TextEditorClient {
             }
         };
 
-        let path = match self.resolve_path(&params.path, working_dir) {
+        let path = match self.resolve_path(&params.path) {
             Ok(p) => p,
             Err(e) => {
                 return Ok(CallToolResult::error(vec![Content::text(e)]));

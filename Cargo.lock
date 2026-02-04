@@ -4180,7 +4180,6 @@ dependencies = [
  "lru",
  "minijinja",
  "mockall",
- "mpatch",
  "nanoid",
  "once_cell",
  "opentelemetry 0.27.1",
