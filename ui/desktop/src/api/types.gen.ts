@@ -190,7 +190,7 @@ export type DetectProviderResponse = {
     provider_name: string;
 };
 
-export type DictationProvider = 'openai' | 'elevenlabs';
+export type DictationProvider = 'openai' | 'elevenlabs' | 'groq' | 'local';
 
 export type DictationProviderStatus = {
     /**
@@ -218,6 +218,40 @@ export type DictationProviderStatus = {
      */
     uses_provider_config: boolean;
 };
+
+export type DownloadProgress = {
+    /**
+     * Bytes downloaded so far
+     */
+    bytes_downloaded: number;
+    /**
+     * Error message if failed
+     */
+    error?: string | null;
+    /**
+     * Estimated time remaining in seconds
+     */
+    eta_seconds?: number | null;
+    /**
+     * Model ID being downloaded
+     */
+    model_id: string;
+    /**
+     * Download progress percentage (0-100)
+     */
+    progress_percent: number;
+    /**
+     * Download speed in bytes per second
+     */
+    speed_bps?: number | null;
+    status: DownloadStatus;
+    /**
+     * Total bytes to download
+     */
+    total_bytes: number;
+};
+
+export type DownloadStatus = 'downloading' | 'completed' | 'failed' | 'cancelled';
 
 export type EmbeddedResource = {
     _meta?: {
@@ -1312,6 +1346,28 @@ export type UpsertConfigQuery = {
 
 export type UpsertPermissionsQuery = {
     tool_permissions: Array<ToolPermission>;
+};
+
+export type WhisperModelResponse = {
+    /**
+     * Description
+     */
+    description: string;
+    /**
+     * Model identifier (e.g., "tiny", "base", "small")
+     */
+    id: string;
+    /**
+     * Model file size in MB
+     */
+    size_mb: number;
+    /**
+     * Download URL from HuggingFace
+     */
+    url: string;
+} & {
+    downloaded: boolean;
+    recommended: boolean;
 };
 
 export type WindowProps = {
@@ -2532,6 +2588,124 @@ export type GetDictationConfigResponses = {
 
 export type GetDictationConfigResponse = GetDictationConfigResponses[keyof GetDictationConfigResponses];
 
+export type ListModelsData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/dictation/models';
+};
+
+export type ListModelsResponses = {
+    /**
+     * List of available Whisper models
+     */
+    200: Array<WhisperModelResponse>;
+};
+
+export type ListModelsResponse = ListModelsResponses[keyof ListModelsResponses];
+
+export type DeleteModelData = {
+    body?: never;
+    path: {
+        model_id: string;
+    };
+    query?: never;
+    url: '/dictation/models/{model_id}';
+};
+
+export type DeleteModelErrors = {
+    /**
+     * Model not found or not downloaded
+     */
+    404: unknown;
+    /**
+     * Failed to delete model
+     */
+    500: unknown;
+};
+
+export type DeleteModelResponses = {
+    /**
+     * Model deleted
+     */
+    200: unknown;
+};
+
+export type CancelDownloadData = {
+    body?: never;
+    path: {
+        model_id: string;
+    };
+    query?: never;
+    url: '/dictation/models/{model_id}/download';
+};
+
+export type CancelDownloadErrors = {
+    /**
+     * Download not found
+     */
+    404: unknown;
+};
+
+export type CancelDownloadResponses = {
+    /**
+     * Download cancelled
+     */
+    200: unknown;
+};
+
+export type GetDownloadProgressData = {
+    body?: never;
+    path: {
+        model_id: string;
+    };
+    query?: never;
+    url: '/dictation/models/{model_id}/download';
+};
+
+export type GetDownloadProgressErrors = {
+    /**
+     * Download not found
+     */
+    404: unknown;
+};
+
+export type GetDownloadProgressResponses = {
+    /**
+     * Download progress
+     */
+    200: DownloadProgress;
+};
+
+export type GetDownloadProgressResponse = GetDownloadProgressResponses[keyof GetDownloadProgressResponses];
+
+export type DownloadModelData = {
+    body?: never;
+    path: {
+        model_id: string;
+    };
+    query?: never;
+    url: '/dictation/models/{model_id}/download';
+};
+
+export type DownloadModelErrors = {
+    /**
+     * Download already in progress
+     */
+    400: unknown;
+    /**
+     * Internal server error
+     */
+    500: unknown;
+};
+
+export type DownloadModelResponses = {
+    /**
+     * Download started
+     */
+    202: unknown;
+};
+
 export type TranscribeDictationData = {
     body: TranscribeRequest;
     path?: never;
@@ -2549,7 +2723,7 @@ export type TranscribeDictationErrors = {
      */
     401: unknown;
     /**
-     * DictationProvider not configured
+     * Provider not configured
      */
     412: unknown;
     /**
@@ -2565,7 +2739,7 @@ export type TranscribeDictationErrors = {
      */
     500: unknown;
     /**
-     * DictationProvider API error
+     * Provider API error
      */
     502: unknown;
     /**
