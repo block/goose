@@ -4,7 +4,6 @@ use crate::model::ModelConfig;
 use crate::providers::base::{
     MessageStream, Provider, ProviderDef, ProviderMetadata, ProviderUsage, Usage,
 };
-use rmcp::model::Role;
 use crate::providers::errors::ProviderError;
 use anyhow::Result;
 use async_stream::try_stream;
@@ -12,6 +11,7 @@ use async_trait::async_trait;
 use candle_core::{Device, Tensor};
 use candle_transformers::models::{quantized_llama, quantized_phi, quantized_phi3};
 use futures::future::BoxFuture;
+use rmcp::model::Role;
 use rmcp::model::Tool;
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
@@ -165,9 +165,7 @@ pub fn get_local_model(id: &str) -> Option<&'static LocalLlmModel> {
 
 pub fn recommend_local_model() -> &'static str {
     let has_gpu = Device::new_cuda(0).is_ok() || Device::new_metal(0).is_ok();
-    let mem_mb = sys_info::mem_info()
-        .map(|m| m.avail / 1024)
-        .unwrap_or(0);
+    let mem_mb = sys_info::mem_info().map(|m| m.avail / 1024).unwrap_or(0);
 
     if has_gpu && mem_mb >= 16_000 {
         "hermes-2-pro-7b" // Medium tier - GPU with lots of memory
@@ -218,9 +216,8 @@ impl LocalInferenceProvider {
 
     async fn load_model(&self, model_id: &str) -> Result<LoadedModel, ProviderError> {
         // Get model definition
-        let model = get_local_model(model_id).ok_or_else(|| {
-            ProviderError::ExecutionError(format!("Unknown model: {}", model_id))
-        })?;
+        let model = get_local_model(model_id)
+            .ok_or_else(|| ProviderError::ExecutionError(format!("Unknown model: {}", model_id)))?;
 
         let model_path = model.local_path();
         let tokenizer_path = model.tokenizer_path();
@@ -265,38 +262,61 @@ impl LocalInferenceProvider {
                 Ok(weights) => {
                     tracing::info!("Loaded with Phi architecture");
                     (ModelWeights::Phi(weights), 50256) // Phi-2 EOS token
-                },
+                }
                 Err(e1) => {
                     tracing::info!("Phi architecture failed ({}), trying Phi-3", e1);
                     // Reopen file for second attempt
                     let mut file = std::fs::File::open(&model_path).map_err(|e| {
                         ProviderError::ExecutionError(format!("Failed to reopen model file: {}", e))
                     })?;
-                    let content = candle_core::quantized::gguf_file::Content::read(&mut file).map_err(|e| {
-                        ProviderError::ExecutionError(format!("Failed to re-read GGUF file: {}", e))
-                    })?;
+                    let content = candle_core::quantized::gguf_file::Content::read(&mut file)
+                        .map_err(|e| {
+                            ProviderError::ExecutionError(format!(
+                                "Failed to re-read GGUF file: {}",
+                                e
+                            ))
+                        })?;
 
-                    match quantized_phi3::ModelWeights::from_gguf(false, content, &mut file, &device) {
+                    match quantized_phi3::ModelWeights::from_gguf(
+                        false, content, &mut file, &device,
+                    ) {
                         Ok(weights) => {
                             tracing::info!("Loaded with Phi-3 architecture");
                             (ModelWeights::Phi3(weights), 32000) // Phi-3 EOS token
-                        },
+                        }
                         Err(e2) => {
-                            tracing::warn!("Phi-3 architecture failed ({}), falling back to Llama", e2);
+                            tracing::warn!(
+                                "Phi-3 architecture failed ({}), falling back to Llama",
+                                e2
+                            );
                             // Try Llama as last resort
                             let mut file = std::fs::File::open(&model_path).map_err(|e| {
-                                ProviderError::ExecutionError(format!("Failed to reopen model file: {}", e))
-                            })?;
-                            let content = candle_core::quantized::gguf_file::Content::read(&mut file).map_err(|e| {
-                                ProviderError::ExecutionError(format!("Failed to re-read GGUF file: {}", e))
-                            })?;
-
-                            let weights = quantized_llama::ModelWeights::from_gguf(content, &mut file, &device).map_err(|e| {
                                 ProviderError::ExecutionError(format!(
-                                    "Failed to load as Phi ({}), Phi-3 ({}), or Llama ({})", e1, e2, e
+                                    "Failed to reopen model file: {}",
+                                    e
                                 ))
                             })?;
-                            tracing::info!("Loaded Phi model with Llama architecture (may not work correctly)");
+                            let content =
+                                candle_core::quantized::gguf_file::Content::read(&mut file)
+                                    .map_err(|e| {
+                                        ProviderError::ExecutionError(format!(
+                                            "Failed to re-read GGUF file: {}",
+                                            e
+                                        ))
+                                    })?;
+
+                            let weights = quantized_llama::ModelWeights::from_gguf(
+                                content, &mut file, &device,
+                            )
+                            .map_err(|e| {
+                                ProviderError::ExecutionError(format!(
+                                    "Failed to load as Phi ({}), Phi-3 ({}), or Llama ({})",
+                                    e1, e2, e
+                                ))
+                            })?;
+                            tracing::info!(
+                                "Loaded Phi model with Llama architecture (may not work correctly)"
+                            );
                             (ModelWeights::Llama(weights), 50256) // Use Phi EOS token
                         }
                     }
@@ -304,9 +324,13 @@ impl LocalInferenceProvider {
             }
         } else {
             tracing::info!("Using Llama architecture");
-            let weights = quantized_llama::ModelWeights::from_gguf(content, &mut file, &device).map_err(|e| {
-                ProviderError::ExecutionError(format!("Failed to load Llama model weights: {}", e))
-            })?;
+            let weights = quantized_llama::ModelWeights::from_gguf(content, &mut file, &device)
+                .map_err(|e| {
+                    ProviderError::ExecutionError(format!(
+                        "Failed to load Llama model weights: {}",
+                        e
+                    ))
+                })?;
             (ModelWeights::Llama(weights), 128001) // Llama 3 EOS token
         };
 
@@ -333,7 +357,6 @@ impl LocalInferenceProvider {
         })
     }
 
-
     async fn generate(
         &self,
         loaded: &mut LoadedModel,
@@ -353,22 +376,27 @@ impl LocalInferenceProvider {
         let input = Tensor::new(prompt_tokens.as_slice(), &loaded.device)
             .map_err(|e| ProviderError::ExecutionError(format!("Failed to create tensor: {}", e)))?
             .unsqueeze(0)
-            .map_err(|e| ProviderError::ExecutionError(format!("Failed to unsqueeze tensor: {}", e)))?;
+            .map_err(|e| {
+                ProviderError::ExecutionError(format!("Failed to unsqueeze tensor: {}", e))
+            })?;
 
-        let logits = loaded
-            .model
-            .forward(&input, 0)
-            .map_err(|e| ProviderError::ExecutionError(format!("Prefill forward pass failed: {}", e)))?;
+        let logits = loaded.model.forward(&input, 0).map_err(|e| {
+            ProviderError::ExecutionError(format!("Prefill forward pass failed: {}", e))
+        })?;
 
         // Model already returns only last token logits: [batch, vocab_size]
         // Squeeze to [vocab_size]
-        let logits = logits.squeeze(0)
-            .map_err(|e| ProviderError::ExecutionError(format!("Failed to squeeze logits: {}", e)))?;
+        let logits = logits.squeeze(0).map_err(|e| {
+            ProviderError::ExecutionError(format!("Failed to squeeze logits: {}", e))
+        })?;
 
-        let mut next_token = logits.argmax(0)
+        let mut next_token = logits
+            .argmax(0)
             .map_err(|e| ProviderError::ExecutionError(format!("Failed to sample token: {}", e)))?
             .to_scalar::<u32>()
-            .map_err(|e| ProviderError::ExecutionError(format!("Failed to convert token: {}", e)))?;
+            .map_err(|e| {
+                ProviderError::ExecutionError(format!("Failed to convert token: {}", e))
+            })?;
 
         let mut generated_text = loaded
             .tokenizer
@@ -384,33 +412,44 @@ impl LocalInferenceProvider {
 
             // Single token input for generation
             let input = Tensor::new(&[next_token], &loaded.device)
-                .map_err(|e| ProviderError::ExecutionError(format!("Failed to create tensor: {}", e)))?
+                .map_err(|e| {
+                    ProviderError::ExecutionError(format!("Failed to create tensor: {}", e))
+                })?
                 .unsqueeze(0)
-                .map_err(|e| ProviderError::ExecutionError(format!("Failed to unsqueeze tensor: {}", e)))?;
+                .map_err(|e| {
+                    ProviderError::ExecutionError(format!("Failed to unsqueeze tensor: {}", e))
+                })?;
 
             // Forward pass: matches candle example exactly
             // After prefill of N tokens, next token is at position N+0, then N+1, etc.
             let pos = prompt_tokens.len() + index;
-            let logits = loaded
-                .model
-                .forward(&input, pos)
-                .map_err(|e| ProviderError::ExecutionError(format!("Generation forward pass failed at pos {}: {}", pos, e)))?;
+            let logits = loaded.model.forward(&input, pos).map_err(|e| {
+                ProviderError::ExecutionError(format!(
+                    "Generation forward pass failed at pos {}: {}",
+                    pos, e
+                ))
+            })?;
 
             // Squeeze to get [vocab_size]
-            let logits = logits.squeeze(0)
-                .map_err(|e| ProviderError::ExecutionError(format!("Failed to squeeze logits: {}", e)))?;
+            let logits = logits.squeeze(0).map_err(|e| {
+                ProviderError::ExecutionError(format!("Failed to squeeze logits: {}", e))
+            })?;
 
             // Sample next token
-            next_token = logits.argmax(0)
-                .map_err(|e| ProviderError::ExecutionError(format!("Failed to sample token: {}", e)))?
+            next_token = logits
+                .argmax(0)
+                .map_err(|e| {
+                    ProviderError::ExecutionError(format!("Failed to sample token: {}", e))
+                })?
                 .to_scalar::<u32>()
-                .map_err(|e| ProviderError::ExecutionError(format!("Failed to convert token: {}", e)))?;
+                .map_err(|e| {
+                    ProviderError::ExecutionError(format!("Failed to convert token: {}", e))
+                })?;
 
             // Decode and append
-            let decoded = loaded
-                .tokenizer
-                .decode(&[next_token], false)
-                .map_err(|e| ProviderError::ExecutionError(format!("Failed to decode token: {}", e)))?;
+            let decoded = loaded.tokenizer.decode(&[next_token], false).map_err(|e| {
+                ProviderError::ExecutionError(format!("Failed to decode token: {}", e))
+            })?;
 
             generated_text.push_str(&decoded);
         }
@@ -598,10 +637,7 @@ impl Provider for LocalInferenceProvider {
     ) -> Result<(Message, ProviderUsage), ProviderError> {
         // Get model metadata to determine chat template
         let model_info = get_local_model(&model_config.model_name).ok_or_else(|| {
-            ProviderError::ExecutionError(format!(
-                "Model not found: {}",
-                model_config.model_name
-            ))
+            ProviderError::ExecutionError(format!("Model not found: {}", model_config.model_name))
         })?;
 
         // Build prompt with correct template - use local system prompt instead of default
@@ -615,7 +651,9 @@ impl Provider for LocalInferenceProvider {
         let loaded = model_lock.as_mut().unwrap();
 
         // Generate response
-        let response = self.generate(loaded, &prompt, 100, model_info.chat_template).await?;
+        let response = self
+            .generate(loaded, &prompt, 100, model_info.chat_template)
+            .await?;
         tracing::info!("Generation complete: {} chars", response.len());
 
         // Return message
@@ -638,10 +676,7 @@ impl Provider for LocalInferenceProvider {
         // Get model metadata to determine chat template
         let model_config = &self.model_config;
         let model_info = get_local_model(&model_config.model_name).ok_or_else(|| {
-            ProviderError::ExecutionError(format!(
-                "Model not found: {}",
-                model_config.model_name
-            ))
+            ProviderError::ExecutionError(format!("Model not found: {}", model_config.model_name))
         })?;
         let template = model_info.chat_template;
 
@@ -762,4 +797,3 @@ impl Provider for LocalInferenceProvider {
         true
     }
 }
-

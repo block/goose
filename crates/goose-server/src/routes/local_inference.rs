@@ -80,8 +80,8 @@ pub async fn list_local_models() -> Result<Json<Vec<LocalModelResponse>>, ErrorR
 pub async fn download_local_model(
     Path(model_id): Path<String>,
 ) -> Result<StatusCode, ErrorResponse> {
-    let model = get_local_model(&model_id)
-        .ok_or_else(|| ErrorResponse::bad_request("Model not found"))?;
+    let model =
+        get_local_model(&model_id).ok_or_else(|| ErrorResponse::bad_request("Model not found"))?;
 
     let manager = get_download_manager();
 
@@ -135,8 +135,7 @@ pub async fn get_local_model_download_progress(
             status: StatusCode::NOT_FOUND,
         })?;
 
-    let tokenizer_progress = manager
-        .get_progress(&format!("{}-tokenizer", model_id));
+    let tokenizer_progress = manager.get_progress(&format!("{}-tokenizer", model_id));
 
     // If tokenizer failed, return that error
     if let Some(tok_prog) = tokenizer_progress {
@@ -185,14 +184,11 @@ pub async fn cancel_local_model_download(
         (status = 500, description = "Failed to delete model")
     )
 )]
-pub async fn delete_local_model(
-    Path(model_id): Path<String>,
-) -> Result<StatusCode, ErrorResponse> {
-    let model = get_local_model(&model_id)
-        .ok_or_else(|| ErrorResponse {
-            message: "Model not found".to_string(),
-            status: StatusCode::NOT_FOUND,
-        })?;
+pub async fn delete_local_model(Path(model_id): Path<String>) -> Result<StatusCode, ErrorResponse> {
+    let model = get_local_model(&model_id).ok_or_else(|| ErrorResponse {
+        message: "Model not found".to_string(),
+        status: StatusCode::NOT_FOUND,
+    })?;
 
     let model_path = model.local_path();
     let tokenizer_path = model.tokenizer_path();
@@ -213,9 +209,7 @@ pub async fn delete_local_model(
     if tokenizer_path.exists() {
         tokio::fs::remove_file(&tokenizer_path)
             .await
-            .map_err(|e| {
-                ErrorResponse::internal(format!("Failed to delete tokenizer: {}", e))
-            })?;
+            .map_err(|e| ErrorResponse::internal(format!("Failed to delete tokenizer: {}", e)))?;
     }
 
     Ok(StatusCode::OK)
