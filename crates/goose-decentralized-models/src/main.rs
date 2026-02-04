@@ -314,9 +314,27 @@ async fn show_key() -> Result<()> {
 async fn run_goose(preferred_model: Option<String>) -> Result<()> {
     let relays = NostrShareConfig::load_default().map(|c| c.relays).ok();
 
+    println!("Discovering models...");
     let model = goose_decentralized_models::discover_model(relays, preferred_model.as_deref())
         .await?
         .ok_or_else(|| anyhow::anyhow!("No models available"))?;
+
+    println!(
+        "Found: {} @ {} (from {})",
+        model.model_name, model.endpoint, model.publisher_npub
+    );
+    if let Some(cost) = model.cost {
+        if cost == 0.0 {
+            println!("  Cost: free");
+        } else {
+            println!("  Cost: {}", cost);
+        }
+    }
+    if let Some(ref geo) = model.geo {
+        println!("  Geo: {}", geo);
+    }
+
+    println!("Connecting to {}...", model.endpoint);
 
     let goose_path = which::which("goose")
         .or_else(|_| which::which("./target/debug/goose"))
