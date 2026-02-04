@@ -6737,12 +6737,13 @@
       "ThinkingContent": {
         "type": "object",
         "required": [
-          "thinking",
-          "signature"
+          "thinking"
         ],
         "properties": {
           "signature": {
-            "type": "string"
+            "type": "string",
+            "description": "Signature for thinking content. Required for Anthropic (encrypted thinking),\nNone for OpenAI-compatible providers (Moonshot, DeepSeek) using reasoning_content.",
+            "nullable": true
           },
           "thinking": {
             "type": "string"
