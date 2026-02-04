@@ -10,6 +10,8 @@ import {
   getToolConfirmationContent,
   getElicitationContent,
   getPendingToolConfirmationIds,
+  getAnyToolConfirmationData,
+  ToolConfirmationData,
   NotificationEvent,
 } from '../types/message';
 import { Message } from '../api';
@@ -69,6 +71,21 @@ export default function GooseMessage({
   const messageIndex = messages.findIndex((msg) => msg.id === message.id);
   const toolConfirmationContent = getToolConfirmationContent(message);
   const elicitationContent = getElicitationContent(message);
+
+  // Find confirmation content for a specific tool across ALL messages
+  // This is needed because the confirmation comes in a separate message
+  // from the tool request itself. Returns ToolConfirmationData for unified handling.
+  const findConfirmationForToolAcrossMessages = (
+    toolRequestId: string
+  ): ToolConfirmationData | undefined => {
+    for (const msg of messages) {
+      const confirmationData = getAnyToolConfirmationData(msg);
+      if (confirmationData && confirmationData.id === toolRequestId) {
+        return confirmationData;
+      }
+    }
+    return undefined;
+  };
   const toolCallChains = useMemo(() => identifyConsecutiveToolCalls(messages), [messages]);
   const hideTimestamp = useMemo(
     () => shouldHideTimestamp(messageIndex, toolCallChains),
@@ -76,6 +93,24 @@ export default function GooseMessage({
   );
   const hasToolConfirmation = toolConfirmationContent !== undefined;
   const hasElicitation = elicitationContent !== undefined;
+
+  // Check if this message's tool confirmation should be shown inline in a tool card
+  // If the confirmation's tool ID matches a tool request in ANY message, it will be shown inline
+  // and we should NOT show the standalone ToolCallConfirmation here
+  const toolConfirmationShownInline = useMemo(() => {
+    if (!toolConfirmationContent) return false;
+    const confirmationData = getAnyToolConfirmationData(message);
+    if (!confirmationData) return false;
+
+    // Check if any message has a tool request matching this confirmation's ID
+    for (const msg of messages) {
+      const requests = getToolRequests(msg);
+      if (requests.some((req) => req.id === confirmationData.id)) {
+        return true;
+      }
+    }
+    return false;
+  }, [toolConfirmationContent, message, messages]);
 
   const toolResponsesMap = useMemo(() => {
     const responseMap = new Map();
@@ -160,6 +195,7 @@ export default function GooseMessage({
                       isStreamingMessage={isStreaming}
                       isPendingApproval={pendingConfirmationIds.has(toolRequest.id)}
                       append={append}
+                      confirmationContent={findConfirmationForToolAcrossMessages(toolRequest.id)}
                     />
                   </div>
                 ))}
@@ -171,7 +207,7 @@ export default function GooseMessage({
           </div>
         )}
 
-        {hasToolConfirmation && (
+        {hasToolConfirmation && !toolConfirmationShownInline && (
           <ToolCallConfirmation
             sessionId={sessionId}
             isCancelledMessage={false}

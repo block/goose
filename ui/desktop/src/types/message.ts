@@ -1,7 +1,17 @@
-import { Message, MessageEvent, ActionRequired, ToolRequest, ToolResponse } from '../api';
+import {
+  Message,
+  MessageEvent,
+  ActionRequired,
+  ToolRequest,
+  ToolResponse,
+  ToolConfirmationRequest,
+} from '../api';
 
 export type ToolRequestMessageContent = ToolRequest & { type: 'toolRequest' };
 export type ToolResponseMessageContent = ToolResponse & { type: 'toolResponse' };
+export type ToolConfirmationRequestContent = ToolConfirmationRequest & {
+  type: 'toolConfirmationRequest';
+};
 export type NotificationEvent = Extract<MessageEvent, { type: 'Notification' }>;
 
 // Compaction response message - must match backend constant
@@ -99,6 +109,7 @@ export function getToolResponses(message: Message): (ToolResponse & { type: 'too
   );
 }
 
+// Get tool confirmation from ActionRequired content (legacy format)
 export function getToolConfirmationContent(
   message: Message
 ): (ActionRequired & { type: 'actionRequired' }) | undefined {
@@ -106,6 +117,51 @@ export function getToolConfirmationContent(
     (content): content is ActionRequired & { type: 'actionRequired' } =>
       content.type === 'actionRequired' && content.data.actionType === 'toolConfirmation'
   );
+}
+
+// Get tool confirmation from ToolConfirmationRequest content (new format)
+export function getToolConfirmationRequestContent(
+  message: Message
+): ToolConfirmationRequestContent | undefined {
+  return message.content.find(
+    (content): content is ToolConfirmationRequestContent =>
+      content.type === 'toolConfirmationRequest'
+  );
+}
+
+// Unified type for tool confirmation data (works with both formats)
+export interface ToolConfirmationData {
+  id: string;
+  toolName: string;
+  arguments: Record<string, unknown>;
+  prompt?: string | null;
+}
+
+// Get tool confirmation data from either format
+export function getAnyToolConfirmationData(message: Message): ToolConfirmationData | undefined {
+  // Check for new toolConfirmationRequest format first
+  const confirmationRequest = getToolConfirmationRequestContent(message);
+  if (confirmationRequest) {
+    return {
+      id: confirmationRequest.id,
+      toolName: confirmationRequest.toolName,
+      arguments: confirmationRequest.arguments,
+      prompt: confirmationRequest.prompt,
+    };
+  }
+
+  // Fall back to actionRequired format
+  const actionRequired = getToolConfirmationContent(message);
+  if (actionRequired && actionRequired.data.actionType === 'toolConfirmation') {
+    return {
+      id: actionRequired.data.id,
+      toolName: actionRequired.data.toolName,
+      arguments: actionRequired.data.arguments,
+      prompt: actionRequired.data.prompt,
+    };
+  }
+
+  return undefined;
 }
 
 export function getToolConfirmationId(
@@ -129,12 +185,10 @@ export function getPendingToolConfirmationIds(messages: Message[]): Set<string> 
   }
 
   for (const message of messages) {
-    const confirmation = getToolConfirmationContent(message);
-    if (confirmation) {
-      const confirmationId = getToolConfirmationId(confirmation);
-      if (confirmationId && !respondedIds.has(confirmationId)) {
-        pendingIds.add(confirmationId);
-      }
+    // Check both formats
+    const confirmationData = getAnyToolConfirmationData(message);
+    if (confirmationData && !respondedIds.has(confirmationData.id)) {
+      pendingIds.add(confirmationData.id);
     }
   }
 
