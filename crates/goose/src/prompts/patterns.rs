@@ -18,6 +18,7 @@ use std::sync::RwLock;
 /// Pattern categories for organization
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
+#[derive(Default)]
 pub enum PatternCategory {
     /// Reasoning patterns (chain of thought, etc.)
     Reasoning,
@@ -30,14 +31,10 @@ pub enum PatternCategory {
     /// Meta patterns (self-reflection, uncertainty)
     Meta,
     /// Custom patterns
+    #[default]
     Custom,
 }
 
-impl Default for PatternCategory {
-    fn default() -> Self {
-        Self::Custom
-    }
-}
 
 /// Metadata about a pattern
 #[derive(Debug, Clone, Serialize, Deserialize)]

@@ -6,7 +6,7 @@ use super::manager::HookStats;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use tokio::io::AsyncWriteExt;
 use tokio::sync::RwLock;
@@ -72,14 +72,14 @@ impl HookLogger {
             .join(format!("{}.log", hook_name.to_lowercase()))
     }
 
-    async fn ensure_log_dir(&self, path: &PathBuf) -> std::io::Result<()> {
+    async fn ensure_log_dir(&self, path: &Path) -> std::io::Result<()> {
         if let Some(parent) = path.parent() {
             tokio::fs::create_dir_all(parent).await?;
         }
         Ok(())
     }
 
-    async fn append_jsonl(&self, path: &PathBuf, entry: &HookLogEntry) -> std::io::Result<()> {
+    async fn append_jsonl(&self, path: &Path, entry: &HookLogEntry) -> std::io::Result<()> {
         self.ensure_log_dir(path).await?;
 
         let json = serde_json::to_string(entry)?;
@@ -137,12 +137,14 @@ impl HookLogger {
 
         // Human-readable log
         let human_path = self.get_human_log_path(event_name);
+        let event_id_short: String = event_id.chars().take(8).collect();
+        let session_id_short: String = entry.session_id.chars().take(8).collect();
         let human_msg = format!(
             "[{}] {} START event_id={} session={}{}",
             entry.timestamp.format("%Y-%m-%d %H:%M:%S%.3f"),
             event_name,
-            &event_id[..8],
-            &entry.session_id[..8.min(entry.session_id.len())],
+            event_id_short,
+            session_id_short,
             entry
                 .tool_name
                 .as_ref()

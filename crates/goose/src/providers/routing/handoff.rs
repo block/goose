@@ -50,6 +50,7 @@ pub struct ProjectState {
 
 /// Current execution context
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Default)]
 pub struct ExecutionContext {
     /// Tools and commands run
     pub commands_run: Vec<String>,
@@ -76,17 +77,6 @@ impl Default for ProjectState {
     }
 }
 
-impl Default for ExecutionContext {
-    fn default() -> Self {
-        Self {
-            commands_run: Vec::new(),
-            working_directory: None,
-            env_vars: Vec::new(),
-            dependencies: Vec::new(),
-            error_patterns: Vec::new(),
-        }
-    }
-}
 
 impl HandoffMemo {
     /// Generate a new handoff memo for a provider switch

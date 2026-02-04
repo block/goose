@@ -4,7 +4,7 @@ use std::sync::Arc;
 use tokio::sync::RwLock;
 
 use super::{
-    EndpointId, ErrorCategory, HandoffMemo, ProjectId, ProjectProviderPolicy, ProviderConfig,
+    ErrorCategory, HandoffMemo, ProjectId, ProjectProviderPolicy, ProviderConfig,
     ProviderRegistry, RoutingError, RoutingResult, RunId, RunProviderState, SwitchReason,
 };
 
@@ -40,6 +40,7 @@ pub struct ProviderRouter {
     /// Provider registry
     registry: Arc<RwLock<ProviderRegistry>>,
     /// Router configuration
+    #[allow(dead_code)]
     config: RouterConfig,
     /// Active run states
     run_states: Arc<RwLock<std::collections::HashMap<RunId, RunProviderState>>>,
@@ -83,7 +84,7 @@ impl ProviderRouter {
         Ok(policies
             .get(&project_id)
             .cloned()
-            .unwrap_or_else(|| ProjectProviderPolicy::default()))
+            .unwrap_or_else(ProjectProviderPolicy::default))
     }
 
     /// Start a new run with provider selection
@@ -97,13 +98,9 @@ impl ProviderRouter {
         let policy = self.get_project_policy(project_id).await?;
 
         // Determine effective provider and model
-        let provider = preferred_provider
-            .as_ref()
-            .map(|s| s.as_str())
+        let provider = preferred_provider.as_deref()
             .unwrap_or_else(|| policy.get_effective_provider());
-        let model = preferred_model
-            .as_ref()
-            .map(|s| s.as_str())
+        let model = preferred_model.as_deref()
             .unwrap_or_else(|| policy.get_effective_model());
 
         // Validate provider is allowed
@@ -120,7 +117,7 @@ impl ProviderRouter {
         let endpoint_id = endpoint_config.endpoint_id.clone();
 
         // Create initial provider config
-        let provider_config = ProviderConfig::new(provider.clone(), endpoint_id, model.clone());
+        let provider_config = ProviderConfig::new(provider, endpoint_id, model);
 
         // Create and store run state
         let run_state = RunProviderState::new(run_id, project_id, provider_config.clone());

@@ -158,13 +158,11 @@ impl TaskPersistence for SqliteTaskPersistence {
         let owner = task
             .owner
             .as_ref()
-            .map(|o| serde_json::to_string(o).ok())
-            .flatten();
+            .and_then(|o| serde_json::to_string(o).ok());
         let result = task
             .result
             .as_ref()
-            .map(|r| serde_json::to_string(r).ok())
-            .flatten();
+            .and_then(|r| serde_json::to_string(r).ok());
         let metadata = serde_json::to_string(&task.metadata)?;
 
         sqlx::query(

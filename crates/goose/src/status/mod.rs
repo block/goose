@@ -128,6 +128,7 @@ pub struct StatusLine {
     current: Arc<RwLock<Option<StatusUpdate>>>,
     history: Arc<RwLock<Vec<StatusUpdate>>>,
     max_history: usize,
+    #[allow(clippy::type_complexity)]
     callbacks: Arc<RwLock<Vec<Box<dyn Fn(&StatusUpdate) + Send + Sync>>>>,
 }
 

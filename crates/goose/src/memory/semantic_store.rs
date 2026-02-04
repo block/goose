@@ -455,7 +455,7 @@ mod tests {
     fn test_store_with_custom_embedding() {
         let mut store = SemanticStore::new(100, 4);
 
-        let mut embedding = vec![1.0, 0.0, 0.0, 0.0];
+        let embedding = vec![1.0, 0.0, 0.0, 0.0];
         let entry = create_test_entry("test-1", "Test").with_embedding(embedding.clone());
 
         store.store(entry).unwrap();

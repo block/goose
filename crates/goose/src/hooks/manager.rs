@@ -177,6 +177,7 @@ impl HookManager {
         }
 
         // Wait for sync handlers
+        #[allow(clippy::collapsible_match)]
         for handle in handles {
             if let Ok((evt, result)) = handle.await {
                 if let Ok(r) = result {
@@ -301,6 +302,7 @@ impl HookManager {
     }
 
     /// Fire SessionStart hook
+    #[allow(clippy::too_many_arguments)]
     pub async fn fire_session_start(
         &self,
         source: super::events::SessionSource,

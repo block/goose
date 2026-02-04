@@ -139,18 +139,15 @@ impl HookResult {
 /// Decision from a hook
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "lowercase")]
+#[derive(Default)]
 pub enum HookDecision {
+    #[default]
     Continue,
     Approve { reason: String },
     Block { reason: String },
     Ask { reason: String },
 }
 
-impl Default for HookDecision {
-    fn default() -> Self {
-        HookDecision::Continue
-    }
-}
 
 impl HookHandler {
     /// Check if this handler should run for the given event

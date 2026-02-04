@@ -137,6 +137,7 @@ impl EndpointConfig {
 
 /// Health status of an endpoint
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Default)]
 pub enum EndpointHealth {
     /// Endpoint is healthy and responding
     Healthy,
@@ -145,14 +146,10 @@ pub enum EndpointHealth {
     /// Endpoint is unhealthy (not responding, authentication failed)
     Unhealthy,
     /// Health status unknown (not checked yet)
+    #[default]
     Unknown,
 }
 
-impl Default for EndpointHealth {
-    fn default() -> Self {
-        Self::Unknown
-    }
-}
 
 /// Health check result for an endpoint
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -203,6 +200,7 @@ pub struct ProviderRegistry {
     /// Health check results
     health_cache: HashMap<EndpointId, HealthCheckResult>,
     /// Health check interval
+    #[allow(dead_code)]
     health_check_interval: Duration,
 }
 

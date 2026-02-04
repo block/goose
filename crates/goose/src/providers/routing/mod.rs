@@ -137,7 +137,9 @@ impl Default for RunId {
 
 impl std::fmt::Display for RunId {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "run-{}", &self.0.to_string()[..8])
+        let id_str = self.0.to_string();
+        let short: String = id_str.chars().take(8).collect();
+        write!(f, "run-{}", short)
     }
 }
 
@@ -159,7 +161,9 @@ impl Default for ProjectId {
 
 impl std::fmt::Display for ProjectId {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "proj-{}", &self.0.to_string()[..8])
+        let id_str = self.0.to_string();
+        let short: String = id_str.chars().take(8).collect();
+        write!(f, "proj-{}", short)
     }
 }
 

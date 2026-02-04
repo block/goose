@@ -7,7 +7,7 @@ use super::{
 use anyhow::Result;
 use async_trait::async_trait;
 use regex::Regex;
-use std::path::PathBuf;
+use std::path::Path;
 
 pub struct SecurityValidator {
     secret_patterns: Vec<SecretPattern>,
@@ -131,14 +131,14 @@ impl SecurityValidator {
         ]
     }
 
-    fn scan_content(&self, content: &str, file_path: &PathBuf) -> Vec<ValidationIssue> {
+    fn scan_content(&self, content: &str, file_path: &Path) -> Vec<ValidationIssue> {
         let mut issues = Vec::new();
 
         // Check for secrets
         for pattern in &self.secret_patterns {
             if pattern.pattern.is_match(content) {
                 issues.push(ValidationIssue {
-                    file: Some(file_path.clone()),
+                    file: Some(file_path.to_path_buf()),
                     line: None,
                     column: None,
                     message: format!("Potential {} detected", pattern.name),
@@ -155,7 +155,7 @@ impl SecurityValidator {
         for pattern in &self.dangerous_patterns {
             if pattern.pattern.is_match(content) {
                 issues.push(ValidationIssue {
-                    file: Some(file_path.clone()),
+                    file: Some(file_path.to_path_buf()),
                     line: None,
                     column: None,
                     message: pattern.description.clone(),
@@ -271,6 +271,7 @@ impl Validator for SecurityValidator {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::path::PathBuf;
 
     #[test]
     fn test_security_validator_detects_aws_key() {

@@ -53,6 +53,7 @@ pub async fn handle_workflow_command(command: WorkflowCommand) -> Result<()> {
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 async fn handle_workflow_execute(
     template: String,
     working_dir: Option<String>,

@@ -11,8 +11,10 @@ use std::sync::RwLock;
 /// Variable type for validation
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
+#[derive(Default)]
 pub enum VariableType {
     /// String variable
+    #[default]
     String,
     /// Number variable
     Number,
@@ -26,11 +28,6 @@ pub enum VariableType {
     Any,
 }
 
-impl Default for VariableType {
-    fn default() -> Self {
-        Self::String
-    }
-}
 
 /// Template variable definition
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -111,7 +108,7 @@ impl TemplateVariable {
             },
             VariableType::Array => {
                 // Basic validation - check if it looks like a comma-separated list
-                if value.contains(',') || value.len() > 0 {
+                if value.contains(',') || !value.is_empty() {
                     Ok(())
                 } else {
                     Err(PromptError::invalid_variable(

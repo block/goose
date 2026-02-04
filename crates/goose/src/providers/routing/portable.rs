@@ -482,7 +482,7 @@ impl PortableContextPack {
 
     /// Extract archive to directory
     async fn extract_archive(archive_path: &Path, target_dir: &Path) -> RoutingResult<()> {
-        use std::io::Read;
+        
 
         let file = std::fs::File::open(archive_path)?;
         let mut archive = zip::ZipArchive::new(file)

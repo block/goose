@@ -44,6 +44,7 @@ pub enum BuiltinCommand {
 }
 
 impl BuiltinCommand {
+    #[allow(clippy::should_implement_trait)]
     pub fn from_str(s: &str) -> Option<Self> {
         match s.to_lowercase().as_str() {
             "help" | "?" => Some(BuiltinCommand::Help),
@@ -158,7 +159,7 @@ pub enum ParsedCommand {
     },
     Recipe {
         path: PathBuf,
-        recipe: Recipe,
+        recipe: Box<Recipe>,
         args: Vec<String>,
     },
     Unknown {
@@ -215,7 +216,11 @@ pub fn parse_command(input: &str) -> Option<ParsedCommand> {
         return None;
     }
 
-    let parts: Vec<&str> = trimmed[1..].split_whitespace().collect();
+    let parts: Vec<&str> = trimmed
+        .strip_prefix('/')
+        .unwrap_or(trimmed)
+        .split_whitespace()
+        .collect();
     if parts.is_empty() {
         return None;
     }
@@ -234,7 +239,7 @@ pub fn parse_command(input: &str) -> Option<ParsedCommand> {
     // Check custom recipe commands
     if let Some(recipe) = resolve_slash_command(command_name) {
         if let Some(path) = get_recipe_for_command(command_name) {
-            return Some(ParsedCommand::Recipe { path, recipe, args });
+            return Some(ParsedCommand::Recipe { path, recipe: Box::new(recipe), args });
         }
     }
 

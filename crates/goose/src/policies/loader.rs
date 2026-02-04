@@ -64,7 +64,7 @@ impl PolicyLoader {
     /// Parse policy content
     fn parse_content(&self, content: &str, source: &Path) -> Result<RuleSet, PolicyError> {
         let rule_set: RuleSet = serde_yaml::from_str(content)
-            .map_err(|e| PolicyError::YamlParseError(serde_yaml::Error::from(e)))?;
+            .map_err(PolicyError::YamlParseError)?;
 
         // Validate the rule set
         self.validate_rule_set(&rule_set, source)?;
@@ -124,10 +124,7 @@ impl PolicyLoader {
             return false;
         }
 
-        match path.extension().and_then(|e| e.to_str()) {
-            Some("yaml") | Some("yml") => true,
-            _ => false,
-        }
+        matches!(path.extension().and_then(|e| e.to_str()), Some("yaml") | Some("yml"))
     }
 
     /// Get the policy directory
