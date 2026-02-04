@@ -9,6 +9,7 @@ import type {
   ToolCancelled,
   HostContext,
   CspMetadata,
+  PermissionsMetadata,
 } from './types';
 import { fetchMcpAppProxyUrl } from './utils';
 import { useTheme } from '../../contexts/ThemeContext';
@@ -18,6 +19,7 @@ import { errorMessage } from '../../utils/conversionUtils';
 interface SandboxBridgeOptions {
   resourceHtml: string;
   resourceCsp: CspMetadata | null;
+  resourcePermissions: PermissionsMetadata | null;
   resourceUri: string;
   toolInput?: ToolInput;
   toolInputPartial?: ToolInputPartial;
@@ -40,6 +42,7 @@ export function useSandboxBridge(options: SandboxBridgeOptions): SandboxBridgeRe
   const {
     resourceHtml,
     resourceCsp,
+    resourcePermissions,
     resourceUri,
     toolInput,
     toolInputPartial,
@@ -80,7 +83,7 @@ export function useSandboxBridge(options: SandboxBridgeOptions): SandboxBridgeRe
             sendToSandbox({
               jsonrpc: '2.0',
               method: 'ui/notifications/sandbox-resource-ready',
-              params: { html: resourceHtml, csp: resourceCsp },
+              params: { html: resourceHtml, csp: resourceCsp, permissions: resourcePermissions },
             });
             break;
 
@@ -181,6 +184,7 @@ export function useSandboxBridge(options: SandboxBridgeOptions): SandboxBridgeRe
     [
       resourceHtml,
       resourceCsp,
+      resourcePermissions,
       resolvedTheme,
       sendToSandbox,
       onMcpRequest,
