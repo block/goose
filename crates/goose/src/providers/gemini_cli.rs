@@ -1,25 +1,22 @@
-use anyhow::Result;
-use async_trait::async_trait;
-use serde_json::json;
-use std::ffi::OsString;
-use std::path::PathBuf;
-use std::process::Stdio;
-use tokio::io::{AsyncBufReadExt, BufReader};
-use tokio::process::Command;
-
 use super::base::{Provider, ProviderDef, ProviderMetadata, ProviderUsage, Usage};
 use super::errors::ProviderError;
 use super::utils::{filter_extensions_from_system_prompt, RequestLog};
-use crate::config::base::GeminiCliCommand;
 use crate::config::search_path::SearchPaths;
 use crate::config::Config;
 use crate::conversation::message::{Message, MessageContent};
 use crate::model::ModelConfig;
 use crate::providers::base::ConfigKey;
 use crate::subprocess::configure_command_no_window;
+use anyhow::Result;
+use async_trait::async_trait;
 use futures::future::BoxFuture;
 use rmcp::model::Role;
 use rmcp::model::Tool;
+use serde_json::json;
+use std::ffi::OsString;
+use std::path::PathBuf;
+use std::process::Stdio;
+use tokio::io::{AsyncBufReadExt, BufReader};
 
 const GEMINI_CLI_PROVIDER_NAME: &str = "gemini-cli";
 pub const GEMINI_CLI_DEFAULT_MODEL: &str = "gemini-2.5-pro";
@@ -92,7 +89,7 @@ impl GeminiCliProvider {
             println!("================================");
         }
 
-        let mut cmd = Command::new(&self.command);
+        let mut cmd = crate::subprocess::create_command(&self.command);
         configure_command_no_window(&mut cmd);
 
         if let Ok(path) = SearchPaths::builder().with_npm().path() {
@@ -248,7 +245,12 @@ impl ProviderDef for GeminiCliProvider {
             GEMINI_CLI_DEFAULT_MODEL,
             GEMINI_CLI_KNOWN_MODELS.to_vec(),
             GEMINI_CLI_DOC_URL,
-            vec![ConfigKey::from_value_type::<GeminiCliCommand>(true, false)],
+            vec![ConfigKey::new(
+                "GEMINI_CLI_COMMAND",
+                true,
+                false,
+                Some("gemini"),
+            )],
         )
     }
 
