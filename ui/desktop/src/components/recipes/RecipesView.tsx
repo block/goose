@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { listSavedRecipes, convertToLocaleDateString } from '../../recipe/recipe_management';
 import {
   FileText,
@@ -61,6 +62,7 @@ import { getSearchShortcutText } from '../../utils/keyboardShortcuts';
 import { errorMessage } from '../../utils/conversionUtils';
 
 export default function RecipesView() {
+  const navigate = useNavigate();
   const setView = useNavigation();
   const [savedRecipes, setSavedRecipes] = useState<RecipeManifest[]>([]);
   const [loading, setLoading] = useState(true);
@@ -683,26 +685,104 @@ export default function RecipesView() {
             <div className="flex flex-col page-transition">
               <div className="flex justify-between items-center mb-1">
                 <h1 className="text-4xl font-light">Recipes</h1>
-                <div className="flex gap-2">
-                  <Button
-                    onClick={() => setView('recipeBuilder')}
-                    variant="default"
-                    size="sm"
-                    className="flex items-center gap-2"
-                  >
-                    <Sparkles className="w-4 h-4" />
-                    Create with AI
-                  </Button>
-                  <Button
-                    onClick={() => setShowCreateDialog(true)}
-                    variant="outline"
-                    size="sm"
-                    className="flex items-center gap-2"
-                  >
-                    <FileText className="w-4 h-4" />
-                    Create Recipe
-                  </Button>
-                  <ImportRecipeButton onClick={() => setShowImportDialog(true)} />
+                <div className="flex flex-col gap-2 items-end">
+                  {/* Main actions */}
+                  <div className="flex gap-2">
+                    <Button
+                      onClick={() => setView('recipeBuilder')}
+                      variant="default"
+                      size="sm"
+                      className="flex items-center gap-2"
+                    >
+                      <Sparkles className="w-4 h-4" />
+                      Create with AI
+                    </Button>
+                    <Button
+                      onClick={() => setShowCreateDialog(true)}
+                      variant="outline"
+                      size="sm"
+                      className="flex items-center gap-2"
+                    >
+                      <FileText className="w-4 h-4" />
+                      Create Recipe
+                    </Button>
+                    <ImportRecipeButton onClick={() => setShowImportDialog(true)} />
+                  </div>
+                  {/* Prototype links */}
+                  <div className="flex flex-wrap gap-1 justify-end">
+                    <Button
+                      onClick={() => navigate('/prototype-phase1')}
+                      variant="ghost"
+                      size="sm"
+                      className="flex items-center gap-1 text-purple-600 text-xs px-2 py-1 h-auto"
+                    >
+                      P1
+                    </Button>
+                    <Button
+                      onClick={() => navigate('/prototype-phase2')}
+                      variant="ghost"
+                      size="sm"
+                      className="flex items-center gap-1 text-purple-600 text-xs px-2 py-1 h-auto"
+                    >
+                      P2
+                    </Button>
+                    <Button
+                      onClick={() => navigate('/prototype-phase3')}
+                      variant="ghost"
+                      size="sm"
+                      className="flex items-center gap-1 text-purple-600 text-xs px-2 py-1 h-auto"
+                    >
+                      P3
+                    </Button>
+                    <Button
+                      onClick={() => navigate('/prototype-phase4')}
+                      variant="ghost"
+                      size="sm"
+                      className="flex items-center gap-1 text-purple-600 text-xs px-2 py-1 h-auto"
+                    >
+                      P4
+                    </Button>
+                    <Button
+                      onClick={() => navigate('/prototype-combined')}
+                      variant="ghost"
+                      size="sm"
+                      className="flex items-center gap-1 text-green-600 text-xs px-2 py-1 h-auto"
+                    >
+                      Combined
+                    </Button>
+                    <Button
+                      onClick={() => navigate('/prototype-chatfirst')}
+                      variant="ghost"
+                      size="sm"
+                      className="flex items-center gap-1 text-blue-600 text-xs px-2 py-1 h-auto"
+                    >
+                      ChatFirst
+                    </Button>
+                    <Button
+                      onClick={() => navigate('/prototype-vertical')}
+                      variant="ghost"
+                      size="sm"
+                      className="flex items-center gap-1 text-purple-600 text-xs px-2 py-1 h-auto"
+                    >
+                      Vertical
+                    </Button>
+                    <Button
+                      onClick={() => navigate('/prototype-twopanel')}
+                      variant="ghost"
+                      size="sm"
+                      className="flex items-center gap-1 text-green-600 text-xs px-2 py-1 h-auto"
+                    >
+                      TwoPanel
+                    </Button>
+                    <Button
+                      onClick={() => navigate('/prototype-progressive')}
+                      variant="ghost"
+                      size="sm"
+                      className="flex items-center gap-1 text-yellow-600 font-bold text-xs px-2 py-1 h-auto"
+                    >
+                      ✨ Progressive
+                    </Button>
+                  </div>
                 </div>
               </div>
               <p className="text-sm text-text-muted mb-1">

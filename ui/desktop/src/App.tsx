@@ -44,6 +44,15 @@ import PermissionSettingsView from './components/settings/permission/PermissionS
 import ExtensionsView, { ExtensionsViewOptions } from './components/extensions/ExtensionsView';
 import RecipesView from './components/recipes/RecipesView';
 import RecipeBuilderView from './components/recipes/RecipeBuilderView';
+import { Phase1_Demo } from './components/recipes/prototypes/Phase1_SaveFromChatDialog';
+import { Phase2_Demo } from './components/recipes/prototypes/Phase2_RecipesPageWithReadyToUse';
+import { Phase3_Demo } from './components/recipes/prototypes/Phase3_RecipeBuilder';
+import { Phase4_Demo } from './components/recipes/prototypes/Phase4_TestRecipe';
+import { Phase3Combined_Demo } from './components/recipes/prototypes/Phase3_BuildAndTest';
+import { Phase3ChatFirst_Demo } from './components/recipes/prototypes/Phase3_ChatFirst';
+import { Phase3Vertical_Demo } from './components/recipes/prototypes/Phase3_VerticalBuilder';
+import { Phase3TwoPanel_Demo } from './components/recipes/prototypes/Phase3_TwoPanel';
+import { Phase3Progressive_Demo } from './components/recipes/prototypes/Phase3_Progressive';
 import AppsView from './components/apps/AppsView';
 import StandaloneAppView from './components/apps/StandaloneAppView';
 import { View, ViewOptions } from './utils/navigationUtils';
@@ -683,6 +692,15 @@ export function AppInner() {
               <Route path="schedules" element={<SchedulesRoute />} />
               <Route path="recipes" element={<RecipesRoute />} />
               <Route path="recipe-builder" element={<RecipeBuilderView />} />
+              <Route path="prototype-phase1" element={<Phase1_Demo />} />
+              <Route path="prototype-phase2" element={<Phase2_Demo />} />
+              <Route path="prototype-phase3" element={<Phase3_Demo />} />
+              <Route path="prototype-phase4" element={<Phase4_Demo />} />
+              <Route path="prototype-combined" element={<Phase3Combined_Demo />} />
+              <Route path="prototype-chatfirst" element={<Phase3ChatFirst_Demo />} />
+              <Route path="prototype-vertical" element={<Phase3Vertical_Demo />} />
+              <Route path="prototype-twopanel" element={<Phase3TwoPanel_Demo />} />
+              <Route path="prototype-progressive" element={<Phase3Progressive_Demo />} />
               <Route
                 path="shared-session"
                 element={
