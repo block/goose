@@ -751,55 +751,47 @@ export function useChatStream({
           });
 
           if (sessionResponse.data?.conversation) {
-            const updatedMessages = [...sessionResponse.data.conversation];
+            // The session has been truncated - it contains messages BEFORE the edited message
+            const truncatedMessages = [...sessionResponse.data.conversation];
 
-            if (updatedMessages.length > 0) {
-              const lastMessage = updatedMessages[updatedMessages.length - 1];
-              if (lastMessage.role === 'user') {
-                lastMessage.content = [{ type: 'text', text: newContent }];
+            // Create the updated user message with new content
+            const updatedUserMessage = createUserMessage(newContent);
 
-                for (const content of message.content) {
-                  if (content.type === 'image') {
-                    lastMessage.content.push(content);
-                  }
-                }
-
-                dispatch({ type: 'SET_MESSAGES', payload: updatedMessages });
-                dispatch({ type: 'START_STREAMING' });
-                abortControllerRef.current = new AbortController();
-
-                try {
-                  const placeholderMessage = createUserMessage(newContent);
-
-                  const { stream } = await reply({
-                    body: {
-                      session_id: targetSessionId,
-                      user_message: placeholderMessage,
-                    },
-                    throwOnError: true,
-                    signal: abortControllerRef.current.signal,
-                  });
-
-                  await streamFromResponse(
-                    stream,
-                    updatedMessages,
-                    dispatch,
-                    onFinish,
-                    targetSessionId
-                  );
-                } catch (error) {
-                  if (error instanceof Error && error.name === 'AbortError') {
-                    dispatch({ type: 'SET_CHAT_STATE', payload: ChatState.Idle });
-                  } else {
-                    throw error;
-                  }
-                }
-                return;
+            // Preserve any existing image content from the original message
+            for (const content of message.content) {
+              if (content.type === 'image') {
+                updatedUserMessage.content.push(content);
               }
             }
 
-            dispatch({ type: 'SET_MESSAGES', payload: sessionResponse.data.conversation });
-            await handleSubmit({ msg: newContent, images: [] });
+            // Update UI to show the edited message appended to truncated conversation
+            const messagesForUI = [...truncatedMessages, updatedUserMessage];
+            dispatch({ type: 'SET_MESSAGES', payload: messagesForUI });
+            dispatch({ type: 'START_STREAMING' });
+
+            // Request response to the updated message
+            const { reply } = await import('../api');
+            abortControllerRef.current = new AbortController();
+
+            try {
+              const { stream } = await reply({
+                body: {
+                  session_id: targetSessionId,
+                  user_message: updatedUserMessage,
+                  conversation_so_far: truncatedMessages, // Explicitly pass truncated conversation
+                },
+                throwOnError: true,
+                signal: abortControllerRef.current.signal,
+              });
+
+              await streamFromResponse(stream, messagesForUI, dispatch, onFinish, targetSessionId);
+            } catch (error) {
+              if (error instanceof Error && error.name === 'AbortError') {
+                dispatch({ type: 'SET_CHAT_STATE', payload: ChatState.Idle });
+              } else {
+                throw error; // Let the outer catch block handle it
+              }
+            }
           } else {
             await handleSubmit({ msg: newContent, images: [] });
           }
