@@ -1740,12 +1740,21 @@ data: [DONE]
         let message = response_to_message(&response)?;
 
         // First content should be ThinkingContent (reasoning)
-        assert!(message.content.len() >= 2, "Expected at least 2 content items");
+        assert!(
+            message.content.len() >= 2,
+            "Expected at least 2 content items"
+        );
         if let MessageContent::Thinking(thinking) = &message.content[0] {
             assert_eq!(thinking.thinking, "Let me think about this step by step...");
-            assert!(thinking.signature.is_none(), "OpenAI-compatible signature should be None");
+            assert!(
+                thinking.signature.is_none(),
+                "OpenAI-compatible signature should be None"
+            );
         } else {
-            panic!("Expected Thinking content as first item, got {:?}", message.content[0]);
+            panic!(
+                "Expected Thinking content as first item, got {:?}",
+                message.content[0]
+            );
         }
 
         // Second content should be text
@@ -1800,7 +1809,8 @@ data: [DONE]
     }
 
     #[test]
-    fn test_format_messages_tool_calls_without_thinking_includes_empty_reasoning() -> anyhow::Result<()> {
+    fn test_format_messages_tool_calls_without_thinking_includes_empty_reasoning(
+    ) -> anyhow::Result<()> {
         // Test that reasoning_content is included (empty) when tool_calls present but no thinking
         let message = Message::assistant().with_tool_request(
             "call_1",
