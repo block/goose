@@ -91,7 +91,6 @@ impl NostrShareConfig {
         self.save(&path)?;
         Ok(path)
     }
-
 }
 
 #[cfg(test)]

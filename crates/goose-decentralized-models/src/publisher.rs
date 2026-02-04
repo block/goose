@@ -73,7 +73,10 @@ impl ModelPublisher {
         });
 
         let tags = vec![
-            Tag::custom(TagKind::Custom("d".into()), vec!["llm-offerings".to_string()]),
+            Tag::custom(
+                TagKind::Custom("d".into()),
+                vec!["llm-offerings".to_string()],
+            ),
             Tag::custom(
                 TagKind::Custom("k".into()),
                 vec!["llm-openai-compatible".to_string()],
@@ -107,7 +110,7 @@ impl ModelPublisher {
         let events = self.list_own_events().await?;
         let mut deleted = 0;
         for event in events {
-            // Delete old per-model events (have "model" tag) 
+            // Delete old per-model events (have "model" tag)
             let has_model_tag = event
                 .tags
                 .iter()

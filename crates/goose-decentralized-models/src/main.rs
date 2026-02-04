@@ -59,15 +59,15 @@ async fn init() -> Result<()> {
         return Ok(());
     }
 
-    // Detect public IP
+    // Detect public IP - endpoint includes /v1 for OpenAI compatibility
     let endpoint = match detect_public_ip().await {
         Ok(ip) => {
             println!("Detected public IP: {}", ip);
-            format!("http://{}:11434", ip)
+            format!("http://{}:11434/v1", ip)
         }
         Err(_) => {
             println!("Could not detect public IP, using placeholder");
-            "http://YOUR_IP:11434".to_string()
+            "http://YOUR_IP:11434/v1".to_string()
         }
     };
 
@@ -174,7 +174,9 @@ async fn publish() -> Result<()> {
         );
     }
 
-    let event_id = publisher.publish(&config.models, config.ttl_seconds).await?;
+    let event_id = publisher
+        .publish(&config.models, config.ttl_seconds)
+        .await?;
 
     println!("Published event: {}", event_id.to_hex());
     println!(

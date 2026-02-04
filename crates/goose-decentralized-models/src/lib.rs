@@ -6,6 +6,12 @@ pub use config::NostrShareConfig;
 pub use keys::KeyManager;
 pub use publisher::{DiscoveredModel, ModelDiscovery, ModelPublisher};
 
+/// Install the rustls crypto provider. Call this before using any nostr functions.
+/// Safe to call multiple times - will only install once.
+pub fn ensure_crypto_provider() {
+    let _ = rustls::crypto::ring::default_provider().install_default();
+}
+
 /// Default relays for discovery
 pub const DEFAULT_RELAYS: &[&str] = &[
     "wss://relay.damus.io",
@@ -92,18 +98,57 @@ pub async fn discover_model_filtered(
     relays: Option<Vec<String>>,
     filter: &ModelFilter,
 ) -> anyhow::Result<Option<DiscoveredModel>> {
+    ensure_crypto_provider();
+
     let relays = relays.unwrap_or_else(|| DEFAULT_RELAYS.iter().map(|s| s.to_string()).collect());
+
+    tracing::info!(
+        "Discovering decentralized models from {} relays",
+        relays.len()
+    );
+    for relay in &relays {
+        tracing::debug!("  relay: {}", relay);
+    }
+
+    if filter.model.is_some()
+        || filter.geo.is_some()
+        || filter.max_cost.is_some()
+        || filter.min_context.is_some()
+    {
+        tracing::info!("Filter: {:?}", filter);
+    }
 
     let discovery = ModelDiscovery::new(relays).await?;
     discovery.connect().await;
 
+    tracing::info!("Connected to relays, fetching model listings...");
     let models = discovery.discover().await?;
 
-    Ok(models.into_iter().find(|m| filter.matches(m)))
+    tracing::info!("Found {} model(s) on the network", models.len());
+    for model in &models {
+        tracing::debug!(
+            "  - {} at {} (publisher: {})",
+            model.model_name,
+            model.endpoint,
+            &model.publisher_npub[..20]
+        );
+    }
+
+    let matched = models.into_iter().find(|m| filter.matches(m));
+
+    if let Some(ref m) = matched {
+        tracing::info!("Selected model '{}' from {}", m.model_name, m.endpoint);
+    } else {
+        tracing::warn!("No models matched the filter criteria");
+    }
+
+    Ok(matched)
 }
 
 /// Discover all available models from Nostr relays.
 pub async fn discover_models(relays: Option<Vec<String>>) -> anyhow::Result<Vec<DiscoveredModel>> {
+    ensure_crypto_provider();
+
     let relays = relays.unwrap_or_else(|| DEFAULT_RELAYS.iter().map(|s| s.to_string()).collect());
 
     let discovery = ModelDiscovery::new(relays).await?;

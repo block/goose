@@ -16,6 +16,7 @@ path = "src/main.rs"
 
 [dependencies]
 nostr-sdk = "0.44"
+rustls = { version = "0.23", default-features = false, features = ["ring"] }
 anyhow = { workspace = true }
 tokio = { workspace = true }
 serde = { version = "1.0", features = ["derive"] }

@@ -422,6 +422,9 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> CliSession {
     };
     let provider_for_display = Arc::clone(&new_provider);
 
+    // Get the actual model name from the provider (may differ from requested, e.g., decentralized discovery)
+    let actual_model_name = new_provider.get_model_config().model_name.clone();
+
     if let Some(lead_worker) = new_provider.as_lead_worker() {
         let (lead_model, worker_model) = lead_worker.get_model_info();
         tracing::info!(
@@ -430,7 +433,7 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> CliSession {
             worker_model
         );
     } else {
-        tracing::info!("🤖 Using model: {}", model_name);
+        tracing::info!("🤖 Using model: {}", actual_model_name);
     }
 
     let session_id: String = if session_config.no_session {
@@ -621,7 +624,7 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> CliSession {
         output::display_session_info(
             session_config.resume,
             &provider_name,
-            &model_name,
+            &actual_model_name,
             &Some(session_id),
             Some(&provider_for_display),
         );
