@@ -52,6 +52,7 @@ pub static PLATFORM_EXTENSIONS: Lazy<HashMap<&'static str, PlatformExtensionDef>
                 description:
                     "Enable a todo list for goose so it can keep track of what it is doing",
                 default_enabled: true,
+                unprefixed_tools: false,
                 client_factory: |ctx| Box::new(todo_extension::TodoClient::new(ctx).unwrap()),
             },
         );
@@ -64,6 +65,7 @@ pub static PLATFORM_EXTENSIONS: Lazy<HashMap<&'static str, PlatformExtensionDef>
                 description:
                     "Create and manage custom Goose apps through chat. Apps are HTML/CSS/JavaScript and run in sandboxed windows.",
                 default_enabled: true,
+                unprefixed_tools: false,
                 client_factory: |ctx| Box::new(apps_extension::AppsManagerClient::new(ctx).unwrap()),
             },
         );
@@ -76,6 +78,7 @@ pub static PLATFORM_EXTENSIONS: Lazy<HashMap<&'static str, PlatformExtensionDef>
                 description:
                     "Search past conversations and load session summaries for contextual memory",
                 default_enabled: false,
+                unprefixed_tools: false,
                 client_factory: |ctx| {
                     Box::new(chatrecall_extension::ChatRecallClient::new(ctx).unwrap())
                 },
@@ -90,6 +93,7 @@ pub static PLATFORM_EXTENSIONS: Lazy<HashMap<&'static str, PlatformExtensionDef>
                 description:
                     "Enable extension management tools for discovering, enabling, and disabling extensions",
                 default_enabled: true,
+                unprefixed_tools: false,
                 client_factory: |ctx| Box::new(extension_manager_extension::ExtensionManagerClient::new(ctx).unwrap()),
             },
         );
@@ -101,6 +105,7 @@ pub static PLATFORM_EXTENSIONS: Lazy<HashMap<&'static str, PlatformExtensionDef>
                 display_name: "Summon",
                 description: "Load knowledge and delegate tasks to subagents",
                 default_enabled: true,
+                unprefixed_tools: true, // Expose as `load` and `delegate` without prefix
                 client_factory: |ctx| Box::new(summon_extension::SummonClient::new(ctx).unwrap()),
             },
         );
@@ -113,6 +118,7 @@ pub static PLATFORM_EXTENSIONS: Lazy<HashMap<&'static str, PlatformExtensionDef>
                 description:
                     "Goose will make extension calls through code execution, saving tokens",
                 default_enabled: false,
+                unprefixed_tools: false,
                 client_factory: |ctx| {
                     Box::new(code_execution_extension::CodeExecutionClient::new(ctx).unwrap())
                 },
@@ -168,6 +174,9 @@ pub struct PlatformExtensionDef {
     pub display_name: &'static str,
     pub description: &'static str,
     pub default_enabled: bool,
+    /// If true, tools from this extension are exposed without the `{extension_name}__` prefix.
+    /// This makes them feel like first-class agent capabilities (e.g., `load` instead of `summon__load`).
+    pub unprefixed_tools: bool,
     pub client_factory: fn(PlatformExtensionContext) -> Box<dyn McpClientTrait>,
 }
 

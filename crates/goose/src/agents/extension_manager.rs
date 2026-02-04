@@ -199,6 +199,34 @@ pub fn get_parameter_names(tool: &Tool) -> Vec<String> {
     names
 }
 
+/// Extract the owning extension name from a tool's meta field.
+/// Used for unprefixed tools where ownership can't be determined from the tool name.
+pub fn get_tool_owner(tool: &Tool) -> Option<String> {
+    tool.meta
+        .as_ref()
+        .and_then(|m| m.0.get("goose_extension"))
+        .and_then(|v| v.as_str())
+        .map(|s| s.to_string())
+}
+
+/// Check if a platform extension should expose tools without prefix
+fn is_unprefixed_extension(config: &ExtensionConfig) -> bool {
+    if let ExtensionConfig::Platform { name, .. } = config {
+        PLATFORM_EXTENSIONS
+            .get(name_to_key(name).as_str())
+            .is_some_and(|def| def.unprefixed_tools)
+    } else {
+        false
+    }
+}
+
+/// Result of resolving a tool call to its owning extension
+struct ResolvedTool {
+    client_name: String,
+    actual_tool_name: String,
+    client: McpClientBox,
+}
+
 async fn child_process_client(
     mut command: Command,
     timeout: &Option<u64>,
@@ -791,16 +819,21 @@ impl ExtensionManager {
         tools
             .iter()
             .filter(|tool| {
-                let tool_prefix = tool.name.split("__").next().unwrap_or("");
+                // Get owner from meta (for unprefixed tools), fall back to prefix split
+                let tool_owner = get_tool_owner(tool)
+                    .map(|s| name_to_key(&s))
+                    .unwrap_or_else(|| {
+                        tool.name.split("__").next().unwrap_or("").to_string()
+                    });
 
                 if let Some(ref excluded) = exclude_normalized {
-                    if tool_prefix == excluded {
+                    if tool_owner == *excluded {
                         return false;
                     }
                 }
 
                 if let Some(ref name_filter) = extension_name_normalized {
-                    tool_prefix == name_filter
+                    tool_owner == *name_filter
                 } else {
                     true
                 }
@@ -863,18 +896,39 @@ impl ExtensionManager {
                     }
                 };
 
+                // Check if this extension should expose unprefixed tools
+                let expose_unprefixed = is_unprefixed_extension(&config);
+
                 loop {
                     for tool in client_tools.tools {
                         if config.is_tool_available(&tool.name) {
+                            // Determine public tool name
+                            let public_name = if expose_unprefixed {
+                                tool.name.to_string()
+                            } else {
+                                format!("{}__{}", name, tool.name)
+                            };
+
+                            // Embed ownership in meta for dispatch/filtering
+                            let mut meta_map = tool
+                                .meta
+                                .as_ref()
+                                .map(|m| m.0.clone())
+                                .unwrap_or_default();
+                            meta_map.insert(
+                                "goose_extension".to_string(),
+                                serde_json::Value::String(name.clone()),
+                            );
+
                             tools.push(Tool {
-                                name: format!("{}__{}", name, tool.name).into(),
+                                name: public_name.into(),
                                 description: tool.description,
                                 input_schema: tool.input_schema,
                                 annotations: tool.annotations,
                                 output_schema: tool.output_schema,
                                 icons: tool.icons,
                                 title: tool.title,
-                                meta: tool.meta,
+                                meta: Some(rmcp::model::Meta(meta_map)),
                             });
                         }
                     }
@@ -901,9 +955,23 @@ impl ExtensionManager {
 
         let results = future::join_all(client_futures).await;
 
+        // Collect tools and detect name collisions
+        let mut seen_names: std::collections::HashSet<String> = std::collections::HashSet::new();
         let mut tools = Vec::new();
-        for (_, client_tools) in results {
-            tools.extend(client_tools);
+        for (ext_name, client_tools) in results {
+            for tool in client_tools {
+                let tool_name = tool.name.to_string();
+                if seen_names.contains(&tool_name) {
+                    warn!(
+                        tool = %tool_name,
+                        extension = %ext_name,
+                        "Duplicate tool name - skipping"
+                    );
+                    continue;
+                }
+                seen_names.insert(tool_name);
+                tools.push(tool);
+            }
         }
 
         Ok(tools)
@@ -915,16 +983,6 @@ impl ExtensionManager {
         context.insert("tools", serde_json::to_value(tools_info).unwrap());
 
         prompt_template::render_template("plan.md", &context).expect("Prompt should render")
-    }
-
-    /// Find and return a reference to the appropriate client for a tool call
-    async fn get_client_for_tool(&self, prefixed_name: &str) -> Option<(String, McpClientBox)> {
-        self.extensions
-            .lock()
-            .await
-            .iter()
-            .find(|(key, _)| prefixed_name.starts_with(*key))
-            .map(|(name, extension)| (name.clone(), extension.get_client()))
     }
 
     // Function that gets executed for read_resource tool
@@ -1185,58 +1243,58 @@ impl ExtensionManager {
         }
     }
 
+    /// Resolve a tool name to its owning extension and actual tool name.
+    /// Uses meta-based ownership lookup for all tools (both prefixed and unprefixed).
+    async fn resolve_tool(
+        &self,
+        session_id: &str,
+        tool_name: &str,
+    ) -> Result<ResolvedTool, ErrorData> {
+        let tools = self.get_all_tools_cached(session_id).await.map_err(|e| {
+            ErrorData::new(ErrorCode::INTERNAL_ERROR, format!("Failed to get tools: {}", e), None)
+        })?;
+
+        let tool = tools.iter().find(|t| *t.name == *tool_name).ok_or_else(|| {
+            ErrorData::new(ErrorCode::RESOURCE_NOT_FOUND, format!("Tool '{}' not found", tool_name), None)
+        })?;
+
+        let owner = get_tool_owner(tool).ok_or_else(|| {
+            ErrorData::new(ErrorCode::RESOURCE_NOT_FOUND, format!("Tool '{}' has no owner", tool_name), None)
+        })?;
+
+        // Strip prefix if present to get the actual MCP tool name
+        let actual_tool_name = tool_name
+            .strip_prefix(&format!("{owner}__"))
+            .unwrap_or(tool_name)
+            .to_string();
+
+        let client = self.get_server_client(&owner).await.ok_or_else(|| {
+            ErrorData::new(
+                ErrorCode::RESOURCE_NOT_FOUND,
+                format!("Extension '{}' not found for tool '{}'", owner, tool_name),
+                None,
+            )
+        })?;
+
+        Ok(ResolvedTool { client_name: owner, actual_tool_name, client })
+    }
+
     pub async fn dispatch_tool_call(
         &self,
         session_id: &str,
         tool_call: CallToolRequestParams,
         cancellation_token: CancellationToken,
     ) -> Result<ToolCallResult> {
-        // Some models strip the tool prefix, so auto-add it for known code_execution tools
         let tool_name_str = tool_call.name.to_string();
-        let prefixed_name = if !tool_name_str.contains("__") {
-            let code_exec_tools = ["execute_code", "read_module", "search_modules"];
-            if code_exec_tools.contains(&tool_name_str.as_str())
-                && self.extensions.lock().await.contains_key("code_execution")
-            {
-                format!("code_execution__{}", tool_name_str)
-            } else {
-                tool_name_str
-            }
-        } else {
-            tool_name_str
-        };
+        let resolved = self.resolve_tool(session_id, &tool_name_str).await?;
 
-        // Dispatch tool call based on the prefix naming convention
-        let (client_name, client) =
-            self.get_client_for_tool(&prefixed_name)
-                .await
-                .ok_or_else(|| {
-                    ErrorData::new(
-                        ErrorCode::RESOURCE_NOT_FOUND,
-                        format!("Tool '{}' not found", tool_call.name),
-                        None,
-                    )
-                })?;
-
-        let tool_name = prefixed_name
-            .strip_prefix(client_name.as_str())
-            .and_then(|s| s.strip_prefix("__"))
-            .ok_or_else(|| {
-                ErrorData::new(
-                    ErrorCode::RESOURCE_NOT_FOUND,
-                    format!("Invalid tool name format: '{}'", tool_call.name),
-                    None,
-                )
-            })?
-            .to_string();
-
-        if let Some(extension) = self.extensions.lock().await.get(&client_name) {
-            if !extension.config.is_tool_available(&tool_name) {
+        if let Some(extension) = self.extensions.lock().await.get(&resolved.client_name) {
+            if !extension.config.is_tool_available(&resolved.actual_tool_name) {
                 return Err(ErrorData::new(
                     ErrorCode::RESOURCE_NOT_FOUND,
                     format!(
                         "Tool '{}' is not available for extension '{}'",
-                        tool_name, client_name
+                        resolved.actual_tool_name, resolved.client_name
                     ),
                     None,
                 )
@@ -1245,19 +1303,20 @@ impl ExtensionManager {
         }
 
         let arguments = tool_call.arguments.clone();
-        let client = client.clone();
+        let client = resolved.client.clone();
         let notifications_receiver = client.lock().await.subscribe().await;
         let session_id = session_id.to_string();
+        let actual_tool_name = resolved.actual_tool_name;
 
         let fut = async move {
             tracing::debug!(
-                "dispatch_tool_call fut: calling client.call_tool tool={} session_id={}",
-                tool_name,
+                "dispatch_tool_call: calling client.call_tool tool={} session_id={}",
+                actual_tool_name,
                 session_id
             );
             let client_guard = client.lock().await;
             client_guard
-                .call_tool(&session_id, &tool_name, arguments, cancellation_token)
+                .call_tool(&session_id, &actual_tool_name, arguments, cancellation_token)
                 .await
                 .map_err(|e| match e {
                     ServiceError::McpError(error_data) => error_data,
@@ -1629,69 +1688,8 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_get_client_for_tool() {
-        let temp_dir = tempfile::tempdir().unwrap();
-        let extension_manager =
-            ExtensionManager::new_without_provider(temp_dir.path().to_path_buf());
-
-        // Add some mock clients using the helper method
-        extension_manager
-            .add_mock_extension(
-                "test_client".to_string(),
-                Arc::new(Mutex::new(Box::new(MockClient {}))),
-            )
-            .await;
-
-        extension_manager
-            .add_mock_extension(
-                "__client".to_string(),
-                Arc::new(Mutex::new(Box::new(MockClient {}))),
-            )
-            .await;
-
-        extension_manager
-            .add_mock_extension(
-                "__cli__ent__".to_string(),
-                Arc::new(Mutex::new(Box::new(MockClient {}))),
-            )
-            .await;
-
-        extension_manager
-            .add_mock_extension(
-                "client 🚀".to_string(),
-                Arc::new(Mutex::new(Box::new(MockClient {}))),
-            )
-            .await;
-
-        // Test basic case
-        assert!(extension_manager
-            .get_client_for_tool("test_client__tool")
-            .await
-            .is_some());
-
-        // Test leading underscores
-        assert!(extension_manager
-            .get_client_for_tool("__client__tool")
-            .await
-            .is_some());
-
-        // Test multiple underscores in client name, and ending with __
-        assert!(extension_manager
-            .get_client_for_tool("__cli__ent____tool")
-            .await
-            .is_some());
-
-        // Test unicode in tool name, "client 🚀" should become "client_"
-        assert!(extension_manager
-            .get_client_for_tool("client___tool")
-            .await
-            .is_some());
-    }
-
-    #[tokio::test]
     async fn test_dispatch_tool_call() {
-        // test that dispatch_tool_call parses out the sanitized name correctly, and extracts
-        // tool_names
+        // test that dispatch_tool_call correctly resolves tools via meta-based ownership
         let temp_dir = tempfile::tempdir().unwrap();
         let extension_manager =
             ExtensionManager::new_without_provider(temp_dir.path().to_path_buf());
@@ -1718,7 +1716,7 @@ mod tests {
             )
             .await;
 
-        // verify a normal tool call
+        // verify a normal tool call - MockClient returns "tool" which becomes "test_client__tool"
         let tool_call = CallToolRequestParams {
             meta: None,
             task: None,
@@ -1731,10 +1729,11 @@ mod tests {
             .await;
         assert!(result.is_ok());
 
+        // verify available_tool works
         let tool_call = CallToolRequestParams {
             meta: None,
             task: None,
-            name: "test_client__test__tool".to_string().into(),
+            name: "test_client__available_tool".to_string().into(),
             arguments: Some(object!({})),
         };
 
@@ -1743,7 +1742,8 @@ mod tests {
             .await;
         assert!(result.is_ok());
 
-        // verify a multiple underscores dispatch
+        // verify a multiple underscores extension name dispatch
+        // "__cli__ent__" normalizes to "__cli__ent__" and tool "tool" becomes "__cli__ent____tool"
         let tool_call = CallToolRequestParams {
             meta: None,
             task: None,
@@ -1756,7 +1756,8 @@ mod tests {
             .await;
         assert!(result.is_ok());
 
-        // Test unicode in tool name, "client 🚀" should become "client_"
+        // Test unicode in extension name, "client 🚀" normalizes to "client_"
+        // tool "tool" becomes "client___tool"
         let tool_call = CallToolRequestParams {
             meta: None,
             task: None,
@@ -1769,19 +1770,7 @@ mod tests {
             .await;
         assert!(result.is_ok());
 
-        let tool_call = CallToolRequestParams {
-            meta: None,
-            task: None,
-            name: "client___test__tool".to_string().into(),
-            arguments: Some(object!({})),
-        };
-
-        let result = extension_manager
-            .dispatch_tool_call("test-session-id", tool_call, CancellationToken::default())
-            .await;
-        assert!(result.is_ok());
-
-        // this should error out, specifically for an ToolError::ExecutionError
+        // this should error out - tool "tools" doesn't exist (only "tool", "available_tool", "hidden_tool")
         let invalid_tool_call = CallToolRequestParams {
             meta: None,
             task: None,
@@ -1795,20 +1784,15 @@ mod tests {
                 invalid_tool_call,
                 CancellationToken::default(),
             )
-            .await
-            .unwrap()
-            .result
             .await;
-        assert!(matches!(
-            result,
-            Err(ErrorData {
-                code: ErrorCode::INTERNAL_ERROR,
-                ..
-            })
-        ));
+        if let Err(err) = result {
+            let tool_err = err.downcast_ref::<ErrorData>().expect("Expected ErrorData");
+            assert_eq!(tool_err.code, ErrorCode::RESOURCE_NOT_FOUND);
+        } else {
+            panic!("Expected ErrorData with ErrorCode::RESOURCE_NOT_FOUND");
+        }
 
-        // this should error out, specifically with an ToolError::NotFound
-        // this client doesn't exist
+        // this should error out - extension "_client" doesn't exist
         let invalid_tool_call = CallToolRequestParams {
             meta: None,
             task: None,
@@ -1910,7 +1894,8 @@ mod tests {
             )
             .await;
 
-        // Try to call an unavailable tool
+        // Try to call an unavailable tool - it won't be in the tools list at all
+        // because fetch_all_tools filters out unavailable tools
         let unavailable_tool_call = CallToolRequestParams {
             meta: None,
             task: None,
@@ -1926,11 +1911,10 @@ mod tests {
             )
             .await;
 
-        // Should return RESOURCE_NOT_FOUND error
+        // Should return RESOURCE_NOT_FOUND error (tool not in list)
         if let Err(err) = result {
             let tool_err = err.downcast_ref::<ErrorData>().expect("Expected ErrorData");
             assert_eq!(tool_err.code, ErrorCode::RESOURCE_NOT_FOUND);
-            assert!(tool_err.message.contains("is not available"));
         } else {
             panic!("Expected ErrorData with ErrorCode::RESOURCE_NOT_FOUND");
         }

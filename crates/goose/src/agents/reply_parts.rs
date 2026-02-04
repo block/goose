@@ -125,10 +125,16 @@ impl Agent {
             .is_extension_enabled(CODE_EXECUTION_EXTENSION)
             .await;
         if code_execution_active {
-            let code_exec_prefix = format!("{CODE_EXECUTION_EXTENSION}__");
-            let summon_prefix = format!("{SUMMON_EXTENSION}__");
+            let allowed_extensions = [CODE_EXECUTION_EXTENSION, SUMMON_EXTENSION];
             tools.retain(|tool| {
-                tool.name.starts_with(&code_exec_prefix) || tool.name.starts_with(&summon_prefix)
+                if let Some(owner) = crate::agents::extension_manager::get_tool_owner(tool) {
+                    let normalized = crate::config::extensions::name_to_key(&owner);
+                    allowed_extensions
+                        .iter()
+                        .any(|ext| crate::config::extensions::name_to_key(ext) == normalized)
+                } else {
+                    false
+                }
             });
         }
 
