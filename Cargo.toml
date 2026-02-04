@@ -36,3 +36,7 @@ reqwest = { version = "0.12.28", default-features = false, features = ["multipar
 tower = "0.5.2"
 tower-http = "0.6.8"
 url = "2.5.8"
+
+[profile.release]
+codegen-units = 1
+lto = true
