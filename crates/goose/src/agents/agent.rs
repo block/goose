@@ -606,6 +606,7 @@ impl Agent {
                 .dispatch_tool_call(
                     &session.id,
                     tool_call.clone(),
+                    Some(session.working_dir.as_path()),
                     cancellation_token.unwrap_or_default(),
                 )
                 .await;
