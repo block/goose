@@ -174,8 +174,6 @@ pub struct PlatformExtensionDef {
     pub display_name: &'static str,
     pub description: &'static str,
     pub default_enabled: bool,
-    /// If true, tools from this extension are exposed without the `{extension_name}__` prefix.
-    /// This makes them feel like first-class agent capabilities (e.g., `load` instead of `summon__load`).
     pub unprefixed_tools: bool,
     pub client_factory: fn(PlatformExtensionContext) -> Box<dyn McpClientTrait>,
 }

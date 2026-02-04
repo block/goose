@@ -199,7 +199,6 @@ pub fn get_parameter_names(tool: &Tool) -> Vec<String> {
     names
 }
 
-/// Extract the owning extension name from a tool's meta field.
 /// Used for unprefixed tools where ownership can't be determined from the tool name.
 pub fn get_tool_owner(tool: &Tool) -> Option<String> {
     tool.meta

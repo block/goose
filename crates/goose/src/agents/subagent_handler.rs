@@ -14,7 +14,6 @@ use std::sync::Arc;
 use tokio_util::sync::CancellationToken;
 use tracing::{debug, info};
 
-/// Callback invoked on each message event during subagent execution
 pub type OnMessageCallback = Arc<dyn Fn(&Message) + Send + Sync>;
 
 #[derive(Serialize)]
@@ -29,7 +28,6 @@ pub(crate) struct SubagentPromptContext {
 type AgentMessagesFuture =
     Pin<Box<dyn Future<Output = Result<(Conversation, Option<String>)>> + Send>>;
 
-/// Run a complete subagent task with output options
 pub async fn run_complete_subagent_task(
     config: AgentConfig,
     recipe: Recipe,
@@ -50,7 +48,6 @@ pub async fn run_complete_subagent_task(
     .await
 }
 
-/// Run a complete subagent task with an optional callback for message events
 pub async fn run_subagent_task_with_callback(
     config: AgentConfig,
     recipe: Recipe,

@@ -78,7 +78,6 @@ impl Source {
     }
 }
 
-/// Get the plural form of a source kind for display
 fn kind_plural(kind: SourceKind) -> &'static str {
     match kind {
         SourceKind::Subrecipe => "Subrecipes",
@@ -89,8 +88,6 @@ fn kind_plural(kind: SourceKind) -> &'static str {
     }
 }
 
-/// Truncate a string to a maximum length, adding "..." if truncated
-/// Handles UTF-8 properly by using char boundaries
 fn truncate(s: &str, max_len: usize) -> String {
     if s.chars().count() <= max_len {
         s.to_string()
@@ -115,7 +112,6 @@ pub struct DelegateParams {
     pub r#async: bool,
 }
 
-/// Active background task
 pub struct BackgroundTask {
     pub id: String,
     pub description: String,
@@ -125,7 +121,6 @@ pub struct BackgroundTask {
     pub handle: JoinHandle<Result<String>>,
 }
 
-/// Completed background task awaiting result retrieval
 pub struct CompletedTask {
     pub id: String,
     pub description: String,
@@ -210,7 +205,6 @@ fn translate_model_shorthand(shorthand: &str) -> &str {
     }
 }
 
-/// Round duration for MOIM display to avoid prompt cache invalidation
 fn round_duration(d: Duration) -> String {
     let secs = d.as_secs();
     if secs < 60 {
@@ -220,7 +214,6 @@ fn round_duration(d: Duration) -> String {
     }
 }
 
-/// Get current epoch milliseconds
 fn current_epoch_millis() -> u64 {
     SystemTime::now()
         .duration_since(UNIX_EPOCH)
@@ -464,16 +457,77 @@ impl SummonClient {
 
     fn discover_filesystem_sources(&self, working_dir: &Path) -> Vec<Source> {
         let mut sources: Vec<Source> = Vec::new();
-        let mut seen_names: std::collections::HashSet<String> = std::collections::HashSet::new();
+        let mut seen: std::collections::HashSet<String> = std::collections::HashSet::new();
 
-        self.add_local_recipes(working_dir, &mut sources, &mut seen_names);
-        self.add_local_skills(working_dir, &mut sources, &mut seen_names);
-        self.add_local_agents(working_dir, &mut sources, &mut seen_names);
-        self.add_recipe_path_recipes(&mut sources, &mut seen_names);
-        self.add_global_recipes(&mut sources, &mut seen_names);
-        self.add_global_skills(&mut sources, &mut seen_names);
-        self.add_global_agents(&mut sources, &mut seen_names);
-        self.add_builtin_skills(&mut sources, &mut seen_names);
+        let home = dirs::home_dir();
+        let config = Paths::config_dir();
+
+        // Recipes: local → GOOSE_RECIPE_PATH → global
+        let recipe_dirs: Vec<PathBuf> = [
+            Some(working_dir.to_path_buf()),
+            Some(working_dir.join(".goose/recipes")),
+        ]
+        .into_iter()
+        .flatten()
+        .chain(
+            std::env::var("GOOSE_RECIPE_PATH")
+                .ok()
+                .into_iter()
+                .flat_map(|p| {
+                    let sep = if cfg!(windows) { ';' } else { ':' };
+                    p.split(sep).map(PathBuf::from).collect::<Vec<_>>()
+                }),
+        )
+        .chain([config.join("recipes")])
+        .collect();
+
+        for dir in recipe_dirs {
+            self.scan_recipes_dir(&dir, SourceKind::Recipe, &mut sources, &mut seen);
+        }
+
+        // Skills: local → global → builtin
+        let skill_dirs: Vec<PathBuf> = [
+            Some(working_dir.join(".goose/skills")),
+            Some(working_dir.join(".claude/skills")),
+            Some(working_dir.join(".agents/skills")),
+            Some(config.join("skills")),
+            home.as_ref().map(|h| h.join(".claude/skills")),
+            home.as_ref().map(|h| h.join(".config/agents/skills")),
+        ]
+        .into_iter()
+        .flatten()
+        .collect();
+
+        for dir in skill_dirs {
+            self.scan_skills_dir(&dir, &mut sources, &mut seen);
+        }
+
+        for content in builtin_skills::get_all() {
+            if let Some(source) = parse_skill_content(content, PathBuf::new()) {
+                if !seen.contains(&source.name) {
+                    seen.insert(source.name.clone());
+                    sources.push(Source {
+                        kind: SourceKind::BuiltinSkill,
+                        ..source
+                    });
+                }
+            }
+        }
+
+        // Agents: local → global
+        let agent_dirs: Vec<PathBuf> = [
+            Some(working_dir.join(".goose/agents")),
+            Some(working_dir.join(".claude/agents")),
+            Some(config.join("agents")),
+            home.as_ref().map(|h| h.join(".claude/agents")),
+        ]
+        .into_iter()
+        .flatten()
+        .collect();
+
+        for dir in agent_dirs {
+            self.scan_agents_dir(&dir, &mut sources, &mut seen);
+        }
 
         sources
     }
@@ -514,128 +568,6 @@ impl SummonClient {
                 path: PathBuf::from(&sr.path),
                 content: String::new(),
             });
-        }
-    }
-
-    fn add_local_recipes(
-        &self,
-        working_dir: &Path,
-        sources: &mut Vec<Source>,
-        seen: &mut std::collections::HashSet<String>,
-    ) {
-        let dirs = [
-            working_dir.to_path_buf(),
-            working_dir.join(".goose/recipes"),
-        ];
-        for dir in dirs {
-            self.scan_recipes_dir(&dir, SourceKind::Recipe, sources, seen);
-        }
-    }
-
-    fn add_local_skills(
-        &self,
-        working_dir: &Path,
-        sources: &mut Vec<Source>,
-        seen: &mut std::collections::HashSet<String>,
-    ) {
-        let dirs = [
-            working_dir.join(".goose/skills"),
-            working_dir.join(".claude/skills"),
-            working_dir.join(".agents/skills"),
-        ];
-        for dir in dirs {
-            self.scan_skills_dir(&dir, sources, seen);
-        }
-    }
-
-    fn add_local_agents(
-        &self,
-        working_dir: &Path,
-        sources: &mut Vec<Source>,
-        seen: &mut std::collections::HashSet<String>,
-    ) {
-        let dirs = [
-            working_dir.join(".goose/agents"),
-            working_dir.join(".claude/agents"),
-        ];
-        for dir in dirs {
-            self.scan_agents_dir(&dir, sources, seen);
-        }
-    }
-
-    fn add_recipe_path_recipes(
-        &self,
-        sources: &mut Vec<Source>,
-        seen: &mut std::collections::HashSet<String>,
-    ) {
-        let recipe_path = match std::env::var("GOOSE_RECIPE_PATH") {
-            Ok(p) => p,
-            Err(_) => return,
-        };
-
-        let separator = if cfg!(windows) { ';' } else { ':' };
-        for dir in recipe_path.split(separator) {
-            self.scan_recipes_dir(Path::new(dir), SourceKind::Recipe, sources, seen);
-        }
-    }
-
-    fn add_global_recipes(
-        &self,
-        sources: &mut Vec<Source>,
-        seen: &mut std::collections::HashSet<String>,
-    ) {
-        let dir = Paths::config_dir().join("recipes");
-        self.scan_recipes_dir(&dir, SourceKind::Recipe, sources, seen);
-    }
-
-    fn add_global_skills(
-        &self,
-        sources: &mut Vec<Source>,
-        seen: &mut std::collections::HashSet<String>,
-    ) {
-        let mut dirs = vec![Paths::config_dir().join("skills")];
-
-        if let Some(home) = dirs::home_dir() {
-            dirs.push(home.join(".claude/skills"));
-            dirs.push(home.join(".config/agents/skills"));
-        }
-
-        for dir in dirs {
-            self.scan_skills_dir(&dir, sources, seen);
-        }
-    }
-
-    fn add_global_agents(
-        &self,
-        sources: &mut Vec<Source>,
-        seen: &mut std::collections::HashSet<String>,
-    ) {
-        let mut dirs = vec![Paths::config_dir().join("agents")];
-
-        if let Some(home) = dirs::home_dir() {
-            dirs.push(home.join(".claude/agents"));
-        }
-
-        for dir in dirs {
-            self.scan_agents_dir(&dir, sources, seen);
-        }
-    }
-
-    fn add_builtin_skills(
-        &self,
-        sources: &mut Vec<Source>,
-        seen: &mut std::collections::HashSet<String>,
-    ) {
-        for content in builtin_skills::get_all() {
-            if let Some(source) = parse_skill_content(content, PathBuf::new()) {
-                if !seen.contains(&source.name) {
-                    seen.insert(source.name.clone());
-                    sources.push(Source {
-                        kind: SourceKind::BuiltinSkill,
-                        ..source
-                    });
-                }
-            }
         }
     }
 
