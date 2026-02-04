@@ -1,0 +1,66 @@
+# goose-decentralized-models
+
+Share and discover LLM models via Nostr.
+
+## Quick Start
+
+```bash
+# 1. Initialize (creates config + generates Nostr keys)
+cargo run -p goose-decentralized-models -- init
+
+# 2. Edit config if needed
+#    ~/.config/goose/decentralized-models.json
+
+# 3. Publish your models (expires in 1 hour)
+cargo run -p goose-decentralized-models -- publish
+
+# 4. Discover models from others
+cargo run -p goose-decentralized-models -- discover
+```
+
+## Commands
+
+| Command | Description |
+|---------|-------------|
+| `init` | Create config + generate Nostr keys |
+| `publish` | Publish models to Nostr (clears old first) |
+| `discover` | Find models others have published |
+| `list` | Show your published models |
+| `unpublish <name>` | Remove a specific model |
+| `show-key` | Display your Nostr public key |
+
+## Config
+
+Located at `~/.config/goose/decentralized-models.json`:
+
+```json
+{
+  "relays": ["wss://relay.damus.io", "wss://nos.lol"],
+  "models": [
+    {
+      "name": "qwen3-coder:latest",
+      "display_name": "Qwen3 Coder",
+      "context_size": 32000
+    }
+  ],
+  "ollama_endpoint": "http://localhost:11434",
+  "advertise_endpoint": {
+    "host": "YOUR_PUBLIC_IP",
+    "port": 11434,
+    "https": false
+  },
+  "ttl_seconds": 3600
+}
+```
+
+## How It Works
+
+1. Models are published as Nostr events (Kind 31990)
+2. Events include an expiration tag (default: 1 hour)
+3. Anyone can discover models by querying relays
+4. Endpoints are OpenAI-compatible (proxied through Ollama)
+
+## Files
+
+- Config: `~/.config/goose/decentralized-models.json`
+- Keys: `~/.config/goose/nostr-key.nsec` (0600 permissions)

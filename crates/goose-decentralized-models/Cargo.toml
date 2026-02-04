@@ -1,0 +1,32 @@
+[package]
+name = "goose-decentralized-models"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Share LLM models via Nostr in a permissionless way"
+
+[lints]
+workspace = true
+
+[[bin]]
+name = "goose-decentralized-models"
+path = "src/main.rs"
+
+[dependencies]
+nostr-sdk = "0.44"
+anyhow = { workspace = true }
+tokio = { workspace = true }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+url = { workspace = true }
+dirs = "5.0"
+reqwest = { workspace = true, features = ["json"] }
+clap = { version = "4.5.57", features = ["derive"] }
+
+[dev-dependencies]
+tokio = { workspace = true }
+
