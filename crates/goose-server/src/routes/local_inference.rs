@@ -27,7 +27,12 @@ pub struct LocalModelResponse {
 fn convert_error(e: anyhow::Error) -> ErrorResponse {
     let error_msg = e.to_string();
 
-    if error_msg.contains("not configured") || error_msg.contains("not found") {
+    if error_msg.contains("not found") {
+        ErrorResponse {
+            message: error_msg,
+            status: StatusCode::NOT_FOUND,
+        }
+    } else if error_msg.contains("not configured") {
         ErrorResponse {
             message: error_msg,
             status: StatusCode::PRECONDITION_FAILED,
@@ -125,7 +130,10 @@ pub async fn get_local_model_download_progress(
     // Check both model and tokenizer progress
     let model_progress = manager
         .get_progress(&format!("{}-model", model_id))
-        .ok_or_else(|| ErrorResponse::bad_request("Download not found"))?;
+        .ok_or_else(|| ErrorResponse {
+            message: "Download not found".to_string(),
+            status: StatusCode::NOT_FOUND,
+        })?;
 
     let tokenizer_progress = manager
         .get_progress(&format!("{}-tokenizer", model_id));
@@ -181,13 +189,19 @@ pub async fn delete_local_model(
     Path(model_id): Path<String>,
 ) -> Result<StatusCode, ErrorResponse> {
     let model = get_local_model(&model_id)
-        .ok_or_else(|| ErrorResponse::bad_request("Model not found"))?;
+        .ok_or_else(|| ErrorResponse {
+            message: "Model not found".to_string(),
+            status: StatusCode::NOT_FOUND,
+        })?;
 
     let model_path = model.local_path();
     let tokenizer_path = model.tokenizer_path();
 
     if !model_path.exists() && !tokenizer_path.exists() {
-        return Err(ErrorResponse::bad_request("Model not downloaded"));
+        return Err(ErrorResponse {
+            message: "Model not downloaded".to_string(),
+            status: StatusCode::NOT_FOUND,
+        });
     }
 
     // Delete both files
