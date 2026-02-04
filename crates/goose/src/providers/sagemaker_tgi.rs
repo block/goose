@@ -12,7 +12,6 @@ use serde_json::{json, Value};
 use super::base::{ConfigKey, Provider, ProviderDef, ProviderMetadata, ProviderUsage, Usage};
 use super::errors::ProviderError;
 use super::retry::ProviderRetry;
-use super::utils::RequestLog;
 use crate::conversation::message::{Message, MessageContent};
 use crate::session_context::SESSION_ID_HEADER;
 
@@ -316,6 +315,7 @@ impl Provider for SageMakerTgiProvider {
         messages: &[Message],
         tools: &[Tool],
     ) -> Result<(Message, ProviderUsage), ProviderError> {
+        let _ = tools;
         let model_name = &model_config.model_name;
 
         let request_payload = self.create_tgi_request(system, messages).map_err(|e| {
@@ -334,18 +334,6 @@ impl Provider for SageMakerTgiProvider {
             Some(0), // Would need to tokenize output to get accurate count
             Some(0),
         );
-
-        // Add debug trace
-        let debug_payload = serde_json::json!({
-            "system": system,
-            "messages": messages,
-            "tools": tools
-        });
-        let mut log = RequestLog::start(&self.model, &debug_payload)?;
-        log.write(
-            &serde_json::to_value(&message).unwrap_or_default(),
-            Some(&usage),
-        )?;
 
         let provider_usage = ProviderUsage::new(model_name.to_string(), usage);
         Ok((message, provider_usage))

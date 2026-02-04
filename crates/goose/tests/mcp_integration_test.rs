@@ -72,7 +72,7 @@ impl Provider for MockProvider {
         _system: &str,
         _messages: &[Message],
         _tools: &[Tool],
-    ) -> anyhow::Result<(Message, ProviderUsage), ProviderError> {
+    ) -> Result<(Message, ProviderUsage), ProviderError> {
         Ok((
             Message::assistant().with_text("\"So we beat on, boats against the current, borne back ceaselessly into the past.\" — F. Scott Fitzgerald, The Great Gatsby (1925)"),
             ProviderUsage::new("mock".to_string(), Usage::default()),

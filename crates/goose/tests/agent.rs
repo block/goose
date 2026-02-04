@@ -378,9 +378,10 @@ mod tests {
 
         #[async_trait]
         impl Provider for MockToolProvider {
-            async fn complete(
+            async fn complete_with_model(
                 &self,
-                _session_id: &str,
+                _session_id: Option<&str>,
+                _model_config: &ModelConfig,
                 _system_prompt: &str,
                 _messages: &[Message],
                 _tools: &[Tool],
@@ -399,20 +400,6 @@ mod tests {
                 );
 
                 Ok((message, usage))
-            }
-
-            async fn complete_with_model(
-                &self,
-                session_id: Option<&str>,
-                _model_config: &ModelConfig,
-                system_prompt: &str,
-                messages: &[Message],
-                tools: &[Tool],
-            ) -> anyhow::Result<(Message, ProviderUsage), ProviderError> {
-                // Test-only: coerce missing session_id to empty so complete() can be reused.
-                let session_id = session_id.unwrap_or("");
-                self.complete(session_id, system_prompt, messages, tools)
-                    .await
             }
 
             fn get_model_config(&self) -> ModelConfig {

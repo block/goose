@@ -1,13 +1,14 @@
 use super::api_client::{ApiClient, AuthMethod};
 use super::base::{
-    ConfigKey, MessageStream, Provider, ProviderDef, ProviderMetadata, ProviderUsage, Usage,
+    ConfigKey, Provider, ProviderDef, ProviderMetadata, ProviderUsage, StreamFormat,
+    StreamRequest, Usage,
 };
 use super::errors::ProviderError;
 use super::openai_compatible::{
-    handle_response_openai_compat, handle_status_openai_compat, stream_openai_compat,
+    handle_response_openai_compat, handle_status_openai_compat,
 };
 use super::retry::ProviderRetry;
-use super::utils::{get_model, ImageFormat, RequestLog};
+use super::utils::{get_model, ImageFormat};
 use crate::config::declarative_providers::DeclarativeProviderConfig;
 use crate::config::GooseMode;
 use crate::conversation::message::Message;
@@ -212,16 +213,12 @@ impl Provider for OllamaProvider {
             false,
         )?;
 
-        let mut log = RequestLog::start(model_config, &payload)?;
         let response = self
             .with_retry(|| async {
                 let payload_clone = payload.clone();
                 self.post(session_id, &payload_clone).await
             })
-            .await
-            .inspect_err(|e| {
-                let _ = log.error(e);
-            })?;
+            .await?;
 
         let message = response_to_message(&response)?;
 
@@ -230,7 +227,6 @@ impl Provider for OllamaProvider {
             Usage::default()
         });
         let response_model = get_model(&response);
-        log.write(&response, Some(&usage))?;
         Ok((message, ProviderUsage::new(response_model, usage)))
     }
 
@@ -260,16 +256,16 @@ impl Provider for OllamaProvider {
         self.supports_streaming
     }
 
-    async fn stream(
+    fn build_stream_request(
         &self,
-        session_id: &str,
+        _session_id: &str,
         system: &str,
         messages: &[Message],
         tools: &[Tool],
-    ) -> Result<MessageStream, ProviderError> {
+    ) -> Result<StreamRequest, ProviderError> {
         let config = crate::config::Config::global();
         let goose_mode = config.get_goose_mode().unwrap_or(GooseMode::Auto);
-        let filtered_tools = if goose_mode == GooseMode::Chat {
+        let filtered_tools: &[Tool] = if goose_mode == GooseMode::Chat {
             &[]
         } else {
             tools
@@ -283,21 +279,26 @@ impl Provider for OllamaProvider {
             &ImageFormat::OpenAi,
             true,
         )?;
-        let mut log = RequestLog::start(&self.model, &payload)?;
 
-        let response = self
-            .with_retry(|| async {
-                let resp = self
-                    .api_client
-                    .response_post(Some(session_id), "v1/chat/completions", &payload)
-                    .await?;
-                handle_status_openai_compat(resp).await
-            })
-            .await
-            .inspect_err(|e| {
-                let _ = log.error(e);
-            })?;
-        stream_openai_compat(response, log)
+        Ok(StreamRequest::new(
+            "v1/chat/completions",
+            payload,
+            StreamFormat::OpenAiCompat,
+        ))
+    }
+
+    async fn execute_stream_request(
+        &self,
+        request: &StreamRequest,
+    ) -> Result<reqwest::Response, ProviderError> {
+        let mut api_request = self.api_client.request(None, &request.url);
+
+        for (key, value) in &request.headers {
+            api_request = api_request.header(key.as_str(), value.to_str().unwrap_or(""))?;
+        }
+
+        let resp = api_request.response_post(&request.payload).await?;
+        handle_status_openai_compat(resp).await
     }
 
     async fn fetch_supported_models(&self) -> Result<Option<Vec<String>>, ProviderError> {

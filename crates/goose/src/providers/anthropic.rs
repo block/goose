@@ -1,20 +1,16 @@
 use anyhow::Result;
-use async_stream::try_stream;
 use async_trait::async_trait;
-use futures::TryStreamExt;
 use reqwest::StatusCode;
 use serde_json::Value;
-use std::io;
-use tokio::pin;
-use tokio_util::io::StreamReader;
 
 use super::api_client::{ApiClient, ApiResponse, AuthMethod};
 use super::base::{
-    ConfigKey, MessageStream, ModelInfo, Provider, ProviderDef, ProviderMetadata, ProviderUsage,
+    ConfigKey, ModelInfo, Provider, ProviderDef, ProviderMetadata, ProviderUsage,
+    StreamFormat, StreamRequest,
 };
 use super::errors::ProviderError;
 use super::formats::anthropic::{
-    create_request, get_usage, response_to_message, response_to_streaming_message,
+    create_request, get_usage, response_to_message,
 };
 use super::openai_compatible::handle_status_openai_compat;
 use super::openai_compatible::map_http_error_to_provider_error;
@@ -23,7 +19,6 @@ use crate::config::declarative_providers::DeclarativeProviderConfig;
 use crate::conversation::message::Message;
 use crate::model::ModelConfig;
 use crate::providers::retry::ProviderRetry;
-use crate::providers::utils::RequestLog;
 use futures::future::BoxFuture;
 use rmcp::model::Tool;
 
@@ -246,8 +241,6 @@ impl Provider for AnthropicProvider {
                 usage.input_tokens, usage.output_tokens, usage.total_tokens);
 
         let response_model = get_model(&json_response);
-        let mut log = RequestLog::start(&self.model, &payload)?;
-        log.write(&json_response, Some(&usage))?;
         let provider_usage = ProviderUsage::new(response_model, usage);
         tracing::debug!(
             "🔍 Anthropic non-streaming returning ProviderUsage: {:?}",
@@ -280,47 +273,40 @@ impl Provider for AnthropicProvider {
         Ok(Some(models))
     }
 
-    async fn stream(
+    fn build_stream_request(
         &self,
-        session_id: &str,
+        _session_id: &str,
         system: &str,
         messages: &[Message],
         tools: &[Tool],
-    ) -> Result<MessageStream, ProviderError> {
+    ) -> Result<StreamRequest, ProviderError> {
         let mut payload = create_request(&self.model, system, messages, tools)?;
         payload
             .as_object_mut()
             .unwrap()
             .insert("stream".to_string(), Value::Bool(true));
 
-        let mut request = self.api_client.request(Some(session_id), "v1/messages");
-        let mut log = RequestLog::start(&self.model, &payload)?;
+        let mut request = StreamRequest::new("v1/messages", payload, StreamFormat::Anthropic);
 
         for (key, value) in self.get_conditional_headers() {
-            request = request.header(key, value)?;
+            request = request.with_header(key, value)?;
         }
 
-        let resp = request.response_post(&payload).await.inspect_err(|e| {
-            let _ = log.error(e);
-        })?;
-        let response = handle_status_openai_compat(resp).await.inspect_err(|e| {
-            let _ = log.error(e);
-        })?;
+        Ok(request)
+    }
 
-        let stream = response.bytes_stream().map_err(io::Error::other);
+    async fn execute_stream_request(
+        &self,
+        request: &StreamRequest,
+    ) -> Result<reqwest::Response, ProviderError> {
+        let mut api_request = self.api_client.request(None, &request.url);
 
-        Ok(Box::pin(try_stream! {
-            let stream_reader = StreamReader::new(stream);
-            let framed = tokio_util::codec::FramedRead::new(stream_reader, tokio_util::codec::LinesCodec::new()).map_err(anyhow::Error::from);
+        for (key, value) in &request.headers {
+            api_request = api_request.header(key.as_str(), value.to_str().unwrap_or(""))?;
+        }
 
-            let message_stream = response_to_streaming_message(framed);
-            pin!(message_stream);
-            while let Some(message) = futures::StreamExt::next(&mut message_stream).await {
-                let (message, usage) = message.map_err(|e| ProviderError::RequestFailed(format!("Stream decode error: {}", e)))?;
-                log.write(&message, usage.as_ref().map(|f| f.usage).as_ref())?;
-                yield (message, usage);
-            }
-        }))
+        let resp = api_request.response_post(&request.payload).await?;
+        handle_status_openai_compat(resp).await
     }
 
     fn supports_streaming(&self) -> bool {

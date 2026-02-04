@@ -446,7 +446,7 @@ mod tests {
             _system: &str,
             _messages: &[Message],
             _tools: &[Tool],
-        ) -> anyhow::Result<(Message, ProviderUsage), ProviderError> {
+        ) -> Result<(Message, ProviderUsage), ProviderError> {
             Ok((
                 Message::assistant().with_text("ok"),
                 ProviderUsage::new("mock".to_string(), Usage::default()),

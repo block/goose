@@ -1,33 +1,28 @@
-use std::io;
 use std::time::Duration;
 
 use anyhow::Result;
-use async_stream::try_stream;
 use async_trait::async_trait;
 use futures::future::BoxFuture;
-use futures::StreamExt;
-use futures::TryStreamExt;
 use once_cell::sync::Lazy;
 use reqwest::{Client, StatusCode};
 use serde_json::Value;
 use tokio::time::sleep;
-use tokio_util::io::StreamReader;
 use url::Url;
 
 use crate::conversation::message::Message;
 use crate::model::ModelConfig;
 use crate::providers::base::{
-    ConfigKey, MessageStream, Provider, ProviderDef, ProviderMetadata, ProviderUsage,
+    ConfigKey, Provider, ProviderDef, ProviderMetadata, ProviderUsage, StreamFormat,
+    StreamRequest,
 };
 
 use crate::providers::errors::ProviderError;
 use crate::providers::formats::gcpvertexai::{
-    create_request, get_usage, response_to_message, response_to_streaming_message, GcpLocation,
-    ModelProvider, RequestContext, DEFAULT_MODEL, KNOWN_MODELS,
+    create_request, get_usage, response_to_message, GcpLocation, ModelProvider, RequestContext,
+    DEFAULT_MODEL, KNOWN_MODELS,
 };
 use crate::providers::gcpauth::GcpAuth;
 use crate::providers::retry::RetryConfig;
-use crate::providers::utils::RequestLog;
 use crate::session_context::SESSION_ID_HEADER;
 use rmcp::model::Tool;
 
@@ -410,51 +405,6 @@ impl GcpVertexAIProvider {
         }
     }
 
-    async fn post_stream_with_location(
-        &self,
-        session_id: Option<&str>,
-        payload: &Value,
-        context: &RequestContext,
-        location: &str,
-    ) -> Result<reqwest::Response, ProviderError> {
-        let url = self
-            .build_request_url(context.provider(), location, true)
-            .map_err(|e| ProviderError::RequestFailed(e.to_string()))?;
-
-        self.send_request_with_retry(session_id, url, payload).await
-    }
-
-    async fn post_stream(
-        &self,
-        session_id: Option<&str>,
-        payload: &Value,
-        context: &RequestContext,
-    ) -> Result<reqwest::Response, ProviderError> {
-        let result = self
-            .post_stream_with_location(session_id, payload, context, &self.location)
-            .await;
-
-        if self.location == context.model.known_location().to_string() || result.is_ok() {
-            return result;
-        }
-
-        match &result {
-            Err(ProviderError::RequestFailed(msg)) => {
-                let model_name = context.model.to_string();
-                let configured_location = &self.location;
-                let known_location = context.model.known_location().to_string();
-
-                tracing::warn!(
-                    "Trying known location {known_location} for {model_name} instead of {configured_location}: {msg}"
-                );
-
-                self.post_stream_with_location(session_id, payload, context, &known_location)
-                    .await
-            }
-            _ => result,
-        }
-    }
-
     async fn filter_by_org_policy(&self, models: Vec<String>) -> Vec<String> {
         let Ok(auth_header) = self.get_auth_header().await else {
             tracing::debug!("Could not get auth header for org policy check, returning all models");
@@ -629,9 +579,6 @@ impl Provider for GcpVertexAIProvider {
         let response = self.post(session_id, &request, &context).await?;
         let usage = get_usage(&response, &context)?;
 
-        let mut log = RequestLog::start(model_config, &request)?;
-        log.write(&response, Some(&usage))?;
-
         // Convert response to message
         let message = response_to_message(response, context)?;
         let provider_usage = ProviderUsage::new(self.model.model_name.clone(), usage);
@@ -648,51 +595,96 @@ impl Provider for GcpVertexAIProvider {
         true
     }
 
-    async fn stream(
+    fn build_stream_request(
         &self,
-        session_id: &str,
+        _session_id: &str,
         system: &str,
         messages: &[Message],
         tools: &[Tool],
-    ) -> Result<MessageStream, ProviderError> {
+    ) -> Result<StreamRequest, ProviderError> {
         let model_config = self.get_model_config();
         let (mut request, context) = create_request(&model_config, system, messages, tools)?;
 
+        // Add stream parameter for Anthropic models
         if matches!(context.provider(), ModelProvider::Anthropic) {
             if let Some(obj) = request.as_object_mut() {
                 obj.insert("stream".to_string(), Value::Bool(true));
             }
         }
 
-        let mut log = RequestLog::start(&model_config, &request)?;
+        // Build the URL with the configured location
+        let url = self
+            .build_request_url(context.provider(), &self.location, true)
+            .map_err(|e| ProviderError::RequestFailed(e.to_string()))?;
 
-        let response = self
-            .post_stream(Some(session_id), &request, &context)
-            .await
-            .inspect_err(|e| {
-                let _ = log.error(e);
-            })?;
+        // Determine the appropriate stream format based on provider
+        let format = match context.provider() {
+            ModelProvider::Anthropic => StreamFormat::Anthropic,
+            ModelProvider::Google | ModelProvider::MaaS(_) => StreamFormat::Google,
+        };
 
-        let stream = response.bytes_stream().map_err(io::Error::other);
+        // Create the stream request
+        let mut stream_request = StreamRequest::new(url.to_string(), request, format);
 
-        let context_clone = context.clone();
-        Ok(Box::pin(try_stream! {
-            let stream_reader = StreamReader::new(stream);
-            let framed = tokio_util::codec::FramedRead::new(
-                stream_reader,
-                tokio_util::codec::LinesCodec::new(),
-            )
-            .map_err(anyhow::Error::from);
+        // Build fallback URL for location retry if known location differs from configured
+        let known_location = context.model.known_location().to_string();
+        if self.location != known_location {
+            let fallback_url = self
+                .build_request_url(context.provider(), &known_location, true)
+                .map_err(|e| ProviderError::RequestFailed(e.to_string()))?;
+            stream_request =
+                stream_request.with_header("X-Goose-Fallback-URL", fallback_url.as_str())?;
+        }
 
-            let mut message_stream = response_to_streaming_message(framed, &context_clone);
+        Ok(stream_request)
+    }
 
-            while let Some(message) = message_stream.next().await {
-                let (message, usage) = message
-                    .map_err(|e| ProviderError::RequestFailed(format!("Stream decode error: {}", e)))?;
-                log.write(&message, usage.as_ref().map(|u| &u.usage))?;
-                yield (message, usage);
+    async fn execute_stream_request(
+        &self,
+        request: &StreamRequest,
+    ) -> Result<reqwest::Response, ProviderError> {
+        // Parse the URL
+        let url = Url::parse(&request.url)
+            .map_err(|e| ProviderError::RequestFailed(format!("Invalid URL: {}", e)))?;
+
+        // Extract session_id from headers if present
+        let session_id = request
+            .headers
+            .get(SESSION_ID_HEADER)
+            .and_then(|v| v.to_str().ok());
+
+        // Try to send the request with retry
+        let result = self
+            .send_request_with_retry(session_id, url, &request.payload)
+            .await;
+
+        // Check if we should try location fallback
+        if result.is_err() {
+            if let Err(ProviderError::RequestFailed(msg)) = &result {
+                // Check if we have a fallback URL
+                if let Some(fallback_url_str) = request
+                    .headers
+                    .get("X-Goose-Fallback-URL")
+                    .and_then(|v| v.to_str().ok())
+                {
+                    let fallback_url = Url::parse(fallback_url_str).map_err(|e| {
+                        ProviderError::RequestFailed(format!("Invalid fallback URL: {}", e))
+                    })?;
+
+                    tracing::warn!(
+                        "Trying known location for {} instead of {}: {msg}",
+                        self.model.model_name,
+                        self.location
+                    );
+
+                    return self
+                        .send_request_with_retry(session_id, fallback_url, &request.payload)
+                        .await;
+                }
             }
-        }))
+        }
+
+        result
     }
 
     async fn fetch_supported_models(&self) -> Result<Option<Vec<String>>, ProviderError> {
