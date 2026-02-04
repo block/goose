@@ -15,12 +15,12 @@ use tokio_util::sync::CancellationToken;
 use tracing::{debug, info};
 
 #[derive(Serialize)]
-struct SubagentPromptContext {
-    max_turns: usize,
-    subagent_id: String,
-    task_instructions: String,
-    tool_count: usize,
-    available_tools: String,
+pub(crate) struct SubagentPromptContext {
+    pub max_turns: usize,
+    pub subagent_id: String,
+    pub task_instructions: String,
+    pub tool_count: usize,
+    pub available_tools: String,
 }
 
 type AgentMessagesFuture =
