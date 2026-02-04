@@ -591,6 +591,9 @@ export function useChatStream({
           body: {
             session_id: sessionId,
             user_message: newMessage,
+            // Pass conversation explicitly when there are existing messages
+            // This ensures backend uses the correct conversation state (important for fork/edit)
+            ...(hasExistingMessages && { conversation_so_far: currentState.messages }),
           },
           throwOnError: true,
           signal: abortControllerRef.current.signal,

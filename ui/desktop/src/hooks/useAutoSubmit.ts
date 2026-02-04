@@ -75,10 +75,16 @@ export function useAutoSubmit({
     }
 
     // Scenario 2: Forked session with edited message
+    // Wait for messages to load before auto-submitting to ensure user sees history
     if (shouldStartAgent && initialMessage) {
-      hasAutoSubmittedRef.current = true;
-      handleSubmit(initialMessage);
-      clearInitialMessage();
+      // Only submit if the forked conversation has loaded (messages.length > 0)
+      if (messages.length > 0) {
+        hasAutoSubmittedRef.current = true;
+        handleSubmit(initialMessage);
+        clearInitialMessage();
+        return;
+      }
+      // If messages haven't loaded yet, wait for next render
       return;
     }
 
