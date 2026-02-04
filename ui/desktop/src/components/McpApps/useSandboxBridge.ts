@@ -1,4 +1,4 @@
-import { useRef, useEffect, useState, useCallback } from 'react';
+import { useRef, useEffect, useState, useCallback, useMemo } from 'react';
 import type {
   JsonRpcMessage,
   JsonRpcRequest,
@@ -10,6 +10,8 @@ import type {
   HostContext,
   CspMetadata,
   PermissionsMetadata,
+  AppCapabilities,
+  DisplayMode,
 } from './types';
 import { fetchMcpAppProxyUrl } from './utils';
 import { useTheme } from '../../contexts/ThemeContext';
@@ -55,7 +57,12 @@ export function useSandboxBridge(options: SandboxBridgeOptions): SandboxBridgeRe
   const { resolvedTheme } = useTheme();
   const iframeRef = useRef<HTMLIFrameElement | null>(null);
   const isGuestInitializedRef = useRef(false);
+  const appCapabilitiesRef = useRef<AppCapabilities | null>(null);
   const [proxyUrl, setProxyUrl] = useState<string | null>(null);
+
+  // Display modes supported by the host (memoized to prevent unnecessary re-renders)
+  const hostAvailableDisplayModes = useMemo<DisplayMode[]>(() => ['inline'], []);
+  const currentDisplayMode: DisplayMode = 'inline';
 
   useEffect(() => {
     fetchMcpAppProxyUrl(resourceCsp).then(setProxyUrl);
@@ -64,6 +71,7 @@ export function useSandboxBridge(options: SandboxBridgeOptions): SandboxBridgeRe
   // Reset initialization state when resource changes
   useEffect(() => {
     isGuestInitializedRef.current = false;
+    appCapabilitiesRef.current = null;
   }, [resourceUri]);
 
   const sendToSandbox = useCallback((message: JsonRpcMessage) => {
@@ -79,7 +87,7 @@ export function useSandboxBridge(options: SandboxBridgeOptions): SandboxBridgeRe
         const msg = data as JsonRpcNotification;
 
         switch (msg.method) {
-          case 'ui/notifications/sandbox-ready':
+          case 'ui/notifications/sandbox-proxy-ready':
             sendToSandbox({
               jsonrpc: '2.0',
               method: 'ui/notifications/sandbox-resource-ready',
@@ -123,16 +131,20 @@ export function useSandboxBridge(options: SandboxBridgeOptions): SandboxBridgeRe
           if (msg.method === 'ui/initialize') {
             if (msg.id === undefined) return;
 
+            // Parse and store app capabilities from the View
+            const params = msg.params as { appCapabilities?: AppCapabilities } | undefined;
+            if (params?.appCapabilities) {
+              appCapabilitiesRef.current = params.appCapabilities;
+            }
+
             const iframe = iframeRef.current;
             const hostContext: HostContext = {
               toolInfo: undefined,
               theme: resolvedTheme,
-              displayMode: 'inline',
-              availableDisplayModes: ['inline'],
-              viewport: {
-                width: iframe?.clientWidth ?? 0,
-                height: iframe?.clientHeight ?? 0,
-                maxWidth: window.innerWidth,
+              displayMode: currentDisplayMode,
+              availableDisplayModes: hostAvailableDisplayModes,
+              containerDimensions: {
+                maxWidth: iframe?.clientWidth ?? window.innerWidth,
                 maxHeight: window.innerHeight,
               },
               locale: navigator.language,
@@ -150,8 +162,14 @@ export function useSandboxBridge(options: SandboxBridgeOptions): SandboxBridgeRe
               jsonrpc: '2.0',
               id: msg.id,
               result: {
-                protocolVersion: '2025-06-18',
-                hostCapabilities: { links: true, messages: true },
+                protocolVersion: '2026-01-26',
+                hostCapabilities: {
+                  openLinks: {},
+                  messages: {},
+                  serverTools: {},
+                  serverResources: {},
+                  logging: {},
+                },
                 hostInfo: {
                   name: packageJson.productName,
                   version: packageJson.version,
@@ -159,6 +177,41 @@ export function useSandboxBridge(options: SandboxBridgeOptions): SandboxBridgeRe
                 hostContext,
               },
             });
+            return;
+          }
+
+          if (msg.method === 'ui/request-display-mode') {
+            if (msg.id === undefined) return;
+
+            const params = msg.params as { mode?: DisplayMode } | undefined;
+            const requestedMode = params?.mode;
+
+            // Validate the requested mode
+            // 1. Must be a mode the host supports
+            // 2. Must be a mode the app declared support for (if it declared any)
+            const appModes = appCapabilitiesRef.current?.availableDisplayModes;
+            const isHostSupported = requestedMode && hostAvailableDisplayModes.includes(requestedMode);
+            const isAppSupported = !appModes || (requestedMode && appModes.includes(requestedMode));
+
+            // For now, we only support 'inline' mode, so we always return 'inline'
+            // In the future, this would actually change the display mode
+            const actualMode: DisplayMode = isHostSupported && isAppSupported ? requestedMode! : currentDisplayMode;
+
+            sendToSandbox({
+              jsonrpc: '2.0',
+              id: msg.id,
+              result: { mode: actualMode },
+            });
+
+            // If mode actually changed, send host-context-changed notification
+            // (Currently this won't happen since we only support 'inline')
+            if (actualMode !== currentDisplayMode) {
+              sendToSandbox({
+                jsonrpc: '2.0',
+                method: 'ui/notifications/host-context-changed',
+                params: { displayMode: actualMode },
+              });
+            }
             return;
           }
 
@@ -191,6 +244,8 @@ export function useSandboxBridge(options: SandboxBridgeOptions): SandboxBridgeRe
       onSizeChanged,
       toolInput,
       toolResult,
+      currentDisplayMode,
+      hostAvailableDisplayModes,
     ]
   );
 
@@ -268,10 +323,8 @@ export function useSandboxBridge(options: SandboxBridgeOptions): SandboxBridgeRe
           jsonrpc: '2.0',
           method: 'ui/notifications/host-context-changed',
           params: {
-            viewport: {
-              width: w,
-              height: h,
-              maxWidth: window.innerWidth,
+            containerDimensions: {
+              maxWidth: w,
               maxHeight: window.innerHeight,
             },
           },

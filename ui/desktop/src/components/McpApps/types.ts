@@ -56,6 +56,17 @@ export interface JsonRpcResponse {
 
 export type JsonRpcMessage = JsonRpcRequest | JsonRpcNotification | JsonRpcResponse;
 
+/**
+ * Container dimensions can be either fixed or flexible.
+ * Fixed: exact width/height values
+ * Flexible: maxWidth/maxHeight constraints (View can request size within these bounds)
+ */
+export type ContainerDimensions =
+  | { width: number; height: number }
+  | { maxWidth: number; maxHeight: number };
+
+export type DisplayMode = 'inline' | 'fullscreen' | 'pip';
+
 export interface HostContext {
   toolInfo?: {
     id?: string | number;
@@ -66,14 +77,9 @@ export interface HostContext {
     };
   };
   theme: 'light' | 'dark';
-  displayMode: 'inline' | 'fullscreen' | 'standalone';
-  availableDisplayModes: ('inline' | 'fullscreen' | 'standalone')[];
-  viewport: {
-    width: number;
-    height: number;
-    maxHeight: number;
-    maxWidth: number;
-  };
+  displayMode: DisplayMode;
+  availableDisplayModes: DisplayMode[];
+  containerDimensions: ContainerDimensions;
   locale: string;
   timeZone: string;
   userAgent: string;
@@ -100,4 +106,16 @@ export interface ToolInputPartial {
 
 export interface ToolCancelled {
   reason?: string;
+}
+
+/**
+ * Capabilities sent by the View (MCP App) during ui/initialize
+ */
+export interface AppCapabilities {
+  availableDisplayModes?: DisplayMode[];
+  tools?: Array<{
+    name: string;
+    description?: string;
+    inputSchema?: Record<string, unknown>;
+  }>;
 }
