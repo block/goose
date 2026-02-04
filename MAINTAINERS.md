@@ -13,7 +13,9 @@
 
 * [Abhijay Jain (@Abhijay007)](https://github.com/Abhijay007)
 * [Adrian Cole (@codefromthecrypt)](https://github.com/codefromthecrypt)
+* [Amanda Martin (@amandamartin-dev)](https://github.com/amandamartin-dev)
 * [Angie Jones (@angiejones)](https://github.com/angiejones)
+* [Debbie O'Brien (@debs-obrien)](https://github.com/debs-obrien)
 * [Rizèl Scarlett (@blackgirlbytes)](https://github.com/blackgirlbytes)
 * [Tania Chakraborty (@taniandjerry)](https://github.com/taniandjerry)
 * [@The-Best-Codes](https://github.com/The-Best-Codes)
