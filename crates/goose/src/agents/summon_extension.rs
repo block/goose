@@ -125,6 +125,15 @@ pub struct BackgroundTask {
     pub handle: JoinHandle<Result<String>>,
 }
 
+/// Completed background task awaiting result retrieval
+pub struct CompletedTask {
+    pub id: String,
+    pub description: String,
+    pub result: Result<String, String>,
+    pub turns_taken: u32,
+    pub duration: Duration,
+}
+
 #[derive(Debug, Deserialize)]
 struct SkillMetadata {
     name: String,
@@ -240,6 +249,7 @@ pub struct SummonClient {
     context: PlatformExtensionContext,
     source_cache: Mutex<Option<(Instant, PathBuf, Vec<Source>)>>,
     background_tasks: Mutex<HashMap<String, BackgroundTask>>,
+    completed_tasks: Mutex<HashMap<String, CompletedTask>>,
 }
 
 impl SummonClient {
@@ -275,6 +285,7 @@ impl SummonClient {
             context,
             source_cache: Mutex::new(None),
             background_tasks: Mutex::new(HashMap::new()),
+            completed_tasks: Mutex::new(HashMap::new()),
         })
     }
 
@@ -762,6 +773,8 @@ impl SummonClient {
         session_id: &str,
         arguments: Option<JsonObject>,
     ) -> Result<Vec<Content>, String> {
+        self.cleanup_completed_tasks().await;
+
         let source_name = arguments
             .as_ref()
             .and_then(|args| args.get("source"))
@@ -773,8 +786,56 @@ impl SummonClient {
             return self.handle_load_discovery(session_id, &working_dir).await;
         }
 
-        self.handle_load_source(session_id, source_name.unwrap(), &working_dir)
+        let name = source_name.unwrap();
+
+        if name.starts_with("task_") {
+            return self.handle_load_task_result(name).await;
+        }
+
+        self.handle_load_source(session_id, name, &working_dir)
             .await
+    }
+
+    async fn handle_load_task_result(&self, task_id: &str) -> Result<Vec<Content>, String> {
+        let mut completed = self.completed_tasks.lock().await;
+
+        if let Some(task) = completed.remove(task_id) {
+            let status = if task.result.is_ok() {
+                "✓ Completed"
+            } else {
+                "✗ Failed"
+            };
+            let output = match task.result {
+                Ok(output) => output,
+                Err(error) => format!("Error: {}", error),
+            };
+
+            return Ok(vec![Content::text(format!(
+                "# Background Task Result: {}\n\n\
+                 **Task:** {}\n\
+                 **Status:** {}\n\
+                 **Duration:** {} ({} turns)\n\n\
+                 ## Output\n\n{}",
+                task_id,
+                task.description,
+                status,
+                round_duration(task.duration),
+                task.turns_taken,
+                output
+            ))]);
+        }
+
+        drop(completed);
+
+        let running = self.background_tasks.lock().await;
+        if running.contains_key(task_id) {
+            return Err(format!(
+                "Task '{}' is still running. Check back later.",
+                task_id
+            ));
+        }
+
+        Err(format!("Task '{}' not found.", task_id))
     }
 
     async fn handle_load_discovery(
@@ -788,8 +849,9 @@ impl SummonClient {
         }
 
         let sources = self.get_sources(session_id, working_dir).await;
+        let completed = self.completed_tasks.lock().await;
 
-        if sources.is_empty() {
+        if sources.is_empty() && completed.is_empty() {
             return Ok(vec![Content::text(
                 "No sources available for load/delegate.\n\n\
                  Sources are discovered from:\n\
@@ -802,6 +864,23 @@ impl SummonClient {
         }
 
         let mut output = String::from("Available sources for load/delegate:\n");
+
+        if !completed.is_empty() {
+            output.push_str("\nCompleted Tasks (awaiting retrieval):\n");
+            let mut sorted_completed: Vec<_> = completed.values().collect();
+            sorted_completed.sort_by_key(|t| &t.id);
+            for task in sorted_completed {
+                let status = if task.result.is_ok() {
+                    "completed"
+                } else {
+                    "failed"
+                };
+                output.push_str(&format!(
+                    "• {} - \"{}\" ({})\n",
+                    task.id, task.description, status
+                ));
+            }
+        }
 
         for kind in [
             SourceKind::Subrecipe,
@@ -1287,16 +1366,37 @@ impl SummonClient {
                 .collect()
         };
 
+        let mut completed = self.completed_tasks.lock().await;
+
         for (id, task) in finished {
-            match task.handle.await {
-                Ok(Ok(result)) => info!(
-                    "Background task {} completed: {}",
+            let duration = task.started_at.elapsed();
+            let turns_taken = task.turns.load(Ordering::Relaxed);
+
+            let result = match task.handle.await {
+                Ok(Ok(output)) => {
+                    info!("Background task {} completed successfully", id);
+                    Ok(output)
+                }
+                Ok(Err(e)) => {
+                    warn!("Background task {} failed: {}", id, e);
+                    Err(e.to_string())
+                }
+                Err(e) => {
+                    warn!("Background task {} panicked: {}", id, e);
+                    Err(format!("Task panicked: {}", e))
+                }
+            };
+
+            completed.insert(
+                id.clone(),
+                CompletedTask {
                     id,
-                    truncate(&result, 100)
-                ),
-                Ok(Err(e)) => warn!("Background task {} failed: {}", id, e),
-                Err(e) => warn!("Background task {} panicked: {}", id, e),
-            }
+                    description: task.description,
+                    result,
+                    turns_taken,
+                    duration,
+                },
+            );
         }
     }
 
@@ -1476,20 +1576,28 @@ impl McpClientTrait for SummonClient {
     async fn get_moim(&self, _session_id: &str) -> Option<String> {
         self.cleanup_completed_tasks().await;
 
-        let tasks = self.background_tasks.lock().await;
-        if tasks.is_empty() {
+        let running = self.background_tasks.lock().await;
+        let completed = self.completed_tasks.lock().await;
+
+        if running.is_empty() && completed.is_empty() {
             return None;
         }
 
         let mut lines = vec!["Background tasks:".to_string()];
         let now = current_epoch_millis();
 
-        let mut sorted_tasks: Vec<_> = tasks.values().collect();
-        sorted_tasks.sort_by_key(|t| &t.id);
+        let mut shortest_elapsed_secs: Option<u64> = None;
 
-        for task in sorted_tasks {
+        let mut sorted_running: Vec<_> = running.values().collect();
+        sorted_running.sort_by_key(|t| &t.id);
+
+        for task in sorted_running {
             let elapsed = task.started_at.elapsed();
             let idle_ms = now.saturating_sub(task.last_activity.load(Ordering::Relaxed));
+
+            let elapsed_secs = elapsed.as_secs();
+            shortest_elapsed_secs =
+                Some(shortest_elapsed_secs.map_or(elapsed_secs, |s| s.min(elapsed_secs)));
 
             lines.push(format!(
                 "• {}: \"{}\" - running {}, {} turns, idle {}",
@@ -1498,6 +1606,34 @@ impl McpClientTrait for SummonClient {
                 round_duration(elapsed),
                 task.turns.load(Ordering::Relaxed),
                 round_duration(Duration::from_millis(idle_ms)),
+            ));
+        }
+
+        let mut sorted_completed: Vec<_> = completed.values().collect();
+        sorted_completed.sort_by_key(|t| &t.id);
+
+        for task in sorted_completed {
+            let status = if task.result.is_ok() {
+                "completed"
+            } else {
+                "failed"
+            };
+            lines.push(format!(
+                "• {}: \"{}\" - {} in {} ({} turns) - use load(\"{}\") to get result",
+                task.id,
+                task.description,
+                status,
+                round_duration(task.duration),
+                task.turns_taken,
+                task.id
+            ));
+        }
+
+        if let Some(shortest) = shortest_elapsed_secs {
+            let sleep_secs = 300u64.saturating_sub(shortest).max(10);
+            lines.push(format!(
+                "\n→ if you're idle, sleep {} to wait for running tasks",
+                sleep_secs
             ));
         }
 
@@ -1643,5 +1779,132 @@ You review code."#;
         let long = "x".repeat(100);
         let desc = SummonClient::get_task_description(&make_params(None, Some(&long)));
         assert!(desc.len() <= 43 && desc.ends_with("..."));
+    }
+
+    fn extract_text(content: &Content) -> &str {
+        use rmcp::model::RawContent;
+        match &content.raw {
+            RawContent::Text(t) => t.text.as_str(),
+            _ => panic!("Expected text content"),
+        }
+    }
+
+    #[tokio::test]
+    async fn test_async_task_result_lifecycle() {
+        let client = SummonClient::new(create_test_context()).unwrap();
+        let temp_dir = TempDir::new().unwrap();
+
+        // 1. Loading unknown task returns error
+        let result = client.handle_load_task_result("task_unknown").await;
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("not found"));
+
+        // 2. Add a running task - loading it should fail with "still running"
+        {
+            let mut running = client.background_tasks.lock().await;
+            running.insert(
+                "task_running".to_string(),
+                BackgroundTask {
+                    id: "task_running".to_string(),
+                    description: "Running task".to_string(),
+                    started_at: Instant::now(),
+                    turns: Arc::new(AtomicU32::new(2)),
+                    last_activity: Arc::new(AtomicU64::new(current_epoch_millis())),
+                    handle: tokio::spawn(async {
+                        tokio::time::sleep(Duration::from_secs(1000)).await;
+                        Ok("done".to_string())
+                    }),
+                },
+            );
+        }
+        let result = client.handle_load_task_result("task_running").await;
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("still running"));
+
+        // 3. MOIM shows running task with sleep hint
+        let moim = client.get_moim("test").await.unwrap();
+        assert!(moim.contains("task_running"));
+        assert!(moim.contains("running"));
+        assert!(moim.contains("sleep"));
+
+        // 4. Add completed tasks (success and failure)
+        {
+            let mut completed = client.completed_tasks.lock().await;
+            completed.insert(
+                "task_success".to_string(),
+                CompletedTask {
+                    id: "task_success".to_string(),
+                    description: "Successful task".to_string(),
+                    result: Ok("Task completed successfully with output".to_string()),
+                    turns_taken: 5,
+                    duration: Duration::from_secs(60),
+                },
+            );
+            completed.insert(
+                "task_failed".to_string(),
+                CompletedTask {
+                    id: "task_failed".to_string(),
+                    description: "Failed task".to_string(),
+                    result: Err("Something went wrong".to_string()),
+                    turns_taken: 3,
+                    duration: Duration::from_secs(30),
+                },
+            );
+        }
+
+        // 5. MOIM shows completed tasks with load hints
+        let moim = client.get_moim("test").await.unwrap();
+        assert!(moim.contains("task_success"));
+        assert!(moim.contains("task_failed"));
+        assert!(moim.contains(r#"use load("task_success") to get result"#));
+        assert!(moim.contains(r#"use load("task_failed") to get result"#));
+
+        // 6. Discovery lists completed tasks
+        let discovery = client
+            .handle_load_discovery("test", temp_dir.path())
+            .await
+            .unwrap();
+        let discovery_text = extract_text(&discovery[0]);
+        assert!(discovery_text.contains("Completed Tasks (awaiting retrieval)"));
+        assert!(discovery_text.contains("task_success"));
+        assert!(discovery_text.contains("task_failed"));
+
+        // 7. Load successful task - verify output format and removal
+        let result = client
+            .handle_load_task_result("task_success")
+            .await
+            .unwrap();
+        let text = extract_text(&result[0]);
+        assert!(text.contains("task_success"));
+        assert!(text.contains("Successful task"));
+        assert!(text.contains("✓ Completed"));
+        assert!(text.contains("1m"));
+        assert!(text.contains("5 turns"));
+        assert!(text.contains("Task completed successfully with output"));
+
+        // Verify task was removed after retrieval
+        assert!(!client
+            .completed_tasks
+            .lock()
+            .await
+            .contains_key("task_success"));
+
+        // 8. Load failed task - verify error format
+        let result = client.handle_load_task_result("task_failed").await.unwrap();
+        let text = extract_text(&result[0]);
+        assert!(text.contains("✗ Failed"));
+        assert!(text.contains("Error: Something went wrong"));
+
+        // 9. Loading same task again returns "not found"
+        let result = client.handle_load_task_result("task_failed").await;
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("not found"));
+
+        // 10. MOIM with only running tasks shows sleep hint, no completed section
+        let moim = client.get_moim("test").await.unwrap();
+        assert!(moim.contains("task_running"));
+        assert!(moim.contains("sleep"));
+        assert!(!moim.contains("task_success"));
+        assert!(!moim.contains("task_failed"));
     }
 }
