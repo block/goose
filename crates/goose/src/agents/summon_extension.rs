@@ -485,7 +485,6 @@ impl SummonClient {
             self.scan_recipes_dir(&dir, SourceKind::Recipe, &mut sources, &mut seen);
         }
 
-        // Skills: local → global → builtin
         let skill_dirs: Vec<PathBuf> = [
             Some(working_dir.join(".goose/skills")),
             Some(working_dir.join(".claude/skills")),
@@ -514,7 +513,6 @@ impl SummonClient {
             }
         }
 
-        // Agents: local → global
         let agent_dirs: Vec<PathBuf> = [
             Some(working_dir.join(".goose/agents")),
             Some(working_dir.join(".claude/agents")),
@@ -840,7 +838,6 @@ impl SummonClient {
         Ok(vec![Content::text(output)])
     }
 
-    /// Handle load mode - load a specific source by name
     async fn handle_load_source(
         &self,
         session_id: &str,
@@ -1332,7 +1329,6 @@ impl SummonClient {
         }
     }
 
-    /// Get task description from params for MOIM display
     fn get_task_description(params: &DelegateParams) -> String {
         if let Some(source) = &params.source {
             if let Some(instructions) = &params.instructions {

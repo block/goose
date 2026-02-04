@@ -199,7 +199,6 @@ pub fn get_parameter_names(tool: &Tool) -> Vec<String> {
     names
 }
 
-/// Used for unprefixed tools where ownership can't be determined from the tool name.
 pub fn get_tool_owner(tool: &Tool) -> Option<String> {
     tool.meta
         .as_ref()
@@ -208,7 +207,6 @@ pub fn get_tool_owner(tool: &Tool) -> Option<String> {
         .map(|s| s.to_string())
 }
 
-/// Check if a platform extension should expose tools without prefix
 fn is_unprefixed_extension(config: &ExtensionConfig) -> bool {
     if let ExtensionConfig::Platform { name, .. } = config {
         PLATFORM_EXTENSIONS
