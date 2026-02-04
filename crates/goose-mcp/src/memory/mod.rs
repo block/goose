@@ -242,7 +242,12 @@ impl MemoryServer {
         &self.instructions
     }
 
-    fn get_memory_file(&self, category: &str, is_global: bool, working_dir: Option<&PathBuf>) -> PathBuf {
+    fn get_memory_file(
+        &self,
+        category: &str,
+        is_global: bool,
+        working_dir: Option<&PathBuf>,
+    ) -> PathBuf {
         let base_dir = if is_global {
             self.global_memory_dir.clone()
         } else {
@@ -255,7 +260,11 @@ impl MemoryServer {
         base_dir.join(format!("{}.txt", category))
     }
 
-    pub fn retrieve_all(&self, is_global: bool, working_dir: Option<&PathBuf>) -> io::Result<HashMap<String, Vec<String>>> {
+    pub fn retrieve_all(
+        &self,
+        is_global: bool,
+        working_dir: Option<&PathBuf>,
+    ) -> io::Result<HashMap<String, Vec<String>>> {
         let base_dir = if is_global {
             self.global_memory_dir.clone()
         } else {
@@ -377,7 +386,12 @@ impl MemoryServer {
         Ok(())
     }
 
-    pub fn clear_memory(&self, category: &str, is_global: bool, working_dir: Option<&PathBuf>) -> io::Result<()> {
+    pub fn clear_memory(
+        &self,
+        category: &str,
+        is_global: bool,
+        working_dir: Option<&PathBuf>,
+    ) -> io::Result<()> {
         let memory_file_path = self.get_memory_file(category, is_global, working_dir);
         if memory_file_path.exists() {
             fs::remove_file(memory_file_path)?;
@@ -386,7 +400,11 @@ impl MemoryServer {
         Ok(())
     }
 
-    pub fn clear_all_global_or_local_memories(&self, is_global: bool, working_dir: Option<&PathBuf>) -> io::Result<()> {
+    pub fn clear_all_global_or_local_memories(
+        &self,
+        is_global: bool,
+        working_dir: Option<&PathBuf>,
+    ) -> io::Result<()> {
         let base_dir = if is_global {
             self.global_memory_dir.clone()
         } else {
@@ -605,8 +623,12 @@ mod tests {
             global_memory_dir: memory_base.join("global"),
         };
 
-        assert!(router.clear_all_global_or_local_memories(false, Some(&working_dir)).is_ok());
-        assert!(router.clear_all_global_or_local_memories(true, None).is_ok());
+        assert!(router
+            .clear_all_global_or_local_memories(false, Some(&working_dir))
+            .is_ok());
+        assert!(router
+            .clear_all_global_or_local_memories(true, None)
+            .is_ok());
     }
 
     #[test]
@@ -632,7 +654,9 @@ mod tests {
             )
             .unwrap();
 
-        let memories = router.retrieve("test_category", false, Some(&working_dir)).unwrap();
+        let memories = router
+            .retrieve("test_category", false, Some(&working_dir))
+            .unwrap();
         assert!(!memories.is_empty());
 
         let has_content = memories.values().any(|v| {
@@ -641,9 +665,13 @@ mod tests {
         });
         assert!(has_content);
 
-        router.clear_memory("test_category", false, Some(&working_dir)).unwrap();
+        router
+            .clear_memory("test_category", false, Some(&working_dir))
+            .unwrap();
 
-        let memories_after_clear = router.retrieve("test_category", false, Some(&working_dir)).unwrap();
+        let memories_after_clear = router
+            .retrieve("test_category", false, Some(&working_dir))
+            .unwrap();
         assert!(memories_after_clear.is_empty());
     }
 
@@ -663,7 +691,14 @@ mod tests {
         assert!(!local_memory_dir.exists());
 
         router
-            .remember("context", "category", "data", &[], false, Some(&working_dir))
+            .remember(
+                "context",
+                "category",
+                "data",
+                &[],
+                false,
+                Some(&working_dir),
+            )
             .unwrap();
 
         assert!(local_memory_dir.exists());
@@ -683,20 +718,38 @@ mod tests {
         };
 
         router
-            .remember("context", "category", "keep_this", &[], false, Some(&working_dir))
+            .remember(
+                "context",
+                "category",
+                "keep_this",
+                &[],
+                false,
+                Some(&working_dir),
+            )
             .unwrap();
         router
-            .remember("context", "category", "remove_this", &[], false, Some(&working_dir))
+            .remember(
+                "context",
+                "category",
+                "remove_this",
+                &[],
+                false,
+                Some(&working_dir),
+            )
             .unwrap();
 
-        let memories = router.retrieve("category", false, Some(&working_dir)).unwrap();
+        let memories = router
+            .retrieve("category", false, Some(&working_dir))
+            .unwrap();
         assert_eq!(memories.len(), 1);
 
         router
             .remove_specific_memory_internal("category", "remove_this", false, Some(&working_dir))
             .unwrap();
 
-        let memories_after = router.retrieve("category", false, Some(&working_dir)).unwrap();
+        let memories_after = router
+            .retrieve("category", false, Some(&working_dir))
+            .unwrap();
         let has_removed = memories_after
             .values()
             .any(|v| v.iter().any(|content| content.contains("remove_this")));
