@@ -436,20 +436,15 @@ impl SummonClient {
             .unwrap_or_else(|| std::env::current_dir().unwrap_or_default())
     }
 
-    /// Get all sources, combining cached filesystem sources with session-specific subrecipes
     async fn get_sources(&self, session_id: &str, working_dir: &Path) -> Vec<Source> {
-        // Get filesystem sources (cacheable)
         let fs_sources = self.get_filesystem_sources(working_dir).await;
 
-        // Get session-specific subrecipes (not cacheable)
         let mut seen: std::collections::HashSet<String> = std::collections::HashSet::new();
         let mut sources: Vec<Source> = Vec::new();
 
-        // Subrecipes have highest priority
         self.add_subrecipes(session_id, &mut sources, &mut seen)
             .await;
 
-        // Add filesystem sources that don't conflict with subrecipes
         for source in fs_sources {
             if !seen.contains(&source.name) {
                 seen.insert(source.name.clone());
@@ -461,7 +456,6 @@ impl SummonClient {
         sources
     }
 
-    /// Get filesystem sources with caching (excludes session-specific subrecipes)
     async fn get_filesystem_sources(&self, working_dir: &Path) -> Vec<Source> {
         let mut cache = self.source_cache.lock().await;
         if let Some((cached_at, cached_dir, sources)) = cache.as_ref() {
@@ -483,7 +477,6 @@ impl SummonClient {
         let sources = self.get_sources(session_id, working_dir).await;
         let mut source = sources.into_iter().find(|s| s.name == name)?;
 
-        // For subrecipes, load content on demand (not stored in cache)
         if source.kind == SourceKind::Subrecipe && source.content.is_empty() {
             source.content = self.load_subrecipe_content(session_id, &source.name).await;
         }
@@ -491,7 +484,6 @@ impl SummonClient {
         Some(source)
     }
 
-    /// Load subrecipe content from file for the load tool
     async fn load_subrecipe_content(&self, session_id: &str, name: &str) -> String {
         let session = match self
             .context
@@ -513,19 +505,15 @@ impl SummonClient {
             None => return String::new(),
         };
 
-        // Load the recipe file and extract instructions
         match load_local_recipe_file(&sr.path) {
-            Ok(recipe_file) => {
-                match Recipe::from_content(&recipe_file.content) {
-                    Ok(recipe) => recipe.instructions.unwrap_or_default(),
-                    Err(_) => recipe_file.content, // Fall back to raw content
-                }
-            }
+            Ok(recipe_file) => match Recipe::from_content(&recipe_file.content) {
+                Ok(recipe) => recipe.instructions.unwrap_or_default(),
+                Err(_) => recipe_file.content,
+            },
             Err(_) => String::new(),
         }
     }
 
-    /// Discover filesystem sources (excludes session-specific subrecipes)
     fn discover_filesystem_sources(&self, working_dir: &Path) -> Vec<Source> {
         let mut sources: Vec<Source> = Vec::new();
         let mut seen_names: std::collections::HashSet<String> = std::collections::HashSet::new();
@@ -878,7 +866,6 @@ impl SummonClient {
 
         let mut output = String::from("Available sources for load/delegate:\n");
 
-        // Iterate in fixed order - no HashMap needed
         for kind in [
             SourceKind::Subrecipe,
             SourceKind::Recipe,
@@ -926,7 +913,6 @@ impl SummonClient {
                 Ok(vec![Content::text(output)])
             }
             None => {
-                // Get sources for suggestions
                 let sources = self.get_sources(session_id, working_dir).await;
                 let suggestions: Vec<&str> = sources
                     .iter()
@@ -962,7 +948,6 @@ impl SummonClient {
         arguments: Option<JsonObject>,
         cancellation_token: CancellationToken,
     ) -> Result<Vec<Content>, String> {
-        // Clean up completed tasks on every delegate call
         self.cleanup_completed_tasks().await;
 
         let params: DelegateParams = arguments
@@ -993,7 +978,6 @@ impl SummonClient {
             return Err("Delegated tasks cannot spawn further delegations".to_string());
         }
 
-        // Handle async delegation
         if params.r#async {
             return self.handle_async_delegate(session_id, params).await;
         }
@@ -1138,7 +1122,6 @@ impl SummonClient {
                         format!("Failed to load subrecipe '{}': {}", source.name, e)
                     })?;
 
-                    // Merge params: start with subrecipe values, then override with caller params
                     let mut merged: HashMap<String, String> = HashMap::new();
                     if let Some(values) = &sr.values {
                         for (k, v) in values {
@@ -1206,7 +1189,6 @@ impl SummonClient {
             .description(source.description.clone())
             .instructions(&source.content);
 
-        // Set a meaningful prompt for skill-only delegation
         if params.instructions.is_none() {
             builder = builder.prompt("Apply the skill knowledge to produce a useful result.");
         }
@@ -1221,7 +1203,6 @@ impl SummonClient {
         source: &Source,
         params: &DelegateParams,
     ) -> Result<Recipe, String> {
-        // Re-parse frontmatter to get model info (source.content only has body)
         let agent_content = if source.path.as_os_str().is_empty() {
             return Err("Agent source has no path".to_string());
         } else {
@@ -1253,7 +1234,6 @@ impl SummonClient {
             builder = builder.settings(settings);
         }
 
-        // Set a meaningful prompt for agent-only delegation
         if params.instructions.is_none() {
             builder = builder.prompt("Proceed with your expertise to produce a useful result.");
         }
@@ -1296,7 +1276,6 @@ impl SummonClient {
         recipe: &Recipe,
         session: &crate::session::Session,
     ) -> Result<Arc<dyn crate::providers::base::Provider>, anyhow::Error> {
-        // Provider precedence: params > recipe.settings > session
         let provider_name = params
             .provider
             .clone()
@@ -1314,7 +1293,6 @@ impl SummonClient {
             .clone()
             .unwrap_or_else(|| crate::model::ModelConfig::new("default").unwrap());
 
-        // Model precedence: params > recipe.settings > session
         if let Some(model) = &params.model {
             model_config.model_name = translate_model_shorthand(model).to_string();
         } else if let Some(model) = recipe
@@ -1325,7 +1303,6 @@ impl SummonClient {
             model_config.model_name = model.clone();
         }
 
-        // Temperature precedence: params > recipe.settings > session
         if let Some(temp) = params.temperature {
             model_config = model_config.with_temperature(Some(temp));
         } else if let Some(temp) = recipe.settings.as_ref().and_then(|s| s.temperature) {
@@ -1361,7 +1338,6 @@ impl SummonClient {
     }
 
     async fn cleanup_completed_tasks(&self) {
-        // Collect finished tasks while holding lock briefly
         let finished: Vec<(String, BackgroundTask)> = {
             let mut tasks = self.background_tasks.lock().await;
             let ids: Vec<String> = tasks
@@ -1374,7 +1350,6 @@ impl SummonClient {
                 .collect()
         };
 
-        // Await handles outside the lock to avoid blocking other operations
         for (id, task) in finished {
             match task.handle.await {
                 Ok(Ok(result)) => info!(
@@ -1408,7 +1383,6 @@ impl SummonClient {
         session_id: &str,
         params: DelegateParams,
     ) -> Result<Vec<Content>, String> {
-        // Check task limit (cleanup already done in handle_delegate)
         let task_count = self.background_tasks.lock().await.len();
         let max_tasks = max_background_tasks();
         if task_count >= max_tasks {
@@ -1456,7 +1430,6 @@ impl SummonClient {
             .await
             .map_err(|e| format!("Failed to create subagent session: {}", e))?;
 
-        // Create shared atomic counters for turn tracking
         let turns = Arc::new(AtomicU32::new(0));
         let last_activity = Arc::new(AtomicU64::new(current_epoch_millis()));
 
@@ -1465,7 +1438,6 @@ impl SummonClient {
         let subagent_session_id = subagent_session.id.clone();
         let max_turns = task_config.max_turns;
 
-        // Spawn the background task with a fresh cancellation token (NOT the parent's)
         let handle = tokio::spawn(async move {
             run_background_subagent(
                 agent_config,
@@ -1479,7 +1451,6 @@ impl SummonClient {
             .await
         });
 
-        // Create the background task entry with the shared counters
         let task = BackgroundTask {
             id: task_id.clone(),
             description: description.clone(),
@@ -1572,8 +1543,6 @@ async fn run_background_subagent(
         retry_config: recipe.retry,
     };
 
-    // Use a fresh cancellation token - background task should NOT be cancelled
-    // when the parent tool call is cancelled
     let cancellation_token = CancellationToken::new();
 
     let mut stream = agent
@@ -1586,11 +1555,9 @@ async fn run_background_subagent(
     while let Some(message_result) = stream.next().await {
         match message_result {
             Ok(AgentEvent::Message(msg)) => {
-                // Update turn count and activity timestamp
                 turns.fetch_add(1, Ordering::Relaxed);
                 last_activity.store(current_epoch_millis(), Ordering::Relaxed);
 
-                // Extract text from the message for the final result
                 for content in &msg.content {
                     if let crate::conversation::message::MessageContent::Text(text_content) =
                         content
@@ -1610,7 +1577,6 @@ async fn run_background_subagent(
         }
     }
 
-    // Check for final output if response schema was provided
     if has_response_schema {
         if let Some(output) = agent
             .final_output_tool
@@ -1638,10 +1604,8 @@ impl McpClientTrait for SummonClient {
         _next_cursor: Option<String>,
         _cancellation_token: CancellationToken,
     ) -> Result<ListToolsResult, Error> {
-        // Clean up completed tasks on list_tools calls
         self.cleanup_completed_tasks().await;
 
-        // Check if this is a subagent session - hide delegate tool if so
         let is_subagent = self
             .context
             .session_manager
@@ -1652,7 +1616,6 @@ impl McpClientTrait for SummonClient {
 
         let mut tools = vec![self.create_load_tool()];
 
-        // Only include delegate for non-subagent sessions
         if !is_subagent {
             tools.push(self.create_delegate_tool());
         }
@@ -1704,7 +1667,6 @@ impl McpClientTrait for SummonClient {
         let mut lines = vec!["Background tasks:".to_string()];
         let now = current_epoch_millis();
 
-        // Sort by task ID for deterministic ordering (avoids prompt cache invalidation)
         let mut sorted_tasks: Vec<_> = tasks.values().collect();
         sorted_tasks.sort_by_key(|t| &t.id);
 
@@ -1742,7 +1704,6 @@ mod tests {
 
     #[test]
     fn test_frontmatter_parsing() {
-        // Skill parsing
         let skill = r#"---
 name: test-skill
 description: A test skill
@@ -1753,7 +1714,6 @@ Skill body here."#;
         assert_eq!(source.kind, SourceKind::Skill);
         assert!(source.content.contains("Skill body"));
 
-        // Agent parsing with model shorthand
         let agent = r#"---
 name: reviewer
 model: sonnet
@@ -1763,7 +1723,6 @@ You review code."#;
         assert_eq!(source.name, "reviewer");
         assert!(source.description.contains("claude-sonnet-4-20250514"));
 
-        // Invalid frontmatter
         assert!(parse_skill_content("no frontmatter", PathBuf::new()).is_none());
         assert!(parse_skill_content("---\nunclosed", PathBuf::new()).is_none());
     }
@@ -1772,7 +1731,6 @@ You review code."#;
     async fn test_source_discovery_and_priority() {
         let temp_dir = TempDir::new().unwrap();
 
-        // Create skill in .goose/skills (higher priority)
         let goose_skill = temp_dir.path().join(".goose/skills/my-skill");
         fs::create_dir_all(&goose_skill).unwrap();
         fs::write(
@@ -1781,7 +1739,6 @@ You review code."#;
         )
         .unwrap();
 
-        // Create same skill in .claude/skills (lower priority)
         let claude_skill = temp_dir.path().join(".claude/skills/my-skill");
         fs::create_dir_all(&claude_skill).unwrap();
         fs::write(
@@ -1790,7 +1747,6 @@ You review code."#;
         )
         .unwrap();
 
-        // Create recipe
         let recipes = temp_dir.path().join(".goose/recipes");
         fs::create_dir_all(&recipes).unwrap();
         fs::write(
@@ -1800,19 +1756,15 @@ You review code."#;
         .unwrap();
 
         let client = SummonClient::new(create_test_context()).unwrap();
-        // Use discover_filesystem_sources for testing (no session-specific subrecipes)
         let sources = client.discover_filesystem_sources(temp_dir.path());
 
-        // First match wins - goose version should be used
         let skill = sources.iter().find(|s| s.name == "my-skill").unwrap();
         assert_eq!(skill.description, "goose version");
 
-        // Recipe should be found
         assert!(sources
             .iter()
             .any(|s| s.name == "test" && s.kind == SourceKind::Recipe));
 
-        // Builtin skills included
         assert!(sources.iter().any(|s| s.kind == SourceKind::BuiltinSkill));
     }
 
@@ -1820,7 +1772,6 @@ You review code."#;
     async fn test_client_tools_and_unknown_tool() {
         let client = SummonClient::new(create_test_context()).unwrap();
 
-        // Both tools available
         let result = client
             .list_tools("test", None, CancellationToken::new())
             .await
@@ -1828,7 +1779,6 @@ You review code."#;
         let names: Vec<_> = result.tools.iter().map(|t| t.name.as_ref()).collect();
         assert!(names.contains(&"load") && names.contains(&"delegate"));
 
-        // Unknown tool returns error
         let result = client
             .call_tool("test", "unknown", None, CancellationToken::new())
             .await
@@ -1838,12 +1788,10 @@ You review code."#;
 
     #[test]
     fn test_duration_rounding_for_moim() {
-        // Under 60s rounds to 10s
         assert_eq!(round_duration(Duration::from_secs(5)), "0s");
         assert_eq!(round_duration(Duration::from_secs(15)), "10s");
         assert_eq!(round_duration(Duration::from_secs(59)), "50s");
 
-        // 60s+ rounds to minutes
         assert_eq!(round_duration(Duration::from_secs(60)), "1m");
         assert_eq!(round_duration(Duration::from_secs(90)), "1m");
         assert_eq!(round_duration(Duration::from_secs(120)), "2m");
@@ -1875,7 +1823,6 @@ You review code."#;
             "r: task"
         );
 
-        // Long instructions truncated
         let long = "x".repeat(100);
         let desc = SummonClient::get_task_description(&make_params(None, Some(&long)));
         assert!(desc.len() <= 43 && desc.ends_with("..."));

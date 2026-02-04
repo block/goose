@@ -105,7 +105,7 @@ pub static PLATFORM_EXTENSIONS: Lazy<HashMap<&'static str, PlatformExtensionDef>
                 display_name: "Summon",
                 description: "Load knowledge and delegate tasks to subagents",
                 default_enabled: true,
-                unprefixed_tools: true, // Expose as `load` and `delegate` without prefix
+                unprefixed_tools: true,
                 client_factory: |ctx| Box::new(summon_extension::SummonClient::new(ctx).unwrap()),
             },
         );
