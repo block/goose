@@ -14,14 +14,6 @@ cuda = ["candle-core/cuda", "candle-nn/cuda"]
 [lints]
 workspace = true
 
-[build-dependencies]
-tokio = { workspace = true }
-reqwest = { workspace = true, features = [
-    "json",
-    "rustls-tls-native-roots",
-    "system-proxy",
-], default-features = false }
-
 [dependencies]
 lru = "0.16"
 rmcp = { workspace = true, features = [
