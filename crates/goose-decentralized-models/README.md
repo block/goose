@@ -23,7 +23,7 @@ cargo run -p goose-decentralized-models -- discover
 | Command | Description |
 |---------|-------------|
 | `init` | Create config + generate Nostr keys |
-| `publish` | Publish models to Nostr (clears old first) |
+| `publish` | Publish models to Nostr (idempotent, updates in place) |
 | `discover` | Find models others have published |
 | `list` | Show your published models |
 | `unpublish <name>` | Remove a specific model |
@@ -55,9 +55,9 @@ Located at `~/.config/goose/decentralized-models.json`:
 
 ## How It Works
 
-1. Models are published as Nostr events (Kind 31990)
-2. Events include an expiration tag (default: 1 hour)
-3. Anyone can discover models by querying relays
+1. Models are published as Nostr events (Kind 31990, replaceable)
+2. Publishing is idempotent — re-publishing updates the existing event
+3. Discovery only shows models published in the last 30 minutes
 4. Endpoints are OpenAI-compatible (proxied through Ollama)
 
 ## Files
