@@ -220,12 +220,9 @@ fn max_background_tasks() -> usize {
         .unwrap_or(5)
 }
 
-fn generate_task_id() -> String {
-    use std::sync::atomic::AtomicU64;
-    static COUNTER: AtomicU64 = AtomicU64::new(0);
-    let count = COUNTER.fetch_add(1, Ordering::Relaxed);
-    let timestamp = current_epoch_millis() % 100000;
-    format!("task_{:05}_{:04}", timestamp, count % 10000)
+fn is_session_id(s: &str) -> bool {
+    let parts: Vec<&str> = s.split('_').collect();
+    parts.len() == 2 && parts[0].len() == 8 && parts[0].chars().all(|c| c.is_ascii_digit())
 }
 
 pub struct SummonClient {
@@ -709,7 +706,7 @@ impl SummonClient {
 
         let name = source_name.unwrap();
 
-        if name.starts_with("task_") {
+        if is_session_id(name) {
             return self.handle_load_task_result(name).await;
         }
 
@@ -1363,7 +1360,6 @@ impl SummonClient {
             .await
             .map_err(|e| format!("Failed to build task config: {}", e))?;
 
-        let task_id = generate_task_id();
         let description = truncate(&Self::get_task_description(&params), 40);
 
         let agent_config = AgentConfig::new(
@@ -1378,18 +1374,19 @@ impl SummonClient {
             .session_manager
             .create_session(
                 working_dir.clone(),
-                format!("Background task: {}", task_id),
+                description.clone(),
                 SessionType::SubAgent,
             )
             .await
             .map_err(|e| format!("Failed to create subagent session: {}", e))?;
+
+        let task_id = subagent_session.id.clone();
 
         let turns = Arc::new(AtomicU32::new(0));
         let last_activity = Arc::new(AtomicU64::new(current_epoch_millis()));
 
         let turns_clone = Arc::clone(&turns);
         let last_activity_clone = Arc::clone(&last_activity);
-        let subagent_session_id = subagent_session.id.clone();
 
         let on_message: OnMessageCallback = Arc::new(move |_msg| {
             turns_clone.fetch_add(1, Ordering::Relaxed);
@@ -1402,7 +1399,7 @@ impl SummonClient {
                 recipe,
                 task_config,
                 true,
-                subagent_session_id,
+                subagent_session.id,
                 Some(CancellationToken::new()),
                 Some(on_message),
             )
@@ -1706,23 +1703,32 @@ You review code."#;
         }
     }
 
+    #[test]
+    fn test_is_session_id() {
+        assert!(is_session_id("20260204_1"));
+        assert!(is_session_id("20260204_42"));
+        assert!(is_session_id("20260204_999"));
+        assert!(!is_session_id("task_12345_0001"));
+        assert!(!is_session_id("my-recipe"));
+        assert!(!is_session_id("2026020_1"));
+        assert!(!is_session_id("20260204"));
+    }
+
     #[tokio::test]
     async fn test_async_task_result_lifecycle() {
         let client = SummonClient::new(create_test_context()).unwrap();
         let temp_dir = TempDir::new().unwrap();
 
-        // 1. Loading unknown task returns error
-        let result = client.handle_load_task_result("task_unknown").await;
+        let result = client.handle_load_task_result("20260204_999").await;
         assert!(result.is_err());
         assert!(result.unwrap_err().contains("not found"));
 
-        // 2. Add a running task - loading it should fail with "still running"
         {
             let mut running = client.background_tasks.lock().await;
             running.insert(
-                "task_running".to_string(),
+                "20260204_1".to_string(),
                 BackgroundTask {
-                    id: "task_running".to_string(),
+                    id: "20260204_1".to_string(),
                     description: "Running task".to_string(),
                     started_at: Instant::now(),
                     turns: Arc::new(AtomicU32::new(2)),
@@ -1734,23 +1740,21 @@ You review code."#;
                 },
             );
         }
-        let result = client.handle_load_task_result("task_running").await;
+        let result = client.handle_load_task_result("20260204_1").await;
         assert!(result.is_err());
         assert!(result.unwrap_err().contains("still running"));
 
-        // 3. MOIM shows running task with sleep hint
         let moim = client.get_moim("test").await.unwrap();
-        assert!(moim.contains("task_running"));
+        assert!(moim.contains("20260204_1"));
         assert!(moim.contains("running"));
         assert!(moim.contains("sleep"));
 
-        // 4. Add completed tasks (success and failure)
         {
             let mut completed = client.completed_tasks.lock().await;
             completed.insert(
-                "task_success".to_string(),
+                "20260204_2".to_string(),
                 CompletedTask {
-                    id: "task_success".to_string(),
+                    id: "20260204_2".to_string(),
                     description: "Successful task".to_string(),
                     result: Ok("Task completed successfully with output".to_string()),
                     turns_taken: 5,
@@ -1758,9 +1762,9 @@ You review code."#;
                 },
             );
             completed.insert(
-                "task_failed".to_string(),
+                "20260204_3".to_string(),
                 CompletedTask {
-                    id: "task_failed".to_string(),
+                    id: "20260204_3".to_string(),
                     description: "Failed task".to_string(),
                     result: Err("Something went wrong".to_string()),
                     turns_taken: 3,
@@ -1769,59 +1773,49 @@ You review code."#;
             );
         }
 
-        // 5. MOIM shows completed tasks with load hints
         let moim = client.get_moim("test").await.unwrap();
-        assert!(moim.contains("task_success"));
-        assert!(moim.contains("task_failed"));
-        assert!(moim.contains(r#"use load("task_success") to get result"#));
-        assert!(moim.contains(r#"use load("task_failed") to get result"#));
+        assert!(moim.contains("20260204_2"));
+        assert!(moim.contains("20260204_3"));
+        assert!(moim.contains(r#"use load("20260204_2") to get result"#));
+        assert!(moim.contains(r#"use load("20260204_3") to get result"#));
 
-        // 6. Discovery lists completed tasks
         let discovery = client
             .handle_load_discovery("test", temp_dir.path())
             .await
             .unwrap();
         let discovery_text = extract_text(&discovery[0]);
         assert!(discovery_text.contains("Completed Tasks (awaiting retrieval)"));
-        assert!(discovery_text.contains("task_success"));
-        assert!(discovery_text.contains("task_failed"));
+        assert!(discovery_text.contains("20260204_2"));
+        assert!(discovery_text.contains("20260204_3"));
 
-        // 7. Load successful task - verify output format and removal
-        let result = client
-            .handle_load_task_result("task_success")
-            .await
-            .unwrap();
+        let result = client.handle_load_task_result("20260204_2").await.unwrap();
         let text = extract_text(&result[0]);
-        assert!(text.contains("task_success"));
+        assert!(text.contains("20260204_2"));
         assert!(text.contains("Successful task"));
         assert!(text.contains("✓ Completed"));
         assert!(text.contains("1m"));
         assert!(text.contains("5 turns"));
         assert!(text.contains("Task completed successfully with output"));
 
-        // Verify task was removed after retrieval
         assert!(!client
             .completed_tasks
             .lock()
             .await
-            .contains_key("task_success"));
+            .contains_key("20260204_2"));
 
-        // 8. Load failed task - verify error format
-        let result = client.handle_load_task_result("task_failed").await.unwrap();
+        let result = client.handle_load_task_result("20260204_3").await.unwrap();
         let text = extract_text(&result[0]);
         assert!(text.contains("✗ Failed"));
         assert!(text.contains("Error: Something went wrong"));
 
-        // 9. Loading same task again returns "not found"
-        let result = client.handle_load_task_result("task_failed").await;
+        let result = client.handle_load_task_result("20260204_3").await;
         assert!(result.is_err());
         assert!(result.unwrap_err().contains("not found"));
 
-        // 10. MOIM with only running tasks shows sleep hint, no completed section
         let moim = client.get_moim("test").await.unwrap();
-        assert!(moim.contains("task_running"));
+        assert!(moim.contains("20260204_1"));
         assert!(moim.contains("sleep"));
-        assert!(!moim.contains("task_success"));
-        assert!(!moim.contains("task_failed"));
+        assert!(!moim.contains("20260204_2"));
+        assert!(!moim.contains("20260204_3"));
     }
 }
