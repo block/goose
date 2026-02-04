@@ -46,9 +46,7 @@ pub async fn execute_real_command(
     let start = Instant::now();
 
     let mut cmd = Command::new(command);
-    cmd.args(args)
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped());
+    cmd.args(args).stdout(Stdio::piped()).stderr(Stdio::piped());
 
     let mut child = cmd.spawn()?;
 
@@ -188,14 +186,11 @@ async fn test_gate3_stderr_capture() -> Result<()> {
 async fn test_gate3_multiline_output() -> Result<()> {
     // Execute a command with multi-line output
     #[cfg(windows)]
-    let result = execute_real_command(
-        "cmd",
-        &["/c", "echo Line1 & echo Line2 & echo Line3"],
-        10,
-    )
-    .await?;
+    let result =
+        execute_real_command("cmd", &["/c", "echo Line1 & echo Line2 & echo Line3"], 10).await?;
     #[cfg(not(windows))]
-    let result = execute_real_command("sh", &["-c", "echo Line1; echo Line2; echo Line3"], 10).await?;
+    let result =
+        execute_real_command("sh", &["-c", "echo Line1; echo Line2; echo Line3"], 10).await?;
 
     // EVIDENCE: All lines captured
     let lines: Vec<&str> = result.stdout.lines().collect();
@@ -305,7 +300,10 @@ fn it_works() {
 
     println!("=== GATE 3 EVIDENCE: Cargo Test Execution ===");
     println!("Exit code: {:?}", output.status.code());
-    println!("Output contains test results: {}", combined.contains("test"));
+    println!(
+        "Output contains test results: {}",
+        combined.contains("test")
+    );
     println!("==============================================");
 
     Ok(())

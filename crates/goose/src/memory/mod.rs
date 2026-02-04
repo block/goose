@@ -715,9 +715,9 @@ impl MemoryManager {
         let hours = self.config.decay_interval_hours as f64;
         let threshold = self.config.min_importance_threshold;
 
-        let mut working_removed = 0;
-        let mut episodic_removed = 0;
-        let mut semantic_removed = 0;
+        let working_removed;
+        let episodic_removed;
+        let semantic_removed;
 
         // Decay working memory
         {

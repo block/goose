@@ -87,14 +87,13 @@ async fn test_gate4_memory_checkpoint_resume() -> Result<()> {
         let mut state = WorkflowState::new(5);
         state.advance("src/lib.rs", "add", 10, 0);
         state.advance("src/utils.rs", "modify", 5, 2);
-        state.metadata.insert("task".to_string(), "Add feature X".to_string());
+        state
+            .metadata
+            .insert("task".to_string(), "Add feature X".to_string());
 
         // Checkpoint the state
         let cp_id = manager
-            .checkpoint(
-                &state,
-                Some(CheckpointMetadata::for_step(2, "Code")),
-            )
+            .checkpoint(&state, Some(CheckpointMetadata::for_step(2, "Code")))
             .await?;
 
         assert!(!cp_id.is_empty(), "Checkpoint ID must be generated");
@@ -205,8 +204,12 @@ async fn test_gate4_state_serialization_roundtrip() -> Result<()> {
     original_state.advance("src/main.rs", "create", 100, 0);
     original_state.advance("src/lib.rs", "modify", 50, 10);
     original_state.advance("tests/test_main.rs", "create", 30, 0);
-    original_state.metadata.insert("author".to_string(), "CodeAgent".to_string());
-    original_state.metadata.insert("task_id".to_string(), "TASK-123".to_string());
+    original_state
+        .metadata
+        .insert("author".to_string(), "CodeAgent".to_string());
+    original_state
+        .metadata
+        .insert("task_id".to_string(), "TASK-123".to_string());
     original_state.complete();
 
     // Checkpoint
@@ -252,7 +255,9 @@ async fn test_gate4_sqlite_crash_recovery() -> Result<()> {
 
         let mut state = WorkflowState::new(5);
         state.advance("src/critical.rs", "create", 200, 0);
-        state.metadata.insert("important".to_string(), "data".to_string());
+        state
+            .metadata
+            .insert("important".to_string(), "data".to_string());
 
         // Checkpoint to SQLite
         manager
@@ -316,7 +321,11 @@ async fn test_gate4_resume_specific_checkpoint() -> Result<()> {
         restored.current_step, 3,
         "Must restore to step 3 (0-indexed advances)"
     );
-    assert_eq!(restored.modified_files.len(), 3, "Must have 3 files from checkpoint 2");
+    assert_eq!(
+        restored.modified_files.len(),
+        3,
+        "Must have 3 files from checkpoint 2"
+    );
 
     println!("=== GATE 4 EVIDENCE: Specific Checkpoint Resume ===");
     println!("Resumed from checkpoint: {}", middle_id);

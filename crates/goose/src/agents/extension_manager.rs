@@ -1181,14 +1181,21 @@ impl ExtensionManager {
         working_dir: Option<&std::path::Path>,
         cancellation_token: CancellationToken,
     ) -> Result<ToolCallResult> {
-        self.dispatch_tool_call_with_guard(session_id, tool_call, cancellation_token, None)
-            .await
+        self.dispatch_tool_call_with_guard(
+            session_id,
+            tool_call,
+            working_dir,
+            cancellation_token,
+            None,
+        )
+        .await
     }
 
     pub async fn dispatch_tool_call_with_guard(
         &self,
         session_id: &str,
         tool_call: CallToolRequestParams,
+        working_dir: Option<&std::path::Path>,
         cancellation_token: CancellationToken,
         shell_guard: Option<&crate::agents::shell_guard::ShellGuard>,
     ) -> Result<ToolCallResult> {

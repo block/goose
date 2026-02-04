@@ -2,7 +2,6 @@
 //!
 //! This module defines error types for the memory subsystem.
 
-use std::fmt;
 use thiserror::Error;
 
 /// Errors that can occur in the memory system

@@ -4,9 +4,8 @@
 //! Working memory has fast access times but limited capacity and fast decay.
 
 use std::collections::HashMap;
-use chrono::{DateTime, Utc};
 
-use super::{MemoryEntry, MemoryError, MemoryResult, MemoryType, RecallContext};
+use super::{MemoryEntry, MemoryError, MemoryResult, MemoryType};
 
 /// Working memory store for short-term context
 #[derive(Debug)]
@@ -103,7 +102,11 @@ impl WorkingMemory {
         // Sort by score descending
         results.sort_by(|a, b| b.0.partial_cmp(&a.0).unwrap_or(std::cmp::Ordering::Equal));
 
-        Ok(results.into_iter().take(max_results).map(|(_, e)| e).collect())
+        Ok(results
+            .into_iter()
+            .take(max_results)
+            .map(|(_, e)| e)
+            .collect())
     }
 
     /// Calculate text similarity between content and query words
@@ -117,8 +120,10 @@ impl WorkingMemory {
 
         let mut matches = 0;
         for qw in query_words {
+            let qw_lower = qw.to_lowercase();
             for cw in &content_words {
-                if cw.contains(qw) || qw.contains(cw) {
+                // Exact match or word contains the query (but query must be substantial part)
+                if *cw == qw_lower || (cw.contains(&qw_lower) && qw_lower.len() >= 3) {
                     matches += 1;
                     break;
                 }
@@ -205,11 +210,17 @@ impl WorkingMemory {
     }
 
     /// Drain entries that meet promotion criteria
-    pub fn drain_promotable(&mut self, min_importance: f64, min_access_count: u64) -> Vec<MemoryEntry> {
+    pub fn drain_promotable(
+        &mut self,
+        min_importance: f64,
+        min_access_count: u64,
+    ) -> Vec<MemoryEntry> {
         let promotable_ids: Vec<String> = self
             .entries
             .iter()
-            .filter(|(_, e)| e.importance_score >= min_importance && e.access_count >= min_access_count)
+            .filter(|(_, e)| {
+                e.importance_score >= min_importance && e.access_count >= min_access_count
+            })
             .map(|(id, _)| id.clone())
             .collect();
 
@@ -294,9 +305,12 @@ mod tests {
     #[test]
     fn test_search() {
         let mut wm = WorkingMemory::new(10);
-        wm.store(create_test_entry("1", "The user prefers dark mode")).unwrap();
-        wm.store(create_test_entry("2", "Python is a programming language")).unwrap();
-        wm.store(create_test_entry("3", "The dark knight rises")).unwrap();
+        wm.store(create_test_entry("1", "The user prefers dark mode"))
+            .unwrap();
+        wm.store(create_test_entry("2", "Python is a programming language"))
+            .unwrap();
+        wm.store(create_test_entry("3", "The dark knight rises"))
+            .unwrap();
 
         let results = wm.search("dark", 10).unwrap();
         assert_eq!(results.len(), 2);
@@ -337,10 +351,8 @@ mod tests {
     fn test_apply_decay() {
         let mut wm = WorkingMemory::new(10);
 
-        let entry1 = create_test_entry("1", "high importance")
-            .with_importance(0.9);
-        let entry2 = create_test_entry("2", "low importance")
-            .with_importance(0.05);
+        let entry1 = create_test_entry("1", "high importance").with_importance(0.9);
+        let entry2 = create_test_entry("2", "low importance").with_importance(0.05);
 
         wm.store(entry1).unwrap();
         wm.store(entry2).unwrap();
@@ -367,12 +379,10 @@ mod tests {
     fn test_get_promotable() {
         let mut wm = WorkingMemory::new(10);
 
-        let mut entry1 = create_test_entry("1", "important")
-            .with_importance(0.8);
+        let mut entry1 = create_test_entry("1", "important").with_importance(0.8);
         entry1.access_count = 5;
 
-        let entry2 = create_test_entry("2", "not important")
-            .with_importance(0.3);
+        let entry2 = create_test_entry("2", "not important").with_importance(0.3);
 
         wm.store(entry1).unwrap();
         wm.store(entry2).unwrap();
@@ -386,12 +396,10 @@ mod tests {
     fn test_drain_promotable() {
         let mut wm = WorkingMemory::new(10);
 
-        let mut entry1 = create_test_entry("1", "promote me")
-            .with_importance(0.8);
+        let mut entry1 = create_test_entry("1", "promote me").with_importance(0.8);
         entry1.access_count = 5;
 
-        let entry2 = create_test_entry("2", "keep me")
-            .with_importance(0.3);
+        let entry2 = create_test_entry("2", "keep me").with_importance(0.3);
 
         wm.store(entry1).unwrap();
         wm.store(entry2).unwrap();

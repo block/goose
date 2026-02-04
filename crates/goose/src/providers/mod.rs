@@ -30,6 +30,7 @@ pub mod openrouter;
 pub mod provider_registry;
 pub mod provider_test;
 mod retry;
+pub mod routing;
 pub mod sagemaker_tgi;
 pub mod snowflake;
 pub mod testprovider;

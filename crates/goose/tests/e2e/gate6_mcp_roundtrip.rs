@@ -334,8 +334,7 @@ async fn test_gate6_complex_data_roundtrip() -> Result<()> {
     println!("Unicode preserved: {:?}", original_unicode);
     println!(
         "Special chars preserved: {}",
-        call.arguments["config"]["special_chars"]
-            == restored.arguments["config"]["special_chars"]
+        call.arguments["config"]["special_chars"] == restored.arguments["config"]["special_chars"]
     );
     println!("================================================");
 

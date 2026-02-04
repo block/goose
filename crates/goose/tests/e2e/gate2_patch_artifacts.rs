@@ -90,8 +90,10 @@ impl PatchArtifact {
 
         // Must look like a unified diff (has @@ markers or + / - lines)
         let has_hunk_header = self.diff.contains("@@");
-        let has_diff_lines =
-            self.diff.lines().any(|l| l.starts_with('+') || l.starts_with('-'));
+        let has_diff_lines = self
+            .diff
+            .lines()
+            .any(|l| l.starts_with('+') || l.starts_with('-'));
 
         if !has_hunk_header && !has_diff_lines {
             anyhow::bail!("Patch does not appear to be in unified diff format");
@@ -208,7 +210,10 @@ async fn test_gate2_patch_artifact_creation() -> Result<()> {
     patch.validate()?;
     assert!(!patch.id.is_empty(), "Patch must have ID");
     assert!(!patch.diff.is_empty(), "Patch must have diff content");
-    assert!(patch.metadata.lines_added > 0, "Patch must have added lines");
+    assert!(
+        patch.metadata.lines_added > 0,
+        "Patch must have added lines"
+    );
     assert_eq!(
         patch.metadata.created_by,
         Some("CodeAgent".to_string()),
@@ -222,7 +227,10 @@ async fn test_gate2_patch_artifact_creation() -> Result<()> {
     println!("Lines added: {}", patch.metadata.lines_added);
     println!("Lines removed: {}", patch.metadata.lines_removed);
     println!("Created by: {:?}", patch.metadata.created_by);
-    println!("Diff preview:\n{}", &patch.diff[..patch.diff.len().min(200)]);
+    println!(
+        "Diff preview:\n{}",
+        &patch.diff[..patch.diff.len().min(200)]
+    );
     println!("=====================================");
 
     Ok(())
@@ -307,8 +315,7 @@ async fn test_gate2_patch_serialization() -> Result<()> {
 #[tokio::test]
 async fn test_gate2_patch_changeset() -> Result<()> {
     let patches = vec![
-        PatchArtifact::new("src/lib.rs", "+pub fn foo() {}\n")
-            .with_description("Add foo function"),
+        PatchArtifact::new("src/lib.rs", "+pub fn foo() {}\n").with_description("Add foo function"),
         PatchArtifact::new("src/utils.rs", "+pub mod helpers;\n")
             .with_description("Add helpers module"),
         PatchArtifact::new("tests/test_foo.rs", "+#[test] fn test_foo() {}\n")

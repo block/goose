@@ -13,6 +13,13 @@ pub mod guardrails;
 pub mod hints;
 pub mod hooks;
 pub mod mcp_gateway;
+
+#[cfg(feature = "memory")]
+pub mod memory;
+
+#[cfg(feature = "swarm-experimental")]
+pub mod swarm;
+
 pub mod observability;
 pub mod logging;
 pub mod mcp_utils;

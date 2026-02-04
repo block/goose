@@ -8,7 +8,9 @@ repository.workspace = true
 description.workspace = true
 
 [features]
-default = []
+default = ["memory"]
+memory = []
+swarm-experimental = []
 
 [lints]
 workspace = true
@@ -86,6 +88,8 @@ sqlx = { version = "0.8", features = [
     "chrono",
     "json",
 ] }
+walkdir = "2.5"
+zip = "0.6"
 
 # For Bedrock provider
 aws-config = { version = "=1.8.12", features = ["behavior-version-latest"] }
@@ -118,7 +122,6 @@ tokenizers = "0.21.0"
 hf-hub = { version = "0.4.3", default-features = false, features = ["tokio"] }
 symphonia = { version = "0.5", features = ["all"] }
 rubato = "0.16"
-zip = "0.6"
 sys-info = "0.9"
 
 schemars = { version = "1.0.4", default-features = false, features = [

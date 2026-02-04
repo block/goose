@@ -194,10 +194,22 @@ async fn test_gate1_workflow_produces_real_diffs() -> Result<()> {
     // 4. EVIDENCE: Git diff shows real changes
     let diff = project.git_diff()?;
     assert!(!diff.is_empty(), "Git diff must show changes");
-    assert!(diff.contains("+pub fn subtract"), "Must contain new subtract function");
-    assert!(diff.contains("+pub fn multiply"), "Must contain new multiply function");
-    assert!(diff.contains("+fn test_subtract"), "Must contain new subtract test");
-    assert!(diff.contains("+fn test_multiply"), "Must contain new multiply test");
+    assert!(
+        diff.contains("+pub fn subtract"),
+        "Must contain new subtract function"
+    );
+    assert!(
+        diff.contains("+pub fn multiply"),
+        "Must contain new multiply function"
+    );
+    assert!(
+        diff.contains("+fn test_subtract"),
+        "Must contain new subtract test"
+    );
+    assert!(
+        diff.contains("+fn test_multiply"),
+        "Must contain new multiply test"
+    );
 
     // 5. EVIDENCE: Modified files list is non-empty
     let modified = project.modified_files()?;
