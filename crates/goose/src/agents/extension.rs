@@ -118,7 +118,7 @@ pub static PLATFORM_EXTENSIONS: Lazy<HashMap<&'static str, PlatformExtensionDef>
                 description:
                     "Goose will make extension calls through code execution, saving tokens",
                 default_enabled: false,
-                unprefixed_tools: false,
+                unprefixed_tools: true,
                 client_factory: |ctx| {
                     Box::new(code_execution_extension::CodeExecutionClient::new(ctx).unwrap())
                 },

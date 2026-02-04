@@ -7,12 +7,12 @@
 use crate::agents::builtin_skills;
 use crate::agents::extension::PlatformExtensionContext;
 use crate::agents::mcp_client::{Error, McpClientTrait};
-use crate::agents::subagent_handler::{run_complete_subagent_task, SubagentPromptContext};
+use crate::agents::subagent_handler::{
+    run_complete_subagent_task, run_subagent_task_with_callback, OnMessageCallback,
+};
 use crate::agents::subagent_task_config::{TaskConfig, DEFAULT_SUBAGENT_MAX_TURNS};
-use crate::agents::{Agent, AgentConfig, AgentEvent, SessionConfig};
+use crate::agents::AgentConfig;
 use crate::config::paths::Paths;
-use crate::conversation::message::Message;
-use crate::prompt_template::render_template;
 use crate::providers;
 use crate::recipe::build_recipe::build_recipe_from_template;
 use crate::recipe::local_recipes::load_local_recipe_file;
@@ -21,7 +21,6 @@ use crate::session::extension_data::{EnabledExtensionsState, ExtensionState};
 use crate::session::SessionType;
 use anyhow::Result;
 use async_trait::async_trait;
-use futures::StreamExt;
 use rmcp::model::{
     CallToolResult, Content, Implementation, InitializeResult, JsonObject, ListToolsResult,
     ProtocolVersion, ServerCapabilities, Tool, ToolsCapability,
@@ -35,7 +34,7 @@ use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 use tokio::sync::Mutex;
 use tokio::task::JoinHandle;
 use tokio_util::sync::CancellationToken;
-use tracing::{debug, info, warn};
+use tracing::{info, warn};
 
 pub static EXTENSION_NAME: &str = "summon";
 
@@ -1374,17 +1373,21 @@ impl SummonClient {
         let turns_clone = Arc::clone(&turns);
         let last_activity_clone = Arc::clone(&last_activity);
         let subagent_session_id = subagent_session.id.clone();
-        let max_turns = task_config.max_turns;
+
+        let on_message: OnMessageCallback = Arc::new(move |_msg| {
+            turns_clone.fetch_add(1, Ordering::Relaxed);
+            last_activity_clone.store(current_epoch_millis(), Ordering::Relaxed);
+        });
 
         let handle = tokio::spawn(async move {
-            run_background_subagent(
+            run_subagent_task_with_callback(
                 agent_config,
                 recipe,
                 task_config,
+                true,
                 subagent_session_id,
-                turns_clone,
-                last_activity_clone,
-                max_turns,
+                Some(CancellationToken::new()),
+                Some(on_message),
             )
             .await
         });
@@ -1407,130 +1410,6 @@ impl SummonClient {
             "Task {} started in background: \"{}\"\nStatus will appear in context.",
             task_id, description
         ))])
-    }
-}
-
-/// Run a subagent task in the background with turn tracking
-async fn run_background_subagent(
-    config: AgentConfig,
-    recipe: Recipe,
-    task_config: TaskConfig,
-    session_id: String,
-    turns: Arc<AtomicU32>,
-    last_activity: Arc<AtomicU64>,
-    max_turns: Option<usize>,
-) -> Result<String> {
-    let system_instructions = recipe.instructions.clone().unwrap_or_default();
-    let user_task = recipe
-        .prompt
-        .clone()
-        .unwrap_or_else(|| "Begin.".to_string());
-
-    let agent = Arc::new(Agent::with_config(config));
-
-    agent
-        .update_provider(task_config.provider, &session_id)
-        .await
-        .map_err(|e| anyhow::anyhow!("Failed to set provider on sub agent: {}", e))?;
-
-    for extension in task_config.extensions {
-        if let Err(e) = agent.add_extension(extension.clone(), &session_id).await {
-            debug!(
-                "Failed to add extension '{}' to subagent: {}",
-                extension.name(),
-                e
-            );
-        }
-    }
-
-    let has_response_schema = recipe.response.is_some();
-    agent
-        .apply_recipe_components(recipe.response.clone(), true)
-        .await;
-
-    let tools = agent.list_tools(&session_id, None).await;
-    let subagent_prompt = render_template(
-        "subagent_system.md",
-        &SubagentPromptContext {
-            max_turns: max_turns.unwrap_or(50),
-            subagent_id: session_id.clone(),
-            task_instructions: system_instructions,
-            tool_count: tools.len(),
-            available_tools: tools
-                .iter()
-                .map(|t| t.name.to_string())
-                .collect::<Vec<_>>()
-                .join(", "),
-        },
-    )
-    .map_err(|e| anyhow::anyhow!("Failed to render subagent system prompt: {}", e))?;
-    agent.override_system_prompt(subagent_prompt).await;
-
-    let user_message = Message::user().with_text(user_task);
-
-    if let Some(activities) = recipe.activities {
-        for activity in activities {
-            info!("Recipe activity: {}", activity);
-        }
-    }
-
-    let session_config = SessionConfig {
-        id: session_id.clone(),
-        schedule_id: None,
-        max_turns: max_turns.map(|v| v as u32),
-        retry_config: recipe.retry,
-    };
-
-    let cancellation_token = CancellationToken::new();
-
-    let mut stream = agent
-        .reply(user_message, session_config, Some(cancellation_token))
-        .await
-        .map_err(|e| anyhow::anyhow!("Failed to get reply from agent: {}", e))?;
-
-    let mut last_message_text = String::new();
-
-    while let Some(message_result) = stream.next().await {
-        match message_result {
-            Ok(AgentEvent::Message(msg)) => {
-                turns.fetch_add(1, Ordering::Relaxed);
-                last_activity.store(current_epoch_millis(), Ordering::Relaxed);
-
-                for content in &msg.content {
-                    if let crate::conversation::message::MessageContent::Text(text_content) =
-                        content
-                    {
-                        last_message_text = text_content.text.clone();
-                    }
-                }
-            }
-            Ok(AgentEvent::McpNotification(_)) | Ok(AgentEvent::ModelChange { .. }) => {}
-            Ok(AgentEvent::HistoryReplaced(_)) => {}
-            Err(e) => {
-                return Err(anyhow::anyhow!(
-                    "Error receiving message from subagent: {}",
-                    e
-                ));
-            }
-        }
-    }
-
-    if has_response_schema {
-        if let Some(output) = agent
-            .final_output_tool
-            .lock()
-            .await
-            .as_ref()
-            .and_then(|tool| tool.final_output.clone())
-        {
-            return Ok(output);
-        }
-    }
-
-    if last_message_text.is_empty() {
-        Ok("Task completed (no text output)".to_string())
-    } else {
-        Ok(last_message_text)
     }
 }
 

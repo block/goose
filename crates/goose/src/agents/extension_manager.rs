@@ -1236,13 +1236,22 @@ impl ExtensionManager {
         }
     }
 
-    /// Resolve a tool name to its owning extension and actual tool name.
-    /// Uses meta-based ownership lookup for all tools (both prefixed and unprefixed).
     async fn resolve_tool(
         &self,
         session_id: &str,
         tool_name: &str,
     ) -> Result<ResolvedTool, ErrorData> {
+        if let Some((prefix, actual)) = tool_name.split_once("__") {
+            let owner = name_to_key(prefix);
+            if let Some(client) = self.get_server_client(&owner).await {
+                return Ok(ResolvedTool {
+                    client_name: owner,
+                    actual_tool_name: actual.to_string(),
+                    client,
+                });
+            }
+        }
+
         let tools = self.get_all_tools_cached(session_id).await.map_err(|e| {
             ErrorData::new(
                 ErrorCode::INTERNAL_ERROR,
@@ -1251,43 +1260,40 @@ impl ExtensionManager {
             )
         })?;
 
-        let tool = tools
-            .iter()
-            .find(|t| *t.name == *tool_name)
-            .ok_or_else(|| {
+        if let Some(tool) = tools.iter().find(|t| *t.name == *tool_name) {
+            let owner = get_tool_owner(tool).ok_or_else(|| {
                 ErrorData::new(
                     ErrorCode::RESOURCE_NOT_FOUND,
-                    format!("Tool '{}' not found", tool_name),
+                    format!("Tool '{}' has no owner", tool_name),
                     None,
                 )
             })?;
 
-        let owner = get_tool_owner(tool).ok_or_else(|| {
-            ErrorData::new(
-                ErrorCode::RESOURCE_NOT_FOUND,
-                format!("Tool '{}' has no owner", tool_name),
-                None,
-            )
-        })?;
+            let actual_tool_name = tool_name
+                .strip_prefix(&format!("{owner}__"))
+                .unwrap_or(tool_name)
+                .to_string();
 
-        let actual_tool_name = tool_name
-            .strip_prefix(&format!("{owner}__"))
-            .unwrap_or(tool_name)
-            .to_string();
+            let client = self.get_server_client(&owner).await.ok_or_else(|| {
+                ErrorData::new(
+                    ErrorCode::RESOURCE_NOT_FOUND,
+                    format!("Extension '{}' not found for tool '{}'", owner, tool_name),
+                    None,
+                )
+            })?;
 
-        let client = self.get_server_client(&owner).await.ok_or_else(|| {
-            ErrorData::new(
-                ErrorCode::RESOURCE_NOT_FOUND,
-                format!("Extension '{}' not found for tool '{}'", owner, tool_name),
-                None,
-            )
-        })?;
+            return Ok(ResolvedTool {
+                client_name: owner,
+                actual_tool_name,
+                client,
+            });
+        }
 
-        Ok(ResolvedTool {
-            client_name: owner,
-            actual_tool_name,
-            client,
-        })
+        Err(ErrorData::new(
+            ErrorCode::RESOURCE_NOT_FOUND,
+            format!("Tool '{}' not found", tool_name),
+            None,
+        ))
     }
 
     pub async fn dispatch_tool_call(

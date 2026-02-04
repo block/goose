@@ -14,6 +14,9 @@ use std::sync::Arc;
 use tokio_util::sync::CancellationToken;
 use tracing::{debug, info};
 
+/// Callback invoked on each message event during subagent execution
+pub type OnMessageCallback = Arc<dyn Fn(&Message) + Send + Sync>;
+
 #[derive(Serialize)]
 pub(crate) struct SubagentPromptContext {
     pub max_turns: usize,
@@ -26,7 +29,7 @@ pub(crate) struct SubagentPromptContext {
 type AgentMessagesFuture =
     Pin<Box<dyn Future<Output = Result<(Conversation, Option<String>)>> + Send>>;
 
-/// Standalone function to run a complete subagent task with output options
+/// Run a complete subagent task with output options
 pub async fn run_complete_subagent_task(
     config: AgentConfig,
     recipe: Recipe,
@@ -35,16 +38,44 @@ pub async fn run_complete_subagent_task(
     session_id: String,
     cancellation_token: Option<CancellationToken>,
 ) -> Result<String, anyhow::Error> {
-    let (messages, final_output) =
-        get_agent_messages(config, recipe, task_config, session_id, cancellation_token)
-            .await
-            .map_err(|e| {
-                ErrorData::new(
-                    ErrorCode::INTERNAL_ERROR,
-                    format!("Failed to execute task: {}", e),
-                    None,
-                )
-            })?;
+    run_subagent_task_with_callback(
+        config,
+        recipe,
+        task_config,
+        return_last_only,
+        session_id,
+        cancellation_token,
+        None,
+    )
+    .await
+}
+
+/// Run a complete subagent task with an optional callback for message events
+pub async fn run_subagent_task_with_callback(
+    config: AgentConfig,
+    recipe: Recipe,
+    task_config: TaskConfig,
+    return_last_only: bool,
+    session_id: String,
+    cancellation_token: Option<CancellationToken>,
+    on_message: Option<OnMessageCallback>,
+) -> Result<String, anyhow::Error> {
+    let (messages, final_output) = get_agent_messages(
+        config,
+        recipe,
+        task_config,
+        session_id,
+        cancellation_token,
+        on_message,
+    )
+    .await
+    .map_err(|e| {
+        ErrorData::new(
+            ErrorCode::INTERNAL_ERROR,
+            format!("Failed to execute task: {}", e),
+            None,
+        )
+    })?;
 
     if let Some(output) = final_output {
         return Ok(output);
@@ -67,40 +98,35 @@ pub async fn run_complete_subagent_task(
         let all_text_content: Vec<String> = messages
             .iter()
             .flat_map(|message| {
-                message.content.iter().filter_map(|content| {
-                    match content {
-                        crate::conversation::message::MessageContent::Text(text_content) => {
-                            Some(text_content.text.clone())
-                        }
-                        crate::conversation::message::MessageContent::ToolResponse(
-                            tool_response,
-                        ) => {
-                            // Extract text from tool response
-                            if let Ok(result) = &tool_response.tool_result {
-                                let texts: Vec<String> = result
-                                    .content
-                                    .iter()
-                                    .filter_map(|content| {
-                                        if let rmcp::model::RawContent::Text(raw_text_content) =
-                                            &content.raw
-                                        {
-                                            Some(raw_text_content.text.clone())
-                                        } else {
-                                            None
-                                        }
-                                    })
-                                    .collect();
-                                if !texts.is_empty() {
-                                    Some(format!("Tool result: {}", texts.join("\n")))
-                                } else {
-                                    None
-                                }
+                message.content.iter().filter_map(|content| match content {
+                    crate::conversation::message::MessageContent::Text(text_content) => {
+                        Some(text_content.text.clone())
+                    }
+                    crate::conversation::message::MessageContent::ToolResponse(tool_response) => {
+                        if let Ok(result) = &tool_response.tool_result {
+                            let texts: Vec<String> = result
+                                .content
+                                .iter()
+                                .filter_map(|content| {
+                                    if let rmcp::model::RawContent::Text(raw_text_content) =
+                                        &content.raw
+                                    {
+                                        Some(raw_text_content.text.clone())
+                                    } else {
+                                        None
+                                    }
+                                })
+                                .collect();
+                            if !texts.is_empty() {
+                                Some(format!("Tool result: {}", texts.join("\n")))
                             } else {
                                 None
                             }
+                        } else {
+                            None
                         }
-                        _ => None,
                     }
+                    _ => None,
                 })
             })
             .collect();
@@ -117,6 +143,7 @@ fn get_agent_messages(
     task_config: TaskConfig,
     session_id: String,
     cancellation_token: Option<CancellationToken>,
+    on_message: Option<OnMessageCallback>,
 ) -> AgentMessagesFuture {
     Box::pin(async move {
         let system_instructions = recipe.instructions.clone().unwrap_or_default();
@@ -188,7 +215,12 @@ fn get_agent_messages(
             .map_err(|e| anyhow!("Failed to get reply from agent: {}", e))?;
         while let Some(message_result) = stream.next().await {
             match message_result {
-                Ok(AgentEvent::Message(msg)) => conversation.push(msg),
+                Ok(AgentEvent::Message(msg)) => {
+                    if let Some(ref callback) = on_message {
+                        callback(&msg);
+                    }
+                    conversation.push(msg);
+                }
                 Ok(AgentEvent::McpNotification(_)) | Ok(AgentEvent::ModelChange { .. }) => {}
                 Ok(AgentEvent::HistoryReplaced(updated_conversation)) => {
                     conversation = updated_conversation;
