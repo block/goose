@@ -174,6 +174,15 @@ function streamReducer(state: StreamState, action: StreamAction): StreamState {
 }
 
 function pushMessage(currentMessages: Message[], incomingMsg: Message): Message[] {
+  // DEBUG: Log every incoming message
+  console.log('[DEBUG useChatStream] pushMessage called:', {
+    incomingMessageId: incomingMsg.id,
+    incomingRole: incomingMsg.role,
+    incomingMetadata: incomingMsg.metadata,
+    incomingContentTypes: incomingMsg.content.map((c) => c.type),
+    currentMessagesCount: currentMessages.length,
+  });
+
   const lastMsg = currentMessages[currentMessages.length - 1];
 
   if (lastMsg?.id && lastMsg.id === incomingMsg.id) {

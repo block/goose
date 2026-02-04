@@ -34,13 +34,26 @@ export function createUserMessage(text: string, images?: ImageData[]): Message {
     });
   }
 
-  return {
+  const message: Message = {
     id: generateMessageId(),
     role: 'user',
     created: Math.floor(Date.now() / 1000),
     content,
     metadata: { userVisible: true, agentVisible: true },
   };
+
+  // DEBUG: Log user message creation
+  console.log('[DEBUG createUserMessage] Created user message:', {
+    id: message.id,
+    text: text.substring(0, 100),
+    textLength: text.length,
+    textTrimmedLength: text.trim().length,
+    imageCount: images?.length ?? 0,
+    contentTypes: content.map((c) => c.type),
+    metadata: message.metadata,
+  });
+
+  return message;
 }
 
 export function createElicitationResponseMessage(
@@ -83,6 +96,17 @@ export function getTextAndImageContent(message: Message): {
       imagePaths.push(`data:${content.mimeType};base64,${content.data}`);
     }
   }
+
+  // DEBUG: Log text/image extraction
+  console.log('[DEBUG getTextAndImageContent] Extracted content:', {
+    messageId: message.id,
+    messageRole: message.role,
+    inputContentTypes: message.content.map((c) => c.type),
+    extractedTextLength: textContent.length,
+    extractedTextTrimmedLength: textContent.trim().length,
+    extractedTextPreview: textContent.substring(0, 100),
+    extractedImageCount: imagePaths.length,
+  });
 
   return { textContent, imagePaths };
 }

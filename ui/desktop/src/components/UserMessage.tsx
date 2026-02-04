@@ -21,6 +21,24 @@ export default function UserMessage({ message, onMessageUpdate }: UserMessagePro
   const [error, setError] = useState<string | null>(null);
 
   const { textContent, imagePaths } = getTextAndImageContent(message);
+
+  // DEBUG: Log UserMessage render with all relevant data
+  console.log('[DEBUG UserMessage] Rendering:', {
+    messageId: message.id,
+    role: message.role,
+    created: message.created,
+    metadata: message.metadata,
+    contentTypes: message.content.map((c) => c.type),
+    rawContent: message.content,
+    extractedTextContent: textContent,
+    textContentLength: textContent.length,
+    textContentTrimmedLength: textContent.trim().length,
+    hasTextContent: !!textContent.trim(),
+    imagePaths: imagePaths,
+    imageCount: imagePaths.length,
+    willRenderTextBubble: !!textContent.trim(),
+    willRenderImages: imagePaths.length > 0,
+  });
   const timestamp = formatMessageTimestamp(message.created);
 
   // Effect to handle message content changes and ensure persistence

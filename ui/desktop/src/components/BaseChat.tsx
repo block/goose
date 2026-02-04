@@ -426,7 +426,17 @@ export default function BaseChat({
                     chat={{ sessionId }}
                     toolCallNotifications={toolCallNotifications}
                     append={(text: string) => handleSubmit({ msg: text, images: [] })}
-                    isUserMessage={(m: Message) => m.role === 'user'}
+                    isUserMessage={(m: Message) => {
+                      const isUser = m.role === 'user';
+                      // DEBUG: Log isUserMessage check
+                      console.log('[DEBUG BaseChat] isUserMessage check:', {
+                        messageId: m.id,
+                        role: m.role,
+                        isUser,
+                        contentTypes: m.content.map((c) => c.type),
+                      });
+                      return isUser;
+                    }}
                     isStreamingMessage={chatState !== ChatState.Idle}
                     onRenderingComplete={handleRenderingComplete}
                     onMessageUpdate={onMessageUpdate}
