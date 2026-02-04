@@ -676,19 +676,19 @@ export type PermissionsMetadata = {
     /**
      * Request camera access (maps to Permission Policy `camera` feature)
      */
-    camera?: boolean | null;
+    camera?: boolean;
     /**
      * Request clipboard write access (maps to Permission Policy `clipboard-write` feature)
      */
-    clipboardWrite?: boolean | null;
+    clipboardWrite?: boolean;
     /**
      * Request geolocation access (maps to Permission Policy `geolocation` feature)
      */
-    geolocation?: boolean | null;
+    geolocation?: boolean;
     /**
      * Request microphone access (maps to Permission Policy `microphone` feature)
      */
-    microphone?: boolean | null;
+    microphone?: boolean;
 };
 
 export type PricingData = {
@@ -1297,7 +1297,7 @@ export type UiMetadata = {
      * Preferred domain for the app (used for CORS)
      */
     domain?: string | null;
-    permissions?: PermissionsMetadata | null;
+    permissions?: PermissionsMetadata;
     /**
      * Whether the app prefers to have a border around it
      */

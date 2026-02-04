@@ -5255,23 +5255,19 @@
         "properties": {
           "camera": {
             "type": "boolean",
-            "description": "Request camera access (maps to Permission Policy `camera` feature)",
-            "nullable": true
+            "description": "Request camera access (maps to Permission Policy `camera` feature)"
           },
           "clipboardWrite": {
             "type": "boolean",
-            "description": "Request clipboard write access (maps to Permission Policy `clipboard-write` feature)",
-            "nullable": true
+            "description": "Request clipboard write access (maps to Permission Policy `clipboard-write` feature)"
           },
           "geolocation": {
             "type": "boolean",
-            "description": "Request geolocation access (maps to Permission Policy `geolocation` feature)",
-            "nullable": true
+            "description": "Request geolocation access (maps to Permission Policy `geolocation` feature)"
           },
           "microphone": {
             "type": "boolean",
-            "description": "Request microphone access (maps to Permission Policy `microphone` feature)",
-            "nullable": true
+            "description": "Request microphone access (maps to Permission Policy `microphone` feature)"
           }
         }
       },
@@ -7048,12 +7044,7 @@
             "nullable": true
           },
           "permissions": {
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/PermissionsMetadata"
-              }
-            ],
-            "nullable": true
+            "$ref": "#/components/schemas/PermissionsMetadata"
           },
           "prefersBorder": {
             "type": "boolean",
