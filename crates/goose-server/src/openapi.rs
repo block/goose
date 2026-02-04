@@ -577,6 +577,7 @@ derive_utoipa!(Icon as IconSchema);
         goose::goose_apps::WindowProps,
         goose::goose_apps::McpAppResource,
         goose::goose_apps::CspMetadata,
+        goose::goose_apps::PermissionsMetadata,
         goose::goose_apps::UiMetadata,
         goose::goose_apps::ResourceMetadata,
         super::routes::dictation::TranscribeRequest,

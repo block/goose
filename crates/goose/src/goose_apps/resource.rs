@@ -14,6 +14,30 @@ pub struct CspMetadata {
     pub resource_domains: Option<Vec<String>>,
 }
 
+/// Sandbox permissions for MCP Apps
+/// Specifies which browser capabilities the UI needs access to.
+/// Maps to the iframe Permission Policy `allow` attribute.
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema, PartialEq, Eq, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct PermissionsMetadata {
+    /// Request camera access (maps to Permission Policy `camera` feature)
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub camera: bool,
+    /// Request microphone access (maps to Permission Policy `microphone` feature)
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub microphone: bool,
+    /// Request geolocation access (maps to Permission Policy `geolocation` feature)
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub geolocation: bool,
+    /// Request clipboard write access (maps to Permission Policy `clipboard-write` feature)
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub clipboard_write: bool,
+}
+
+fn is_default_permissions(p: &PermissionsMetadata) -> bool {
+    *p == PermissionsMetadata::default()
+}
+
 /// UI-specific metadata for MCP resources
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
@@ -21,6 +45,9 @@ pub struct UiMetadata {
     /// Content Security Policy configuration
     #[serde(skip_serializing_if = "Option::is_none")]
     pub csp: Option<CspMetadata>,
+    /// Sandbox permissions requested by the UI
+    #[serde(default, skip_serializing_if = "is_default_permissions")]
+    pub permissions: PermissionsMetadata,
     /// Preferred domain for the app (used for CORS)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub domain: Option<String>,
@@ -87,6 +114,7 @@ impl McpAppResource {
             meta: Some(ResourceMetadata {
                 ui: Some(UiMetadata {
                     csp: Some(csp),
+                    permissions: PermissionsMetadata::default(),
                     domain: None,
                     prefers_border: None,
                 }),
