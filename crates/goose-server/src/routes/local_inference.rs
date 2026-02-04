@@ -28,20 +28,14 @@ fn convert_error(e: anyhow::Error) -> ErrorResponse {
     let error_msg = e.to_string();
 
     if error_msg.contains("not found") {
-        ErrorResponse {
-            message: error_msg,
-            status: StatusCode::NOT_FOUND,
-        }
+        ErrorResponse::not_found(error_msg)
     } else if error_msg.contains("not configured") {
         ErrorResponse {
             message: error_msg,
             status: StatusCode::PRECONDITION_FAILED,
         }
     } else if error_msg.contains("already in progress") {
-        ErrorResponse {
-            message: error_msg,
-            status: StatusCode::BAD_REQUEST,
-        }
+        ErrorResponse::bad_request(error_msg)
     } else {
         ErrorResponse::internal(error_msg)
     }
@@ -130,10 +124,7 @@ pub async fn get_local_model_download_progress(
     // Check both model and tokenizer progress
     let model_progress = manager
         .get_progress(&format!("{}-model", model_id))
-        .ok_or_else(|| ErrorResponse {
-            message: "Download not found".to_string(),
-            status: StatusCode::NOT_FOUND,
-        })?;
+        .ok_or_else(|| ErrorResponse::not_found("Download not found"))?;
 
     let tokenizer_progress = manager.get_progress(&format!("{}-tokenizer", model_id));
 
@@ -185,19 +176,14 @@ pub async fn cancel_local_model_download(
     )
 )]
 pub async fn delete_local_model(Path(model_id): Path<String>) -> Result<StatusCode, ErrorResponse> {
-    let model = get_local_model(&model_id).ok_or_else(|| ErrorResponse {
-        message: "Model not found".to_string(),
-        status: StatusCode::NOT_FOUND,
-    })?;
+    let model = get_local_model(&model_id)
+        .ok_or_else(|| ErrorResponse::not_found("Model not found"))?;
 
     let model_path = model.local_path();
     let tokenizer_path = model.tokenizer_path();
 
     if !model_path.exists() && !tokenizer_path.exists() {
-        return Err(ErrorResponse {
-            message: "Model not downloaded".to_string(),
-            status: StatusCode::NOT_FOUND,
-        });
+        return Err(ErrorResponse::not_found("Model not downloaded"));
     }
 
     // Delete both files
