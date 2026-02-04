@@ -60,14 +60,7 @@ interface ToolCallWithResponseProps {
   isStreamingMessage?: boolean;
   isPendingApproval: boolean;
   append?: (value: string) => void;
-  /**
-   * When provided, shows inline approval buttons for this tool call.
-   * This provides clearer UX by associating the approval UI directly with the tool.
-   */
   confirmationContent?: ToolConfirmationData;
-  /**
-   * Whether the approval has already been clicked (decision made)
-   */
   isApprovalClicked?: boolean;
 }
 
