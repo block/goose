@@ -748,9 +748,63 @@ export function useChatStream({
           });
 
           if (sessionResponse.data?.conversation) {
+            const updatedMessages = [...sessionResponse.data.conversation];
+            
+            // Find the last user message (which should be the one we're editing)
+            if (updatedMessages.length > 0) {
+              const lastMessage = updatedMessages[updatedMessages.length - 1];
+              if (lastMessage.role === 'user') {
+                // Update the content of the last message with new content
+                // No need to extract imagePaths here
+                
+                // Start with the text content
+                lastMessage.content = [{ type: 'text', text: newContent }];
+                
+                // Preserve any existing image content
+                for (const content of message.content) {
+                  if (content.type === 'image') {
+                    lastMessage.content.push(content);
+                  }
+                }
+                
+                // Update UI with modified messages
+                dispatch({ type: 'SET_MESSAGES', payload: updatedMessages });
+                
+                // Request response to the updated message
+                const { reply } = await import('../api');
+                abortControllerRef.current = new AbortController();
+                
+                try {
+                  // Create a user message but only use it as a placeholder to satisfy the API
+                  const placeholderMessage = createUserMessage(newContent);
+                  
+                  const { stream } = await reply({
+                    body: {
+                      session_id: targetSessionId,
+                      user_message: placeholderMessage, // Required by API type but won't be used server-side
+                    },
+                    throwOnError: true,
+                    signal: abortControllerRef.current.signal,
+                  });
+                  
+                  await streamFromResponse(stream, updatedMessages, dispatch, onFinish, targetSessionId);
+                } catch (error) {
+                  if (error instanceof Error && error.name === 'AbortError') {
+                    // Silently handle abort
+                  } else {
+                    throw error; // Let the outer catch block handle it
+                  }
+                }
+                return;
+              }
+            }
+            
+            // Fallback to the original behavior if we couldn't find the last user message
             dispatch({ type: 'SET_MESSAGES', payload: sessionResponse.data.conversation });
+            await handleSubmit({ msg: newContent, images: [] });
+          } else {
+            await handleSubmit({ msg: newContent, images: [] });
           }
-          await handleSubmit({ msg: newContent, images: [] });
         }
       } catch (error) {
         const errorMsg = errorMessage(error);
