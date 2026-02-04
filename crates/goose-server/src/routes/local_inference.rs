@@ -125,7 +125,7 @@ pub async fn get_local_model_download_progress(
     // Check both model and tokenizer progress
     let model_progress = manager
         .get_progress(&format!("{}-model", model_id))
-        .ok_or_else(|| ErrorResponse::bad_request("Download not found"))?;
+        .ok_or_else(|| ErrorResponse::not_found("Download not found"))?;
 
     let tokenizer_progress = manager
         .get_progress(&format!("{}-tokenizer", model_id));
