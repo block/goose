@@ -257,7 +257,8 @@ async function streamFromResponse(
           currentMessages = pushMessage(currentMessages, msg);
 
           const hasToolConfirmation = msg.content.some(
-            (content) => content.type === 'toolConfirmationRequest'
+            (content) =>
+              content.type === 'actionRequired' && content.data.actionType === 'toolConfirmation'
           );
 
           const hasElicitation = msg.content.some(
