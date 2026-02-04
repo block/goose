@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 use super::EditorModelImpl;
 use anyhow::Result;
 use reqwest::Client;

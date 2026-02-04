@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 use anyhow::Result;
 use indoc::formatdoc;
 use mpatch::{apply_patch, parse_diffs, PatchError};

@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 mod morphllm_editor;
 mod openai_compatible_editor;
 mod relace_editor;
