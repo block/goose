@@ -2,6 +2,7 @@ use anyhow::Result;
 use fs_err as fs;
 use goose::agents::extension::{Envs, PLATFORM_EXTENSIONS};
 use goose::agents::{Agent, AgentConfig, ExtensionConfig, SessionConfig};
+use goose::builtin_extension::register_builtin_extensions;
 use goose::config::base::CONFIG_YAML_NAME;
 use goose::config::extensions::get_enabled_extensions_with_config;
 use goose::config::paths::Paths;
@@ -1035,6 +1036,7 @@ where
 }
 
 pub async fn run(builtins: Vec<String>) -> Result<()> {
+    register_builtin_extensions(goose_mcp::BUILTIN_EXTENSIONS.clone());
     info!("listening on stdio");
 
     let outgoing = tokio::io::stdout().compat_write();

@@ -1,6 +1,7 @@
 use anyhow::Result;
 use clap::{Args, CommandFactory, Parser, Subcommand};
 use clap_complete::{generate, Shell as ClapShell};
+use goose::builtin_extension::register_builtin_extensions;
 use goose::config::Config;
 use goose::posthog::get_telemetry_choice;
 use goose::recipe::Recipe;
@@ -1513,6 +1514,8 @@ async fn handle_default_session() -> Result<()> {
 }
 
 pub async fn cli() -> anyhow::Result<()> {
+    register_builtin_extensions(goose_mcp::BUILTIN_EXTENSIONS.clone());
+
     let cli = Cli::parse();
 
     if let Err(e) = crate::project_tracker::update_project_tracker(None, None) {

@@ -291,9 +291,78 @@ interface Progress {
   message?: string;
 }
 
+interface SubagentToolRequestData {
+  type: 'subagent_tool_request';
+  subagent_id: string;
+  tool_call: {
+    name: string;
+    arguments?: { tool_graph?: ToolGraphNode[] };
+  };
+}
+
+const isSubagentToolRequestData = (data: unknown): data is SubagentToolRequestData => {
+  if (!data || typeof data !== 'object') {
+    return false;
+  }
+  const record = data as Record<string, unknown>;
+  if (record.type !== 'subagent_tool_request') {
+    return false;
+  }
+  if (typeof record.subagent_id !== 'string') {
+    return false;
+  }
+  if (!record.tool_call || typeof record.tool_call !== 'object') {
+    return false;
+  }
+  const toolCall = record.tool_call as Record<string, unknown>;
+  return typeof toolCall.name === 'string';
+};
+
+const formatSubagentToolCall = (data: SubagentToolRequestData): string => {
+  const subagentId = data.subagent_id;
+  const toolCall = data.tool_call;
+  const toolCallName = toolCall.name;
+
+  const shortId = subagentId?.split('_').pop() || subagentId;
+
+  const parts = toolCallName.split('__').reverse();
+  const toolName = parts[0] || 'unknown';
+  const extensionName = parts.slice(1).reverse().join('__') || '';
+  const toolGraph = toolCall.arguments?.tool_graph;
+
+  if (toolName === 'execute_code' && toolGraph && toolGraph.length > 0) {
+    const plural = toolGraph.length === 1 ? '' : 's';
+    const header = `[subagent:${shortId}] ${toolGraph.length} tool call${plural} | execute_code`;
+    const lines = toolGraph.map((node, idx) => {
+      const deps =
+        node.depends_on && node.depends_on.length > 0
+          ? ` (uses ${node.depends_on.map((d) => d + 1).join(', ')})`
+          : '';
+      return `  ${idx + 1}. ${node.tool}: ${node.description}${deps}`;
+    });
+    return [header, ...lines].join('\n');
+  }
+
+  return extensionName
+    ? `[subagent:${shortId}] ${toolName} | ${extensionName}`
+    : `[subagent:${shortId}] ${toolName}`;
+};
+
 const logToString = (logMessage: NotificationEvent) => {
   const message = logMessage.message as { method: string; params: unknown };
   const params = message.params as Record<string, unknown>;
+
+  if (
+    params &&
+    params.data &&
+    typeof params.data === 'object' &&
+    'type' in params.data &&
+    params.data.type === 'subagent_tool_request'
+  ) {
+    if (isSubagentToolRequestData(params.data)) {
+      return formatSubagentToolCall(params.data);
+    }
+  }
 
   // Special case for the developer system shell logs
   if (
@@ -545,7 +614,7 @@ function ToolCallView({
       case 'computer_control':
         return `poking around...`;
 
-      case 'execute_code': {
+      case 'execute': {
         const toolGraph = args.tool_graph as unknown as ToolGraphNode[] | undefined;
         if (toolGraph && Array.isArray(toolGraph) && toolGraph.length > 0) {
           if (toolGraph.length === 1) {
@@ -639,19 +708,16 @@ function ToolCallView({
       }
     >
       {(() => {
-        const toolName = toolCall.name.substring(toolCall.name.lastIndexOf('__') + 2);
-        const toolGraph = toolCall.arguments?.tool_graph as unknown as ToolGraphNode[] | undefined;
         const code = toolCall.arguments?.code as unknown as string | undefined;
-        const hasToolGraph =
-          toolName === 'execute_code' &&
-          toolGraph &&
-          Array.isArray(toolGraph) &&
-          toolGraph.length > 0;
+        const toolGraph = toolCall.arguments?.tool_graph as unknown as ToolGraphNode[] | undefined;
 
-        if (hasToolGraph) {
+        if (
+          toolCall.name === 'code_execution__execute' &&
+          (typeof code === 'string' || Array.isArray(toolGraph))
+        ) {
           return (
             <div className="border-t border-borderSubtle">
-              <ToolGraphView toolGraph={toolGraph} code={code} />
+              <CodeModeView toolGraph={toolGraph} code={code} />
             </div>
           );
         }
@@ -692,7 +758,7 @@ function ToolCallView({
         <>
           {toolResults.map((result, index) => (
             <div key={index} className={cn('border-t border-borderSubtle')}>
-              <ToolResultView result={result} isStartExpanded={false} />
+              <ToolResultView toolCall={toolCall} result={result} isStartExpanded={false} />
             </div>
           ))}
         </>
@@ -724,18 +790,19 @@ function ToolDetailsView({ toolCall, isStartExpanded }: ToolDetailsViewProps) {
   );
 }
 
-interface ToolGraphViewProps {
-  toolGraph: ToolGraphNode[];
+interface CodeModeViewProps {
+  toolGraph?: ToolGraphNode[];
   code?: string;
 }
 
-function ToolGraphView({ toolGraph, code }: ToolGraphViewProps) {
+function CodeModeView({ toolGraph, code }: CodeModeViewProps) {
   const renderGraph = () => {
-    if (toolGraph.length === 0) return null;
+    const graph = toolGraph ?? [];
+    if (graph.length === 0) return null;
 
     const lines: string[] = [];
 
-    toolGraph.forEach((node, index) => {
+    graph.forEach((node, index) => {
       const deps =
         node.depends_on.length > 0 ? ` (uses ${node.depends_on.map((d) => d + 1).join(', ')})` : '';
       lines.push(`${index + 1}. ${node.tool}: ${node.description}${deps}`);
@@ -746,16 +813,19 @@ function ToolGraphView({ toolGraph, code }: ToolGraphViewProps) {
 
   return (
     <div className="px-4 py-2">
-      <pre className="font-mono text-xs text-textSubtle whitespace-pre-wrap">{renderGraph()}</pre>
+      {toolGraph && (
+        <pre className="font-mono text-xs text-textSubtle whitespace-pre-wrap">{renderGraph()}</pre>
+      )}
       {code && (
         <div className="border-t border-borderSubtle -mx-4 mt-2">
           <ToolCallExpandable
             label={<span className="pl-4 font-sans text-sm">Code</span>}
             isStartExpanded={false}
           >
-            <pre className="font-mono text-xs text-textSubtle whitespace-pre-wrap overflow-x-auto px-4 py-2">
-              {code}
-            </pre>
+            <MarkdownContent
+              content={'```typescript\n' + code + '\n```'}
+              className="whitespace-pre-wrap max-w-full overflow-x-auto"
+            />
           </ToolCallExpandable>
         </div>
       )}
@@ -764,11 +834,15 @@ function ToolGraphView({ toolGraph, code }: ToolGraphViewProps) {
 }
 
 interface ToolResultViewProps {
+  toolCall: {
+    name: string;
+    arguments: Record<string, unknown>;
+  };
   result: Content;
   isStartExpanded: boolean;
 }
 
-function ToolResultView({ result, isStartExpanded }: ToolResultViewProps) {
+function ToolResultView({ toolCall, result, isStartExpanded }: ToolResultViewProps) {
   const hasText = (c: Content): c is Content & { text: string } =>
     'text' in c && typeof (c as Record<string, unknown>).text === 'string';
 
@@ -780,6 +854,18 @@ function ToolResultView({ result, isStartExpanded }: ToolResultViewProps) {
 
   const hasResource = (c: Content): c is Content & { resource: unknown } => 'resource' in c;
 
+  const wrapMarkdown = (text: string): string => {
+    if (
+      ['code_execution__list_functions', 'code_execution__get_function_details'].includes(
+        toolCall.name
+      )
+    ) {
+      return '```typescript\n' + text + '\n```';
+    } else {
+      return text;
+    }
+  };
+
   return (
     <ToolCallExpandable
       label={<span className="pl-4 py-1 font-sans text-sm">Output</span>}
@@ -788,7 +874,7 @@ function ToolResultView({ result, isStartExpanded }: ToolResultViewProps) {
       <div className="pl-4 pr-4 py-4">
         {hasText(result) && (
           <MarkdownContent
-            content={result.text}
+            content={wrapMarkdown(result.text)}
             className="whitespace-pre-wrap max-w-full overflow-x-auto"
           />
         )}

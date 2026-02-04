@@ -168,7 +168,7 @@ export type AnalyticsEvent =
   | {
       name: 'input_voice_dictation';
       properties: {
-        action: 'start' | 'stop' | 'transcribed' | 'error';
+        action: 'start' | 'stop' | 'transcribed' | 'error' | 'auto_submit';
         duration_seconds?: number;
         error_type?: string;
       };
@@ -593,7 +593,7 @@ export function trackFileAttached(fileType: 'file' | 'directory'): void {
 }
 
 export function trackVoiceDictation(
-  action: 'start' | 'stop' | 'transcribed' | 'error',
+  action: 'start' | 'stop' | 'transcribed' | 'error' | 'auto_submit',
   durationSeconds?: number,
   errorType?: string
 ): void {

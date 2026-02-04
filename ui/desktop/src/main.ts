@@ -46,6 +46,7 @@ import './utils/recipeHash';
 import { Client, createClient, createConfig } from './api/client';
 import { GooseApp } from './api';
 import installExtension, { REACT_DEVELOPER_TOOLS } from 'electron-devtools-installer';
+import { BLOCKED_PROTOCOLS, WEB_PROTOCOLS } from './utils/urlSecurity';
 
 function shouldSetupUpdater(): boolean {
   // Setup updater if either the flag is enabled OR dev updates are enabled
@@ -394,6 +395,12 @@ async function handleFileOpen(filePath: string) {
 declare var MAIN_WINDOW_VITE_DEV_SERVER_URL: string;
 declare var MAIN_WINDOW_VITE_NAME: string;
 
+function getAppUrl(): URL {
+  return MAIN_WINDOW_VITE_DEV_SERVER_URL
+    ? new URL(MAIN_WINDOW_VITE_DEV_SERVER_URL)
+    : pathToFileURL(path.join(__dirname, `../renderer/${MAIN_WINDOW_VITE_NAME}/index.html`));
+}
+
 // Parse command line arguments
 const parseArgs = () => {
   let dirPath = null;
@@ -653,14 +660,19 @@ const createChat = async (
     }
   });
 
-  // Handle new window creation for links
+  // Handle new window creation for links (fallback for any links not handled by onClick)
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
-    // Open all links in external browser
-    if (url.startsWith('http:') || url.startsWith('https:')) {
-      shell.openExternal(url);
+    try {
+      const protocol = new URL(url).protocol;
+      if (BLOCKED_PROTOCOLS.includes(protocol)) {
+        return { action: 'deny' };
+      }
+    } catch {
       return { action: 'deny' };
     }
-    return { action: 'allow' };
+
+    shell.openExternal(url);
+    return { action: 'deny' };
   });
 
   // Handle new-window events (alternative approach for external links)
@@ -668,13 +680,19 @@ const createChat = async (
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   mainWindow.webContents.on('new-window' as any, function (event: any, url: string) {
     event.preventDefault();
+    try {
+      const protocol = new URL(url).protocol;
+      if (BLOCKED_PROTOCOLS.includes(protocol)) {
+        return;
+      }
+    } catch {
+      return;
+    }
     shell.openExternal(url);
   });
 
   const windowId = mainWindow.id;
-  const url = MAIN_WINDOW_VITE_DEV_SERVER_URL
-    ? new URL(MAIN_WINDOW_VITE_DEV_SERVER_URL)
-    : pathToFileURL(path.join(__dirname, `../renderer/${MAIN_WINDOW_VITE_NAME}/index.html`));
+  const url = getAppUrl();
 
   let appPath = '/';
   const routeMap: Record<string, string> = {
@@ -832,9 +850,7 @@ const createLauncher = () => {
   );
 
   // Load launcher window content
-  const url = MAIN_WINDOW_VITE_DEV_SERVER_URL
-    ? new URL(MAIN_WINDOW_VITE_DEV_SERVER_URL)
-    : pathToFileURL(path.join(__dirname, `../renderer/${MAIN_WINDOW_VITE_NAME}/index.html`));
+  const url = getAppUrl();
 
   url.hash = '/launcher';
   launcherWindow.loadURL(formatUrl(url));
@@ -1164,15 +1180,15 @@ ipcMain.on('react-ready', (event) => {
   log.info('React ready - window is prepared for deep links');
 });
 
-// Handle external URL opening
 ipcMain.handle('open-external', async (_event, url: string) => {
-  try {
-    await shell.openExternal(url);
-    return true;
-  } catch (error) {
-    console.error('Error opening external URL:', error);
-    throw error;
+  const parsedUrl = new URL(url);
+
+  if (BLOCKED_PROTOCOLS.includes(parsedUrl.protocol)) {
+    console.warn(`[Main] Blocked dangerous protocol: ${parsedUrl.protocol}`);
+    return;
   }
+
+  await shell.openExternal(url);
 });
 
 ipcMain.handle('directory-chooser', async () => {
@@ -2148,8 +2164,8 @@ async function appMain() {
       // Validate URL
       const parsedUrl = new URL(url);
 
-      // Only allow http and https protocols
-      if (!['http:', 'https:'].includes(parsedUrl.protocol)) {
+      // Only allow http and https protocols for fetching web content
+      if (!WEB_PROTOCOLS.includes(parsedUrl.protocol)) {
         throw new Error('Invalid URL protocol. Only HTTP and HTTPS are allowed.');
       }
 
@@ -2187,8 +2203,8 @@ async function appMain() {
       // Validate URL
       const parsedUrl = new URL(url);
 
-      // Only allow http and https protocols
-      if (!['http:', 'https:'].includes(parsedUrl.protocol)) {
+      // Only allow http and https protocols for browser URLs
+      if (!WEB_PROTOCOLS.includes(parsedUrl.protocol)) {
         console.error('Invalid URL protocol. Only HTTP and HTTPS are allowed.');
         return;
       }
@@ -2241,9 +2257,6 @@ async function appMain() {
         throw new Error('No client found for launching window');
       }
 
-      const currentUrl = launchingWindow.webContents.getURL();
-      const baseUrl = new URL(currentUrl).origin;
-
       const appWindow = new BrowserWindow({
         title: formatAppName(gooseApp.name),
         width: gooseApp.width ?? 800,
@@ -2269,14 +2282,17 @@ async function appMain() {
 
       const workingDir = app.getPath('home');
       const extensionName = gooseApp.mcpServers?.[0] ?? '';
-      const standaloneUrl =
-        `${baseUrl}/#/standalone-app?` +
-        `resourceUri=${encodeURIComponent(gooseApp.uri)}` +
-        `&extensionName=${encodeURIComponent(extensionName)}` +
-        `&appName=${encodeURIComponent(gooseApp.name)}` +
-        `&workingDir=${encodeURIComponent(workingDir)}`;
 
-      await appWindow.loadURL(standaloneUrl);
+      const url = getAppUrl();
+
+      const searchParams = new URLSearchParams();
+      searchParams.set('resourceUri', gooseApp.uri);
+      searchParams.set('extensionName', extensionName);
+      searchParams.set('appName', gooseApp.name);
+      searchParams.set('workingDir', workingDir);
+
+      url.hash = `/standalone-app?${searchParams.toString()}`;
+      await appWindow.loadURL(formatUrl(url));
       appWindow.show();
     } catch (error) {
       console.error('Failed to launch app:', error);
