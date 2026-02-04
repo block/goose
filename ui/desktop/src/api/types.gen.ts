@@ -667,6 +667,30 @@ export type ParseRecipeResponse = {
  */
 export type PermissionLevel = 'always_allow' | 'ask_before' | 'never_allow';
 
+/**
+ * Sandbox permissions for MCP Apps
+ * Specifies which browser capabilities the UI needs access to.
+ * Maps to the iframe Permission Policy `allow` attribute.
+ */
+export type PermissionsMetadata = {
+    /**
+     * Request camera access (maps to Permission Policy `camera` feature)
+     */
+    camera?: boolean | null;
+    /**
+     * Request clipboard write access (maps to Permission Policy `clipboard-write` feature)
+     */
+    clipboardWrite?: boolean | null;
+    /**
+     * Request geolocation access (maps to Permission Policy `geolocation` feature)
+     */
+    geolocation?: boolean | null;
+    /**
+     * Request microphone access (maps to Permission Policy `microphone` feature)
+     */
+    microphone?: boolean | null;
+};
+
 export type PricingData = {
     context_length?: number | null;
     currency: string;
@@ -1273,6 +1297,7 @@ export type UiMetadata = {
      * Preferred domain for the app (used for CORS)
      */
     domain?: string | null;
+    permissions?: PermissionsMetadata | null;
     /**
      * Whether the app prefers to have a border around it
      */

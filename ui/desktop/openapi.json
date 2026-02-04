@@ -5249,6 +5249,32 @@
           "never_allow"
         ]
       },
+      "PermissionsMetadata": {
+        "type": "object",
+        "description": "Sandbox permissions for MCP Apps\nSpecifies which browser capabilities the UI needs access to.\nMaps to the iframe Permission Policy `allow` attribute.",
+        "properties": {
+          "camera": {
+            "type": "boolean",
+            "description": "Request camera access (maps to Permission Policy `camera` feature)",
+            "nullable": true
+          },
+          "clipboardWrite": {
+            "type": "boolean",
+            "description": "Request clipboard write access (maps to Permission Policy `clipboard-write` feature)",
+            "nullable": true
+          },
+          "geolocation": {
+            "type": "boolean",
+            "description": "Request geolocation access (maps to Permission Policy `geolocation` feature)",
+            "nullable": true
+          },
+          "microphone": {
+            "type": "boolean",
+            "description": "Request microphone access (maps to Permission Policy `microphone` feature)",
+            "nullable": true
+          }
+        }
+      },
       "PricingData": {
         "type": "object",
         "required": [
@@ -7019,6 +7045,14 @@
           "domain": {
             "type": "string",
             "description": "Preferred domain for the app (used for CORS)",
+            "nullable": true
+          },
+          "permissions": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/PermissionsMetadata"
+              }
+            ],
             "nullable": true
           },
           "prefersBorder": {

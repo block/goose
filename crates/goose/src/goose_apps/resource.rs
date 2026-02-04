@@ -14,6 +14,26 @@ pub struct CspMetadata {
     pub resource_domains: Option<Vec<String>>,
 }
 
+/// Sandbox permissions for MCP Apps
+/// Specifies which browser capabilities the UI needs access to.
+/// Maps to the iframe Permission Policy `allow` attribute.
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema, PartialEq, Eq, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct PermissionsMetadata {
+    /// Request camera access (maps to Permission Policy `camera` feature)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub camera: Option<bool>,
+    /// Request microphone access (maps to Permission Policy `microphone` feature)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub microphone: Option<bool>,
+    /// Request geolocation access (maps to Permission Policy `geolocation` feature)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub geolocation: Option<bool>,
+    /// Request clipboard write access (maps to Permission Policy `clipboard-write` feature)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub clipboard_write: Option<bool>,
+}
+
 /// UI-specific metadata for MCP resources
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
@@ -21,6 +41,9 @@ pub struct UiMetadata {
     /// Content Security Policy configuration
     #[serde(skip_serializing_if = "Option::is_none")]
     pub csp: Option<CspMetadata>,
+    /// Sandbox permissions requested by the UI
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub permissions: Option<PermissionsMetadata>,
     /// Preferred domain for the app (used for CORS)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub domain: Option<String>,
@@ -87,6 +110,7 @@ impl McpAppResource {
             meta: Some(ResourceMetadata {
                 ui: Some(UiMetadata {
                     csp: Some(csp),
+                    permissions: None,
                     domain: None,
                     prefers_border: None,
                 }),
