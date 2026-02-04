@@ -3,16 +3,16 @@ import { Download, Trash2, X, Check, ChevronDown, ChevronUp } from 'lucide-react
 import { Button } from '../../ui/button';
 import { useConfig } from '../../ConfigContext';
 import {
-  listModels,
-  downloadModel,
-  getDownloadProgress,
-  cancelDownload as cancelDownloadApi,
-  deleteModel as deleteModelApi,
-  type WhisperModelResponse,
+  listLocalModels,
+  downloadLocalModel,
+  getLocalModelDownloadProgress,
+  cancelLocalModelDownload,
+  deleteLocalModel,
+  type LocalModelResponse,
   type DownloadProgress,
 } from '../../../api';
 
-const LOCAL_WHISPER_MODEL_CONFIG_KEY = 'LOCAL_WHISPER_MODEL';
+const LOCAL_LLM_MODEL_CONFIG_KEY = 'LOCAL_LLM_MODEL';
 
 const formatBytes = (bytes: number): string => {
   if (bytes < 1024) return `${bytes}B`;
@@ -21,12 +21,8 @@ const formatBytes = (bytes: number): string => {
   return `${(bytes / (1024 * 1024 * 1024)).toFixed(1)}GB`;
 };
 
-const capitalize = (str: string): string => {
-  return str.charAt(0).toUpperCase() + str.slice(1);
-};
-
-export const LocalModelManager = () => {
-  const [models, setModels] = useState<WhisperModelResponse[]>([]);
+export const LocalInferenceSettings = () => {
+  const [models, setModels] = useState<LocalModelResponse[]>([]);
   const [downloads, setDownloads] = useState<Map<string, DownloadProgress>>(new Map());
   const [selectedModelId, setSelectedModelId] = useState<string | null>(null);
   const [showAllModels, setShowAllModels] = useState(false);
@@ -40,7 +36,7 @@ export const LocalModelManager = () => {
 
   const loadSelectedModel = async () => {
     try {
-      const value = await read(LOCAL_WHISPER_MODEL_CONFIG_KEY, false);
+      const value = await read(LOCAL_LLM_MODEL_CONFIG_KEY, false);
       if (value && typeof value === 'string') {
         setSelectedModelId(value);
       } else {
@@ -53,13 +49,15 @@ export const LocalModelManager = () => {
   };
 
   const selectModel = async (modelId: string) => {
-      await upsert(LOCAL_WHISPER_MODEL_CONFIG_KEY, modelId, false);
-      setSelectedModelId(modelId);
+    await upsert(LOCAL_LLM_MODEL_CONFIG_KEY, modelId, false);
+    await upsert('GOOSE_PROVIDER', 'local', false);
+    await upsert('GOOSE_MODEL', modelId, false);
+    setSelectedModelId(modelId);
   };
 
   const loadModels = async () => {
     try {
-      const response = await listModels();
+      const response = await listLocalModels();
       if (response.data) {
         setModels(response.data);
       }
@@ -70,7 +68,7 @@ export const LocalModelManager = () => {
 
   const startDownload = async (modelId: string) => {
     try {
-      await downloadModel({ path: { model_id: modelId } });
+      await downloadLocalModel({ path: { model_id: modelId } });
       pollDownloadProgress(modelId);
     } catch (error) {
       console.error('Failed to start download:', error);
@@ -80,7 +78,7 @@ export const LocalModelManager = () => {
   const pollDownloadProgress = (modelId: string) => {
     const interval = setInterval(async () => {
       try {
-        const response = await getDownloadProgress({ path: { model_id: modelId } });
+        const response = await getLocalModelDownloadProgress({ path: { model_id: modelId } });
         if (response.data) {
           const progress = response.data;
           setDownloads((prev) => new Map(prev).set(modelId, progress));
@@ -88,8 +86,8 @@ export const LocalModelManager = () => {
           if (progress.status === 'completed') {
             clearInterval(interval);
             await loadModels(); // Refresh model list
-            // Backend auto-selects, but also update frontend state
-            await loadSelectedModel();
+            // Auto-select the model that was just downloaded
+            await selectModel(modelId);
           } else if (progress.status === 'failed') {
             clearInterval(interval);
             await loadModels();
@@ -105,7 +103,7 @@ export const LocalModelManager = () => {
 
   const cancelDownload = async (modelId: string) => {
     try {
-      await cancelDownloadApi({ path: { model_id: modelId } });
+      await cancelLocalModelDownload({ path: { model_id: modelId } });
       setDownloads((prev) => {
         const next = new Map(prev);
         next.delete(modelId);
@@ -121,9 +119,9 @@ export const LocalModelManager = () => {
     if (!window.confirm('Delete this model? You can re-download it later.')) return;
 
     try {
-      await deleteModelApi({ path: { model_id: modelId } });
+      await deleteLocalModel({ path: { model_id: modelId } });
       if (selectedModelId === modelId) {
-        await upsert(LOCAL_WHISPER_MODEL_CONFIG_KEY, '', false);
+        await upsert(LOCAL_LLM_MODEL_CONFIG_KEY, '', false);
         setSelectedModelId(null);
       }
       loadModels();
@@ -142,9 +140,12 @@ export const LocalModelManager = () => {
   const showToggleButton = hasNonRecommendedModels && !hasDownloadedNonRecommended;
 
   return (
-    <div className="space-y-3">
-      <div className="text-xs text-text-muted mb-2">
-        <p>Supports GPU acceleration (CUDA for NVIDIA, Metal for Apple Silicon). GPU features must be enabled at build time for hardware acceleration.</p>
+    <div className="space-y-4">
+      <div>
+        <h3 className="text-text-default font-medium">Local Inference Models</h3>
+        <p className="text-xs text-text-muted max-w-2xl mt-1">
+          Download and manage local LLM models for inference without API keys. Supports GPU acceleration (Metal for Apple Silicon).
+        </p>
       </div>
 
       <div className="space-y-2">
@@ -165,7 +166,7 @@ export const LocalModelManager = () => {
             >
               <div className="flex items-start justify-between gap-3">
                 <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 flex-wrap">
                     {canSelect && (
                       <input
                         type="radio"
@@ -175,10 +176,13 @@ export const LocalModelManager = () => {
                       />
                     )}
                     <h4 className="text-sm font-medium text-text-default">
-                      {capitalize(model.id)}
+                      {model.name}
                     </h4>
                     <span className="text-xs text-text-muted">
                       {model.size_mb}MB
+                    </span>
+                    <span className="text-xs text-text-muted">
+                      {model.context_limit.toLocaleString()} tokens
                     </span>
                     {model.recommended && (
                       <span className="text-xs bg-blue-500 text-white px-2 py-0.5 rounded">

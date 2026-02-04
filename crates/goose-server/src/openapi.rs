@@ -420,6 +420,11 @@ derive_utoipa!(Icon as IconSchema);
         super::routes::dictation::get_download_progress,
         super::routes::dictation::cancel_download,
         super::routes::dictation::delete_model,
+        super::routes::local_inference::list_local_models,
+        super::routes::local_inference::download_local_model,
+        super::routes::local_inference::get_local_model_download_progress,
+        super::routes::local_inference::cancel_local_model_download,
+        super::routes::local_inference::delete_local_model,
     ),
     components(schemas(
         super::routes::config_management::UpsertConfigQuery,
@@ -583,6 +588,9 @@ derive_utoipa!(Icon as IconSchema);
         goose::dictation::providers::DictationProvider,
         super::routes::dictation::DictationProviderStatus,
         super::routes::dictation::WhisperModelResponse,
+        super::routes::local_inference::LocalModelResponse,
+        goose::providers::local_inference::LocalLlmModel,
+        goose::providers::local_inference::ModelTier,
         DownloadProgress,
         DownloadStatus,
     ))
