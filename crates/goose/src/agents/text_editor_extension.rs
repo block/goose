@@ -2,11 +2,15 @@
 //!
 //! Provides file viewing and editing capabilities as a platform extension.
 
+use crate::agents::editor_models::{create_editor_model, EditorModel};
 use crate::agents::extension::PlatformExtensionContext;
 use crate::agents::mcp_client::{Error, McpClientTrait};
 use anyhow::Result;
 use async_trait::async_trait;
+use etcetera::AppStrategy;
+use ignore::gitignore::{Gitignore, GitignoreBuilder};
 use indoc::indoc;
+use mpatch::{apply_patch, parse_diffs, PatchError};
 use rmcp::model::{
     CallToolResult, Content, Implementation, InitializeResult, JsonObject, ListToolsResult,
     ProtocolVersion, ServerCapabilities, Tool, ToolAnnotations, ToolsCapability,
@@ -16,7 +20,6 @@ use serde::Deserialize;
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
-use tokio::sync::Mutex;
 use tokio_util::sync::CancellationToken;
 
 pub static EXTENSION_NAME: &str = "text_editor";
@@ -24,12 +27,31 @@ pub static EXTENSION_NAME: &str = "text_editor";
 const MAX_VIEW_SIZE: u64 = 400 * 1024; // 400KB limit
 const MAX_LINES_THRESHOLD: usize = 1000;
 const SIMILARITY_THRESHOLD: f64 = 0.7;
+const MAX_DIFF_SIZE: usize = 1024 * 1024; // 1MB max diff size
+const MAX_FILES_IN_DIFF: usize = 100;
+const MAX_DIR_ITEMS: usize = 50;
+
+const DEFAULT_GOOSEIGNORE_CONTENT: &str = "\
+# Default ignore patterns
+.git/
+.env
+.env.*
+*.pem
+*.key
+*_rsa
+*_dsa
+*_ecdsa
+*_ed25519
+node_modules/
+__pycache__/
+.DS_Store
+";
 
 #[derive(Debug, Deserialize, JsonSchema)]
 struct TextEditorParams {
-    /// The command: "view", "write", "str_replace", "insert", or "undo_edit"
+    /// The command: "view", "write", "str_replace", "insert", "undo_edit", or "apply_diff"
     command: String,
-    /// Absolute path to the file
+    /// Absolute path to the file (or base directory for apply_diff)
     path: String,
     /// For view: optional start line (1-indexed)
     view_range_start: Option<i32>,
@@ -43,13 +65,18 @@ struct TextEditorParams {
     new_str: Option<String>,
     /// For insert: line number after which to insert (0 for beginning)
     insert_line: Option<i32>,
+    /// For apply_diff or str_replace: unified diff content
+    diff: Option<String>,
 }
 
 pub struct TextEditorClient {
     info: InitializeResult,
     #[allow(dead_code)]
     context: PlatformExtensionContext,
-    file_history: Arc<Mutex<HashMap<PathBuf, Vec<String>>>>,
+    file_history: Arc<std::sync::Mutex<HashMap<PathBuf, Vec<String>>>>,
+    editor_model: Option<EditorModel>,
+    ignore_patterns: Gitignore,
+    working_dir: PathBuf,
 }
 
 impl TextEditorClient {
@@ -80,11 +107,62 @@ impl TextEditorClient {
             ),
         };
 
+        let working_dir = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
+        let ignore_patterns = Self::build_ignore_patterns(&working_dir);
+
         Ok(Self {
             info,
             context,
-            file_history: Arc::new(Mutex::new(HashMap::new())),
+            file_history: Arc::new(std::sync::Mutex::new(HashMap::new())),
+            editor_model: create_editor_model(),
+            ignore_patterns,
+            working_dir,
         })
+    }
+
+    fn build_ignore_patterns(cwd: &Path) -> Gitignore {
+        let mut builder = GitignoreBuilder::new(cwd);
+        let local_ignore_path = cwd.join(".gooseignore");
+
+        let global_ignore_path = etcetera::choose_app_strategy(etcetera::AppStrategyArgs {
+            top_level_domain: "block".to_string(),
+            author: "Block".to_string(),
+            app_name: "goose".to_string(),
+        })
+        .map(|strategy| strategy.config_dir().join(".gooseignore"))
+        .ok();
+
+        let has_local_ignore = local_ignore_path.is_file();
+        let has_global_ignore = global_ignore_path
+            .as_ref()
+            .map(|p: &PathBuf| p.is_file())
+            .unwrap_or(false);
+
+        if !has_local_ignore && !has_global_ignore {
+            for pattern in DEFAULT_GOOSEIGNORE_CONTENT.lines() {
+                let trimmed = pattern.trim();
+                if trimmed.is_empty() || trimmed.starts_with('#') {
+                    continue;
+                }
+                let _ = builder.add_line(None, trimmed);
+            }
+        }
+
+        if has_global_ignore {
+            let _ = builder.add(global_ignore_path.as_ref().unwrap());
+        }
+
+        if has_local_ignore {
+            let _ = builder.add(&local_ignore_path);
+        }
+
+        builder.build().unwrap_or_else(|_| Gitignore::empty())
+    }
+
+    fn is_ignored(&self, path: &Path) -> bool {
+        self.ignore_patterns
+            .matched(path, path.is_dir())
+            .is_ignore()
     }
 
     fn get_tools() -> Vec<Tool> {
@@ -100,11 +178,13 @@ impl TextEditorClient {
                 Commands:
                 - view: Read file content, optionally with line range [start, end]
                 - write: Create or overwrite a file with new content
-                - str_replace: Replace exact text (old_str->new_str)
+                - str_replace: Replace exact text (old_str->new_str), or pass diff for fuzzy patching
                 - insert: Insert text after a specific line number
                 - undo_edit: Revert the last edit to a file
+                - apply_diff: Apply a unified diff to one or more files
 
                 For str_replace, old_str must match EXACTLY (including whitespace).
+                For apply_diff, provide unified diff format with path as base directory.
             "#}
             .to_string(),
             schema_value.as_object().unwrap().clone(),
@@ -124,6 +204,10 @@ impl TextEditorClient {
         start: Option<i32>,
         end: Option<i32>,
     ) -> Result<String, String> {
+        if path.is_dir() {
+            return self.list_directory_contents(path);
+        }
+
         let metadata = tokio::fs::metadata(path)
             .await
             .map_err(|e| format!("Cannot access '{}': {}", path.display(), e))?;
@@ -199,15 +283,70 @@ impl TextEditorClient {
         Ok(result)
     }
 
+    fn list_directory_contents(&self, path: &Path) -> Result<String, String> {
+        let entries =
+            std::fs::read_dir(path).map_err(|e| format!("Failed to read directory: {}", e))?;
+
+        let mut files = Vec::new();
+        let mut dirs = Vec::new();
+        let mut total_count = 0;
+
+        for entry in entries {
+            let entry = entry.map_err(|e| format!("Failed to read directory entry: {}", e))?;
+            total_count += 1;
+
+            if dirs.len() + files.len() < MAX_DIR_ITEMS {
+                let metadata = entry
+                    .metadata()
+                    .map_err(|e| format!("Failed to read metadata: {}", e))?;
+                let name = entry.file_name().to_string_lossy().to_string();
+
+                if metadata.is_dir() {
+                    dirs.push(format!("{}/", name));
+                } else {
+                    files.push(name);
+                }
+            }
+        }
+
+        dirs.sort();
+        files.sort();
+
+        let mut output = format!("'{}' is a directory. Contents:\n\n", path.display());
+
+        if !dirs.is_empty() {
+            output.push_str("Directories:\n");
+            for dir in &dirs {
+                output.push_str(&format!("  {}\n", dir));
+            }
+            output.push('\n');
+        }
+
+        if !files.is_empty() {
+            output.push_str("Files:\n");
+            for file in &files {
+                output.push_str(&format!("  {}\n", file));
+            }
+        }
+
+        if dirs.is_empty() && files.is_empty() {
+            output.push_str("  (empty directory)\n");
+        }
+
+        if total_count > MAX_DIR_ITEMS {
+            output.push_str(&format!(
+                "\n... and {} more items (showing first {} items)\n",
+                total_count - MAX_DIR_ITEMS,
+                MAX_DIR_ITEMS
+            ));
+        }
+
+        Ok(output)
+    }
+
     async fn handle_write(&self, path: &Path, content: &str) -> Result<String, String> {
         if path.exists() {
-            if let Ok(old_content) = tokio::fs::read_to_string(path).await {
-                let mut history = self.file_history.lock().await;
-                history
-                    .entry(path.to_path_buf())
-                    .or_default()
-                    .push(old_content);
-            }
+            save_file_history(&path.to_path_buf(), &self.file_history)?;
         }
 
         if let Some(parent) = path.parent() {
@@ -229,6 +368,51 @@ impl TextEditorClient {
         ))
     }
 
+    async fn handle_str_replace_with_editor(
+        &self,
+        path: &Path,
+        old_str: &str,
+        new_str: &str,
+    ) -> Result<String, String> {
+        if !path.exists() {
+            return Err(format!(
+                "File '{}' does not exist, you can write a new file with the `write` command",
+                path.display()
+            ));
+        }
+
+        let content = tokio::fs::read_to_string(path)
+            .await
+            .map_err(|e| format!("Cannot read '{}': {}", path.display(), e))?;
+
+        if let Some(ref editor) = self.editor_model {
+            save_file_history(&path.to_path_buf(), &self.file_history)?;
+
+            match editor.edit_code(&content, old_str, new_str).await {
+                Ok(updated_content) => {
+                    let mut normalized_content = normalize_line_endings(&updated_content);
+                    if !normalized_content.ends_with('\n') {
+                        normalized_content.push('\n');
+                    }
+
+                    tokio::fs::write(path, &normalized_content)
+                        .await
+                        .map_err(|e| format!("Failed to write file: {}", e))?;
+
+                    return Ok(format!("Successfully edited {}", path.display()));
+                }
+                Err(e) => {
+                    tracing::debug!(
+                        "Editor API call failed: {}, falling back to string replacement",
+                        e
+                    );
+                }
+            }
+        }
+
+        self.handle_str_replace(path, old_str, new_str).await
+    }
+
     async fn handle_str_replace(
         &self,
         path: &Path,
@@ -244,8 +428,7 @@ impl TextEditorClient {
         if matches.is_empty() {
             if let Some(suggestion) = self.find_similar(&content, old_str) {
                 return Err(format!(
-                    "No exact match found for old_str. Did you mean:
-{}",
+                    "No exact match found for old_str. Did you mean:\n{}",
                     suggestion
                 ));
             }
@@ -262,14 +445,11 @@ impl TextEditorClient {
             ));
         }
 
+        save_file_history(&path.to_path_buf(), &self.file_history)?;
+
         let new_content = content.replacen(old_str, new_str, 1);
-
-        {
-            let mut history = self.file_history.lock().await;
-            history.entry(path.to_path_buf()).or_default().push(content);
-        }
-
         let new_content = normalize_line_endings(&new_content);
+
         tokio::fs::write(path, &new_content)
             .await
             .map_err(|e| format!("Cannot write '{}': {}", path.display(), e))?;
@@ -301,13 +481,7 @@ impl TextEditorClient {
             ));
         }
 
-        {
-            let mut history = self.file_history.lock().await;
-            history
-                .entry(path.to_path_buf())
-                .or_default()
-                .push(content.clone());
-        }
+        save_file_history(&path.to_path_buf(), &self.file_history)?;
 
         let new_lines: Vec<&str> = text.lines().collect();
         let mut result_lines: Vec<&str> = Vec::with_capacity(lines.len() + new_lines.len());
@@ -333,7 +507,7 @@ impl TextEditorClient {
 
     async fn handle_undo(&self, path: &Path) -> Result<String, String> {
         let previous = {
-            let mut history = self.file_history.lock().await;
+            let mut history = self.file_history.lock().unwrap();
             history.get_mut(&path.to_path_buf()).and_then(|h| h.pop())
         };
 
@@ -422,16 +596,69 @@ impl TextEditorClient {
     }
 
     fn resolve_path(&self, path_str: &str) -> Result<PathBuf, String> {
-        let cwd =
-            std::env::current_dir().map_err(|e| format!("Cannot get current directory: {}", e))?;
         let expanded: String = shellexpand::tilde(path_str).into();
         let path = Path::new(&expanded);
 
-        if path.is_absolute() {
-            Ok(path.to_path_buf())
+        let resolved = if path.is_absolute() {
+            path.to_path_buf()
         } else {
-            Ok(cwd.join(path))
+            self.working_dir.join(path)
+        };
+
+        self.validate_path(&resolved)?;
+
+        Ok(resolved)
+    }
+
+    fn validate_path(&self, path: &Path) -> Result<(), String> {
+        if path
+            .components()
+            .any(|c| matches!(c, std::path::Component::ParentDir))
+        {
+            return Err("Path traversal detected: paths cannot contain '..'".to_string());
         }
+
+        if path.exists() {
+            if let (Ok(canonical_path), Ok(canonical_base)) =
+                (path.canonicalize(), self.working_dir.canonicalize())
+            {
+                if !canonical_path.starts_with(&canonical_base) {
+                    return Err(format!(
+                        "Path '{}' is outside the working directory",
+                        path.display()
+                    ));
+                }
+            }
+
+            if let Ok(metadata) = path.symlink_metadata() {
+                if metadata.is_symlink() {
+                    return Err(format!(
+                        "Cannot modify symlink '{}'. Please operate on the actual file.",
+                        path.display()
+                    ));
+                }
+            }
+        } else if let Some(parent) = path.parent() {
+            if let (Ok(canonical_parent), Ok(canonical_base)) =
+                (parent.canonicalize(), self.working_dir.canonicalize())
+            {
+                if !canonical_parent.starts_with(&canonical_base) {
+                    return Err(format!(
+                        "Path '{}' would be outside the working directory",
+                        path.display()
+                    ));
+                }
+            }
+        }
+
+        if self.is_ignored(path) {
+            return Err(format!(
+                "Access to '{}' is restricted by .gooseignore",
+                path.display()
+            ));
+        }
+
+        Ok(())
     }
 }
 
@@ -444,6 +671,239 @@ fn normalize_line_endings(content: &str) -> String {
     {
         content.replace("\r\n", "\n")
     }
+}
+
+#[derive(Debug, Default)]
+struct DiffResults {
+    files_created: usize,
+    files_modified: usize,
+    lines_added: usize,
+    lines_removed: usize,
+}
+
+fn save_file_history(
+    path: &PathBuf,
+    file_history: &Arc<std::sync::Mutex<HashMap<PathBuf, Vec<String>>>>,
+) -> Result<(), String> {
+    let mut history = file_history.lock().unwrap();
+    let content = if path.exists() {
+        std::fs::read_to_string(path).map_err(|e| format!("Failed to read file: {}", e))?
+    } else {
+        String::new()
+    };
+    history.entry(path.clone()).or_default().push(content);
+    Ok(())
+}
+
+fn adjust_base_dir_for_overlap(base_dir: &Path, file_path: &Path) -> PathBuf {
+    let base_components: Vec<_> = base_dir.components().collect();
+    let file_components: Vec<_> = file_path.components().collect();
+
+    let min_len = base_components.len().min(file_components.len());
+    let max_k = (1..=min_len)
+        .rfind(|&k| file_components[0..k] == base_components[base_components.len() - k..])
+        .unwrap_or(0);
+
+    if max_k > 0 {
+        let adjusted_components = base_components[..base_components.len() - max_k].to_vec();
+        PathBuf::from_iter(adjusted_components)
+    } else {
+        base_dir.to_path_buf()
+    }
+}
+
+fn apply_single_patch(
+    patch: &mpatch::Patch,
+    base_dir: &Path,
+    file_history: &Arc<std::sync::Mutex<HashMap<PathBuf, Vec<String>>>>,
+    results: &mut DiffResults,
+    failed_hunks: &mut Vec<String>,
+) -> Result<(), String> {
+    let adjusted_base_dir = adjust_base_dir_for_overlap(base_dir, &patch.file_path);
+    let file_path = adjusted_base_dir.join(&patch.file_path);
+
+    let file_existed = file_path.exists();
+    if file_existed {
+        save_file_history(&file_path, file_history)?;
+    }
+
+    let success = apply_patch(patch, &adjusted_base_dir, false, 0.7).map_err(|e| match e {
+        PatchError::Io { path, source } => {
+            format!("Failed to process '{}': {}", path.display(), source)
+        }
+        PatchError::PathTraversal(path) => {
+            format!(
+                "Security: Path '{}' would escape the base directory",
+                path.display()
+            )
+        }
+        PatchError::TargetNotFound(path) => {
+            format!(
+                "File '{}' not found and patch doesn't create it",
+                path.display()
+            )
+        }
+        PatchError::MissingFileHeader => "Invalid patch format".to_string(),
+    })?;
+
+    if !success {
+        let hunk_count = patch.hunks.len();
+        let context_preview = patch
+            .hunks
+            .first()
+            .and_then(|h| {
+                let match_block = h.get_match_block();
+                match_block.first().map(|s| s.to_string())
+            })
+            .unwrap_or_else(|| "(empty context)".to_string());
+
+        failed_hunks.push(format!(
+            "Failed to apply some hunks to '{}' ({} hunks total). First expected line: '{}'",
+            patch.file_path.display(),
+            hunk_count,
+            context_preview
+        ));
+    }
+
+    if file_existed {
+        results.files_modified += 1;
+    } else {
+        results.files_created += 1;
+    }
+
+    Ok(())
+}
+
+fn parse_diff_content(diff_content: &str) -> Result<Vec<mpatch::Patch>, String> {
+    let wrapped_diff = if diff_content.contains("```diff") || diff_content.contains("```patch") {
+        diff_content.to_string()
+    } else {
+        format!("```diff\n{}\n```", diff_content)
+    };
+
+    parse_diffs(&wrapped_diff).map_err(|e| match e {
+        PatchError::MissingFileHeader => {
+            "Invalid diff format: Missing file header (e.g., '--- a/path/to/file')".to_string()
+        }
+        PatchError::Io { path, source } => {
+            format!("I/O error processing {}: {}", path.display(), source)
+        }
+        PatchError::PathTraversal(path) => {
+            format!(
+                "Security: Path '{}' would escape the base directory",
+                path.display()
+            )
+        }
+        PatchError::TargetNotFound(path) => {
+            format!("Target file not found: {}", path.display())
+        }
+    })
+}
+
+fn ensure_trailing_newlines(patches: &[mpatch::Patch], base_dir: &Path) -> Result<(), String> {
+    for patch in patches {
+        let adjusted_base_dir = adjust_base_dir_for_overlap(base_dir, &patch.file_path);
+        let file_path = adjusted_base_dir.join(&patch.file_path);
+
+        if file_path.exists() {
+            let content = std::fs::read_to_string(&file_path)
+                .map_err(|e| format!("Failed to read file for post-processing: {}", e))?;
+
+            if !content.ends_with('\n') {
+                let content_with_newline = format!("{}\n", content);
+                std::fs::write(&file_path, content_with_newline)
+                    .map_err(|e| format!("Failed to add trailing newline: {}", e))?;
+            }
+        }
+    }
+    Ok(())
+}
+
+fn count_line_changes(diff_content: &str) -> (usize, usize) {
+    let lines_added = diff_content
+        .lines()
+        .filter(|l| l.starts_with('+') && !l.starts_with("+++"))
+        .count();
+    let lines_removed = diff_content
+        .lines()
+        .filter(|l| l.starts_with('-') && !l.starts_with("---"))
+        .count();
+    (lines_added, lines_removed)
+}
+
+async fn apply_diff(
+    base_path: &Path,
+    diff_content: &str,
+    file_history: &Arc<std::sync::Mutex<HashMap<PathBuf, Vec<String>>>>,
+) -> Result<String, String> {
+    if diff_content.len() > MAX_DIFF_SIZE {
+        return Err(format!(
+            "Diff is too large ({} bytes). Maximum size is {} bytes (1MB).",
+            diff_content.len(),
+            MAX_DIFF_SIZE
+        ));
+    }
+
+    let patches = parse_diff_content(diff_content)?;
+
+    if patches.len() > MAX_FILES_IN_DIFF {
+        return Err(format!(
+            "Too many files in diff ({}). Maximum is {} files.",
+            patches.len(),
+            MAX_FILES_IN_DIFF
+        ));
+    }
+
+    let base_dir = if base_path.is_file() {
+        base_path.parent().unwrap_or(Path::new(".")).to_path_buf()
+    } else {
+        base_path.to_path_buf()
+    };
+
+    let mut results = DiffResults::default();
+    let mut failed_hunks = Vec::new();
+
+    for patch in &patches {
+        apply_single_patch(
+            patch,
+            &base_dir,
+            file_history,
+            &mut results,
+            &mut failed_hunks,
+        )?;
+    }
+
+    ensure_trailing_newlines(&patches, &base_dir)?;
+
+    if !failed_hunks.is_empty() {
+        tracing::warn!(
+            "Some patches were only partially applied: {}",
+            failed_hunks.join("\n")
+        );
+    }
+
+    let (lines_added, lines_removed) = count_line_changes(diff_content);
+    results.lines_added = lines_added;
+    results.lines_removed = lines_removed;
+
+    let summary = if patches.len() == 1 {
+        format!(
+            "Successfully applied diff to {}:\n• Lines added: {}\n• Lines removed: {}",
+            base_path.display(),
+            results.lines_added,
+            results.lines_removed
+        )
+    } else {
+        format!(
+            "Successfully applied multi-file diff:\n• Files created: {}\n• Files modified: {}\n• Lines added: {}\n• Lines removed: {}",
+            results.files_created,
+            results.files_modified,
+            results.lines_added,
+            results.lines_removed
+        )
+    };
+
+    Ok(summary)
 }
 
 #[async_trait]
@@ -510,9 +970,14 @@ impl McpClientTrait for TextEditorClient {
                 self.handle_write(&path, &text).await
             }
             "str_replace" => {
-                let old_str = params.old_str.unwrap_or_default();
-                let new_str = params.new_str.unwrap_or_default();
-                self.handle_str_replace(&path, &old_str, &new_str).await
+                if let Some(diff_content) = params.diff {
+                    apply_diff(&path, &diff_content, &self.file_history).await
+                } else {
+                    let old_str = params.old_str.unwrap_or_default();
+                    let new_str = params.new_str.unwrap_or_default();
+                    self.handle_str_replace_with_editor(&path, &old_str, &new_str)
+                        .await
+                }
             }
             "insert" => {
                 let line = params.insert_line.unwrap_or(0);
@@ -520,8 +985,12 @@ impl McpClientTrait for TextEditorClient {
                 self.handle_insert(&path, line, &text).await
             }
             "undo_edit" => self.handle_undo(&path).await,
+            "apply_diff" => {
+                let diff_content = params.diff.unwrap_or_default();
+                apply_diff(&path, &diff_content, &self.file_history).await
+            }
             cmd => Err(format!(
-                "Unknown command: '{}'. Use: view, write, str_replace, insert, undo_edit",
+                "Unknown command: '{}'. Use: view, write, str_replace, insert, undo_edit, apply_diff",
                 cmd
             )),
         };
@@ -607,5 +1076,48 @@ line 3",
 
         let content = tokio::fs::read_to_string(&file_path).await.unwrap();
         assert_eq!(content.trim(), "original");
+    }
+
+    #[tokio::test]
+    async fn test_apply_diff() {
+        let temp_dir = TempDir::new().unwrap();
+        let file_path = temp_dir.path().join("test.txt");
+
+        std::fs::write(&file_path, "line1\nline2\nline3\n").unwrap();
+
+        let diff = r#"--- a/test.txt
++++ b/test.txt
+@@ -1,3 +1,3 @@
+ line1
+-line2
++modified line2
+ line3
+"#;
+
+        let file_history = Arc::new(std::sync::Mutex::new(HashMap::new()));
+        let result = apply_diff(temp_dir.path(), diff, &file_history).await;
+        assert!(result.is_ok(), "apply_diff failed: {:?}", result);
+
+        let content = std::fs::read_to_string(&file_path).unwrap();
+        assert!(content.contains("modified line2"));
+        assert!(!content.contains("\nline2\n"));
+    }
+
+    #[tokio::test]
+    async fn test_view_directory() {
+        let temp_dir = TempDir::new().unwrap();
+        std::fs::create_dir(temp_dir.path().join("subdir")).unwrap();
+        std::fs::write(temp_dir.path().join("file1.txt"), "content").unwrap();
+        std::fs::write(temp_dir.path().join("file2.txt"), "content").unwrap();
+
+        let client = create_test_client();
+        let result = client.handle_view(temp_dir.path(), None, None).await;
+        assert!(result.is_ok());
+
+        let output = result.unwrap();
+        assert!(output.contains("is a directory"));
+        assert!(output.contains("subdir/"));
+        assert!(output.contains("file1.txt"));
+        assert!(output.contains("file2.txt"));
     }
 }
