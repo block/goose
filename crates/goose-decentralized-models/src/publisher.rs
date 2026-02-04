@@ -89,9 +89,6 @@ impl ModelPublisher {
         endpoint: &AdvertiseEndpoint,
         ttl_seconds: u64,
     ) -> Result<Vec<EventId>> {
-        // Clear old events first
-        let _ = self.clear_all().await;
-
         let mut ids = Vec::new();
         for model in models {
             let id = self.publish_model(model, endpoint, ttl_seconds).await?;
@@ -222,9 +219,11 @@ impl ModelDiscovery {
             .fetch_events(filter, Duration::from_secs(10))
             .await?;
 
-        // Filter out expired models
+        // Filter to models published in the last 30 minutes and not expired
+        let thirty_mins_ago = Timestamp::now().as_secs() - 1800;
         let models: Vec<DiscoveredModel> = events
             .iter()
+            .filter(|e| e.created_at.as_secs() > thirty_mins_ago)
             .filter_map(|e| DiscoveredModel::from_event(e).ok())
             .filter(|m| !m.is_expired())
             .collect();
