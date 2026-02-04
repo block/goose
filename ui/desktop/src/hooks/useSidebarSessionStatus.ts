@@ -1,9 +1,9 @@
 import { AppEvents } from '../constants/events';
 import { useState, useCallback, useEffect } from 'react';
 
-type StreamState = 'idle' | 'streaming' | 'error';
+export type StreamState = 'idle' | 'loading' | 'streaming' | 'error';
 
-interface SessionStatus {
+export interface SessionStatus {
   streamState: StreamState;
   hasUnreadActivity: boolean;
 }

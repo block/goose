@@ -1,25 +1,15 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { MessageSquare, History, GripVertical, Plus, ChefHat } from 'lucide-react';
+import { GripVertical, Plus } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigationContext } from './NavigationContext';
 import { Z_INDEX } from './constants';
 import { cn } from '../../utils';
 import { useSidebarSessionStatus } from '../../hooks/useSidebarSessionStatus';
-import {
-  useNavigationSessions,
-  getSessionDisplayName,
-  truncateMessage,
-} from '../../hooks/useNavigationSessions';
+import { useNavigationSessions } from '../../hooks/useNavigationSessions';
 import { useNavigationDragDrop } from '../../hooks/useNavigationDragDrop';
 import { useNavigationItems, useEscapeToClose } from '../../hooks/useNavigationItems';
-import { SessionIndicators } from '../SessionIndicators';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from '../ui/dropdown-menu';
+import { DropdownMenu, DropdownMenuTrigger } from '../ui/dropdown-menu';
+import { ChatSessionsDropdown } from './navigation';
 
 interface ExpandedNavigationProps {
   className?: string;
@@ -292,74 +282,17 @@ export const ExpandedNavigation: React.FC<ExpandedNavigationProps> = ({ classNam
                         <Plus className="w-4 h-4" />
                       </motion.button>
                     </div>
-                    <DropdownMenuContent
-                      style={{ zIndex: Z_INDEX.DROPDOWN_ABOVE_OVERLAY }}
-                      className="w-64 p-1 bg-background-default border-border-subtle rounded-lg shadow-lg"
+                    <ChatSessionsDropdown
+                      sessions={recentSessions}
+                      activeSessionId={activeSessionId}
                       side="right"
-                      align="start"
-                      sideOffset={8}
-                    >
-                      {/* New chat button */}
-                      <DropdownMenuItem
-                        onClick={handleNewChat}
-                        className="flex items-center gap-2 px-3 py-2 text-sm rounded-lg cursor-pointer"
-                      >
-                        <Plus className="w-4 h-4 flex-shrink-0" />
-                        <span>New Chat</span>
-                      </DropdownMenuItem>
-
-                      {recentSessions.length > 0 && <DropdownMenuSeparator className="my-1" />}
-
-                      {/* Recent sessions */}
-                      {recentSessions.map((session) => {
-                        const status = getSessionStatus(session.id);
-                        const isStreaming = status?.streamState === 'streaming';
-                        const hasError = status?.streamState === 'error';
-                        const hasUnread = status?.hasUnreadActivity ?? false;
-                        const isActiveSession = session.id === activeSessionId;
-                        return (
-                          <DropdownMenuItem
-                            key={session.id}
-                            onClick={() => {
-                              clearUnread(session.id);
-                              handleSessionClick(session.id);
-                            }}
-                            className={cn(
-                              'flex items-center gap-2 px-3 py-2 text-sm rounded-lg cursor-pointer',
-                              isActiveSession && 'bg-background-medium'
-                            )}
-                          >
-                            {session.recipe ? (
-                              <ChefHat className="w-4 h-4 flex-shrink-0 text-text-muted" />
-                            ) : (
-                              <MessageSquare className="w-4 h-4 flex-shrink-0 text-text-muted" />
-                            )}
-                            <span className="truncate flex-1">
-                              {truncateMessage(getSessionDisplayName(session), 30)}
-                            </span>
-                            <SessionIndicators
-                              isStreaming={isStreaming}
-                              hasUnread={hasUnread}
-                              hasError={hasError}
-                            />
-                          </DropdownMenuItem>
-                        );
-                      })}
-
-                      {/* Show All button */}
-                      {recentSessions.length > 0 && (
-                        <>
-                          <DropdownMenuSeparator className="my-1" />
-                          <DropdownMenuItem
-                            onClick={() => handleNavClick('/sessions')}
-                            className="flex items-center gap-2 px-3 py-2 text-sm rounded-lg cursor-pointer text-text-muted"
-                          >
-                            <History className="w-4 h-4 flex-shrink-0" />
-                            <span>Show All</span>
-                          </DropdownMenuItem>
-                        </>
-                      )}
-                    </DropdownMenuContent>
+                      zIndex={Z_INDEX.DROPDOWN_ABOVE_OVERLAY}
+                      getSessionStatus={getSessionStatus}
+                      clearUnread={clearUnread}
+                      onNewChat={handleNewChat}
+                      onSessionClick={handleSessionClick}
+                      onShowAll={() => handleNavClick('/sessions')}
+                    />
                   </motion.div>
                 </DropdownMenu>
               );
