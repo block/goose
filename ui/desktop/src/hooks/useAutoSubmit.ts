@@ -9,10 +9,8 @@ import { UserInput } from '../types/message';
 /**
  * Auto-submit scenarios:
  * 1. New session with initial message from Hub (message_count === 0, has initialMessage)
- * 2. Resume with shouldStartAgent (continue existing conversation)
- *
- * Note: Forked sessions (shouldStartAgent + initialMessage) do NOT auto-submit.
- * This allows users to review the forked conversation history before submitting.
+ * 2. Forked session with edited message (shouldStartAgent + initialMessage)
+ * 3. Resume with shouldStartAgent (continue existing conversation)
  */
 
 interface UseAutoSubmitProps {
@@ -76,13 +74,10 @@ export function useAutoSubmit({
       return;
     }
 
-    // Scenario 2: Forked session - REMOVED auto-submit
-    // Forked sessions have shouldStartAgent + initialMessage + messages.length > 0
-    // We want users to see the conversation history before submitting
-    // The initialMessage is available but not auto-submitted
-    if (shouldStartAgent && initialMessage && messages.length > 0) {
-      // Mark as handled to prevent Scenario 3 from firing
+    // Scenario 2: Forked session with edited message
+    if (shouldStartAgent && initialMessage) {
       hasAutoSubmittedRef.current = true;
+      handleSubmit(initialMessage);
       clearInitialMessage();
       return;
     }
