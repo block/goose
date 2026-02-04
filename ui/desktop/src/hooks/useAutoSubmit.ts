@@ -56,6 +56,19 @@ export function useAutoSubmit({
     const isCurrentSession = currentSessionId === sessionId;
     const shouldStartAgent = isCurrentSession && searchParams.get('shouldStartAgent') === 'true';
 
+    // Debug logging for fork scenario
+    if (shouldStartAgent && initialMessage) {
+      console.log('[useAutoSubmit] Fork scenario check:', {
+        sessionId,
+        hasSession: !!session,
+        hasAutoSubmitted: hasAutoSubmittedRef.current,
+        chatState,
+        messagesLength: messages.length,
+        hasInitialMessage: !!initialMessage,
+        shouldStartAgent,
+      });
+    }
+
     if (!session || hasAutoSubmittedRef.current) {
       return;
     }
@@ -79,11 +92,16 @@ export function useAutoSubmit({
     if (shouldStartAgent && initialMessage) {
       // Only submit if the forked conversation has loaded (messages.length > 0)
       if (messages.length > 0) {
+        console.log('[useAutoSubmit] Forked session: Auto-submitting with', {
+          messageText: initialMessage.msg,
+          messagesLength: messages.length,
+        });
         hasAutoSubmittedRef.current = true;
         handleSubmit(initialMessage);
         clearInitialMessage();
         return;
       }
+      console.log('[useAutoSubmit] Forked session: Waiting for messages to load');
       // If messages haven't loaded yet, wait for next render
       return;
     }
