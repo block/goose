@@ -246,8 +246,6 @@ impl MemoryServer {
         let base_dir = if is_global {
             self.global_memory_dir.clone()
         } else {
-            // For local memory, use working_dir from request metadata
-            // Fallback to current_dir if not provided (for backwards compatibility)
             let local_base = working_dir
                 .cloned()
                 .or_else(|| std::env::current_dir().ok())
