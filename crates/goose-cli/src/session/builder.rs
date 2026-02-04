@@ -694,6 +694,8 @@ mod tests {
             quiet: false,
             output_format: "text".to_string(),
             container: None,
+            approval_policy: None,
+            execution_mode: None,
         };
 
         assert_eq!(config.extensions.len(), 1);
