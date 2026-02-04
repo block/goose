@@ -109,7 +109,6 @@ export function getToolResponses(message: Message): (ToolResponse & { type: 'too
   );
 }
 
-// Get tool confirmation from ActionRequired content (legacy format)
 export function getToolConfirmationContent(
   message: Message
 ): (ActionRequired & { type: 'actionRequired' }) | undefined {
@@ -119,7 +118,6 @@ export function getToolConfirmationContent(
   );
 }
 
-// Get tool confirmation from ToolConfirmationRequest content (new format)
 export function getToolConfirmationRequestContent(
   message: Message
 ): ToolConfirmationRequestContent | undefined {
@@ -129,7 +127,6 @@ export function getToolConfirmationRequestContent(
   );
 }
 
-// Unified type for tool confirmation data (works with both formats)
 export interface ToolConfirmationData {
   id: string;
   toolName: string;
@@ -137,9 +134,7 @@ export interface ToolConfirmationData {
   prompt?: string | null;
 }
 
-// Get tool confirmation data from either format
 export function getAnyToolConfirmationData(message: Message): ToolConfirmationData | undefined {
-  // Check for new toolConfirmationRequest format first
   const confirmationRequest = getToolConfirmationRequestContent(message);
   if (confirmationRequest) {
     return {
@@ -150,7 +145,6 @@ export function getAnyToolConfirmationData(message: Message): ToolConfirmationDa
     };
   }
 
-  // Fall back to actionRequired format
   const actionRequired = getToolConfirmationContent(message);
   if (actionRequired && actionRequired.data.actionType === 'toolConfirmation') {
     return {
@@ -185,7 +179,6 @@ export function getPendingToolConfirmationIds(messages: Message[]): Set<string> 
   }
 
   for (const message of messages) {
-    // Check both formats
     const confirmationData = getAnyToolConfirmationData(message);
     if (confirmationData && !respondedIds.has(confirmationData.id)) {
       pendingIds.add(confirmationData.id);

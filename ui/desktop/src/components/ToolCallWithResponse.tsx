@@ -189,7 +189,6 @@ export default function ToolCallWithResponse({
 
   const shouldShowMcpContent = !isPendingApproval;
 
-  // confirmationContent is now ToolConfirmationData directly (not wrapped in ActionRequired)
   const showInlineApproval = isPendingApproval && confirmationContent && sessionId;
 
   return (
