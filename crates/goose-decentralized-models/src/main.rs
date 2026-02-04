@@ -330,46 +330,21 @@ async fn show_key() -> Result<()> {
 }
 
 async fn run_goose(preferred_model: Option<String>) -> Result<()> {
-    let config = NostrShareConfig::load_default()?;
+    let relays = NostrShareConfig::load_default().map(|c| c.relays).ok();
 
-    eprintln!("Discovering models via Nostr...");
+    let model = goose_decentralized_models::discover_model(relays, preferred_model.as_deref())
+        .await?
+        .ok_or_else(|| anyhow::anyhow!("No models available"))?;
 
-    let discovery = ModelDiscovery::new(config.relays).await?;
-    discovery.connect().await;
-
-    let models = discovery.discover().await?;
-
-    if models.is_empty() {
-        anyhow::bail!("No models discovered. Make sure someone has published a model.");
-    }
-
-    // Select model: prefer the specified one, otherwise take first available
-    let selected = if let Some(ref name) = preferred_model {
-        models
-            .iter()
-            .find(|m| m.model_name.contains(name))
-            .or_else(|| models.first())
-    } else {
-        models.first()
-    };
-
-    let selected = selected.ok_or_else(|| anyhow::anyhow!("No suitable model found"))?;
-
-    eprintln!();
-    eprintln!("Selected: {} at {}", selected.model_name, selected.endpoint);
-    eprintln!();
-
-    // Find goose binary
     let goose_path = which::which("goose")
         .or_else(|_| which::which("./target/debug/goose"))
         .or_else(|_| which::which("./target/release/goose"))
-        .map_err(|_| anyhow::anyhow!("Could not find goose binary in PATH or target/"))?;
+        .map_err(|_| anyhow::anyhow!("Could not find goose binary"))?;
 
-    // Shell out with env vars
     let status = std::process::Command::new(goose_path)
         .env("GOOSE_PROVIDER", "ollama")
-        .env("GOOSE_MODEL", &selected.model_name)
-        .env("OLLAMA_HOST", &selected.endpoint)
+        .env("GOOSE_MODEL", &model.model_name)
+        .env("OLLAMA_HOST", &model.endpoint)
         .status()?;
 
     std::process::exit(status.code().unwrap_or(1));
