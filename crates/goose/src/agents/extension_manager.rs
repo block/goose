@@ -214,25 +214,16 @@ async fn child_process_client(
         command.env("PATH", path);
     }
 
-    // Use explicitly passed working_dir, falling back to GOOSE_WORKING_DIR env var
-    let effective_working_dir = working_dir
-        .map(|p| p.to_path_buf())
-        .or_else(|| std::env::var("GOOSE_WORKING_DIR").ok().map(PathBuf::from));
-
-    if let Some(ref dir) = effective_working_dir {
+    if let Some(dir) = working_dir {
         if dir.exists() && dir.is_dir() {
             tracing::info!("Setting MCP process working directory: {:?}", dir);
             command.current_dir(dir);
-            // Also set GOOSE_WORKING_DIR env var for the child process
-            command.env("GOOSE_WORKING_DIR", dir);
         } else {
             tracing::warn!(
                 "Working directory doesn't exist or isn't a directory: {:?}",
                 dir
             );
         }
-    } else {
-        tracing::info!("No working directory specified, using default");
     }
 
     let (transport, mut stderr) = TokioChildProcess::builder(command)
