@@ -182,9 +182,9 @@ if [ "$CODE_EXEC_MODE" = true ]; then
   echo "Mode: code_execution (JS batching)"
   BUILTINS="developer,code_execution"
   # Match code_execution tool usage:
-  # - "execute_code | code_execution" or "read_module | code_execution" (fallback format)
-  # - "tool call | execute_code" or "tool calls | execute_code" (new format with tool_graph)
-  SUCCESS_PATTERN="(execute_code \| code_execution)|(read_module \| code_execution)|(tool calls? \| execute_code)"
+  # - "execute | code_execution" or "get_function_details | code_execution" (fallback format)
+  # - "tool call | execute" or "tool calls | execute" (new format with tool_graph)
+  SUCCESS_PATTERN="(execute \| code_execution)|(get_function_details \| code_execution)|(tool calls? \| execute)"
   SUCCESS_MSG="code_execution tool called"
   FAILURE_MSG="no code_execution tools called"
 else
