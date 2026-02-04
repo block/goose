@@ -56,19 +56,6 @@ export function useAutoSubmit({
     const isCurrentSession = currentSessionId === sessionId;
     const shouldStartAgent = isCurrentSession && searchParams.get('shouldStartAgent') === 'true';
 
-    // Debug logging for fork scenario
-    if (shouldStartAgent && initialMessage) {
-      console.log('[useAutoSubmit] Fork scenario check:', {
-        sessionId,
-        hasSession: !!session,
-        hasAutoSubmitted: hasAutoSubmittedRef.current,
-        chatState,
-        messagesLength: messages.length,
-        hasInitialMessage: !!initialMessage,
-        shouldStartAgent,
-      });
-    }
-
     if (!session || hasAutoSubmittedRef.current) {
       return;
     }
@@ -82,7 +69,10 @@ export function useAutoSubmit({
     // Hub always creates new sessions, so message_count will be 0
     if (initialMessage && session.message_count === 0 && messages.length === 0) {
       hasAutoSubmittedRef.current = true;
-      handleSubmit(initialMessage);
+      // Ensure initialMessage is in UserInput format
+      const input =
+        typeof initialMessage === 'string' ? { msg: initialMessage, images: [] } : initialMessage;
+      handleSubmit(input);
       clearInitialMessage();
       return;
     }
@@ -92,16 +82,14 @@ export function useAutoSubmit({
     if (shouldStartAgent && initialMessage) {
       // Only submit if the forked conversation has loaded (messages.length > 0)
       if (messages.length > 0) {
-        console.log('[useAutoSubmit] Forked session: Auto-submitting with', {
-          messageText: initialMessage.msg,
-          messagesLength: messages.length,
-        });
+        // Ensure initialMessage is in UserInput format
+        const input =
+          typeof initialMessage === 'string' ? { msg: initialMessage, images: [] } : initialMessage;
         hasAutoSubmittedRef.current = true;
-        handleSubmit(initialMessage);
+        handleSubmit(input);
         clearInitialMessage();
         return;
       }
-      console.log('[useAutoSubmit] Forked session: Waiting for messages to load');
       // If messages haven't loaded yet, wait for next render
       return;
     }
