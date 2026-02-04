@@ -26,6 +26,7 @@ struct ProviderMetadata {
     pub api: Option<String>,
     pub doc: Option<String>,
     pub env: Vec<String>,
+    pub model_count: usize,
 }
 
 const MODELS_DEV_API_URL: &str = "https://models.dev/api.json";
@@ -367,14 +368,38 @@ async fn build_canonical_models() -> Result<()> {
     let mut provider_metadata_list: Vec<ProviderMetadata> = Vec::new();
     let mut total_models = 0;
 
-    // First pass: Build canonical models from ALLOWED_PROVIDERS
-    for provider_key in ALLOWED_PROVIDERS {
-        if let Some(provider_data) = providers_obj.get(*provider_key) {
-            let models = provider_data["models"]
-                .as_object()
-                .context(format!("Provider {} missing models object", provider_key))?;
+    // Determine which providers to build canonical models for
+    // Include ALLOWED_PROVIDERS + any provider with compatible npm package
+    let mut providers_to_build: std::collections::HashSet<String> =
+        ALLOWED_PROVIDERS.iter().map(|s| s.to_string()).collect();
 
-            let normalized_provider = normalize_provider_name(provider_key);
+    // Add all compatible providers from models.dev
+    for (provider_id, provider_data) in providers_obj.iter() {
+        if let Some(npm) = provider_data.get("npm").and_then(|v| v.as_str()) {
+            if is_compatible_provider(npm) {
+                if let Some(api) = provider_data.get("api").and_then(|v| v.as_str()) {
+                    if !api.is_empty() {
+                        providers_to_build.insert(provider_id.clone());
+                    }
+                }
+            }
+        }
+    }
+
+    // First pass: Build canonical models from all compatible providers
+    for provider_key in &providers_to_build {
+        if let Some(provider_data) = providers_obj.get(provider_key) {
+            let models = match provider_data.get("models").and_then(|v| v.as_object()) {
+                Some(m) => m,
+                None => continue,
+            };
+
+            let is_allowed = ALLOWED_PROVIDERS.contains(&provider_key.as_str());
+            let normalized_provider = if is_allowed {
+                normalize_provider_name(provider_key).to_string()
+            } else {
+                provider_key.clone()
+            };
 
             println!(
                 "\nProcessing {} ({} models)...",
@@ -395,7 +420,7 @@ async fn build_canonical_models() -> Result<()> {
 
                 // Use canonical_name to normalize the model ID (strips date stamps, etc.)
                 // This deduplicates different versions of the same model
-                let canonical_id = canonical_name(normalized_provider, model_id);
+                let canonical_id = canonical_name(&normalized_provider, model_id);
 
                 let family = model_data
                     .get("family")
@@ -502,7 +527,7 @@ async fn build_canonical_models() -> Result<()> {
                 let model_name = canonical_id
                     .strip_prefix(&format!("{}/", normalized_provider))
                     .unwrap_or(model_id);
-                registry.register(normalized_provider, model_name, canonical_model);
+                registry.register(&normalized_provider, model_name, canonical_model);
                 total_models += 1;
             }
         }
@@ -554,6 +579,13 @@ async fn build_canonical_models() -> Result<()> {
             .unwrap_or(provider_id)
             .to_string();
 
+        // Count models for this provider
+        let model_count = provider_data
+            .get("models")
+            .and_then(|v| v.as_object())
+            .map(|models| models.len())
+            .unwrap_or(0);
+
         provider_metadata_list.push(ProviderMetadata {
             id: normalized_provider,
             display_name,
@@ -561,9 +593,10 @@ async fn build_canonical_models() -> Result<()> {
             api,
             doc,
             env,
+            model_count,
         });
 
-        println!("  Added {} ({})", provider_id, npm);
+        println!("  Added {} ({}) - {} models", provider_id, npm, model_count);
     }
 
     let output_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))

@@ -8,7 +8,8 @@
     "env": [
       "PRIVATEMODE_API_KEY",
       "PRIVATEMODE_ENDPOINT"
-    ]
+    ],
+    "model_count": 5
   },
   {
     "id": "moonshotai-cn",
@@ -18,7 +19,8 @@
     "doc": "https://platform.moonshot.cn/docs/api/chat",
     "env": [
       "MOONSHOT_API_KEY"
-    ]
+    ],
+    "model_count": 6
   },
   {
     "id": "firmware",
@@ -28,7 +30,8 @@
     "doc": "https://docs.firmware.ai",
     "env": [
       "FIRMWARE_API_KEY"
-    ]
+    ],
+    "model_count": 22
   },
   {
     "id": "nova",
@@ -38,7 +41,8 @@
     "doc": "https://nova.amazon.com/dev/documentation",
     "env": [
       "NOVA_API_KEY"
-    ]
+    ],
+    "model_count": 2
   },
   {
     "id": "lucidquery",
@@ -48,7 +52,8 @@
     "doc": "https://lucidquery.com/api/docs",
     "env": [
       "LUCIDQUERY_API_KEY"
-    ]
+    ],
+    "model_count": 2
   },
   {
     "id": "moonshotai",
@@ -58,7 +63,8 @@
     "doc": "https://platform.moonshot.ai/docs/api/chat",
     "env": [
       "MOONSHOT_API_KEY"
-    ]
+    ],
+    "model_count": 6
   },
   {
     "id": "302ai",
@@ -68,7 +74,8 @@
     "doc": "https://doc.302.ai",
     "env": [
       "302AI_API_KEY"
-    ]
+    ],
+    "model_count": 64
   },
   {
     "id": "zai-coding-plan",
@@ -78,7 +85,8 @@
     "doc": "https://docs.z.ai/devpack/overview",
     "env": [
       "ZHIPU_API_KEY"
-    ]
+    ],
+    "model_count": 8
   },
   {
     "id": "ollama-cloud",
@@ -88,7 +96,8 @@
     "doc": "https://docs.ollama.com/cloud",
     "env": [
       "OLLAMA_API_KEY"
-    ]
+    ],
+    "model_count": 29
   },
   {
     "id": "xiaomi",
@@ -98,7 +107,8 @@
     "doc": "https://platform.xiaomimimo.com/#/docs",
     "env": [
       "XIAOMI_API_KEY"
-    ]
+    ],
+    "model_count": 1
   },
   {
     "id": "alibaba",
@@ -108,7 +118,8 @@
     "doc": "https://www.alibabacloud.com/help/en/model-studio/models",
     "env": [
       "DASHSCOPE_API_KEY"
-    ]
+    ],
+    "model_count": 39
   },
   {
     "id": "vultr",
@@ -118,7 +129,8 @@
     "doc": "https://api.vultrinference.com/",
     "env": [
       "VULTR_API_KEY"
-    ]
+    ],
+    "model_count": 5
   },
   {
     "id": "nvidia",
@@ -128,7 +140,8 @@
     "doc": "https://docs.api.nvidia.com/nim/",
     "env": [
       "NVIDIA_API_KEY"
-    ]
+    ],
+    "model_count": 70
   },
   {
     "id": "upstage",
@@ -138,7 +151,8 @@
     "doc": "https://developers.upstage.ai/docs/apis/chat",
     "env": [
       "UPSTAGE_API_KEY"
-    ]
+    ],
+    "model_count": 3
   },
   {
     "id": "bailing",
@@ -148,7 +162,8 @@
     "doc": "https://alipaytbox.yuque.com/sxs0ba/ling/intro",
     "env": [
       "BAILING_API_TOKEN"
-    ]
+    ],
+    "model_count": 2
   },
   {
     "id": "github-copilot",
@@ -158,7 +173,8 @@
     "doc": "https://docs.github.com/en/copilot",
     "env": [
       "GITHUB_TOKEN"
-    ]
+    ],
+    "model_count": 19
   },
   {
     "id": "abacus",
@@ -168,7 +184,8 @@
     "doc": "https://abacus.ai/help/api",
     "env": [
       "ABACUS_API_KEY"
-    ]
+    ],
+    "model_count": 55
   },
   {
     "id": "nebius",
@@ -178,7 +195,8 @@
     "doc": "https://docs.tokenfactory.nebius.com/",
     "env": [
       "NEBIUS_API_KEY"
-    ]
+    ],
+    "model_count": 15
   },
   {
     "id": "deepseek",
@@ -188,7 +206,8 @@
     "doc": "https://platform.deepseek.com/api-docs/pricing",
     "env": [
       "DEEPSEEK_API_KEY"
-    ]
+    ],
+    "model_count": 2
   },
   {
     "id": "alibaba-cn",
@@ -198,7 +217,8 @@
     "doc": "https://www.alibabacloud.com/help/en/model-studio/models",
     "env": [
       "DASHSCOPE_API_KEY"
-    ]
+    ],
+    "model_count": 63
   },
   {
     "id": "novita-ai",
@@ -208,7 +228,8 @@
     "doc": "https://novita.ai/docs/guides/introduction",
     "env": [
       "NOVITA_API_KEY"
-    ]
+    ],
+    "model_count": 79
   },
   {
     "id": "siliconflow-cn",
@@ -218,7 +239,8 @@
     "doc": "https://cloud.siliconflow.com/models",
     "env": [
       "SILICONFLOW_CN_API_KEY"
-    ]
+    ],
+    "model_count": 72
   },
   {
     "id": "vivgrid",
@@ -228,7 +250,8 @@
     "doc": "https://docs.vivgrid.com/models",
     "env": [
       "VIVGRID_API_KEY"
-    ]
+    ],
+    "model_count": 5
   },
   {
     "id": "chutes",
@@ -238,7 +261,8 @@
     "doc": "https://llm.chutes.ai/v1/models",
     "env": [
       "CHUTES_API_KEY"
-    ]
+    ],
+    "model_count": 62
   },
   {
     "id": "kimi-for-coding",
@@ -248,7 +272,8 @@
     "doc": "https://www.kimi.com/coding/docs/en/third-party-agents.html",
     "env": [
       "KIMI_API_KEY"
-    ]
+    ],
+    "model_count": 2
   },
   {
     "id": "cortecs",
@@ -258,7 +283,8 @@
     "doc": "https://api.cortecs.ai/v1/models",
     "env": [
       "CORTECS_API_KEY"
-    ]
+    ],
+    "model_count": 16
   },
   {
     "id": "github-models",
@@ -268,7 +294,8 @@
     "doc": "https://docs.github.com/en/github-models",
     "env": [
       "GITHUB_TOKEN"
-    ]
+    ],
+    "model_count": 55
   },
   {
     "id": "baseten",
@@ -278,7 +305,8 @@
     "doc": "https://docs.baseten.co/development/model-apis/overview",
     "env": [
       "BASETEN_API_KEY"
-    ]
+    ],
+    "model_count": 6
   },
   {
     "id": "moark",
@@ -288,7 +316,8 @@
     "doc": "https://moark.com/docs/openapi/v1#tag/%E6%96%87%E6%9C%AC%E7%94%9F%E6%88%90",
     "env": [
       "MOARK_API_KEY"
-    ]
+    ],
+    "model_count": 2
   },
   {
     "id": "siliconflow",
@@ -298,7 +327,8 @@
     "doc": "https://cloud.siliconflow.com/models",
     "env": [
       "SILICONFLOW_API_KEY"
-    ]
+    ],
+    "model_count": 74
   },
   {
     "id": "helicone",
@@ -308,7 +338,8 @@
     "doc": "https://helicone.ai/models",
     "env": [
       "HELICONE_API_KEY"
-    ]
+    ],
+    "model_count": 91
   },
   {
     "id": "huggingface",
@@ -318,7 +349,8 @@
     "doc": "https://huggingface.co/docs/inference-providers",
     "env": [
       "HF_TOKEN"
-    ]
+    ],
+    "model_count": 16
   },
   {
     "id": "opencode",
@@ -328,7 +360,8 @@
     "doc": "https://opencode.ai/docs/zen",
     "env": [
       "OPENCODE_API_KEY"
-    ]
+    ],
+    "model_count": 30
   },
   {
     "id": "fastrouter",
@@ -338,7 +371,8 @@
     "doc": "https://fastrouter.ai/models",
     "env": [
       "FASTROUTER_API_KEY"
-    ]
+    ],
+    "model_count": 14
   },
   {
     "id": "minimax",
@@ -348,7 +382,8 @@
     "doc": "https://platform.minimax.io/docs/guides/quickstart",
     "env": [
       "MINIMAX_API_KEY"
-    ]
+    ],
+    "model_count": 2
   },
   {
     "id": "inception",
@@ -358,7 +393,8 @@
     "doc": "https://platform.inceptionlabs.ai/docs",
     "env": [
       "INCEPTION_API_KEY"
-    ]
+    ],
+    "model_count": 2
   },
   {
     "id": "wandb",
@@ -368,7 +404,8 @@
     "doc": "https://weave-docs.wandb.ai/guides/integrations/inference/",
     "env": [
       "WANDB_API_KEY"
-    ]
+    ],
+    "model_count": 10
   },
   {
     "id": "cloudflare-ai-gateway",
@@ -380,7 +417,8 @@
       "CLOUDFLARE_API_TOKEN",
       "CLOUDFLARE_ACCOUNT_ID",
       "CLOUDFLARE_GATEWAY_ID"
-    ]
+    ],
+    "model_count": 64
   },
   {
     "id": "openai",
@@ -390,7 +428,8 @@
     "doc": "https://platform.openai.com/docs/models",
     "env": [
       "OPENAI_API_KEY"
-    ]
+    ],
+    "model_count": 40
   },
   {
     "id": "zhipuai-coding-plan",
@@ -400,7 +439,8 @@
     "doc": "https://docs.bigmodel.cn/cn/coding-plan/overview",
     "env": [
       "ZHIPU_API_KEY"
-    ]
+    ],
+    "model_count": 8
   },
   {
     "id": "minimax-cn",
@@ -410,7 +450,8 @@
     "doc": "https://platform.minimaxi.com/docs/guides/quickstart",
     "env": [
       "MINIMAX_API_KEY"
-    ]
+    ],
+    "model_count": 2
   },
   {
     "id": "openrouter",
@@ -420,17 +461,19 @@
     "doc": "https://openrouter.ai/models",
     "env": [
       "OPENROUTER_API_KEY"
-    ]
+    ],
+    "model_count": 173
   },
   {
     "id": "zenmux",
     "display_name": "ZenMux",
-    "npm": "@ai-sdk/openai-compatible",
-    "api": "https://zenmux.ai/api/v1",
+    "npm": "@ai-sdk/anthropic",
+    "api": "https://zenmux.ai/api/anthropic/v1",
     "doc": "https://docs.zenmux.ai",
     "env": [
       "ZENMUX_API_KEY"
-    ]
+    ],
+    "model_count": 59
   },
   {
     "id": "minimax-coding-plan",
@@ -440,7 +483,8 @@
     "doc": "https://platform.minimax.io/docs/coding-plan/intro",
     "env": [
       "MINIMAX_API_KEY"
-    ]
+    ],
+    "model_count": 2
   },
   {
     "id": "ovhcloud",
@@ -450,7 +494,8 @@
     "doc": "https://www.ovhcloud.com/en/public-cloud/ai-endpoints/catalog//",
     "env": [
       "OVHCLOUD_API_KEY"
-    ]
+    ],
+    "model_count": 13
   },
   {
     "id": "iflowcn",
@@ -460,7 +505,8 @@
     "doc": "https://platform.iflow.cn/en/docs",
     "env": [
       "IFLOW_API_KEY"
-    ]
+    ],
+    "model_count": 14
   },
   {
     "id": "synthetic",
@@ -470,7 +516,8 @@
     "doc": "https://synthetic.new/pricing",
     "env": [
       "SYNTHETIC_API_KEY"
-    ]
+    ],
+    "model_count": 26
   },
   {
     "id": "zhipuai",
@@ -480,7 +527,8 @@
     "doc": "https://docs.z.ai/guides/overview/pricing",
     "env": [
       "ZHIPU_API_KEY"
-    ]
+    ],
+    "model_count": 8
   },
   {
     "id": "submodel",
@@ -490,7 +538,8 @@
     "doc": "https://submodel.gitbook.io",
     "env": [
       "SUBMODEL_INSTAGEN_ACCESS_KEY"
-    ]
+    ],
+    "model_count": 9
   },
   {
     "id": "nano-gpt",
@@ -500,7 +549,8 @@
     "doc": "https://docs.nano-gpt.com",
     "env": [
       "NANO_GPT_API_KEY"
-    ]
+    ],
+    "model_count": 21
   },
   {
     "id": "zai",
@@ -510,7 +560,19 @@
     "doc": "https://docs.z.ai/guides/overview/pricing",
     "env": [
       "ZHIPU_API_KEY"
-    ]
+    ],
+    "model_count": 8
+  },
+  {
+    "id": "berget",
+    "display_name": "Berget.AI",
+    "npm": "@ai-sdk/openai-compatible",
+    "api": "https://api.berget.ai/v1",
+    "doc": "https://api.berget.ai",
+    "env": [
+      "BERGET_API_KEY"
+    ],
+    "model_count": 8
   },
   {
     "id": "inference",
@@ -520,7 +582,8 @@
     "doc": "https://inference.net/models",
     "env": [
       "INFERENCE_API_KEY"
-    ]
+    ],
+    "model_count": 9
   },
   {
     "id": "requesty",
@@ -530,7 +593,8 @@
     "doc": "https://requesty.ai/solution/llm-routing/models",
     "env": [
       "REQUESTY_API_KEY"
-    ]
+    ],
+    "model_count": 20
   },
   {
     "id": "morph",
@@ -540,7 +604,8 @@
     "doc": "https://docs.morphllm.com/api-reference/introduction",
     "env": [
       "MORPH_API_KEY"
-    ]
+    ],
+    "model_count": 3
   },
   {
     "id": "lmstudio",
@@ -550,7 +615,8 @@
     "doc": "https://lmstudio.ai/models",
     "env": [
       "LMSTUDIO_API_KEY"
-    ]
+    ],
+    "model_count": 3
   },
   {
     "id": "friendli",
@@ -560,7 +626,8 @@
     "doc": "https://friendli.ai/docs/guides/serverless_endpoints/introduction",
     "env": [
       "FRIENDLI_TOKEN"
-    ]
+    ],
+    "model_count": 7
   },
   {
     "id": "anthropic",
@@ -570,7 +637,8 @@
     "doc": "https://docs.anthropic.com/en/docs/about-claude/models",
     "env": [
       "ANTHROPIC_API_KEY"
-    ]
+    ],
+    "model_count": 21
   },
   {
     "id": "aihubmix",
@@ -580,7 +648,8 @@
     "doc": "https://docs.aihubmix.com",
     "env": [
       "AIHUBMIX_API_KEY"
-    ]
+    ],
+    "model_count": 37
   },
   {
     "id": "fireworks-ai",
@@ -590,7 +659,8 @@
     "doc": "https://fireworks.ai/docs/",
     "env": [
       "FIREWORKS_API_KEY"
-    ]
+    ],
+    "model_count": 17
   },
   {
     "id": "io-net",
@@ -600,7 +670,8 @@
     "doc": "https://io.net/docs/guides/intelligence/io-intelligence",
     "env": [
       "IOINTELLIGENCE_API_KEY"
-    ]
+    ],
+    "model_count": 17
   },
   {
     "id": "modelscope",
@@ -610,7 +681,8 @@
     "doc": "https://modelscope.cn/docs/model-service/API-Inference/intro",
     "env": [
       "MODELSCOPE_API_KEY"
-    ]
+    ],
+    "model_count": 7
   },
   {
     "id": "meta-llama",
@@ -620,7 +692,8 @@
     "doc": "https://llama.developer.meta.com/docs/models",
     "env": [
       "LLAMA_API_KEY"
-    ]
+    ],
+    "model_count": 7
   },
   {
     "id": "scaleway",
@@ -630,7 +703,8 @@
     "doc": "https://www.scaleway.com/en/docs/generative-apis/",
     "env": [
       "SCALEWAY_API_KEY"
-    ]
+    ],
+    "model_count": 14
   },
   {
     "id": "poe",
@@ -640,7 +714,8 @@
     "doc": "https://creator.poe.com/docs/external-applications/openai-compatible-api",
     "env": [
       "POE_API_KEY"
-    ]
+    ],
+    "model_count": 112
   },
   {
     "id": "minimax-cn-coding-plan",
@@ -650,6 +725,7 @@
     "doc": "https://platform.minimaxi.com/docs/coding-plan/intro",
     "env": [
       "MINIMAX_API_KEY"
-    ]
+    ],
+    "model_count": 2
   }
 ]

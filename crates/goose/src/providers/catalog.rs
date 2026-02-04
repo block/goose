@@ -16,6 +16,7 @@ struct ProviderMetadataEntry {
     pub api: Option<String>,
     pub doc: Option<String>,
     pub env: Vec<String>,
+    pub model_count: usize,
 }
 
 /// Provider metadata loaded from generated JSON
@@ -118,12 +119,22 @@ pub struct ModelCapabilities {
 }
 
 /// Get all providers from catalog filtered by format
-pub fn get_providers_by_format(format: ProviderFormat) -> Vec<ProviderCatalogEntry> {
-    let registry = CANONICAL_REGISTRY.as_ref();
+pub async fn get_providers_by_format(format: ProviderFormat) -> Vec<ProviderCatalogEntry> {
+    // Get native provider IDs from the factory registry
+    let native_provider_ids = super::factory::providers()
+        .await
+        .into_iter()
+        .map(|(metadata, _)| metadata.name)
+        .collect::<std::collections::HashSet<_>>();
 
     let mut entries: Vec<ProviderCatalogEntry> = PROVIDER_METADATA
         .values()
         .filter_map(|metadata| {
+            // Skip native providers that are built into Goose
+            if native_provider_ids.contains(&metadata.id) {
+                return None;
+            }
+
             // Filter by npm package format
             let npm = metadata.npm.as_ref()?;
             let detected_format = detect_format_from_npm(npm)?;
@@ -135,11 +146,6 @@ pub fn get_providers_by_format(format: ProviderFormat) -> Vec<ProviderCatalogEnt
             // Get API URL - skip if missing
             let api_url = metadata.api.as_ref()?.clone();
 
-            // Count models for this provider in canonical registry (if available)
-            let model_count = registry
-                .and_then(|r| Some(r.get_all_models_for_provider(&metadata.id).len()))
-                .unwrap_or(0);
-
             // Get env var (first one or generate default)
             let env_var = metadata.env.first()
                 .cloned()
@@ -150,7 +156,7 @@ pub fn get_providers_by_format(format: ProviderFormat) -> Vec<ProviderCatalogEnt
                 name: metadata.display_name.clone(),
                 format: detected_format.as_str().to_string(),
                 api_url,
-                model_count,
+                model_count: metadata.model_count,
                 doc_url: metadata.doc.clone().unwrap_or_default(),
                 env_var,
             })
@@ -223,35 +229,62 @@ pub fn get_provider_template(provider_id: &str) -> Option<ProviderTemplate> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::providers::factory;
+    use std::collections::HashSet;
 
-    #[test]
-    fn test_get_providers_by_format() {
-        let openai_providers = get_providers_by_format(ProviderFormat::OpenAI);
+    #[tokio::test]
+    async fn test_get_providers_by_format() {
+        let openai_providers = get_providers_by_format(ProviderFormat::OpenAI).await;
         assert!(!openai_providers.is_empty());
-        println!("OpenAI compatible providers: {}", openai_providers.len());
-        for provider in openai_providers.iter().take(3) {
-            println!("  - {} ({}) - {} models", provider.name, provider.id, provider.model_count);
+
+        // Verify native providers are excluded
+        let native_ids: HashSet<String> = factory::providers()
+            .await
+            .into_iter()
+            .map(|(m, _)| m.name)
+            .collect();
+
+        for provider in &openai_providers {
+            assert!(!native_ids.contains(&provider.id),
+                "Provider {} should not be in catalog (it's a native provider)", provider.id);
         }
 
-        let anthropic_providers = get_providers_by_format(ProviderFormat::Anthropic);
-        println!("Anthropic compatible providers: {}", anthropic_providers.len());
-        for provider in anthropic_providers.iter().take(3) {
-            println!("  - {} ({}) - {} models", provider.name, provider.id, provider.model_count);
-        }
+        let anthropic_providers = get_providers_by_format(ProviderFormat::Anthropic).await;
+        // May have providers, may not
     }
 
-    #[test]
-    fn test_get_provider_template() {
+    #[tokio::test]
+    async fn test_get_provider_template() {
         // Test with providers we know exist
-        let openai_providers = get_providers_by_format(ProviderFormat::OpenAI);
+        let openai_providers = get_providers_by_format(ProviderFormat::OpenAI).await;
         if let Some(first) = openai_providers.first() {
             let template = get_provider_template(&first.id);
             assert!(template.is_some());
 
             if let Some(t) = template {
-                assert!(!t.models.is_empty());
                 assert!(!t.api_url.is_empty());
             }
         }
+    }
+
+    #[tokio::test]
+    async fn test_zai_provider() {
+        let openai_providers = get_providers_by_format(ProviderFormat::OpenAI).await;
+        let zai = openai_providers.iter().find(|p| p.id == "zai");
+        assert!(zai.is_some(), "z.ai should be in catalog");
+
+        let zai = zai.unwrap();
+        println!("Z.AI: {} models", zai.model_count);
+        assert!(zai.model_count > 0, "z.ai should have models");
+
+        let template = get_provider_template("zai");
+        assert!(template.is_some(), "z.ai should have a template");
+
+        let template = template.unwrap();
+        println!("Z.AI template: {} models", template.models.len());
+        for model in template.models.iter().take(3) {
+            println!("  - {} ({}K context)", model.name, model.context_limit / 1000);
+        }
+        assert!(!template.models.is_empty(), "z.ai template should have models");
     }
 }

@@ -136,10 +136,10 @@ export default function ProviderCatalogPicker({ onSelect, onCancel }: ProviderCa
               <button
                 key={provider.id}
                 onClick={() => handleProviderSelect(provider.id)}
-                className="w-full p-4 text-left border border-border rounded-lg hover:bg-surfaceHover hover:border-primary transition-colors"
+                className="w-full p-4 text-left border border-border rounded-lg hover:bg-surfaceHover hover:border-primary transition-colors group"
               >
-                <div className="flex items-start justify-between">
-                  <div className="flex-1">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
                       <div className="font-medium text-textStandard">{provider.name}</div>
                       {provider.doc_url && (
@@ -148,19 +148,19 @@ export default function ProviderCatalogPicker({ onSelect, onCancel }: ProviderCa
                           target="_blank"
                           rel="noopener noreferrer"
                           onClick={(e) => e.stopPropagation()}
-                          className="text-textSubtle hover:text-primary transition-colors"
+                          className="text-textSubtle hover:text-textStandard transition-colors flex-shrink-0"
                         >
                           <ExternalLink className="w-3 h-3" />
                         </a>
                       )}
                     </div>
-                    <div className="text-sm text-textSubtle mt-1">{provider.api_url}</div>
+                    <div className="text-sm text-textSubtle mt-1 break-all">{provider.api_url}</div>
                     <div className="text-xs text-textSubtle mt-2">
                       {provider.model_count} models available
                       {provider.env_var && ` • Requires ${provider.env_var}`}
                     </div>
                   </div>
-                  <Check className="w-5 h-5 text-primary opacity-0 group-hover:opacity-100 transition-opacity" />
+                  <Check className="w-5 h-5 text-primary opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0" />
                 </div>
               </button>
             ))

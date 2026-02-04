@@ -828,7 +828,7 @@ pub async fn get_provider_catalog(
         ))
     })?;
 
-    let providers = get_providers_by_format(format);
+    let providers = get_providers_by_format(format).await;
     Ok(Json(providers))
 }
 
