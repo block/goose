@@ -2,7 +2,7 @@
   "name": "moonshot",
   "engine": "openai",
   "display_name": "Moonshot AI",
-  "description": "Moonshot AI Kimi models with large context and tool calling",
+  "description": "Moonshot AI Kimi models",
   "api_key_env": "MOONSHOT_API_KEY",
   "base_url": "https://api.moonshot.ai/",
   "models": [
@@ -24,11 +24,11 @@
     },
     {
       "name": "kimi-k2-thinking",
-      "context_limit": 131072
+      "context_limit": 262144
     },
     {
       "name": "kimi-k2-thinking-turbo",
-      "context_limit": 131072
+      "context_limit": 262144
     }
   ],
   "supports_streaming": true
