@@ -28,7 +28,7 @@ interface GooseMessageProps {
   metadata?: string[];
   toolCallNotifications: Map<string, NotificationEvent[]>;
   append: (value: string) => void;
-  isStreaming?: boolean; // Whether this message is currently being streamed
+  isStreaming: boolean;
   submitElicitationResponse?: (
     elicitationId: string,
     userData: Record<string, unknown>
@@ -41,7 +41,7 @@ export default function GooseMessage({
   messages,
   toolCallNotifications,
   append,
-  isStreaming = false,
+  isStreaming,
   submitElicitationResponse,
 }: GooseMessageProps) {
   const contentRef = useRef<HTMLDivElement | null>(null);
@@ -72,9 +72,6 @@ export default function GooseMessage({
   const toolConfirmationContent = getToolConfirmationContent(message);
   const elicitationContent = getElicitationContent(message);
 
-  // Find confirmation content for a specific tool across ALL messages
-  // This is needed because the confirmation comes in a separate message
-  // from the tool request itself. Returns ToolConfirmationData for unified handling.
   const findConfirmationForToolAcrossMessages = (
     toolRequestId: string
   ): ToolConfirmationData | undefined => {
@@ -94,15 +91,11 @@ export default function GooseMessage({
   const hasToolConfirmation = toolConfirmationContent !== undefined;
   const hasElicitation = elicitationContent !== undefined;
 
-  // Check if this message's tool confirmation should be shown inline in a tool card
-  // If the confirmation's tool ID matches a tool request in ANY message, it will be shown inline
-  // and we should NOT show the standalone ToolCallConfirmation here
   const toolConfirmationShownInline = useMemo(() => {
     if (!toolConfirmationContent) return false;
     const confirmationData = getAnyToolConfirmationData(message);
     if (!confirmationData) return false;
 
-    // Check if any message has a tool request matching this confirmation's ID
     for (const msg of messages) {
       const requests = getToolRequests(msg);
       if (requests.some((req) => req.id === confirmationData.id)) {
