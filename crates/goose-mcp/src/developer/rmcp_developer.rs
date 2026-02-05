@@ -67,6 +67,7 @@ use super::editor_models::{create_editor_model, EditorModel};
 use super::shell::{configure_shell_command, expand_path, is_absolute_path, kill_process_group};
 use super::text_editor::{
     text_editor_insert, text_editor_replace, text_editor_undo, text_editor_view, text_editor_write,
+    WriteMode,
 };
 
 /// Parameters for the screen_capture tool
@@ -238,6 +239,7 @@ pub struct DeveloperServer {
     running_processes: Arc<RwLock<HashMap<String, CancellationToken>>>,
     bash_env_file: Option<PathBuf>,
     extend_path_with_shell: bool,
+    write_mode: WriteMode,
 }
 
 #[tool_handler(router = self.tool_router)]
@@ -612,6 +614,7 @@ impl DeveloperServer {
             running_processes: Arc::new(RwLock::new(HashMap::new())),
             extend_path_with_shell: false,
             bash_env_file: None,
+            write_mode: WriteMode::Direct,
         }
     }
 
@@ -622,6 +625,11 @@ impl DeveloperServer {
 
     pub fn bash_env_file(mut self, value: Option<PathBuf>) -> Self {
         self.bash_env_file = value;
+        self
+    }
+
+    pub fn with_write_mode(mut self, mode: WriteMode) -> Self {
+        self.write_mode = mode;
         self
     }
 
@@ -796,7 +804,7 @@ impl DeveloperServer {
                         None,
                     )
                 })?;
-                let content = text_editor_write(&path, &file_text).await?;
+                let content = text_editor_write(&path, &file_text, self.write_mode).await?;
                 Ok(CallToolResult::success(content))
             }
             "str_replace" => {
@@ -810,6 +818,7 @@ impl DeveloperServer {
                         Some(diff),
                         &self.editor_model,
                         &self.file_history,
+                        self.write_mode,
                     )
                     .await?;
                     Ok(CallToolResult::success(content))
@@ -836,6 +845,7 @@ impl DeveloperServer {
                         None,
                         &self.editor_model,
                         &self.file_history,
+                        self.write_mode,
                     )
                     .await?;
                     Ok(CallToolResult::success(content))
@@ -856,13 +866,18 @@ impl DeveloperServer {
                         None,
                     )
                 })?;
-                let content =
-                    text_editor_insert(&path, insert_line as i64, &new_str, &self.file_history)
-                        .await?;
+                let content = text_editor_insert(
+                    &path,
+                    insert_line as i64,
+                    &new_str,
+                    &self.file_history,
+                    self.write_mode,
+                )
+                .await?;
                 Ok(CallToolResult::success(content))
             }
             "undo_edit" => {
-                let content = text_editor_undo(&path, &self.file_history).await?;
+                let content = text_editor_undo(&path, &self.file_history, self.write_mode).await?;
                 Ok(CallToolResult::success(content))
             }
             _ => Err(ErrorData::new(

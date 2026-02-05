@@ -5,9 +5,10 @@ use super::{
 use async_trait::async_trait;
 use goose::config::PermissionManager;
 use sacp::schema::{
-    ContentBlock, InitializeRequest, LoadSessionRequest, McpServer, NewSessionRequest,
-    PromptRequest, ProtocolVersion, RequestPermissionRequest, SessionModelState,
-    SessionNotification, SessionUpdate, StopReason, TextContent, ToolCallStatus,
+    ClientCapabilities, ContentBlock, FileSystemCapability, InitializeRequest, LoadSessionRequest,
+    McpServer, NewSessionRequest, PromptRequest, ProtocolVersion, RequestPermissionRequest,
+    SessionModelState, SessionNotification, SessionUpdate, StopReason, TextContent, ToolCallStatus,
+    WriteTextFileRequest, WriteTextFileResponse,
 };
 use sacp::{ClientToAgent, JrConnectionCx};
 use std::sync::{Arc, Mutex};
@@ -22,6 +23,7 @@ pub struct ClientToAgentConnection {
     permission: Arc<Mutex<PermissionDecision>>,
     notify: Arc<Notify>,
     permission_manager: Arc<PermissionManager>,
+    write_requests: Arc<Mutex<Vec<std::path::PathBuf>>>,
     _openai: super::OpenAiFixture,
     _temp_dir: Option<tempfile::TempDir>,
 }
@@ -32,6 +34,7 @@ pub struct ClientToAgentSession {
     updates: Arc<Mutex<Vec<SessionNotification>>>,
     permission: Arc<Mutex<PermissionDecision>>,
     notify: Arc<Notify>,
+    write_requests: Arc<Mutex<Vec<std::path::PathBuf>>>,
 }
 
 impl ClientToAgentConnection {
@@ -67,10 +70,13 @@ impl Connection for ClientToAgentConnection {
         let notify = Arc::new(Notify::new());
         let permission = Arc::new(Mutex::new(PermissionDecision::Cancel));
 
+        let write_requests = Arc::new(Mutex::new(Vec::new()));
+
         let cx = {
             let updates_clone = updates.clone();
             let notify_clone = notify.clone();
             let permission_clone = permission.clone();
+            let write_requests_clone = write_requests.clone();
 
             let cx_holder: Arc<Mutex<Option<JrConnectionCx<ClientToAgent>>>> =
                 Arc::new(Mutex::new(None));
@@ -96,6 +102,16 @@ impl Connection for ClientToAgentConnection {
                     )
                     .on_receive_request(
                         {
+                            let write_requests = write_requests_clone.clone();
+                            async move |req: WriteTextFileRequest, request_cx, _connection_cx| {
+                                write_requests.lock().unwrap().push(req.path.clone());
+                                request_cx.respond(WriteTextFileResponse::new())
+                            }
+                        },
+                        sacp::on_receive_request!(),
+                    )
+                    .on_receive_request(
+                        {
                             let permission = permission_clone.clone();
                             async move |req: RequestPermissionRequest,
                                         request_cx,
@@ -113,10 +129,16 @@ impl Connection for ClientToAgentConnection {
                     .run_until({
                         let cx_holder = cx_holder_clone;
                         move |cx: JrConnectionCx<ClientToAgent>| async move {
-                            cx.send_request(InitializeRequest::new(ProtocolVersion::LATEST))
-                                .block_task()
-                                .await
-                                .unwrap();
+                            let caps = ClientCapabilities::new().fs(FileSystemCapability::new()
+                                .read_text_file(true)
+                                .write_text_file(true));
+                            cx.send_request(
+                                InitializeRequest::new(ProtocolVersion::LATEST)
+                                    .client_capabilities(caps),
+                            )
+                            .block_task()
+                            .await
+                            .unwrap();
 
                             *cx_holder.lock().unwrap() = Some(cx.clone());
                             let _ = ready_tx.send(());
@@ -143,6 +165,7 @@ impl Connection for ClientToAgentConnection {
             permission,
             notify,
             permission_manager,
+            write_requests,
             _openai: openai,
             _temp_dir: temp_dir,
         }
@@ -163,6 +186,7 @@ impl Connection for ClientToAgentConnection {
             updates: self.updates.clone(),
             permission: self.permission.clone(),
             notify: self.notify.clone(),
+            write_requests: self.write_requests.clone(),
         };
         (session, response.models)
     }
@@ -186,6 +210,7 @@ impl Connection for ClientToAgentConnection {
             updates: self.updates.clone(),
             permission: self.permission.clone(),
             notify: self.notify.clone(),
+            write_requests: self.write_requests.clone(),
         };
         (session, response.models)
     }
@@ -208,6 +233,7 @@ impl Session for ClientToAgentSession {
     async fn prompt(&mut self, text: &str, decision: PermissionDecision) -> TestOutput {
         *self.permission.lock().unwrap() = decision;
         self.updates.lock().unwrap().clear();
+        self.write_requests.lock().unwrap().clear();
 
         let response = self
             .cx
@@ -234,8 +260,16 @@ impl Session for ClientToAgentSession {
             tokio::task::yield_now().await;
             tool_status = extract_tool_status(&self.updates);
         }
+        let tool_statuses = extract_tool_statuses(&self.updates);
 
-        TestOutput { text, tool_status }
+        let write_requests = std::mem::take(&mut *self.write_requests.lock().unwrap());
+
+        TestOutput {
+            text,
+            tool_status,
+            tool_statuses,
+            write_requests,
+        }
     }
 
     // HACK: sacp doesn't support session/set_model yet, so we send it as untyped JSON.
@@ -269,10 +303,24 @@ fn collect_agent_text(updates: &Arc<Mutex<Vec<SessionNotification>>>) -> String 
 
 fn extract_tool_status(updates: &Arc<Mutex<Vec<SessionNotification>>>) -> Option<ToolCallStatus> {
     let guard = updates.lock().unwrap();
-    guard.iter().find_map(|notification| {
+    guard.iter().rev().find_map(|notification| {
         if let SessionUpdate::ToolCallUpdate(update) = &notification.update {
             return update.fields.status;
         }
         None
     })
+}
+
+fn extract_tool_statuses(updates: &Arc<Mutex<Vec<SessionNotification>>>) -> Vec<ToolCallStatus> {
+    let guard = updates.lock().unwrap();
+    guard
+        .iter()
+        .filter_map(|notification| {
+            if let SessionUpdate::ToolCallUpdate(update) = &notification.update {
+                update.fields.status
+            } else {
+                None
+            }
+        })
+        .collect()
 }

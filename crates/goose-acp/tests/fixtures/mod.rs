@@ -241,6 +241,8 @@ pub async fn spawn_acp_server_in_process(
 pub struct TestOutput {
     pub text: String,
     pub tool_status: Option<ToolCallStatus>,
+    pub tool_statuses: Vec<ToolCallStatus>,
+    pub write_requests: Vec<std::path::PathBuf>,
 }
 
 pub struct TestConnectionConfig {

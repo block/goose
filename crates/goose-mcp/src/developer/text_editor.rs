@@ -1,8 +1,11 @@
 use anyhow::Result;
 use indoc::formatdoc;
-use mpatch::{apply_patch, parse_diffs, PatchError};
+use mpatch::{apply_patch, parse_diffs, Patch, PatchError};
 use rmcp::model::{Content, ErrorCode, ErrorData, Role};
+use serde::{Deserialize, Serialize};
+use similar::TextDiff;
 use std::{
+    borrow::Cow,
     collections::HashMap,
     fs::File,
     io::Read,
@@ -11,7 +14,268 @@ use std::{
 
 use super::editor_models::EditorModel;
 use super::lang;
-use super::shell::normalize_line_endings;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum WriteMode {
+    Direct,
+    Deferred,
+}
+
+impl WriteMode {
+    pub fn is_deferred(self) -> bool {
+        matches!(self, WriteMode::Deferred)
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct FileDiff {
+    pub path: PathBuf,
+    pub old_text: Option<String>,
+    pub new_text: String,
+}
+
+async fn apply_patch_in_memory(patch: &Patch, base_dir: &Path) -> Result<FileDiff, ErrorData> {
+    let file_path = base_dir.join(&patch.file_path);
+
+    let (old_text, mut current_lines): (Option<String>, Vec<String>) = if file_path.is_file() {
+        let content = tokio::fs::read_to_string(&file_path).await.map_err(|e| {
+            ErrorData::new(
+                ErrorCode::INTERNAL_ERROR,
+                format!("Failed to read '{}': {}", file_path.display(), e),
+                None,
+            )
+        })?;
+        let lines = content.lines().map(String::from).collect();
+        (Some(content), lines)
+    } else {
+        let is_creation_patch = patch
+            .hunks
+            .first()
+            .is_none_or(|h| h.get_match_block().is_empty());
+        if !is_creation_patch {
+            return Err(ErrorData::new(
+                ErrorCode::INTERNAL_ERROR,
+                format!(
+                    "File '{}' not found and patch doesn't create it",
+                    file_path.display()
+                ),
+                None,
+            ));
+        }
+        (None, Vec::new())
+    };
+
+    for hunk in &patch.hunks {
+        if !hunk.has_changes() {
+            continue;
+        }
+
+        let match_block: Vec<&str> = hunk.get_match_block();
+        let replace_block: Vec<&str> = hunk.get_replace_block();
+
+        if let Some(start_idx) = find_hunk_location_simple(&match_block, &current_lines) {
+            current_lines.splice(
+                start_idx..start_idx + match_block.len(),
+                replace_block.into_iter().map(String::from),
+            );
+        } else {
+            return Err(ErrorData::new(
+                ErrorCode::INTERNAL_ERROR,
+                format!(
+                    "Failed to apply hunk to '{}': context not found",
+                    patch.file_path.display()
+                ),
+                None,
+            ));
+        }
+    }
+
+    let mut new_text = current_lines.join("\n");
+    if !new_text.is_empty() && !new_text.ends_with('\n') {
+        new_text.push('\n');
+    }
+
+    Ok(FileDiff {
+        path: file_path,
+        old_text,
+        new_text,
+    })
+}
+
+const FUZZ_FACTOR: f32 = 0.7;
+const SIMILARITY_EPSILON: f32 = 0.001;
+
+fn find_hunk_location_simple(match_block: &[&str], target_lines: &[String]) -> Option<usize> {
+    if match_block.is_empty() {
+        return if target_lines.is_empty() {
+            Some(0)
+        } else {
+            None
+        };
+    }
+    if match_block.len() > target_lines.len() {
+        return None;
+    }
+
+    let exact_matches: Vec<usize> = target_lines
+        .windows(match_block.len())
+        .enumerate()
+        .filter(|(_, window)| {
+            window
+                .iter()
+                .zip(match_block.iter())
+                .all(|(a, b)| a.as_str() == *b)
+        })
+        .map(|(i, _)| i)
+        .collect();
+
+    if exact_matches.len() == 1 {
+        return Some(exact_matches[0]);
+    }
+    if exact_matches.len() > 1 {
+        return None;
+    }
+
+    let stripped_matches: Vec<usize> = target_lines
+        .windows(match_block.len())
+        .enumerate()
+        .filter(|(_, window)| {
+            window
+                .iter()
+                .zip(match_block.iter())
+                .all(|(a, b)| a.trim_end() == b.trim_end())
+        })
+        .map(|(i, _)| i)
+        .collect();
+
+    if stripped_matches.len() == 1 {
+        return Some(stripped_matches[0]);
+    }
+
+    let match_text = match_block.join("\n");
+    let match_len = match_text.len();
+    let mut best_match: Option<(usize, f32)> = None;
+
+    let len_ratio_threshold = FUZZ_FACTOR / (2.0 - FUZZ_FACTOR);
+    let min_window_len = (match_len as f32 * len_ratio_threshold) as usize;
+    let max_window_len = (match_len as f32 / len_ratio_threshold) as usize;
+
+    for (i, window) in target_lines.windows(match_block.len()).enumerate() {
+        let window_text: String = window
+            .iter()
+            .map(|s| s.as_str())
+            .collect::<Vec<_>>()
+            .join("\n");
+
+        let window_len = window_text.len();
+        if window_len < min_window_len || window_len > max_window_len {
+            continue;
+        }
+
+        let diff = TextDiff::from_chars(&match_text, &window_text);
+        let ratio = diff.ratio();
+
+        if ratio >= FUZZ_FACTOR {
+            if let Some((_, best_ratio)) = best_match {
+                if (ratio - best_ratio).abs() < SIMILARITY_EPSILON {
+                    return None;
+                }
+                if ratio > best_ratio {
+                    best_match = Some((i, ratio));
+                }
+            } else {
+                best_match = Some((i, ratio));
+            }
+        }
+    }
+
+    best_match.map(|(idx, _)| idx)
+}
+
+fn normalize_and_ensure_newline(text: &str) -> Cow<'_, str> {
+    let needs_crlf_fix = text.contains("\r\n");
+    let needs_trailing_newline = !text.ends_with('\n');
+
+    match (needs_crlf_fix, needs_trailing_newline) {
+        (false, false) => Cow::Borrowed(text),
+        (false, true) => {
+            let mut s = text.to_owned();
+            s.push('\n');
+            Cow::Owned(s)
+        }
+        (true, _) => {
+            let mut normalized = text.replace("\r\n", "\n");
+            if cfg!(windows) {
+                normalized = normalized.replace('\n', "\r\n");
+            }
+            if !normalized.ends_with('\n') {
+                normalized.push('\n');
+            }
+            Cow::Owned(normalized)
+        }
+    }
+}
+
+async fn write_file(path: &Path, content: &str) -> Result<(), ErrorData> {
+    tokio::fs::write(path, content.as_bytes())
+        .await
+        .map_err(|e| {
+            ErrorData::new(
+                ErrorCode::INTERNAL_ERROR,
+                format!("Failed to write file: {}", e),
+                None,
+            )
+        })
+}
+
+pub const FILE_DIFF_MIME_TYPE: &str = "application/x-goose-file-diff";
+
+struct FileChangeResult {
+    old_text: Option<String>,
+    written_content: String,
+}
+
+fn create_file_diff_content(path: &Path, old_text: Option<String>, new_text: &str) -> Content {
+    let diff = FileDiff {
+        path: path.to_path_buf(),
+        old_text,
+        new_text: new_text.to_string(),
+    };
+    let json_str = serde_json::to_string(&diff).expect("FileDiff serialization cannot fail");
+    let uri = format!(
+        "goose-internal://file-diff/{}",
+        path.to_string_lossy().replace('\\', "/")
+    );
+    Content::resource(rmcp::model::ResourceContents::TextResourceContents {
+        uri,
+        mime_type: Some(FILE_DIFF_MIME_TYPE.to_string()),
+        text: json_str,
+        meta: None,
+    })
+    .with_audience(vec![Role::Assistant])
+}
+
+async fn apply_file_change(
+    path: &Path,
+    content: &str,
+    write_mode: WriteMode,
+) -> Result<FileChangeResult, ErrorData> {
+    let final_content = normalize_and_ensure_newline(content);
+
+    if write_mode.is_deferred() {
+        let old_text = tokio::fs::read_to_string(path).await.ok();
+        Ok(FileChangeResult {
+            old_text,
+            written_content: final_content.into_owned(),
+        })
+    } else {
+        write_file(path, &final_content).await?;
+        Ok(FileChangeResult {
+            old_text: None,
+            written_content: final_content.into_owned(),
+        })
+    }
+}
 
 // Constants
 pub const LINE_READ_LIMIT: usize = 2000;
@@ -204,27 +468,36 @@ fn adjust_base_dir_for_overlap(base_dir: &Path, file_path: &Path) -> PathBuf {
 }
 
 /// Applies a single patch and updates results
-fn apply_single_patch(
+async fn apply_single_patch(
     patch: &mpatch::Patch,
     base_dir: &Path,
     file_history: &std::sync::Arc<std::sync::Mutex<HashMap<PathBuf, Vec<String>>>>,
     results: &mut DiffResults,
     failed_hunks: &mut Vec<String>,
-) -> Result<(), ErrorData> {
+    write_mode: WriteMode,
+) -> Result<Option<FileDiff>, ErrorData> {
     let adjusted_base_dir = adjust_base_dir_for_overlap(base_dir, &patch.file_path);
-
     let file_path = adjusted_base_dir.join(&patch.file_path);
 
-    // Validate path safety
     validate_path_safety(&adjusted_base_dir, &file_path)?;
 
-    // Save history before modifying
     let file_existed = file_path.exists();
     if file_existed {
-        save_file_history(&file_path, file_history)?;
+        save_file_history(&file_path, file_history).await?;
     }
 
-    // Apply patch with fuzzy matching (70% similarity threshold)
+    if write_mode.is_deferred() {
+        let diff_info = apply_patch_in_memory(patch, &adjusted_base_dir).await?;
+
+        if file_existed {
+            results.files_modified += 1;
+        } else {
+            results.files_created += 1;
+        }
+
+        return Ok(Some(diff_info));
+    }
+
     let success = apply_patch(patch, &adjusted_base_dir, false, 0.7).map_err(|e| match e {
         PatchError::Io { path, source } => ErrorData::new(
             ErrorCode::INTERNAL_ERROR,
@@ -255,7 +528,6 @@ fn apply_single_patch(
     })?;
 
     if !success {
-        // Collect information about failed hunks for better error reporting
         let hunk_count = patch.hunks.len();
         let context_preview = patch
             .hunks
@@ -274,14 +546,13 @@ fn apply_single_patch(
         ));
     }
 
-    // Update statistics
     if file_existed {
         results.files_modified += 1;
     } else {
         results.files_created += 1;
     }
 
-    Ok(())
+    Ok(None)
 }
 
 /// Parses diff content into patches with proper error handling
@@ -320,13 +591,16 @@ fn parse_diff_content(diff_content: &str) -> Result<Vec<mpatch::Patch>, ErrorDat
 }
 
 /// Ensures all patched files end with a newline
-fn ensure_trailing_newlines(patches: &[mpatch::Patch], base_dir: &Path) -> Result<(), ErrorData> {
+async fn ensure_trailing_newlines(
+    patches: &[mpatch::Patch],
+    base_dir: &Path,
+) -> Result<(), ErrorData> {
     for patch in patches {
         let adjusted_base_dir = adjust_base_dir_for_overlap(base_dir, &patch.file_path);
         let file_path = adjusted_base_dir.join(&patch.file_path);
 
         if file_path.exists() {
-            let content = std::fs::read_to_string(&file_path).map_err(|e| {
+            let content = tokio::fs::read_to_string(&file_path).await.map_err(|e| {
                 ErrorData::new(
                     ErrorCode::INTERNAL_ERROR,
                     format!("Failed to read file for post-processing: {}", e),
@@ -336,13 +610,7 @@ fn ensure_trailing_newlines(patches: &[mpatch::Patch], base_dir: &Path) -> Resul
 
             if !content.ends_with('\n') {
                 let content_with_newline = format!("{}\n", content);
-                std::fs::write(&file_path, content_with_newline).map_err(|e| {
-                    ErrorData::new(
-                        ErrorCode::INTERNAL_ERROR,
-                        format!("Failed to add trailing newline: {}", e),
-                        None,
-                    )
-                })?;
+                write_file(&file_path, &content_with_newline).await?;
             }
         }
     }
@@ -372,6 +640,7 @@ pub async fn apply_diff(
     base_path: &Path,
     diff_content: &str,
     file_history: &std::sync::Arc<std::sync::Mutex<HashMap<PathBuf, Vec<String>>>>,
+    write_mode: WriteMode,
 ) -> Result<Vec<Content>, ErrorData> {
     validate_diff_size(diff_content)?;
     let patches = parse_diff_content(diff_content)?;
@@ -396,18 +665,26 @@ pub async fn apply_diff(
 
     let mut results = DiffResults::default();
     let mut failed_hunks = Vec::new();
+    let mut file_diffs = Vec::new();
 
     for patch in &patches {
-        apply_single_patch(
+        if let Some(diff_info) = apply_single_patch(
             patch,
             &base_dir,
             file_history,
             &mut results,
             &mut failed_hunks,
-        )?;
+            write_mode,
+        )
+        .await?
+        {
+            file_diffs.push(diff_info);
+        }
     }
 
-    ensure_trailing_newlines(&patches, &base_dir)?;
+    if !write_mode.is_deferred() {
+        ensure_trailing_newlines(&patches, &base_dir).await?;
+    }
     report_partial_failures(&failed_hunks);
 
     let (lines_added, lines_removed) = count_line_changes(diff_content);
@@ -415,7 +692,17 @@ pub async fn apply_diff(
     results.lines_removed = lines_removed;
 
     let is_single_file = patches.len() == 1;
-    Ok(generate_summary(&results, is_single_file, base_path))
+    let mut result = generate_summary(&results, is_single_file, base_path);
+
+    for diff_info in file_diffs {
+        result.push(create_file_diff_content(
+            &diff_info.path,
+            diff_info.old_text,
+            &diff_info.new_text,
+        ));
+    }
+
+    Ok(result)
 }
 
 // Helper method to validate and calculate view range indices
@@ -687,31 +974,16 @@ pub async fn text_editor_view(
     ])
 }
 
-pub async fn text_editor_write(path: &PathBuf, file_text: &str) -> Result<Vec<Content>, ErrorData> {
-    // Normalize line endings based on platform
-    let mut normalized_text = normalize_line_endings(file_text); // Make mutable
+pub async fn text_editor_write(
+    path: &Path,
+    file_text: &str,
+    write_mode: WriteMode,
+) -> Result<Vec<Content>, ErrorData> {
+    let change = apply_file_change(path, file_text, write_mode).await?;
 
-    // Ensure the text ends with a newline
-    if !normalized_text.ends_with('\n') {
-        normalized_text.push('\n');
-    }
-
-    // Write to the file
-    std::fs::write(path, &normalized_text) // Write the potentially modified text
-        .map_err(|e| {
-            ErrorData::new(
-                ErrorCode::INTERNAL_ERROR,
-                format!("Failed to write file: {}", e),
-                None,
-            )
-        })?;
-
-    // Try to detect the language from the file extension
     let language = lang::get_language_identifier(path);
 
-    // The assistant output does not show the file again because the content is already in the tool request
-    // but we do show it to the user here, using the final written content
-    Ok(vec![
+    let mut result = vec![
         Content::text(format!("Successfully wrote to {}", path.display()))
             .with_audience(vec![Role::Assistant]),
         Content::text(formatdoc! {
@@ -723,11 +995,21 @@ pub async fn text_editor_write(path: &PathBuf, file_text: &str) -> Result<Vec<Co
             "#,
             path=path.display(),
             language=language,
-            content=&normalized_text // Use the final normalized_text for user feedback
+            content=&change.written_content
         })
         .with_audience(vec![Role::User])
         .with_priority(0.2),
-    ])
+    ];
+
+    if write_mode.is_deferred() {
+        result.push(create_file_diff_content(
+            path,
+            change.old_text,
+            &change.written_content,
+        ));
+    }
+
+    Ok(result)
 }
 
 #[allow(clippy::too_many_lines)]
@@ -740,6 +1022,7 @@ pub async fn text_editor_replace(
     file_history: &std::sync::Arc<
         std::sync::Mutex<std::collections::HashMap<PathBuf, Vec<String>>>,
     >,
+    write_mode: WriteMode,
 ) -> Result<Vec<Content>, ErrorData> {
     // Check if diff is provided
     if let Some(diff_content) = diff {
@@ -752,7 +1035,7 @@ pub async fn text_editor_replace(
             ));
         }
 
-        return apply_diff(path, diff_content, file_history).await;
+        return apply_diff(path, diff_content, file_history, write_mode).await;
     }
     // Check if file exists and is active
     if !path.exists() {
@@ -767,7 +1050,7 @@ pub async fn text_editor_replace(
     }
 
     // Read content
-    let content = std::fs::read_to_string(path).map_err(|e| {
+    let content = tokio::fs::read_to_string(path).await.map_err(|e| {
         ErrorData::new(
             ErrorCode::INTERNAL_ERROR,
             format!("Failed to read file: {}", e),
@@ -778,46 +1061,39 @@ pub async fn text_editor_replace(
     // Check if Editor API is configured and use it as the primary path
     if let Some(ref editor) = editor_model {
         // Editor API path - save history then call API directly
-        save_file_history(path, file_history)?;
+        save_file_history(path, file_history).await?;
 
         match editor.edit_code(&content, old_str, new_str).await {
             Ok(updated_content) => {
-                // Write the updated content directly
-                let mut normalized_content = normalize_line_endings(&updated_content);
+                let change = apply_file_change(path, &updated_content, write_mode).await?;
 
-                if !normalized_content.ends_with('\n') {
-                    normalized_content.push('\n');
-                }
-
-                std::fs::write(path, &normalized_content).map_err(|e| {
-                    ErrorData::new(
-                        ErrorCode::INTERNAL_ERROR,
-                        format!("Failed to write file: {}", e),
-                        None,
-                    )
-                })?;
-
-                // Simple success message for Editor API
-                return Ok(vec![
+                let mut result = vec![
                     Content::text(format!("Successfully edited {}", path.display()))
                         .with_audience(vec![Role::Assistant]),
                     Content::text(format!("File {} has been edited", path.display()))
                         .with_audience(vec![Role::User])
                         .with_priority(0.2),
-                ]);
+                ];
+
+                if write_mode.is_deferred() {
+                    result.push(create_file_diff_content(
+                        path,
+                        change.old_text,
+                        &change.written_content,
+                    ));
+                }
+
+                return Ok(result);
             }
             Err(e) => {
                 tracing::debug!(
                     "Editor API call failed: {}, falling back to string replacement",
                     e
                 );
-                // Fall through to traditional path below
             }
         }
     }
 
-    // Traditional string replacement path (original logic)
-    // Ensure 'old_str' appears exactly once
     if content.matches(old_str).count() > 1 {
         return Err(ErrorData::new(
             ErrorCode::INVALID_PARAMS,
@@ -830,23 +1106,10 @@ pub async fn text_editor_replace(
         return Err(ErrorData::new(ErrorCode::INVALID_PARAMS, "'old_str' must appear exactly once in the file, but it does not appear in the file. Make sure the string exactly matches existing file content, including whitespace!".to_string(), None));
     }
 
-    // Save history for undo (original behavior - after validation)
-    save_file_history(path, file_history)?;
+    save_file_history(path, file_history).await?;
 
     let new_content = content.replace(old_str, new_str);
-    let mut normalized_content = normalize_line_endings(&new_content);
-
-    if !normalized_content.ends_with('\n') {
-        normalized_content.push('\n');
-    }
-
-    std::fs::write(path, &normalized_content).map_err(|e| {
-        ErrorData::new(
-            ErrorCode::INTERNAL_ERROR,
-            format!("Failed to write file: {}", e),
-            None,
-        )
-    })?;
+    let change = apply_file_change(path, &new_content, write_mode).await?;
 
     // Try to detect the language from the file extension
     let language = lang::get_language_identifier(path);
@@ -854,11 +1117,10 @@ pub async fn text_editor_replace(
     // Show a snippet of the changed content with context
     const SNIPPET_LINES: usize = 4;
 
-    // Count newlines before the replacement to find the line number
     let replacement_line = content
         .split(old_str)
         .next()
-        .expect("should split on already matched content")
+        .expect("old_str was validated to exist in content")
         .matches('\n')
         .count();
 
@@ -894,12 +1156,22 @@ pub async fn text_editor_replace(
         output
     };
 
-    Ok(vec![
+    let mut result = vec![
         Content::text(success_message).with_audience(vec![Role::Assistant]),
         Content::text(output)
             .with_audience(vec![Role::User])
             .with_priority(0.2),
-    ])
+    ];
+
+    if write_mode.is_deferred() {
+        result.push(create_file_diff_content(
+            path,
+            change.old_text,
+            &change.written_content,
+        ));
+    }
+
+    Ok(result)
 }
 
 pub async fn text_editor_insert(
@@ -909,8 +1181,8 @@ pub async fn text_editor_insert(
     file_history: &std::sync::Arc<
         std::sync::Mutex<std::collections::HashMap<PathBuf, Vec<String>>>,
     >,
+    write_mode: WriteMode,
 ) -> Result<Vec<Content>, ErrorData> {
-    // Check if file exists
     if !path.exists() {
         return Err(ErrorData::new(
             ErrorCode::INVALID_PARAMS,
@@ -922,8 +1194,7 @@ pub async fn text_editor_insert(
         ));
     }
 
-    // Read content
-    let content = std::fs::read_to_string(path).map_err(|e| {
+    let content = tokio::fs::read_to_string(path).await.map_err(|e| {
         ErrorData::new(
             ErrorCode::INTERNAL_ERROR,
             format!("Failed to read file: {}", e),
@@ -931,21 +1202,17 @@ pub async fn text_editor_insert(
         )
     })?;
 
-    // Save history for undo
-    save_file_history(path, file_history)?;
+    save_file_history(path, file_history).await?;
 
     let lines: Vec<&str> = content.lines().collect();
     let total_lines = lines.len();
 
-    // Allow insert_line to be negative
     let insert_line = if insert_line_spec < 0 {
-        // -1 == end of file, -2 == before the last line, etc.
         (total_lines as i64 + 1 + insert_line_spec) as usize
     } else {
         insert_line_spec as usize
     };
 
-    // Validate insert_line parameter
     if insert_line > total_lines {
         return Err(ErrorData::new(ErrorCode::INVALID_PARAMS, format!(
             "Insert line {} is beyond the end of the file (total lines: {}). Use 0 to insert at the beginning or {} to insert at the end.",
@@ -953,53 +1220,30 @@ pub async fn text_editor_insert(
         ), None));
     }
 
-    // Create new content with inserted text
     let mut new_lines = Vec::new();
 
-    // Add lines before the insertion point
     for (i, line) in lines.iter().enumerate() {
         if i == insert_line {
-            // Insert the new text at this position
             new_lines.push(new_str.to_string());
         }
         new_lines.push(line.to_string());
     }
 
-    // If inserting at the end (after all existing lines)
     if insert_line == total_lines {
         new_lines.push(new_str.to_string());
     }
 
     let new_content = new_lines.join("\n");
-    let normalized_content = normalize_line_endings(&new_content);
+    let change = apply_file_change(path, &new_content, write_mode).await?;
 
-    // Ensure the file ends with a newline
-    let final_content = if !normalized_content.ends_with('\n') {
-        format!("{}\n", normalized_content)
-    } else {
-        normalized_content
-    };
-
-    std::fs::write(path, &final_content).map_err(|e| {
-        ErrorData::new(
-            ErrorCode::INTERNAL_ERROR,
-            format!("Failed to write file: {}", e),
-            None,
-        )
-    })?;
-
-    // Try to detect the language from the file extension
     let language = lang::get_language_identifier(path);
 
-    // Show a snippet of the inserted content with context
     const SNIPPET_LINES: usize = 4;
-    let insertion_line = insert_line + 1; // Convert to 1-indexed for display
+    let insertion_line = insert_line + 1;
 
-    // Calculate start and end lines for the snippet
     let start_line = insertion_line.saturating_sub(SNIPPET_LINES);
     let end_line = std::cmp::min(insertion_line + SNIPPET_LINES, new_lines.len());
 
-    // Get the relevant lines for our snippet with line numbers
     let snippet_lines: Vec<String> = new_lines[start_line.saturating_sub(1)..end_line]
         .iter()
         .enumerate()
@@ -1027,12 +1271,22 @@ pub async fn text_editor_insert(
         output
     };
 
-    Ok(vec![
+    let mut result = vec![
         Content::text(success_message).with_audience(vec![Role::Assistant]),
         Content::text(output)
             .with_audience(vec![Role::User])
             .with_priority(0.2),
-    ])
+    ];
+
+    if write_mode.is_deferred() {
+        result.push(create_file_diff_content(
+            path,
+            change.old_text,
+            &change.written_content,
+        ));
+    }
+
+    Ok(result)
 }
 
 pub async fn text_editor_undo(
@@ -1040,44 +1294,51 @@ pub async fn text_editor_undo(
     file_history: &std::sync::Arc<
         std::sync::Mutex<std::collections::HashMap<PathBuf, Vec<String>>>,
     >,
+    write_mode: WriteMode,
 ) -> Result<Vec<Content>, ErrorData> {
-    let mut history = file_history.lock().unwrap();
-    if let Some(contents) = history.get_mut(path) {
-        if let Some(previous_content) = contents.pop() {
-            // Write previous content back to file
-            std::fs::write(path, previous_content).map_err(|e| {
+    let previous_content = {
+        let mut history = file_history.lock().map_err(|_| {
+            ErrorData::new(
+                ErrorCode::INTERNAL_ERROR,
+                "File history lock poisoned".to_string(),
+                None,
+            )
+        })?;
+        history
+            .get_mut(path)
+            .and_then(|contents| contents.pop())
+            .ok_or_else(|| {
                 ErrorData::new(
-                    ErrorCode::INTERNAL_ERROR,
-                    format!("Failed to write file: {}", e),
+                    ErrorCode::INVALID_PARAMS,
+                    "No edit history available to undo".to_string(),
                     None,
                 )
-            })?;
-            Ok(vec![Content::text("Undid the last edit")])
-        } else {
-            Err(ErrorData::new(
-                ErrorCode::INVALID_PARAMS,
-                "No edit history available to undo".to_string(),
-                None,
-            ))
-        }
-    } else {
-        Err(ErrorData::new(
-            ErrorCode::INVALID_PARAMS,
-            "No edit history available to undo".to_string(),
-            None,
-        ))
+            })?
+    };
+
+    let change = apply_file_change(path, &previous_content, write_mode).await?;
+
+    let mut result = vec![Content::text("Undid the last edit")];
+
+    if write_mode.is_deferred() {
+        result.push(create_file_diff_content(
+            path,
+            change.old_text,
+            &change.written_content,
+        ));
     }
+
+    Ok(result)
 }
 
-pub fn save_file_history(
+pub async fn save_file_history(
     path: &PathBuf,
     file_history: &std::sync::Arc<
         std::sync::Mutex<std::collections::HashMap<PathBuf, Vec<String>>>,
     >,
 ) -> Result<(), ErrorData> {
-    let mut history = file_history.lock().unwrap();
     let content = if path.exists() {
-        std::fs::read_to_string(path).map_err(|e| {
+        tokio::fs::read_to_string(path).await.map_err(|e| {
             ErrorData::new(
                 ErrorCode::INTERNAL_ERROR,
                 format!("Failed to read file: {}", e),
@@ -1087,6 +1348,14 @@ pub fn save_file_history(
     } else {
         String::new()
     };
+
+    let mut history = file_history.lock().map_err(|_| {
+        ErrorData::new(
+            ErrorCode::INTERNAL_ERROR,
+            "File history lock poisoned".to_string(),
+            None,
+        )
+    })?;
     history.entry(path.clone()).or_default().push(content);
     Ok(())
 }
