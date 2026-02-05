@@ -134,11 +134,12 @@
         window.addEventListener('message', handleMessage);
 
         // Notify Host that Sandbox is ready
+        // Note: @mcp-ui/client expects 'sandbox-proxy-ready' (with 'proxy' in the name)
         window
           .parent
           .postMessage({
             jsonrpc: '2.0',
-            method: 'ui/notifications/sandbox-ready',
+            method: 'ui/notifications/sandbox-proxy-ready',
             params: {}
           }, '*');
       })();
