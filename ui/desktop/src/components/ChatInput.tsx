@@ -1194,7 +1194,7 @@ export default function ChatInput({
         disableAnimation ? '' : 'page-transition'
       } ${
         isFocused
-          ? 'border-borderProminent hover:border-borderProminent'
+          ? 'border-border-strong hover:border-border-strong'
           : 'border-border-default hover:border-border-default'
       } bg-background-default z-10 rounded-t-2xl`}
       data-drop-zone="true"

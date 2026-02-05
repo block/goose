@@ -314,7 +314,7 @@ export default function CreateRecipeFromSessionModal({
                     handleCreateRecipe(form.state.values, true);
                   }}
                   disabled={!isFormValid || isCreating}
-                  className="px-4 py-2 text-bgApp rounded-lg hover:bg-opacity-90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="px-4 py-2 text-text-on-accent rounded-lg hover:bg-opacity-90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                   data-testid="create-and-run-recipe-button"
                 >
                   <Play className="w-4 h-4 mr-2" />

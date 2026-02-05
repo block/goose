@@ -39,11 +39,11 @@ export default function CardContainer({
   return (
     <div
       data-testid={testId}
-      className={`relative h-full p-[2px] overflow-hidden rounded-[9px] group/card 
+      className={`relative h-full p-[2px] overflow-hidden rounded-[9px] group/card
                  ${
                    grayedOut
-                     ? 'bg-borderSubtle hover:bg-gray-700'
-                     : 'bg-borderSubtle hover:bg-transparent hover:duration-300'
+                     ? 'bg-background-muted hover:bg-gray-700'
+                     : 'bg-background-muted hover:bg-transparent hover:duration-300'
                  }`}
       onClick={!grayedOut ? onClick : undefined}
       style={{
