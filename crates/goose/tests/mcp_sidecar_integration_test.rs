@@ -33,8 +33,8 @@ async fn test_shell_guard_with_docker_commands() {
     // Test that HIGH-risk Docker commands require approval or are blocked
     // Safe mode auto-approves Medium/Low risk, only blocks/requires approval for High/Critical
     let high_risk_commands = [
-        "docker run --privileged ubuntu",      // High risk - requires approval
-        "docker exec -it container rm -rf /",  // High risk (docker_exec_root) - requires approval
+        "docker run --privileged ubuntu", // High risk - requires approval
+        "docker exec -it container rm -rf /", // High risk (docker_exec_root) - requires approval
     ];
 
     for cmd in high_risk_commands {
@@ -176,9 +176,9 @@ async fn test_mcp_tool_command_patterns() {
         ("docker run ubuntu:latest", true),     // Medium risk - Safe mode auto-approves
         ("pip install requests", true),         // Low risk - Safe mode auto-approves
         // Playwright patterns
-        ("npx playwright install", true),  // No pattern match - Safe mode auto-approves
+        ("npx playwright install", true), // No pattern match - Safe mode auto-approves
         ("npx playwright test --headed", true), // Test execution is safe
-        ("npx @playwright/mcp@latest", true),   // MCP server is safe
+        ("npx @playwright/mcp@latest", true), // MCP server is safe
         // Aider patterns
         ("git add .", true),                  // Basic git operations are safe
         ("git commit -m 'fix'", true),        // Commits are safe

@@ -87,13 +87,7 @@ mod tests {
         let status = String::from_utf8_lossy(&output.stdout);
         Ok(status
             .lines()
-            .filter_map(|l| {
-                if l.len() > 3 {
-                    Some(l[3..].to_string())
-                } else {
-                    None
-                }
-            })
+            .filter_map(|l| l.get(3..).map(String::from))
             .collect())
     }
 }
