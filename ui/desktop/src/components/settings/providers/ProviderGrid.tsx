@@ -204,6 +204,7 @@ function ProviderCards({
     api_key: '',
     models: editingProvider.config.models.map((m) => m.name),
     supports_streaming: editingProvider.config.supports_streaming ?? true,
+    requires_auth: editingProvider.config.requires_auth ?? true,
   };
 
   const editable = editingProvider ? editingProvider.isEditable : true;
