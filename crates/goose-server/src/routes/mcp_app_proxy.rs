@@ -334,11 +334,19 @@ async fn get_content(State(state): State<AppState>, Path(token): Path<String>) -
         return (StatusCode::NOT_FOUND, "Token not found or expired").into_response();
     };
 
-    // Serve the actual MCP App HTML
-    // Note: CSP is already enforced by the outer iframe, but we add minimal headers here too
+    // Build CSP for the content iframe - this is where the actual restrictions matter!
+    // The outer iframe's CSP doesn't cascade to iframes loading from different URLs.
+    let csp = build_csp(&app.csp);
+    let permission_policy = build_permission_policy(&app.permissions);
+
     let mut response = Html(app.html).into_response();
     let headers = response.headers_mut();
 
+    // Apply CSP to restrict what the MCP App can load
+    headers.insert(
+        header::HeaderName::from_static("content-security-policy"),
+        csp.parse().unwrap(),
+    );
     headers.insert(
         header::HeaderName::from_static("referrer-policy"),
         "no-referrer".parse().unwrap(),
@@ -347,6 +355,13 @@ async fn get_content(State(state): State<AppState>, Path(token): Path<String>) -
         header::HeaderName::from_static("x-content-type-options"),
         "nosniff".parse().unwrap(),
     );
+
+    if let Some(pp) = permission_policy {
+        headers.insert(
+            header::HeaderName::from_static("permissions-policy"),
+            pp.parse().unwrap(),
+        );
+    }
 
     response
 }
