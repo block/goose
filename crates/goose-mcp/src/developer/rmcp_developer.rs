@@ -1499,12 +1499,8 @@ mod tests {
     use rmcp::service::{serve_directly, NotificationContext};
     use rmcp::ServerHandler;
     use serial_test::serial;
-    use std::{
-        fs,
-        time::{Duration, Instant},
-    };
+    use std::fs;
     use tempfile::TempDir;
-    use tokio::time::timeout;
 
     fn create_test_server() -> DeveloperServer {
         DeveloperServer::new()

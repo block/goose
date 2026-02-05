@@ -1,3 +1,4 @@
+# === PROJECT STRUCTURE ===
 This is a rust project with crates in the crates dir:
 goose: the main code for goose, contains all the core logic
 goose-bench: bench marking
@@ -5,14 +6,105 @@ goose-cli: the command line interface, use goose crate
 goose-mcp: the mcp servers that ship with goose. the developer sub system is of special interest
 goose-server: the server that suports the desktop (electron) app. also known as goosed
 
+ui/desktop has an electron app in typescript.
 
-ui/desktop has an electron app in typescript. 
-
-non trivial features should be implemented in the goose crate and then be called from the goose-cli crate for the cli. for the desktop, you want to add routes to 
+non trivial features should be implemented in the goose crate and then be called from the goose-cli crate for the cli. for the desktop, you want to add routes to
 goose-server/src/routes. you can then run `just generate-openapi` to generate the openapi spec which will modify the ui/desktop/src/api files. once you have
 that you can call the functionality from the server from the typescript.
 
-tips: 
+tips:
 - can look at unstaged changes for what is being worked on if starting
 - always check rust compiles, cargo fmt etc and `./scripts/clippy-lint.sh` (as well as run tests in files you are working on)
 - in ui/desktop, look at how you can run lint checks and if other tests can run
+
+# === AGENTIC EXECUTION POLICY ===
+## Core Principle: Markdown is Contract, Not Output
+Treat docs/RUNBOOK.md and all specification markdowns as BINDING EXECUTION CONTRACTS, not documentation to show the user.
+
+## Execution Mode Enforcement
+When in Auto/Autonomous mode:
+- NEVER tell the user to run commands if Developer tools are available
+- ALWAYS execute commands yourself using available tools
+- NEVER hand off CLI tasks to the user unless genuinely blocked (missing secrets, permissions, or decisions)
+- If a command fails, diagnose and retry automatically before asking for help
+
+## Post-Documentation Workflow (MANDATORY)
+After creating or updating ANY specification markdown:
+1. Immediately re-open docs/RUNBOOK.md (or equivalent)
+2. Parse it into executable steps
+3. Execute each step sequentially using Developer tools
+4. Verify success criteria after each step
+5. Update docs/PROGRESS.md with current state
+6. Capture all command outputs to artifacts/run-log.txt
+7. Do NOT consider the task complete until docs/SUCCESS.md criteria pass
+
+## Step Execution Protocol
+Before each command:
+- State: "Executing Step X: [description]"
+- Clarify expected result
+- Verify preconditions
+
+After each command:
+- Capture full output
+- Check against expected result
+- If mismatch: diagnose, update runbook if needed, retry
+- Update docs/PROGRESS.md
+- Update artifacts/run-state.json
+
+## Spec Drift Repair
+If reality diverges from docs during execution:
+1. Update the relevant markdown to reflect actual working state
+2. Log the change in docs/CHANGELOG.md
+3. Continue execution with corrected understanding
+4. NEVER leave stale/incorrect docs
+
+## Tool Priority
+When multiple approaches exist:
+1. Use Developer extension tools (bash, file ops) - HIGHEST PRIORITY
+2. Use builtin Goose capabilities
+3. Only ask user as LAST RESORT
+
+## Verification Gates
+Cannot end session/task until:
+- All RUNBOOK.md steps completed successfully
+- docs/SUCCESS.md hard criteria pass
+- artifacts/run-state.json shows "completed" status
+- No drift between docs and actual system state
+
+## Auto Mode Behavior
+In autonomous mode, you are a DOER, not a SUGGESTER:
+- "Run this command" → NO, run it yourself
+- "You should test this" → NO, test it yourself
+- "The next step would be" → NO, do the next step yourself
+- Only stop for: missing secrets, user decisions, genuine blocks
+
+## Context Management
+When context gets long:
+- Reread docs/PROGRESS.md to reground
+- Check artifacts/run-state.json for current step
+- Continue from last verified checkpoint
+- Do NOT restart from scratch
+
+## Integration with Phase 1-7 Features
+- Use guardrails for command validation (Phase 1)
+- Leverage MCP gateway for tool orchestration (Phase 2)
+- Emit telemetry to observability systems (Phase 3)
+- Check policies before risky operations (Phase 4)
+- Coordinate with other agents via swarm (Phase 5)
+- Consult episodic memory for similar past executions (Phase 6)
+- Use task/team/skill framework for complex workflows (Phase 7)
+
+## Failure Recovery
+On any failure:
+1. Check if this was attempted before (memory)
+2. Try automatic fixes (different flags, paths, etc.)
+3. Update runbook with working solution
+4. Only escalate to user after 2-3 intelligent retry attempts
+
+## Success Definition
+A task is ONLY complete when:
+- All code compiles/tests pass
+- All steps in runbook executed successfully
+- SUCCESS criteria verified
+- Documentation matches reality
+- No pending TODOs or placeholders in code

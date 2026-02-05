@@ -282,6 +282,7 @@ mod tests {
         MemoryEntry::new(MemoryType::Working, content).with_id(id)
     }
 
+    #[allow(dead_code)]
     fn create_episodic_entry(id: &str, content: &str, session: &str) -> MemoryEntry {
         MemoryEntry::new(MemoryType::Episodic, content)
             .with_id(id)

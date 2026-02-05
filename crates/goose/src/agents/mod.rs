@@ -26,6 +26,7 @@ pub mod reasoning;
 pub mod reflexion;
 mod reply_parts;
 pub mod retry;
+pub mod runbook_compliance; // Phase 7: Markdown-as-Contract execution
 mod schedule_tool;
 pub mod shell_guard;
 pub(crate) mod skills_extension;

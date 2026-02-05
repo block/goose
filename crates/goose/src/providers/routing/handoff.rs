@@ -437,7 +437,6 @@ impl Default for HandoffGenerator {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::providers::routing::EndpointId;
 
     #[test]
     fn test_handoff_memo_generation() {
