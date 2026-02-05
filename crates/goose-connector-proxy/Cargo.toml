@@ -1,0 +1,29 @@
+[package]
+name = "goose-connector-proxy"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Embedded proxy server for custom LLM format conversion"
+
+[lints]
+workspace = true
+
+[dependencies]
+axum = { version = "0.8.1", features = ["macros"] }
+tokio = { workspace = true }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = { workspace = true }
+reqwest = { workspace = true, features = ["json", "rustls-tls-native-roots", "stream"], default-features = false }
+anyhow = { workspace = true }
+tracing = { workspace = true }
+uuid = { version = "1.0", features = ["v4"] }
+regex = { workspace = true }
+futures = { workspace = true }
+bytes = "1.5"
+tokio-stream = "0.1"
+
+[dev-dependencies]
+tokio = { workspace = true }
+reqwest = { workspace = true, features = ["json", "rustls-tls-native-roots"], default-features = false }

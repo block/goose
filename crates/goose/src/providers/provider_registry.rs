@@ -115,6 +115,7 @@ impl ProviderRegistry {
             model_doc_link: base_metadata.model_doc_link,
             config_keys,
             allows_unlisted_models: false,
+            skip_model_fetch: false,
         };
 
         self.entries.insert(

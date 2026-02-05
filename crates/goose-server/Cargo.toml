@@ -13,6 +13,7 @@ workspace = true
 [dependencies]
 goose = { path = "../goose" }
 goose-mcp = { path = "../goose-mcp" }
+goose-connector-proxy = { path = "../goose-connector-proxy" }
 rmcp = { workspace = true }
 axum = { version = "0.8.1", features = ["ws", "macros"] }
 tokio = { workspace = true }

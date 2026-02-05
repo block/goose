@@ -122,12 +122,14 @@ impl Default for Config {
 
         let config_path = config_dir.join(CONFIG_YAML_NAME);
 
-        let secrets = match env::var("GOOSE_DISABLE_KEYRING") {
-            Ok(_) => SecretStorage::File {
-                path: config_dir.join("secrets.yaml"),
-            },
-            Err(_) => SecretStorage::Keyring {
+        // Default to file-based secrets storage (secrets.yaml) for stability.
+        // Keyring can be enabled via GOOSE_ENABLE_KEYRING=true if needed.
+        let secrets = match env::var("GOOSE_ENABLE_KEYRING") {
+            Ok(_) => SecretStorage::Keyring {
                 service: KEYRING_SERVICE.to_string(),
+            },
+            Err(_) => SecretStorage::File {
+                path: config_dir.join("secrets.yaml"),
             },
         };
         Config {

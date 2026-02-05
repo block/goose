@@ -2920,6 +2920,7 @@ dependencies = [
  "etcetera 0.11.0",
  "fs2",
  "futures",
+ "goose-connector-proxy",
  "goose-mcp",
  "ignore",
  "include_dir",
@@ -3047,6 +3048,7 @@ dependencies = [
  "goose",
  "goose-acp",
  "goose-bench",
+ "goose-connector-proxy",
  "goose-mcp",
  "http 1.4.0",
  "indicatif",
@@ -3071,6 +3073,24 @@ dependencies = [
  "uuid",
  "webbrowser",
  "winapi",
+]
+
+[[package]]
+name = "goose-connector-proxy"
+version = "1.21.0"
+dependencies = [
+ "anyhow",
+ "axum 0.8.8",
+ "bytes",
+ "futures",
+ "regex",
+ "reqwest 0.12.28",
+ "serde",
+ "serde_json",
+ "tokio",
+ "tokio-stream",
+ "tracing",
+ "uuid",
 ]
 
 [[package]]
@@ -3137,6 +3157,7 @@ dependencies = [
  "fs2",
  "futures",
  "goose",
+ "goose-connector-proxy",
  "goose-mcp",
  "hex",
  "http 1.4.0",

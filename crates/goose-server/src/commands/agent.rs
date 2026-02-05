@@ -28,6 +28,11 @@ async fn shutdown_signal() {
 pub async fn run() -> Result<()> {
     crate::logging::setup_logging(Some("goosed"))?;
 
+    // Start the connector proxy if CONNECTOR_API_KEY is set
+    if let Err(e) = goose_connector_proxy::maybe_start_proxy().await {
+        tracing::warn!("Failed to start connector proxy: {}", e);
+    }
+
     let settings = configuration::Settings::new()?;
 
     let secret_key =

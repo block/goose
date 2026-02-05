@@ -111,6 +111,10 @@ pub struct ProviderMetadata {
     /// Whether this provider allows entering model names not in the fetched list
     #[serde(default)]
     pub allows_unlisted_models: bool,
+    /// Whether to skip model fetching (v1/models) during configuration
+    /// When true, the provider will use the model configured via config keys (e.g., LLM_ID)
+    #[serde(default)]
+    pub skip_model_fetch: bool,
 }
 
 impl ProviderMetadata {
@@ -142,6 +146,7 @@ impl ProviderMetadata {
             model_doc_link: model_doc_link.to_string(),
             config_keys,
             allows_unlisted_models: false,
+            skip_model_fetch: false,
         }
     }
 
@@ -163,6 +168,7 @@ impl ProviderMetadata {
             model_doc_link: model_doc_link.to_string(),
             config_keys,
             allows_unlisted_models: false,
+            skip_model_fetch: false,
         }
     }
 
@@ -176,12 +182,20 @@ impl ProviderMetadata {
             model_doc_link: "".to_string(),
             config_keys: vec![],
             allows_unlisted_models: false,
+            skip_model_fetch: false,
         }
     }
 
     /// Set allows_unlisted_models flag (builder pattern)
     pub fn with_unlisted_models(mut self) -> Self {
         self.allows_unlisted_models = true;
+        self
+    }
+
+    /// Skip model fetching (v1/models) during configuration (builder pattern)
+    /// Use this for providers that don't have a v1/models endpoint
+    pub fn with_skip_model_fetch(mut self) -> Self {
+        self.skip_model_fetch = true;
         self
     }
 }

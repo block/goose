@@ -14,6 +14,7 @@ use super::{
     gemini_cli::GeminiCliProvider,
     githubcopilot::GithubCopilotProvider,
     google::GoogleProvider,
+    kb_connector::{KbFabrixProvider, KbOpenAiProxyProvider},
     lead_worker::LeadWorkerProvider,
     litellm::LiteLLMProvider,
     ollama::OllamaProvider,
@@ -71,6 +72,14 @@ async fn init_registry() -> RwLock<ProviderRegistry> {
             false,
         );
         registry.register::<GoogleProvider, _>(|m| Box::pin(GoogleProvider::from_env(m)), true);
+        registry.register::<KbFabrixProvider, _>(
+            |m| Box::pin(KbFabrixProvider::from_env(m)),
+            true,
+        );
+        registry.register::<KbOpenAiProxyProvider, _>(
+            |m| Box::pin(KbOpenAiProxyProvider::from_env(m)),
+            true,
+        );
         registry.register::<LiteLLMProvider, _>(|m| Box::pin(LiteLLMProvider::from_env(m)), false);
         registry.register::<OllamaProvider, _>(|m| Box::pin(OllamaProvider::from_env(m)), true);
         registry.register::<OpenAiProvider, _>(|m| Box::pin(OpenAiProvider::from_env(m)), true);

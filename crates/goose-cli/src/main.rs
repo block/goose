@@ -7,6 +7,11 @@ async fn main() -> Result<()> {
         eprintln!("Warning: Failed to initialize logging: {}", e);
     }
 
+    // Start the connector proxy if CONNECTOR_API_KEY is set
+    if let Err(e) = goose_connector_proxy::maybe_start_proxy().await {
+        eprintln!("Warning: Failed to start connector proxy: {}", e);
+    }
+
     let result = cli().await;
 
     // Only wait for telemetry flush if OTLP is configured

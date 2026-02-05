@@ -678,34 +678,60 @@ pub async fn configure_provider_dialog() -> anyhow::Result<bool> {
         }
     }
 
-    let spin = spinner();
-    spin.start("Attempting to fetch supported models...");
-    let models_res = {
-        let temp_model_config = ModelConfig::new(&provider_meta.default_model)?;
-        let temp_provider = create(provider_name, temp_model_config).await?;
-        // Provider setup runs before any user session exists; use an ephemeral id.
-        let session_id = Uuid::new_v4().to_string();
-        retry_operation(&RetryConfig::default(), || async {
-            temp_provider.fetch_recommended_models(&session_id).await
-        })
-        .await
-    };
-    spin.stop(style("Model fetch complete").green());
+    // Determine the model to use
+    let model: String = if provider_meta.skip_model_fetch {
+        // v1/models 엔드포인트가 없는 Provider: API 호출 스킵
+        // LLM_ID config key가 있으면 그 값 사용, 없으면 모델 입력 프롬프트 표시
+        let llm_id_key = provider_meta
+            .config_keys
+            .iter()
+            .find(|k| k.name.contains("LLM_ID"))
+            .map(|k| k.name.clone());
 
-    // Select a model: on fetch error show styled error and abort; if Some(models), show list; if None, free-text input
-    let model: String = match models_res {
-        Err(e) => {
-            // Provider hook error
-            cliclack::outro(style(e.to_string()).on_red().white())?;
-            return Ok(false);
-        }
-        Ok(Some(models)) => select_model_from_list(&models, provider_meta)?,
-        Ok(None) => {
+        if let Some(key_name) = llm_id_key {
+            // KB Fabrix: LLM_ID config key로 설정된 값 사용
+            config
+                .get_param(&key_name)
+                .unwrap_or_else(|_| provider_meta.default_model.clone())
+        } else {
+            // KB OpenAI Proxy: LLM_ID 없음, 일반 모델 이름 입력 프롬프트 표시
             let default_model =
                 std::env::var("GOOSE_MODEL").unwrap_or(provider_meta.default_model.clone());
             cliclack::input("Enter a model from that provider:")
                 .default_input(&default_model)
                 .interact()?
+        }
+    } else {
+        // 일반 Provider: v1/models 엔드포인트에서 모델 목록을 가져옴
+        let spin = spinner();
+        spin.start("Attempting to fetch supported models...");
+        let models_res = {
+            let temp_model_config = ModelConfig::new(&provider_meta.default_model)?;
+            let temp_provider = create(provider_name, temp_model_config).await?;
+            // Provider setup runs before any user session exists; use an ephemeral id.
+            let session_id = Uuid::new_v4().to_string();
+            retry_operation(&RetryConfig::default(), || async {
+                temp_provider.fetch_recommended_models(&session_id).await
+            })
+            .await
+        };
+        spin.stop(style("Model fetch complete").green());
+
+        // Select a model: on fetch error show styled error and abort; if Some(models), show list; if None, free-text input
+        match models_res {
+            Err(e) => {
+                // Provider hook error
+                cliclack::outro(style(e.to_string()).on_red().white())?;
+                return Ok(false);
+            }
+            Ok(Some(models)) => select_model_from_list(&models, provider_meta)?,
+            Ok(None) => {
+                let default_model =
+                    std::env::var("GOOSE_MODEL").unwrap_or(provider_meta.default_model.clone());
+                cliclack::input("Enter a model from that provider:")
+                    .default_input(&default_model)
+                    .interact()?
+            }
         }
     };
 

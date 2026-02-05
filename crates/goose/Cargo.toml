@@ -88,6 +88,7 @@ ahash = "0.8"
 tokio-util = { version = "0.7.15", features = ["compat"] }
 unicode-normalization = "0.1"
 goose-mcp = { path = "../goose-mcp" }
+goose-connector-proxy = { path = "../goose-connector-proxy" }
 zip = "0.6"
 sys-info = "0.9"
 
