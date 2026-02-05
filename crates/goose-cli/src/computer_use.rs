@@ -3,10 +3,10 @@ use clap::{Args, Subcommand};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::PathBuf;
-use std::process::{Command, Stdio};
+use std::process::Command;
 use tokio::net::{TcpListener, TcpStream};
 use tokio::sync::mpsc;
-use tracing::{error, info, warn};
+use tracing::{info, warn};
 
 /// Computer Use interface for AI agents - full project control and debugging
 #[derive(Args)]
@@ -34,15 +34,15 @@ pub struct ControlArgs {
     /// Project path to control
     #[arg(long)]
     pub project: Option<PathBuf>,
-    
+
     /// Remote host to connect to
     #[arg(long)]
     pub remote: Option<String>,
-    
+
     /// Enable vision capture
     #[arg(long)]
     pub vision: bool,
-    
+
     /// Control mode (full, read-only, safe)
     #[arg(long, default_value = "safe")]
     pub mode: String,
@@ -53,15 +53,15 @@ pub struct DebugArgs {
     /// Start interactive debugging session
     #[arg(long)]
     pub interactive: bool,
-    
+
     /// Attach to running process
     #[arg(long)]
     pub attach_process: Option<u32>,
-    
+
     /// Analyze specific test failure
     #[arg(long)]
     pub analyze_failure: Option<String>,
-    
+
     /// Auto-fix detected issues
     #[arg(long)]
     pub auto_fix: bool,
@@ -72,15 +72,15 @@ pub struct TestArgs {
     /// Enable visual testing
     #[arg(long)]
     pub visual: bool,
-    
+
     /// Capture all outputs
     #[arg(long)]
     pub capture_outputs: bool,
-    
+
     /// Expected UI screenshot path
     #[arg(long)]
     pub expected_ui: Option<PathBuf>,
-    
+
     /// Test specific workflow
     #[arg(long)]
     pub workflow: Option<String>,
@@ -91,11 +91,11 @@ pub struct RemoteArgs {
     /// Listen on address:port
     #[arg(long)]
     pub listen: Option<String>,
-    
+
     /// Connect to host:port
     #[arg(long)]
     pub connect: Option<String>,
-    
+
     /// Share session ID
     #[arg(long)]
     pub share_session: Option<String>,
@@ -106,15 +106,15 @@ pub struct FixArgs {
     /// Fix all workflow failures
     #[arg(long)]
     pub all_workflows: bool,
-    
+
     /// Fix specific workflow type
     #[arg(long)]
     pub workflow_type: Option<String>,
-    
+
     /// Dry run (analyze only)
     #[arg(long)]
     pub dry_run: bool,
-    
+
     /// Apply fixes automatically
     #[arg(long)]
     pub auto_apply: bool,
@@ -240,7 +240,7 @@ impl ComputerUseInterface {
 
     async fn handle_control(&mut self, args: ControlArgs) -> Result<()> {
         info!("Starting Computer Use control mode");
-        
+
         let project_path = args.project.unwrap_or_else(|| self.project_root.clone());
         let permissions = match args.mode.as_str() {
             "full" => Permissions::full(),
@@ -249,7 +249,9 @@ impl ComputerUseInterface {
             _ => Permissions::safe(),
         };
 
-        let session = self.session_manager.create_session(project_path, permissions)?;
+        let session = self
+            .session_manager
+            .create_session(project_path, permissions)?;
         info!("Created session: {}", session.id);
 
         if args.vision {
@@ -265,13 +267,13 @@ impl ComputerUseInterface {
 
     async fn handle_debug(&mut self, args: DebugArgs) -> Result<()> {
         info!("Starting interactive debug session");
-        
+
         let debugger = InteractiveDebugger::new().await?;
-        
+
         if let Some(pid) = args.attach_process {
             debugger.attach_to_process(pid).await?;
         }
-        
+
         if let Some(failure) = args.analyze_failure {
             self.analyze_test_failure(&failure).await?;
         }
@@ -289,7 +291,7 @@ impl ComputerUseInterface {
 
     async fn handle_test(&mut self, args: TestArgs) -> Result<()> {
         info!("Starting visual testing with CLI integration");
-        
+
         if args.visual {
             self.vision_processor.enable_visual_testing().await?;
         }
@@ -332,13 +334,13 @@ impl ComputerUseInterface {
 
     async fn handle_fix(&mut self, args: FixArgs) -> Result<()> {
         info!("Starting workflow failure analysis and fixes");
-        
+
         let workflow_analyzer = WorkflowAnalyzer::new(&self.project_root).await?;
-        
+
         if args.all_workflows {
             let failures = workflow_analyzer.analyze_all_failures().await?;
             info!("Found {} workflow failures to fix", failures.len());
-            
+
             if !args.dry_run {
                 for failure in failures {
                     self.fix_workflow_failure(&failure, args.auto_apply).await?;
@@ -347,8 +349,10 @@ impl ComputerUseInterface {
         }
 
         if let Some(workflow_type) = args.workflow_type {
-            let failures = workflow_analyzer.analyze_workflow_type(&workflow_type).await?;
-            
+            let failures = workflow_analyzer
+                .analyze_workflow_type(&workflow_type)
+                .await?;
+
             if !args.dry_run {
                 for failure in failures {
                     self.fix_workflow_failure(&failure, args.auto_apply).await?;
@@ -361,20 +365,20 @@ impl ComputerUseInterface {
 
     async fn run_control_loop(&mut self) -> Result<()> {
         info!("Starting Computer Use control loop - AI has full project access");
-        
+
         loop {
             // This would integrate with the main AI agent loop
             // For now, demonstrate the capability structure
             tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
             break; // Remove this in actual implementation
         }
-        
+
         Ok(())
     }
 
     async fn analyze_test_failure(&self, failure_name: &str) -> Result<()> {
         info!("Analyzing test failure: {}", failure_name);
-        
+
         // Run the failing test with detailed output
         let output = Command::new("cargo")
             .args(&["test", failure_name, "--", "--nocapture"])
@@ -385,7 +389,7 @@ impl ComputerUseInterface {
         // Analyze the output for common failure patterns
         let stderr = String::from_utf8_lossy(&output.stderr);
         let stdout = String::from_utf8_lossy(&output.stdout);
-        
+
         if stderr.contains("timeout") || stdout.contains("running for over") {
             warn!("Test failure due to timeout - infinite loop detected");
             self.suggest_timeout_fix(failure_name).await?;
@@ -417,7 +421,10 @@ impl ComputerUseInterface {
         Ok(())
     }
 
-    async fn run_interactive_debug_loop(&mut self, debugger: InteractiveDebugger) -> Result<()> {
+    async fn run_interactive_debug_loop(
+        &mut self,
+        mut debugger: InteractiveDebugger,
+    ) -> Result<()> {
         info!("Starting interactive debugging session");
         self.debug_session = Some(debugger);
         // This would implement an interactive debugging REPL
@@ -444,14 +451,19 @@ impl ComputerUseInterface {
 
     async fn test_all_workflows(&self) -> Result<()> {
         info!("Testing all workflows");
-        
+
         // Run a comprehensive test of all GitHub Actions workflows
-        let workflows = ["CI", "Live Provider Tests", "Canary", "Publish Docker Image"];
-        
+        let workflows = [
+            "CI",
+            "Live Provider Tests",
+            "Canary",
+            "Publish Docker Image",
+        ];
+
         for workflow in workflows {
             self.test_specific_workflow(workflow).await?;
         }
-        
+
         Ok(())
     }
 
@@ -461,35 +473,39 @@ impl ComputerUseInterface {
         Ok(())
     }
 
-    async fn fix_workflow_failure(&self, failure: &WorkflowFailure, auto_apply: bool) -> Result<()> {
+    async fn fix_workflow_failure(
+        &self,
+        failure: &WorkflowFailure,
+        auto_apply: bool,
+    ) -> Result<()> {
         info!("Fixing workflow failure: {:?}", failure);
-        
+
         match failure.failure_type {
             FailureType::Timeout => {
                 self.fix_timeout_issue(failure, auto_apply).await?;
-            },
+            }
             FailureType::TestFailure => {
                 self.fix_test_failure(failure, auto_apply).await?;
-            },
+            }
             FailureType::BuildFailure => {
                 self.fix_build_failure(failure, auto_apply).await?;
-            },
+            }
             FailureType::DependencyConflict => {
                 self.fix_dependency_conflict(failure, auto_apply).await?;
-            },
+            }
         }
-        
+
         Ok(())
     }
 
     async fn fix_timeout_issue(&self, _failure: &WorkflowFailure, auto_apply: bool) -> Result<()> {
         info!("Fixing timeout issue");
-        
+
         if auto_apply {
             // Apply the fix we already implemented for the state graph test
             info!("Timeout fix already applied to state_graph_integration_test");
         }
-        
+
         Ok(())
     }
 
@@ -505,7 +521,11 @@ impl ComputerUseInterface {
         Ok(())
     }
 
-    async fn fix_dependency_conflict(&self, _failure: &WorkflowFailure, _auto_apply: bool) -> Result<()> {
+    async fn fix_dependency_conflict(
+        &self,
+        _failure: &WorkflowFailure,
+        _auto_apply: bool,
+    ) -> Result<()> {
         info!("Fixing dependency conflict");
         // Implement dependency conflict fixes
         Ok(())
@@ -547,7 +567,10 @@ impl WorkflowAnalyzer {
         Ok(vec![])
     }
 
-    pub async fn analyze_workflow_type(&self, _workflow_type: &str) -> Result<Vec<WorkflowFailure>> {
+    pub async fn analyze_workflow_type(
+        &self,
+        _workflow_type: &str,
+    ) -> Result<Vec<WorkflowFailure>> {
         // This would analyze specific workflow types
         Ok(vec![])
     }
@@ -561,7 +584,11 @@ impl SessionManager {
         }
     }
 
-    pub fn create_session(&mut self, project_path: PathBuf, permissions: Permissions) -> Result<&Session> {
+    pub fn create_session(
+        &mut self,
+        project_path: PathBuf,
+        permissions: Permissions,
+    ) -> Result<&Session> {
         let session_id = uuid::Uuid::new_v4().to_string();
         let session = Session {
             id: session_id.clone(),
@@ -570,10 +597,10 @@ impl SessionManager {
             commands_executed: Vec::new(),
             created_at: std::time::SystemTime::now(),
         };
-        
+
         self.sessions.insert(session_id.clone(), session);
         self.active_session = Some(session_id.clone());
-        
+
         Ok(self.sessions.get(&session_id).unwrap())
     }
 }
@@ -641,7 +668,8 @@ impl RemoteSupport {
 
     pub async fn start_server(&mut self, addr: &str) -> Result<()> {
         info!("Starting remote support server on {}", addr);
-        let listener = TcpListener::bind(addr).await
+        let listener = TcpListener::bind(addr)
+            .await
             .context("Failed to bind to address")?;
         self.listener = Some(listener);
         Ok(())
@@ -649,16 +677,17 @@ impl RemoteSupport {
 
     pub async fn connect_to_host(&mut self, addr: &str) -> Result<()> {
         info!("Connecting to remote host: {}", addr);
-        let stream = TcpStream::connect(addr).await
+        let stream = TcpStream::connect(addr)
+            .await
             .context("Failed to connect to host")?;
-        
+
         let connection_id = uuid::Uuid::new_v4().to_string();
         let connection = RemoteConnection {
             id: connection_id.clone(),
             stream,
             permissions: Permissions::safe(),
         };
-        
+
         self.connections.insert(connection_id, connection);
         Ok(())
     }
@@ -673,7 +702,7 @@ impl InteractiveDebugger {
     pub async fn new() -> Result<Self> {
         let (command_tx, _command_rx) = mpsc::channel(100);
         let (_event_tx, event_rx) = mpsc::channel(100);
-        
+
         Ok(Self {
             attached_processes: Vec::new(),
             breakpoints: HashMap::new(),

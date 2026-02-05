@@ -127,9 +127,10 @@ async fn test_state_graph_max_iterations_exceeded() {
     // Add timeout as safety net
     let result = tokio::time::timeout(
         std::time::Duration::from_secs(5),
-        graph.run("implement feature", code_fn, test_fn, fix_fn)
-    ).await;
-    
+        graph.run("implement feature", code_fn, test_fn, fix_fn),
+    )
+    .await;
+
     match result {
         Ok(run_result) => {
             assert!(run_result.is_ok());
@@ -139,7 +140,7 @@ async fn test_state_graph_max_iterations_exceeded() {
                 assert_eq!(graph.current_state(), GraphState::Failed);
                 assert!(graph.iteration() >= 2); // Should hit max_iterations
             }
-        },
+        }
         Err(_) => {
             // Should not timeout with the safety counter
             panic!("Test should not timeout with safety counter");
