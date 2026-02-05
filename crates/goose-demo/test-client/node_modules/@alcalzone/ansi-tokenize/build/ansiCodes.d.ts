@@ -1,0 +1,11 @@
+import type { AnsiCode } from "./tokenize.js";
+export declare const ESCAPES: Set<number>;
+export declare const endCodesSet: Set<string>;
+export declare const linkStartCodePrefix = "\u001B]8;;";
+export declare const linkStartCodePrefixCharCodes: number[];
+export declare const linkCodeSuffix = "\u0007";
+export declare const linkCodeSuffixCharCode: number;
+export declare const linkEndCode: string;
+export declare function getLinkStartCode(url: string): string;
+export declare function getEndCode(code: string): string;
+export declare function ansiCodesToString(codes: AnsiCode[]): string;

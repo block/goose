@@ -1,0 +1,1 @@
+{"version":3,"file":"measure-element.js","sourceRoot":"","sources":["../src/measure-element.ts"],"names":[],"mappings":"AAcA;;GAEG;AACH,MAAM,cAAc,GAAG,CAAC,IAAgB,EAAU,EAAE,CAAC,CAAC;IACrD,KAAK,EAAE,IAAI,CAAC,QAAQ,EAAE,gBAAgB,EAAE,IAAI,CAAC;IAC7C,MAAM,EAAE,IAAI,CAAC,QAAQ,EAAE,iBAAiB,EAAE,IAAI,CAAC;CAC/C,CAAC,CAAC;AAEH,eAAe,cAAc,CAAC"}

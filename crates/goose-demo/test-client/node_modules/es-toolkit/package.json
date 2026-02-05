@@ -1,0 +1,346 @@
+{
+  "name": "es-toolkit",
+  "version": "1.44.0",
+  "description": "A state-of-the-art, high-performance JavaScript utility library with a small bundle size and strong type annotations.",
+  "homepage": "https://es-toolkit.dev",
+  "bugs": "https://github.com/toss/es-toolkit/issues",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/toss/es-toolkit.git"
+  },
+  "license": "MIT",
+  "sideEffects": false,
+  "packageManager": "yarn@4.10.2",
+  "exports": {
+    ".": {
+      "import": {
+        "types": "./dist/index.d.mts",
+        "default": "./dist/index.mjs"
+      },
+      "require": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.js"
+      }
+    },
+    "./array": {
+      "import": {
+        "types": "./dist/array/index.d.mts",
+        "default": "./dist/array/index.mjs"
+      },
+      "require": {
+        "types": "./dist/array/index.d.ts",
+        "default": "./dist/array/index.js"
+      }
+    },
+    "./compat": {
+      "import": {
+        "types": "./dist/compat/index.d.mts",
+        "default": "./dist/compat/index.mjs"
+      },
+      "require": {
+        "types": "./dist/compat/index.d.ts",
+        "default": "./dist/compat/index.js"
+      }
+    },
+    "./compat/*": {
+      "default": {
+        "types": "./compat/*.d.ts",
+        "default": "./compat/*.js"
+      }
+    },
+    "./error": {
+      "import": {
+        "types": "./dist/error/index.d.mts",
+        "default": "./dist/error/index.mjs"
+      },
+      "require": {
+        "types": "./dist/error/index.d.ts",
+        "default": "./dist/error/index.js"
+      }
+    },
+    "./function": {
+      "import": {
+        "types": "./dist/function/index.d.mts",
+        "default": "./dist/function/index.mjs"
+      },
+      "require": {
+        "types": "./dist/function/index.d.ts",
+        "default": "./dist/function/index.js"
+      }
+    },
+    "./math": {
+      "import": {
+        "types": "./dist/math/index.d.mts",
+        "default": "./dist/math/index.mjs"
+      },
+      "require": {
+        "types": "./dist/math/index.d.ts",
+        "default": "./dist/math/index.js"
+      }
+    },
+    "./object": {
+      "import": {
+        "types": "./dist/object/index.d.mts",
+        "default": "./dist/object/index.mjs"
+      },
+      "require": {
+        "types": "./dist/object/index.d.ts",
+        "default": "./dist/object/index.js"
+      }
+    },
+    "./predicate": {
+      "import": {
+        "types": "./dist/predicate/index.d.mts",
+        "default": "./dist/predicate/index.mjs"
+      },
+      "require": {
+        "types": "./dist/predicate/index.d.ts",
+        "default": "./dist/predicate/index.js"
+      }
+    },
+    "./promise": {
+      "import": {
+        "types": "./dist/promise/index.d.mts",
+        "default": "./dist/promise/index.mjs"
+      },
+      "require": {
+        "types": "./dist/promise/index.d.ts",
+        "default": "./dist/promise/index.js"
+      }
+    },
+    "./string": {
+      "import": {
+        "types": "./dist/string/index.d.mts",
+        "default": "./dist/string/index.mjs"
+      },
+      "require": {
+        "types": "./dist/string/index.d.ts",
+        "default": "./dist/string/index.js"
+      }
+    },
+    "./util": {
+      "import": {
+        "types": "./dist/util/index.d.mts",
+        "default": "./dist/util/index.mjs"
+      },
+      "require": {
+        "types": "./dist/util/index.d.ts",
+        "default": "./dist/util/index.js"
+      }
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist",
+    "compat",
+    "*.d.ts",
+    "array.js",
+    "compat.js",
+    "error.js",
+    "function.js",
+    "map.js",
+    "math.js",
+    "object.js",
+    "predicate.js",
+    "promise.js",
+    "set.js",
+    "string.js",
+    "util.js"
+  ],
+  "workspaces": [
+    "docs",
+    "benchmarks"
+  ],
+  "scripts": {
+    "bench": "vitest bench",
+    "build": "rollup -c rollup.config.mjs && ./.scripts/postbuild.sh",
+    "format": "prettier --write .",
+    "gen:bundle-size": "node ./.scripts/generate-bundle-size.mjs",
+    "lint": "eslint --config eslint.config.mjs",
+    "packlint": "packlint sort -R",
+    "prepack": "yarn build",
+    "test": "vitest --coverage --typecheck",
+    "transform": "jscodeshift -t ./.scripts/tests/transform-lodash-test.ts $0 && prettier --write $0",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@arethetypeswrong/cli": "^0.15.3",
+    "@changesets/changelog-github": "^0.5.0",
+    "@changesets/cli": "^2.27.1",
+    "@eslint/js": "^9.9.0",
+    "@rollup/plugin-terser": "^0.4.4",
+    "@rollup/plugin-typescript": "^12.1.0",
+    "@trivago/prettier-plugin-sort-imports": "^4.3.0",
+    "@types/broken-link-checker": "^0",
+    "@types/eslint": "^9",
+    "@types/jscodeshift": "^0.12.0",
+    "@types/lodash": "^4.17.20",
+    "@types/node": "^22.7.4",
+    "@types/tar": "^6.1.13",
+    "@typescript-eslint/parser": "^8.26.1",
+    "@vitest/coverage-istanbul": "^2.1.2",
+    "@vitest/eslint-plugin": "^1.3.4",
+    "@vue/compiler-sfc": "^3.5.10",
+    "broken-link-checker": "^0.7.8",
+    "eslint": "^9.22.0",
+    "eslint-config-prettier": "^9.1.0",
+    "eslint-plugin-no-for-of-array": "^0.0.1",
+    "eslint-plugin-prettier": "^5.2.1",
+    "eslint-plugin-vue": "^9.28.0",
+    "execa": "^9.3.0",
+    "globals": "^15.9.0",
+    "happy-dom": "^16.7.3",
+    "jscodeshift": "^17.0.0",
+    "packlint": "^0.2.4",
+    "prettier": "^3.2.5",
+    "prettier-plugin-sort-re-exports": "^0.1.0",
+    "rollup": "^4.19.0",
+    "rollup-plugin-dts": "^6.1.1",
+    "tar": "^6",
+    "tslib": "^2.6.3",
+    "tsx": "^4.19.0",
+    "typescript": "^5.8.2",
+    "typescript-eslint": "^8.6.0",
+    "vercel": "^41.4.1",
+    "vitest": "^2.1.2"
+  },
+  "publishConfig": {
+    "access": "public",
+    "main": "./dist/index.js",
+    "browser": "./dist/browser.global.js",
+    "module": "./dist/index.mjs",
+    "exports": {
+      ".": {
+        "import": {
+          "types": "./dist/index.d.mts",
+          "default": "./dist/index.mjs"
+        },
+        "require": {
+          "types": "./dist/index.d.ts",
+          "default": "./dist/index.js"
+        }
+      },
+      "./array": {
+        "import": {
+          "types": "./dist/array/index.d.mts",
+          "default": "./dist/array/index.mjs"
+        },
+        "require": {
+          "types": "./dist/array/index.d.ts",
+          "default": "./dist/array/index.js"
+        }
+      },
+      "./compat": {
+        "import": {
+          "types": "./dist/compat/index.d.mts",
+          "default": "./dist/compat/index.mjs"
+        },
+        "require": {
+          "types": "./dist/compat/index.d.ts",
+          "default": "./dist/compat/index.js"
+        }
+      },
+      "./compat/*": {
+        "default": {
+          "types": "./compat/*.d.ts",
+          "default": "./compat/*.js"
+        }
+      },
+      "./error": {
+        "import": {
+          "types": "./dist/error/index.d.mts",
+          "default": "./dist/error/index.mjs"
+        },
+        "require": {
+          "types": "./dist/error/index.d.ts",
+          "default": "./dist/error/index.js"
+        }
+      },
+      "./function": {
+        "import": {
+          "types": "./dist/function/index.d.mts",
+          "default": "./dist/function/index.mjs"
+        },
+        "require": {
+          "types": "./dist/function/index.d.ts",
+          "default": "./dist/function/index.js"
+        }
+      },
+      "./math": {
+        "import": {
+          "types": "./dist/math/index.d.mts",
+          "default": "./dist/math/index.mjs"
+        },
+        "require": {
+          "types": "./dist/math/index.d.ts",
+          "default": "./dist/math/index.js"
+        }
+      },
+      "./object": {
+        "import": {
+          "types": "./dist/object/index.d.mts",
+          "default": "./dist/object/index.mjs"
+        },
+        "require": {
+          "types": "./dist/object/index.d.ts",
+          "default": "./dist/object/index.js"
+        }
+      },
+      "./predicate": {
+        "import": {
+          "types": "./dist/predicate/index.d.mts",
+          "default": "./dist/predicate/index.mjs"
+        },
+        "require": {
+          "types": "./dist/predicate/index.d.ts",
+          "default": "./dist/predicate/index.js"
+        }
+      },
+      "./promise": {
+        "import": {
+          "types": "./dist/promise/index.d.mts",
+          "default": "./dist/promise/index.mjs"
+        },
+        "require": {
+          "types": "./dist/promise/index.d.ts",
+          "default": "./dist/promise/index.js"
+        }
+      },
+      "./string": {
+        "import": {
+          "types": "./dist/string/index.d.mts",
+          "default": "./dist/string/index.mjs"
+        },
+        "require": {
+          "types": "./dist/string/index.d.ts",
+          "default": "./dist/string/index.js"
+        }
+      },
+      "./util": {
+        "import": {
+          "types": "./dist/util/index.d.mts",
+          "default": "./dist/util/index.mjs"
+        },
+        "require": {
+          "types": "./dist/util/index.d.ts",
+          "default": "./dist/util/index.js"
+        }
+      },
+      "./package.json": "./package.json"
+    },
+    "types": "./dist/index.d.ts"
+  },
+  "dependenciesMeta": {
+    "@trivago/prettier-plugin-sort-imports@4.3.0": {
+      "unplugged": true
+    },
+    "prettier-plugin-sort-re-exports@0.0.1": {
+      "unplugged": true
+    }
+  },
+  "react-native": "./dist/index.js",
+  "main": "./dist/index.js",
+  "browser": "./dist/browser.global.js",
+  "module": "./dist/index.mjs",
+  "types": "./dist/index.d.ts"
+}

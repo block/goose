@@ -1,0 +1,40 @@
+{
+  "name": "convert-to-spaces",
+  "version": "2.0.1",
+  "description": "Convert tabs to spaces in a string",
+  "license": "MIT",
+  "repository": "vadimdemedes/convert-to-spaces",
+  "author": "Vadim Demedes <vdemedes@gmail.com>",
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "prepare": "npm run build",
+    "pretest": "npm run build",
+    "test": "xo && ava"
+  },
+  "type": "module",
+  "exports": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "engines": {
+    "node": "^12.20.0 || ^14.13.1 || >=16.0.0"
+  },
+  "files": [
+    "dist"
+  ],
+  "keywords": [
+    "tabs",
+    "spaces"
+  ],
+  "devDependencies": {
+    "@sindresorhus/tsconfig": "^2.0.0",
+    "@vdemedes/prettier-config": "^2.0.1",
+    "ava": "^4.0.1",
+    "prettier": "^2.5.1",
+    "typescript": "^4.5.5",
+    "xo": "^0.47.0"
+  },
+  "xo": {
+    "prettier": true
+  },
+  "prettier": "@vdemedes/prettier-config"
+}

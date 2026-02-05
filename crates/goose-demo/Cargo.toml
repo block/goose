@@ -1,0 +1,42 @@
+[package]
+name = "goose-demo"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+# ACP - Agent Client Protocol
+sacp = "11.0.0-alpha.1"
+agent-client-protocol-schema = "0.10"
+
+# MCP - Model Context Protocol
+rmcp = { version = "0.14", features = ["client", "transport-child-process"] }
+
+# LLM Providers
+rig = { package = "rig-core", version = "0.29" }
+
+# Async runtime
+tokio = { version = "1", features = ["full"] }
+tokio-util = { version = "0.7", features = ["compat"] }
+futures = "0.3"
+
+# Serialization
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+# Tracing
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+# Error handling
+thiserror = "2"
+anyhow = "1"
+
+# Database
+rusqlite = { version = "0.31", features = ["bundled"] }
+parking_lot = "0.12"
+
+# Utilities
+uuid = { version = "1", features = ["v4"] }
+chrono = { version = "0.4", features = ["serde"] }
+async-trait = "0.1.89"
+toml = "0.9.11"

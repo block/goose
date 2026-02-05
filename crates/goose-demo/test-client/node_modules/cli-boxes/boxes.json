@@ -1,0 +1,82 @@
+{
+	"single": {
+		"topLeft": "┌",
+		"top": "─",
+		"topRight": "┐",
+		"right": "│",
+		"bottomRight": "┘",
+		"bottom": "─",
+		"bottomLeft": "└",
+		"left": "│"
+	},
+	"double": {
+		"topLeft": "╔",
+		"top": "═",
+		"topRight": "╗",
+		"right": "║",
+		"bottomRight": "╝",
+		"bottom": "═",
+		"bottomLeft": "╚",
+		"left": "║"
+	},
+	"round": {
+		"topLeft": "╭",
+		"top": "─",
+		"topRight": "╮",
+		"right": "│",
+		"bottomRight": "╯",
+		"bottom": "─",
+		"bottomLeft": "╰",
+		"left": "│"
+	},
+	"bold": {
+		"topLeft": "┏",
+		"top": "━",
+		"topRight": "┓",
+		"right": "┃",
+		"bottomRight": "┛",
+		"bottom": "━",
+		"bottomLeft": "┗",
+		"left": "┃"
+	},
+	"singleDouble": {
+		"topLeft": "╓",
+		"top": "─",
+		"topRight": "╖",
+		"right": "║",
+		"bottomRight": "╜",
+		"bottom": "─",
+		"bottomLeft": "╙",
+		"left": "║"
+	},
+	"doubleSingle": {
+		"topLeft": "╒",
+		"top": "═",
+		"topRight": "╕",
+		"right": "│",
+		"bottomRight": "╛",
+		"bottom": "═",
+		"bottomLeft": "╘",
+		"left": "│"
+	},
+	"classic": {
+		"topLeft": "+",
+		"top": "-",
+		"topRight": "+",
+		"right": "|",
+		"bottomRight": "+",
+		"bottom": "-",
+		"bottomLeft": "+",
+		"left": "|"
+	},
+	"arrow": {
+		"topLeft": "↘",
+		"top": "↓",
+		"topRight": "↙",
+		"right": "←",
+		"bottomRight": "↖",
+		"bottom": "↑",
+		"bottomLeft": "↗",
+		"left": "→"
+	}
+}

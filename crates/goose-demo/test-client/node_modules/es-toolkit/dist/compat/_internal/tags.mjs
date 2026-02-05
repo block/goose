@@ -1,0 +1,28 @@
+const regexpTag = '[object RegExp]';
+const stringTag = '[object String]';
+const numberTag = '[object Number]';
+const booleanTag = '[object Boolean]';
+const argumentsTag = '[object Arguments]';
+const symbolTag = '[object Symbol]';
+const dateTag = '[object Date]';
+const mapTag = '[object Map]';
+const setTag = '[object Set]';
+const arrayTag = '[object Array]';
+const functionTag = '[object Function]';
+const arrayBufferTag = '[object ArrayBuffer]';
+const objectTag = '[object Object]';
+const errorTag = '[object Error]';
+const dataViewTag = '[object DataView]';
+const uint8ArrayTag = '[object Uint8Array]';
+const uint8ClampedArrayTag = '[object Uint8ClampedArray]';
+const uint16ArrayTag = '[object Uint16Array]';
+const uint32ArrayTag = '[object Uint32Array]';
+const bigUint64ArrayTag = '[object BigUint64Array]';
+const int8ArrayTag = '[object Int8Array]';
+const int16ArrayTag = '[object Int16Array]';
+const int32ArrayTag = '[object Int32Array]';
+const bigInt64ArrayTag = '[object BigInt64Array]';
+const float32ArrayTag = '[object Float32Array]';
+const float64ArrayTag = '[object Float64Array]';
+
+export { argumentsTag, arrayBufferTag, arrayTag, bigInt64ArrayTag, bigUint64ArrayTag, booleanTag, dataViewTag, dateTag, errorTag, float32ArrayTag, float64ArrayTag, functionTag, int16ArrayTag, int32ArrayTag, int8ArrayTag, mapTag, numberTag, objectTag, regexpTag, setTag, stringTag, symbolTag, uint16ArrayTag, uint32ArrayTag, uint8ArrayTag, uint8ClampedArrayTag };

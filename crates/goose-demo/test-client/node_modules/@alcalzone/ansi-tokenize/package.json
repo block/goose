@@ -1,0 +1,63 @@
+{
+  "name": "@alcalzone/ansi-tokenize",
+  "version": "0.1.3",
+  "description": "Efficiently modify strings containing ANSI escape codes",
+  "publishConfig": {
+    "access": "public"
+  },
+  "author": {
+    "name": "AlCalzone",
+    "email": "d.griesel@gmx.net"
+  },
+  "license": "MIT",
+  "type": "module",
+  "module": "build/index.js",
+  "types": "build/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./build/index.d.ts",
+      "import": "./build/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "build"
+  ],
+  "engines": {
+    "node": ">=14.13.1"
+  },
+  "devDependencies": {
+    "@alcalzone/release-script": "~3.5.9",
+    "@alcalzone/release-script-plugin-license": "~3.5.9",
+    "@tsconfig/node14": "^14.1.0",
+    "@types/node": "^14.18.54",
+    "@typescript-eslint/eslint-plugin": "^5.55.0",
+    "@typescript-eslint/parser": "^5.55.0",
+    "ava": "^4.3.3",
+    "eslint": "^8.36.0",
+    "eslint-config-prettier": "^8.7.0",
+    "eslint-plugin-prettier": "^4.2.1",
+    "prettier": "^2.8.4",
+    "source-map-support": "^0.5.21",
+    "ts-node": "^10.9.1",
+    "tsx": "^3.12.8",
+    "typescript": "^5.0.2"
+  },
+  "dependencies": {
+    "ansi-styles": "^6.2.1",
+    "is-fullwidth-code-point": "^4.0.0"
+  },
+  "scripts": {
+    "prepare": "tsc -p tsconfig.build.json",
+    "build": "tsc -p tsconfig.build.json",
+    "test": "NODE_OPTIONS='--loader tsx' ava",
+    "lint": "eslint .",
+    "release": "release-script"
+  },
+  "ava": {
+    "extensions": {
+      "ts": "module"
+    }
+  },
+  "packageManager": "yarn@3.5.0"
+}

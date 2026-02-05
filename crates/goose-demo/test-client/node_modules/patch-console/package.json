@@ -1,0 +1,53 @@
+{
+	"name": "patch-console",
+	"version": "2.0.0",
+	"description": "Patch console methods to intercept output",
+	"license": "MIT",
+	"repository": "vadimdemedes/patch-console",
+	"author": {
+		"name": "vdemedes",
+		"email": "vdemedes@gmail.com",
+		"url": "https://github.com/vadimdemedes"
+	},
+	"type": "module",
+	"exports": "./dist/index.js",
+	"engines": {
+		"node": "^12.20.0 || ^14.13.1 || >=16.0.0"
+	},
+	"scripts": {
+		"build": "tsc",
+		"dev": "tsc --watch",
+		"prepare": "npm run build",
+		"pretest": "npm run build",
+		"test": "prettier --check source && xo && ava"
+	},
+	"files": [
+		"dist"
+	],
+	"keywords": [
+		"stdout",
+		"stderr",
+		"patch",
+		"console",
+		"intercept",
+		"log",
+		"logs"
+	],
+	"devDependencies": {
+		"@sindresorhus/tsconfig": "^2.0.0",
+		"@types/node": "^17.0.14",
+		"@vdemedes/prettier-config": "^2.0.1",
+		"ava": "^4.0.1",
+		"prettier": "^2.5.1",
+		"sinon": "^9.0.2",
+		"typescript": "^4.5.5",
+		"xo": "^0.47.0"
+	},
+	"prettier": "@vdemedes/prettier-config",
+	"xo": {
+		"prettier": true
+	},
+	"ava": {
+		"serial": true
+	}
+}

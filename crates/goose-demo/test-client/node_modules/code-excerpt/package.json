@@ -1,0 +1,43 @@
+{
+  "name": "code-excerpt",
+  "version": "4.0.0",
+  "description": "Extract code excerpts",
+  "license": "MIT",
+  "repository": "vadimdemedes/code-excerpt",
+  "author": {
+    "name": "vdemedes",
+    "email": "vdemedes@gmail.com",
+    "url": "github.com/vadimdemedes"
+  },
+  "type": "module",
+  "exports": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "engines": {
+    "node": "^12.20.0 || ^14.13.1 || >=16.0.0"
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "prepare": "npm run build",
+    "pretest": "npm run build",
+    "test": "xo && ava"
+  },
+  "files": [
+    "dist"
+  ],
+  "dependencies": {
+    "convert-to-spaces": "^2.0.1"
+  },
+  "devDependencies": {
+    "@sindresorhus/tsconfig": "^2.0.0",
+    "@vdemedes/prettier-config": "^2.0.1",
+    "ava": "^4.0.1",
+    "prettier": "^2.5.1",
+    "typescript": "^4.5.5",
+    "xo": "^0.47.0"
+  },
+  "xo": {
+    "prettier": true
+  },
+  "prettier": "@vdemedes/prettier-config"
+}

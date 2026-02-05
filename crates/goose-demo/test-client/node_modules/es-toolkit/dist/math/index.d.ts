@@ -1,0 +1,13 @@
+export { clamp } from './clamp.js';
+export { inRange } from './inRange.js';
+export { mean } from './mean.js';
+export { meanBy } from './meanBy.js';
+export { median } from './median.js';
+export { medianBy } from './medianBy.js';
+export { random } from './random.js';
+export { randomInt } from './randomInt.js';
+export { range } from './range.js';
+export { rangeRight } from './rangeRight.js';
+export { round } from './round.js';
+export { sum } from './sum.js';
+export { sumBy } from './sumBy.js';

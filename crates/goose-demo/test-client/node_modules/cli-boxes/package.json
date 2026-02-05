@@ -1,0 +1,42 @@
+{
+	"name": "cli-boxes",
+	"version": "3.0.0",
+	"description": "Boxes for use in the terminal",
+	"license": "MIT",
+	"repository": "sindresorhus/cli-boxes",
+	"funding": "https://github.com/sponsors/sindresorhus",
+	"author": {
+		"name": "Sindre Sorhus",
+		"email": "sindresorhus@gmail.com",
+		"url": "https://sindresorhus.com"
+	},
+	"engines": {
+		"node": ">=10"
+	},
+	"scripts": {
+		"test": "xo && ava && tsd"
+	},
+	"files": [
+		"index.js",
+		"index.d.ts",
+		"boxes.json"
+	],
+	"keywords": [
+		"cli",
+		"box",
+		"boxes",
+		"terminal",
+		"term",
+		"console",
+		"ascii",
+		"unicode",
+		"border",
+		"text",
+		"json"
+	],
+	"devDependencies": {
+		"ava": "^2.4.0",
+		"tsd": "^0.14.0",
+		"xo": "^0.37.1"
+	}
+}
