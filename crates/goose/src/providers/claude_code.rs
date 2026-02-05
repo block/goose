@@ -11,7 +11,7 @@ use tokio::process::Command;
 use super::base::{ConfigKey, Provider, ProviderDef, ProviderMetadata, ProviderUsage, Usage};
 use super::errors::ProviderError;
 use super::utils::{filter_extensions_from_system_prompt, RequestLog};
-use crate::config::base::ClaudeCodeCommand;
+
 use crate::config::search_path::SearchPaths;
 use crate::config::{Config, GooseMode};
 use crate::conversation::message::{Message, MessageContent};
@@ -271,7 +271,7 @@ impl ClaudeCodeProvider {
             println!("================================");
         }
 
-        let mut cmd = Command::new(&self.command);
+        let mut cmd = crate::subprocess::create_command(&self.command);
         configure_command_no_window(&mut cmd);
         cmd.arg("-p")
             .arg(messages_json.to_string())
@@ -401,7 +401,12 @@ impl ProviderDef for ClaudeCodeProvider {
             CLAUDE_CODE_DEFAULT_MODEL,
             CLAUDE_CODE_KNOWN_MODELS.to_vec(),
             CLAUDE_CODE_DOC_URL,
-            vec![ConfigKey::from_value_type::<ClaudeCodeCommand>(true, false)],
+            vec![ConfigKey::new(
+                "CLAUDE_CODE_COMMAND",
+                true,
+                false,
+                Some("claude"),
+            )],
         )
     }
 

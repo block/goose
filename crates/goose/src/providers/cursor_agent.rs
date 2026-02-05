@@ -6,12 +6,10 @@ use std::ffi::OsString;
 use std::path::PathBuf;
 use std::process::Stdio;
 use tokio::io::{AsyncBufReadExt, BufReader};
-use tokio::process::Command;
 
 use super::base::{ConfigKey, Provider, ProviderDef, ProviderMetadata, ProviderUsage, Usage};
 use super::errors::ProviderError;
 use super::utils::{filter_extensions_from_system_prompt, RequestLog};
-use crate::config::base::CursorAgentCommand;
 use crate::config::search_path::SearchPaths;
 use crate::conversation::message::{Message, MessageContent};
 use crate::model::ModelConfig;
@@ -20,6 +18,7 @@ use futures::future::BoxFuture;
 use rmcp::model::Tool;
 
 const CURSOR_AGENT_PROVIDER_NAME: &str = "cursor-agent";
+pub const CURSOR_AGENT_COMMAND: &str = "CURSOR_AGENT_COMMAND";
 pub const CURSOR_AGENT_DEFAULT_MODEL: &str = "auto";
 pub const CURSOR_AGENT_KNOWN_MODELS: &[&str] = &["auto", "gpt-5", "opus-4.1", "sonnet-4"];
 
@@ -48,9 +47,10 @@ impl CursorAgentProvider {
 
     /// Get authentication status from cursor-agent
     async fn get_authentication_status(&self) -> bool {
-        Command::new(&self.command)
-            .arg("status")
-            .output()
+        let mut cmd = crate::subprocess::create_command(&self.command);
+        cmd.arg("status");
+
+        cmd.output()
             .await
             .ok()
             .map(|output| String::from_utf8_lossy(&output.stdout).contains("✓ Logged in as"))
@@ -197,7 +197,8 @@ impl CursorAgentProvider {
             println!("================================");
         }
 
-        let mut cmd = Command::new(&self.command);
+        let mut cmd = crate::subprocess::create_command(&self.command);
+
         configure_command_no_window(&mut cmd);
 
         if let Ok(path) = SearchPaths::builder().with_npm().path() {
@@ -217,13 +218,13 @@ impl CursorAgentProvider {
 
         cmd.stdout(Stdio::piped()).stderr(Stdio::piped());
 
-        let mut child = cmd
-                .spawn()
-                .map_err(|e| ProviderError::RequestFailed(format!(
-                    "Failed to spawn cursor-agent CLI command '{:?}': {}. \
+        let mut child = cmd.spawn().map_err(|e| {
+            ProviderError::RequestFailed(format!(
+                "Failed to spawn cursor-agent CLI command '{:?}': {}. \
                     Make sure the cursor-agent CLI is installed and available in the configured search paths, or set CURSOR_AGENT_COMMAND in your config to the correct path.",
-                    self.command, e
-                )))?;
+                self.command, e
+            ))
+        })?;
 
         let stdout = child
             .stdout
@@ -334,8 +335,11 @@ impl ProviderDef for CursorAgentProvider {
             CURSOR_AGENT_DEFAULT_MODEL,
             CURSOR_AGENT_KNOWN_MODELS.to_vec(),
             CURSOR_AGENT_DOC_URL,
-            vec![ConfigKey::from_value_type::<CursorAgentCommand>(
-                true, false,
+            vec![ConfigKey::new(
+                CURSOR_AGENT_COMMAND,
+                true,
+                false,
+                Some("cursor-agent"),
             )],
         )
     }
