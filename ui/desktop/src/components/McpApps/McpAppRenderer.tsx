@@ -1,15 +1,6 @@
 import { AppEvents } from '../../constants/events';
-/**
- * MCP Apps Renderer
- *
- * Uses the official @mcp-ui/client AppRenderer component for rendering MCP Apps.
- *
- * @see SEP-1865 https://github.com/modelcontextprotocol/ext-apps/blob/main/specification/draft/apps.mdx
- * @see @mcp-ui/client https://github.com/MCP-UI-Org/mcp-ui
- */
-
 import { useState, useCallback, useEffect, useMemo } from 'react';
-import { AppRenderer } from '@mcp-ui/client';
+import { AppRenderer, type McpUiHostContext } from '@mcp-ui/client';
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
 import type {
   McpUiSizeChangedNotification,
@@ -17,11 +8,40 @@ import type {
 } from '@modelcontextprotocol/ext-apps/app-bridge';
 import { ToolInput, ToolInputPartial, ToolResult, ToolCancelled, CspMetadata } from './types';
 import { cn } from '../../utils';
-import { DEFAULT_IFRAME_HEIGHT, fetchMcpAppProxyUrl } from './utils';
 import { readResource, callTool } from '../../api';
 import { errorMessage } from '../../utils/conversionUtils';
 import { isProtocolSafe, getProtocol } from '../../utils/urlSecurity';
 import { useTheme } from '../../contexts/ThemeContext';
+
+const DEFAULT_IFRAME_HEIGHT = 200;
+const AVAILABLE_DISPLAY_MODES = ['inline' as const, 'fullscreen' as const];
+
+async function fetchMcpAppProxyUrl(csp: CspMetadata | null): Promise<string | null> {
+  try {
+    const baseUrl = await window.electron.getGoosedHostPort();
+    const secretKey = await window.electron.getSecretKey();
+
+    if (!baseUrl || !secretKey) {
+      console.error('[McpAppRenderer] Failed to get goosed host/port or secret key');
+      return null;
+    }
+
+    const params = new URLSearchParams();
+    params.set('secret', secretKey);
+
+    if (csp?.connectDomains?.length) {
+      params.set('connect_domains', csp.connectDomains.join(','));
+    }
+    if (csp?.resourceDomains?.length) {
+      params.set('resource_domains', csp.resourceDomains.join(','));
+    }
+
+    return `${baseUrl}/mcp-app-proxy?${params.toString()}`;
+  } catch (error) {
+    console.error('[McpAppRenderer] Error fetching MCP App Proxy URL:', error);
+    return null;
+  }
+}
 
 interface McpAppRendererProps {
   resourceUri: string;
@@ -66,17 +86,27 @@ export default function McpAppRenderer({
   const [iframeHeight, setIframeHeight] = useState(DEFAULT_IFRAME_HEIGHT);
   const [iframeWidth, setIframeWidth] = useState<number | null>(null);
   const [sandboxUrl, setSandboxUrl] = useState<URL | null>(null);
+  const [sandboxCsp, setSandboxCsp] = useState<CspMetadata | null>(null);
+  const [sandboxUrlFetched, setSandboxUrlFetched] = useState(false);
 
-  // Fetch the sandbox proxy URL
+  // Fetch sandbox URL once after HTML loads to prevent iframe recreation
   useEffect(() => {
-    fetchMcpAppProxyUrl(resource.csp).then((url) => {
+    if (!resource.html || sandboxUrlFetched) {
+      return;
+    }
+    setSandboxUrlFetched(true);
+    // Capture the CSP at fetch time to keep sandboxConfig stable
+    const cspAtFetchTime = resource.csp;
+    setSandboxCsp(cspAtFetchTime);
+    fetchMcpAppProxyUrl(cspAtFetchTime).then((url) => {
       if (url) {
         setSandboxUrl(new URL(url));
+      } else {
+        console.error('[McpAppRenderer] Failed to get sandbox URL');
       }
     });
-  }, [resource.csp]);
+  }, [resource.html, resource.csp, sandboxUrlFetched]);
 
-  // Fetch the resource HTML and metadata
   useEffect(() => {
     if (!sessionId) {
       return;
@@ -114,6 +144,7 @@ export default function McpAppRenderer({
           }
         }
       } catch (err) {
+        console.error('[McpAppRenderer] Error fetching resource:', err);
         if (!cachedHtml) {
           setError(errorMessage(err, 'Failed to load resource'));
         } else {
@@ -125,10 +156,7 @@ export default function McpAppRenderer({
     fetchResourceData();
   }, [resourceUri, extensionName, sessionId, cachedHtml]);
 
-  // Handler for open-link requests from the guest UI
   const handleOpenLink = useCallback(async ({ url }: { url: string }) => {
-    // Safe protocols open directly, unknown protocols require confirmation
-    // Dangerous protocols are blocked by main.ts in the open-external handler
     if (isProtocolSafe(url)) {
       await window.electron.openExternal(url);
       return { status: 'success' as const };
@@ -156,23 +184,18 @@ export default function McpAppRenderer({
     return { status: 'success' as const };
   }, []);
 
-  // Handler for message requests from the guest UI
   const handleMessage = useCallback(
     async ({ content }: { content: Array<{ type: string; text?: string }> }) => {
       if (!append) {
         throw new Error('Message handler not available in this context');
       }
-
       if (!Array.isArray(content)) {
         throw new Error('Invalid message format: content must be an array of ContentBlock');
       }
-
-      // Extract first text block from content, ignoring other block types
       const textContent = content.find((block) => block.type === 'text');
       if (!textContent || !textContent.text) {
         throw new Error('Invalid message format: content must contain a text block');
       }
-
       append(textContent.text);
       window.dispatchEvent(new CustomEvent(AppEvents.SCROLL_CHAT_TO_BOTTOM));
       return {};
@@ -180,7 +203,6 @@ export default function McpAppRenderer({
     [append]
   );
 
-  // Handler for tools/call requests from the guest UI
   const handleCallTool = useCallback(
     async ({
       name,
@@ -202,7 +224,6 @@ export default function McpAppRenderer({
         },
       });
 
-      // Map from snake_case API response to camelCase SDK types
       const content = response.data?.content || [];
       return {
         content: content.map((item) => {
@@ -216,7 +237,6 @@ export default function McpAppRenderer({
               mimeType: item.mimeType || 'image/png',
             };
           }
-          // Default to text type for unknown content
           return { type: 'text' as const, text: JSON.stringify(item) };
         }),
         isError: response.data?.is_error || false,
@@ -225,13 +245,11 @@ export default function McpAppRenderer({
     [sessionId, extensionName]
   );
 
-  // Handler for resources/read requests from the guest UI
   const handleReadResource = useCallback(
     async ({ uri }: { uri: string }) => {
       if (!sessionId) {
         throw new Error('Session not initialized for MCP request');
       }
-
       const response = await readResource({
         body: {
           session_id: sessionId,
@@ -239,28 +257,17 @@ export default function McpAppRenderer({
           extension_name: extensionName,
         },
       });
-
-      // Map from API response to SDK types
       const data = response.data;
       if (!data) {
         return { contents: [] };
       }
-
-      // Convert to the expected format with required uri field
-      const resourceContent = {
-        uri: data.uri || uri,
-        text: data.text,
-        mimeType: data.mimeType || undefined,
-      };
-
       return {
-        contents: [resourceContent],
+        contents: [{ uri: data.uri || uri, text: data.text, mimeType: data.mimeType || undefined }],
       };
     },
     [sessionId, extensionName]
   );
 
-  // Handler for logging messages from the guest UI
   const handleLoggingMessage = useCallback(
     ({ level, logger, data }: { level?: string; logger?: string; data?: unknown }) => {
       console.log(
@@ -271,57 +278,60 @@ export default function McpAppRenderer({
     []
   );
 
-  // Handler for size change notifications from the guest UI
   const handleSizeChanged = useCallback(
     ({ height, width }: McpUiSizeChangedNotification['params']) => {
       if (height !== undefined) {
-        const newHeight = Math.max(DEFAULT_IFRAME_HEIGHT, height);
-        setIframeHeight(newHeight);
+        setIframeHeight(Math.max(DEFAULT_IFRAME_HEIGHT, height));
       }
       setIframeWidth(width ?? null);
     },
     []
   );
 
-  // Handler for errors
   const handleError = useCallback((err: Error) => {
     console.error('[MCP App Error]:', err);
     setError(errorMessage(err));
   }, []);
 
-  // Convert CspMetadata to McpUiResourceCsp (handle null -> undefined)
-  const convertCspToMcpUi = useCallback((csp: CspMetadata | null): McpUiResourceCsp | undefined => {
-    if (!csp) return undefined;
+  // Use sandboxCsp (captured at fetch time) to keep sandboxConfig stable
+  const mcpUiCsp = useMemo((): McpUiResourceCsp | undefined => {
+    if (!sandboxCsp) return undefined;
     return {
-      connectDomains: csp.connectDomains ?? undefined,
-      resourceDomains: csp.resourceDomains ?? undefined,
+      connectDomains: sandboxCsp.connectDomains ?? undefined,
+      resourceDomains: sandboxCsp.resourceDomains ?? undefined,
     };
-  }, []);
+  }, [sandboxCsp]);
 
-  // Sandbox configuration
   const sandboxConfig = useMemo(() => {
     if (!sandboxUrl) return null;
     return {
       url: sandboxUrl,
       permissions: resource.permissions || 'allow-scripts allow-same-origin allow-forms',
-      csp: convertCspToMcpUi(resource.csp),
+      csp: mcpUiCsp,
     };
-  }, [sandboxUrl, resource.permissions, resource.csp, convertCspToMcpUi]);
+  }, [sandboxUrl, resource.permissions, mcpUiCsp]);
 
-  // Host context for the guest UI
   const hostContext = useMemo(
-    () => ({
+    (): McpUiHostContext => ({
       theme: resolvedTheme,
-      displayMode: fullscreen ? ('fullscreen' as const) : ('inline' as const),
-      availableDisplayModes: ['inline' as const, 'fullscreen' as const],
+      displayMode: fullscreen ? 'fullscreen' : 'inline',
+      availableDisplayModes: AVAILABLE_DISPLAY_MODES,
+      // todo: add all the other properties... (aharvard)
+      // toolInfo: {}
+      // styles: {}
+      // containerDimensions: {}
+      // locale: ""
+      // timeZone: ""
+      // userAgent: ""
+      // platform: ""
+      // deviceCapabilities: {}
+      // safeAreaInsets: {}
     }),
     [resolvedTheme, fullscreen]
   );
 
-  // Convert toolResult to CallToolResult format expected by AppRenderer
   const appToolResult = useMemo((): CallToolResult | undefined => {
     if (!toolResult) return undefined;
-    // Map from snake_case to camelCase
     const content = toolResult.content || [];
     return {
       content: content.map((item) => {
@@ -341,7 +351,6 @@ export default function McpAppRenderer({
     };
   }, [toolResult]);
 
-  // Convert toolCancelled to boolean
   const isToolCancelled = toolCancelled?.reason !== undefined;
 
   if (error) {

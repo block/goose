@@ -119,7 +119,9 @@ function McpAppWrapper({
   const toolInput = useMemo(() => ({ arguments: toolArguments || {} }), [toolArguments]);
 
   const toolResult = useMemo(() => {
-    if (!toolResponse) return undefined;
+    if (!toolResponse) {
+      return undefined;
+    }
     const resultWithMeta = toolResponse.toolResult as ToolResultWithMeta;
     if (resultWithMeta?.status === 'success' && resultWithMeta.value) {
       return resultWithMeta.value;
@@ -140,12 +142,6 @@ function McpAppWrapper({
         sessionId={sessionId}
         append={append}
       />
-      <div className="mt-3 p-4 py-3 border border-borderSubtle rounded-lg bg-background-muted flex items-center">
-        <FlaskConical className="mr-2" size={20} />
-        <div className="text-sm font-sans">
-          MCP Apps are experimental and may change at any time.
-        </div>
-      </div>
     </div>
   );
 }
