@@ -276,10 +276,9 @@ export default function ChatInput({
         ? filteredText.replace(/\bsubmit[.,!?;'"\s]*$/i, '').trim()
         : filteredText;
 
-      const newValue =
-        displayValue.trim() && cleanedText
-          ? `${displayValue.trim()} ${cleanedText}`
-          : displayValue.trim() || cleanedText;
+      const newValue = displayValue.trim() && cleanedText
+        ? `${displayValue.trim()} ${cleanedText}`
+        : displayValue.trim() || cleanedText;
 
       setDisplayValue(newValue);
       setValue(newValue);
@@ -929,6 +928,7 @@ export default function ChatInput({
     ]
   );
 
+
   const handleKeyDown = (evt: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (mentionPopover.isOpen && mentionPopoverRef.current) {
       if (evt.key === 'ArrowDown') {
@@ -1383,7 +1383,9 @@ export default function ChatInput({
                       Listening
                     </span>
                   )}
-                  {isRecording && isTranscribing && <span className="text-textSubtle">•</span>}
+                  {isRecording && isTranscribing && (
+                    <span className="text-textSubtle">•</span>
+                  )}
                   {isTranscribing && (
                     <span className="flex items-center gap-1 text-blue-500">
                       <span className="inline-block w-2 h-2 bg-blue-500 rounded-full animate-pulse" />
