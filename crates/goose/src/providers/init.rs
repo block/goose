@@ -16,6 +16,7 @@ use super::{
     google::GoogleProvider,
     lead_worker::LeadWorkerProvider,
     litellm::LiteLLMProvider,
+    lmstudio::LmStudioProvider,
     ollama::OllamaProvider,
     openai::OpenAiProvider,
     openrouter::OpenRouterProvider,
@@ -56,6 +57,7 @@ async fn init_registry() -> RwLock<ProviderRegistry> {
         registry.register::<GithubCopilotProvider>(false);
         registry.register::<GoogleProvider>(true);
         registry.register::<LiteLLMProvider>(false);
+        registry.register::<LmStudioProvider>(true);
         registry.register::<OllamaProvider>(true);
         registry.register::<OpenAiProvider>(true);
         registry.register::<OpenRouterProvider>(true);
