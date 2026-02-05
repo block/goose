@@ -23,7 +23,7 @@ import { ChatType } from '../types/chat';
 import { useIsMobile } from '../hooks/use-mobile';
 import { useSidebar } from './ui/sidebar';
 import { cn } from '../utils';
-import { useChatStream } from '../hooks/useChatStream';
+import { useAgentChat, type AgentBackend } from '../hooks/useAgentChat';
 import { useNavigation } from '../hooks/useNavigation';
 import { RecipeHeader } from './RecipeHeader';
 import { RecipeWarningModal } from './ui/RecipeWarningModal';
@@ -78,6 +78,16 @@ export default function BaseChat({
   const [hasStartedUsingRecipe, setHasStartedUsingRecipe] = React.useState(false);
   const [hasNotAcceptedRecipe, setHasNotAcceptedRecipe] = useState<boolean>();
   const [hasRecipeSecurityWarnings, setHasRecipeSecurityWarnings] = useState(false);
+  const [agentBackend, setAgentBackend] = useState<AgentBackend>('goose');
+
+  // Load agent backend preference from settings
+  useEffect(() => {
+    window.electron.getSettings().then((settings) => {
+      if (settings.agentBackend) {
+        setAgentBackend(settings.agentBackend);
+      }
+    });
+  }, []);
 
   const isMobile = useIsMobile();
   const { state: sidebarState } = useSidebar();
@@ -106,8 +116,9 @@ export default function BaseChat({
     tokenState,
     notifications: toolCallNotifications,
     onMessageUpdate,
-  } = useChatStream({
+  } = useAgentChat({
     sessionId,
+    backend: agentBackend,
     onStreamFinish,
   });
 

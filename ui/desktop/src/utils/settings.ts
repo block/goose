@@ -21,6 +21,8 @@ export type DefaultKeyboardShortcuts = {
   [K in keyof KeyboardShortcuts]: string;
 };
 
+export type AgentBackend = 'goose' | 'pi';
+
 export interface Settings {
   showMenuBarIcon: boolean;
   showDockIcon: boolean;
@@ -29,6 +31,7 @@ export interface Settings {
   externalGoosed?: ExternalGoosedConfig;
   globalShortcut?: string | null;
   keyboardShortcuts?: KeyboardShortcuts;
+  agentBackend?: AgentBackend;
 }
 
 export const defaultKeyboardShortcuts: DefaultKeyboardShortcuts = {

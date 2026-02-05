@@ -13,6 +13,7 @@ import BlockLogoBlack from './icons/block-lockup_black.png';
 import BlockLogoWhite from './icons/block-lockup_white.png';
 import TelemetrySettings from './TelemetrySettings';
 import { trackSettingToggled } from '../../../utils/analytics';
+import type { AgentBackend } from '../../../utils/settings';
 
 interface AppSettingsSectionProps {
   scrollToSection?: string;
@@ -27,6 +28,8 @@ export default function AppSettingsSection({ scrollToSection }: AppSettingsSecti
   const [showNotificationModal, setShowNotificationModal] = useState(false);
   const [showPricing, setShowPricing] = useState(true);
   const [isDarkMode, setIsDarkMode] = useState(false);
+  const [isPiAvailable, setIsPiAvailable] = useState(false);
+  const [agentBackend, setAgentBackend] = useState<AgentBackend>('goose');
   const updateSectionRef = useRef<HTMLDivElement>(null);
 
   // Check if GOOSE_VERSION is set to determine if Updates section should be shown
@@ -60,6 +63,14 @@ export default function AppSettingsSection({ scrollToSection }: AppSettingsSecti
   useEffect(() => {
     const stored = localStorage.getItem('show_pricing');
     setShowPricing(stored !== 'false');
+  }, []);
+
+  // Check Pi availability and load agent backend setting
+  useEffect(() => {
+    window.electron.pi.isAvailable().then(setIsPiAvailable);
+    window.electron.getSettings().then((settings) => {
+      setAgentBackend(settings.agentBackend || 'goose');
+    });
   }, []);
 
   // Handle scrolling to update section
@@ -146,6 +157,17 @@ export default function AppSettingsSection({ scrollToSection }: AppSettingsSecti
     trackSettingToggled('cost_tracking', checked);
     // Trigger storage event for other components
     window.dispatchEvent(new CustomEvent('storage'));
+  };
+
+  const handleAgentBackendToggle = async (usePi: boolean) => {
+    const newBackend: AgentBackend = usePi ? 'pi' : 'goose';
+    const settings = await window.electron.getSettings();
+    settings.agentBackend = newBackend;
+    const success = await window.electron.saveSettings(settings);
+    if (success) {
+      setAgentBackend(newBackend);
+      trackSettingToggled('agent_backend_pi', usePi);
+    }
   };
 
   return (
@@ -270,6 +292,41 @@ export default function AppSettingsSection({ scrollToSection }: AppSettingsSecti
       </Card>
 
       <TunnelSection />
+
+      {/* Experimental: Pi Agent Backend */}
+      <Card className="rounded-lg border-amber-500/50">
+        <CardHeader className="pb-0">
+          <CardTitle className="mb-1 flex items-center gap-2">
+            <span className="text-amber-500 text-xs font-normal px-2 py-0.5 bg-amber-500/10 rounded">
+              Experimental
+            </span>
+            Agent Backend
+          </CardTitle>
+          <CardDescription>
+            Switch between the default Goose agent and the Pi coding agent
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="pt-4 px-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="text-text-default text-xs">Use Pi Agent</h3>
+              <p className="text-xs text-text-muted max-w-md mt-[2px]">
+                {isPiAvailable
+                  ? 'Pi is an alternative coding agent that runs natively in the app. New sessions will use the selected agent.'
+                  : 'Pi agent is not available. Check logs for loading errors.'}
+              </p>
+            </div>
+            <div className="flex items-center">
+              <Switch
+                checked={agentBackend === 'pi'}
+                onCheckedChange={handleAgentBackendToggle}
+                disabled={!isPiAvailable}
+                variant="mono"
+              />
+            </div>
+          </div>
+        </CardContent>
+      </Card>
 
       <TelemetrySettings isWelcome={false} />
 

@@ -51,6 +51,24 @@ interface UpdaterEvent {
   data?: unknown;
 }
 
+// Pi Agent types
+interface PiSessionOptions {
+  workingDir?: string;
+  provider?: string;
+  model?: string;
+  systemPrompt?: string;
+}
+
+interface PiState {
+  available: boolean;
+  hasSession: boolean;
+}
+
+interface PiAgentEvent {
+  type: string;
+  [key: string]: unknown;
+}
+
 // Define the API types in a single place
 type ElectronAPI = {
   platform: string;
@@ -130,6 +148,16 @@ type ElectronAPI = {
   refreshApp: (app: GooseApp) => Promise<void>;
   closeApp: (appName: string) => Promise<void>;
   addRecentDir: (dir: string) => Promise<boolean>;
+  // Pi Agent API
+  pi: {
+    isAvailable: () => Promise<boolean>;
+    getState: () => Promise<PiState>;
+    startSession: (options: PiSessionOptions) => Promise<{ success: boolean }>;
+    stopSession: () => Promise<{ success: boolean }>;
+    prompt: (message: string) => Promise<{ success: boolean; error?: string }>;
+    onEvent: (callback: (event: PiAgentEvent) => void) => void;
+    offEvent: (callback: (event: PiAgentEvent) => void) => void;
+  };
 };
 
 type AppConfigAPI = {
@@ -263,6 +291,22 @@ const electronAPI: ElectronAPI = {
   refreshApp: (app: GooseApp) => ipcRenderer.invoke('refresh-app', app),
   closeApp: (appName: string) => ipcRenderer.invoke('close-app', appName),
   addRecentDir: (dir: string) => ipcRenderer.invoke('add-recent-dir', dir),
+  // Pi Agent API
+  pi: {
+    isAvailable: () => ipcRenderer.invoke('pi:isAvailable'),
+    getState: () => ipcRenderer.invoke('pi:getState'),
+    startSession: (options: PiSessionOptions) => ipcRenderer.invoke('pi:startSession', options),
+    stopSession: () => ipcRenderer.invoke('pi:stopSession'),
+    prompt: (message: string) => ipcRenderer.invoke('pi:prompt', message),
+    onEvent: (callback: (event: PiAgentEvent) => void) => {
+      const wrappedCallback = (_event: Electron.IpcRendererEvent, data: PiAgentEvent) =>
+        callback(data);
+      ipcRenderer.on('pi:event', wrappedCallback);
+    },
+    offEvent: (callback: (event: PiAgentEvent) => void) => {
+      ipcRenderer.removeListener('pi:event', callback as unknown as (...args: unknown[]) => void);
+    },
+  },
 };
 
 const appConfigAPI: AppConfigAPI = {

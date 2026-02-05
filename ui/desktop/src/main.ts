@@ -24,6 +24,7 @@ import os from 'node:os';
 import { spawn } from 'child_process';
 import 'dotenv/config';
 import { checkServerStatus, startGoosed } from './goosed';
+import { initializePi, registerPiIpcHandlers } from './pi/index';
 import { expandTilde } from './utils/pathUtils';
 import log from './utils/logger';
 import { ensureWinShims } from './utils/winShims';
@@ -1648,6 +1649,16 @@ async function appMain() {
   await ensureWinShims();
 
   registerUpdateIpcHandlers();
+
+  // Initialize Pi agent (optional - loads if available)
+  // Always register IPC handlers so renderer can check availability
+  registerPiIpcHandlers();
+  const piAvailable = await initializePi();
+  if (piAvailable) {
+    log.info('[Main] Pi agent initialized');
+  } else {
+    log.info('[Main] Pi agent not available (optional dependency)');
+  }
 
   // Handle microphone permission requests
   session.defaultSession.setPermissionRequestHandler((_webContents, permission, callback) => {
