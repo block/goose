@@ -1,6 +1,5 @@
 use anyhow::Result;
 use goose_cli::cli::Cli;
-use tracing::error;
 
 #[tokio::main]
 async fn main() -> Result<()> {

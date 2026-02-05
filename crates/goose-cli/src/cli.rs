@@ -44,7 +44,7 @@ use tracing::warn;
 
 #[derive(Parser)]
 #[command(author, version, display_name = "", about, long_about = None)]
-struct Cli {
+pub struct Cli {
     #[command(subcommand)]
     command: Option<Command>,
 }
