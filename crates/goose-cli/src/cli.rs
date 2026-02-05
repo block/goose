@@ -26,7 +26,6 @@ use crate::commands::schedule::{
 };
 use crate::commands::session::{handle_session_list, handle_session_remove};
 use crate::commands::workflow::handle_workflow_command;
-// use crate::computer_use::ComputerUseArgs; // TODO: Integrate Computer Use CLI
 use crate::recipes::extract_from_cli::extract_recipe_info_from_cli;
 use crate::recipes::recipe::{explain_recipe, render_recipe_as_yaml};
 use crate::session::{build_session, SessionBuilderConfig};
@@ -1105,6 +1104,7 @@ enum Command {
         #[arg(long, default_value = "goose", help = "Provide a custom binary name")]
         bin_name: String,
     },
+
 }
 
 #[derive(Subcommand)]
@@ -1167,6 +1167,7 @@ enum TermCommand {
     )]
     Info,
 }
+
 
 #[derive(clap::ValueEnum, Clone, Debug)]
 enum CliProviderVariant {
@@ -1793,3 +1794,4 @@ pub async fn cli() -> anyhow::Result<()> {
         None => handle_default_session().await,
     }
 }
+
