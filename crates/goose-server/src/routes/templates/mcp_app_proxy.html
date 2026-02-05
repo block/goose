@@ -32,7 +32,8 @@
           // Sandbox restricts the iframe's capabilities
           // allow-scripts: Let JS run
           // allow-same-origin: Required for postMessage to work properly
-          guestIframe.setAttribute('sandbox', 'allow-scripts allow-same-origin');
+          // allow-forms: Needed if the app has forms
+          guestIframe.setAttribute('sandbox', 'allow-scripts allow-same-origin allow-forms');
           
           // Build Permission Policy allow attribute from requested permissions
           var allowList = [];
