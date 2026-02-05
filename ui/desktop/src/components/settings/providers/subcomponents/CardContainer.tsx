@@ -57,8 +57,8 @@ export default function CardContainer({
                    ${borderStyle === 'dashed' ? 'border-2 border-dashed' : 'border'}
                    ${
                      grayedOut
-                       ? 'border-borderSubtle'
-                       : 'border-borderSubtle hover:border-borderStandard'
+                       ? 'border-border-default'
+                       : 'border-border-default hover:border-border-default'
                    }`}
       >
         {header && (

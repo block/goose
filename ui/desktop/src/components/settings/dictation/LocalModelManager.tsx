@@ -167,7 +167,7 @@ export const LocalModelManager = () => {
               className={`border rounded-lg p-3 transition-colors ${
                 isSelected
                   ? 'border-border-accent bg-background-accent/5'
-                  : 'border-border-subtle bg-background-default hover:border-border-default'
+                  : 'border-border-default bg-background-default hover:border-border-default'
               }`}
             >
               <div className="flex items-start justify-between gap-3">
@@ -249,7 +249,7 @@ export const LocalModelManager = () => {
 
               {isDownloading && progress && (
                 <div className="mt-2 space-y-1">
-                  <div className="w-full bg-background-subtle rounded-full h-1.5">
+                  <div className="w-full bg-background-muted rounded-full h-1.5">
                     <div
                       className="bg-background-accent h-1.5 rounded-full transition-all"
                       style={{ width: `${progress.progress_percent}%` }}

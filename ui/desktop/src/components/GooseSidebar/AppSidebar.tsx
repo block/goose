@@ -138,12 +138,12 @@ const SessionList = React.memo<{
             <div key={session.id} className="relative flex items-center">
               {/* Vertical line segment - full height except last item stops at middle */}
               <div
-                className={`absolute left-0 w-px bg-border-strong ${
+                className={`absolute left-0 w-px ${
                   isLast ? 'top-0 h-1/2' : 'top-0 h-full'
                 }`}
               />
               {/* Horizontal branch line */}
-              <div className="absolute left-0 w-2 h-px bg-border-strong top-1/2" />
+              <div className="absolute left-0 w-2 h-px top-1/2" />
               <button
                 onClick={() => onSessionClick(session)}
                 className={`w-full text-left ml-3 px-1.5 py-1.5 pr-2 rounded-md text-sm transition-colors flex items-center gap-1 min-w-0 ${

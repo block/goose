@@ -324,21 +324,21 @@ export default function ExtensionModal({
 
           {showDeleteConfirmation ? (
             <div className="py-4">
-              <p className="text-textStandard">
+              <p className="text-text-default">
                 This will permanently remove this extension and all of its settings.
               </p>
             </div>
           ) : (
             <div className="py-4 space-y-6">
               {formData.installation_notes && (
-                <div className="bg-bgSubtle border border-borderSubtle rounded-lg p-4">
+                <div className="bg-bgSubtle border border-border-default rounded-lg p-4">
                   <div className="flex items-start gap-2">
                     <Info className="h-5 w-5 text-blue-400 shrink-0 mt-0.5" />
                     <div>
-                      <h4 className="text-sm font-medium text-textStandard mb-1">
+                      <h4 className="text-sm font-medium text-text-default mb-1">
                         Installation Notes
                       </h4>
-                      <p className="text-sm text-textSubtle">{formData.installation_notes}</p>
+                      <p className="text-sm text-text-muted">{formData.installation_notes}</p>
                     </div>
                   </div>
                 </div>
@@ -354,7 +354,7 @@ export default function ExtensionModal({
                 submitAttempted={submitAttempted}
               />
 
-              <hr className="border-t border-borderSubtle" />
+              <hr className="border-t border-border-default" />
 
               {/* Command */}
               <div>
@@ -376,7 +376,7 @@ export default function ExtensionModal({
 
               {formData.type === 'stdio' && (
                 <>
-                  <hr className="border-t border-borderSubtle" />
+                  <hr className="border-t border-border-default" />
 
                   <div>
                     <EnvVarsSection
@@ -394,7 +394,7 @@ export default function ExtensionModal({
               {formData.type === 'streamable_http' && (
                 <>
                   {/* Divider */}
-                  <hr className="border-t border-borderSubtle" />
+                  <hr className="border-t border-border-default" />
 
                   <div>
                     <HeadersSection

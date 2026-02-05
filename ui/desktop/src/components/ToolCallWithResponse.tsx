@@ -136,7 +136,7 @@ function McpAppWrapper({
         sessionId={sessionId}
         append={append}
       />
-      <div className="mt-3 p-4 py-3 border border-borderSubtle rounded-lg bg-background-muted flex items-center">
+      <div className="mt-3 p-4 py-3 border border-border-default rounded-lg bg-background-muted flex items-center">
         <FlaskConical className="mr-2" size={20} />
         <div className="text-sm font-sans">
           MCP Apps are experimental and may change at any time.
@@ -180,7 +180,7 @@ export default function ToolCallWithResponse({
     <>
       <div
         className={cn(
-          'w-full text-sm font-sans rounded-lg overflow-hidden border-borderSubtle border'
+          'w-full text-sm font-sans rounded-lg overflow-hidden border-border-default border'
         )}
       >
         <ToolCallView
@@ -205,7 +205,7 @@ export default function ToolCallWithResponse({
             return (
               <div key={index} className="mt-3">
                 <MCPUIResourceRenderer content={resourceContent} appendPromptToChat={append} />
-                <div className="mt-3 p-4 py-3 border border-borderSubtle rounded-lg bg-background-muted flex items-center">
+                <div className="mt-3 p-4 py-3 border border-border-default rounded-lg bg-background-muted flex items-center">
                   <FlaskConical className="mr-2" size={20} />
                   <div className="text-sm font-sans">
                     MCP UI is experimental and may change at any time.
@@ -716,7 +716,7 @@ function ToolCallView({
           (typeof code === 'string' || Array.isArray(toolGraph))
         ) {
           return (
-            <div className="border-t border-borderSubtle">
+            <div className="border-t border-border-default">
               <CodeModeView toolGraph={toolGraph} code={code} />
             </div>
           );
@@ -724,7 +724,7 @@ function ToolCallView({
 
         if (isToolDetails) {
           return (
-            <div className="border-t border-borderSubtle">
+            <div className="border-t border-border-default">
               <ToolDetailsView toolCall={toolCall} isStartExpanded={isExpandToolDetails} />
             </div>
           );
@@ -734,7 +734,7 @@ function ToolCallView({
       })()}
 
       {logs && logs.length > 0 && (
-        <div className="border-t border-borderSubtle">
+        <div className="border-t border-border-default">
           <ToolLogsView
             logs={logs}
             working={loadingStatus === 'loading'}
@@ -748,7 +748,7 @@ function ToolCallView({
       {toolResults.length === 0 &&
         progressEntries.length > 0 &&
         progressEntries.map((entry, index) => (
-          <div className="p-3 border-t border-borderSubtle" key={index}>
+          <div className="p-3 border-t border-border-default" key={index}>
             <ProgressBar progress={entry.progress} total={entry.total} message={entry.message} />
           </div>
         ))}
@@ -757,7 +757,7 @@ function ToolCallView({
       {!isCancelledMessage && (
         <>
           {toolResults.map((result, index) => (
-            <div key={index} className={cn('border-t border-borderSubtle')}>
+            <div key={index} className={cn('border-t border-border-default')}>
               <ToolResultView toolCall={toolCall} result={result} isStartExpanded={false} />
             </div>
           ))}
@@ -814,10 +814,10 @@ function CodeModeView({ toolGraph, code }: CodeModeViewProps) {
   return (
     <div className="px-4 py-2">
       {toolGraph && (
-        <pre className="font-mono text-xs text-textSubtle whitespace-pre-wrap">{renderGraph()}</pre>
+        <pre className="font-mono text-xs text-text-muted whitespace-pre-wrap">{renderGraph()}</pre>
       )}
       {code && (
-        <div className="border-t border-borderSubtle -mx-4 mt-2">
+        <div className="border-t border-border-default -mx-4 mt-2">
           <ToolCallExpandable
             label={<span className="pl-4 font-sans text-sm">Code</span>}
             isStartExpanded={false}
@@ -945,7 +945,7 @@ function ToolLogsView({
         className={`flex flex-col items-start space-y-2 overflow-y-auto p-4 ${working ? 'max-h-[4rem]' : 'max-h-[20rem]'}`}
       >
         {logs.map((log, i) => (
-          <span key={i} className="font-sans text-sm text-textSubtle">
+          <span key={i} className="font-sans text-sm text-text-muted">
             {log}
           </span>
         ))}
@@ -960,9 +960,9 @@ const ProgressBar = ({ progress, total, message }: Omit<Progress, 'progressToken
 
   return (
     <div className="w-full space-y-2">
-      {message && <div className="font-sans text-sm text-textSubtle">{message}</div>}
+      {message && <div className="font-sans text-sm text-text-muted">{message}</div>}
 
-      <div className="w-full bg-background-subtle rounded-full h-4 overflow-hidden relative">
+      <div className="w-full bg-background-muted rounded-full h-4 overflow-hidden relative">
         {isDeterminate ? (
           <div
             className="bg-primary h-full transition-all duration-300"

@@ -120,14 +120,14 @@ export const ScheduleFromRecipeModal: React.FC<ScheduleFromRecipeModalProps> = (
             type="button"
             variant="outline"
             onClick={handleClose}
-            className="flex-1 rounded-xl hover:bg-bgSubtle text-textSubtle"
+            className="flex-1 rounded-xl hover:bg-bgSubtle text-text-muted"
           >
             Cancel
           </Button>
           <Button
             type="button"
             onClick={handleCreateSchedule}
-            className="flex-1 bg-background-defaultInverse text-sm text-textProminentInverse rounded-xl hover:bg-bgStandardInverse transition-colors"
+            className="flex-1 text-sm text-text-defaultInverse rounded-xl hover:bg-bgStandardInverse transition-colors"
           >
             Create Schedule
           </Button>

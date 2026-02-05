@@ -125,7 +125,7 @@ export default function ToolConfirmation({
   }
 
   return isCancelledMessage ? (
-    <div className="goose-message-content bg-background-muted rounded-2xl px-4 py-2 text-textStandard">
+    <div className="goose-message-content bg-background-muted rounded-2xl px-4 py-2 text-text-default">
       Tool call confirmation is cancelled.
     </div>
   ) : (
@@ -137,13 +137,13 @@ export default function ToolConfirmation({
         </div>
       )}
 
-      <div className="goose-message-content bg-background-muted rounded-2xl px-4 py-2 rounded-b-none text-textStandard">
+      <div className="goose-message-content bg-background-muted rounded-2xl px-4 py-2 rounded-b-none text-text-default">
         {prompt
           ? 'Do you allow this tool call?'
           : 'Goose would like to call the above tool. Allow?'}
       </div>
       {clicked ? (
-        <div className="goose-message-tool bg-background-default border border-borderSubtle dark:border-gray-700 rounded-b-2xl px-4 pt-2 pb-2 flex items-center justify-between">
+        <div className="goose-message-tool bg-background-default border border-border-default dark:border-gray-700 rounded-b-2xl px-4 pt-2 pb-2 flex items-center justify-between">
           <div className="flex items-center">
             {(status === 'allow_once' || status === 'always_allow') && (
               <svg
@@ -181,7 +181,7 @@ export default function ToolConfirmation({
                 <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
               </svg>
             )}
-            <span className="ml-2 text-textStandard">
+            <span className="ml-2 text-text-default">
               {isClicked
                 ? 'Tool confirmation is not available'
                 : `${snakeToTitleCase(toolName.substring(toolName.lastIndexOf('__') + 2))} is ${actionDisplay}`}
@@ -189,12 +189,12 @@ export default function ToolConfirmation({
           </div>
 
           <div className="flex items-center cursor-pointer" onClick={() => setIsModalOpen(true)}>
-            <span className="mr-1 text-textStandard">Change</span>
+            <span className="mr-1 text-text-default">Change</span>
             <ChevronRight className="w-4 h-4 ml-1 text-iconStandard" />
           </div>
         </div>
       ) : (
-        <div className="goose-message-tool bg-background-default border border-borderSubtle dark:border-gray-700 rounded-b-2xl px-4 pt-2 pb-2 flex gap-2 items-center">
+        <div className="goose-message-tool bg-background-default border border-border-default dark:border-gray-700 rounded-b-2xl px-4 pt-2 pb-2 flex gap-2 items-center">
           <Button
             className="rounded-full"
             variant="secondary"

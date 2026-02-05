@@ -354,7 +354,7 @@ export default function BaseChat({
                   onClick={() => {
                     setView('chat');
                   }}
-                  className="px-4 py-2 text-center cursor-pointer text-textStandard border border-borderSubtle hover:bg-bgSubtle rounded-lg transition-all duration-150"
+                  className="px-4 py-2 text-center cursor-pointer text-text-default border border-border-default hover:bg-bgSubtle rounded-lg transition-all duration-150"
                 >
                   Go home
                 </button>
