@@ -423,7 +423,7 @@ async fn test_prompt_manager_configuration() {
     );
 
     let short_prompt = "This is a reasonable length prompt.";
-    let validation_result = manager.validate_prompt(&short_prompt);
+    let validation_result = manager.validate_prompt(short_prompt);
     assert!(
         validation_result.is_ok(),
         "Should pass validation for reasonable prompt"
