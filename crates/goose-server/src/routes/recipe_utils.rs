@@ -170,9 +170,5 @@ pub async fn apply_recipe_to_agent(
         )
         .await;
 
-    recipe.instructions.as_ref().map(|instructions| {
-        let mut context: HashMap<&str, Value> = HashMap::new();
-        context.insert("recipe_instructions", Value::String(instructions.clone()));
-        render_template("desktop_recipe_instruction.md", &context).expect("Prompt should render")
-    })
+    recipe.instructions.as_ref().cloned()
 }

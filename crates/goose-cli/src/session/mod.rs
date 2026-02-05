@@ -5,7 +5,6 @@ mod elicitation;
 mod export;
 mod input;
 mod output;
-mod prompt;
 mod task_execution_display;
 mod thinking;
 
