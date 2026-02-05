@@ -186,7 +186,8 @@ pub async fn handle_term_log(command: String) -> Result<()> {
         chrono::Utc::now().timestamp_millis(),
         vec![MessageContent::text(command)],
     )
-    .with_metadata(MessageMetadata::user_only());
+    .with_metadata(MessageMetadata::user_only())
+    .with_generated_id();
 
     let session_manager = SessionManager::instance();
     session_manager.add_message(&session_id, &message).await?;

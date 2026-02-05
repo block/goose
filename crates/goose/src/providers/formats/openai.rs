@@ -10,7 +10,7 @@ use async_stream::try_stream;
 use chrono;
 use futures::Stream;
 use rmcp::model::{
-    object, AnnotateAble, CallToolRequestParam, Content, ErrorCode, ErrorData, RawContent,
+    object, AnnotateAble, CallToolRequestParams, Content, ErrorCode, ErrorData, RawContent,
     ResourceContents, Role, Tool,
 };
 use serde::{Deserialize, Serialize};
@@ -59,7 +59,7 @@ struct StreamingChunk {
 
 pub fn format_messages(messages: &[Message], image_format: &ImageFormat) -> Vec<Value> {
     let mut messages_spec = Vec::new();
-    for message in messages.iter().filter(|m| m.is_agent_visible()) {
+    for message in messages {
         let mut converted = json!({
             "role": message.role
         });
@@ -72,10 +72,14 @@ pub fn format_messages(messages: &[Message], image_format: &ImageFormat) -> Vec<
             match content {
                 MessageContent::Text(text) => {
                     if !text.text.is_empty() {
-                        if let Some(image_path) = detect_image_path(&text.text) {
-                            if let Ok(image) = load_image_file(image_path) {
-                                content_array.push(json!({"type": "text", "text": text.text}));
-                                content_array.push(convert_image(&image, image_format));
+                        if message.role == Role::User {
+                            if let Some(image_path) = detect_image_path(&text.text) {
+                                if let Ok(image) = load_image_file(image_path) {
+                                    content_array.push(json!({"type": "text", "text": text.text}));
+                                    content_array.push(convert_image(&image, image_format));
+                                } else {
+                                    text_array.push(text.text.clone());
+                                }
                             } else {
                                 text_array.push(text.text.clone());
                             }
@@ -131,23 +135,11 @@ pub fn format_messages(messages: &[Message], image_format: &ImageFormat) -> Vec<
                 MessageContent::ToolResponse(response) => {
                     match &response.tool_result {
                         Ok(result) => {
-                            // Send only contents with no audience or with Assistant in the audience
-                            let abridged: Vec<_> = result
-                                .content
-                                .iter()
-                                .filter(|content| {
-                                    content
-                                        .audience()
-                                        .is_none_or(|audience| audience.contains(&Role::Assistant))
-                                })
-                                .cloned()
-                                .collect();
-
                             // Process all content, replacing images with placeholder text
                             let mut tool_content = Vec::new();
                             let mut image_messages = Vec::new();
 
-                            for content in abridged {
+                            for content in result.content.iter() {
                                 match content.deref() {
                                     RawContent::Image(image) => {
                                         // Add placeholder text in the tool response
@@ -169,7 +161,7 @@ pub fn format_messages(messages: &[Message], image_format: &ImageFormat) -> Vec<
                                         tool_content.push(Content::text(text));
                                     }
                                     _ => {
-                                        tool_content.push(content);
+                                        tool_content.push(content.clone());
                                     }
                                 }
                             }
@@ -204,7 +196,14 @@ pub fn format_messages(messages: &[Message], image_format: &ImageFormat) -> Vec<
                 MessageContent::ToolConfirmationRequest(_) => {}
                 MessageContent::ActionRequired(_) => {}
                 MessageContent::Image(image) => {
-                    content_array.push(convert_image(image, image_format));
+                    if message.role == Role::User {
+                        content_array.push(convert_image(image, image_format));
+                    } else {
+                        content_array.push(json!({
+                            "type": "text",
+                            "text": "[Image content removed - not supported in assistant messages]"
+                        }));
+                    }
                 }
                 MessageContent::FrontendToolRequest(request) => match &request.tool_call {
                     Ok(tool_call) => {
@@ -287,10 +286,15 @@ pub fn response_to_message(response: &Value) -> anyhow::Result<Message> {
         .and_then(|c| c.get(0))
         .and_then(|m| m.get("message"))
     else {
-        return Ok(Message::new(
-            Role::Assistant,
-            chrono::Utc::now().timestamp(),
-            Vec::new(),
+        if let Some(error) = response.get("error") {
+            let error_message = error
+                .get("message")
+                .and_then(|m| m.as_str())
+                .unwrap_or("Unknown error");
+            return Err(anyhow::anyhow!("API error: {}", error_message));
+        }
+        return Err(anyhow::anyhow!(
+            "No message in API response. This may indicate a quota limit or other restriction."
         ));
     };
 
@@ -339,7 +343,8 @@ pub fn response_to_message(response: &Value) -> anyhow::Result<Message> {
                         Ok(params) => {
                             content.push(MessageContent::tool_request(
                                 id,
-                                Ok(CallToolRequestParam {
+                                Ok(CallToolRequestParams {
+                                    meta: None,
                                     task: None,
                                     name: function_name.into(),
                                     arguments: Some(object(params)),
@@ -574,8 +579,8 @@ where
                             Ok(params) => {
                                 MessageContent::tool_request_with_metadata(
                                     id.clone(),
-                                    Ok(CallToolRequestParam {
-                                        task: None,
+                                    Ok(CallToolRequestParams {
+                                        meta: None, task: None,
                                         name: function_name.clone().into(),
                                         arguments: Some(object(params))
                                     }),
@@ -880,7 +885,8 @@ mod tests {
             Message::user().with_text("How are you?"),
             Message::assistant().with_tool_request(
                 "tool1",
-                Ok(CallToolRequestParam {
+                Ok(CallToolRequestParams {
+                    meta: None,
                     task: None,
                     name: "example".into(),
                     arguments: Some(object!({"param1": "value1"})),
@@ -925,7 +931,8 @@ mod tests {
     fn test_format_messages_multiple_content() -> anyhow::Result<()> {
         let mut messages = vec![Message::assistant().with_tool_request(
             "tool1",
-            Ok(CallToolRequestParam {
+            Ok(CallToolRequestParams {
+                meta: None,
                 task: None,
                 name: "example".into(),
                 arguments: Some(object!({"param1": "value1"})),
@@ -1023,9 +1030,9 @@ mod tests {
         std::fs::write(&png_path, png_data)?;
         let png_path_str = png_path.to_str().unwrap();
 
-        // Create message with image path
-        let message = Message::user().with_text(format!("Here is an image: {}", png_path_str));
-        let spec = format_messages(&[message], &ImageFormat::OpenAi);
+        // Create user message with image path - should load the image
+        let user_message = Message::user().with_text(format!("Here is an image: {}", png_path_str));
+        let spec = format_messages(&[user_message], &ImageFormat::OpenAi);
 
         assert_eq!(spec.len(), 1);
         assert_eq!(spec[0]["role"], "user");
@@ -1040,6 +1047,22 @@ mod tests {
             .as_str()
             .unwrap()
             .starts_with("data:image/png;base64,"));
+
+        // Create assistant message with same text - should NOT load the image
+        let assistant_message =
+            Message::assistant().with_text(format!("I saved the output to {}", png_path_str));
+        let spec = format_messages(&[assistant_message], &ImageFormat::OpenAi);
+
+        assert_eq!(spec.len(), 1);
+        assert_eq!(spec[0]["role"], "assistant");
+
+        // Content should be plain text, NOT an array with image
+        let content = spec[0]["content"].as_str();
+        assert!(
+            content.is_some(),
+            "Assistant message content should be a string, not an array with image"
+        );
+        assert!(content.unwrap().contains(png_path_str));
 
         Ok(())
     }
@@ -1161,11 +1184,67 @@ mod tests {
     }
 
     #[test]
+    fn test_response_to_message_api_error() -> anyhow::Result<()> {
+        // Test that API responses with an "error" field return the error message
+        let response = json!({
+            "error": {
+                "message": "You have exceeded your quota",
+                "type": "insufficient_quota",
+                "code": "quota_exceeded"
+            }
+        });
+
+        let result = response_to_message(&response);
+        assert!(result.is_err());
+        let err = result.unwrap_err();
+        assert!(err.to_string().contains("API error:"));
+        assert!(err.to_string().contains("You have exceeded your quota"));
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_response_to_message_api_error_unknown() -> anyhow::Result<()> {
+        // Test that API responses with an "error" field but no message return "Unknown error"
+        let response = json!({
+            "error": {
+                "type": "some_error"
+            }
+        });
+
+        let result = response_to_message(&response);
+        assert!(result.is_err());
+        let err = result.unwrap_err();
+        assert!(err.to_string().contains("API error:"));
+        assert!(err.to_string().contains("Unknown error"));
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_response_to_message_no_choices() -> anyhow::Result<()> {
+        // Test that responses without "choices" return an error
+        let response = json!({
+            "id": "chatcmpl-123",
+            "object": "chat.completion",
+            "created": 1234567890
+        });
+
+        let result = response_to_message(&response);
+        assert!(result.is_err());
+        let err = result.unwrap_err();
+        assert!(err.to_string().contains("No message in API response"));
+
+        Ok(())
+    }
+
+    #[test]
     fn test_format_messages_tool_request_with_none_arguments() -> anyhow::Result<()> {
         // Test that tool calls with None arguments are formatted as "{}" string
         let message = Message::assistant().with_tool_request(
             "tool1",
-            Ok(CallToolRequestParam {
+            Ok(CallToolRequestParams {
+                meta: None,
                 task: None,
                 name: "test_tool".into(),
                 arguments: None, // This is the key case the fix addresses
@@ -1193,7 +1272,8 @@ mod tests {
         // Test that tool calls with Some arguments are properly JSON-serialized
         let message = Message::assistant().with_tool_request(
             "tool1",
-            Ok(CallToolRequestParam {
+            Ok(CallToolRequestParams {
+                meta: None,
                 task: None,
                 name: "test_tool".into(),
                 arguments: Some(object!({"param": "value", "number": 42})),
@@ -1224,7 +1304,8 @@ mod tests {
         // Test that FrontendToolRequest with None arguments are formatted as "{}" string
         let message = Message::assistant().with_frontend_tool_request(
             "frontend_tool1",
-            Ok(CallToolRequestParam {
+            Ok(CallToolRequestParams {
+                meta: None,
                 task: None,
                 name: "frontend_test_tool".into(),
                 arguments: None, // This is the key case the fix addresses
@@ -1252,7 +1333,8 @@ mod tests {
         // Test that FrontendToolRequest with Some arguments are properly JSON-serialized
         let message = Message::assistant().with_frontend_tool_request(
             "frontend_tool1",
-            Ok(CallToolRequestParam {
+            Ok(CallToolRequestParams {
+                meta: None,
                 task: None,
                 name: "frontend_test_tool".into(),
                 arguments: Some(object!({"action": "click", "element": "button"})),

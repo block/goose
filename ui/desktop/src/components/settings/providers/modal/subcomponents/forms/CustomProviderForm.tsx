@@ -3,7 +3,6 @@ import { Input } from '../../../../../ui/input';
 import { Select } from '../../../../../ui/Select';
 import { Button } from '../../../../../ui/button';
 import { SecureStorageNotice } from '../SecureStorageNotice';
-import { Checkbox } from '@radix-ui/themes';
 import { UpdateCustomProviderRequest } from '../../../../../../api';
 
 interface CustomProviderFormProps {
@@ -24,7 +23,7 @@ export default function CustomProviderForm({
   const [apiUrl, setApiUrl] = useState('');
   const [apiKey, setApiKey] = useState('');
   const [models, setModels] = useState('');
-  const [isLocalModel, setIsLocalModel] = useState(false);
+  const [requiresApiKey, setRequiresApiKey] = useState(false);
   const [supportsStreaming, setSupportsStreaming] = useState(true);
   const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
 
@@ -40,14 +39,13 @@ export default function CustomProviderForm({
       setApiUrl(initialData.api_url);
       setModels(initialData.models.join(', '));
       setSupportsStreaming(initialData.supports_streaming ?? true);
+      setRequiresApiKey(initialData.requires_auth ?? true);
     }
   }, [initialData]);
 
-  const handleLocalModels = (checked: boolean) => {
-    setIsLocalModel(checked);
-    if (checked) {
-      setApiKey('notrequired');
-    } else {
+  const handleRequiresApiKeyChange = (checked: boolean) => {
+    setRequiresApiKey(checked);
+    if (!checked) {
       setApiKey('');
     }
   };
@@ -58,7 +56,8 @@ export default function CustomProviderForm({
     const errors: Record<string, string> = {};
     if (!displayName) errors.displayName = 'Display name is required';
     if (!apiUrl) errors.apiUrl = 'API URL is required';
-    if (!isLocalModel && !apiKey && !initialData) errors.apiKey = 'API key is required';
+    const existingHadAuth = initialData && (initialData.requires_auth ?? true);
+    if (requiresApiKey && !apiKey && !existingHadAuth) errors.apiKey = 'API key is required';
     if (!models) errors.models = 'At least one model is required';
 
     if (Object.keys(errors).length > 0) {
@@ -78,6 +77,7 @@ export default function CustomProviderForm({
       api_key: apiKey,
       models: modelList,
       supports_streaming: supportsStreaming,
+      requires_auth: requiresApiKey,
     });
   };
 
@@ -173,39 +173,47 @@ export default function CustomProviderForm({
       )}
 
       <div>
-        <label
-          htmlFor="api-key"
-          className="flex items-center text-sm font-medium text-textStandard mb-2"
-        >
-          API Key
-          {!isLocalModel && !initialData && <span className="text-red-500 ml-1">*</span>}
-        </label>
-        <Input
-          id="api-key"
-          type="password"
-          value={apiKey}
-          onChange={(e) => setApiKey(e.target.value)}
-          placeholder={initialData ? 'Leave blank to keep existing key' : 'Your API key'}
-          aria-invalid={!!validationErrors.apiKey}
-          aria-describedby={validationErrors.apiKey ? 'api-key-error' : undefined}
-          className={validationErrors.apiKey ? 'border-red-500' : ''}
-          disabled={isLocalModel}
-        />
-        {validationErrors.apiKey && (
-          <p id="api-key-error" className="text-red-500 text-sm mt-1">
-            {validationErrors.apiKey}
-          </p>
-        )}
+        <label className="block text-sm font-medium text-textStandard mb-2">Authentication</label>
+        <p className="text-sm text-textSubtle mb-3">
+          Local LLMs like Ollama typically don't require an API key.
+        </p>
+        <div className="flex items-center space-x-2">
+          <input
+            type="checkbox"
+            id="requires-api-key"
+            checked={requiresApiKey}
+            onChange={(e) => handleRequiresApiKeyChange(e.target.checked)}
+            className="rounded border-borderStandard"
+          />
+          <label htmlFor="requires-api-key" className="text-sm text-textSubtle">
+            This provider requires an API key
+          </label>
+        </div>
 
-        {!initialData && (
-          <div className="flex items-center space-x-2 mt-2">
-            <Checkbox id="local-model" checked={isLocalModel} onCheckedChange={handleLocalModels} />
+        {requiresApiKey && (
+          <div className="mt-3">
             <label
-              htmlFor="local-model"
-              className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 text-textSubtle"
+              htmlFor="api-key"
+              className="flex items-center text-sm font-medium text-textStandard mb-2"
             >
-              This is a local model (no auth required)
+              API Key
+              {!initialData && <span className="text-red-500 ml-1">*</span>}
             </label>
+            <Input
+              id="api-key"
+              type="password"
+              value={apiKey}
+              onChange={(e) => setApiKey(e.target.value)}
+              placeholder={initialData ? 'Leave blank to keep existing key' : 'Your API key'}
+              aria-invalid={!!validationErrors.apiKey}
+              aria-describedby={validationErrors.apiKey ? 'api-key-error' : undefined}
+              className={validationErrors.apiKey ? 'border-red-500' : ''}
+            />
+            {validationErrors.apiKey && (
+              <p id="api-key-error" className="text-red-500 text-sm mt-1">
+                {validationErrors.apiKey}
+              </p>
+            )}
           </div>
         )}
       </div>
@@ -235,15 +243,14 @@ export default function CustomProviderForm({
             )}
           </div>
           <div className="flex items-center space-x-2 mb-10">
-            <Checkbox
+            <input
+              type="checkbox"
               id="supports-streaming"
               checked={supportsStreaming}
-              onCheckedChange={(checked) => setSupportsStreaming(checked as boolean)}
+              onChange={(e) => setSupportsStreaming(e.target.checked)}
+              className="rounded border-borderStandard"
             />
-            <label
-              htmlFor="supports-streaming"
-              className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 text-textSubtle"
-            >
+            <label htmlFor="supports-streaming" className="text-sm text-textSubtle">
               Provider supports streaming responses
             </label>
           </div>

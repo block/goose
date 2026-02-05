@@ -6,7 +6,7 @@ description: "Share a goose session setup (including tools, goals, and instructi
 
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
-import { PanelLeft, ChefHat, SquarePen, Link, Clock, Terminal } from 'lucide-react';
+import { PanelLeft, ChefHat, SquarePen, Link, Clock, Terminal, Share2 } from 'lucide-react';
 import RecipeFields from '@site/src/components/RecipeFields';
 
 Sometimes you finish a task in goose and realize, "Hey, this setup could be useful again." Maybe you have curated a great combination of tools, defined a clear goal, and want to preserve that flow. Or maybe you're trying to help someone else replicate what you just did without walking them through it step by step. 
@@ -179,6 +179,10 @@ You can turn your current goose session into a reusable recipe that includes the
 
   </TabItem>
 </Tabs>
+
+:::tip Customize Recipe Generation
+You can customize how goose generates recipes by editing the `recipe.md` [prompt template](/docs/guides/prompt-templates).
+:::
 
 ## Edit Recipe
 <Tabs groupId="interface">
@@ -487,8 +491,29 @@ When someone clicks the link, it will open goose Desktop with your recipe config
 ### Share via Recipe File
 You can share a recipe with Desktop or CLI users by sending the recipe file directly.
 
-- Desktop users can [import the recipe](/docs/guides/recipes/storing-recipes#importing-recipes) (YAML only).
-- CLI users can run a YAML or JSON recipe using `goose run --recipe <FILE>` or open it directly in goose Desktop with `goose recipe open <FILE>`. See the [CLI Commands guide](/docs/guides/goose-cli-commands#recipe) for details.
+<Tabs groupId="interface">
+  <TabItem value="ui" label="goose Desktop" default>
+
+  In goose Desktop, you can export a recipe file or copy its content to share with others.
+
+  1. Click the <PanelLeft className="inline" size={16} /> button in the top-left to open the sidebar
+  2. Click `Recipes` in the sidebar
+  3. Find the recipe you want to share and click the <Share2 className="inline" size={16} /> button
+  4. Choose a sharing method:
+     - To download the recipe as a `.yaml` file: Choose `Export to File`, select a download location, and click `Save`
+     - To copy the recipe's YAML content to your clipboard: Choose `Copy YAML`
+
+  Other Desktop users can [import the recipe](/docs/guides/recipes/storing-recipes#importing-recipes) to their Recipe Library.
+
+  </TabItem>
+  <TabItem value="cli" label="goose CLI">
+
+  Exporting or copying recipe content is only available through the Desktop, but you can copy local recipe files directly.
+
+  CLI users can run a shared recipe file using `goose run --recipe <FILE>` or open it directly in goose Desktop with `goose recipe open <FILE>`. See the [CLI Commands guide](/docs/guides/goose-cli-commands#recipe) for details.
+
+  </TabItem>
+</Tabs>
 
 ## Schedule Recipe
 <Tabs groupId="interface">

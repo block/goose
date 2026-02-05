@@ -159,7 +159,7 @@ impl Component for InfoComponent {
         };
 
         if let Some(flash_span) = flash_message_span {
-            let flash_width = UnicodeWidthStr::width(flash_span.content.as_ref()) as u16;
+            let flash_width = UnicodeWidthStr::width(&*flash_span.content) as u16;
             let chunks = ratatui::layout::Layout::default()
                 .direction(ratatui::layout::Direction::Horizontal)
                 .constraints([

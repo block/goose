@@ -11,6 +11,7 @@ import { RecipeFormFields } from './shared/RecipeFormFields';
 import { RecipeFormData } from './shared/recipeFormSchema';
 import { toastSuccess, toastError } from '../../toasts';
 import { saveRecipe } from '../../recipe/recipe_management';
+import { errorMessage } from '../../utils/conversionUtils';
 
 interface CreateEditRecipeModalProps {
   isOpen: boolean;
@@ -80,12 +81,8 @@ export default function CreateEditRecipeModal({
   const [copied, setCopied] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
 
-  // Initialize selected extensions for the recipe
-  const [recipeExtensions] = useState<ExtensionConfig[]>(() => {
-    if (recipe?.extensions) {
-      return recipe.extensions;
-    }
-    return [];
+  const [recipeExtensions] = useState<ExtensionConfig[] | undefined>(() => {
+    return recipe?.extensions ?? undefined;
   });
 
   // Reset form when recipe changes
@@ -131,6 +128,10 @@ export default function CreateEditRecipeModal({
       }
     }
 
+    const extensions = recipeExtensions?.map((extension) =>
+      'envs' in extension ? { ...extension, envs: undefined } : extension
+    ) as ExtensionConfig[] | undefined;
+
     return {
       ...recipe,
       title,
@@ -140,10 +141,7 @@ export default function CreateEditRecipeModal({
       prompt: prompt || undefined,
       parameters: formattedParameters,
       response: responseConfig,
-      // Strip envs to avoid leaking secrets
-      extensions: recipeExtensions.map((extension) =>
-        'envs' in extension ? { ...extension, envs: undefined } : extension
-      ) as ExtensionConfig[],
+      extensions,
     };
   }, [
     recipe,
@@ -272,8 +270,8 @@ export default function CreateEditRecipeModal({
 
       toastError({
         title: 'Save Failed',
-        msg: `Failed to save recipe: ${error instanceof Error ? error.message : 'Unknown error'}`,
-        traceback: error instanceof Error ? error.message : String(error),
+        msg: `Failed to save recipe: ${errorMessage(error, 'Unknown error')}`,
+        traceback: errorMessage(error),
       });
     } finally {
       setIsSaving(false);
@@ -317,8 +315,8 @@ export default function CreateEditRecipeModal({
 
       toastError({
         title: 'Save and Run Failed',
-        msg: `Failed to save and run recipe: ${error instanceof Error ? error.message : 'Unknown error'}`,
-        traceback: error instanceof Error ? error.message : String(error),
+        msg: `Failed to save and run recipe: ${errorMessage(error, 'Unknown error')}`,
+        traceback: errorMessage(error),
       });
     } finally {
       setIsSaving(false);

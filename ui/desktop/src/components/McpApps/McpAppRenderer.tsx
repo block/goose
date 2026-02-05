@@ -15,12 +15,15 @@ import {
   ToolResult,
   ToolCancelled,
   CspMetadata,
+  PermissionsMetadata,
   McpMethodParams,
   McpMethodResponse,
 } from './types';
 import { cn } from '../../utils';
 import { DEFAULT_IFRAME_HEIGHT } from './utils';
 import { readResource, callTool } from '../../api';
+import { errorMessage } from '../../utils/conversionUtils';
+import { isProtocolSafe, getProtocol } from '../../utils/urlSecurity';
 
 interface McpAppRendererProps {
   resourceUri: string;
@@ -38,6 +41,7 @@ interface McpAppRendererProps {
 interface ResourceData {
   html: string | null;
   csp: CspMetadata | null;
+  permissions: PermissionsMetadata | null;
   prefersBorder: boolean;
 }
 
@@ -56,10 +60,12 @@ export default function McpAppRenderer({
   const [resource, setResource] = useState<ResourceData>({
     html: cachedHtml || null,
     csp: null,
+    permissions: null,
     prefersBorder: true,
   });
   const [error, setError] = useState<string | null>(null);
   const [iframeHeight, setIframeHeight] = useState(DEFAULT_IFRAME_HEIGHT);
+  const [iframeWidth, setIframeWidth] = useState<number | null>(null);
 
   useEffect(() => {
     if (!sessionId) {
@@ -79,20 +85,21 @@ export default function McpAppRenderer({
         if (response.data) {
           const content = response.data;
           const meta = content._meta as
-            | { ui?: { csp?: CspMetadata; prefersBorder?: boolean } }
+            | { ui?: { csp?: CspMetadata; permissions?: PermissionsMetadata; prefersBorder?: boolean } }
             | undefined;
 
           if (content.text !== cachedHtml) {
             setResource({
               html: content.text,
               csp: meta?.ui?.csp || null,
+              permissions: meta?.ui?.permissions || null,
               prefersBorder: meta?.ui?.prefersBorder ?? true,
             });
           }
         }
       } catch (err) {
         if (!cachedHtml) {
-          setError(err instanceof Error ? err.message : 'Failed to load resource');
+          setError(errorMessage(err, 'Failed to load resource'));
         } else {
           console.warn('Failed to fetch fresh resource, using cached version:', err);
         }
@@ -117,7 +124,37 @@ export default function McpAppRenderer({
       switch (method) {
         case 'ui/open-link': {
           const { url } = params as McpMethodParams['ui/open-link'];
-          await window.electron.openExternal(url);
+
+          // Safe protocols open directly, unknown protocols require confirmation
+          // Dangerous protocols are blocked by main.ts in the open-external handler
+          if (isProtocolSafe(url)) {
+            await window.electron.openExternal(url);
+          } else {
+            const protocol = getProtocol(url);
+            if (!protocol) {
+              return {
+                status: 'error',
+                message: 'Invalid URL',
+              } as McpMethodResponse['ui/open-link'];
+            }
+
+            const result = await window.electron.showMessageBox({
+              type: 'question',
+              buttons: ['Cancel', 'Open'],
+              defaultId: 0,
+              title: 'Open External Link',
+              message: `Open ${protocol} link?`,
+              detail: `This will open: ${url}`,
+            });
+            if (result.response !== 1) {
+              return {
+                status: 'error',
+                message: 'User cancelled',
+              } as McpMethodResponse['ui/open-link'];
+            }
+            await window.electron.openExternal(url);
+          }
+
           return {
             status: 'success',
             message: 'Link opened successfully',
@@ -199,14 +236,16 @@ export default function McpAppRenderer({
     [append, sessionId, extensionName]
   );
 
-  const handleSizeChanged = useCallback((height: number, _width?: number) => {
+  const handleSizeChanged = useCallback((height: number, width?: number) => {
     const newHeight = Math.max(DEFAULT_IFRAME_HEIGHT, height);
     setIframeHeight(newHeight);
+    setIframeWidth(width ?? null);
   }, []);
 
   const { iframeRef, proxyUrl } = useSandboxBridge({
     resourceHtml: resource.html || '',
     resourceCsp: resource.csp,
+    resourcePermissions: resource.permissions,
     resourceUri,
     toolInput,
     toolInputPartial,
@@ -263,7 +302,8 @@ export default function McpAppRenderer({
           ref={iframeRef}
           src={proxyUrl}
           style={{
-            width: '100%',
+            width: iframeWidth ? `${iframeWidth}px` : '100%',
+            maxWidth: '100%',
             height: `${iframeHeight}px`,
             border: 'none',
             overflow: 'hidden',

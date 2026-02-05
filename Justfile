@@ -333,7 +333,7 @@ release-notes old:
     #!/usr/bin/env bash
     git log --pretty=format:"- %s" {{ old }}..v$(just get-tag-version)
 
-### s = file seperator based on OS
+### s = file separator based on OS
 s := if os() == "windows" { "\\" } else { "/" }
 
 ### testing/debugging
@@ -372,14 +372,14 @@ win-app-deps:
   cd ui{{s}}desktop ; npm install
 
 ### Windows copy {release|debug} files to ui\desktop\src\bin
-### s = os depenent file seperator
+### s = os dependent file separator
 ### profile = release or debug
 win-copy-win profile:
   copy target{{s}}{{profile}}{{s}}*.exe ui{{s}}desktop{{s}}src{{s}}bin
   copy target{{s}}{{profile}}{{s}}*.dll ui{{s}}desktop{{s}}src{{s}}bin
 
 ### "Other" copy {release|debug} files to ui/desktop/src/bin
-### s = os depenent file seperator
+### s = os dependent file separator
 ### profile = release or debug
 win-copy-oth profile:
   find target{{s}}{{profile}}{{s}} -maxdepth 1 -type f -executable -print -exec cp {} ui{{s}}desktop{{s}}src{{s}}bin \;
@@ -391,7 +391,7 @@ win-app-copy profile="release":
 
 ### Only copy binaries, npm install, start-gui
 ### profile = release or debug
-### s = os depenent file seperator
+### s = os dependent file separator
 win-app-run profile:
   just win-app-copy {{profile}}
   just win-app-deps

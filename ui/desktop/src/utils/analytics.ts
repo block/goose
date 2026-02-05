@@ -69,7 +69,9 @@ export type AnalyticsEvent =
   | { name: 'onboarding_started'; properties: Record<string, never> }
   | {
       name: 'onboarding_provider_selected';
-      properties: { method: 'api_key' | 'openrouter' | 'tetrate' | 'chatgpt_codex' | 'ollama' | 'other' };
+      properties: {
+        method: 'api_key' | 'openrouter' | 'tetrate' | 'chatgpt_codex' | 'ollama' | 'other';
+      };
     }
   | {
       name: 'onboarding_completed';
@@ -166,7 +168,7 @@ export type AnalyticsEvent =
   | {
       name: 'input_voice_dictation';
       properties: {
-        action: 'start' | 'stop' | 'transcribed' | 'error';
+        action: 'start' | 'stop' | 'transcribed' | 'error' | 'auto_submit';
         duration_seconds?: number;
         error_type?: string;
       };
@@ -591,7 +593,7 @@ export function trackFileAttached(fileType: 'file' | 'directory'): void {
 }
 
 export function trackVoiceDictation(
-  action: 'start' | 'stop' | 'transcribed' | 'error',
+  action: 'start' | 'stop' | 'transcribed' | 'error' | 'auto_submit',
   durationSeconds?: number,
   errorType?: string
 ): void {

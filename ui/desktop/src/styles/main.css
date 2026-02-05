@@ -2,6 +2,9 @@
 @import 'tw-animate-css';
 @plugin '@tailwindcss/typography';
 
+@source './index.html';
+@source './src/**/*.{js,ts,jsx,tsx}';
+
 @theme {
   --breakpoint-md: 930px;
 }
@@ -347,6 +350,46 @@
   }
 }
 
+/* Global reduced motion support - applies when user has system preference set */
+@media (prefers-reduced-motion: reduce) {
+  /* Disable all CSS animations and transitions, except for toasts which need transitions for auto-dismiss */
+  *:not(.Toastify *),
+  *:not(.Toastify *)::before,
+  *:not(.Toastify *)::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+
+  /* Specific animation classes that should be disabled */
+  .animate-shimmer,
+  .animate-spin,
+  .animate-pulse,
+  .animate-bounce,
+  [class*='animate-']:not(.Toastify *) {
+    animation: none !important;
+  }
+
+  /* Page transitions */
+  .page-transition {
+    animation: none !important;
+    opacity: 1 !important;
+  }
+
+  /* Goose icon entrance animation */
+  .goose-icon-entrance {
+    animation: none !important;
+    opacity: 1 !important;
+    transform: none !important;
+  }
+
+  /* Wind/rain animation in welcome logo */
+  [class*='animate-[wind'] {
+    animation: none !important;
+  }
+}
+
 /* Toast close button styling */
 .Toastify__close-button {
   color: var(--text-prominent-inverse) !important;
@@ -633,38 +676,6 @@ p > code.bg-inline-code {
 .goose-icon-animation {
   animation: goose-icon-entrance 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
   transform-origin: bottom left;
-}
-
-/* Session list optimizations */
-.session-grid {
-  /* Use CSS Grid for better performance */
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-  gap: 1rem;
-  /* Optimize for large lists */
-  contain: layout style paint;
-}
-
-.session-item {
-  /* Default state - visible and positioned */
-  opacity: 1;
-  transform: translateY(0) translateZ(0);
-
-  /* Optimize individual session cards */
-  contain: layout style;
-  /* Use hardware acceleration */
-  backface-visibility: hidden;
-  /* Ensure smooth interactions */
-  will-change: auto;
-}
-
-.session-item:hover {
-  /* Only use will-change during hover */
-  will-change: transform, box-shadow;
-}
-
-.session-item:not(:hover) {
-  will-change: auto;
 }
 
 /* Optimize session skeleton loading */

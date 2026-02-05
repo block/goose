@@ -4,18 +4,32 @@ use etcetera::AppStrategy;
 use ignore::gitignore::{Gitignore, GitignoreBuilder};
 use include_dir::{include_dir, Dir};
 use indoc::{formatdoc, indoc};
+use once_cell::sync::Lazy;
 use rmcp::{
     handler::server::{router::tool::ToolRouter, wrapper::Parameters},
     model::{
         CallToolResult, CancelledNotificationParam, Content, ErrorCode, ErrorData,
-        GetPromptRequestParam, GetPromptResult, Implementation, ListPromptsResult, LoggingLevel,
-        LoggingMessageNotificationParam, PaginatedRequestParam, Prompt, PromptArgument,
+        GetPromptRequestParams, GetPromptResult, Implementation, ListPromptsResult, LoggingLevel,
+        LoggingMessageNotificationParam, Meta, PaginatedRequestParams, Prompt, PromptArgument,
         PromptMessage, PromptMessageRole, Role, ServerCapabilities, ServerInfo,
     },
     schemars::JsonSchema,
     service::{NotificationContext, RequestContext},
     tool, tool_handler, tool_router, RoleServer, ServerHandler,
 };
+
+/// Header name for passing working directory through MCP request metadata
+const WORKING_DIR_HEADER: &str = "agent-working-dir";
+
+/// Extract working directory from MCP request metadata
+fn extract_working_dir_from_meta(meta: &Meta) -> Option<PathBuf> {
+    meta.0
+        .get(WORKING_DIR_HEADER)
+        .and_then(|v| v.as_str())
+        .filter(|s| !s.is_empty())
+        .map(PathBuf::from)
+}
+
 use serde::{Deserialize, Serialize};
 use std::{
     collections::HashMap,
@@ -120,6 +134,34 @@ pub struct PromptArgumentTemplate {
 
 // Embeds the prompts directory to the build
 static PROMPTS_DIR: Dir = include_dir!("$CARGO_MANIFEST_DIR/src/developer/prompts");
+
+static MACOS_SCREENSHOT_FILENAME_RE: Lazy<regex::Regex> = Lazy::new(|| {
+    regex::Regex::new(
+        r"^Screenshot \d{4}-\d{2}-\d{2} at \d{1,2}\.\d{2}\.\d{2} (AM|PM|am|pm)(?: \(\d+\))?\.png$",
+    )
+    .expect("macOS screenshot filename regex should be valid")
+});
+
+const DEFAULT_GOOSEIGNORE_CONTENT: &str = concat!(
+    "# This file is created automatically if no .gooseignore exists.\n",
+    "# Customize or uncomment the patterns below instead of deleting the file.\n",
+    "# Removing it will simply cause goose to recreate it on the next start.\n",
+    "#\n",
+    "# Suggested patterns you can uncomment if desired:\n",
+    "# **/.ssh/**        # block SSH keys and configs\n",
+    "# **/*.key         # block loose private keys\n",
+    "# **/*.pem         # block certificates/private keys\n",
+    "# **/.git/**        # block git metadata entirely\n",
+    "# **/target/**     # block Rust build artifacts\n",
+    "# **/node_modules/** # block JS/TS dependencies\n",
+    "# **/*.db          # block local database files\n",
+    "# **/*.sqlite      # block SQLite databases\n",
+    "#\n",
+    "\n",
+    "**/.env\n",
+    "**/.env.*\n",
+    "**/secrets.*\n",
+);
 
 /// Loads prompt files from the embedded PROMPTS_DIR and returns a HashMap of prompts.
 /// Ensures that each prompt name is unique.
@@ -394,7 +436,7 @@ impl ServerHandler for DeveloperServer {
     // implementation with the macro-based approach for better maintainability.
     fn list_prompts(
         &self,
-        _request: Option<PaginatedRequestParam>,
+        _request: Option<PaginatedRequestParams>,
         _context: RequestContext<RoleServer>,
     ) -> impl Future<Output = Result<ListPromptsResult, ErrorData>> + Send + '_ {
         let prompts: Vec<Prompt> = self.prompts.values().cloned().collect();
@@ -407,7 +449,7 @@ impl ServerHandler for DeveloperServer {
 
     fn get_prompt(
         &self,
-        request: GetPromptRequestParam,
+        request: GetPromptRequestParams,
         _context: RequestContext<RoleServer>,
     ) -> impl Future<Output = Result<GetPromptResult, ErrorData>> + Send + '_ {
         let prompt_name = request.name;
@@ -618,7 +660,7 @@ impl DeveloperServer {
     ) -> Result<CallToolResult, ErrorData> {
         let params = params.0;
 
-        let mut image = if let Some(window_title) = &params.window_title {
+        let image = if let Some(window_title) = &params.window_title {
             // Try to find and capture the specified window
             let windows = Window::all().map_err(|_| {
                 ErrorData::new(
@@ -679,29 +721,8 @@ impl DeveloperServer {
             })?
         };
 
-        // Resize the image to a reasonable width while maintaining aspect ratio
-        let max_width = 768;
-        if image.width() > max_width {
-            let scale = max_width as f32 / image.width() as f32;
-            let new_height = (image.height() as f32 * scale) as u32;
-            image = xcap::image::imageops::resize(
-                &image,
-                max_width,
-                new_height,
-                xcap::image::imageops::FilterType::Lanczos3,
-            );
-        }
-
-        let mut bytes: Vec<u8> = Vec::new();
-        image
-            .write_to(&mut Cursor::new(&mut bytes), xcap::image::ImageFormat::Png)
-            .map_err(|e| {
-                ErrorData::new(
-                    ErrorCode::INTERNAL_ERROR,
-                    format!("Failed to write image buffer {}", e),
-                    None,
-                )
-            })?;
+        let dynamic_image = xcap::image::DynamicImage::ImageRgba8(image);
+        let (bytes, mime_type) = Self::prepare_image_for_llm(dynamic_image)?;
 
         // Convert to base64
         let data = base64::prelude::BASE64_STANDARD.encode(bytes);
@@ -710,7 +731,7 @@ impl DeveloperServer {
         // one text for Assistant, one image with priority 0.0
         Ok(CallToolResult::success(vec![
             Content::text("Screenshot captured").with_audience(vec![Role::Assistant]),
-            Content::image(data, "image/png").with_priority(0.0),
+            Content::image(data, &mime_type).with_priority(0.0),
         ]))
     }
 
@@ -865,6 +886,8 @@ impl DeveloperServer {
         let peer = context.peer;
         let request_id = context.id;
 
+        let working_dir = extract_working_dir_from_meta(&context.meta);
+
         // Validate the shell command
         self.validate_shell_command(command)?;
 
@@ -878,7 +901,7 @@ impl DeveloperServer {
 
         // Execute the command and capture output
         let output_result = self
-            .execute_shell_command(command, &peer, cancellation_token.clone())
+            .execute_shell_command(command, &peer, cancellation_token.clone(), working_dir)
             .await;
 
         // Clean up the process from tracking
@@ -962,16 +985,13 @@ impl DeveloperServer {
         command: &str,
         peer: &rmcp::service::Peer<RoleServer>,
         cancellation_token: CancellationToken,
+        working_dir: Option<PathBuf>,
     ) -> Result<String, ErrorData> {
         let mut shell_config = ShellConfig::default();
         let shell_name = std::path::Path::new(&shell_config.executable)
             .file_name()
             .and_then(|s| s.to_str())
             .unwrap_or("bash");
-
-        let working_dir = std::env::var("GOOSE_WORKING_DIR")
-            .ok()
-            .map(std::path::PathBuf::from);
 
         if let Some(ref env_file) = self.bash_env_file {
             if shell_name == "bash" {
@@ -1155,14 +1175,14 @@ impl DeveloperServer {
     /// Process an image file from disk.
     ///
     /// The image will be:
-    /// 1. Resized if larger than max width while maintaining aspect ratio
-    /// 2. Converted to PNG format
+    /// 1. Resized to max 1024px on either dimension while maintaining aspect ratio
+    /// 2. Converted to JPEG format (85% quality)
     /// 3. Returned as base64 encoded data
     ///
-    /// This allows processing image files for use in the conversation.
+    /// This allows processing image files for use in the conversation with optimized file sizes.
     #[tool(
         name = "image_processor",
-        description = "Process an image file from disk. Resizes if needed, converts to PNG, and returns as base64 data."
+        description = "Process an image file from disk. Resizes to max 1024px, converts to JPEG (85% quality), and returns as base64 data for optimized LLM consumption."
     )]
     pub async fn image_processor(
         &self,
@@ -1234,31 +1254,7 @@ impl DeveloperServer {
             )
         })?;
 
-        // Resize if necessary (same logic as screen_capture)
-        let mut processed_image = image;
-        let max_width = 768;
-        if processed_image.width() > max_width {
-            let scale = max_width as f32 / processed_image.width() as f32;
-            let new_height = (processed_image.height() as f32 * scale) as u32;
-            processed_image = xcap::image::DynamicImage::ImageRgba8(xcap::image::imageops::resize(
-                &processed_image,
-                max_width,
-                new_height,
-                xcap::image::imageops::FilterType::Lanczos3,
-            ));
-        }
-
-        // Convert to PNG and encode as base64
-        let mut bytes: Vec<u8> = Vec::new();
-        processed_image
-            .write_to(&mut Cursor::new(&mut bytes), xcap::image::ImageFormat::Png)
-            .map_err(|e| {
-                ErrorData::new(
-                    ErrorCode::INTERNAL_ERROR,
-                    format!("Failed to write image buffer: {}", e),
-                    None,
-                )
-            })?;
+        let (bytes, mime_type) = Self::prepare_image_for_llm(image)?;
 
         let data = base64::prelude::BASE64_STANDARD.encode(bytes);
 
@@ -1268,8 +1264,55 @@ impl DeveloperServer {
                 path.display()
             ))
             .with_audience(vec![Role::Assistant]),
-            Content::image(data, "image/png").with_priority(0.0),
+            Content::image(data, &mime_type).with_priority(0.0),
         ]))
+    }
+
+    fn prepare_image_for_llm(
+        mut image: xcap::image::DynamicImage,
+    ) -> Result<(Vec<u8>, String), ErrorData> {
+        let max_dimension = 1024;
+        let (width, height) = (image.width(), image.height());
+
+        if width > max_dimension || height > max_dimension {
+            let (new_width, new_height) = if width > height {
+                let scale = max_dimension as f32 / width as f32;
+                (max_dimension, (height as f32 * scale) as u32)
+            } else {
+                let scale = max_dimension as f32 / height as f32;
+                ((width as f32 * scale) as u32, max_dimension)
+            };
+
+            image = xcap::image::DynamicImage::ImageRgba8(xcap::image::imageops::resize(
+                &image,
+                new_width,
+                new_height,
+                xcap::image::imageops::FilterType::Lanczos3,
+            ));
+        }
+
+        let rgb_image = image.to_rgb8();
+        let (img_width, img_height) = rgb_image.dimensions();
+
+        let mut bytes: Vec<u8> = Vec::new();
+        let mut cursor = Cursor::new(&mut bytes);
+
+        image::codecs::jpeg::JpegEncoder::new_with_quality(&mut cursor, 85)
+            .encode(
+                rgb_image.as_raw(),
+                img_width,
+                img_height,
+                image::ColorType::Rgb8,
+            )
+            .map_err(|e| {
+                ErrorData::new(
+                    ErrorCode::INTERNAL_ERROR,
+                    format!("Failed to encode image as JPEG: {}", e),
+                    None,
+                )
+            })?;
+
+        Ok((bytes, "image/jpeg".to_string()))
     }
 
     // Helper method to resolve and validate file paths
@@ -1301,18 +1344,23 @@ impl DeveloperServer {
             .map(|p| p.is_file())
             .unwrap_or(false);
 
+        // If no ignore file exists, apply default patterns in memory without writing to disk
+        if !has_local_ignore && !has_global_ignore {
+            for pattern in DEFAULT_GOOSEIGNORE_CONTENT.lines() {
+                let trimmed = pattern.trim();
+                if trimmed.is_empty() || trimmed.starts_with('#') {
+                    continue;
+                }
+                let _ = builder.add_line(None, trimmed);
+            }
+        }
+
         if has_global_ignore {
             let _ = builder.add(global_ignore_path.as_ref().unwrap());
         }
 
         if has_local_ignore {
             let _ = builder.add(&local_ignore_path);
-        }
-
-        if !has_local_ignore && !has_global_ignore {
-            let _ = builder.add_line(None, "**/.env");
-            let _ = builder.add_line(None, "**/.env.*");
-            let _ = builder.add_line(None, "**/secrets.*");
         }
 
         builder.build().expect("Failed to build ignore patterns")
@@ -1359,27 +1407,22 @@ impl DeveloperServer {
         if let Some(filename) = path.file_name().and_then(|f| f.to_str()) {
             // Check if this matches Mac screenshot pattern:
             // "Screenshot YYYY-MM-DD at H.MM.SS AM/PM.png"
-            if let Some(captures) = regex::Regex::new(r"^Screenshot \d{4}-\d{2}-\d{2} at \d{1,2}\.\d{2}\.\d{2} (AM|PM|am|pm)(?: \(\d+\))?\.png$")
-                .ok()
-                .and_then(|re| re.captures(filename))
-            {
+            if let Some(captures) = MACOS_SCREENSHOT_FILENAME_RE.captures(filename) {
                 // Get the AM/PM part
                 let meridian = captures.get(1).unwrap().as_str();
 
                 // Find the last space before AM/PM and replace it with U+202F
-                let space_pos = filename.rfind(meridian)
+                let space_pos = filename
+                    .rfind(meridian)
                     .and_then(|pos| filename.get(..pos).map(|s| s.trim_end().len()))
                     .unwrap_or(0);
 
                 if space_pos > 0 {
                     let parent = path.parent().unwrap_or(Path::new(""));
-                    if let (Some(before), Some(after)) = (filename.get(..space_pos), filename.get(space_pos+1..)) {
-                        let new_filename = format!(
-                            "{}{}{}",
-                            before,
-                            '\u{202F}',
-                            after
-                        );
+                    if let (Some(before), Some(after)) =
+                        (filename.get(..space_pos), filename.get(space_pos + 1..))
+                    {
+                        let new_filename = format!("{}{}{}", before, '\u{202F}', after);
                         let new_path = parent.join(new_filename);
 
                         return new_path;
@@ -2959,6 +3002,11 @@ mod tests {
 
         let server = create_test_server();
 
+        let gooseignore_path = temp_path.join(".gooseignore");
+        if gooseignore_path.exists() {
+            fs::remove_file(&gooseignore_path).unwrap();
+        }
+
         let result = server
             .text_editor(Parameters(TextEditorParams {
                 command: "view".to_string(),
@@ -3236,7 +3284,14 @@ mod tests {
         // Don't create any ignore files
         let server = create_test_server();
 
-        // Default patterns should be used
+        // Verify that .gooseignore is NOT created on disk (patterns applied in memory only)
+        let gooseignore_path = temp_dir.path().join(".gooseignore");
+        assert!(
+            !gooseignore_path.exists(),
+            ".gooseignore should NOT be created on disk"
+        );
+
+        // Default patterns should still be applied in memory
         assert!(
             server.is_ignored(Path::new(".env")),
             ".env should be ignored by default patterns"

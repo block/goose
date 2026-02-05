@@ -175,7 +175,7 @@ impl ChatComponent {
     }
 
     fn line_to_plain_text(line: &Line) -> String {
-        line.spans.iter().map(|s| s.content.as_ref()).collect()
+        line.spans.iter().map(|s| &*s.content).collect()
     }
 
     fn render_message(

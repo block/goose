@@ -5,7 +5,7 @@ use goose_tui::state::reducer::{extract_todos_from_message, update};
 use goose_tui::state::{
     ActivePopup, AppState, CwdAnalysisState, InputMode, PendingToolConfirmation,
 };
-use rmcp::model::CallToolRequestParam;
+use rmcp::model::CallToolRequestParams;
 use serde_json::json;
 
 fn test_state() -> AppState {
@@ -20,7 +20,8 @@ fn test_state() -> AppState {
 fn make_todo_tool_request(content: &str) -> Message {
     Message::assistant().with_tool_request(
         "tool_123",
-        Ok(CallToolRequestParam {
+        Ok(CallToolRequestParams {
+            meta: None,
             task: None,
             name: "todo__todo_write".into(),
             arguments: Some(json!({"content": content}).as_object().unwrap().clone()),
@@ -31,7 +32,8 @@ fn make_todo_tool_request(content: &str) -> Message {
 fn make_shell_tool_request(command: &str) -> Message {
     Message::assistant().with_tool_request(
         "tool_456",
-        Ok(CallToolRequestParam {
+        Ok(CallToolRequestParams {
+            meta: None,
             task: None,
             name: "developer__shell".into(),
             arguments: Some(json!({"command": command}).as_object().unwrap().clone()),
@@ -405,7 +407,8 @@ fn server_message_mixed_content_appends_correctly() {
 
     let tool_msg = Message::assistant().with_id("msg_1").with_tool_request(
         "req_1",
-        Ok(CallToolRequestParam {
+        Ok(CallToolRequestParams {
+            meta: None,
             task: None,
             name: "shell".into(),
             arguments: Some(json!({"command": "ls"}).as_object().unwrap().clone()),

@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { errorMessage } from '../../utils/conversionUtils';
 import { Card, CardContent, CardDescription } from '../ui/card';
 import { Greeting } from '../common/Greeting';
 import { useNavigate } from 'react-router-dom';
@@ -34,7 +35,7 @@ export function SessionInsights() {
         setError(null);
       } catch (error) {
         console.error('Failed to load insights:', error);
-        setError(error instanceof Error ? error.message : 'Failed to load insights');
+        setError(errorMessage(error, 'Failed to load insights'));
         setInsights({
           totalSessions: 0,
           totalTokens: 0,
@@ -296,7 +297,6 @@ export function SessionInsights() {
               </div>
               <div className="space-y-1 min-h-[96px] transition-all duration-300 ease-in-out">
                 {isLoadingSessions ? (
-                  // Show skeleton while sessions are loading
                   <>
                     <div className="flex items-center justify-between py-1 px-2">
                       <div className="flex items-center space-x-2">
@@ -324,7 +324,7 @@ export function SessionInsights() {
                   recentSessions.map((session, index) => (
                     <div
                       key={session.id}
-                      className="flex items-center justify-between text-sm py-1 px-2 rounded-md hover:bg-background-muted cursor-pointer transition-colors session-item"
+                      className="flex items-center justify-between text-sm py-1 px-2 rounded-md hover:bg-background-muted cursor-pointer transition-colors"
                       onClick={() => handleSessionClick(session)}
                       role="button"
                       tabIndex={0}

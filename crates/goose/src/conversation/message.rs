@@ -1,7 +1,9 @@
+use crate::conversation::tool_result_serde;
 use crate::mcp_utils::ToolResult;
+use crate::utils::sanitize_unicode_tags;
 use chrono::Utc;
 use rmcp::model::{
-    AnnotateAble, CallToolRequestParam, CallToolResult, Content, ImageContent, JsonObject,
+    AnnotateAble, CallToolRequestParams, CallToolResult, Content, ImageContent, JsonObject,
     PromptMessage, PromptMessageContent, PromptMessageRole, RawContent, RawImageContent,
     RawTextContent, ResourceContents, Role, TextContent,
 };
@@ -9,9 +11,7 @@ use serde::{Deserialize, Deserializer, Serialize};
 use std::collections::HashSet;
 use std::fmt;
 use utoipa::ToSchema;
-
-use crate::conversation::tool_result_serde;
-use crate::utils::sanitize_unicode_tags;
+use uuid::Uuid;
 
 #[derive(ToSchema)]
 pub enum ToolCallResult<T> {
@@ -64,7 +64,7 @@ pub struct ToolRequest {
     pub id: String,
     #[serde(with = "tool_result_serde")]
     #[schema(value_type = Object)]
-    pub tool_call: ToolResult<CallToolRequestParam>,
+    pub tool_call: ToolResult<CallToolRequestParams>,
     #[serde(skip_serializing_if = "Option::is_none")]
     #[schema(value_type = Object)]
     pub metadata: Option<ProviderMetadata>,
@@ -156,7 +156,7 @@ pub struct FrontendToolRequest {
     pub id: String,
     #[serde(with = "tool_result_serde")]
     #[schema(value_type = Object)]
-    pub tool_call: ToolResult<CallToolRequestParam>,
+    pub tool_call: ToolResult<CallToolRequestParams>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ToSchema)]
@@ -285,10 +285,8 @@ impl MessageContent {
                     .cloned()
                     .collect();
 
-                if filtered_content.is_empty() {
-                    return None;
-                }
-
+                // Preserve ToolResponse even when content is empty - some providers
+                // (like Google) need to handle empty tool responses specially
                 Some(MessageContent::ToolResponse(ToolResponse {
                     id: res.id.clone(),
                     tool_result: Ok(CallToolResult {
@@ -316,7 +314,7 @@ impl MessageContent {
 
     pub fn tool_request<S: Into<String>>(
         id: S,
-        tool_call: ToolResult<CallToolRequestParam>,
+        tool_call: ToolResult<CallToolRequestParams>,
     ) -> Self {
         MessageContent::ToolRequest(ToolRequest {
             id: id.into(),
@@ -328,7 +326,7 @@ impl MessageContent {
 
     pub fn tool_request_with_metadata<S: Into<String>>(
         id: S,
-        tool_call: ToolResult<CallToolRequestParam>,
+        tool_call: ToolResult<CallToolRequestParams>,
         metadata: Option<&ProviderMetadata>,
     ) -> Self {
         MessageContent::ToolRequest(ToolRequest {
@@ -414,7 +412,7 @@ impl MessageContent {
 
     pub fn frontend_tool_request<S: Into<String>>(
         id: S,
-        tool_call: ToolResult<CallToolRequestParam>,
+        tool_call: ToolResult<CallToolRequestParams>,
     ) -> Self {
         MessageContent::FrontendToolRequest(FrontendToolRequest {
             id: id.into(),
@@ -719,6 +717,10 @@ impl Message {
         self
     }
 
+    pub fn with_generated_id(self) -> Self {
+        self.with_id(format!("msg_{}", Uuid::new_v4()))
+    }
+
     /// Add any MessageContent to the message
     pub fn with_content(mut self, content: MessageContent) -> Self {
         self.content.push(content);
@@ -748,7 +750,7 @@ impl Message {
     pub fn with_tool_request<S: Into<String>>(
         self,
         id: S,
-        tool_call: ToolResult<CallToolRequestParam>,
+        tool_call: ToolResult<CallToolRequestParams>,
     ) -> Self {
         self.with_content(MessageContent::tool_request(id, tool_call))
     }
@@ -756,7 +758,7 @@ impl Message {
     pub fn with_tool_request_with_metadata<S: Into<String>>(
         self,
         id: S,
-        tool_call: ToolResult<CallToolRequestParam>,
+        tool_call: ToolResult<CallToolRequestParams>,
         metadata: Option<&ProviderMetadata>,
         tool_meta: Option<serde_json::Value>,
     ) -> Self {
@@ -804,7 +806,7 @@ impl Message {
     pub fn with_frontend_tool_request<S: Into<String>>(
         self,
         id: S,
-        tool_call: ToolResult<CallToolRequestParam>,
+        tool_call: ToolResult<CallToolRequestParams>,
     ) -> Self {
         self.with_content(MessageContent::frontend_tool_request(id, tool_call))
     }
@@ -964,8 +966,8 @@ mod tests {
     use crate::conversation::message::{Message, MessageContent, MessageMetadata};
     use crate::conversation::*;
     use rmcp::model::{
-        AnnotateAble, CallToolRequestParam, PromptMessage, PromptMessageContent, PromptMessageRole,
-        RawEmbeddedResource, RawImageContent, ResourceContents,
+        AnnotateAble, CallToolRequestParams, PromptMessage, PromptMessageContent,
+        PromptMessageRole, RawEmbeddedResource, RawImageContent, ResourceContents,
     };
     use rmcp::model::{ErrorCode, ErrorData};
     use rmcp::object;
@@ -991,7 +993,8 @@ mod tests {
             .with_text("Hello, I'll help you with that.")
             .with_tool_request(
                 "tool123",
-                Ok(CallToolRequestParam {
+                Ok(CallToolRequestParams {
+                    meta: None,
                     task: None,
                     name: "test_tool".into(),
                     arguments: Some(object!({"param": "value"})),
@@ -1250,7 +1253,8 @@ mod tests {
 
     #[test]
     fn test_message_with_tool_request() {
-        let tool_call = Ok(CallToolRequestParam {
+        let tool_call = Ok(CallToolRequestParams {
+            meta: None,
             task: None,
             name: "test_tool".into(),
             arguments: Some(object!({})),

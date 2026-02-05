@@ -248,6 +248,10 @@ Subagents use the following pre-configured settings, but you can override any de
 | **Extensions** | Inherited from parent | Specify which extensions to use in your prompt |
 | **Return Mode** | All subagent information provided in main session | Specify how much detail you want in your prompt |
 
+:::tip Advanced Customization
+You can also customize subagent behavior by editing the `subagent_system.md` [prompt template](/docs/guides/prompt-templates).
+:::
+
 ### Customizing Settings in Prompts
 
 You can override any default by including the setting in your natural language request:
@@ -321,6 +325,15 @@ import agentCoordination from '@site/blog/2025-08-14-agent-coordination-patterns
 
 <ContentCardCarousel
   items={[
+      {
+      type: 'blog',
+      title: 'Agents, Subagents, and Multi Agents: What They Are and When to Use Them',
+      description: 'Compare agents, subagents, and multi agents in AI workflows. Learn how they work together and practical scenarios for each approach.',
+      thumbnailUrl: agentCoordination,
+      linkUrl: '/goose/blog/2025/08/14/agent-coordination-patterns',
+      date: '2025-08-14',
+      duration: '4 min read'
+    },
     {
       type: 'video',
       title: 'How I Built an App with 6 Subagents',
@@ -331,6 +344,15 @@ import agentCoordination from '@site/blog/2025-08-14-agent-coordination-patterns
       duration: '6:53'
     },
     {
+      type: 'tutorial',
+      title: 'Tutorial: Using Subagents',
+      description: 'Spin up a team of subagents to build a fully functional app',
+      thumbnailUrl: 'https://block.github.io/goose/assets/images/tutorial-using-subagents-ef265627024db73e73d80e5799ed0c1a.png',
+      linkUrl: '/docs/tutorials/subagents',
+      date: '2026-01-27',
+      duration: '1 hour'
+    },
+    {
       type: 'video',
       title: 'Flight School - Choosing the Right Tools for AI Work',
       description: 'Discover the differences between subagents and subrecipes for efficient task execution in goose. Learn which approach is best for your workflow.',
@@ -339,7 +361,16 @@ import agentCoordination from '@site/blog/2025-08-14-agent-coordination-patterns
       date: '2025-09-29',
       duration: '6:13'
     },
-   {
+    {
+      type: 'video',
+      title: 'Flight School - Choosing the Right Tools for AI Work',
+      description: 'Discover the differences between subagents and subrecipes for efficient task execution in goose. Learn which approach is best for your workflow.',
+      thumbnailUrl: 'https://img.youtube.com/vi/joePzlkARjs/maxresdefault.jpg',
+      linkUrl: 'https://www.youtube.com/watch?v=joePzlkARjs',
+      date: '2025-09-29',
+      duration: '6:13'
+    },
+    {
       type: 'blog',
       title: 'How to Choose Between Subagents and Subrecipes in goose',
       description: 'Detailed guide to subagents and subrecipes in goose. Compare reusability, setup complexity, and get practical advice for choosing the right approach.',
@@ -347,15 +378,6 @@ import agentCoordination from '@site/blog/2025-08-14-agent-coordination-patterns
       linkUrl: '/goose/blog/2025/09/26/subagents-vs-subrecipes',
       date: '2025-09-26',
       duration: '6 min read'
-    },
-    {
-      type: 'blog',
-      title: 'Agents, Subagents, and Multi Agents: What They Are and When to Use Them',
-      description: 'Compare agents, subagents, and multi agents in AI workflows. Learn how they work together and practical scenarios for each approach.',
-      thumbnailUrl: agentCoordination,
-      linkUrl: '/goose/blog/2025/08/14/agent-coordination-patterns',
-      date: '2025-08-14',
-      duration: '4 min read'
     }
   ]}
 />

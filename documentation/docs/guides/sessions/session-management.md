@@ -5,7 +5,7 @@ sidebar_label: Session Management
 ---
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
-import { AppWindow, PanelLeft, FolderDot, Paperclip, Copy, Edit2, Trash2, Download, Upload } from 'lucide-react';
+import { AppWindow, PanelLeft, FolderDot, Paperclip, Copy, Edit2, Trash2, Download, Upload, ChefHat } from 'lucide-react';
 
 
 A session is a single, continuous interaction between you and goose, providing a space to ask questions and prompt action. This guide covers how to manage the session lifecycle.
@@ -18,39 +18,28 @@ In your first session, goose prompts you to [set up an LLM (Large Language Model
 
 <Tabs groupId="interface">
     <TabItem value="ui" label="goose Desktop" default>
-        When you open goose, you'll see the session interface ready for use. Just type&mdash;[or speak](/docs/guides/sessions/in-session-actions#voice-dictation "Learn how to enable voice dictation")&mdash;your questions, requests, or instructions directly into the input field, and goose will immediately get to work. 
+        When you open goose, you'll see the session interface ready for use. Just type&mdash;[or speak](/docs/guides/sessions/in-session-actions#voice-dictation "Learn how to enable voice dictation")&mdash;your questions, requests, or instructions directly into the input field, and goose will immediately get to work.
+
+        To start a new chat session:
+
+        1. Click the <PanelLeft className="inline" size={16} /> button in the top-left to open the sidebar
+        2. Click `Home` or `Chat` in the sidebar
+        3. Send your first prompt from the chat box
+
+        goose Desktop supports working with multiple active chat sessions in the same window. Your new sessions are added to the `Chat` section of the sidebar, so you can quickly switch between your 10 most recent sessions. Just click a session to [continue working](#resume-session) in that session.
         
-        When you're ready to work on a new task, you can start a new session in the same directory or a different one. This directory is where goose reads and writes files by default.
+        To change your working directory, click the <FolderDot className="inline" size={16} /> directory switcher at the bottom of the app.
 
-        <Tabs>
-          <TabItem value="same-directory" label="Same Directory" default>
+        :::info Starting Sessions in a New Window
+        To start a session in a new window, click the <AppWindow className="inline" size={16} /> button in the top-left. After you send your first prompt, the new session is added to the `Chat` section of the sidebar. 
 
-            To start a session in the same goose window:
-            1. Click the <PanelLeft className="inline" size={16} /> button in the top-left to open the sidebar
-            2. Click `Home` in the sidebar
-            3. Send your first prompt from the chat box
-
-            To start a session in a new goose window:
-            1. Click the <AppWindow className="inline" size={16} /> button in the top-left
-            2. In the new goose window, send your first prompt from the chat box
-
-          </TabItem>
-          <TabItem value="diff-directory" label="Different Directory">
-
-            1. Click the <FolderDot className="inline" size={16} /> directory switcher at the bottom of the app
-            2. Navigate to the new directory or create a new folder
-            3. Click `Open` to open a new goose window for the selected directory
-            4. Send your first prompt from the chat box
-
-          </TabItem>
-        </Tabs>
-
-        :::tip
-        On macOS, you can use the goose dock icon to quickly start sessions:
+        On macOS, you can also use the goose dock icon to quickly start sessions:
             - **Drag and drop** a folder onto the goose icon to open a new session in that directory
             - **Right-click** the goose icon and select `New Window` to open a new session in your most recent directory
         :::
-
+        
+        #### Keyboard Shortcuts
+        
         You can also use keyboard shortcuts to start a new session or manage goose windows.
         
         | Action | macOS | Windows/Linux |
@@ -61,9 +50,18 @@ In your first session, goose prompts you to [set up an LLM (Large Language Model
         | New Session in Different Directory | `Cmd+O` | `Ctrl+O` |
         | Toggle Sidebar | `Cmd+B` | `Ctrl+B` |
         | Open Settings | `Cmd+,` | `Ctrl+,` |
+        | Focus goose Window | `Cmd+Option+G` | `Ctrl+Alt+G` |
         | Keep goose Window Always on Top | `Cmd+Shift+T` | `Ctrl+Shift+T` |
         
-        <br />
+        #### Customize Keyboard Shortcuts
+        
+        You can customize these keyboard shortcuts in the **Settings** menu:
+        1. Click the <PanelLeft className="inline" size={16} /> button in the top-left to open the sidebar
+        2. Click `Settings`
+        3. Click the `Keyboard` tab
+        
+        Changes to global shortcuts (Focus Window, Quick Launcher) take effect immediately. Changes to application shortcuts (New Chat, Settings, etc.) require restarting goose.
+        
         #### Quick Launcher
         Start a new session by typing your prompt into a popup:
         1. Press `Cmd+Option+Shift+G` (macOS) or `Ctrl+Alt+Shift+G` (Windows/Linux) to open the popup
@@ -88,12 +86,12 @@ In your first session, goose prompts you to [set up an LLM (Large Language Model
 ## Name Session
 <Tabs groupId="interface">
     <TabItem value="ui" label="goose Desktop" default>
-        In the Desktop app, session tiles display auto-generated descriptions based on the context of your initial prompt.
+        A session's display name is auto-generated based on the context of your initial prompt. Session names help you identify goose sessions so you can switch between active sessions or [resume a session](#resume-session).
 
-        You can edit session descriptions after they're created:
+        You can edit session names after they're created:
 
         1. Click the <PanelLeft className="inline" size={16} /> button in the top-left to open the sidebar
-        2. Click `History` in the sidebar
+        2. Click `View All` at the bottom of the `Chat` section
         3. Hover over the session you'd like to rename
         4. Click the <Edit2 className="inline" size={16} /> button that appears on the session card
         5. In the "Edit Session Description" modal that opens:
@@ -102,9 +100,7 @@ In your first session, goose prompts you to [set up an LLM (Large Language Model
            - Or click the `Save` or `Cancel` buttons
         6. A success toast notification will confirm the change
 
-        :::tip
-        Session descriptions help you manage multiple goose windows. When you're in the goose chat interface, session descriptions appear in the `Window` menu and in the Dock (macOS) or taskbar (Windows) menu, making it easy to identify and switch between different goose sessions.
-        ::: 
+        Session names appear in the `Chat` section of the sidebar, the `Window` menu, and the Dock (macOS) or taskbar (Windows) menu.
 
     </TabItem>
     <TabItem value="cli" label="goose CLI">
@@ -133,7 +129,7 @@ Note that sessions are automatically saved when you exit.
     <TabItem value="cli" label="goose CLI">
         To exit a session, type `exit`. Alternatively, you exit the session by holding down `Ctrl+C`.
 
-        Your session will be stored in the local SQLite database at `~/.local/share/goose/sessions/sessions.db`.
+        Your session will be stored in goose's [local SQLite database](/docs/guides/logs#session-records).
     </TabItem>
 </Tabs>
 
@@ -155,6 +151,14 @@ Search allows you to find specific content within sessions or find specific sess
     | Toggle Case-Sensitivity | `Aa` | `Aa` |
     | Close Search | `Esc` or `X` | `Esc` or `X` |
 
+    :::tip Customize Search Shortcuts
+    You can [customize](#keyboard-shortcuts) the Find, Find Next, and Find Previous keyboard shortcuts in **Settings** → **Keyboard** tab.
+    :::
+
+    :::info No Regex or operator support
+    Using regular expressions or search operators in search text isn't supported.
+    :::
+
     The following scenarios are supported:
 
     #### Search Within Current Session
@@ -170,7 +174,7 @@ Search allows you to find specific content within sessions or find specific sess
     To search all your sessions by name or working directory path:
 
     1. Click the <PanelLeft className="inline" size={16} /> button in the top-left to open the sidebar
-    2. Click `History` in the sidebar
+    2. Click `View All` at the bottom of the `Chat` section
     3. Use `Cmd+F` to open the search bar
     4. Enter your search term
     5. Use keyboard shortcuts and search bar buttons to navigate the results (`Cmd+E` not supported)
@@ -188,25 +192,12 @@ Search allows you to find specific content within sessions or find specific sess
     - "Find my earlier conversation about React hooks from last week"
     - "Show me sessions where I worked on database migrations"
 
-    goose will search your session history and show relevant conversations with context from matching sessions. 
+    goose will search your session history and show relevant conversations with context from matching sessions.
     
     :::info
-    This functionality requires the built-in [Chatrecall extension](/docs/mcp/chatrecall-mcp) to be enabled.
-    :::
-
-    #### Search Within Historical Session
+    This functionality requires the built-in [Chatrecall extension](/docs/mcp/chatrecall-mcp) to be enabled. You can enable it manually or, if [Extension Manager](/docs/mcp/extension-manager-mcp) is enabled, simply ask goose to use it:
     
-    To find specific content within a historical session:
-
-    1. Click the <PanelLeft className="inline" size={16} /> button in the top-left to open the sidebar
-    2. Click `History` in the sidebar
-    3. Click a specific session tile from the list to view its content
-    4. Use `Cmd+F` to open the search bar
-    5. Enter your search term
-    6. Use keyboard shortcuts and search bar buttons to navigate the results
-
-    :::info No Regex or operator support
-    Using regular expressions or search operators in search text isn't supported.
+    - "Use chatrecall to find the latest status of the database migration project"
     :::
 
   </TabItem>
@@ -277,16 +268,39 @@ Search allows you to find specific content within sessions or find specific sess
 
 <Tabs groupId="interface">
     <TabItem value="ui" label="goose Desktop" default>
+    
+    You can switch between active sessions in the sidebar or resume any session from your history.
+    
+    #### Switch Between Active Sessions
+
+    goose Desktop allows you to switch between multiple chat sessions in the same window. You can start a task in one session, switch to another to do some work, and return to the first session when the task is completed. 
+
+    Your most recent sessions (up to 10) are available in the sidebar for quick access:
+
     1. Click the <PanelLeft className="inline" size={16} /> button in the top-left to open the sidebar
-    2. Click `History` in the sidebar
-    3. Click the session you'd like to resume. goose provides [search features](#search-sessions) to help you find the session.
+    2. In the `Chat` section, click any session to switch to it
+    
+    Visual indicators help you track session status:
+    - **Blue spinning icon** - Session is actively processing a request
+    - **Green dot** - Session completed a task while you were viewing a different session
+    - **Red dot** - Session encountered an error
+
+    In addition, sessions that are started from a recipe display the <ChefHat className="inline" size={16} /> icon.
+
+    :::tip
+    You can [rename sessions](#name-session) to make it easier to identify specific sessions.
+    :::
+
+    #### Resume from Session History
+
+    To find and resume sessions beyond your 10 most recent:
+
+    1. Click the <PanelLeft className="inline" size={16} /> button in the top-left to open the sidebar
+    2. Click `View All` at the bottom of the `Chat` section
+    3. Find the session you'd like to resume. goose provides [search features](#search-sessions) to help you find the session.
     4. Choose how to resume:
        - Click `Resume` to continue in the current window
        - Click `New Window` to open in a new window
-    
-    :::tip
-    You can also quickly resume one of your three most recent sessions by clicking it in the `Recent chats` section on the `Home` page.
-    :::
 
     </TabItem>
     <TabItem value="cli" label="goose CLI">
@@ -306,33 +320,14 @@ Search allows you to find specific content within sessions or find specific sess
         ```
         goose session -r --name react-migration
         ```
-
-        :::tip
-        While you can resume sessions using the commands above, we recommend creating new sessions for new tasks to reduce the chance of [doom spiraling](/docs/troubleshooting/known-issues#stuck-in-a-loop-or-unresponsive).
-        :::
     </TabItem>
 </Tabs>
 
-### Resume Session Across Interfaces
+Sessions created in goose Desktop can be resumed in the CLI and vice versa. All sessions are stored in the [same database](/docs/guides/logs#session-records).
 
-You can resume a CLI session in Desktop.
-
-<Tabs groupId="interface">
-    <TabItem value="ui" label="goose Desktop" default>
-    All saved sessions are listed in the Desktop app, even CLI sessions. To resume a CLI session within the Desktop:
-
-    1. Click the <PanelLeft className="inline" size={16} /> button in the top-left to open the sidebar
-    2. Click `History` in the sidebar
-    3. Click the session you'd like to resume
-    4. Choose how to resume:
-       - Click `Resume` to continue in the current window
-       - Click `New Window` to open in a new window
-
-    </TabItem>
-    <TabItem value="cli" label="goose CLI">
-    Currently, you cannot resume a Desktop session within the CLI.
-    </TabItem>
-</Tabs>
+:::tip Create New Sessions for New Tasks
+While you can resume sessions, we recommend creating new sessions for new tasks to reduce the chance of [doom spiraling](/docs/troubleshooting/known-issues#stuck-in-a-loop-or-unresponsive).
+:::
 
 ### Resume Project-Based Sessions
 
@@ -345,6 +340,63 @@ You can resume a CLI session in Desktop.
     </TabItem>
 </Tabs>
 
+## Duplicate Sessions
+
+Create a complete copy of any session to reuse configurations, experiment with variations, or preserve important work.
+
+<Tabs groupId="interface">
+    <TabItem value="ui" label="goose Desktop" default>
+        
+        Duplicate a session from the session list:
+
+        1. Click the <PanelLeft className="inline" size={16} /> button in the top-left to open the sidebar
+        2. Click `View All` at the bottom of the `Chat` section
+        3. Find the session you want to duplicate
+        4. Hover over the session card to reveal the action buttons
+        5. Click the <Copy className="inline" size={16} /> button that appears in the top-right corner
+
+        The duplicated session includes:
+        - Complete conversation history
+        - All session metadata and settings
+        - Provider and model configuration
+        - Extension data and configurations
+        - Recipe information (if applicable)
+
+        The new session is named the same as the original and appears at the top of your session list.
+
+        :::tip Duplicate vs Fork Session
+        - **Duplicate** (Copy button in session list): Creates a complete copy of the entire session. Use this to preserve a working session or reuse its configuration.
+        - **[Fork Session](/docs/guides/sessions/in-session-actions#fork-session)** (Edit button on a message): Creates a new session with conversation history up to a specific edited message. Use this when editing a message to explore different approaches from that point.
+        :::
+
+    </TabItem>
+    <TabItem value="cli" label="goose CLI">
+        
+        Create a new session by copying all messages from a previous session using the `--fork` flag along with `--resume`.
+
+        ```bash
+        # Fork the most recent session
+        goose session --resume --fork
+
+        # Fork a specific session by name
+        goose session --resume --fork --name my-project
+
+        # Fork a specific session by ID
+        goose session --resume --fork --session-id 20251108_3
+
+        # Fork and show message history
+        goose session --resume --fork --history
+        ```
+
+        The forked session includes:
+        - Complete conversation history from the original session
+        - All session metadata and settings
+        - Provider and model configuration
+        - Extension data and configurations
+        - Recipe information (if applicable)
+    </TabItem>
+</Tabs>
+
 ## Delete Sessions
 
 <Tabs groupId="interface">
@@ -352,7 +404,7 @@ You can resume a CLI session in Desktop.
         You can delete sessions directly from the Desktop app:
 
         1. Click the <PanelLeft className="inline" size={16} /> button in the top-left to open the sidebar
-        2. Click `History` in the sidebar
+        2. Click `View All` at the bottom of the `Chat` section
         3. Find the session you want to delete
         4. Hover over the session card to reveal the action buttons
         5. Click the <Trash2 className="inline" size={16} /> button that appears
@@ -376,7 +428,7 @@ You can resume a CLI session in Desktop.
         Import complete sessions from JSON files to restore, share, or migrate sessions between goose instances. Importing creates a new session with a new ID rather than overwriting existing sessions.
 
         1. Click the <PanelLeft className="inline" size={16} /> button in the top-left to open the sidebar
-        2. Click `History` in the sidebar
+        2. Click `View All` at the bottom of the `Chat` section
         3. Click the <Upload className="inline" size={16} /> `Import Session` button in the top-right corner
         4. Select a `.json` session file that was previously exported from goose
         5. The session will be imported with a new session ID
@@ -395,7 +447,7 @@ You can resume a CLI session in Desktop.
         Export complete sessions as JSON files for backup, sharing, migration, or archival. Exported files preserve all session data including conversation history, metadata, and settings.
 
         1. Click the <PanelLeft className="inline" size={16} /> button in the top-left to open the sidebar
-        2. Click `History` in the sidebar
+        2. Click `View All` at the bottom of the `Chat` section
         3. Find the session you want to export
         4. Hover over the session card to reveal the action buttons
         5. Click the <Download className="inline" size={16} /> button that appears

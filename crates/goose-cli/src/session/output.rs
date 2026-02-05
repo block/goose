@@ -8,7 +8,7 @@ use goose::conversation::message::{
 use goose::providers::canonical::maybe_get_canonical_model;
 use goose::utils::safe_truncate;
 use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
-use rmcp::model::{CallToolRequestParam, JsonObject, PromptArgument};
+use rmcp::model::{CallToolRequestParams, JsonObject, PromptArgument};
 use serde_json::Value;
 use std::cell::RefCell;
 use std::collections::HashMap;
@@ -16,6 +16,8 @@ use std::io::{Error, IsTerminal, Write};
 use std::path::Path;
 use std::sync::Arc;
 use std::time::Duration;
+
+pub const DEFAULT_MIN_PRIORITY: f32 = 0.0;
 
 // Re-export theme for use in main
 #[derive(Clone, Copy)]
@@ -160,6 +162,33 @@ pub fn hide_thinking() {
     }
 }
 
+pub fn run_status_hook(status: &str) {
+    if let Ok(hook) = Config::global().get_param::<String>("GOOSE_STATUS_HOOK") {
+        let status = status.to_string();
+        std::thread::spawn(move || {
+            #[cfg(target_os = "windows")]
+            let result = std::process::Command::new("cmd")
+                .arg("/C")
+                .arg(format!("{} {}", hook, status))
+                .stdin(std::process::Stdio::null())
+                .stdout(std::process::Stdio::null())
+                .stderr(std::process::Stdio::null())
+                .status();
+
+            #[cfg(not(target_os = "windows"))]
+            let result = std::process::Command::new("sh")
+                .arg("-c")
+                .arg(format!("{} {}", hook, status))
+                .stdin(std::process::Stdio::null())
+                .stdout(std::process::Stdio::null())
+                .stderr(std::process::Stdio::null())
+                .status();
+
+            let _ = result;
+        });
+    }
+}
+
 pub fn is_showing_thinking() -> bool {
     THINKING.with(|t| t.borrow().is_shown())
 }
@@ -218,6 +247,7 @@ pub fn render_message(message: &Message, debug: bool) {
                         set_thinking_message(&notification.msg);
                     }
                     SystemNotificationType::InlineMessage => {
+                        hide_thinking();
                         println!("\n{}", style(&notification.msg).yellow());
                     }
                 }
@@ -284,7 +314,7 @@ fn render_tool_request(req: &ToolRequest, theme: Theme, debug: bool) {
         Ok(call) => match call.name.to_string().as_str() {
             "developer__text_editor" => render_text_editor_request(call, debug),
             "developer__shell" => render_shell_request(call, debug),
-            "code_execution__execute_code" => render_execute_code_request(call, debug),
+            "code_execution__execute" => render_execute_code_request(call, debug),
             "subagent" => render_subagent_request(call, debug),
             "todo__write" => render_todo_request(call, debug),
             _ => render_default_request(call, debug),
@@ -308,7 +338,7 @@ fn render_tool_response(resp: &ToolResponse, theme: Theme, debug: bool) {
                 let min_priority = config
                     .get_param::<f32>("GOOSE_CLI_MIN_PRIORITY")
                     .ok()
-                    .unwrap_or(0.5);
+                    .unwrap_or(DEFAULT_MIN_PRIORITY);
 
                 if content
                     .priority()
@@ -424,7 +454,7 @@ pub fn render_builtin_error(names: &str, error: &str) {
     println!();
 }
 
-fn render_text_editor_request(call: &CallToolRequestParam, debug: bool) {
+fn render_text_editor_request(call: &CallToolRequestParams, debug: bool) {
     print_tool_header(call);
 
     // Print path first with special formatting
@@ -453,13 +483,13 @@ fn render_text_editor_request(call: &CallToolRequestParam, debug: bool) {
     println!();
 }
 
-fn render_shell_request(call: &CallToolRequestParam, debug: bool) {
+fn render_shell_request(call: &CallToolRequestParams, debug: bool) {
     print_tool_header(call);
     print_params(&call.arguments, 0, debug);
     println!();
 }
 
-fn render_execute_code_request(call: &CallToolRequestParam, debug: bool) {
+fn render_execute_code_request(call: &CallToolRequestParams, debug: bool) {
     let tool_graph = call
         .arguments
         .as_ref()
@@ -478,7 +508,7 @@ fn render_execute_code_request(call: &CallToolRequestParam, debug: bool) {
         "─── {} tool call{} | {} ──────────────────────────",
         style(count).cyan(),
         plural,
-        style("execute_code").magenta().dim()
+        style("execute").magenta().dim()
     );
 
     for (i, node) in tool_graph.iter().filter_map(Value::as_object).enumerate() {
@@ -511,10 +541,21 @@ fn render_execute_code_request(call: &CallToolRequestParam, debug: bool) {
             style(deps_str).dim()
         );
     }
+
+    let code = call
+        .arguments
+        .as_ref()
+        .and_then(|args| args.get("code"))
+        .and_then(Value::as_str)
+        .filter(|c| !c.is_empty());
+    if code.is_some_and(|_| debug) {
+        println!("{}", style(code.unwrap_or_default()).green());
+    }
+
     println!();
 }
 
-fn render_subagent_request(call: &CallToolRequestParam, debug: bool) {
+fn render_subagent_request(call: &CallToolRequestParams, debug: bool) {
     print_tool_header(call);
 
     if let Some(args) = &call.arguments {
@@ -555,7 +596,7 @@ fn render_subagent_request(call: &CallToolRequestParam, debug: bool) {
     println!();
 }
 
-fn render_todo_request(call: &CallToolRequestParam, _debug: bool) {
+fn render_todo_request(call: &CallToolRequestParams, _debug: bool) {
     print_tool_header(call);
 
     if let Some(args) = &call.arguments {
@@ -566,27 +607,114 @@ fn render_todo_request(call: &CallToolRequestParam, _debug: bool) {
     println!();
 }
 
-fn render_default_request(call: &CallToolRequestParam, debug: bool) {
+fn render_default_request(call: &CallToolRequestParams, debug: bool) {
     print_tool_header(call);
     print_params(&call.arguments, 0, debug);
     println!();
 }
 
+fn split_tool_name(tool_name: &str) -> (String, String) {
+    let parts: Vec<_> = tool_name.rsplit("__").collect();
+    let tool = parts.first().copied().unwrap_or("unknown");
+    let extension = parts
+        .split_first()
+        .map(|(_, s)| s.iter().rev().copied().collect::<Vec<_>>().join("__"))
+        .unwrap_or_default();
+    (tool.to_string(), extension)
+}
+
+pub fn format_subagent_tool_call_message(subagent_id: &str, tool_name: &str) -> String {
+    let short_id = subagent_id.rsplit('_').next().unwrap_or(subagent_id);
+    let (tool, extension) = split_tool_name(tool_name);
+
+    if extension.is_empty() {
+        format!("[subagent:{}] {}", short_id, tool)
+    } else {
+        format!("[subagent:{}] {} | {}", short_id, tool, extension)
+    }
+}
+
+pub fn render_subagent_tool_call(
+    subagent_id: &str,
+    tool_name: &str,
+    arguments: Option<&JsonObject>,
+    debug: bool,
+) {
+    if tool_name == "code_execution__execute_code" {
+        let tool_graph = arguments
+            .and_then(|args| args.get("tool_graph"))
+            .and_then(Value::as_array)
+            .filter(|arr| !arr.is_empty());
+        if let Some(tool_graph) = tool_graph {
+            return render_subagent_tool_graph(subagent_id, tool_graph);
+        }
+    }
+    let tool_header = format!(
+        "─── {} ──────────────────────────",
+        style(format_subagent_tool_call_message(subagent_id, tool_name))
+            .magenta()
+            .dim()
+    );
+    println!();
+    println!("{}", tool_header);
+    print_params(&arguments.cloned(), 0, debug);
+    println!();
+}
+
+fn render_subagent_tool_graph(subagent_id: &str, tool_graph: &[Value]) {
+    let short_id = subagent_id.rsplit('_').next().unwrap_or(subagent_id);
+    let count = tool_graph.len();
+    let plural = if count == 1 { "" } else { "s" };
+    println!();
+    println!(
+        "─── {} {} tool call{} | {} ──────────────────────────",
+        style(format!("[subagent:{}]", short_id)).cyan(),
+        style(count).cyan(),
+        plural,
+        style("execute_code").magenta().dim()
+    );
+
+    for (i, node) in tool_graph.iter().filter_map(Value::as_object).enumerate() {
+        let tool = node
+            .get("tool")
+            .and_then(Value::as_str)
+            .unwrap_or("unknown");
+        let desc = node
+            .get("description")
+            .and_then(Value::as_str)
+            .unwrap_or("");
+        let deps: Vec<_> = node
+            .get("depends_on")
+            .and_then(Value::as_array)
+            .into_iter()
+            .flatten()
+            .filter_map(Value::as_u64)
+            .map(|d| (d + 1).to_string())
+            .collect();
+        let deps_str = if deps.is_empty() {
+            String::new()
+        } else {
+            format!(" (uses {})", deps.join(", "))
+        };
+        println!(
+            "  {}. {}: {}{}",
+            style(i + 1).dim(),
+            style(tool).cyan(),
+            style(desc).green(),
+            style(deps_str).dim()
+        );
+    }
+    println!();
+}
+
 // Helper functions
 
-fn print_tool_header(call: &CallToolRequestParam) {
-    let parts: Vec<_> = call.name.rsplit("__").collect();
+fn print_tool_header(call: &CallToolRequestParams) {
+    let (tool, extension) = split_tool_name(&call.name);
     let tool_header = format!(
         "─── {} | {} ──────────────────────────",
-        style(parts.first().unwrap_or(&"unknown")),
-        style(
-            parts
-                .split_first()
-                .map(|(_, s)| s.iter().rev().copied().collect::<Vec<_>>().join("__"))
-                .unwrap_or_else(|| "unknown".to_string())
-        )
-        .magenta()
-        .dim(),
+        style(tool),
+        style(extension).magenta().dim(),
     );
     println!();
     println!("{}", tool_header);
@@ -871,8 +999,8 @@ fn estimate_cost_usd(
 ) -> Option<f64> {
     let canonical_model = maybe_get_canonical_model(provider, model)?;
 
-    let input_cost_per_token = canonical_model.pricing.prompt?;
-    let output_cost_per_token = canonical_model.pricing.completion?;
+    let input_cost_per_token = canonical_model.cost.input? / 1_000_000.0;
+    let output_cost_per_token = canonical_model.cost.output? / 1_000_000.0;
 
     let input_cost = input_cost_per_token * input_tokens as f64;
     let output_cost = output_cost_per_token * output_tokens as f64;

@@ -28,6 +28,7 @@ const customOneDarkTheme = {
 
 import { Check, Copy } from './icons';
 import { wrapHTMLInCodeBlock } from '../utils/htmlSecurity';
+import { isProtocolSafe, getProtocol, BLOCKED_PROTOCOLS } from '../utils/urlSecurity';
 
 interface CodeProps extends React.ClassAttributes<HTMLElement>, React.HTMLAttributes<HTMLElement> {
   inline?: boolean;
@@ -143,6 +144,21 @@ const MarkdownCode = memo(
   })
 );
 
+// Custom URL transform to preserve deep link URLs (spotify:, vscode:, slack:, etc.)
+// React-markdown's default only allows http/https/mailto and strips all other protocols
+// We allow all protocols except dangerous ones (javascript:, data:, file:, etc.)
+const customUrlTransform = (url: string): string => {
+  try {
+    const protocol = new URL(url).protocol;
+    if (BLOCKED_PROTOCOLS.includes(protocol)) {
+      return '';
+    }
+  } catch {
+    // Not a valid URL, allow it (could be relative path)
+  }
+  return url;
+};
+
 const MarkdownContent = memo(function MarkdownContent({
   content,
   className = '',
@@ -179,6 +195,7 @@ const MarkdownContent = memo(function MarkdownContent({
       prose-li:m-0 prose-li:font-sans ${className}`}
     >
       <ReactMarkdown
+        urlTransform={customUrlTransform}
         remarkPlugins={[remarkGfm, remarkBreaks, [remarkMath, { singleDollarTextMath: false }]]}
         rehypePlugins={[
           [
@@ -191,7 +208,39 @@ const MarkdownContent = memo(function MarkdownContent({
           ],
         ]}
         components={{
-          a: ({ ...props }) => <a {...props} target="_blank" rel="noopener noreferrer" />,
+          a: (props) => {
+            return (
+              <a
+                {...props}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={async (e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  if (!props.href) return;
+
+                  if (isProtocolSafe(props.href)) {
+                    window.electron.openExternal(props.href);
+                  } else {
+                    const protocol = getProtocol(props.href);
+                    if (!protocol) return;
+
+                    const result = await window.electron.showMessageBox({
+                      type: 'question',
+                      buttons: ['Cancel', 'Open'],
+                      defaultId: 0,
+                      title: 'Open External Link',
+                      message: `Open ${protocol} link?`,
+                      detail: `This will open: ${props.href}`,
+                    });
+                    if (result.response === 1) {
+                      window.electron.openExternal(props.href);
+                    }
+                  }
+                }}
+              />
+            );
+          },
           code: MarkdownCode,
         }}
       >
