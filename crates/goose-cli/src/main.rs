@@ -1,9 +1,5 @@
 use anyhow::Result;
-use clap::{Parser, Subcommand};
-use cli::Cli;
-use computer_use::{ComputerUseArgs, ComputerUseInterface};
-use goose::app::AppBuilder;
-use goose::execution::ExecutionConfig;
+use goose_cli::cli::Cli;
 use tracing::error;
 
 #[tokio::main]
