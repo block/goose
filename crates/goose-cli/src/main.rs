@@ -1,4 +1,5 @@
 use anyhow::Result;
+use clap::Parser;
 use goose_cli::cli::Cli;
 
 #[tokio::main]
