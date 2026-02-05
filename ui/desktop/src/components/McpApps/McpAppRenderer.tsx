@@ -66,6 +66,7 @@ export default function McpAppRenderer({
   });
   const [error, setError] = useState<string | null>(null);
   const [iframeHeight, setIframeHeight] = useState(DEFAULT_IFRAME_HEIGHT);
+  const [iframeWidth, setIframeWidth] = useState<number | null>(null);
 
   useEffect(() => {
     if (!sessionId) {
@@ -242,9 +243,12 @@ export default function McpAppRenderer({
     [append, sessionId, extensionName]
   );
 
-  const handleSizeChanged = useCallback((height: number, _width?: number) => {
+  const handleSizeChanged = useCallback((height: number, width?: number) => {
     const newHeight = Math.max(DEFAULT_IFRAME_HEIGHT, height);
     setIframeHeight(newHeight);
+    if (width !== undefined) {
+      setIframeWidth(width);
+    }
   }, []);
 
   const { iframeRef, proxyUrl, isLoading } = useSandboxBridge({
@@ -306,7 +310,8 @@ export default function McpAppRenderer({
           ref={iframeRef}
           src={proxyUrl}
           style={{
-            width: '100%',
+            width: iframeWidth ? `${iframeWidth}px` : '100%',
+            maxWidth: '100%',
             height: `${iframeHeight}px`,
             border: 'none',
             overflow: 'hidden',
