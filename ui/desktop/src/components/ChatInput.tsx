@@ -127,8 +127,20 @@ export default function ChatInput({
   const [isFocused, setIsFocused] = useState(false);
   const [pastedImages, setPastedImages] = useState<PastedImage[]>([]);
 
-  // Derived state - chatState != Idle means we're in some form of loading state
+  // Derived state for different loading scenarios
+  // isLoading: Any non-idle state (used for queue processing)
+  // isBlockingState: States where we should NOT allow new submissions at all
   const isLoading = chatState !== ChatState.Idle;
+  const isBlockingState = [
+    ChatState.LoadingConversation,
+    ChatState.RestartingAgent,
+    ChatState.Compacting,
+  ].includes(chatState);
+  // isActiveToolState: Streaming/Thinking states where tools may be running but user CAN send
+  const isActiveToolState = [
+    ChatState.Streaming,
+    ChatState.Thinking,
+  ].includes(chatState);
   const wasLoadingRef = useRef(isLoading);
 
   // Queue functionality - ephemeral, only exists in memory for this chat instance
@@ -825,7 +837,16 @@ export default function ChatInput({
   };
 
   const handleInterruptionAndQueue = () => {
+    console.log('[ChatInput] handleInterruptionAndQueue called', {
+      isLoading,
+      hasSubmittableContent,
+      isActiveToolState,
+      isBlockingState,
+      chatState,
+    });
+    
     if (!isLoading || !hasSubmittableContent) {
+      console.log('[ChatInput] Early return: isLoading=', isLoading, 'hasSubmittableContent=', hasSubmittableContent);
       return false;
     }
 
@@ -835,6 +856,7 @@ export default function ChatInput({
     const interruptionMatch = detectInterruption(displayValue.trim());
 
     if (interruptionMatch && interruptionMatch.shouldInterrupt) {
+      console.log('[ChatInput] Detected interruption:', interruptionMatch.matchedText);
       setLastInterruption(interruptionMatch.matchedText);
       if (onStop) onStop();
       queuePausedRef.current = true;
@@ -855,6 +877,23 @@ export default function ChatInput({
       return true;
     }
 
+    // When Goose is actively working (Streaming or Thinking), allow direct submission
+    // The backend handles message queuing - user can continue chatting while Goose works
+    if (isActiveToolState) {
+      console.log('[ChatInput] isActiveToolState=true, submitting directly to backend');
+      // Submit directly - backend will queue and process after current work completes
+      LocalMessageStorage.addMessage(displayValue);
+      handleSubmit({ msg: contentToQueue, images: imageData });
+      clearInputState();
+      setHistoryIndex(-1);
+      setSavedInput('');
+      setIsInGlobalHistory(false);
+      setHasUserTyped(false);
+      return true;
+    }
+
+    // For blocking states (LoadingConversation, RestartingAgent, Compacting), queue the message
+    console.log('[ChatInput] Blocking state, queuing message');
     const newMessage: QueuedMessage = {
       id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
       content: contentToQueue,
@@ -992,7 +1031,19 @@ export default function ChatInput({
 
   const onFormSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    
+    // Debug logging
+    console.log('[ChatInput] onFormSubmit called', {
+      chatState,
+      isLoading,
+      isActiveToolState,
+      isBlockingState,
+      hasSubmittableContent,
+      displayValue: displayValue.substring(0, 50),
+    });
+    
     if (isLoading && hasSubmittableContent) {
+      console.log('[ChatInput] Calling handleInterruptionAndQueue (isLoading=true)');
       handleInterruptionAndQueue();
       return;
     }
@@ -1001,7 +1052,9 @@ export default function ChatInput({
       (displayValue.trim() ||
         pastedImages.some((img) => img.dataUrl && !img.error && !img.isLoading) ||
         allDroppedFiles.some((file) => !file.error && !file.isLoading));
+    console.log('[ChatInput] canSubmit:', canSubmit);
     if (canSubmit) {
+      console.log('[ChatInput] Calling performSubmit');
       performSubmit();
     }
   };
