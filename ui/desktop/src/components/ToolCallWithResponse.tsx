@@ -209,15 +209,17 @@ export default function ToolCallWithResponse({
                 {confirmationContent.prompt}
               </div>
             )}
-            <ToolApprovalButtons
-              data={{
-                id: confirmationContent.id,
-                toolName: confirmationContent.toolName,
-                prompt: confirmationContent.prompt ?? undefined,
-                sessionId,
-                isClicked: isApprovalClicked,
-              }}
-            />
+            <div className="px-4 pb-2">
+              <ToolApprovalButtons
+                data={{
+                  id: confirmationContent.id,
+                  toolName: confirmationContent.toolName,
+                  prompt: confirmationContent.prompt ?? undefined,
+                  sessionId,
+                  isClicked: isApprovalClicked,
+                }}
+              />
+            </div>
           </div>
         )}
       </div>
