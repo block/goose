@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>MCP App Sandbox</title>
+    <style>
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      html, body { width: 100%; height: 100%; overflow: hidden; }
+    </style>
+  </head>
+  <body>
+    <script>
+      (function() {
+        'use strict';
+
+        var guestIframe = null;
+        var contentUrl = '{{CONTENT_URL}}';
+        var permissions = {{PERMISSIONS_JSON}};
+
+        /**
+         * Create the sandboxed inner iframe for the MCP App content.
+         * Uses src attribute (not srcdoc) to load from a real URL.
+         */
+        function createGuestIframe() {
+          if (guestIframe) {
+            return;
+          }
+
+          guestIframe = document.createElement('iframe');
+          
+          // Sandbox restricts the iframe's capabilities
+          // allow-scripts: Let JS run
+          // allow-same-origin: Required for postMessage to work properly
+          guestIframe.setAttribute('sandbox', 'allow-scripts allow-same-origin');
+          
+          // Build Permission Policy allow attribute from requested permissions
+          var allowList = [];
+          if (permissions && permissions.camera) allowList.push('camera');
+          if (permissions && permissions.microphone) allowList.push('microphone');
+          if (permissions && permissions.geolocation) allowList.push('geolocation');
+          if (permissions && permissions.clipboardWrite) allowList.push('clipboard-write');
+          if (allowList.length > 0) {
+            guestIframe.setAttribute('allow', allowList.join('; '));
+          }
+
+          // Use src instead of srcdoc - this gives the inner iframe a real URL
+          guestIframe.src = contentUrl;
+          guestIframe.style.cssText = 'width:100%; height:100%; border:none;';
+
+          document.body.appendChild(guestIframe);
+        }
+
+        /**
+         * Handle messages from the Host (parent window).
+         */
+        function handleHostMessage(event) {
+          if (event.source !== window.parent) {
+            return;
+          }
+
+          var data = event.data;
+          if (!data || typeof data !== 'object') {
+            return;
+          }
+
+          // Forward all messages to Guest UI (if it exists)
+          if (guestIframe && guestIframe.contentWindow) {
+            guestIframe.contentWindow.postMessage(data, '*');
+          }
+        }
+
+        /**
+         * Handle messages from the Guest UI (inner iframe).
+         */
+        function handleGuestMessage(event) {
+          if (!guestIframe || event.source !== guestIframe.contentWindow) {
+            return;
+          }
+
+          var data = event.data;
+          if (!data || typeof data !== 'object') {
+            return;
+          }
+
+          // Forward all messages from Guest UI to Host
+          window.parent.postMessage(data, '*');
+        }
+
+        /**
+         * Main message handler - routes to appropriate handler.
+         */
+        function handleMessage(event) {
+          if (event.source === window.parent) {
+            handleHostMessage(event);
+          } else if (guestIframe && event.source === guestIframe.contentWindow) {
+            handleGuestMessage(event);
+          }
+        }
+
+        // Set up message listener
+        window.addEventListener('message', handleMessage);
+
+        // Create the guest iframe immediately (content URL is already known)
+        createGuestIframe();
+
+        // Notify Host that Sandbox is ready
+        window.parent.postMessage({
+          jsonrpc: '2.0',
+          method: 'ui/notifications/sandbox-ready',
+          params: {}
+        }, '*');
+      })();
+    </script>
+  </body>
+</html>
