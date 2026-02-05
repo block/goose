@@ -182,7 +182,14 @@ pub fn format_messages(messages: &[Message]) -> Vec<Value> {
                         }
                         parts.push(json!(part));
                     }
-
+                    MessageContent::Image(image) => {
+                        parts.push(json!({
+                            "inline_data": {
+                                "mime_type": image.mime_type,
+                                "data": image.data,
+                            }
+                        }));
+                    }
                     _ => {}
                 }
             }
@@ -1373,5 +1380,80 @@ data: [DONE]"#;
         let config = ModelConfig::new("gpt-4o").unwrap();
         let result = get_thinking_config(&config);
         assert!(result.is_none());
+    }
+
+    #[test]
+    fn test_message_to_google_spec_image_message() {
+        // Test that user-attached images are properly formatted for Google API
+        let message = Message::new(
+            Role::User,
+            0,
+            vec![
+                MessageContent::text("Here is an image:".to_string()),
+                MessageContent::image("base64encodeddata", "image/png"),
+            ],
+        );
+
+        let payload = format_messages(&[message]);
+
+        assert_eq!(payload.len(), 1);
+        assert_eq!(payload[0]["role"], "user");
+
+        let parts = payload[0]["parts"].as_array().unwrap();
+        assert_eq!(parts.len(), 2);
+
+        // First part should be text
+        assert_eq!(parts[0]["text"], "Here is an image:");
+
+        // Second part should be inline_data with image
+        assert!(parts[1].get("inline_data").is_some());
+        assert_eq!(parts[1]["inline_data"]["mime_type"], "image/png");
+        assert_eq!(parts[1]["inline_data"]["data"], "base64encodeddata");
+    }
+
+    #[test]
+    fn test_message_to_google_spec_image_only_message() {
+        // Test a message with only an image (no text)
+        let message = Message::new(
+            Role::User,
+            0,
+            vec![MessageContent::image("imagedata123", "image/jpeg")],
+        );
+
+        let payload = format_messages(&[message]);
+
+        assert_eq!(payload.len(), 1);
+        assert_eq!(payload[0]["role"], "user");
+
+        let parts = payload[0]["parts"].as_array().unwrap();
+        assert_eq!(parts.len(), 1);
+
+        assert!(parts[0].get("inline_data").is_some());
+        assert_eq!(parts[0]["inline_data"]["mime_type"], "image/jpeg");
+        assert_eq!(parts[0]["inline_data"]["data"], "imagedata123");
+    }
+
+    #[test]
+    fn test_message_to_google_spec_multiple_images() {
+        // Test a message with multiple images
+        let message = Message::new(
+            Role::User,
+            0,
+            vec![
+                MessageContent::text("Compare these images:".to_string()),
+                MessageContent::image("image1data", "image/png"),
+                MessageContent::image("image2data", "image/jpeg"),
+            ],
+        );
+
+        let payload = format_messages(&[message]);
+
+        assert_eq!(payload.len(), 1);
+        let parts = payload[0]["parts"].as_array().unwrap();
+        assert_eq!(parts.len(), 3);
+
+        assert_eq!(parts[0]["text"], "Compare these images:");
+        assert_eq!(parts[1]["inline_data"]["data"], "image1data");
+        assert_eq!(parts[2]["inline_data"]["data"], "image2data");
     }
 }
