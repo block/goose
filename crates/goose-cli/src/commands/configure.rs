@@ -707,6 +707,14 @@ pub async fn configure_provider_dialog() -> anyhow::Result<bool> {
         }
     };
 
+    if model.to_lowercase().starts_with("gemini-3") {
+        let thinking_level: &str = cliclack::select("Select thinking level for Gemini 3:")
+            .item("low", "Low - Better latency, lighter reasoning", "")
+            .item("high", "High - Deeper reasoning, higher latency", "")
+            .interact()?;
+        config.set_gemini3_thinking_level(thinking_level)?;
+    }
+
     // Test the configuration
     let spin = spinner();
     spin.start("Checking your configuration...");

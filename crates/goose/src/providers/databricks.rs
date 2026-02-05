@@ -104,6 +104,8 @@ pub struct DatabricksProvider {
     #[serde(skip)]
     retry_config: RetryConfig,
     #[serde(skip)]
+    fast_retry_config: RetryConfig,
+    #[serde(skip)]
     name: String,
 }
 
@@ -125,6 +127,7 @@ impl DatabricksProvider {
 
         let host = host?;
         let retry_config = Self::load_retry_config(config);
+        let fast_retry_config = Self::load_fast_retry_config(config);
 
         let auth = if let Ok(api_key) = config.get_secret("DATABRICKS_TOKEN") {
             DatabricksAuth::token(api_key)
@@ -144,6 +147,7 @@ impl DatabricksProvider {
             model: model.clone(),
             image_format: ImageFormat::OpenAi,
             retry_config,
+            fast_retry_config,
             name: DATABRICKS_PROVIDER_NAME.to_string(),
         };
         provider.model = model.with_fast(DATABRICKS_DEFAULT_FAST_MODEL.to_string());
@@ -183,6 +187,11 @@ impl DatabricksProvider {
         }
     }
 
+    fn load_fast_retry_config(_config: &crate::config::Config) -> RetryConfig {
+        // Fast models are hardcoded to 0 retries for quick failure on Databricks
+        RetryConfig::new(0, 0, 1.0, 0)
+    }
+
     pub fn from_params(host: String, api_key: String, model: ModelConfig) -> Result<Self> {
         let auth = DatabricksAuth::token(api_key);
         let auth_method =
@@ -196,6 +205,7 @@ impl DatabricksProvider {
             model,
             image_format: ImageFormat::OpenAi,
             retry_config: RetryConfig::default(),
+            fast_retry_config: RetryConfig::new(0, 0, 1.0, 0),
             name: DATABRICKS_PROVIDER_NAME.to_string(),
         })
     }
@@ -284,8 +294,25 @@ impl Provider for DatabricksProvider {
 
         let mut log = RequestLog::start(&self.model, &payload)?;
 
+        // Use fast retry config if this is the fast model
+        let is_fast_model = self
+            .model
+            .fast_model
+            .as_ref()
+            .map(|fast| fast == &model_config.model_name)
+            .unwrap_or(false);
+
+        let retry_config = if is_fast_model {
+            self.fast_retry_config.clone()
+        } else {
+            self.retry_config.clone()
+        };
+
         let response = self
-            .with_retry(|| self.post(session_id, payload.clone(), Some(&model_config.model_name)))
+            .with_retry_config(
+                || self.post(session_id, payload.clone(), Some(&model_config.model_name)),
+                retry_config,
+            )
             .await?;
 
         let message = response_to_message(&response)?;
@@ -444,7 +471,10 @@ impl EmbeddingCapable for DatabricksProvider {
         });
 
         let response = self
-            .with_retry(|| self.post(Some(session_id), request.clone(), None))
+            .with_retry_config(
+                || self.post(Some(session_id), request.clone(), None),
+                self.fast_retry_config.clone(),
+            )
             .await?;
 
         let embeddings = response["data"]

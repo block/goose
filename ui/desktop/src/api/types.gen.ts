@@ -112,7 +112,7 @@ export type ConfigResponse = {
 };
 
 export type ConfirmToolActionRequest = {
-    action: string;
+    action: Permission;
     id: string;
     principalType?: PrincipalType;
     sessionId: string;
@@ -661,6 +661,8 @@ export type ParseRecipeRequest = {
 export type ParseRecipeResponse = {
     recipe: Recipe;
 };
+
+export type Permission = 'always_allow' | 'allow_once' | 'cancel' | 'deny_once' | 'always_deny';
 
 /**
  * Enum representing the possible permission levels for a tool.

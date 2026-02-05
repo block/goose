@@ -3555,7 +3555,7 @@
         ],
         "properties": {
           "action": {
-            "type": "string"
+            "$ref": "#/components/schemas/Permission"
           },
           "id": {
             "type": "string"
@@ -5239,6 +5239,16 @@
             "$ref": "#/components/schemas/Recipe"
           }
         }
+      },
+      "Permission": {
+        "type": "string",
+        "enum": [
+          "always_allow",
+          "allow_once",
+          "cancel",
+          "deny_once",
+          "always_deny"
+        ]
       },
       "PermissionLevel": {
         "type": "string",

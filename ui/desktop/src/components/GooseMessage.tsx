@@ -10,6 +10,8 @@ import {
   getToolConfirmationContent,
   getElicitationContent,
   getPendingToolConfirmationIds,
+  getAnyToolConfirmationData,
+  ToolConfirmationData,
   NotificationEvent,
 } from '../types/message';
 import { Message } from '../api';
@@ -26,7 +28,7 @@ interface GooseMessageProps {
   metadata?: string[];
   toolCallNotifications: Map<string, NotificationEvent[]>;
   append: (value: string) => void;
-  isStreaming?: boolean; // Whether this message is currently being streamed
+  isStreaming: boolean;
   submitElicitationResponse?: (
     elicitationId: string,
     userData: Record<string, unknown>
@@ -39,7 +41,7 @@ export default function GooseMessage({
   messages,
   toolCallNotifications,
   append,
-  isStreaming = false,
+  isStreaming,
   submitElicitationResponse,
 }: GooseMessageProps) {
   const contentRef = useRef<HTMLDivElement | null>(null);
@@ -69,6 +71,18 @@ export default function GooseMessage({
   const messageIndex = messages.findIndex((msg) => msg.id === message.id);
   const toolConfirmationContent = getToolConfirmationContent(message);
   const elicitationContent = getElicitationContent(message);
+
+  const findConfirmationForToolAcrossMessages = (
+    toolRequestId: string
+  ): ToolConfirmationData | undefined => {
+    for (const msg of messages) {
+      const confirmationData = getAnyToolConfirmationData(msg);
+      if (confirmationData && confirmationData.id === toolRequestId) {
+        return confirmationData;
+      }
+    }
+    return undefined;
+  };
   const toolCallChains = useMemo(() => identifyConsecutiveToolCalls(messages), [messages]);
   const hideTimestamp = useMemo(
     () => shouldHideTimestamp(messageIndex, toolCallChains),
@@ -76,6 +90,20 @@ export default function GooseMessage({
   );
   const hasToolConfirmation = toolConfirmationContent !== undefined;
   const hasElicitation = elicitationContent !== undefined;
+
+  const toolConfirmationShownInline = useMemo(() => {
+    if (!toolConfirmationContent) return false;
+    const confirmationData = getAnyToolConfirmationData(message);
+    if (!confirmationData) return false;
+
+    for (const msg of messages) {
+      const requests = getToolRequests(msg);
+      if (requests.some((req) => req.id === confirmationData.id)) {
+        return true;
+      }
+    }
+    return false;
+  }, [toolConfirmationContent, message, messages]);
 
   const toolResponsesMap = useMemo(() => {
     const responseMap = new Map();
@@ -149,20 +177,28 @@ export default function GooseMessage({
           <div className={cn(displayText && 'mt-2')}>
             <div className="relative flex flex-col w-full">
               <div className="flex flex-col gap-3">
-                {toolRequests.map((toolRequest) => (
-                  <div className="goose-message-tool" key={toolRequest.id}>
-                    <ToolCallWithResponse
-                      sessionId={sessionId}
-                      isCancelledMessage={false}
-                      toolRequest={toolRequest}
-                      toolResponse={toolResponsesMap.get(toolRequest.id)}
-                      notifications={toolCallNotifications.get(toolRequest.id)}
-                      isStreamingMessage={isStreaming}
-                      isPendingApproval={pendingConfirmationIds.has(toolRequest.id)}
-                      append={append}
-                    />
-                  </div>
-                ))}
+                {toolRequests.map((toolRequest) => {
+                  const hasResponse = toolResponsesMap.has(toolRequest.id);
+                  const isPending = pendingConfirmationIds.has(toolRequest.id);
+                  const confirmationContent = findConfirmationForToolAcrossMessages(toolRequest.id);
+                  const isApprovalClicked = confirmationContent && !isPending && hasResponse;
+                  return (
+                    <div className="goose-message-tool" key={toolRequest.id}>
+                      <ToolCallWithResponse
+                        sessionId={sessionId}
+                        isCancelledMessage={false}
+                        toolRequest={toolRequest}
+                        toolResponse={toolResponsesMap.get(toolRequest.id)}
+                        notifications={toolCallNotifications.get(toolRequest.id)}
+                        isStreamingMessage={isStreaming}
+                        isPendingApproval={isPending}
+                        append={append}
+                        confirmationContent={confirmationContent}
+                        isApprovalClicked={isApprovalClicked}
+                      />
+                    </div>
+                  );
+                })}
               </div>
               <div className="text-xs text-text-muted transition-all duration-200 group-hover:-translate-y-4 group-hover:opacity-0 pt-1">
                 {!isStreaming && !hideTimestamp && timestamp}
@@ -171,10 +207,9 @@ export default function GooseMessage({
           </div>
         )}
 
-        {hasToolConfirmation && (
+        {hasToolConfirmation && !toolConfirmationShownInline && (
           <ToolCallConfirmation
             sessionId={sessionId}
-            isCancelledMessage={false}
             isClicked={false}
             actionRequiredContent={toolConfirmationContent}
           />
