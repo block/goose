@@ -1,41 +1,49 @@
 <!DOCTYPE html>
 <html>
   <head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta charset="utf-8"/>
+    <meta name="referrer" content="no-referrer"/>
     <title>MCP App Sandbox</title>
     <style>
-      * { margin: 0; padding: 0; box-sizing: border-box; }
-      html, body { width: 100%; height: 100%; overflow: hidden; }
+      body,
+      html {
+        margin: 0;
+        padding: 0;
+        height: 100%;
+        width: 100%;
+        overflow: hidden;
+      }
+      iframe {
+        width: 100%;
+        height: 100%;
+        border: none;
+      }
     </style>
   </head>
   <body>
     <script>
-      (function() {
+      (function () {
         'use strict';
 
-        var guestIframe = null;
-        var contentUrl = '{{CONTENT_URL}}';
-        var permissions = {{PERMISSIONS_JSON}};
+        let guestIframe = null;
+        const contentUrl = '{{CONTENT_URL}}';
+        const permissions = {{PERMISSIONS_JSON}};
 
-        /**
-         * Create the sandboxed inner iframe for the MCP App content.
-         * Uses src attribute (not srcdoc) to load from a real URL.
-         */
         function createGuestIframe() {
           if (guestIframe) {
-            return;
+            guestIframe.remove();
           }
 
           guestIframe = document.createElement('iframe');
-          
-          // Sandbox restricts the iframe's capabilities
-          // allow-scripts: Let JS run
-          // allow-same-origin: Required for postMessage to work properly
-          // allow-forms: Needed if the app has forms
+
+          // Sandbox permissions for the Guest UI
+          // allow-scripts: needed for the app to run
+          // allow-same-origin: needed for localStorage, cookies, etc.
+          // allow-forms: needed if the app has forms
           guestIframe.setAttribute('sandbox', 'allow-scripts allow-same-origin allow-forms');
-          
+
           // Build Permission Policy allow attribute from requested permissions
+          // These control access to sensitive browser APIs like camera, microphone, etc.
           var allowList = [];
           if (permissions && permissions.camera) allowList.push('camera');
           if (permissions && permissions.microphone) allowList.push('microphone');
@@ -45,11 +53,13 @@
             guestIframe.setAttribute('allow', allowList.join('; '));
           }
 
-          // Use src instead of srcdoc - this gives the inner iframe a real URL
+          // Use src instead of srcdoc - loads from real URL for secure context
           guestIframe.src = contentUrl;
           guestIframe.style.cssText = 'width:100%; height:100%; border:none;';
 
-          document.body.appendChild(guestIframe);
+          document
+            .body
+            .appendChild(guestIframe);
         }
 
         /**
@@ -66,8 +76,11 @@
           }
 
           // Forward all messages to Guest UI (if it exists)
+          // This includes lifecycle messages like responses to ui/initialize
           if (guestIframe && guestIframe.contentWindow) {
-            guestIframe.contentWindow.postMessage(data, '*');
+            guestIframe
+              .contentWindow
+              .postMessage(data, '*');
           }
         }
 
@@ -85,7 +98,10 @@
           }
 
           // Forward all messages from Guest UI to Host
-          window.parent.postMessage(data, '*');
+          // The Sandbox does NOT create its own requests - just relays
+          window
+            .parent
+            .postMessage(data, '*');
         }
 
         /**
@@ -102,15 +118,17 @@
         // Set up message listener
         window.addEventListener('message', handleMessage);
 
-        // Create the guest iframe immediately (content URL is already known)
+        // Create the guest iframe immediately (content URL and permissions are embedded)
         createGuestIframe();
 
         // Notify Host that Sandbox is ready
-        window.parent.postMessage({
-          jsonrpc: '2.0',
-          method: 'ui/notifications/sandbox-ready',
-          params: {}
-        }, '*');
+        window
+          .parent
+          .postMessage({
+            jsonrpc: '2.0',
+            method: 'ui/notifications/sandbox-ready',
+            params: {}
+          }, '*');
       })();
     </script>
   </body>
