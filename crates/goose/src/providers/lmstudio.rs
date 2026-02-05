@@ -1,8 +1,10 @@
 use anyhow::Result;
+use async_trait::async_trait;
+use futures::future::BoxFuture;
 use std::sync::Arc;
 
 use super::api_client::ApiClient;
-use super::base::{ConfigKey, Provider, ProviderMetadata};
+use super::base::{ConfigKey, Provider, ProviderDef, ProviderMetadata};
 use super::openai_compatible::OpenAiCompatibleProvider;
 use crate::model::ModelConfig;
 
@@ -56,42 +58,14 @@ impl LmStudioProvider {
             ],
             model_doc_link: "https://lmstudio.ai/docs/developer".to_string(),
             config_keys: vec![
-                ConfigKey {
-                    name: "LMSTUDIO_BASE_URL".to_string(),
-                    description: Some("LM Studio API base URL (default: http://localhost:1234/v1)".to_string()),
-                    required: false,
-                    secret: false,
-                },
-                ConfigKey {
-                    name: "LMSTUDIO_API_TOKEN".to_string(),
-                    description: Some("LM Studio API authentication token (optional)".to_string()),
-                    required: false,
-                    secret: true,
-                },
-                ConfigKey {
-                    name: "LMSTUDIO_USE_NATIVE_API".to_string(),
-                    description: Some("Use native /api/v1/* endpoints instead of OpenAI-compatible (default: false)".to_string()),
-                    required: false,
-                    secret: false,
-                },
-                ConfigKey {
-                    name: "LMSTUDIO_DRAFT_MODEL".to_string(),
-                    description: Some("Draft model for speculative decoding (optional)".to_string()),
-                    required: false,
-                    secret: false,
-                },
-                ConfigKey {
-                    name: "LMSTUDIO_MODEL_TTL".to_string(),
-                    description: Some("Idle TTL in seconds for auto-evict (optional)".to_string()),
-                    required: false,
-                    secret: false,
-                },
+                ConfigKey::new("LMSTUDIO_BASE_URL", false, false, Some("http://localhost:1234/v1")),
+                ConfigKey::new("LMSTUDIO_API_TOKEN", false, true, None),
             ],
             allows_unlisted_models: true,
         }
     }
 
-    pub async fn new(model: ModelConfig) -> Result<Arc<dyn Provider>> {
+    pub async fn from_env(model: ModelConfig) -> Result<Arc<dyn Provider>> {
         let config = crate::config::Config::global();
 
         let base_url = config
@@ -108,6 +82,34 @@ impl LmStudioProvider {
             api_client,
             model,
         )))
+    }
+}
+
+impl ProviderDef for LmStudioProvider {
+    type Provider = OpenAiCompatibleProvider;
+
+    fn metadata() -> ProviderMetadata {
+        Self::metadata()
+    }
+
+    fn from_env(model: ModelConfig) -> BoxFuture<'static, Result<Self::Provider>> {
+        Box::pin(async move {
+            let config = crate::config::Config::global();
+
+            let base_url = config
+                .get_param::<String>("LMSTUDIO_BASE_URL")
+                .unwrap_or_else(|_| Self::DEFAULT_BASE_URL.to_string());
+
+            let api_token = config.get_param::<String>("LMSTUDIO_API_TOKEN").ok();
+
+            let api_client = ApiClient::new(&base_url, api_token)?;
+
+            Ok(OpenAiCompatibleProvider::new(
+                "lmstudio".to_string(),
+                api_client,
+                model,
+            ))
+        })
     }
 }
 
@@ -162,7 +164,7 @@ mod tests {
         ]);
 
         let model = ModelConfig::new_or_fail("glm-4.6");
-        let provider = LmStudioProvider::new(model).await.unwrap();
+        let provider = LmStudioProvider::from_env(model).await.unwrap();
 
         assert_eq!(provider.get_name(), "lmstudio");
         assert_eq!(provider.get_model_config().model_name, "glm-4.6");
@@ -176,7 +178,7 @@ mod tests {
         ]);
 
         let model = ModelConfig::new_or_fail("qwen3-coder");
-        let provider = LmStudioProvider::new(model).await.unwrap();
+        let provider = LmStudioProvider::from_env(model).await.unwrap();
 
         assert_eq!(provider.get_name(), "lmstudio");
         assert_eq!(provider.get_model_config().model_name, "qwen3-coder");
@@ -190,7 +192,7 @@ mod tests {
         ]);
 
         let model = ModelConfig::new_or_fail("deepseek-r1-distill-qwen-7b");
-        let provider = LmStudioProvider::new(model).await.unwrap();
+        let provider = LmStudioProvider::from_env(model).await.unwrap();
 
         assert_eq!(provider.get_name(), "lmstudio");
         assert_eq!(
