@@ -1104,7 +1104,6 @@ enum Command {
         #[arg(long, default_value = "goose", help = "Provide a custom binary name")]
         bin_name: String,
     },
-
 }
 
 #[derive(Subcommand)]
@@ -1167,7 +1166,6 @@ enum TermCommand {
     )]
     Info,
 }
-
 
 #[derive(clap::ValueEnum, Clone, Debug)]
 enum CliProviderVariant {
@@ -1794,4 +1792,3 @@ pub async fn cli() -> anyhow::Result<()> {
         None => handle_default_session().await,
     }
 }
-
