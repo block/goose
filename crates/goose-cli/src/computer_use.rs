@@ -349,7 +349,7 @@ impl ComputerUseInterface {
     async fn handle_fix(&mut self, args: FixArgs) -> Result<()> {
         info!("Starting workflow failure analysis and fixes");
 
-        let workflow_analyzer = WorkflowAnalyzer::new(&self.project_root.as_path()).await?;
+        let workflow_analyzer = WorkflowAnalyzer::new(self.project_root.as_path()).await?;
 
         if args.all_workflows {
             let failures = workflow_analyzer.analyze_all_failures().await?;
@@ -380,12 +380,9 @@ impl ComputerUseInterface {
     async fn run_control_loop(&mut self) -> Result<()> {
         info!("Starting Computer Use control loop - AI has full project access");
 
-        loop {
-            // This would integrate with the main AI agent loop
-            // For now, demonstrate the capability structure
-            tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
-            break; // Remove this in actual implementation
-        }
+        // This would integrate with the main AI agent loop
+        // For now, demonstrate the capability structure
+        tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
 
         Ok(())
     }
@@ -395,7 +392,7 @@ impl ComputerUseInterface {
 
         // Run the failing test with detailed output
         let output = Command::new("cargo")
-            .args(&["test", failure_name, "--", "--nocapture"])
+            .args(["test", failure_name, "--", "--nocapture"])
             .current_dir(&self.project_root)
             .output()
             .context("Failed to run test")?;
