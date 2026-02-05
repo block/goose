@@ -20,6 +20,61 @@ pub const LINE_READ_LIMIT: usize = 2000;
 pub const MAX_DIFF_SIZE: usize = 1024 * 1024; // 1MB max diff size
 pub const MAX_FILES_IN_DIFF: usize = 100; // Maximum files in a multi-file diff
 
+// ============================================================================
+// Fuzzy Matching Utilities (inspired by Pi)
+// ============================================================================
+
+/// Strip UTF-8 BOM if present, returning the BOM (if any) and the text without it.
+/// LLMs typically don't include the invisible BOM in their old_str, so we need to strip it.
+pub fn strip_bom(content: &str) -> (&'static str, &str) {
+    if let Some(stripped) = content.strip_prefix('\u{FEFF}') {
+        ("\u{FEFF}", stripped)
+    } else {
+        ("", content)
+    }
+}
+
+/// Normalize text for fuzzy matching. Applies progressive transformations:
+/// - Strip trailing whitespace from each line
+/// - Normalize smart quotes to ASCII equivalents
+/// - Normalize Unicode dashes/hyphens to ASCII hyphen
+/// - Normalize special Unicode spaces to regular space
+pub fn normalize_for_fuzzy_match(text: &str) -> String {
+    text.lines()
+        .map(|line| line.trim_end())
+        .collect::<Vec<_>>()
+        .join("\n")
+        // Smart single quotes → '
+        .replace(['\u{2018}', '\u{2019}', '\u{201A}', '\u{201B}'], "'")
+        // Smart double quotes → "
+        .replace(['\u{201C}', '\u{201D}', '\u{201E}', '\u{201F}'], "\"")
+        // Various dashes/hyphens → -
+        // U+2010 hyphen, U+2011 non-breaking hyphen, U+2012 figure dash,
+        // U+2013 en-dash, U+2014 em-dash, U+2015 horizontal bar, U+2212 minus
+        .replace(
+            [
+                '\u{2010}', '\u{2011}', '\u{2012}', '\u{2013}', '\u{2014}', '\u{2015}', '\u{2212}',
+            ],
+            "-",
+        )
+        // Special spaces → regular space
+        // U+00A0 NBSP, U+202F narrow NBSP, U+205F medium math space, U+3000 ideographic space
+        .replace(['\u{00A0}', '\u{202F}', '\u{205F}', '\u{3000}'], " ")
+        // U+2002-U+200A various width spaces
+        .replace(
+            [
+                '\u{2002}', '\u{2003}', '\u{2004}', '\u{2005}', '\u{2006}', '\u{2007}', '\u{2008}',
+                '\u{2009}', '\u{200A}',
+            ],
+            " ",
+        )
+}
+
+/// Normalize line endings to LF
+pub fn normalize_to_lf(text: &str) -> String {
+    text.replace("\r\n", "\n").replace('\r', "\n")
+}
+
 /// Validates paths to prevent directory traversal attacks
 fn validate_path_safety(base_dir: &Path, target_path: &Path) -> Result<(), ErrorData> {
     // Check for .. components
@@ -468,6 +523,7 @@ pub fn format_file_content(
     lines: &[&str],
     start_idx: usize,
     end_idx: usize,
+    total_lines: usize,
     view_range: Option<(usize, i64)>,
 ) -> String {
     let display_content = if lines.is_empty() {
@@ -483,8 +539,26 @@ pub fn format_file_content(
     };
 
     let language = lang::get_language_identifier(path);
-    if let Some((start, end)) = view_range {
-        formatdoc! {"
+
+    // Add continuation hint if there's more content after what we're showing
+    let continuation_hint = if end_idx < total_lines {
+        let next_start = end_idx + 1; // 1-indexed for user
+        let next_end = (end_idx + 500).min(total_lines); // Suggest next 500 lines
+        format!(
+            "\n\n[Showing lines {}-{} of {}. Use view_range=[{}, {}] to see more.]",
+            start_idx + 1,
+            end_idx,
+            total_lines,
+            next_start,
+            next_end
+        )
+    } else {
+        String::new()
+    };
+
+    let base_content = if let Some((start, end)) = view_range {
+        formatdoc! {
+            "
             ### {path} (lines {start}-{end})
             ```{language}
             {content}
@@ -497,7 +571,8 @@ pub fn format_file_content(
             content=display_content,
         }
     } else {
-        formatdoc! {"
+        formatdoc! {
+            "
             ### {path}
             ```{language}
             {content}
@@ -507,16 +582,34 @@ pub fn format_file_content(
             language=language,
             content=display_content,
         }
-    }
+    };
+
+    base_content + &continuation_hint
 }
 
 pub fn recommend_read_range(path: &Path, total_lines: usize) -> Result<Vec<Content>, ErrorData> {
-    Err(ErrorData::new(ErrorCode::INTERNAL_ERROR, format!(
-        "File '{}' is {} lines long, recommended to read in with view_range (or searching) to get bite size content. If you do wish to read all the file, please pass in view_range with [1, {}] to read it all at once",
-        path.display(),
-        total_lines,
-        total_lines
-    ), None))
+    // Calculate a reasonable chunk size (500 lines or total if smaller)
+    let chunk_size = 500.min(total_lines);
+    let suggested_end = chunk_size;
+
+    Err(ErrorData::new(
+        ErrorCode::INTERNAL_ERROR,
+        format!(
+            "File '{}' has {} lines (exceeds {} line limit).\n\n\
+        To read this file, use view_range to specify a line range:\n\
+        - First {} lines: view_range=[1, {}]\n\
+        - Lines 501-1000: view_range=[501, 1000]\n\
+        - Read all (not recommended): view_range=[1, {}]\n\n\
+        Tip: Use search/grep to find specific content instead of reading the entire file.",
+            path.display(),
+            total_lines,
+            LINE_READ_LIMIT,
+            suggested_end,
+            suggested_end,
+            total_lines
+        ),
+        None,
+    ))
 }
 
 /// Lists the contents of a directory with a maximum number of items
@@ -689,7 +782,7 @@ pub async fn text_editor_view(
     }
 
     let (start_idx, end_idx) = calculate_view_range(view_range, total_lines)?;
-    let formatted = format_file_content(path, &lines, start_idx, end_idx, view_range);
+    let formatted = format_file_content(path, &lines, start_idx, end_idx, total_lines, view_range);
 
     // The LLM gets just a quick update as we expect the file to view in the status
     // but we send a low priority message for the human
@@ -830,25 +923,78 @@ pub async fn text_editor_replace(
         }
     }
 
-    // Traditional string replacement path (original logic)
-    // Ensure 'old_str' appears exactly once
-    if content.matches(old_str).count() > 1 {
+    // Traditional string replacement path with fuzzy matching fallback
+    // Strip BOM from content (LLM won't include invisible BOM in old_str)
+    let (_bom, content_without_bom) = strip_bom(&content);
+
+    // Normalize line endings for consistent matching
+    let normalized_content = normalize_to_lf(content_without_bom);
+    let normalized_old_str = normalize_to_lf(old_str);
+    let normalized_new_str = normalize_to_lf(new_str);
+
+    // Try matching strategies in order:
+    // 1. Exact match
+    // 2. Fuzzy match (Unicode normalization + trailing whitespace)
+
+    let (working_content, working_old_str, used_fuzzy) = if normalized_content
+        .contains(&normalized_old_str)
+    {
+        // Exact match found
+        (
+            normalized_content.clone(),
+            normalized_old_str.clone(),
+            false,
+        )
+    } else {
+        // Try fuzzy match
+        let fuzzy_content = normalize_for_fuzzy_match(&normalized_content);
+        let fuzzy_old_str = normalize_for_fuzzy_match(&normalized_old_str);
+
+        if fuzzy_content.contains(&fuzzy_old_str) {
+            // Fuzzy match found - work in normalized space
+            (fuzzy_content, fuzzy_old_str, true)
+        } else {
+            // No match found
+            return Err(ErrorData::new(
+                ErrorCode::INVALID_PARAMS,
+                format!(
+                    "Could not find the specified text in '{}'. The old_str must match exactly including whitespace and newlines. \n\nTips:\n- Use the view command to see the exact file content\n- Check for trailing whitespace differences\n- Ensure line endings match",
+                    path.display()
+                ),
+                None,
+            ));
+        }
+    };
+
+    // Check for multiple occurrences (using the matching strategy that worked)
+    let occurrence_count = working_content.matches(&working_old_str).count();
+
+    if occurrence_count > 1 {
         return Err(ErrorData::new(
             ErrorCode::INVALID_PARAMS,
-            "'old_str' must appear exactly once in the file, but it appears multiple times"
-                .to_string(),
+            format!(
+                "Found {} occurrences of the specified text in '{}'. The text must be unique to avoid ambiguity.\n\nTips:\n- Include more surrounding context (lines before/after) to make the match unique\n- Use line numbers with view_range to identify the exact location",
+                occurrence_count,
+                path.display()
+            ),
             None,
         ));
-    }
-    if content.matches(old_str).count() == 0 {
-        return Err(ErrorData::new(ErrorCode::INVALID_PARAMS, "'old_str' must appear exactly once in the file, but it does not appear in the file. Make sure the string exactly matches existing file content, including whitespace!".to_string(), None));
     }
 
     // Save history for undo (original behavior - after validation)
     save_file_history(path, file_history)?;
 
-    let new_content = content.replace(old_str, new_str);
+    // Perform the replacement
+    let new_content = working_content.replacen(&working_old_str, &normalized_new_str, 1);
     let mut normalized_content = normalize_line_endings(&new_content);
+
+    // Log if fuzzy matching was used
+    if used_fuzzy {
+        tracing::debug!(
+            "Used fuzzy matching for edit in '{}' (Unicode/whitespace normalization)",
+            path.display()
+        );
+    }
 
     if !normalized_content.ends_with('\n') {
         normalized_content.push('\n');
@@ -869,8 +1015,8 @@ pub async fn text_editor_replace(
     const SNIPPET_LINES: usize = 4;
 
     // Count newlines before the replacement to find the line number
-    let replacement_line = content
-        .split(old_str)
+    let replacement_line = working_content
+        .split(&working_old_str)
         .next()
         .expect("should split on already matched content")
         .matches('\n')

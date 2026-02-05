@@ -2698,13 +2698,11 @@ mod tests {
         assert!(result.is_err());
         let err = result.err().unwrap();
         assert_eq!(err.code, ErrorCode::INTERNAL_ERROR);
-        assert!(err.message.contains("2001 lines long"));
+        assert!(err.message.contains("has 2001 lines"));
         assert!(err
             .message
-            .contains("recommended to read in with view_range"));
-        assert!(err
-            .message
-            .contains("please pass in view_range with [1, 2001]"));
+            .contains("use view_range to specify a line range"));
+        assert!(err.message.contains("view_range=[1, 2001]"));
 
         // Test viewing with view_range - should work
         let view_params = Parameters(TextEditorParams {

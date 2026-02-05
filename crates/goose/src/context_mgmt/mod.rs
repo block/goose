@@ -9,12 +9,188 @@ use anyhow::Result;
 use indoc::indoc;
 use rmcp::model::Role;
 use serde::Serialize;
+use std::collections::HashSet;
 use std::sync::Arc;
 use tokio::task::JoinHandle;
 use tracing::info;
 use tracing::log::warn;
 
 pub const DEFAULT_COMPACTION_THRESHOLD: f64 = 0.8;
+
+// ============================================================================
+// Fast Token Estimation (chars/4 heuristic)
+// ============================================================================
+
+/// Estimate tokens for a single message using chars/4 heuristic.
+/// This is conservative (overestimates tokens) and much faster than tiktoken.
+/// Use for compaction threshold checks where speed matters more than precision.
+fn estimate_message_tokens(msg: &Message) -> usize {
+    let mut chars = 0usize;
+
+    for content in &msg.content {
+        match content {
+            MessageContent::Text(text) => chars += text.text.len(),
+            MessageContent::ToolRequest(req) => {
+                if let Ok(tool_call) = &req.tool_call {
+                    chars += tool_call.name.len();
+                    if let Some(args) = &tool_call.arguments {
+                        if let Ok(args_str) = serde_json::to_string(args) {
+                            chars += args_str.len();
+                        }
+                    }
+                }
+            }
+            MessageContent::ToolResponse(resp) => {
+                if let Ok(result) = &resp.tool_result {
+                    for item in &result.content {
+                        if let Some(text) = item.as_text() {
+                            chars += text.text.len();
+                        }
+                    }
+                }
+            }
+            MessageContent::Image(_) => chars += 4800, // ~1200 tokens for images
+            MessageContent::Thinking(t) => chars += t.thinking.len(),
+            MessageContent::RedactedThinking(r) => chars += r.data.len(),
+            MessageContent::ToolConfirmationRequest(req) => {
+                chars += req.tool_name.len();
+                if let Ok(args_str) = serde_json::to_string(&req.arguments) {
+                    chars += args_str.len();
+                }
+            }
+            MessageContent::ActionRequired(action) => {
+                if let Ok(action_str) = serde_json::to_string(&action.data) {
+                    chars += action_str.len();
+                }
+            }
+            MessageContent::FrontendToolRequest(req) => {
+                if let Ok(tool_call) = &req.tool_call {
+                    chars += tool_call.name.len();
+                    if let Some(args) = &tool_call.arguments {
+                        if let Ok(args_str) = serde_json::to_string(args) {
+                            chars += args_str.len();
+                        }
+                    }
+                }
+            }
+            MessageContent::SystemNotification(notification) => {
+                chars += notification.msg.len();
+            }
+        }
+    }
+
+    chars.div_ceil(4)
+}
+
+/// Estimate total tokens for messages using chars/4 heuristic.
+/// This is conservative (overestimates) and faster than tiktoken.
+pub fn estimate_tokens_fast(messages: &[Message]) -> usize {
+    messages
+        .iter()
+        .filter(|m| m.is_agent_visible())
+        .map(estimate_message_tokens)
+        .sum()
+}
+
+// ============================================================================
+// File Operation Tracking
+// ============================================================================
+
+/// Tracks file operations during a session for compaction summaries.
+/// Files that were read and modified are tracked separately.
+#[derive(Debug, Default, Clone)]
+pub struct FileOperations {
+    pub read: HashSet<String>,
+    pub modified: HashSet<String>,
+}
+
+impl FileOperations {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Extract file operations from a single message's tool requests.
+    pub fn extract_from_message(&mut self, msg: &Message) {
+        for content in &msg.content {
+            if let MessageContent::ToolRequest(req) = content {
+                if let Ok(tool_call) = &req.tool_call {
+                    // Extract path from tool arguments
+                    let path = tool_call
+                        .arguments
+                        .as_ref()
+                        .and_then(|args| args.get("path"))
+                        .and_then(|v| v.as_str())
+                        .map(|s| s.to_string());
+
+                    if let Some(path) = path {
+                        match tool_call.name.as_ref() {
+                            // Read operations
+                            "read_file"
+                            | "read"
+                            | "view_file"
+                            | "developer__text_editor_view"
+                            | "text_editor_view" => {
+                                self.read.insert(path);
+                            }
+                            // Write/edit operations
+                            "write_file"
+                            | "write"
+                            | "edit"
+                            | "text_editor"
+                            | "developer__text_editor"
+                            | "patch_file"
+                            | "developer__text_editor_write"
+                            | "developer__text_editor_replace" => {
+                                self.modified.insert(path);
+                            }
+                            _ => {}
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    /// Extract file operations from all messages.
+    pub fn extract_from_messages(&mut self, messages: &[Message]) {
+        for msg in messages {
+            self.extract_from_message(msg);
+        }
+    }
+
+    /// Get files that were only read (not modified).
+    pub fn read_only_files(&self) -> Vec<&String> {
+        self.read
+            .iter()
+            .filter(|f| !self.modified.contains(*f))
+            .collect()
+    }
+
+    /// Format file operations for inclusion in compaction summary.
+    pub fn format_for_summary(&self) -> String {
+        let mut result = String::new();
+
+        let mut read_only: Vec<_> = self.read_only_files();
+        read_only.sort();
+        if !read_only.is_empty() {
+            result.push_str("\n## Files Read\n");
+            for f in read_only {
+                result.push_str(&format!("- {}\n", f));
+            }
+        }
+
+        if !self.modified.is_empty() {
+            result.push_str("\n## Files Modified\n");
+            let mut modified: Vec<_> = self.modified.iter().collect();
+            modified.sort();
+            for f in modified {
+                result.push_str(&format!("- {}\n", f));
+            }
+        }
+
+        result
+    }
+}
 
 const CONVERSATION_CONTINUATION_TEXT: &str =
     "The previous message contains a summary that was prepared because a context limit was reached.
@@ -276,6 +452,11 @@ async fn do_compact(
         .map(|msg| msg.agent_visible_content())
         .collect();
 
+    // Extract file operations for inclusion in summary
+    let mut file_ops = FileOperations::new();
+    file_ops.extract_from_messages(&agent_visible_messages);
+    let file_ops_summary = file_ops.format_for_summary();
+
     // Try progressively removing more tool response messages from the middle to reduce context length
     let removal_percentages = [0, 10, 20, 50, 100];
 
@@ -304,6 +485,16 @@ async fn do_compact(
         {
             Ok((mut response, mut provider_usage)) => {
                 response.role = Role::User;
+
+                // Append file operations to the summary
+                if !file_ops_summary.is_empty() {
+                    if let Some(MessageContent::Text(text)) = response.content.first_mut() {
+                        text.text.push_str(&file_ops_summary);
+                    } else {
+                        // If no text content, add one with file ops
+                        response = response.with_text(&file_ops_summary);
+                    }
+                }
 
                 provider_usage
                     .ensure_tokens(&system_prompt, &summarization_request, &response, &[])
@@ -810,5 +1001,120 @@ mod tests {
 
         let result = tool_id_to_summarize(&updated_conversation, 3);
         assert!(result.is_none(), "Nothing left to summarize");
+    }
+
+    #[test]
+    fn test_file_operations_extraction() {
+        use serde_json::json;
+
+        let messages = vec![
+            // Read file operation
+            Message::assistant().with_tool_request(
+                "tool_1",
+                Ok(CallToolRequestParams {
+                    meta: None,
+                    task: None,
+                    name: "read_file".into(),
+                    arguments: Some(
+                        serde_json::from_value(json!({"path": "src/main.rs"})).unwrap(),
+                    ),
+                }),
+            ),
+            // Write file operation
+            Message::assistant().with_tool_request(
+                "tool_2",
+                Ok(CallToolRequestParams {
+                    meta: None,
+                    task: None,
+                    name: "write_file".into(),
+                    arguments: Some(serde_json::from_value(json!({"path": "src/lib.rs"})).unwrap()),
+                }),
+            ),
+            // Another read
+            Message::assistant().with_tool_request(
+                "tool_3",
+                Ok(CallToolRequestParams {
+                    meta: None,
+                    task: None,
+                    name: "developer__text_editor_view".into(),
+                    arguments: Some(serde_json::from_value(json!({"path": "Cargo.toml"})).unwrap()),
+                }),
+            ),
+            // Edit operation (also modifies)
+            Message::assistant().with_tool_request(
+                "tool_4",
+                Ok(CallToolRequestParams {
+                    meta: None,
+                    task: None,
+                    name: "developer__text_editor_replace".into(),
+                    arguments: Some(
+                        serde_json::from_value(json!({"path": "src/main.rs"})).unwrap(),
+                    ),
+                }),
+            ),
+        ];
+
+        let mut file_ops = FileOperations::new();
+        file_ops.extract_from_messages(&messages);
+
+        // src/main.rs was read and then modified
+        assert!(file_ops.read.contains("src/main.rs"));
+        assert!(file_ops.modified.contains("src/main.rs"));
+
+        // src/lib.rs was only written
+        assert!(!file_ops.read.contains("src/lib.rs"));
+        assert!(file_ops.modified.contains("src/lib.rs"));
+
+        // Cargo.toml was only read
+        assert!(file_ops.read.contains("Cargo.toml"));
+        assert!(!file_ops.modified.contains("Cargo.toml"));
+
+        // read_only_files should only include Cargo.toml (not src/main.rs since it was modified)
+        let read_only: Vec<_> = file_ops.read_only_files();
+        assert_eq!(read_only.len(), 1);
+        assert!(read_only.contains(&&"Cargo.toml".to_string()));
+    }
+
+    #[test]
+    fn test_file_operations_format_for_summary() {
+        let mut file_ops = FileOperations::new();
+        file_ops.read.insert("src/main.rs".to_string());
+        file_ops.read.insert("Cargo.toml".to_string());
+        file_ops.modified.insert("src/lib.rs".to_string());
+        file_ops.modified.insert("src/main.rs".to_string()); // Also modified
+
+        let summary = file_ops.format_for_summary();
+
+        // Should contain Files Read section with only Cargo.toml (main.rs was modified)
+        assert!(summary.contains("## Files Read"));
+        assert!(summary.contains("- Cargo.toml"));
+        assert!(!summary.contains("- src/main.rs") || summary.contains("## Files Modified"));
+
+        // Should contain Files Modified section
+        assert!(summary.contains("## Files Modified"));
+        assert!(summary.contains("- src/lib.rs"));
+        assert!(summary.contains("- src/main.rs"));
+    }
+
+    #[test]
+    fn test_estimate_tokens_fast() {
+        let messages = vec![
+            Message::user().with_text("Hello, world!"), // 13 chars -> ~4 tokens
+            Message::assistant().with_text("Hi there! How can I help you today?"), // 36 chars -> ~9 tokens
+        ];
+
+        let tokens = estimate_tokens_fast(&messages);
+
+        // chars/4 heuristic: (13 + 36 + 3) / 4 + (3) / 4 = ~13 tokens
+        // Should be conservative (overestimate)
+        assert!(tokens > 0);
+        assert!(tokens <= 20); // Reasonable upper bound
+    }
+
+    #[test]
+    fn test_estimate_tokens_fast_empty() {
+        let messages: Vec<Message> = vec![];
+        let tokens = estimate_tokens_fast(&messages);
+        assert_eq!(tokens, 0);
     }
 }
