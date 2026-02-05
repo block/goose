@@ -504,7 +504,7 @@
 }
 
 body {
-  background-color: var(--background-app);
+  background-color: var(--background-default);
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
 }
