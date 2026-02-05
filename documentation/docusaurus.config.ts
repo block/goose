@@ -44,6 +44,19 @@ const config: Config = {
     locales: ["en"],
   },
 
+
+  headTags: [
+    {
+      tagName: "link",
+      attributes: {
+        rel: "alternate",
+        type: "text/plain",
+        title: "LLM context",
+        href: "/goose/llms.txt",
+      },
+    },
+  ],
+
   presets: [
     [
       "classic",
@@ -53,6 +66,8 @@ const config: Config = {
         },
         blog: {
           showReadingTime: true,
+          readingTime: ({ content, frontMatter, defaultReadingTime }) =>
+            frontMatter.reading_time ?? defaultReadingTime({ content }),
           feedOptions: {
             type: ["rss", "atom"],
             xslt: true,
@@ -164,12 +179,16 @@ const config: Config = {
             to: '/docs/tutorials/goose-in-docker'
           },
           {
-            from: '/docs/guides/creating-plans',
-            to: '/docs/guides/multi-model/creating-plans'
+            from: '/docs/guides/multi-model/creating-plans',
+            to: '/docs/guides/creating-plans'
           },
           {
             from: '/docs/guides/config-file',
             to: '/docs/guides/config-files',
+          },
+          {
+            from: '/docs/guides/using-goosehints',
+            to: '/docs/guides/context-engineering/using-goosehints',
           },
           // MCP tutorial redirects - moved from /docs/tutorials/ to /docs/mcp/
           {
@@ -371,6 +390,10 @@ const config: Config = {
             {
               to: '/extensions',
               label: 'Extensions',
+            },
+            {
+              to: '/skills',
+              label: 'Skills Marketplace',
             },
             {
               to: '/recipe-generator',

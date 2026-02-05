@@ -1,3 +1,7 @@
+import type { FixedExtensionEntry } from '../../ConfigContext';
+import type { ExtensionConfig } from '../../../api/types.gen';
+import { parse as parseShellQuote, quote as quoteShell } from 'shell-quote';
+
 // Default extension timeout in seconds
 // TODO: keep in sync with rust better
 
@@ -14,9 +18,6 @@ export function nameToKey(name: string): string {
     .join('')
     .toLowerCase();
 }
-
-import { FixedExtensionEntry } from '../../ConfigContext';
-import { ExtensionConfig } from '../../../api/types.gen';
 
 export interface ExtensionFormData {
   name: string;
@@ -55,8 +56,7 @@ export function getDefaultFormData(): ExtensionFormData {
 
 export function extensionToFormData(extension: FixedExtensionEntry): ExtensionFormData {
   // Type guard: Check if 'envs' property exists for this variant
-  const hasEnvs =
-    extension.type === 'sse' || extension.type === 'streamable_http' || extension.type === 'stdio';
+  const hasEnvs = extension.type === 'streamable_http' || extension.type === 'stdio';
 
   // Handle both envs (legacy) and env_keys (new secrets)
   let envVars = [];
@@ -104,9 +104,11 @@ export function extensionToFormData(extension: FixedExtensionEntry): ExtensionFo
       extension.type === 'platform'
         ? 'stdio'
         : extension.type,
-    cmd: extension.type === 'stdio' ? combineCmdAndArgs(extension.cmd, extension.args) : undefined,
+    cmd: extension.type === 'stdio' ? quoteShell([extension.cmd, ...extension.args]) : undefined,
     endpoint:
-      extension.type === 'sse' || extension.type === 'streamable_http' ? extension.uri : undefined,
+      extension.type === 'streamable_http' || extension.type === 'sse'
+        ? (extension.uri ?? undefined)
+        : undefined,
     enabled: extension.enabled,
     timeout: 'timeout' in extension ? (extension.timeout ?? undefined) : undefined,
     envVars,
@@ -132,15 +134,6 @@ export function createExtensionConfig(formData: ExtensionFormData): ExtensionCon
       cmd: cmd,
       args: args,
       timeout: formData.timeout,
-      ...(env_keys.length > 0 ? { env_keys } : {}),
-    };
-  } else if (formData.type === 'sse') {
-    return {
-      type: 'sse',
-      name: formData.name,
-      description: formData.description,
-      timeout: formData.timeout,
-      uri: formData.endpoint || '',
       ...(env_keys.length > 0 ? { env_keys } : {}),
     };
   } else if (formData.type === 'streamable_http') {
@@ -176,7 +169,14 @@ export function createExtensionConfig(formData: ExtensionFormData): ExtensionCon
 }
 
 export function splitCmdAndArgs(str: string): { cmd: string; args: string[] } {
-  const words = str.trim().split(/\s+/);
+  const trimmed = str.trim();
+  if (!trimmed) {
+    return { cmd: '', args: [] };
+  }
+
+  const parsed = parseShellQuote(trimmed);
+  const words = parsed.filter((item): item is string => typeof item === 'string').map(String);
+
   const cmd = words[0] || '';
   const args = words.slice(1);
 
@@ -187,7 +187,7 @@ export function splitCmdAndArgs(str: string): { cmd: string; args: string[] } {
 }
 
 export function combineCmdAndArgs(cmd: string, args: string[]): string {
-  return [cmd, ...args].join(' ');
+  return quoteShell([cmd, ...args]);
 }
 
 export function extractCommand(link: string): string {

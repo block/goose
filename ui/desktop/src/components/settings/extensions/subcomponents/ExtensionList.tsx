@@ -1,6 +1,5 @@
 import ExtensionItem from './ExtensionItem';
 import builtInExtensionsData from '../../../../built-in-extensions.json';
-import { combineCmdAndArgs } from '../utils';
 import { ExtensionConfig } from '../../../../api';
 import { FixedExtensionEntry } from '../../../ConfigContext';
 
@@ -11,7 +10,6 @@ interface ExtensionListProps {
   isStatic?: boolean;
   disableConfiguration?: boolean;
   searchTerm?: string;
-  pendingActivationExtensions?: Set<string>;
 }
 
 export default function ExtensionList({
@@ -21,7 +19,6 @@ export default function ExtensionList({
   isStatic,
   disableConfiguration: _disableConfiguration,
   searchTerm = '',
-  pendingActivationExtensions = new Set(),
 }: ExtensionListProps) {
   const matchesSearch = (extension: FixedExtensionEntry): boolean => {
     if (!searchTerm) return true;
@@ -55,7 +52,7 @@ export default function ExtensionList({
         <div>
           <h2 className="text-lg font-medium text-text-default mb-4 flex items-center gap-2">
             <span className="w-2 h-2 bg-green-500 rounded-full"></span>
-            Enabled Extensions ({sortedEnabledExtensions.length})
+            Default Extensions ({sortedEnabledExtensions.length})
           </h2>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-2">
             {sortedEnabledExtensions.map((extension) => (
@@ -65,7 +62,6 @@ export default function ExtensionList({
                 onToggle={onToggle}
                 onConfigure={onConfigure}
                 isStatic={isStatic}
-                isPendingActivation={pendingActivationExtensions.has(extension.name)}
               />
             ))}
           </div>
@@ -100,12 +96,18 @@ export default function ExtensionList({
 }
 
 // Helper functions
-export function getFriendlyTitle(extension: FixedExtensionEntry): string {
-  const name = (extension.type === 'builtin' && extension.display_name) || extension.name;
+export function formatExtensionName(name: string): string {
   return name
     .split(/[-_]/) // Split on hyphens and underscores
     .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
     .join(' ');
+}
+
+export function getFriendlyTitle(extension: FixedExtensionEntry): string {
+  const name =
+    ((extension.type === 'builtin' || extension.type === 'platform') && extension.display_name) ||
+    extension.name;
+  return formatExtensionName(name);
 }
 
 function normalizeExtensionName(name: string): string {
@@ -135,7 +137,7 @@ export function getSubtitle(config: ExtensionConfig) {
     default:
       return {
         description: config.description || null,
-        command: 'cmd' in config ? combineCmdAndArgs(config.cmd, config.args) : null,
+        command: 'cmd' in config ? [config.cmd, ...config.args].join(' ') : null,
       };
   }
 }

@@ -32,6 +32,21 @@ pub enum ProviderError {
     NotImplemented(String),
 }
 
+impl ProviderError {
+    pub fn telemetry_type(&self) -> &'static str {
+        match self {
+            ProviderError::Authentication(_) => "auth",
+            ProviderError::ContextLengthExceeded(_) => "context_length",
+            ProviderError::RateLimitExceeded { .. } => "rate_limit",
+            ProviderError::ServerError(_) => "server",
+            ProviderError::RequestFailed(_) => "request",
+            ProviderError::ExecutionError(_) => "execution",
+            ProviderError::UsageError(_) => "usage",
+            ProviderError::NotImplemented(_) => "not_implemented",
+        }
+    }
+}
+
 impl From<anyhow::Error> for ProviderError {
     fn from(error: anyhow::Error) -> Self {
         if let Some(reqwest_err) = error.downcast_ref::<reqwest::Error>() {

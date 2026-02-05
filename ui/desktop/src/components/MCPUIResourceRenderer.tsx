@@ -1,3 +1,4 @@
+import { AppEvents } from '../constants/events';
 import {
   UIResourceRenderer,
   UIActionResultIntent,
@@ -10,6 +11,9 @@ import {
 import { useState, useEffect } from 'react';
 import { toast } from 'react-toastify';
 import { EmbeddedResource } from '../api';
+import { useTheme } from '../contexts/ThemeContext';
+import { errorMessage } from '../utils/conversionUtils';
+import { isProtocolSafe, getProtocol } from '../utils/urlSecurity';
 
 interface MCPUIResourceRendererProps {
   content: EmbeddedResource & { type: 'resource' };
@@ -91,19 +95,16 @@ export default function MCPUIResourceRenderer({
   content,
   appendPromptToChat,
 }: MCPUIResourceRendererProps) {
-  const [currentThemeValue, setCurrentThemeValue] = useState<string>('light');
+  const { resolvedTheme } = useTheme();
   const [proxyUrl, setProxyUrl] = useState<string | undefined>(undefined);
 
   useEffect(() => {
-    const theme = localStorage.getItem('theme') || 'light';
-    setCurrentThemeValue(theme);
-
     const fetchProxyUrl = async () => {
       try {
-        const baseUrl = await window.electron.getGoosedHostPort();
+        const gooseApiHost = await window.electron.getGoosedHostPort();
         const secretKey = await window.electron.getSecretKey();
-        if (baseUrl && secretKey) {
-          setProxyUrl(`${baseUrl}/mcp-ui-proxy?secret=${encodeURIComponent(secretKey)}`);
+        if (gooseApiHost && secretKey) {
+          setProxyUrl(`${gooseApiHost}/mcp-ui-proxy?secret=${encodeURIComponent(secretKey)}`);
         } else {
           console.error('Failed to get goosed host/port or secret key');
         }
@@ -124,7 +125,7 @@ export default function MCPUIResourceRenderer({
     ): Promise<UIActionHandlerResult> => {
       const { toolName, params } = actionEvent.payload;
       toast.info(<ToastComponent messageType="tool" message={toolName} isImplemented={false} />, {
-        theme: currentThemeValue,
+        theme: resolvedTheme,
       });
       return {
         status: 'error' as const,
@@ -144,7 +145,7 @@ export default function MCPUIResourceRenderer({
       if (appendPromptToChat) {
         try {
           appendPromptToChat(prompt);
-          window.dispatchEvent(new CustomEvent('scroll-chat-to-bottom'));
+          window.dispatchEvent(new CustomEvent(AppEvents.SCROLL_CHAT_TO_BOTTOM));
           return {
             status: 'success' as const,
             message: 'Prompt sent to chat successfully',
@@ -155,7 +156,7 @@ export default function MCPUIResourceRenderer({
             error: {
               code: UIActionErrorCode.PROMPT_FAILED,
               message: 'Failed to send prompt to chat',
-              details: error instanceof Error ? error.message : error,
+              details: errorMessage(error),
             },
           };
         }
@@ -177,14 +178,45 @@ export default function MCPUIResourceRenderer({
       const { url } = actionEvent.payload;
 
       try {
-        const urlObj = new URL(url);
-        if (!['http:', 'https:'].includes(urlObj.protocol)) {
+        // Safe protocols open directly, unknown protocols require user confirmation
+        // Dangerous protocols are blocked by main.ts in the open-external handler
+        if (isProtocolSafe(url)) {
+          await window.electron.openExternal(url);
+          return {
+            status: 'success' as const,
+            message: `Opened ${url} in default application`,
+          };
+        }
+
+        // Unknown protocols require user confirmation
+        const protocol = getProtocol(url);
+        if (!protocol) {
+          return {
+            status: 'error' as const,
+            error: {
+              code: UIActionErrorCode.INVALID_PARAMS,
+              message: `Invalid URL format: ${url}`,
+              details: { url },
+            },
+          };
+        }
+
+        const result = await window.electron.showMessageBox({
+          type: 'question',
+          buttons: ['Cancel', 'Open'],
+          defaultId: 0,
+          title: 'Open External Link',
+          message: `Open ${protocol} link?`,
+          detail: `This will open: ${url}`,
+        });
+
+        if (result.response !== 1) {
           return {
             status: 'error' as const,
             error: {
               code: UIActionErrorCode.NAVIGATION_FAILED,
-              message: `Blocked potentially unsafe URL protocol: ${urlObj.protocol}`,
-              details: { url, protocol: urlObj.protocol },
+              message: 'User cancelled',
+              details: { url },
             },
           };
         }
@@ -192,37 +224,17 @@ export default function MCPUIResourceRenderer({
         await window.electron.openExternal(url);
         return {
           status: 'success' as const,
-          message: `Opened ${url} in default browser`,
+          message: `Opened ${url} in default application`,
         };
       } catch (error) {
-        if (error instanceof TypeError && error.message.includes('Invalid URL')) {
-          return {
-            status: 'error' as const,
-            error: {
-              code: UIActionErrorCode.INVALID_PARAMS,
-              message: `Invalid URL format: ${url}`,
-              details: { url, error: error.message },
-            },
-          };
-        } else if (error instanceof Error && error.message.includes('Failed to open')) {
-          return {
-            status: 'error' as const,
-            error: {
-              code: UIActionErrorCode.NAVIGATION_FAILED,
-              message: `Failed to open URL in default browser`,
-              details: { url, error: error.message },
-            },
-          };
-        } else {
-          return {
-            status: 'error' as const,
-            error: {
-              code: UIActionErrorCode.NAVIGATION_FAILED,
-              message: `Unexpected error opening URL: ${url}`,
-              details: error instanceof Error ? error.message : error,
-            },
-          };
-        }
+        return {
+          status: 'error' as const,
+          error: {
+            code: UIActionErrorCode.NAVIGATION_FAILED,
+            message: `Failed to open URL: ${url}`,
+            details: errorMessage(error),
+          },
+        };
       }
     };
 
@@ -232,7 +244,7 @@ export default function MCPUIResourceRenderer({
       const { message } = actionEvent.payload;
 
       toast.info(<ToastComponent messageType="notify" message={message} isImplemented={true} />, {
-        theme: currentThemeValue,
+        theme: resolvedTheme,
       });
       return {
         status: 'success' as const,
@@ -254,7 +266,7 @@ export default function MCPUIResourceRenderer({
           isImplemented={false}
         />,
         {
-          theme: currentThemeValue,
+          theme: resolvedTheme,
         }
       );
       return {
@@ -334,7 +346,7 @@ export default function MCPUIResourceRenderer({
               // MCP-UIs might find stuff like host and theme for conditional rendering
               // usage of this is experimental, leaving in place for demos
               host: 'goose',
-              theme: currentThemeValue,
+              theme: resolvedTheme,
             },
             proxy: proxyUrl, // refer to https://mcpui.dev/guide/client/using-a-proxy
           }}

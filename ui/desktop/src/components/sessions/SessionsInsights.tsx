@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { errorMessage } from '../../utils/conversionUtils';
 import { Card, CardContent, CardDescription } from '../ui/card';
 import { Greeting } from '../common/Greeting';
 import { useNavigate } from 'react-router-dom';
@@ -34,7 +35,7 @@ export function SessionInsights() {
         setError(null);
       } catch (error) {
         console.error('Failed to load insights:', error);
-        setError(error instanceof Error ? error.message : 'Failed to load insights');
+        setError(errorMessage(error, 'Failed to load insights'));
         setInsights({
           totalSessions: 0,
           totalTokens: 0,
@@ -78,7 +79,6 @@ export function SessionInsights() {
     loadInsights();
     loadRecentSessions();
 
-    // Cleanup timeout on unmount
     return () => {
       if (loadingTimeout) {
         window.clearTimeout(loadingTimeout);
@@ -108,6 +108,12 @@ export function SessionInsights() {
     return date
       .toLocaleDateString('en-US', { month: '2-digit', day: '2-digit', year: 'numeric' })
       .replace(/\//g, '/');
+  };
+
+  const formatTokens = (tokens: number | undefined): string => {
+    return new Intl.NumberFormat('en', { notation: 'compact', maximumFractionDigits: 2 }).format(
+      tokens || 0
+    );
   };
 
   // Render skeleton loader while data is loading
@@ -263,9 +269,7 @@ export function SessionInsights() {
             <CardContent className="page-transition flex flex-col justify-end h-full p-0">
               <div className="flex flex-col justify-end">
                 <p className="text-4xl font-mono font-light flex items-end">
-                  {insights?.totalTokens && insights.totalTokens > 0
-                    ? `${(insights.totalTokens / 1000000).toFixed(2)}M`
-                    : '0.00M'}
+                  {formatTokens(insights?.totalTokens)}
                 </p>
                 <span className="text-xs text-text-muted">Total tokens</span>
               </div>
@@ -293,7 +297,6 @@ export function SessionInsights() {
               </div>
               <div className="space-y-1 min-h-[96px] transition-all duration-300 ease-in-out">
                 {isLoadingSessions ? (
-                  // Show skeleton while sessions are loading
                   <>
                     <div className="flex items-center justify-between py-1 px-2">
                       <div className="flex items-center space-x-2">
@@ -321,7 +324,7 @@ export function SessionInsights() {
                   recentSessions.map((session, index) => (
                     <div
                       key={session.id}
-                      className="flex items-center justify-between text-sm py-1 px-2 rounded-md hover:bg-background-muted cursor-pointer transition-colors session-item"
+                      className="flex items-center justify-between text-sm py-1 px-2 rounded-md hover:bg-background-muted cursor-pointer transition-colors"
                       onClick={() => handleSessionClick(session)}
                       role="button"
                       tabIndex={0}

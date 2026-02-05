@@ -4,7 +4,7 @@ use crate::providers::base::Usage;
 use crate::providers::errors::ProviderError;
 use crate::providers::utils::{convert_image, ImageFormat};
 use anyhow::{anyhow, Result};
-use rmcp::model::{object, CallToolRequestParam, ErrorCode, ErrorData, JsonObject, Role, Tool};
+use rmcp::model::{object, CallToolRequestParams, ErrorCode, ErrorData, JsonObject, Role, Tool};
 use rmcp::object as json_object;
 use serde_json::{json, Value};
 use std::collections::HashSet;
@@ -34,7 +34,7 @@ const DATA_FIELD: &str = "data";
 pub fn format_messages(messages: &[Message]) -> Vec<Value> {
     let mut anthropic_messages = Vec::new();
 
-    for message in messages.iter().filter(|m| m.is_agent_visible()) {
+    for message in messages {
         let role = match message.role {
             Role::User => USER_ROLE,
             Role::Assistant => ASSISTANT_ROLE,
@@ -68,6 +68,7 @@ pub fn format_messages(messages: &[Message]) -> Vec<Value> {
                 MessageContent::ToolResponse(tool_response) => match &tool_response.tool_result {
                     Ok(result) => {
                         let text = result
+                            .content
                             .iter()
                             .filter_map(|c| c.as_text().map(|t| t.text.clone()))
                             .collect::<Vec<_>>()
@@ -90,6 +91,9 @@ pub fn format_messages(messages: &[Message]) -> Vec<Value> {
                 },
                 MessageContent::ToolConfirmationRequest(_tool_confirmation_request) => {
                     // Skip tool confirmation requests
+                }
+                MessageContent::ActionRequired(_action_required) => {
+                    // Skip action required messages - they're for UI only
                 }
                 MessageContent::SystemNotification(_) => {
                     // Skip
@@ -245,7 +249,9 @@ pub fn response_to_message(response: &Value) -> Result<Message> {
                     .get(INPUT_FIELD)
                     .ok_or_else(|| anyhow!("Missing tool_use input"))?;
 
-                let tool_call = CallToolRequestParam {
+                let tool_call = CallToolRequestParams {
+                    meta: None,
+                    task: None,
                     name: name.into(),
                     arguments: Some(object(input.clone())),
                 };
@@ -390,9 +396,18 @@ pub fn create_request(
         return Err(anyhow!("No valid messages to send to Anthropic API"));
     }
 
-    // https://docs.anthropic.com/en/docs/about-claude/models/all-models#model-comparison-table
-    // Claude 3.7 supports max output tokens up to 8192
-    let max_tokens = model_config.max_tokens.unwrap_or(8192);
+    // https://platform.claude.com/docs/en/about-claude/models/overview
+    // 64k output tokens works for most claude models, but not old opus:
+    let max_tokens = model_config.max_tokens.unwrap_or_else(|| {
+        let name = &model_config.model_name;
+        if name.contains("claude-3-haiku") {
+            4096
+        } else if name.contains("claude-opus-4-0") || name.contains("claude-opus-4-1") {
+            32000
+        } else {
+            64000
+        }
+    });
     let mut payload = json!({
         "model": model_config.model_name,
         "messages": anthropic_messages,
@@ -417,18 +432,15 @@ pub fn create_request(
 
     // Add temperature if specified and not using extended thinking model
     if let Some(temp) = model_config.temperature {
-        // Claude 3.7 models with thinking enabled don't support temperature
-        if !model_config.model_name.starts_with("claude-3-7-sonnet-") {
-            payload
-                .as_object_mut()
-                .unwrap()
-                .insert("temperature".to_string(), json!(temp));
-        }
+        payload
+            .as_object_mut()
+            .unwrap()
+            .insert("temperature".to_string(), json!(temp));
     }
 
-    // Add thinking parameters for claude-3-7-sonnet model
+    // Add thinking parameters when CLAUDE_THINKING_ENABLED is set
     let is_thinking_enabled = std::env::var("CLAUDE_THINKING_ENABLED").is_ok();
-    if model_config.model_name.starts_with("claude-3-7-sonnet-") && is_thinking_enabled {
+    if is_thinking_enabled {
         // Minimum budget_tokens is 1024
         let budget_tokens = std::env::var("CLAUDE_THINKING_BUDGET")
             .unwrap_or_else(|_| "16000".to_string())
@@ -448,7 +460,6 @@ pub fn create_request(
             }),
         );
     }
-
     Ok(payload)
 }
 
@@ -603,7 +614,11 @@ where
                                 }
                             };
 
-                            let tool_call = CallToolRequestParam{ name: name.into(), arguments: Some(object(parsed_args)) };
+                            let tool_call = CallToolRequestParams{
+                                meta: None, task: None,
+                                name: name.into(),
+                                arguments: Some(object(parsed_args))
+                            };
 
                             let mut message = Message::new(
                                 rmcp::model::Role::Assistant,
@@ -928,45 +943,6 @@ mod tests {
     }
 
     #[test]
-    fn test_create_request_with_thinking() -> Result<()> {
-        let original_value = std::env::var("CLAUDE_THINKING_ENABLED").ok();
-        std::env::set_var("CLAUDE_THINKING_ENABLED", "true");
-
-        let result = (|| {
-            let model_config = ModelConfig::new_or_fail("claude-3-7-sonnet-20250219");
-            let system = "You are a helpful assistant.";
-            let messages = vec![Message::user().with_text("Hello")];
-            let tools = vec![];
-
-            let payload = create_request(&model_config, system, &messages, &tools)?;
-
-            // Verify basic structure
-            assert_eq!(payload["model"], "claude-3-7-sonnet-20250219");
-            assert_eq!(payload["messages"][0]["role"], "user");
-            assert_eq!(payload["messages"][0]["content"][0]["text"], "Hello");
-
-            // Verify thinking parameters
-            assert!(payload.get("thinking").is_some());
-            assert_eq!(payload["thinking"]["type"], "enabled");
-            assert!(payload["thinking"]["budget_tokens"].as_i64().unwrap() >= 1024);
-
-            // Temperature should not be present for 3.7 models with thinking
-            assert!(payload.get("temperature").is_none());
-
-            Ok(())
-        })();
-
-        // Restore the original env var state
-        match original_value {
-            Some(val) => std::env::set_var("CLAUDE_THINKING_ENABLED", val),
-            None => std::env::remove_var("CLAUDE_THINKING_ENABLED"),
-        }
-
-        // Return the test result
-        result
-    }
-
-    #[test]
     fn test_cache_pricing_calculation() -> Result<()> {
         // Test realistic cache scenario: small fresh input, large cached content
         let response = json!({
@@ -1007,7 +983,9 @@ mod tests {
         let messages = vec![
             Message::assistant().with_tool_request(
                 "tool_1",
-                Ok(CallToolRequestParam {
+                Ok(CallToolRequestParams {
+                    meta: None,
+                    task: None,
                     name: "calculator".into(),
                     arguments: Some(object!({"expression": "2 + 2"})),
                 }),

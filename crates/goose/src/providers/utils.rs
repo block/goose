@@ -9,11 +9,12 @@ use regex::Regex;
 use reqwest::{Response, StatusCode};
 use rmcp::model::{AnnotateAble, ImageContent, RawImageContent};
 use serde::{Deserialize, Serialize};
-use serde_json::{json, Map, Value};
+use serde_json::{json, Value};
 use std::fmt::Display;
 use std::fs::File;
 use std::io::{BufWriter, Read, Write};
 use std::path::{Path, PathBuf};
+use std::sync::OnceLock;
 use std::time::Duration;
 use uuid::Uuid;
 
@@ -68,26 +69,6 @@ pub fn filter_extensions_from_system_prompt(system: &str) -> String {
     }
 }
 
-fn check_context_length_exceeded(text: &str) -> bool {
-    let check_phrases = [
-        "too long",
-        "context length",
-        "context_length_exceeded",
-        "reduce the length",
-        "token count",
-        "exceeds",
-        "exceed context limit",
-        "input length",
-        "max_tokens",
-        "decrease input length",
-        "context limit",
-    ];
-    let text_lower = text.to_lowercase();
-    check_phrases
-        .iter()
-        .any(|phrase| text_lower.contains(phrase))
-}
-
 fn format_server_error_message(status_code: StatusCode, payload: Option<&Value>) -> String {
     match payload {
         Some(Value::Null) | None => format!(
@@ -98,99 +79,13 @@ fn format_server_error_message(status_code: StatusCode, payload: Option<&Value>)
     }
 }
 
-pub fn map_http_error_to_provider_error(
-    status: StatusCode,
-    payload: Option<Value>,
-) -> ProviderError {
-    let extract_message = || -> String {
-        payload
-            .as_ref()
-            .and_then(|p| {
-                p.get("error")
-                    .and_then(|e| e.get("message"))
-                    .or_else(|| p.get("message"))
-                    .and_then(|m| m.as_str())
-                    .map(String::from)
-            })
-            .unwrap_or_else(|| payload.as_ref().map(|p| p.to_string()).unwrap_or_default())
-    };
-
-    let error = match status {
-        StatusCode::OK => unreachable!("Should not call this function with OK status"),
-        StatusCode::UNAUTHORIZED | StatusCode::FORBIDDEN => ProviderError::Authentication(format!(
-            "Authentication failed. Status: {}. Response: {}",
-            status,
-            extract_message()
-        )),
-        StatusCode::NOT_FOUND => {
-            ProviderError::RequestFailed(format!("Resource not found (404): {}", extract_message()))
-        }
-        StatusCode::PAYLOAD_TOO_LARGE => ProviderError::ContextLengthExceeded(extract_message()),
-        StatusCode::BAD_REQUEST => {
-            let payload_str = extract_message();
-            if check_context_length_exceeded(&payload_str) {
-                ProviderError::ContextLengthExceeded(payload_str)
-            } else {
-                ProviderError::RequestFailed(format!("Bad request (400): {}", payload_str))
-            }
-        }
-        StatusCode::TOO_MANY_REQUESTS => ProviderError::RateLimitExceeded {
-            details: extract_message(),
-            retry_delay: None,
-        },
-        _ if status.is_server_error() => {
-            ProviderError::ServerError(format!("Server error ({}): {}", status, extract_message()))
-        }
-        _ => ProviderError::RequestFailed(format!(
-            "Request failed with status {}: {}",
-            status,
-            extract_message()
-        )),
-    };
-
-    if !status.is_success() {
-        tracing::warn!(
-            "Provider request failed with status: {}. Payload: {:?}. Returning error: {:?}",
-            status,
-            payload,
-            error
-        );
-    }
-
-    error
-}
-
-pub async fn handle_status_openai_compat(response: Response) -> Result<Response, ProviderError> {
-    let status = response.status();
-    if !status.is_success() {
-        let body = response.text().await.unwrap_or_default();
-        let payload = serde_json::from_str::<Value>(&body).ok();
-        return Err(map_http_error_to_provider_error(status, payload));
-    }
-    Ok(response)
-}
-
-pub async fn handle_response_openai_compat(response: Response) -> Result<Value, ProviderError> {
-    let response = handle_status_openai_compat(response).await?;
-
-    response.json::<Value>().await.map_err(|e| {
-        ProviderError::RequestFailed(format!("Response body is not valid JSON: {}", e))
-    })
-}
-
-/// Check if the model is a Google model based on the "model" field in the payload.
-///
-/// ### Arguments
-/// - `payload`: The JSON payload as a `serde_json::Value`.
-///
-/// ### Returns
-/// - `bool`: Returns `true` if the model is a Google model, otherwise `false`.
 pub fn is_google_model(payload: &Value) -> bool {
-    if let Some(model) = payload.get("model").and_then(|m| m.as_str()) {
-        // Check if the model name contains "google"
-        return model.to_lowercase().contains("google");
-    }
-    false
+    payload
+        .get("model")
+        .and_then(|m| m.as_str())
+        .unwrap_or("")
+        .to_lowercase()
+        .contains("google")
 }
 
 /// Extracts `StatusCode` from response status or payload error code.
@@ -299,12 +194,14 @@ pub async fn handle_response_google_compat(response: Response) -> Result<Value, 
 }
 
 pub fn sanitize_function_name(name: &str) -> String {
-    let re = Regex::new(r"[^a-zA-Z0-9_-]").unwrap();
+    static RE: OnceLock<Regex> = OnceLock::new();
+    let re = RE.get_or_init(|| Regex::new(r"[^a-zA-Z0-9_-]").unwrap());
     re.replace_all(name, "_").to_string()
 }
 
 pub fn is_valid_function_name(name: &str) -> bool {
-    let re = Regex::new(r"^[a-zA-Z0-9_-]+$").unwrap();
+    static RE: OnceLock<Regex> = OnceLock::new();
+    let re = RE.get_or_init(|| Regex::new(r"^[a-zA-Z0-9_-]+$").unwrap());
     re.is_match(name)
 }
 
@@ -410,31 +307,37 @@ pub fn load_image_file(path: &str) -> Result<ImageContent, ProviderError> {
 }
 
 pub fn unescape_json_values(value: &Value) -> Value {
+    let mut cloned = value.clone();
+    unescape_json_values_in_place(&mut cloned);
+    cloned
+}
+
+fn unescape_json_values_in_place(value: &mut Value) {
     match value {
         Value::Object(map) => {
-            let new_map: Map<String, Value> = map
-                .iter()
-                .map(|(k, v)| (k.clone(), unescape_json_values(v))) // Process each value
-                .collect();
-            Value::Object(new_map)
+            for v in map.values_mut() {
+                unescape_json_values_in_place(v);
+            }
         }
         Value::Array(arr) => {
-            let new_array: Vec<Value> = arr.iter().map(unescape_json_values).collect();
-            Value::Array(new_array)
+            for v in arr.iter_mut() {
+                unescape_json_values_in_place(v);
+            }
         }
         Value::String(s) => {
-            let unescaped = s
-                .replace("\\\\n", "\n")
-                .replace("\\\\t", "\t")
-                .replace("\\\\r", "\r")
-                .replace("\\\\\"", "\"")
-                .replace("\\n", "\n")
-                .replace("\\t", "\t")
-                .replace("\\r", "\r")
-                .replace("\\\"", "\"");
-            Value::String(unescaped)
+            if s.contains('\\') {
+                *s = s
+                    .replace("\\\\n", "\n")
+                    .replace("\\\\t", "\t")
+                    .replace("\\\\r", "\r")
+                    .replace("\\\\\"", "\"")
+                    .replace("\\n", "\n")
+                    .replace("\\t", "\t")
+                    .replace("\\r", "\r")
+                    .replace("\\\"", "\"");
+            }
         }
-        _ => value.clone(),
+        _ => {}
     }
 }
 

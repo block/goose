@@ -1,5 +1,4 @@
 use super::base::Config;
-use crate::agents::extension::PLATFORM_EXTENSIONS;
 use crate::agents::ExtensionConfig;
 use indexmap::IndexMap;
 use serde::{Deserialize, Serialize};
@@ -21,14 +20,19 @@ pub struct ExtensionEntry {
 }
 
 pub fn name_to_key(name: &str) -> String {
-    name.chars()
-        .filter(|c| !c.is_whitespace())
-        .collect::<String>()
-        .to_lowercase()
+    let mut result = String::with_capacity(name.len());
+    for c in name.chars() {
+        result.push(match c {
+            c if c.is_ascii_alphanumeric() || c == '_' || c == '-' => c,
+            c if c.is_whitespace() => continue,
+            _ => '_',
+        });
+    }
+    result.to_lowercase()
 }
 
-fn get_extensions_map() -> IndexMap<String, ExtensionEntry> {
-    let raw: Mapping = Config::global()
+fn get_extensions_map_with_config(config: &Config) -> IndexMap<String, ExtensionEntry> {
+    let raw: Mapping = config
         .get_param(EXTENSIONS_CONFIG_KEY)
         .unwrap_or_else(|err| {
             warn!(
@@ -41,8 +45,8 @@ fn get_extensions_map() -> IndexMap<String, ExtensionEntry> {
     let mut extensions_map = IndexMap::with_capacity(raw.len());
     for (k, v) in raw {
         match (k, serde_yaml::from_value::<ExtensionEntry>(v)) {
-            (serde_yaml::Value::String(s), Ok(entry)) => {
-                extensions_map.insert(s, entry);
+            (serde_yaml::Value::String(key), Ok(entry)) => {
+                extensions_map.insert(key, entry);
             }
             (k, v) => {
                 warn!(
@@ -54,25 +58,11 @@ fn get_extensions_map() -> IndexMap<String, ExtensionEntry> {
         }
     }
 
-    if !extensions_map.is_empty() {
-        for (name, def) in PLATFORM_EXTENSIONS.iter() {
-            if !extensions_map.contains_key(*name) {
-                extensions_map.insert(
-                    name.to_string(),
-                    ExtensionEntry {
-                        config: ExtensionConfig::Platform {
-                            name: def.name.to_string(),
-                            description: def.description.to_string(),
-                            bundled: Some(true),
-                            available_tools: Vec::new(),
-                        },
-                        enabled: true,
-                    },
-                );
-            }
-        }
-    }
     extensions_map
+}
+
+fn get_extensions_map() -> IndexMap<String, ExtensionEntry> {
+    get_extensions_map_with_config(Config::global())
 }
 
 fn save_extensions_map(extensions: IndexMap<String, ExtensionEntry>) {
@@ -133,4 +123,48 @@ pub fn get_enabled_extensions() -> Vec<ExtensionConfig> {
         .filter(|ext| ext.enabled)
         .map(|ext| ext.config)
         .collect()
+}
+
+pub fn get_enabled_extensions_with_config(config: &Config) -> Vec<ExtensionConfig> {
+    get_extensions_map_with_config(config)
+        .into_values()
+        .filter(|ext| ext.enabled)
+        .map(|ext| ext.config)
+        .collect()
+}
+
+pub fn get_warnings() -> Vec<String> {
+    let raw: Mapping = Config::global()
+        .get_param(EXTENSIONS_CONFIG_KEY)
+        .unwrap_or_default();
+
+    let mut warnings = Vec::new();
+    for (k, v) in raw {
+        if let (serde_yaml::Value::String(key), Ok(entry)) =
+            (k, serde_yaml::from_value::<ExtensionEntry>(v))
+        {
+            if matches!(entry.config, ExtensionConfig::Sse { .. }) {
+                warnings.push(format!(
+                    "'{}': SSE is unsupported, migrate to streamable_http",
+                    key
+                ));
+            }
+        }
+    }
+    warnings
+}
+
+pub fn resolve_extensions_for_new_session(
+    recipe_extensions: Option<&[ExtensionConfig]>,
+    override_extensions: Option<Vec<ExtensionConfig>>,
+) -> Vec<ExtensionConfig> {
+    if let Some(exts) = recipe_extensions {
+        return exts.to_vec();
+    }
+
+    if let Some(exts) = override_extensions {
+        return exts;
+    }
+
+    get_enabled_extensions()
 }

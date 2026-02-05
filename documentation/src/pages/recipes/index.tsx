@@ -105,9 +105,9 @@ export default function RecipePage() {
             </Button>
           </div>
           <p className="text-textProminent">
-            Save time and skip setup — launch any{" "}
+            Save time and skip setup. Launch any{" "}
             <Link to="/docs/guides/recipes/session-recipes" className="text-purple-600 hover:underline">
-              Goose agent recipe
+              goose recipe
             </Link>{" "}
             shared by the community with a single click.
           </p>

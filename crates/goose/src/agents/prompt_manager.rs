@@ -6,8 +6,6 @@ use serde_json::Value;
 use std::collections::HashMap;
 
 use crate::agents::extension::ExtensionInfo;
-use crate::agents::recipe_tools::dynamic_task_tools::should_enabled_subagents;
-use crate::agents::router_tools::llm_search_tool_prompt;
 use crate::hints::load_hints::{load_hint_files, AGENTS_MD_FILENAME, GOOSE_HINTS_FILENAME};
 use crate::{
     config::{Config, GooseMode},
@@ -34,8 +32,6 @@ impl Default for PromptManager {
 #[derive(Serialize)]
 struct SystemPromptContext {
     extensions: Vec<ExtensionInfo>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    tool_selection_strategy: Option<String>,
     current_date_time: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     extension_tool_limits: Option<(usize, usize)>,
@@ -44,17 +40,18 @@ struct SystemPromptContext {
     enable_subagents: bool,
     max_extensions: usize,
     max_tools: usize,
+    code_execution_mode: bool,
 }
 
 pub struct SystemPromptBuilder<'a, M> {
-    model_name: String,
     manager: &'a M,
 
     extensions_info: Vec<ExtensionInfo>,
     frontend_instructions: Option<String>,
     extension_tool_count: Option<(usize, usize)>,
-    router_enabled: bool,
+    subagents_enabled: bool,
     hints: Option<String>,
+    code_execution_mode: bool,
 }
 
 impl<'a> SystemPromptBuilder<'a, PromptManager> {
@@ -84,8 +81,8 @@ impl<'a> SystemPromptBuilder<'a, PromptManager> {
         self
     }
 
-    pub fn with_router_enabled(mut self, enabled: bool) -> Self {
-        self.router_enabled = enabled;
+    pub fn with_code_execution_mode(mut self, enabled: bool) -> Self {
+        self.code_execution_mode = enabled;
         self
     }
 
@@ -113,6 +110,11 @@ impl<'a> SystemPromptBuilder<'a, PromptManager> {
         if !hints.is_empty() {
             self.hints = Some(hints);
         }
+        self
+    }
+
+    pub fn with_enable_subagents(mut self, subagents_enabled: bool) -> Self {
+        self.subagents_enabled = subagents_enabled;
         self
     }
 
@@ -147,21 +149,21 @@ impl<'a> SystemPromptBuilder<'a, PromptManager> {
 
         let context = SystemPromptContext {
             extensions: sanitized_extensions_info,
-            tool_selection_strategy: self.router_enabled.then(llm_search_tool_prompt),
             current_date_time: self.manager.current_date_timestamp.clone(),
             extension_tool_limits,
             goose_mode,
             is_autonomous: goose_mode == GooseMode::Auto,
-            enable_subagents: should_enabled_subagents(self.model_name.as_str()),
+            enable_subagents: self.subagents_enabled,
             max_extensions: MAX_EXTENSIONS,
             max_tools: MAX_TOOLS,
+            code_execution_mode: self.code_execution_mode,
         };
 
         let base_prompt = if let Some(override_prompt) = &self.manager.system_prompt_override {
             let sanitized_override_prompt = sanitize_unicode_tags(override_prompt);
-            prompt_template::render_inline_once(&sanitized_override_prompt, &context)
+            prompt_template::render_string(&sanitized_override_prompt, &context)
         } else {
-            prompt_template::render_global_file("system.md", &context)
+            prompt_template::render_template("system.md", &context)
         }
         .unwrap_or_else(|_| {
             "You are a general-purpose AI agent called goose, created by Block".to_string()
@@ -228,22 +230,22 @@ impl PromptManager {
         self.system_prompt_override = Some(template);
     }
 
-    pub fn builder<'a>(&'a self, model_name: &str) -> SystemPromptBuilder<'a, Self> {
+    pub fn builder<'a>(&'a self) -> SystemPromptBuilder<'a, Self> {
         SystemPromptBuilder {
-            model_name: model_name.to_string(),
             manager: self,
 
             extensions_info: vec![],
             frontend_instructions: None,
             extension_tool_count: None,
-            router_enabled: false,
+            subagents_enabled: false,
             hints: None,
+            code_execution_mode: false,
         }
     }
 
     pub async fn get_recipe_prompt(&self) -> String {
         let context: HashMap<&str, Value> = HashMap::new();
-        prompt_template::render_global_file("recipe.md", &context)
+        prompt_template::render_template("recipe.md", &context)
             .unwrap_or_else(|_| "The recipe prompt is busted. Tell the user.".to_string())
     }
 }
@@ -260,7 +262,7 @@ mod tests {
         let malicious_override = "System prompt\u{E0041}\u{E0042}\u{E0043}with hidden text";
         manager.set_system_prompt_override(malicious_override.to_string());
 
-        let result = manager.builder("gpt-4o").build();
+        let result = manager.builder().build();
 
         assert!(!result.contains('\u{E0041}'));
         assert!(!result.contains('\u{E0042}'));
@@ -275,7 +277,7 @@ mod tests {
         let malicious_extra = "Extra instruction\u{E0041}\u{E0042}\u{E0043}hidden";
         manager.add_system_prompt_extra(malicious_extra.to_string());
 
-        let result = manager.builder("gpt-4o").build();
+        let result = manager.builder().build();
 
         assert!(!result.contains('\u{E0041}'));
         assert!(!result.contains('\u{E0042}'));
@@ -291,7 +293,7 @@ mod tests {
         manager.add_system_prompt_extra("Second\u{E0042}instruction".to_string());
         manager.add_system_prompt_extra("Third\u{E0043}instruction".to_string());
 
-        let result = manager.builder("gpt-4o").build();
+        let result = manager.builder().build();
 
         assert!(!result.contains('\u{E0041}'));
         assert!(!result.contains('\u{E0042}'));
@@ -307,7 +309,7 @@ mod tests {
         let legitimate_unicode = "Instruction with 世界 and 🌍 emojis";
         manager.add_system_prompt_extra(legitimate_unicode.to_string());
 
-        let result = manager.builder("gpt-4o").build();
+        let result = manager.builder().build();
 
         assert!(result.contains("世界"));
         assert!(result.contains("🌍"));
@@ -325,7 +327,7 @@ mod tests {
         );
 
         let result = manager
-            .builder("gpt-4o")
+            .builder()
             .with_extension(malicious_extension_info)
             .build();
 
@@ -340,7 +342,7 @@ mod tests {
     fn test_basic() {
         let manager = PromptManager::with_timestamp(DateTime::<Utc>::from_timestamp(0, 0).unwrap());
 
-        let system_prompt = manager.builder("gpt-4o").build();
+        let system_prompt = manager.builder().build();
 
         assert_snapshot!(system_prompt)
     }
@@ -350,13 +352,12 @@ mod tests {
         let manager = PromptManager::with_timestamp(DateTime::<Utc>::from_timestamp(0, 0).unwrap());
 
         let system_prompt = manager
-            .builder("gpt-4o")
+            .builder()
             .with_extension(ExtensionInfo::new(
                 "test",
                 "how to use this extension",
                 true,
             ))
-            .with_router_enabled(true)
             .build();
 
         assert_snapshot!(system_prompt)
@@ -367,7 +368,7 @@ mod tests {
         let manager = PromptManager::with_timestamp(DateTime::<Utc>::from_timestamp(0, 0).unwrap());
 
         let system_prompt = manager
-            .builder("gpt-4o")
+            .builder()
             .with_extension(ExtensionInfo::new(
                 "extension_A",
                 "<instructions on how to use extension A>",
@@ -378,7 +379,6 @@ mod tests {
                 "<instructions on how to use extension B (no resources)>",
                 false,
             ))
-            .with_router_enabled(true)
             .with_extension_and_tool_counts(MAX_EXTENSIONS + 1, MAX_TOOLS + 1)
             .build();
 

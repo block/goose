@@ -3,6 +3,7 @@ pub mod declarative_providers;
 mod experiments;
 pub mod extensions;
 pub mod goose_mode;
+mod migrations;
 pub mod paths;
 pub mod permission;
 pub mod search_path;
@@ -15,7 +16,8 @@ pub use declarative_providers::DeclarativeProviderConfig;
 pub use experiments::ExperimentManager;
 pub use extensions::{
     get_all_extension_names, get_all_extensions, get_enabled_extensions, get_extension_by_name,
-    is_extension_enabled, remove_extension, set_extension, set_extension_enabled, ExtensionEntry,
+    get_warnings, is_extension_enabled, remove_extension, resolve_extensions_for_new_session,
+    set_extension, set_extension_enabled, ExtensionEntry,
 };
 pub use goose_mode::GooseMode;
 pub use permission::PermissionManager;

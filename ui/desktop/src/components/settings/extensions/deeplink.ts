@@ -65,21 +65,6 @@ function getStdioConfig(
 }
 
 /**
- * Build an extension config for SSE from the deeplink URL
- */
-function getSseConfig(remoteUrl: string, name: string, description: string, timeout: number) {
-  const config: ExtensionConfig = {
-    name,
-    type: 'sse',
-    uri: remoteUrl,
-    description,
-    timeout: timeout,
-  };
-
-  return config;
-}
-
-/**
  * Build an extension config for Streamable HTTP from the deeplink URL
  */
 function getStreamableHttpConfig(
@@ -150,9 +135,6 @@ export async function addExtensionFromDeepLink(
 
   const cmd = parsedUrl.searchParams.get('cmd');
   const remoteUrl = parsedUrl.searchParams.get('url');
-  // Support both 'transport' and 'type' parameters for consistency
-  const transportType =
-    parsedUrl.searchParams.get('transport') || parsedUrl.searchParams.get('type') || 'sse'; // Default to SSE for backward compatibility
 
   const headerParams = parsedUrl.searchParams.getAll('header');
   const headers =
@@ -178,9 +160,7 @@ export async function addExtensionFromDeepLink(
       : undefined;
 
   const baseConfig = remoteUrl
-    ? transportType === 'streamable_http'
-      ? getStreamableHttpConfig(remoteUrl, name, description || '', timeout, headers, envs)
-      : getSseConfig(remoteUrl, name, description || '', timeout)
+    ? getStreamableHttpConfig(remoteUrl, name, description || '', timeout, headers, envs)
     : getStdioConfig(cmd!, parsedUrl, name, description || '', timeout);
 
   const config = {

@@ -8,48 +8,25 @@ use anyhow::Result;
 use async_trait::async_trait;
 use std::collections::HashSet;
 use std::sync::Arc;
-use tokio::sync::Mutex;
 
 /// Permission Inspector that handles tool permission checking
 pub struct PermissionInspector {
-    mode: Arc<Mutex<GooseMode>>,
     readonly_tools: HashSet<String>,
     regular_tools: HashSet<String>,
-    pub permission_manager: Arc<Mutex<PermissionManager>>,
+    pub permission_manager: Arc<PermissionManager>,
 }
 
 impl PermissionInspector {
     pub fn new(
-        mode: GooseMode,
         readonly_tools: HashSet<String>,
         regular_tools: HashSet<String>,
+        permission_manager: Arc<PermissionManager>,
     ) -> Self {
         Self {
-            mode: Arc::new(Mutex::new(mode)),
-            readonly_tools,
-            regular_tools,
-            permission_manager: Arc::new(Mutex::new(PermissionManager::default())),
-        }
-    }
-
-    pub fn with_permission_manager(
-        mode: GooseMode,
-        readonly_tools: HashSet<String>,
-        regular_tools: HashSet<String>,
-        permission_manager: Arc<Mutex<PermissionManager>>,
-    ) -> Self {
-        Self {
-            mode: Arc::new(Mutex::new(mode)),
             readonly_tools,
             regular_tools,
             permission_manager,
         }
-    }
-
-    /// Update the mode of this permission inspector
-    pub async fn update_mode(&self, new_mode: GooseMode) {
-        let mut mode = self.mode.lock().await;
-        *mode = new_mode;
     }
 
     /// Process inspection results into permission decisions
@@ -130,16 +107,16 @@ impl ToolInspector for PermissionInspector {
         &self,
         tool_requests: &[ToolRequest],
         _messages: &[Message],
+        goose_mode: GooseMode,
     ) -> Result<Vec<InspectionResult>> {
         let mut results = Vec::new();
-        let permission_manager = self.permission_manager.lock().await;
-        let mode = self.mode.lock().await;
+        let permission_manager = &self.permission_manager;
 
         for request in tool_requests {
             if let Ok(tool_call) = &request.tool_call {
                 let tool_name = &tool_call.name;
 
-                let action = match *mode {
+                let action = match goose_mode {
                     GooseMode::Chat => continue,
                     GooseMode::Auto => InspectionAction::Allow,
                     GooseMode::Approve | GooseMode::SmartApprove => {
@@ -154,8 +131,8 @@ impl ToolInspector for PermissionInspector {
                             }
                         }
                         // 2. Check if it's a readonly or regular tool (both pre-approved)
-                        else if self.readonly_tools.contains(tool_name.as_ref())
-                            || self.regular_tools.contains(tool_name.as_ref())
+                        else if self.readonly_tools.contains(&**tool_name)
+                            || self.regular_tools.contains(&**tool_name)
                         {
                             InspectionAction::Allow
                         }
@@ -174,11 +151,11 @@ impl ToolInspector for PermissionInspector {
 
                 let reason = match &action {
                     InspectionAction::Allow => {
-                        if *mode == GooseMode::Auto {
+                        if goose_mode == GooseMode::Auto {
                             "Auto mode - all tools approved".to_string()
-                        } else if self.readonly_tools.contains(tool_name.as_ref()) {
+                        } else if self.readonly_tools.contains(&**tool_name) {
                             "Tool marked as read-only".to_string()
-                        } else if self.regular_tools.contains(tool_name.as_ref()) {
+                        } else if self.regular_tools.contains(&**tool_name) {
                             "Tool pre-approved".to_string()
                         } else {
                             "User permission allows this tool".to_string()

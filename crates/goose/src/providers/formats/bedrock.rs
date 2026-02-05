@@ -9,7 +9,7 @@ use aws_smithy_types::{Document, Number};
 use base64::Engine;
 use chrono::Utc;
 use rmcp::model::{
-    object, CallToolRequestParam, Content, ErrorCode, ErrorData, RawContent, ResourceContents,
+    object, CallToolRequestParams, Content, ErrorCode, ErrorData, RawContent, ResourceContents,
     Role, Tool,
 };
 use serde_json::Value;
@@ -35,6 +35,9 @@ pub fn to_bedrock_message_content(content: &MessageContent) -> Result<bedrock::C
     Ok(match content {
         MessageContent::Text(text) => bedrock::ContentBlock::Text(text.text.to_string()),
         MessageContent::ToolConfirmationRequest(_tool_confirmation_request) => {
+            bedrock::ContentBlock::Text("".to_string())
+        }
+        MessageContent::ActionRequired(_action_required) => {
             bedrock::ContentBlock::Text("".to_string())
         }
         MessageContent::Image(image) => {
@@ -83,14 +86,10 @@ pub fn to_bedrock_message_content(content: &MessageContent) -> Result<bedrock::C
         }
         MessageContent::ToolResponse(tool_res) => {
             let content = match &tool_res.tool_result {
-                Ok(content) => Some(
-                    content
+                Ok(result) => Some(
+                    result
+                        .content
                         .iter()
-                        // Filter out content items that have User in their audience
-                        .filter(|c| {
-                            c.audience()
-                                .is_none_or(|audience| !audience.contains(&Role::User))
-                        })
                         .map(|c| to_bedrock_tool_result_content_block(&tool_res.id, c.clone()))
                         .collect::<Result<_>>()?,
                 ),
@@ -296,7 +295,9 @@ pub fn from_bedrock_content_block(block: &bedrock::ContentBlock) -> Result<Messa
         bedrock::ContentBlock::Text(text) => MessageContent::text(text),
         bedrock::ContentBlock::ToolUse(tool_use) => MessageContent::tool_request(
             tool_use.tool_use_id.to_string(),
-            Ok(CallToolRequestParam {
+            Ok(CallToolRequestParams {
+                meta: None,
+                task: None,
                 name: tool_use.name.clone().into(),
                 arguments: Some(object(from_bedrock_json(&tool_use.input.clone())?)),
             }),
@@ -315,6 +316,12 @@ pub fn from_bedrock_content_block(block: &bedrock::ContentBlock) -> Result<Messa
                     .iter()
                     .map(from_bedrock_tool_result_content_block)
                     .collect::<ToolResult<Vec<_>>>()
+                    .map(|content| rmcp::model::CallToolResult {
+                        content,
+                        structured_content: None,
+                        is_error: Some(false),
+                        meta: None,
+                    })
             },
         ),
         _ => bail!("Unsupported content block type from Bedrock"),

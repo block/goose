@@ -27,7 +27,9 @@ parse_violation() {
     case "$violation_parser" in
         "function_name")
             jq -r 'select(.message.code.code == "'"$rule_code"'") |
-                   "\(.message.spans[0].file_name)::\(.message.spans[0].text[0].text | split("fn ")[1] | split("(")[0])"'
+                   .message.spans[0] as $span |
+                   ($span.text | map(.text) | map(select(test("\\bfn\\b"))) | first // "") as $line |
+                   if $line == "" then empty else "\($span.file_name)::\($line | capture("fn\\s+(?<name>[a-z_][a-z0-9_]*)") | .name)" end'
             ;;
         "type_name")
             jq -r 'select(.message.code.code == "'"$rule_code"'") |

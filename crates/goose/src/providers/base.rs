@@ -1,7 +1,9 @@
 use anyhow::Result;
+use futures::future::BoxFuture;
 use futures::Stream;
 use serde::{Deserialize, Serialize};
 
+use super::canonical::{map_to_canonical_model, CanonicalModelRegistry};
 use super::errors::ProviderError;
 use super::retry::RetryConfig;
 use crate::config::base::ConfigValue;
@@ -41,9 +43,9 @@ pub struct ModelInfo {
     pub name: String,
     /// The maximum context length this model supports
     pub context_limit: usize,
-    /// Cost per token for input (optional)
+    /// Cost per token for input in USD (optional)
     pub input_token_cost: Option<f64>,
-    /// Cost per token for output (optional)
+    /// Cost per token for output in USD (optional)
     pub output_token_cost: Option<f64>,
     /// Currency for the costs (default: "$")
     pub currency: Option<String>,
@@ -107,6 +109,9 @@ pub struct ProviderMetadata {
     pub model_doc_link: String,
     /// Required configuration keys
     pub config_keys: Vec<ConfigKey>,
+    /// Whether this provider allows entering model names not in the fetched list
+    #[serde(default)]
+    pub allows_unlisted_models: bool,
 }
 
 impl ProviderMetadata {
@@ -137,6 +142,7 @@ impl ProviderMetadata {
                 .collect(),
             model_doc_link: model_doc_link.to_string(),
             config_keys,
+            allows_unlisted_models: false,
         }
     }
 
@@ -157,6 +163,7 @@ impl ProviderMetadata {
             known_models: models,
             model_doc_link: model_doc_link.to_string(),
             config_keys,
+            allows_unlisted_models: false,
         }
     }
 
@@ -169,7 +176,14 @@ impl ProviderMetadata {
             known_models: vec![],
             model_doc_link: "".to_string(),
             config_keys: vec![],
+            allows_unlisted_models: false,
         }
+    }
+
+    /// Set allows_unlisted_models flag (builder pattern)
+    pub fn with_unlisted_models(mut self) -> Self {
+        self.allows_unlisted_models = true;
+        self
     }
 }
 
@@ -330,6 +344,18 @@ impl Usage {
 
 use async_trait::async_trait;
 
+pub trait ProviderDef: Send + Sync {
+    type Provider: Provider + 'static;
+
+    fn metadata() -> ProviderMetadata
+    where
+        Self: Sized;
+
+    fn from_env(model: ModelConfig) -> BoxFuture<'static, Result<Self::Provider>>
+    where
+        Self: Sized;
+}
+
 /// Trait for LeadWorkerProvider-specific functionality
 pub trait LeadWorkerProviderTrait {
     /// Get information about the lead and worker models for logging
@@ -337,23 +363,25 @@ pub trait LeadWorkerProviderTrait {
 
     /// Get the currently active model name
     fn get_active_model(&self) -> String;
+
+    /// Get (lead_turns, failure_threshold, fallback_turns)
+    fn get_settings(&self) -> (usize, usize, usize);
 }
 
 /// Base trait for AI providers (OpenAI, Anthropic, etc)
 #[async_trait]
 pub trait Provider: Send + Sync {
-    /// Get the metadata for this provider type
-    fn metadata() -> ProviderMetadata
-    where
-        Self: Sized;
-
     /// Get the name of this provider instance
     fn get_name(&self) -> &str;
 
     // Internal implementation of complete, used by complete_fast and complete
     // Providers should override this to implement their actual completion logic
+    //
+    /// # Parameters
+    /// - `session_id`: Use `None` only for configuration or pre-session tasks.
     async fn complete_with_model(
         &self,
+        session_id: Option<&str>,
         model_config: &ModelConfig,
         system: &str,
         messages: &[Message],
@@ -363,18 +391,20 @@ pub trait Provider: Send + Sync {
     // Default implementation: use the provider's configured model
     async fn complete(
         &self,
+        session_id: &str,
         system: &str,
         messages: &[Message],
         tools: &[Tool],
     ) -> Result<(Message, ProviderUsage), ProviderError> {
         let model_config = self.get_model_config();
-        self.complete_with_model(&model_config, system, messages, tools)
+        self.complete_with_model(Some(session_id), &model_config, system, messages, tools)
             .await
     }
 
     // Check if a fast model is configured, otherwise fall back to regular model
     async fn complete_fast(
         &self,
+        session_id: &str,
         system: &str,
         messages: &[Message],
         tools: &[Tool],
@@ -383,7 +413,7 @@ pub trait Provider: Send + Sync {
         let fast_config = model_config.use_fast_model();
 
         match self
-            .complete_with_model(&fast_config, system, messages, tools)
+            .complete_with_model(Some(session_id), &fast_config, system, messages, tools)
             .await
         {
             Ok(result) => Ok(result),
@@ -395,8 +425,14 @@ pub trait Provider: Send + Sync {
                         e,
                         model_config.model_name
                     );
-                    self.complete_with_model(&model_config, system, messages, tools)
-                        .await
+                    self.complete_with_model(
+                        Some(session_id),
+                        &model_config,
+                        system,
+                        messages,
+                        tools,
+                    )
+                    .await
                 } else {
                     Err(e)
                 }
@@ -415,6 +451,77 @@ pub trait Provider: Send + Sync {
         Ok(None)
     }
 
+    /// Fetch models filtered by canonical registry and usability
+    async fn fetch_recommended_models(&self) -> Result<Option<Vec<String>>, ProviderError> {
+        let all_models = match self.fetch_supported_models().await? {
+            Some(models) => models,
+            None => return Ok(None),
+        };
+
+        let registry = CanonicalModelRegistry::bundled().map_err(|e| {
+            ProviderError::ExecutionError(format!("Failed to load canonical registry: {}", e))
+        })?;
+
+        let provider_name = self.get_name();
+
+        // Get all text-capable models with their release dates
+        let mut models_with_dates: Vec<(String, Option<String>)> = all_models
+            .iter()
+            .filter_map(|model| {
+                let canonical_id = map_to_canonical_model(provider_name, model, registry)?;
+
+                let (provider, model_name) = canonical_id.split_once('/')?;
+                let canonical_model = registry.get(provider, model_name)?;
+
+                if !canonical_model
+                    .modalities
+                    .input
+                    .contains(&crate::providers::canonical::Modality::Text)
+                {
+                    return None;
+                }
+
+                let release_date = canonical_model.release_date.clone();
+
+                Some((model.clone(), release_date))
+            })
+            .collect();
+
+        // Sort by release date (most recent first), then alphabetically for models without dates
+        models_with_dates.sort_by(|a, b| match (&a.1, &b.1) {
+            (Some(date_a), Some(date_b)) => date_b.cmp(date_a),
+            (Some(_), None) => std::cmp::Ordering::Less,
+            (None, Some(_)) => std::cmp::Ordering::Greater,
+            (None, None) => a.0.cmp(&b.0),
+        });
+
+        let recommended_models: Vec<String> = models_with_dates
+            .into_iter()
+            .map(|(name, _)| name)
+            .collect();
+
+        if recommended_models.is_empty() {
+            Ok(Some(all_models))
+        } else {
+            Ok(Some(recommended_models))
+        }
+    }
+
+    async fn map_to_canonical_model(
+        &self,
+        provider_model: &str,
+    ) -> Result<Option<String>, ProviderError> {
+        let registry = CanonicalModelRegistry::bundled().map_err(|e| {
+            ProviderError::ExecutionError(format!("Failed to load canonical registry: {}", e))
+        })?;
+
+        Ok(map_to_canonical_model(
+            self.get_name(),
+            provider_model,
+            registry,
+        ))
+    }
+
     fn supports_embeddings(&self) -> bool {
         false
     }
@@ -424,7 +531,11 @@ pub trait Provider: Send + Sync {
     }
 
     /// Create embeddings if supported. Default implementation returns an error.
-    async fn create_embeddings(&self, _texts: Vec<String>) -> Result<Vec<Vec<f32>>, ProviderError> {
+    async fn create_embeddings(
+        &self,
+        _session_id: &str,
+        _texts: Vec<String>,
+    ) -> Result<Vec<Vec<f32>>, ProviderError> {
         Err(ProviderError::ExecutionError(
             "This provider does not support embeddings".to_string(),
         ))
@@ -438,6 +549,7 @@ pub trait Provider: Send + Sync {
 
     async fn stream(
         &self,
+        _session_id: &str,
         _system: &str,
         _messages: &[Message],
         _tools: &[Tool],
@@ -476,6 +588,7 @@ pub trait Provider: Send + Sync {
     /// Creates a prompt asking for a concise description in 4 words or less.
     async fn generate_session_name(
         &self,
+        session_id: &str,
         messages: &Conversation,
     ) -> Result<String, ProviderError> {
         let context = self.get_initial_user_messages(messages);
@@ -483,6 +596,7 @@ pub trait Provider: Send + Sync {
         let message = Message::user().with_text(&prompt);
         let result = self
             .complete_fast(
+                session_id,
                 "Reply with only a description in four words or less",
                 &[message],
                 &[],

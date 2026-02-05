@@ -28,6 +28,7 @@ const customOneDarkTheme = {
 
 import { Check, Copy } from './icons';
 import { wrapHTMLInCodeBlock } from '../utils/htmlSecurity';
+import { isProtocolSafe, getProtocol, BLOCKED_PROTOCOLS } from '../utils/urlSecurity';
 
 interface CodeProps extends React.ClassAttributes<HTMLElement>, React.HTMLAttributes<HTMLElement> {
   inline?: boolean;
@@ -97,7 +98,7 @@ const CodeBlock = memo(function CodeBlock({
             whiteSpace: 'pre-wrap',
             wordBreak: 'break-all',
             overflowWrap: 'break-word',
-            fontFamily: 'var(--font-sans)',
+            fontFamily: 'var(--font-mono)',
             fontSize: '14px',
           },
         }}
@@ -136,12 +137,27 @@ const MarkdownCode = memo(
     return !inline && match ? (
       <CodeBlock language={match[1]}>{String(children).replace(/\n$/, '')}</CodeBlock>
     ) : (
-      <code ref={ref} {...props} className="break-all bg-inline-code whitespace-pre-wrap font-sans">
+      <code ref={ref} {...props} className="break-all bg-inline-code whitespace-pre-wrap font-mono">
         {children}
       </code>
     );
   })
 );
+
+// Custom URL transform to preserve deep link URLs (spotify:, vscode:, slack:, etc.)
+// React-markdown's default only allows http/https/mailto and strips all other protocols
+// We allow all protocols except dangerous ones (javascript:, data:, file:, etc.)
+const customUrlTransform = (url: string): string => {
+  try {
+    const protocol = new URL(url).protocol;
+    if (BLOCKED_PROTOCOLS.includes(protocol)) {
+      return '';
+    }
+  } catch {
+    // Not a valid URL, allow it (could be relative path)
+  }
+  return url;
+};
 
 const MarkdownContent = memo(function MarkdownContent({
   content,
@@ -155,7 +171,6 @@ const MarkdownContent = memo(function MarkdownContent({
       setProcessedContent(processed);
     } catch (error) {
       console.error('Error processing content:', error);
-      // Fallback to original content if processing fails
       setProcessedContent(content);
     }
   }, [content]);
@@ -164,7 +179,7 @@ const MarkdownContent = memo(function MarkdownContent({
     <div
       className={`w-full overflow-x-hidden prose prose-sm text-text-default dark:prose-invert max-w-full word-break font-sans
       prose-pre:p-0 prose-pre:m-0 !p-0
-      prose-code:break-all prose-code:whitespace-pre-wrap prose-code:font-sans
+      prose-code:break-all prose-code:whitespace-pre-wrap prose-code:font-mono
       prose-a:break-all prose-a:overflow-wrap-anywhere
       prose-table:table prose-table:w-full
       prose-blockquote:text-inherit
@@ -180,7 +195,8 @@ const MarkdownContent = memo(function MarkdownContent({
       prose-li:m-0 prose-li:font-sans ${className}`}
     >
       <ReactMarkdown
-        remarkPlugins={[remarkGfm, remarkBreaks, remarkMath]}
+        urlTransform={customUrlTransform}
+        remarkPlugins={[remarkGfm, remarkBreaks, [remarkMath, { singleDollarTextMath: false }]]}
         rehypePlugins={[
           [
             rehypeKatex,
@@ -192,7 +208,39 @@ const MarkdownContent = memo(function MarkdownContent({
           ],
         ]}
         components={{
-          a: ({ ...props }) => <a {...props} target="_blank" rel="noopener noreferrer" />,
+          a: (props) => {
+            return (
+              <a
+                {...props}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={async (e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  if (!props.href) return;
+
+                  if (isProtocolSafe(props.href)) {
+                    window.electron.openExternal(props.href);
+                  } else {
+                    const protocol = getProtocol(props.href);
+                    if (!protocol) return;
+
+                    const result = await window.electron.showMessageBox({
+                      type: 'question',
+                      buttons: ['Cancel', 'Open'],
+                      defaultId: 0,
+                      title: 'Open External Link',
+                      message: `Open ${protocol} link?`,
+                      detail: `This will open: ${props.href}`,
+                    });
+                    if (result.response === 1) {
+                      window.electron.openExternal(props.href);
+                    }
+                  }
+                }}
+              />
+            );
+          },
           code: MarkdownCode,
         }}
       >

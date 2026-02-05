@@ -2,6 +2,7 @@ import ArrowDown from './ArrowDown';
 import ArrowUp from './ArrowUp';
 import Attach from './Attach';
 import Back from './Back';
+import ChatGPT from './ChatGPT';
 import { Bird1 } from './Bird1';
 import { Bird2 } from './Bird2';
 import { Bird3 } from './Bird3';
@@ -39,6 +40,12 @@ import Settings from './Settings';
 import Time from './Time';
 import { Gear } from './Gear';
 import Youtube from './Youtube';
+import { Goose } from './Goose';
+import Anthropic from './Anthropic';
+import { ArrowRight } from './ArrowRight';
+import { Key } from './Key';
+import OpenAI from './OpenAI';
+import Tetrate from './Tetrate';
 import { Microphone } from './Microphone';
 import { Watch0 } from './Watch0';
 import { Watch1 } from './Watch1';
@@ -53,6 +60,7 @@ export {
   ArrowUp,
   Attach,
   Back,
+  ChatGPT,
   Bird1,
   Bird2,
   Bird3,
@@ -98,4 +106,10 @@ export {
   Watch5,
   Watch6,
   Youtube,
+  Goose,
+  Anthropic,
+  ArrowRight,
+  Key,
+  OpenAI,
+  Tetrate,
 };

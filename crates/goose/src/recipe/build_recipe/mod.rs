@@ -13,10 +13,8 @@ use std::path::Path;
 pub enum RecipeError {
     #[error("Missing required parameters: {parameters:?}")]
     MissingParams { parameters: Vec<String> },
-    #[error("Template rendering failed: {source}")]
-    TemplateRendering { source: anyhow::Error },
-    #[error("Recipe parsing failed: {source}")]
-    RecipeParsing { source: anyhow::Error },
+    #[error("Invalid recipe: {source}")]
+    Invalid { source: anyhow::Error },
 }
 
 fn render_recipe_template<F>(
@@ -57,7 +55,7 @@ where
 {
     let (rendered_content, missing_params) =
         render_recipe_template(recipe_content, recipe_dir, params.clone(), user_prompt_fn)
-            .map_err(|source| RecipeError::TemplateRendering { source })?;
+            .map_err(|source| RecipeError::Invalid { source })?;
 
     if !missing_params.is_empty() {
         return Err(RecipeError::MissingParams {
@@ -66,7 +64,7 @@ where
     }
 
     let mut recipe = Recipe::from_content(&rendered_content)
-        .map_err(|source| RecipeError::RecipeParsing { source })?;
+        .map_err(|source| RecipeError::Invalid { source })?;
 
     if let Some(ref mut sub_recipes) = recipe.sub_recipes {
         for sub_recipe in sub_recipes {
@@ -75,6 +73,46 @@ where
     }
 
     Ok(recipe)
+}
+
+pub fn build_recipe_from_template_with_positional_params<F>(
+    recipe_content: String,
+    recipe_dir: &Path,
+    params: Vec<String>,
+    user_prompt_fn: Option<F>,
+) -> Result<Recipe, RecipeError>
+where
+    F: Fn(&str, &str) -> Result<String, anyhow::Error>,
+{
+    let recipe_dir_str = recipe_dir.display().to_string();
+
+    let recipe_parameters =
+        validate_recipe_template_from_content(&recipe_content, Some(recipe_dir_str.clone()))
+            .map_err(|source| RecipeError::Invalid { source })?
+            .parameters;
+
+    let param_pairs: Vec<(String, String)> = if let Some(recipe_params) = &recipe_parameters {
+        let required_count = recipe_params.iter().filter(|p| p.default.is_none()).count();
+        if params.len() < required_count {
+            let required_keys: Vec<String> = recipe_params
+                .iter()
+                .filter(|p| p.default.is_none())
+                .map(|p| p.key.clone())
+                .collect();
+            return Err(RecipeError::MissingParams {
+                parameters: required_keys,
+            });
+        }
+        recipe_params
+            .iter()
+            .zip(params.iter())
+            .map(|(rp, p)| (rp.key.clone(), p.clone()))
+            .collect()
+    } else {
+        vec![]
+    };
+
+    build_recipe_from_template(recipe_content, recipe_dir, param_pairs, user_prompt_fn)
 }
 
 pub fn apply_values_to_parameters<F>(
@@ -125,7 +163,7 @@ fn resolve_sub_recipe_path(
         parent_recipe_dir.join(sub_recipe_path)
     };
     if !path.exists() {
-        return Err(RecipeError::RecipeParsing {
+        return Err(RecipeError::Invalid {
             source: anyhow::anyhow!("Sub-recipe file does not exist: {}", path.display()),
         });
     }

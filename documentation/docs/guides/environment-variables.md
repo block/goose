@@ -16,17 +16,24 @@ These are the minimum required variables to get started with goose.
 
 | Variable | Purpose | Values | Default |
 |----------|---------|---------|---------|
-| `GOOSE_PROVIDER` | Specifies the LLM provider to use | [See available providers](/docs/getting-started/providers#available-providers) | None (must be [configured](/docs/getting-started/providers#configure-provider)) |
-| `GOOSE_MODEL` | Specifies which model to use from the provider | Model name (e.g., "gpt-4", "claude-sonnet-4-20250514") | None (must be configured) |
+| `GOOSE_PROVIDER` | Specifies the LLM provider to use | [See available providers](/docs/getting-started/providers#available-providers) | None (must be [configured](/docs/getting-started/providers#configure-provider-and-model)) |
+| `GOOSE_MODEL` | Specifies which model to use from the provider | Model name (e.g., "gpt-4", "claude-sonnet-4-20250514") | None (must be [configured](/docs/getting-started/providers#configure-provider-and-model)) |
 | `GOOSE_TEMPERATURE` | Sets the [temperature](https://medium.com/@kelseyywang/a-comprehensive-guide-to-llm-temperature-%EF%B8%8F-363a40bbc91f) for model responses | Float between 0.0 and 1.0 | Model-specific default |
+| `GOOSE_MAX_TOKENS` | Sets the maximum number of tokens for each model response (truncates longer responses) | Positive integer (e.g., 4096, 8192) | Model-specific default |
 
 **Examples**
 
 ```bash
 # Basic model configuration
 export GOOSE_PROVIDER="anthropic"
-export GOOSE_MODEL="claude-sonnet-4-20250514"
+export GOOSE_MODEL="claude-sonnet-4-5-20250929"
 export GOOSE_TEMPERATURE=0.7
+
+# Set a lower limit for shorter interactions
+export GOOSE_MAX_TOKENS=4096
+
+# Set a higher limit for tasks requiring longer output (e.g. code generation)
+export GOOSE_MAX_TOKENS=16000
 ```
 
 ### Advanced Provider Configuration
@@ -47,6 +54,71 @@ export GOOSE_PROVIDER__TYPE="anthropic"
 export GOOSE_PROVIDER__HOST="https://api.anthropic.com"
 export GOOSE_PROVIDER__API_KEY="your-api-key-here"
 ```
+
+### Custom Model Definitions
+
+Define custom model configurations with provider-specific parameters and context limits. This is useful for enabling provider beta features (like extended context windows) or configuring models with specific settings.
+
+| Variable | Purpose | Values | Default |
+|----------|---------|---------|---------|
+| `GOOSE_PREDEFINED_MODELS` | Define custom model configurations | JSON array of model objects | None |
+
+**Model Configuration Fields:**
+
+| Field | Required | Type | Description |
+|-------|----------|------|-------------|
+| `id` | No | number | Optional numeric identifier |
+| `name` | Yes | string | Model name used to reference this configuration |
+| `provider` | Yes | string | Provider name (e.g., "databricks", "openai", "anthropic") |
+| `alias` | No | string | Display name for the model |
+| `subtext` | No | string | Additional descriptive text |
+| `context_limit` | No | number | Override the default context window size in tokens |
+| `request_params` | No | object | Provider-specific parameters included in API requests |
+
+:::info
+The `id`, `alias`, and `subtext` fields are currently not used.
+:::
+
+When a custom model's `context_limit` is specified, it takes precedence over pattern-matching but can still be overridden by explicit environment variables like [`GOOSE_CONTEXT_LIMIT`](#model-context-limit-overrides).
+
+**Examples**
+
+```bash
+# Enable Anthropic's 1M context window with beta header
+export GOOSE_PREDEFINED_MODELS='[
+  {
+    "id": 1,
+    "name": "claude-sonnet-4-1m",
+    "provider": "anthropic",
+    "alias": "Claude Sonnet 4 (1M context)",
+    "subtext": "Anthropic",
+    "context_limit": 1000000,
+    "request_params": {
+      "anthropic_beta": ["context-1m-2025-08-07"]
+    }
+  }
+]'
+
+# Define multiple custom models
+export GOOSE_PREDEFINED_MODELS='[
+  {
+    "id": 1,
+    "name": "gpt-4-custom",
+    "provider": "openai",
+    "alias": "GPT-4 (200k)",
+    "context_limit": 200000
+  },
+  {
+    "id": 2,
+    "name": "internal-model",
+    "provider": "databricks",
+    "alias": "Internal Model (500k)",
+    "context_limit": 500000
+  }
+]'
+```
+
+Custom context limits and request parameters are applied when the model is used. Custom context limits are displayed in goose CLI's [token usage indicator](/docs/guides/sessions/smart-context-management#token-usage).
 
 ### Lead/Worker Model Configuration
 
@@ -84,7 +156,7 @@ export GOOSE_LEAD_FALLBACK_TURNS=2
 
 ### Planning Mode Configuration
 
-These variables control goose's [planning functionality](/docs/guides/multi-model/creating-plans).
+These variables control goose's [planning functionality](/docs/guides/creating-plans).
 
 | Variable | Purpose | Values | Default |
 |----------|---------|---------|---------|
@@ -149,8 +221,10 @@ These variables control how goose manages conversation sessions and context.
 | `GOOSE_CONTEXT_STRATEGY` | Controls how goose handles context limit exceeded situations | "summarize", "truncate", "clear", "prompt" | "prompt" (interactive), "summarize" (headless) |
 | `GOOSE_MAX_TURNS` | [Maximum number of turns](/docs/guides/sessions/smart-context-management#maximum-turns) allowed without user input | Integer (e.g., 10, 50, 100) | 1000 |
 | `GOOSE_SUBAGENT_MAX_TURNS` | Sets the maximum turns allowed for a [subagent](/docs/guides/subagents) to complete before timeout | Integer (e.g., 25) | 25 |
-| `CONTEXT_FILE_NAMES` | Specifies custom filenames for [hint/context files](/docs/guides/using-goosehints#custom-context-files) | JSON array of strings (e.g., `["CLAUDE.md", ".goosehints"]`) | `[".goosehints"]` |
+| `CONTEXT_FILE_NAMES` | Specifies custom filenames for [hint/context files](/docs/guides/context-engineering/using-goosehints#custom-context-files) | JSON array of strings (e.g., `["CLAUDE.md", ".goosehints"]`) | `[".goosehints"]` |
+| `GOOSE_PROMPT_EDITOR` | [External editor](/docs/guides/goose-cli-commands#external-editor-mode) to use for composing prompts instead of CLI input | Editor command (e.g., "vim", "code --wait") | Unset (uses CLI input) |
 | `GOOSE_CLI_THEME` | [Theme](/docs/guides/goose-cli-commands#themes) for CLI response  markdown | "light", "dark", "ansi" | "dark" |
+| `GOOSE_CLI_NEWLINE_KEY` | Customize the keyboard shortcut for [inserting newlines in CLI input](/docs/guides/goose-cli-commands#keyboard-shortcuts) | Single character (e.g., "n", "m") | "j" (Ctrl+J) |
 | `GOOSE_RANDOM_THINKING_MESSAGES` | Controls whether to show amusing random messages during processing | "true", "false" | "true" |
 | `GOOSE_CLI_SHOW_COST` | Toggles display of model cost estimates in CLI output | "true", "1" (case insensitive) to enable | false |
 | `GOOSE_AUTO_COMPACT_THRESHOLD` | Set the percentage threshold at which goose [automatically summarizes your session](/docs/guides/sessions/smart-context-management#automatic-compaction). | Float between 0.0 and 1.0 (disabled at 0.0) | 0.8 |
@@ -179,8 +253,14 @@ export GOOSE_SUBAGENT_MAX_TURNS=50
 # Use multiple context files
 export CONTEXT_FILE_NAMES='["CLAUDE.md", ".goosehints", ".cursorrules", "project_rules.txt"]'
 
+# Use vim for composing prompts
+export GOOSE_PROMPT_EDITOR=vim
+
 # Set the ANSI theme for the session
 export GOOSE_CLI_THEME=ansi
+
+# Use Ctrl+N instead of Ctrl+J for newline
+export GOOSE_CLI_NEWLINE_KEY=n
 
 # Disable random thinking messages for less distraction
 export GOOSE_RANDOM_THINKING_MESSAGES=false
@@ -201,7 +281,7 @@ These variables allow you to override the default context window size (token lim
 | `GOOSE_CONTEXT_LIMIT` | Override context limit for the main model | Integer (number of tokens) | Model-specific default or 128,000 |
 | `GOOSE_LEAD_CONTEXT_LIMIT` | Override context limit for the lead model in [lead/worker mode](/docs/tutorials/lead-worker) | Integer (number of tokens) | Falls back to `GOOSE_CONTEXT_LIMIT` or model default |
 | `GOOSE_WORKER_CONTEXT_LIMIT` | Override context limit for the worker model in lead/worker mode | Integer (number of tokens) | Falls back to `GOOSE_CONTEXT_LIMIT` or model default |
-| `GOOSE_PLANNER_CONTEXT_LIMIT` | Override context limit for the [planner model](/docs/guides/multi-model/creating-plans) | Integer (number of tokens) | Falls back to `GOOSE_CONTEXT_LIMIT` or model default |
+| `GOOSE_PLANNER_CONTEXT_LIMIT` | Override context limit for the [planner model](/docs/guides/creating-plans) | Integer (number of tokens) | Falls back to `GOOSE_CONTEXT_LIMIT` or model default |
 
 **Examples**
 
@@ -226,20 +306,16 @@ These variables control how goose handles [tool execution](/docs/guides/goose-pe
 | Variable | Purpose | Values | Default |
 |----------|---------|---------|---------|
 | `GOOSE_MODE` | Controls how goose handles tool execution | "auto", "approve", "chat", "smart_approve" | "smart_approve" |
-| `GOOSE_ENABLE_ROUTER` | Enables [intelligent tool selection strategy](/docs/guides/managing-tools/tool-router) | "true", "false" | "false" |
 | `GOOSE_TOOLSHIM` | Enables/disables tool call interpretation | "1", "true" (case insensitive) to enable | false |
 | `GOOSE_TOOLSHIM_OLLAMA_MODEL` | Specifies the model for [tool call interpretation](/docs/experimental/ollama) | Model name (e.g. llama3.2, qwen2.5) | System default |
 | `GOOSE_CLI_MIN_PRIORITY` | Controls verbosity of [tool output](/docs/guides/managing-tools/adjust-tool-output) | Float between 0.0 and 1.0 | 0.0 |
 | `GOOSE_CLI_TOOL_PARAMS_TRUNCATION_MAX_LENGTH` | Maximum length for tool parameter values before truncation in CLI output (not in debug mode) | Integer | 40 |
-| `GOOSE_DEBUG` | Enables debug mode to show full tool parameters without truncation | "1", "true" (case insensitive) to enable | false |
+| `GOOSE_DEBUG` | Enables debug mode to show full tool parameters without truncation. Can also be toggled during a session using the `/r` [slash command](/docs/guides/goose-cli-commands#slash-commands) | "1", "true" (case insensitive) to enable | false |
 | `GOOSE_SEARCH_PATHS` | Additional directories to search for executables when running extensions | JSON array of paths (e.g., `["/usr/local/bin", "~/custom/bin"]`) | System PATH only | No |
 
 **Examples**
 
 ```bash
-# Enable intelligent tool selection
-export GOOSE_ENABLE_ROUTER=true
-
 # Enable tool interpretation
 export GOOSE_TOOLSHIM=true
 export GOOSE_TOOLSHIM_OLLAMA_MODEL=llama3.2
@@ -284,14 +360,41 @@ export GOOSE_EDITOR_HOST="http://localhost:8000/v1"
 export GOOSE_EDITOR_MODEL="your-model"
 ```
 
-## Security Configuration
+## Security and Privacy
 
-These variables control security related features.
+These variables control security features, credential storage, and anonymous usage data collection.
 
 | Variable | Purpose | Values | Default |
 |----------|---------|---------|---------|
 | `GOOSE_ALLOWLIST` | Controls which extensions can be loaded | URL for [allowed extensions](/docs/guides/allowlist) list | Unset |
 | `GOOSE_DISABLE_KEYRING` | Disables the system keyring for secret storage | Set to any value (e.g., "1", "true", "yes") to disable. The actual value doesn't matter, only whether the variable is set. | Unset (keyring enabled) |
+| `SECURITY_PROMPT_ENABLED` | Enable [prompt injection detection](/docs/guides/security/prompt-injection-detection) to identify potentially harmful commands | true/false | false |
+| `SECURITY_PROMPT_THRESHOLD` | Sensitivity threshold for prompt injection detection (higher = stricter) | Float between 0.01 and 1.0 | 0.8 |
+| `SECURITY_PROMPT_CLASSIFIER_ENABLED` | Enable ML-based prompt injection detection for advanced threat identification | true/false | false |
+| `SECURITY_PROMPT_CLASSIFIER_ENDPOINT` | Classification endpoint URL for ML-based prompt injection detection | URL (e.g., "https://api.example.com/classify") | Unset |
+| `SECURITY_PROMPT_CLASSIFIER_TOKEN` | Authentication token for `SECURITY_PROMPT_CLASSIFIER_ENDPOINT` | String | Unset |
+| `GOOSE_TELEMETRY_ENABLED` | Enable or disable [anonymous usage data collection](/docs/guides/usage-data) | true/false | false |
+
+**Examples**
+
+```bash
+# Enable prompt injection detection with default threshold
+export SECURITY_PROMPT_ENABLED=true
+
+# Enable with custom threshold (stricter)
+export SECURITY_PROMPT_ENABLED=true
+export SECURITY_PROMPT_THRESHOLD=0.9
+
+# Enable ML-based detection with external endpoint
+export SECURITY_PROMPT_ENABLED=true
+export SECURITY_PROMPT_CLASSIFIER_ENABLED=true
+export SECURITY_PROMPT_CLASSIFIER_ENDPOINT="https://your-endpoint.com/classify"
+export SECURITY_PROMPT_CLASSIFIER_TOKEN="your-auth-token"
+
+# Control anonymous usage data collection
+export GOOSE_TELEMETRY_ENABLED=false  # Disable telemetry
+export GOOSE_TELEMETRY_ENABLED=true   # Enable telemetry
+```
 
 :::tip
 When the keyring is disabled, secrets are stored here:
@@ -299,6 +402,32 @@ When the keyring is disabled, secrets are stored here:
 * macOS/Linux: `~/.config/goose/secrets.yaml`
 * Windows: `%APPDATA%\Block\goose\config\secrets.yaml`
 :::
+
+## Network Configuration
+
+These variables configure network proxy settings for goose.
+
+### HTTP Proxy
+
+goose supports standard HTTP proxy environment variables for users behind corporate firewalls or proxy servers.
+
+| Variable | Purpose | Values | Default |
+|----------|---------|---------|---------|
+| `HTTP_PROXY` | Proxy URL for HTTP connections | URL (e.g., `http://proxy.company.com:8080`) | None |
+| `HTTPS_PROXY` | Proxy URL for HTTPS connections (takes precedence over `HTTP_PROXY` when both are set) | URL (e.g., `http://proxy.company.com:8080`) | None |
+| `NO_PROXY` | Hosts to bypass the proxy | Comma-separated list (e.g., `localhost,127.0.0.1,.internal.com`) | None |
+
+**Examples**
+
+```bash
+# Configure proxy for all connections
+export HTTPS_PROXY="http://proxy.company.com:8080"
+export NO_PROXY="localhost,127.0.0.1,.internal,.local,10.0.0.0/8"
+
+# Or with authentication
+export HTTPS_PROXY="http://username:password@proxy.company.com:8080"
+export NO_PROXY="localhost,127.0.0.1,.internal"
+```
 
 ## Observability
 
@@ -423,22 +552,51 @@ These variables are automatically set by goose during command execution.
 
 ### Customizing Shell Behavior
 
-Sometimes you want goose to use different commands or have different shell behavior than your normal terminal usage. For example, you might want goose to use a different tool, or prevent goose from running long-running development servers that could hang the AI agent. This is most useful when using goose CLI, where shell commands are executed directly in your terminal environment.
+Sometimes you want goose to use different commands or have different shell behavior than your normal terminal usage. For example, you might want goose to use a different tool, prevent goose from running `git commit`, or block long-running development servers that could hang the AI agent. This is most useful when using goose CLI, where shell commands are executed directly in your terminal environment.
 
 **How it works:**
 1. When goose runs commands, `GOOSE_TERMINAL` is automatically set to "1"
-2. Your shell configuration can detect this and direct goose to change its default behavior while keeping your normal terminal usage unchanged
+2. Your shell configuration can detect this and change behavior while keeping your normal terminal usage unchanged
 
-**Example:**
+**Examples:**
 
 ```bash
-# In your ~/.bashrc or ~/.zshrc
+# In ~/.zshenv (for zsh users) or ~/.bashrc (for bash users)
 
+# Block git commit when run by goose
+if [[ -n "$GOOSE_TERMINAL" ]]; then
+  git() {
+    if [[ "$1" == "commit" ]]; then
+      echo "❌ BLOCKED: git commit is not allowed when run by goose"
+      return 1
+    fi
+    command git "$@"
+  }
+fi
+```
+
+```bash
 # Guide goose toward better tool choices
 if [[ -n "$GOOSE_TERMINAL" ]]; then
   alias find="echo 'Use rg instead: rg --files | rg <pattern> for filenames, or rg <pattern> for content search'"
 fi
 ```
+
+## Enterprise Environments
+
+When deploying goose in enterprise environments, administrators might need to control behavior and infrastructure, or enforce consistent settings across teams. The following environment variables are commonly used:
+
+**Network and Infrastructure** - Control how goose connects to external services and internal infrastructure:
+- [Network Configuration](#network-configuration) - Proxy configuration and network settings
+- [Advanced Provider Configuration](#advanced-provider-configuration) - Point to internal LLM endpoints (e.g., Databricks, custom deployments)
+- [Model Context Limit Overrides](#model-context-limit-overrides) - Configure context limits for LiteLLM proxies and custom models
+
+**Security and Privacy** - Control security and privacy features:
+- [Security and Privacy](#security-and-privacy) - Manage security and privacy settings such as extension loading, secrets storage, and usage data collection
+
+**Compliance and Monitoring** - Track usage and export telemetry for auditing:
+
+- [Observability](#observability) - Export telemetry to monitoring platforms (OTLP, Langfuse)
 
 ## Notes
 

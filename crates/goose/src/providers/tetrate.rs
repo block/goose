@@ -1,30 +1,25 @@
-use anyhow::Result;
-use async_stream::try_stream;
-use async_trait::async_trait;
-use futures::TryStreamExt;
-use serde_json::{json, Value};
-use std::io;
-use tokio::pin;
-use tokio_stream::StreamExt;
-use tokio_util::codec::{FramedRead, LinesCodec};
-use tokio_util::io::StreamReader;
-
 use super::api_client::{ApiClient, AuthMethod};
-use super::base::{ConfigKey, MessageStream, Provider, ProviderMetadata, ProviderUsage, Usage};
-use super::errors::ProviderError;
-use super::formats::openai::response_to_streaming_message;
-use super::retry::ProviderRetry;
-use super::utils::{
-    get_model, handle_response_google_compat, handle_response_openai_compat,
-    handle_status_openai_compat, is_google_model, RequestLog,
+use super::base::{
+    ConfigKey, MessageStream, Provider, ProviderDef, ProviderMetadata, ProviderUsage, Usage,
 };
+use super::errors::ProviderError;
+use super::openai_compatible::{
+    handle_response_openai_compat, handle_status_openai_compat, stream_openai_compat,
+};
+use super::retry::ProviderRetry;
+use super::utils::{get_model, handle_response_google_compat, is_google_model, RequestLog};
 use crate::config::signup_tetrate::TETRATE_DEFAULT_MODEL;
 use crate::conversation::message::Message;
+use anyhow::Result;
+use async_trait::async_trait;
+use futures::future::BoxFuture;
+use serde_json::Value;
 
 use crate::model::ModelConfig;
 use crate::providers::formats::openai::{create_request, get_usage, response_to_message};
 use rmcp::model::Tool;
 
+const TETRATE_PROVIDER_NAME: &str = "tetrate";
 // Tetrate Agent Router Service can run many models, we suggest the default
 pub const TETRATE_KNOWN_MODELS: &[&str] = &[
     "claude-opus-4-1",
@@ -68,14 +63,18 @@ impl TetrateProvider {
             api_client,
             model,
             supports_streaming: true,
-            name: Self::metadata().name,
+            name: TETRATE_PROVIDER_NAME.to_string(),
         })
     }
 
-    async fn post(&self, payload: &Value) -> Result<Value, ProviderError> {
+    async fn post(
+        &self,
+        session_id: Option<&str>,
+        payload: &Value,
+    ) -> Result<Value, ProviderError> {
         let response = self
             .api_client
-            .response_post("v1/chat/completions", payload)
+            .response_post(session_id, "v1/chat/completions", payload)
             .await?;
 
         // Handle Google-compatible model responses differently
@@ -131,11 +130,12 @@ impl TetrateProvider {
     }
 }
 
-#[async_trait]
-impl Provider for TetrateProvider {
+impl ProviderDef for TetrateProvider {
+    type Provider = Self;
+
     fn metadata() -> ProviderMetadata {
         ProviderMetadata::new(
-            "tetrate",
+            TETRATE_PROVIDER_NAME,
             "Tetrate Agent Router Service",
             "Enterprise router for AI models",
             TETRATE_DEFAULT_MODEL,
@@ -153,6 +153,13 @@ impl Provider for TetrateProvider {
         )
     }
 
+    fn from_env(model: ModelConfig) -> BoxFuture<'static, Result<Self::Provider>> {
+        Box::pin(Self::from_env(model))
+    }
+}
+
+#[async_trait]
+impl Provider for TetrateProvider {
     fn get_name(&self) -> &str {
         &self.name
     }
@@ -167,6 +174,7 @@ impl Provider for TetrateProvider {
     )]
     async fn complete_with_model(
         &self,
+        session_id: Option<&str>,
         model_config: &ModelConfig,
         system: &str,
         messages: &[Message],
@@ -178,6 +186,7 @@ impl Provider for TetrateProvider {
             messages,
             tools,
             &super::utils::ImageFormat::OpenAi,
+            false,
         )?;
         let mut log = RequestLog::start(model_config, &payload)?;
 
@@ -185,7 +194,7 @@ impl Provider for TetrateProvider {
         let response = self
             .with_retry(|| async {
                 let payload_clone = payload.clone();
-                self.post(&payload_clone).await
+                self.post(session_id, &payload_clone).await
             })
             .await?;
 
@@ -202,51 +211,47 @@ impl Provider for TetrateProvider {
 
     async fn stream(
         &self,
+        session_id: &str,
         system: &str,
         messages: &[Message],
         tools: &[Tool],
     ) -> Result<MessageStream, ProviderError> {
-        let mut payload = create_request(
+        let payload = create_request(
             &self.model,
             system,
             messages,
             tools,
             &super::utils::ImageFormat::OpenAi,
+            true,
         )?;
 
-        payload["stream"] = json!(true);
-        payload["stream_options"] = json!({
-            "include_usage": true,
-        });
-
-        let resp = self
-            .api_client
-            .response_post("v1/chat/completions", &payload)
-            .await?;
-
-        let response = handle_status_openai_compat(resp).await?;
-
-        let stream = response.bytes_stream().map_err(io::Error::other);
         let mut log = RequestLog::start(&self.model, &payload)?;
 
-        Ok(Box::pin(try_stream! {
-            let stream_reader = StreamReader::new(stream);
-            let framed = FramedRead::new(stream_reader, LinesCodec::new()).map_err(anyhow::Error::from);
+        let response = self
+            .with_retry(|| async {
+                let resp = self
+                    .api_client
+                    .response_post(Some(session_id), "v1/chat/completions", &payload)
+                    .await?;
+                handle_status_openai_compat(resp).await
+            })
+            .await
+            .inspect_err(|e| {
+                let _ = log.error(e);
+            })?;
 
-            let message_stream = response_to_streaming_message(framed);
-            pin!(message_stream);
-            while let Some(message) = message_stream.next().await {
-                let (message, usage) = message.map_err(|e| ProviderError::RequestFailed(format!("Stream decode error: {}", e)))?;
-                log.write(&message, usage.as_ref().map(|f| f.usage).as_ref())?;
-                yield (message, usage);
-            }
-        }))
+        stream_openai_compat(response, log)
     }
 
     /// Fetch supported models from Tetrate Agent Router Service API (only models with tool support)
     async fn fetch_supported_models(&self) -> Result<Option<Vec<String>>, ProviderError> {
         // Use the existing api_client which already has authentication configured
-        let response = match self.api_client.response_get("v1/models").await {
+        let response = match self
+            .api_client
+            .request(None, "v1/models")
+            .response_get()
+            .await
+        {
             Ok(response) => response,
             Err(e) => {
                 tracing::warn!("Failed to fetch models from Tetrate Agent Router Service API: {}, falling back to manual model entry", e);
@@ -278,9 +283,13 @@ impl Provider for TetrateProvider {
 
         // The response format from /v1/models is expected to be OpenAI-compatible
         // It should have a "data" field with an array of model objects
-        let data = json.get("data").and_then(|v| v.as_array()).ok_or_else(|| {
-            ProviderError::UsageError("Missing data field in JSON response".into())
-        })?;
+        let data = match json.get("data").and_then(|v| v.as_array()) {
+            Some(data) => data,
+            None => {
+                tracing::warn!("Tetrate Agent Router Service API response missing 'data' field, falling back to manual model entry");
+                return Ok(None);
+            }
+        };
 
         let mut models: Vec<String> = data
             .iter()
@@ -290,18 +299,26 @@ impl Provider for TetrateProvider {
 
                 // Check if the model supports computer_use (which indicates tool/function support)
                 // The Tetrate API uses "supports_computer_use" instead of "supported_parameters"
-                let supports_computer_use = model
-                    .get("supports_computer_use")
-                    .and_then(|v| v.as_bool())
-                    .unwrap_or(false);
+                let supported_params =
+                    match model.get("supported_parameters").and_then(|v| v.as_array()) {
+                        Some(params) => params,
+                        None => {
+                            tracing::debug!(
+                                "Model '{}' missing supported_parameters field, skipping",
+                                id
+                            );
+                            return None;
+                        }
+                    };
 
-                if supports_computer_use {
+                let has_tool_support = supported_params
+                    .iter()
+                    .any(|param| param.as_str() == Some("tools"));
+
+                if has_tool_support {
                     Some(id.to_string())
                 } else {
-                    tracing::debug!(
-                        "Model '{}' does not support computer_use (tool support), skipping",
-                        id
-                    );
+                    tracing::debug!("Model '{}' does not support tools, skipping", id);
                     None
                 }
             })

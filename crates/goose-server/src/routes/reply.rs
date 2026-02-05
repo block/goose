@@ -1,24 +1,22 @@
+use crate::routes::errors::ErrorResponse;
 use crate::state::AppState;
+#[cfg(test)]
+use axum::http::StatusCode;
 use axum::{
     extract::{DefaultBodyLimit, State},
-    http::{self, StatusCode},
+    http::{self},
     response::IntoResponse,
     routing::post,
     Json, Router,
 };
 use bytes::Bytes;
 use futures::{stream::StreamExt, Stream};
+use goose::agents::{AgentEvent, SessionConfig};
 use goose::conversation::message::{Message, MessageContent, TokenState};
 use goose::conversation::Conversation;
-use goose::permission::{Permission, PermissionConfirmation};
 use goose::session::SessionManager;
-use goose::{
-    agents::{AgentEvent, SessionConfig},
-    permission::permission_confirmation::PrincipalType,
-};
 use rmcp::model::ServerNotification;
 use serde::{Deserialize, Serialize};
-use serde_json::Value;
 use std::{
     convert::Infallible,
     pin::Pin,
@@ -30,7 +28,6 @@ use tokio::sync::mpsc;
 use tokio::time::timeout;
 use tokio_stream::wrappers::ReceiverStream;
 use tokio_util::sync::CancellationToken;
-use utoipa::ToSchema;
 
 fn track_tool_telemetry(content: &MessageContent, all_messages: &[Message]) {
     match content {
@@ -81,7 +78,9 @@ fn track_tool_telemetry(content: &MessageContent, all_messages: &[Message]) {
 
 #[derive(Debug, Deserialize, Serialize, utoipa::ToSchema)]
 pub struct ChatRequest {
-    messages: Vec<Message>,
+    user_message: Message,
+    #[serde(default)]
+    conversation_so_far: Option<Vec<Message>>,
     session_id: String,
     recipe_name: Option<String>,
     recipe_version: Option<String>,
@@ -150,8 +149,9 @@ pub enum MessageEvent {
     Ping,
 }
 
-async fn get_token_state(session_id: &str) -> TokenState {
-    SessionManager::get_session(session_id, false)
+async fn get_token_state(session_manager: &SessionManager, session_id: &str) -> TokenState {
+    session_manager
+        .get_session(session_id, false)
         .await
         .map(|session| TokenState {
             input_tokens: session.input_tokens.unwrap_or(0),
@@ -205,7 +205,7 @@ async fn stream_event(
 pub async fn reply(
     State(state): State<Arc<AppState>>,
     Json(request): Json<ChatRequest>,
-) -> Result<SseResponse, StatusCode> {
+) -> Result<SseResponse, ErrorResponse> {
     let session_start = std::time::Instant::now();
 
     tracing::info!(
@@ -239,7 +239,8 @@ pub async fn reply(
     let stream = ReceiverStream::new(rx);
     let cancel_token = CancellationToken::new();
 
-    let messages = Conversation::new_unvalidated(request.messages);
+    let user_message = request.user_message;
+    let conversation_so_far = request.conversation_so_far;
 
     let task_cancel = cancel_token.clone();
     let task_tx = tx.clone();
@@ -261,7 +262,7 @@ pub async fn reply(
             }
         };
 
-        let session = match SessionManager::get_session(&session_id, false).await {
+        let session = match state.session_manager().get_session(&session_id, true).await {
             Ok(metadata) => metadata,
             Err(e) => {
                 tracing::error!("Failed to read session for {}: {}", session_id, e);
@@ -284,20 +285,25 @@ pub async fn reply(
             retry_config: None,
         };
 
-        let user_message = match messages.last() {
-            Some(msg) => msg,
-            _ => {
-                let _ = stream_event(
-                    MessageEvent::Error {
-                        error: "Reply started with empty messages".to_string(),
-                    },
-                    &task_tx,
-                    &task_cancel,
-                )
-                .await;
-                return;
+        let mut all_messages = match conversation_so_far {
+            Some(history) => {
+                let conv = Conversation::new_unvalidated(history);
+                if let Err(e) = state
+                    .session_manager()
+                    .replace_conversation(&session_id, &conv)
+                    .await
+                {
+                    tracing::warn!(
+                        "Failed to replace session conversation for {}: {}",
+                        session_id,
+                        e
+                    );
+                }
+                conv
             }
+            None => session.conversation.unwrap_or_default(),
         };
+        all_messages.push(user_message.clone());
 
         let mut stream = match agent
             .reply(
@@ -322,8 +328,6 @@ pub async fn reply(
             }
         };
 
-        let mut all_messages = messages.clone();
-
         let mut heartbeat_interval = tokio::time::interval(Duration::from_millis(500));
         loop {
             tokio::select! {
@@ -343,7 +347,7 @@ pub async fn reply(
 
                             all_messages.push(message.clone());
 
-                            let token_state = get_token_state(&session_id).await;
+                            let token_state = get_token_state(state.session_manager(), &session_id).await;
 
                             stream_event(MessageEvent::Message { message, token_state }, &tx, &cancel_token).await;
                         }
@@ -389,7 +393,7 @@ pub async fn reply(
 
         let session_duration = session_start.elapsed();
 
-        if let Ok(session) = SessionManager::get_session(&session_id, true).await {
+        if let Ok(session) = state.session_manager().get_session(&session_id, true).await {
             let total_tokens = session.total_tokens.unwrap_or(0);
             tracing::info!(
                 counter.goose.session_completions = 1,
@@ -437,7 +441,7 @@ pub async fn reply(
             );
         }
 
-        let final_token_state = get_token_state(&session_id).await;
+        let final_token_state = get_token_state(state.session_manager(), &session_id).await;
 
         let _ = stream_event(
             MessageEvent::Finish {
@@ -452,60 +456,12 @@ pub async fn reply(
     Ok(SseResponse::new(stream))
 }
 
-#[derive(Debug, Deserialize, Serialize, ToSchema)]
-pub struct PermissionConfirmationRequest {
-    id: String,
-    #[serde(default = "default_principal_type")]
-    principal_type: PrincipalType,
-    action: String,
-    session_id: String,
-}
-
-fn default_principal_type() -> PrincipalType {
-    PrincipalType::Tool
-}
-
-#[utoipa::path(
-    post,
-    path = "/confirm",
-    request_body = PermissionConfirmationRequest,
-    responses(
-        (status = 200, description = "Permission action is confirmed", body = Value),
-        (status = 401, description = "Unauthorized - invalid secret key"),
-        (status = 500, description = "Internal server error")
-    )
-)]
-pub async fn confirm_permission(
-    State(state): State<Arc<AppState>>,
-    Json(request): Json<PermissionConfirmationRequest>,
-) -> Result<Json<Value>, StatusCode> {
-    let agent = state.get_agent_for_route(request.session_id).await?;
-    let permission = match request.action.as_str() {
-        "always_allow" => Permission::AlwaysAllow,
-        "allow_once" => Permission::AllowOnce,
-        "deny" => Permission::DenyOnce,
-        _ => Permission::DenyOnce,
-    };
-
-    agent
-        .handle_confirmation(
-            request.id.clone(),
-            PermissionConfirmation {
-                principal_type: request.principal_type,
-                permission,
-            },
-        )
-        .await;
-    Ok(Json(Value::Object(serde_json::Map::new())))
-}
-
 pub fn routes(state: Arc<AppState>) -> Router {
     Router::new()
         .route(
             "/reply",
             post(reply).layer(DefaultBodyLimit::max(50 * 1024 * 1024)),
         )
-        .route("/confirm", post(confirm_permission))
         .with_state(state)
 }
 
@@ -532,7 +488,8 @@ mod tests {
                 .header("x-secret-key", "test-secret")
                 .body(Body::from(
                     serde_json::to_string(&ChatRequest {
-                        messages: vec![Message::user().with_text("test message")],
+                        user_message: Message::user().with_text("test message"),
+                        conversation_so_far: None,
                         session_id: "test-session".to_string(),
                         recipe_name: None,
                         recipe_version: None,

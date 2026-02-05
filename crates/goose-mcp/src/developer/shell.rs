@@ -8,7 +8,6 @@ use std::os::unix::process::CommandExt;
 pub struct ShellConfig {
     pub executable: String,
     pub args: Vec<String>,
-    #[allow(dead_code)]
     pub envs: Vec<(OsString, OsString)>,
 }
 
@@ -109,8 +108,14 @@ pub fn normalize_line_endings(text: &str) -> String {
 pub fn configure_shell_command(
     shell_config: &ShellConfig,
     command: &str,
+    working_dir: Option<&std::path::Path>,
 ) -> tokio::process::Command {
     let mut command_builder = tokio::process::Command::new(&shell_config.executable);
+
+    if let Some(dir) = working_dir {
+        command_builder.current_dir(dir);
+    }
+
     command_builder
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
@@ -123,8 +128,13 @@ pub fn configure_shell_command(
         .env("EDITOR", "sh -c 'echo \"Interactive editor not available in this environment.\" >&2; exit 1'")
         .env("GIT_TERMINAL_PROMPT", "0")
         .env("GIT_PAGER", "cat")
-        .args(&shell_config.args)
-        .arg(command);
+        .args(&shell_config.args);
+
+    for (key, value) in &shell_config.envs {
+        command_builder.env(key, value);
+    }
+
+    command_builder.arg(command);
 
     // On Unix systems, create a new process group so we can kill child processes
     #[cfg(unix)]

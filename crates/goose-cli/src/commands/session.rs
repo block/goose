@@ -11,7 +11,7 @@ use std::path::PathBuf;
 
 const TRUNCATED_DESC_LENGTH: usize = 60;
 
-pub async fn remove_sessions(sessions: Vec<Session>) -> Result<()> {
+async fn remove_sessions(session_manager: &SessionManager, sessions: Vec<Session>) -> Result<()> {
     println!("The following sessions will be removed:");
     for session in &sessions {
         println!("- {} {}", session.id, session.name);
@@ -23,7 +23,7 @@ pub async fn remove_sessions(sessions: Vec<Session>) -> Result<()> {
 
     if should_delete {
         for session in sessions {
-            SessionManager::delete_session(&session.id).await?;
+            session_manager.delete_session(&session.id).await?;
             println!("Session `{}` removed.", session.id);
         }
     } else {
@@ -76,7 +76,8 @@ pub async fn handle_session_remove(
     name: Option<String>,
     regex_string: Option<String>,
 ) -> Result<()> {
-    let all_sessions = match SessionManager::list_sessions().await {
+    let session_manager = SessionManager::instance();
+    let all_sessions = match session_manager.list_sessions().await {
         Ok(sessions) => sessions,
         Err(e) => {
             tracing::error!("Failed to retrieve sessions: {:?}", e);
@@ -125,7 +126,7 @@ pub async fn handle_session_remove(
         return Ok(());
     }
 
-    remove_sessions(matched_sessions).await
+    remove_sessions(&session_manager, matched_sessions).await
 }
 
 pub async fn handle_session_list(
@@ -134,7 +135,8 @@ pub async fn handle_session_list(
     working_dir: Option<PathBuf>,
     limit: Option<usize>,
 ) -> Result<()> {
-    let mut sessions = SessionManager::list_sessions().await?;
+    let session_manager = SessionManager::instance();
+    let mut sessions = session_manager.list_sessions().await?;
 
     if let Some(ref pat) = working_dir {
         let pat_lower = pat.to_string_lossy().to_lowercase();
@@ -181,7 +183,8 @@ pub async fn handle_session_export(
     output_path: Option<PathBuf>,
     format: String,
 ) -> Result<()> {
-    let session = match SessionManager::get_session(&session_id, true).await {
+    let session_manager = SessionManager::instance();
+    let session = match session_manager.get_session(&session_id, true).await {
         Ok(session) => session,
         Err(e) => {
             return Err(anyhow::anyhow!(
@@ -222,12 +225,15 @@ pub async fn handle_diagnostics(session_id: &str, output_path: Option<PathBuf>) 
         session_id
     );
 
-    let diagnostics_data = generate_diagnostics(session_id).await.with_context(|| {
-        format!(
-            "Failed to write to generate diagnostics bundle for session '{}'",
-            session_id
-        )
-    })?;
+    let session_manager = SessionManager::instance();
+    let diagnostics_data = generate_diagnostics(&session_manager, session_id)
+        .await
+        .with_context(|| {
+            format!(
+                "Failed to write to generate diagnostics bundle for session '{}'",
+                session_id
+            )
+        })?;
 
     let output_file = if let Some(path) = output_path {
         path.clone()
@@ -319,8 +325,10 @@ fn export_session_to_markdown(
 /// Prompt the user to interactively select a session
 ///
 /// Shows a list of available sessions and lets the user select one
-pub async fn prompt_interactive_session_selection() -> Result<String> {
-    let sessions = SessionManager::list_sessions().await?;
+pub async fn prompt_interactive_session_selection(
+    session_manager: &SessionManager,
+) -> Result<String> {
+    let sessions = session_manager.list_sessions().await?;
 
     if sessions.is_empty() {
         return Err(anyhow::anyhow!("No sessions found"));

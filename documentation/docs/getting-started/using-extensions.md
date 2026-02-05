@@ -5,7 +5,7 @@ title: Using Extensions
 
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
-import { PanelLeft, Settings } from 'lucide-react';
+import { PanelLeft, Settings, Puzzle } from 'lucide-react';
 
 Extensions are add-ons that provide a way to extend the functionality of goose by connecting with applications and tools you already use in your workflow. These extensions can be used to add new features, access data and resources, or integrate with other systems.
 
@@ -31,13 +31,17 @@ goose includes several built-in extensions you can start using out of the box:
 goose operates autonomously by default. Combined with the Developer extension's tools, this means goose can execute commands and modify files without your approval. If you want more control over this behavior, you can configure the [goose permission mode](/docs/guides/goose-permissions), [tool permissions](/docs/guides/managing-tools/tool-permissions), and [.gooseignore files](/docs/guides/using-gooseignore). See [Configuring Access Controls](/docs/mcp/developer-mcp#configuring-access-controls) for a brief overview.
 :::
 
-In addition, these platform extensions provide core goose functionality. They are also always available and enabled by default:
+### Built-in Platform Extensions
 
-- Chat Recall: Search conversation content across all your session history
-- Extension Manager: Discover, enable, and disable extensions dynamically during sessions
-- [Todo](/docs/mcp/todo-mcp): Manage task lists and track progress across sessions
+Platform extensions are built-in extensions that provide global features like conversation search, task tracking, and extension management. These extensions are always available and can be toggled on or off as needed.
 
-#### Toggling Built-in Extensions
+- [Chat Recall](/docs/mcp/chatrecall-mcp): Search conversation content across all your session history
+- [Code Execution](/docs/mcp/code-execution-mcp): Execute JavaScript code for tool discovery and tool calling
+- [Extension Manager](/docs/mcp/extension-manager-mcp): Discover, enable, and disable extensions dynamically during sessions (enabled by default)
+- [Skills](/docs/mcp/skills-mcp): Load and use agent skills from various project and global skill directories (enabled by default)
+- [Todo](/docs/mcp/todo-mcp): Manage task lists and track progress across sessions (enabled by default)
+
+### Toggling Built-in Extensions
 
 <Tabs groupId="interface">
   <TabItem value="ui" label="goose Desktop" default>
@@ -94,7 +98,6 @@ goose's built-in extensions are MCP servers in their own right. If you'd like
 to use the MCP servers included with goose with any other agent, you are free to do so.
 :::
 
-
 ## Discovering Extensions
 
 goose provides a [central directory][extensions-directory] of extensions that you can install and use. 
@@ -150,8 +153,7 @@ See available servers in the **[MCP Server Directory](https://www.pulsemcp.com/s
   3. Choose the type of extension you'd like to add:
       - `Built-In Extension`: Use an extension that comes pre-installed with goose.
       - `Command-Line Extension`: Add a local command or script to run as an extension.
-      - `Remote Extension (SSE)`: Connect to a remote system via SSE (Server-Sent Events).
-      - `Remote Extension (Streaming HTTP)`: Connect to a remote system via Streaming HTTP
+      - `Remote Extension (Streamable HTTP)`: Connect to a remote system via Streamable HTTP
 
   4. Follow the prompts based on the type of extension you selected.
 
@@ -281,32 +283,13 @@ goose://extension?cmd=npx&arg=-y&arg=%40modelcontextprotocol/server-github&timeo
 
 Note that each parameter to the `npx` command is passed as a separate `arg` parameter in the deeplink.
   </TabItem>
-  <TabItem value="sse" label="Server-Sent Events">
-```
-goose://extension?url=<remote-sse-url>&id=<id>&name=<name>&description=<description>
-```
-
-Parameters:
-- `url`: The URL of the remote SSE server
-- `timeout`: Maximum time (in seconds) to wait for extension responses
-- `id`: Unique identifier for the extension
-- `name`: Display name for the extension
-- `description`: Brief description of the extension's functionality
-
-For example, a deeplink for a URL like `http://localhost:8080/sse` would look like this when URL-encoded:
-
-```
-goose://extension?url=http%3A%2F%2Flocalhost%3A8080%2Fsse&timeout=<timeout>&id=<id>&name=<name>&description=<description>>
-```
-
-  </TabItem>
-  <TabItem value="streamable_http" label="Streaming HTTP">
+  <TabItem value="streamable_http" label="Streamable HTTP">
 ```
 goose://extension?url=<remote-streamable-http-url>&type=streamable_http&id=<id>&name=<n>&description=<description>
 ```
 
 Parameters:
-- `url`: The URL of the remote Streaming HTTP server
+- `url`: The URL of the remote Streamable HTTP server
 - `type`: Must be set to `streamable_http` to specify the protocol type
 - `timeout`: Maximum time (in seconds) to wait for extension responses
 - `id`: Unique identifier for the extension
@@ -345,38 +328,72 @@ extensions:
 
 ## Enabling/Disabling Extensions
 
-You can enable or disable installed extensions based on your workflow needs.
+You can enable or disable installed extensions at any time, either as defaults for new sessions or to change the extensions you're using in the current session.
+
+### Set Default Extensions for New Sessions
+
+Changes made to your default extensions apply to future sessions. Updates to these settings do not affect any currently active sessions.
 
 <Tabs groupId="interface">
   <TabItem value="ui" label="goose Desktop" default>
+
   1. Click the <PanelLeft className="inline" size={16} /> button in the top-left to open the sidebar.
   2. Click the `Extensions` button on the sidebar.
-  2. Use the toggle switch next to each extension to enable or disable it.
+  3. Use the toggle switch next to an extension to enable or disable it.
 
   </TabItem>
 
   <TabItem value="cli" label="goose CLI">
-    1. Run the following command to open up goose's configurations:
-    ```sh
-    goose configure
-    ```
-    2. Select `Toggle Extensions` from the menu.
-    3. A list of already installed extensions will populate.
-    4. Press the `space bar` to toggle the extension. Solid means enabled. 
 
-    **Example:**
+  1. Run the following command to open up goose's configurations:
+      ```sh
+      goose configure
+      ```
+  2. Select `Toggle Extensions` from the menu.
+  3. A list of already installed extensions will populate.
+  4. Press the `space bar` to toggle the extension. Solid means enabled.
 
-    ```
-    ┌   goose-configure 
-    │
-    ◇  What would you like to configure?
-    │  Toggle Extensions 
-    │
-    ◆  enable extensions: (use "space" to toggle and "enter" to submit)
-    │  ◼ developer 
-    │  ◻ fetch 
-    └   
-    ```
+  **Example:**
+
+  ```
+  ┌   goose-configure 
+  │
+  ◇  What would you like to configure?
+  │  Toggle Extensions 
+  │
+  ◆  enable extensions: (use "space" to toggle and "enter" to submit)
+  │  ◼ developer 
+  │  ◻ fetch 
+  └   
+  ```
+  </TabItem>
+</Tabs>
+
+### Change Extensions Mid-Session
+
+Changes made during a session preserve your current conversation without starting over. Mid-session changes apply only to the current chat session and do not change your default extensions for new sessions.
+
+<Tabs groupId="interface">
+  <TabItem value="ui" label="goose Desktop" default>
+
+  1. Click the <Puzzle className="inline" size={16} /> button at the bottom of the app.
+  2. Use the toggle switch next to an extension to enable or disable it.
+
+  </TabItem>
+
+  <TabItem value="cli" label="goose CLI">
+
+  Add extensions during an interactive session with slash commands:
+
+  **Add a stdio extension:**
+  ```bash
+  /extension npx -y @modelcontextprotocol/server-memory
+  ```
+
+  **Add built-in extension:**
+  ```bash
+  /builtin developer
+  ```
   </TabItem>
 </Tabs>
 
@@ -633,29 +650,15 @@ Note that you'll need [Node.js](https://nodejs.org/) installed on your system to
 :::
 
 
-### Remote Extensions over SSE
+### Remote Extensions over Streamable HTTP
 
-To enable a remote extension over SSE while starting a session, run the following command:
-
-```bash
-goose session --with-remote-extension "{extension URL}" --with-remote-extension "{another extension URL}"
-```
-
-For example, to start a session with a remote extension over SSE running on localhost on port 8080, you'd run:
-
-```bash
-goose session --with-remote-extension "http://localhost:8080/sse"
-```
-
-### Remote Extensions over Streaming HTTP
-
-To enable a remote extension over Streaming HTTP while starting a session, run the following command:
+To enable a remote extension over Streamable HTTP while starting a session, run the following command:
 
 ```bash
 goose session --with-streamable-http-extension "{extension URL}" --with-streamable-http-extension "{another extension URL}"
 ```
 
-For example, to start a session with a Streaming HTTP extension, you'd run:
+For example, to start a session with a Streamable HTTP extension, you'd run:
 
 ```bash
 goose session --with-streamable-http-extension "https://example.com/streamable"
@@ -664,5 +667,9 @@ goose session --with-streamable-http-extension "https://example.com/streamable"
 ## Developing Extensions
 
 goose extensions are implemented with MCP, a standard protocol that allows AI models and agents to securely connect with local or remote resources. Learn how to build your own [extension as an MCP server](https://modelcontextprotocol.io/quickstart/server).
+
+**Tutorials:**
+- [Building Custom Extensions](/docs/tutorials/custom-extensions) - Create a Python-based MCP extension
+- [Building MCP Apps](/docs/tutorials/building-mcp-apps) - Create interactive UI apps
 
 [extensions-directory]: /extensions

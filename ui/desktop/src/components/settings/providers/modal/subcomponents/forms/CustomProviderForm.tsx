@@ -24,7 +24,7 @@ export default function CustomProviderForm({
   const [apiUrl, setApiUrl] = useState('');
   const [apiKey, setApiKey] = useState('');
   const [models, setModels] = useState('');
-  const [isLocalModel, setIsLocalModel] = useState(false);
+  const [noAuthRequired, setNoAuthRequired] = useState(false);
   const [supportsStreaming, setSupportsStreaming] = useState(true);
   const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
 
@@ -35,20 +35,18 @@ export default function CustomProviderForm({
         anthropic: 'anthropic_compatible',
         ollama: 'ollama_compatible',
       };
-
-      setEngine(engineMap[initialData.engine.toLowerCase()] || 'openai_compatible');
+      setEngine(engineMap[initialData.engine] || 'openai_compatible');
       setDisplayName(initialData.display_name);
       setApiUrl(initialData.api_url);
       setModels(initialData.models.join(', '));
       setSupportsStreaming(initialData.supports_streaming ?? true);
+      setNoAuthRequired(!(initialData.requires_auth ?? true));
     }
   }, [initialData]);
 
-  const handleLocalModels = (checked: boolean) => {
-    setIsLocalModel(checked);
+  const handleNoAuthChange = (checked: boolean) => {
+    setNoAuthRequired(!!checked);
     if (checked) {
-      setApiKey('notrequired');
-    } else {
       setApiKey('');
     }
   };
@@ -59,7 +57,8 @@ export default function CustomProviderForm({
     const errors: Record<string, string> = {};
     if (!displayName) errors.displayName = 'Display name is required';
     if (!apiUrl) errors.apiUrl = 'API URL is required';
-    if (!isLocalModel && !apiKey && !initialData) errors.apiKey = 'API key is required';
+    const existingHadAuth = initialData && (initialData.requires_auth ?? true);
+    if (!noAuthRequired && !apiKey && !existingHadAuth) errors.apiKey = 'API key is required';
     if (!models) errors.models = 'At least one model is required';
 
     if (Object.keys(errors).length > 0) {
@@ -79,6 +78,7 @@ export default function CustomProviderForm({
       api_key: apiKey,
       models: modelList,
       supports_streaming: supportsStreaming,
+      requires_auth: !noAuthRequired,
     });
   };
 
@@ -159,7 +159,7 @@ export default function CustomProviderForm({
               id="api-url"
               value={apiUrl}
               onChange={(e) => setApiUrl(e.target.value)}
-              placeholder="https://api.example.com/v1/messages"
+              placeholder="https://api.example.com/v1"
               aria-invalid={!!validationErrors.apiUrl}
               aria-describedby={validationErrors.apiUrl ? 'api-url-error' : undefined}
               className={validationErrors.apiUrl ? 'border-red-500' : ''}
@@ -174,40 +174,45 @@ export default function CustomProviderForm({
       )}
 
       <div>
-        <label
-          htmlFor="api-key"
-          className="flex items-center text-sm font-medium text-textStandard mb-2"
-        >
-          API Key
-          {!isLocalModel && !initialData && <span className="text-red-500 ml-1">*</span>}
-        </label>
-        <Input
-          id="api-key"
-          type="password"
-          value={apiKey}
-          onChange={(e) => setApiKey(e.target.value)}
-          placeholder={initialData ? 'Leave blank to keep existing key' : 'Your API key'}
-          aria-invalid={!!validationErrors.apiKey}
-          aria-describedby={validationErrors.apiKey ? 'api-key-error' : undefined}
-          className={validationErrors.apiKey ? 'border-red-500' : ''}
-          disabled={isLocalModel}
-        />
-        {validationErrors.apiKey && (
-          <p id="api-key-error" className="text-red-500 text-sm mt-1">
-            {validationErrors.apiKey}
-          </p>
-        )}
+        <div className="flex items-center space-x-2 mb-2">
+          <Checkbox
+            id="no-auth-required"
+            checked={noAuthRequired}
+            onCheckedChange={handleNoAuthChange}
+          />
+          <label
+            htmlFor="no-auth-required"
+            className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 text-textSubtle"
+          >
+            No authentication required
+          </label>
+        </div>
 
-        {!initialData && (
-          <div className="flex items-center space-x-2 mt-2">
-            <Checkbox id="local-model" checked={isLocalModel} onCheckedChange={handleLocalModels} />
+        {!noAuthRequired && (
+          <>
             <label
-              htmlFor="local-model"
-              className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 text-textSubtle"
+              htmlFor="api-key"
+              className="flex items-center text-sm font-medium text-textStandard mb-2"
             >
-              This is a local model (no auth required)
+              API Key
+              {!initialData && <span className="text-red-500 ml-1">*</span>}
             </label>
-          </div>
+            <Input
+              id="api-key"
+              type="password"
+              value={apiKey}
+              onChange={(e) => setApiKey(e.target.value)}
+              placeholder={initialData ? 'Leave blank to keep existing key' : 'Your API key'}
+              aria-invalid={!!validationErrors.apiKey}
+              aria-describedby={validationErrors.apiKey ? 'api-key-error' : undefined}
+              className={validationErrors.apiKey ? 'border-red-500' : ''}
+            />
+            {validationErrors.apiKey && (
+              <p id="api-key-error" className="text-red-500 text-sm mt-1">
+                {validationErrors.apiKey}
+              </p>
+            )}
+          </>
         )}
       </div>
       {isEditable && (

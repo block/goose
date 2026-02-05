@@ -8,31 +8,33 @@ use futures::stream::BoxStream;
 use futures::{stream, FutureExt, Stream, StreamExt, TryStreamExt};
 use uuid::Uuid;
 
-use crate::agents::extension::{ExtensionConfig, ExtensionError, ExtensionResult, ToolInfo};
+use super::container::Container;
+use super::final_output_tool::FinalOutputTool;
+use super::platform_tools;
+use super::tool_execution::{ToolCallResult, CHAT_MODE_TOOL_SKIPPED_RESPONSE, DECLINED_RESPONSE};
+use crate::action_required_manager::ActionRequiredManager;
+use crate::agents::extension::{ExtensionConfig, ExtensionResult, ToolInfo};
 use crate::agents::extension_manager::{get_parameter_names, ExtensionManager};
 use crate::agents::extension_manager_extension::MANAGE_EXTENSIONS_TOOL_NAME_COMPLETE;
 use crate::agents::final_output_tool::{FINAL_OUTPUT_CONTINUATION_MESSAGE, FINAL_OUTPUT_TOOL_NAME};
 use crate::agents::platform_tools::PLATFORM_MANAGE_SCHEDULE_TOOL_NAME;
 use crate::agents::prompt_manager::PromptManager;
-use crate::agents::recipe_tools::dynamic_task_tools::{
-    create_dynamic_task, create_dynamic_task_tool, DYNAMIC_TASK_TOOL_NAME_PREFIX,
-};
 use crate::agents::retry::{RetryManager, RetryResult};
-use crate::agents::router_tools::ROUTER_LLM_SEARCH_TOOL_NAME;
-use crate::agents::sub_recipe_manager::SubRecipeManager;
-use crate::agents::subagent_execution_tool::lib::ExecutionMode;
-use crate::agents::subagent_execution_tool::subagent_execute_task_tool::{
-    self, SUBAGENT_EXECUTE_TASK_TOOL_NAME,
+use crate::agents::subagent_task_config::TaskConfig;
+use crate::agents::subagent_tool::{
+    create_subagent_tool, handle_subagent_tool, SUBAGENT_TOOL_NAME,
 };
-use crate::agents::subagent_execution_tool::tasks_manager::TasksManager;
-use crate::agents::tool_route_manager::ToolRouteManager;
-use crate::agents::tool_router_index_manager::ToolRouterIndexManager;
-use crate::agents::types::SessionConfig;
-use crate::agents::types::{FrontendTool, SharedProvider, ToolResultReceiver};
+use crate::agents::types::{FrontendTool, SessionConfig, SharedProvider, ToolResultReceiver};
+use crate::config::permission::PermissionManager;
 use crate::config::{get_enabled_extensions, Config, GooseMode};
 use crate::context_mgmt::{
     check_if_compaction_needed, compact_messages, DEFAULT_COMPACTION_THRESHOLD,
 };
+use crate::conversation::message::{
+    ActionRequiredData, Message, MessageContent, ProviderMetadata, SystemNotificationType,
+    ToolRequest,
+};
+use crate::conversation::tool_result_serde::call_tool_result;
 use crate::conversation::{debug_conversation_fix, fix_conversation, Conversation};
 use crate::mcp_utils::ToolResult;
 use crate::permission::permission_inspector::PermissionInspector;
@@ -41,13 +43,16 @@ use crate::permission::PermissionConfirmation;
 use crate::providers::base::Provider;
 use crate::providers::errors::ProviderError;
 use crate::recipe::{Author, Recipe, Response, Settings, SubRecipe};
+use crate::scheduler_trait::SchedulerTrait;
 use crate::security::security_inspector::SecurityInspector;
+use crate::session::extension_data::{EnabledExtensionsState, ExtensionState};
+use crate::session::{Session, SessionManager, SessionType};
 use crate::tool_inspection::ToolInspectionManager;
 use crate::tool_monitor::RepetitionInspector;
 use crate::utils::is_token_cancelled;
 use regex::Regex;
 use rmcp::model::{
-    CallToolRequestParam, Content, ErrorCode, ErrorData, GetPromptResult, Prompt,
+    CallToolRequestParams, CallToolResult, Content, ErrorCode, ErrorData, GetPromptResult, Prompt,
     ServerNotification, Tool,
 };
 use serde_json::Value;
@@ -55,19 +60,8 @@ use tokio::sync::{mpsc, Mutex};
 use tokio_util::sync::CancellationToken;
 use tracing::{debug, error, info, instrument, warn};
 
-use super::final_output_tool::FinalOutputTool;
-use super::platform_tools;
-use super::tool_execution::{ToolCallResult, CHAT_MODE_TOOL_SKIPPED_RESPONSE, DECLINED_RESPONSE};
-use crate::agents::subagent_task_config::TaskConfig;
-use crate::conversation::message::{Message, SystemNotificationType, ToolRequest};
-use crate::scheduler_trait::SchedulerTrait;
-use crate::session::extension_data::{EnabledExtensionsState, ExtensionState};
-use crate::session::{Session, SessionManager};
-
 const DEFAULT_MAX_TURNS: u32 = 1000;
 const COMPACTION_THINKING_TEXT: &str = "goose is compacting the conversation...";
-pub const MANUAL_COMPACT_TRIGGERS: &[&str] =
-    &["Please compact this conversation", "/compact", "/summarize"];
 
 /// Context needed for the reply function
 pub struct ReplyContext {
@@ -76,6 +70,7 @@ pub struct ReplyContext {
     pub toolshim_tools: Vec<Tool>,
     pub system_prompt: String,
     pub goose_mode: GooseMode,
+    pub tool_call_cut_off: usize,
     pub initial_messages: Vec<Message>,
 }
 
@@ -85,26 +80,57 @@ pub struct ToolCategorizeResult {
     pub filtered_response: Message,
 }
 
+#[derive(Debug, Clone, serde::Serialize, utoipa::ToSchema)]
+pub struct ExtensionLoadResult {
+    pub name: String,
+    pub success: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub error: Option<String>,
+}
+
+#[derive(Clone)]
+pub struct AgentConfig {
+    pub session_manager: Arc<SessionManager>,
+    pub permission_manager: Arc<PermissionManager>,
+    pub scheduler_service: Option<Arc<dyn SchedulerTrait>>,
+    pub goose_mode: GooseMode,
+}
+
+impl AgentConfig {
+    pub fn new(
+        session_manager: Arc<SessionManager>,
+        permission_manager: Arc<PermissionManager>,
+        scheduler_service: Option<Arc<dyn SchedulerTrait>>,
+        goose_mode: GooseMode,
+    ) -> Self {
+        Self {
+            session_manager,
+            permission_manager,
+            scheduler_service,
+            goose_mode,
+        }
+    }
+}
+
 /// The main goose Agent
 pub struct Agent {
     pub(super) provider: SharedProvider,
+    pub config: AgentConfig,
 
     pub extension_manager: Arc<ExtensionManager>,
-    pub(super) sub_recipe_manager: Mutex<SubRecipeManager>,
-    pub(super) tasks_manager: TasksManager,
+    pub(super) sub_recipes: Mutex<HashMap<String, SubRecipe>>,
     pub(super) final_output_tool: Arc<Mutex<Option<FinalOutputTool>>>,
     pub(super) frontend_tools: Mutex<HashMap<String, FrontendTool>>,
     pub(super) frontend_instructions: Mutex<Option<String>>,
     pub(super) prompt_manager: Mutex<PromptManager>,
     pub(super) confirmation_tx: mpsc::Sender<(String, PermissionConfirmation)>,
     pub(super) confirmation_rx: Mutex<mpsc::Receiver<(String, PermissionConfirmation)>>,
-    pub(super) tool_result_tx: mpsc::Sender<(String, ToolResult<Vec<Content>>)>,
+    pub(super) tool_result_tx: mpsc::Sender<(String, ToolResult<CallToolResult>)>,
     pub(super) tool_result_rx: ToolResultReceiver,
 
-    pub tool_route_manager: Arc<ToolRouteManager>,
-    pub(super) scheduler_service: Mutex<Option<Arc<dyn SchedulerTrait>>>,
     pub(super) retry_manager: RetryManager,
     pub(super) tool_inspection_manager: ToolInspectionManager,
+    container: Mutex<Option<Container>>,
 }
 
 #[derive(Clone, Debug)]
@@ -126,7 +152,8 @@ pub enum ToolStreamItem<T> {
     Result(T),
 }
 
-pub type ToolStream = Pin<Box<dyn Stream<Item = ToolStreamItem<ToolResult<Vec<Content>>>> + Send>>;
+pub type ToolStream =
+    Pin<Box<dyn Stream<Item = ToolStreamItem<ToolResult<CallToolResult>>> + Send>>;
 
 // tool_stream combines a stream of ServerNotifications with a future representing the
 // final result of the tool call. MCP notifications are not request-scoped, but
@@ -135,7 +162,7 @@ pub type ToolStream = Pin<Box<dyn Stream<Item = ToolStreamItem<ToolResult<Vec<Co
 pub fn tool_stream<S, F>(rx: S, done: F) -> ToolStream
 where
     S: Stream<Item = ServerNotification> + Send + Unpin + 'static,
-    F: Future<Output = ToolResult<Vec<Content>>> + Send + 'static,
+    F: Future<Output = ToolResult<CallToolResult>> + Send + 'static,
 {
     Box::pin(async_stream::stream! {
         tokio::pin!(done);
@@ -157,16 +184,27 @@ where
 
 impl Agent {
     pub fn new() -> Self {
+        Self::with_config(AgentConfig::new(
+            Arc::new(SessionManager::instance()),
+            PermissionManager::instance(),
+            None,
+            Config::global().get_goose_mode().unwrap_or(GooseMode::Auto),
+        ))
+    }
+
+    pub fn with_config(config: AgentConfig) -> Self {
         // Create channels with buffer size 32 (adjust if needed)
         let (confirm_tx, confirm_rx) = mpsc::channel(32);
         let (tool_tx, tool_rx) = mpsc::channel(32);
         let provider = Arc::new(Mutex::new(None));
 
+        let session_manager = Arc::clone(&config.session_manager);
+        let permission_manager = Arc::clone(&config.permission_manager);
         Self {
             provider: provider.clone(),
-            extension_manager: Arc::new(ExtensionManager::new(provider.clone())),
-            sub_recipe_manager: Mutex::new(SubRecipeManager::new()),
-            tasks_manager: TasksManager::new(),
+            config,
+            extension_manager: Arc::new(ExtensionManager::new(provider.clone(), session_manager)),
+            sub_recipes: Mutex::new(HashMap::new()),
             final_output_tool: Arc::new(Mutex::new(None)),
             frontend_tools: Mutex::new(HashMap::new()),
             frontend_instructions: Mutex::new(None),
@@ -175,26 +213,26 @@ impl Agent {
             confirmation_rx: Mutex::new(confirm_rx),
             tool_result_tx: tool_tx,
             tool_result_rx: Arc::new(Mutex::new(tool_rx)),
-            tool_route_manager: Arc::new(ToolRouteManager::new()),
-            scheduler_service: Mutex::new(None),
             retry_manager: RetryManager::new(),
-            tool_inspection_manager: Self::create_default_tool_inspection_manager(),
+            tool_inspection_manager: Self::create_tool_inspection_manager(permission_manager),
+            container: Mutex::new(None),
         }
     }
 
     /// Create a tool inspection manager with default inspectors
-    fn create_default_tool_inspection_manager() -> ToolInspectionManager {
+    fn create_tool_inspection_manager(
+        permission_manager: Arc<PermissionManager>,
+    ) -> ToolInspectionManager {
         let mut tool_inspection_manager = ToolInspectionManager::new();
 
         // Add security inspector (highest priority - runs first)
         tool_inspection_manager.add_inspector(Box::new(SecurityInspector::new()));
 
         // Add permission inspector (medium-high priority)
-        // Note: mode will be updated dynamically based on session config
         tool_inspection_manager.add_inspector(Box::new(PermissionInspector::new(
-            GooseMode::SmartApprove,
             std::collections::HashSet::new(), // readonly tools - will be populated from extension manager
             std::collections::HashSet::new(), // regular tools - will be populated from extension manager
+            permission_manager,
         )));
 
         // Add repetition inspector (lower priority - basic repetition checking)
@@ -241,9 +279,25 @@ impl Agent {
             | RetryResult::SuccessChecksPassed => Ok(false),
         }
     }
+    async fn drain_elicitation_messages(&self, session_id: &str) -> Vec<Message> {
+        let mut messages = Vec::new();
+        let manager = self.config.session_manager.clone();
+        let mut elicitation_rx = ActionRequiredManager::global().request_rx.lock().await;
+        while let Ok(mut elicitation_message) = elicitation_rx.try_recv() {
+            if elicitation_message.id.is_none() {
+                elicitation_message = elicitation_message.with_generated_id();
+            }
+            if let Err(e) = manager.add_message(session_id, &elicitation_message).await {
+                warn!("Failed to save elicitation message to session: {}", e);
+            }
+            messages.push(elicitation_message);
+        }
+        messages
+    }
 
     async fn prepare_reply_context(
         &self,
+        session_id: &str,
         unfixed_conversation: Conversation,
         working_dir: &std::path::Path,
     ) -> Result<ReplyContext> {
@@ -260,22 +314,20 @@ impl Agent {
             );
         }
         let initial_messages = conversation.messages().clone();
-        let config = Config::global();
 
-        let (tools, toolshim_tools, system_prompt) =
-            self.prepare_tools_and_prompt(working_dir).await?;
-        let goose_mode = config.get_goose_mode().unwrap_or(GooseMode::Auto);
-
-        self.tool_inspection_manager
-            .update_permission_inspector_mode(goose_mode)
-            .await;
+        let (tools, toolshim_tools, system_prompt) = self
+            .prepare_tools_and_prompt(session_id, working_dir)
+            .await?;
 
         Ok(ReplyContext {
             conversation,
             tools,
             toolshim_tools,
             system_prompt,
-            goose_mode,
+            goose_mode: self.config.goose_mode,
+            tool_call_cut_off: Config::global()
+                .get_param::<usize>("GOOSE_TOOL_CALL_CUTOFF")
+                .unwrap_or(10),
             initial_messages,
         })
     }
@@ -283,11 +335,11 @@ impl Agent {
     async fn categorize_tools(
         &self,
         response: &Message,
-        _tools: &[rmcp::model::Tool],
+        tools: &[rmcp::model::Tool],
     ) -> ToolCategorizeResult {
         // Categorize tool requests
         let (frontend_requests, remaining_requests, filtered_response) =
-            self.categorize_tool_requests(response).await;
+            self.categorize_tool_requests(response, tools).await;
 
         ToolCategorizeResult {
             frontend_requests,
@@ -345,21 +397,18 @@ impl Agent {
         for request in &permission_check_result.denied {
             if let Some(response_msg) = request_to_response_map.get(&request.id) {
                 let mut response = response_msg.lock().await;
-                *response = response.clone().with_tool_response(
+                *response = response.clone().with_tool_response_with_metadata(
                     request.id.clone(),
-                    Ok(vec![rmcp::model::Content::text(DECLINED_RESPONSE)]),
+                    Ok(CallToolResult {
+                        content: vec![rmcp::model::Content::text(DECLINED_RESPONSE)],
+                        structured_content: None,
+                        is_error: Some(true),
+                        meta: None,
+                    }),
+                    request.metadata.as_ref(),
                 );
             }
         }
-    }
-
-    pub async fn set_scheduler(&self, scheduler: Arc<dyn SchedulerTrait>) {
-        let mut scheduler_service = self.scheduler_service.lock().await;
-        *scheduler_service = Some(scheduler);
-    }
-
-    pub async fn disable_router_for_recipe(&self) {
-        self.tool_route_manager.disable_router_for_recipe().await;
     }
 
     /// Get a reference count clone to the provider
@@ -368,6 +417,15 @@ impl Agent {
             Some(provider) => Ok(Arc::clone(provider)),
             None => Err(anyhow!("Provider not set")),
         }
+    }
+
+    /// When set, all stdio extensions will be started via `docker exec` in the specified container.
+    pub async fn set_container(&self, container: Option<Container>) {
+        *self.container.lock().await = container.clone();
+    }
+
+    pub async fn container(&self) -> Option<Container> {
+        self.container.lock().await.clone()
     }
 
     /// Check if a tool is a frontend tool
@@ -388,9 +446,11 @@ impl Agent {
         self.extend_system_prompt(final_output_system_prompt).await;
     }
 
-    pub async fn add_sub_recipes(&self, sub_recipes: Vec<SubRecipe>) {
-        let mut sub_recipe_manager = self.sub_recipe_manager.lock().await;
-        sub_recipe_manager.add_sub_recipe_tools(sub_recipes);
+    pub async fn add_sub_recipes(&self, sub_recipes_to_add: Vec<SubRecipe>) {
+        let mut sub_recipes = self.sub_recipes.lock().await;
+        for sr in sub_recipes_to_add {
+            sub_recipes.insert(sr.name.clone(), sr);
+        }
     }
 
     pub async fn apply_recipe_components(
@@ -414,15 +474,13 @@ impl Agent {
     #[instrument(skip(self, tool_call, request_id), fields(input, output))]
     pub async fn dispatch_tool_call(
         &self,
-        tool_call: CallToolRequestParam,
+        tool_call: CallToolRequestParams,
         request_id: String,
         cancellation_token: Option<CancellationToken>,
         session: &Session,
     ) -> (String, Result<ToolCallResult, ErrorData>) {
-        if session.session_type == crate::session::SessionType::SubAgent
-            && (tool_call.name == DYNAMIC_TASK_TOOL_NAME_PREFIX
-                || tool_call.name == SUBAGENT_EXECUTE_TASK_TOOL_NAME)
-        {
+        // Prevent subagents from creating other subagents
+        if session.session_type == SessionType::SubAgent && tool_call.name == SUBAGENT_TOOL_NAME {
             return (
                 request_id,
                 Err(ErrorData::new(
@@ -441,7 +499,13 @@ impl Agent {
             let result = self
                 .handle_schedule_management(arguments, request_id.clone())
                 .await;
-            return (request_id, Ok(ToolCallResult::from(result)));
+            let wrapped_result = result.map(|content| CallToolResult {
+                content,
+                structured_content: None,
+                is_error: Some(false),
+                meta: None,
+            });
+            return (request_id, Ok(ToolCallResult::from(wrapped_result)));
         }
 
         if tool_call.name == FINAL_OUTPUT_TOOL_NAME {
@@ -461,27 +525,7 @@ impl Agent {
         }
 
         debug!("WAITING_TOOL_START: {}", tool_call.name);
-        let result: ToolCallResult = if self
-            .sub_recipe_manager
-            .lock()
-            .await
-            .is_sub_recipe_tool(&tool_call.name)
-        {
-            let sub_recipe_manager = self.sub_recipe_manager.lock().await;
-            let arguments = tool_call
-                .arguments
-                .clone()
-                .map(Value::Object)
-                .unwrap_or(Value::Object(serde_json::Map::new()));
-            sub_recipe_manager
-                .dispatch_sub_recipe_tool_call(
-                    &tool_call.name,
-                    arguments,
-                    &self.tasks_manager,
-                    &session.working_dir,
-                )
-                .await
-        } else if tool_call.name == SUBAGENT_EXECUTE_TASK_TOOL_NAME {
+        let result: ToolCallResult = if tool_call.name == SUBAGENT_TOOL_NAME {
             let provider = match self.provider().await {
                 Ok(p) => p,
                 Err(_) => {
@@ -496,84 +540,33 @@ impl Agent {
                 }
             };
 
-            // Get extensions from the agent's runtime state rather than global config
-            // This ensures subagents inherit extensions that were dynamically enabled by the parent
             let extensions = self.get_extension_configs().await;
 
+            let max_turns_from_recipe = session
+                .recipe
+                .as_ref()
+                .and_then(|r| r.settings.as_ref())
+                .and_then(|s| s.max_turns);
+
             let task_config =
-                TaskConfig::new(provider, &session.id, &session.working_dir, extensions);
+                TaskConfig::new(provider, &session.id, &session.working_dir, extensions)
+                    .with_max_turns(max_turns_from_recipe);
+            let sub_recipes = self.sub_recipes.lock().await.clone();
 
-            let arguments = match tool_call.arguments.clone() {
-                Some(args) => Value::Object(args),
-                None => {
-                    return (
-                        request_id,
-                        Err(ErrorData::new(
-                            ErrorCode::INVALID_PARAMS,
-                            "Tool call arguments are required".to_string(),
-                            None,
-                        )),
-                    );
-                }
-            };
-            let task_ids: Vec<String> = match arguments.get("task_ids") {
-                Some(v) => match serde_json::from_value(v.clone()) {
-                    Ok(ids) => ids,
-                    Err(_) => {
-                        return (
-                            request_id,
-                            Err(ErrorData::new(
-                                ErrorCode::INVALID_PARAMS,
-                                "Invalid task_ids format".to_string(),
-                                None,
-                            )),
-                        );
-                    }
-                },
-                None => {
-                    return (
-                        request_id,
-                        Err(ErrorData::new(
-                            ErrorCode::INVALID_PARAMS,
-                            "task_ids parameter is required".to_string(),
-                            None,
-                        )),
-                    );
-                }
-            };
-
-            let execution_mode = arguments
-                .get("execution_mode")
-                .and_then(|v| serde_json::from_value::<ExecutionMode>(v.clone()).ok())
-                .unwrap_or(ExecutionMode::Sequential);
-
-            subagent_execute_task_tool::run_tasks(
-                task_ids,
-                execution_mode,
-                task_config,
-                &self.tasks_manager,
-                cancellation_token,
-            )
-            .await
-        } else if tool_call.name == DYNAMIC_TASK_TOOL_NAME_PREFIX {
-            // Get loaded extensions for shortname resolution
-            let loaded_extensions = self
-                .extension_manager
-                .list_extensions()
-                .await
-                .unwrap_or_default();
             let arguments = tool_call
                 .arguments
                 .clone()
                 .map(Value::Object)
                 .unwrap_or(Value::Object(serde_json::Map::new()));
-            create_dynamic_task(
+
+            handle_subagent_tool(
+                &self.config,
                 arguments,
-                &self.tasks_manager,
-                loaded_extensions,
-                &session.working_dir,
+                task_config,
+                sub_recipes,
+                session.working_dir.clone(),
+                cancellation_token,
             )
-            .await
         } else if self.is_frontend_tool(&tool_call.name).await {
             // For frontend tools, return an error indicating we need frontend execution
             ToolCallResult::from(Err(ErrorData::new(
@@ -581,27 +574,27 @@ impl Agent {
                 "Frontend tool execution required".to_string(),
                 None,
             )))
-        } else if tool_call.name == ROUTER_LLM_SEARCH_TOOL_NAME {
-            match self
-                .tool_route_manager
-                .dispatch_route_search_tool(tool_call.arguments.unwrap_or_default())
-                .await
-            {
-                Ok(tool_result) => tool_result,
-                Err(e) => return (request_id, Err(e)),
-            }
         } else {
             // Clone the result to ensure no references to extension_manager are returned
             let result = self
                 .extension_manager
-                .dispatch_tool_call(tool_call.clone(), cancellation_token.unwrap_or_default())
+                .dispatch_tool_call(
+                    &session.id,
+                    tool_call.clone(),
+                    Some(session.working_dir.as_path()),
+                    cancellation_token.unwrap_or_default(),
+                )
                 .await;
             result.unwrap_or_else(|e| {
-                ToolCallResult::from(Err(ErrorData::new(
-                    ErrorCode::INTERNAL_ERROR,
-                    e.to_string(),
-                    None,
-                )))
+                crate::posthog::emit_error(
+                    "tool_execution_failed",
+                    &format!("{}: {}", tool_call.name, e),
+                );
+                // Try to downcast to ErrorData to avoid double wrapping
+                let error_data = e.downcast::<ErrorData>().unwrap_or_else(|e| {
+                    ErrorData::new(ErrorCode::INTERNAL_ERROR, e.to_string(), None)
+                });
+                ToolCallResult::from(Err(error_data))
             })
         };
 
@@ -627,14 +620,16 @@ impl Agent {
 
         let extensions_state = EnabledExtensionsState::new(extension_configs);
 
-        let mut session_data = SessionManager::get_session(&session.id, false).await?;
+        let session_manager = self.config.session_manager.clone();
+        let mut session_data = session_manager.get_session(&session.id, false).await?;
 
         if let Err(e) = extensions_state.to_extension_data(&mut session_data.extension_data) {
             warn!("Failed to serialize extension state: {}", e);
             return Err(anyhow!("Extension state serialization failed: {}", e));
         }
 
-        SessionManager::update_session(&session.id)
+        session_manager
+            .update(&session.id)
             .extension_data(session_data.extension_data)
             .apply()
             .await?;
@@ -642,7 +637,117 @@ impl Agent {
         Ok(())
     }
 
-    pub async fn add_extension(&self, extension: ExtensionConfig) -> ExtensionResult<()> {
+    /// Save current extension state to session by session_id
+    pub async fn persist_extension_state(&self, session_id: &str) -> Result<()> {
+        let extension_configs = self.extension_manager.get_extension_configs().await;
+        let extensions_state = EnabledExtensionsState::new(extension_configs);
+
+        let session_manager = self.config.session_manager.clone();
+        let session = session_manager.get_session(session_id, false).await?;
+        let mut extension_data = session.extension_data.clone();
+
+        extensions_state
+            .to_extension_data(&mut extension_data)
+            .map_err(|e| anyhow!("Failed to serialize extension state: {}", e))?;
+
+        session_manager
+            .update(session_id)
+            .extension_data(extension_data)
+            .apply()
+            .await?;
+
+        Ok(())
+    }
+
+    /// Load extensions from session into the agent
+    /// Skips extensions that are already loaded
+    /// Uses the session's working_dir for extension initialization
+    pub async fn load_extensions_from_session(
+        self: &Arc<Self>,
+        session: &Session,
+    ) -> Vec<ExtensionLoadResult> {
+        let session_extensions =
+            EnabledExtensionsState::from_extension_data(&session.extension_data);
+        let enabled_configs = match session_extensions {
+            Some(state) => state.extensions,
+            None => {
+                tracing::warn!(
+                    "No extensions found in session {}. This is unexpected.",
+                    session.id
+                );
+                return vec![];
+            }
+        };
+
+        let session_id = session.id.clone();
+
+        let extension_futures = enabled_configs
+            .into_iter()
+            .map(|config| {
+                let config_clone = config.clone();
+                let agent_ref = self.clone();
+                let session_id_clone = session_id.clone();
+
+                async move {
+                    let name = config_clone.name().to_string();
+
+                    if agent_ref
+                        .extension_manager
+                        .is_extension_enabled(&name)
+                        .await
+                    {
+                        tracing::debug!("Extension {} already loaded, skipping", name);
+                        return ExtensionLoadResult {
+                            name,
+                            success: true,
+                            error: None,
+                        };
+                    }
+
+                    match agent_ref
+                        .add_extension(config_clone, &session_id_clone)
+                        .await
+                    {
+                        Ok(_) => ExtensionLoadResult {
+                            name,
+                            success: true,
+                            error: None,
+                        },
+                        Err(e) => {
+                            let error_msg = e.to_string();
+                            warn!("Failed to load extension {}: {}", name, error_msg);
+                            ExtensionLoadResult {
+                                name,
+                                success: false,
+                                error: Some(error_msg),
+                            }
+                        }
+                    }
+                }
+            })
+            .collect::<Vec<_>>();
+
+        futures::future::join_all(extension_futures).await
+    }
+
+    pub async fn add_extension(
+        &self,
+        extension: ExtensionConfig,
+        session_id: &str,
+    ) -> ExtensionResult<()> {
+        let session = self
+            .config
+            .session_manager
+            .get_session(session_id, false)
+            .await
+            .map_err(|e| {
+                crate::agents::extension::ExtensionError::SetupError(format!(
+                    "Failed to get session '{}': {}",
+                    session_id, e
+                ))
+            })?;
+        let working_dir = Some(session.working_dir);
+
         match &extension {
             ExtensionConfig::Frontend {
                 tools,
@@ -670,87 +775,90 @@ impl Agent {
                 }
             }
             _ => {
+                let container = self.container.lock().await;
                 self.extension_manager
-                    .add_extension(extension.clone())
+                    .add_extension(extension.clone(), working_dir, container.as_ref())
                     .await?;
             }
         }
 
-        // If LLM tool selection is functional, index the tools
-        if self.tool_route_manager.is_router_functional().await {
-            let selector = self.tool_route_manager.get_router_tool_selector().await;
-            if let Some(selector) = selector {
-                let selector = Arc::new(selector);
-                if let Err(e) = ToolRouterIndexManager::update_extension_tools(
-                    &selector,
-                    &self.extension_manager,
-                    &extension.name(),
-                    "add",
-                )
-                .await
-                {
-                    return Err(ExtensionError::SetupError(format!(
-                        "Failed to index tools for extension {}: {}",
-                        extension.name(),
-                        e
-                    )));
-                }
-            }
-        }
+        // Persist extension state after successful add
+        self.persist_extension_state(session_id)
+            .await
+            .map_err(|e| {
+                error!("Failed to persist extension state: {}", e);
+                crate::agents::extension::ExtensionError::SetupError(format!(
+                    "Failed to persist extension state: {}",
+                    e
+                ))
+            })?;
 
         Ok(())
     }
 
-    pub async fn list_tools(&self, extension_name: Option<String>) -> Vec<Tool> {
+    pub async fn subagents_enabled(&self, session_id: &str) -> bool {
+        if self.config.goose_mode != GooseMode::Auto {
+            return false;
+        }
+        let context = self.extension_manager.get_context();
+        if matches!(
+            context
+                .session_manager
+                .get_session(session_id, false)
+                .await
+                .ok()
+                .map(|session| session.session_type),
+            Some(SessionType::SubAgent)
+        ) {
+            return false;
+        }
+        !self
+            .extension_manager
+            .list_extensions()
+            .await
+            .map(|ext| ext.is_empty())
+            .unwrap_or(true)
+    }
+
+    pub async fn list_tools(&self, session_id: &str, extension_name: Option<String>) -> Vec<Tool> {
         let mut prefixed_tools = self
             .extension_manager
-            .get_prefixed_tools(extension_name.clone())
+            .get_prefixed_tools(session_id, extension_name.clone())
             .await
             .unwrap_or_default();
 
-        if extension_name.is_none() || extension_name.as_deref() == Some("platform") {
-            // Add platform tools
-            // TODO: migrate the manage schedule tool as well
-            prefixed_tools.extend([platform_tools::manage_schedule_tool()]);
-            // Dynamic task tool
-            prefixed_tools.push(create_dynamic_task_tool());
+        let subagents_enabled = self.subagents_enabled(session_id).await;
+        if (extension_name.is_none() || extension_name.as_deref() == Some("platform"))
+            && self.config.scheduler_service.is_some()
+        {
+            prefixed_tools.push(platform_tools::manage_schedule_tool());
         }
 
         if extension_name.is_none() {
-            let sub_recipe_manager = self.sub_recipe_manager.lock().await;
-            prefixed_tools.extend(sub_recipe_manager.sub_recipe_tools.values().cloned());
-
             if let Some(final_output_tool) = self.final_output_tool.lock().await.as_ref() {
                 prefixed_tools.push(final_output_tool.tool());
             }
-            prefixed_tools.push(subagent_execute_task_tool::create_subagent_execute_task_tool());
+
+            if subagents_enabled {
+                let sub_recipes = self.sub_recipes.lock().await;
+                let sub_recipes_vec: Vec<_> = sub_recipes.values().cloned().collect();
+                prefixed_tools.push(create_subagent_tool(&sub_recipes_vec));
+            }
         }
 
         prefixed_tools
     }
 
-    pub async fn list_tools_for_router(&self) -> Vec<Tool> {
-        self.tool_route_manager
-            .list_tools_for_router(&self.extension_manager)
-            .await
-    }
-
-    pub async fn remove_extension(&self, name: &str) -> Result<()> {
+    pub async fn remove_extension(&self, name: &str, session_id: &str) -> Result<()> {
         self.extension_manager.remove_extension(name).await?;
 
-        // If LLM tool selection is functional, remove tools from the index
-        if self.tool_route_manager.is_router_functional().await {
-            let selector = self.tool_route_manager.get_router_tool_selector().await;
-            if let Some(selector) = selector {
-                ToolRouterIndexManager::update_extension_tools(
-                    &selector,
-                    &self.extension_manager,
-                    name,
-                    "remove",
-                )
-                .await?;
-            }
-        }
+        // Persist extension state after successful removal
+        self.persist_extension_state(session_id)
+            .await
+            .map_err(|e| {
+                error!("Failed to persist extension state: {}", e);
+                anyhow!("Failed to persist extension state: {}", e)
+            })?;
 
         Ok(())
     }
@@ -784,74 +892,152 @@ impl Agent {
         session_config: SessionConfig,
         cancel_token: Option<CancellationToken>,
     ) -> Result<BoxStream<'_, Result<AgentEvent>>> {
-        let message_text = user_message.as_concat_text();
-        let is_manual_compact = MANUAL_COMPACT_TRIGGERS.contains(&message_text.trim());
+        let session_manager = self.config.session_manager.clone();
 
-        let slash_command_recipe = if message_text.trim().starts_with('/') {
-            let command = message_text.split_whitespace().next();
-            command.and_then(crate::slash_commands::resolve_slash_command)
-        } else {
-            None
-        };
-
-        if let Some(recipe) = slash_command_recipe {
-            let prompt = [recipe.instructions.as_deref(), recipe.prompt.as_deref()]
-                .into_iter()
-                .flatten()
-                .collect::<Vec<_>>()
-                .join("\n\n");
-            let prompt_message = Message::user()
-                .with_text(prompt)
-                .with_visibility(false, true);
-            SessionManager::add_message(&session_config.id, &prompt_message).await?;
-            SessionManager::add_message(
-                &session_config.id,
-                &user_message.with_visibility(true, false),
-            )
-            .await?;
-        } else {
-            SessionManager::add_message(&session_config.id, &user_message).await?;
+        for content in &user_message.content {
+            if let MessageContent::ActionRequired(action_required) = content {
+                if let ActionRequiredData::ElicitationResponse { id, user_data } =
+                    &action_required.data
+                {
+                    if let Err(e) = ActionRequiredManager::global()
+                        .submit_response(id.clone(), user_data.clone())
+                        .await
+                    {
+                        let error_text = format!("Failed to submit elicitation response: {}", e);
+                        error!(error_text);
+                        return Ok(Box::pin(stream::once(async {
+                            Ok(AgentEvent::Message(
+                                Message::assistant().with_text(error_text),
+                            ))
+                        })));
+                    }
+                    session_manager
+                        .add_message(&session_config.id, &user_message)
+                        .await?;
+                    return Ok(Box::pin(futures::stream::empty()));
+                }
+            }
         }
-        let session = SessionManager::get_session(&session_config.id, true).await?;
+
+        let message_text = user_message.as_concat_text();
+
+        // Track custom slash command usage (don't track command name for privacy)
+        if message_text.trim().starts_with('/') {
+            let command = message_text.split_whitespace().next();
+            if let Some(cmd) = command {
+                if crate::slash_commands::get_recipe_for_command(cmd).is_some() {
+                    crate::posthog::emit_custom_slash_command_used();
+                }
+            }
+        }
+
+        let command_result = self
+            .execute_command(&message_text, &session_config.id)
+            .await;
+
+        match command_result {
+            Err(e) => {
+                let error_message = Message::assistant()
+                    .with_text(e.to_string())
+                    .with_visibility(true, false);
+                return Ok(Box::pin(stream::once(async move {
+                    Ok(AgentEvent::Message(error_message))
+                })));
+            }
+            Ok(Some(response)) if response.role == rmcp::model::Role::Assistant => {
+                session_manager
+                    .add_message(
+                        &session_config.id,
+                        &user_message.clone().with_visibility(true, false),
+                    )
+                    .await?;
+                session_manager
+                    .add_message(
+                        &session_config.id,
+                        &response.clone().with_visibility(true, false),
+                    )
+                    .await?;
+
+                // Check if this was a command that modifies conversation history
+                let modifies_history = crate::agents::execute_commands::COMPACT_TRIGGERS
+                    .contains(&message_text.trim())
+                    || message_text.trim() == "/clear";
+
+                return Ok(Box::pin(async_stream::try_stream! {
+                    yield AgentEvent::Message(user_message);
+                    yield AgentEvent::Message(response);
+
+                    // After commands that modify history, notify UI that history was replaced
+                    if modifies_history {
+                        let updated_session = session_manager.get_session(&session_config.id, true)
+                            .await
+                            .map_err(|e| anyhow!("Failed to fetch updated session: {}", e))?;
+                        let updated_conversation = updated_session
+                            .conversation
+                            .ok_or_else(|| anyhow!("Session has no conversation after history modification"))?;
+                        yield AgentEvent::HistoryReplaced(updated_conversation);
+                    }
+                }));
+            }
+            Ok(Some(resolved_message)) => {
+                session_manager
+                    .add_message(
+                        &session_config.id,
+                        &user_message.clone().with_visibility(true, false),
+                    )
+                    .await?;
+                session_manager
+                    .add_message(
+                        &session_config.id,
+                        &resolved_message.clone().with_visibility(false, true),
+                    )
+                    .await?;
+            }
+            Ok(None) => {
+                session_manager
+                    .add_message(&session_config.id, &user_message)
+                    .await?;
+            }
+        }
+        let session = session_manager
+            .get_session(&session_config.id, true)
+            .await?;
         let conversation = session
             .conversation
             .clone()
             .ok_or_else(|| anyhow::anyhow!("Session {} has no conversation", session_config.id))?;
 
-        let needs_auto_compact = !is_manual_compact
-            && check_if_compaction_needed(
-                self.provider().await?.as_ref(),
-                &conversation,
-                None,
-                &session,
-            )
-            .await?;
+        let needs_auto_compact = check_if_compaction_needed(
+            self.provider().await?.as_ref(),
+            &conversation,
+            None,
+            &session,
+        )
+        .await?;
 
         let conversation_to_compact = conversation.clone();
 
         Ok(Box::pin(async_stream::try_stream! {
-            let final_conversation = if !needs_auto_compact && !is_manual_compact {
+            let final_conversation = if !needs_auto_compact {
                 conversation
             } else {
-                if !is_manual_compact {
-                    let config = crate::config::Config::global();
-                    let threshold = config
-                        .get_param::<f64>("GOOSE_AUTO_COMPACT_THRESHOLD")
-                        .unwrap_or(DEFAULT_COMPACTION_THRESHOLD);
-                    let threshold_percentage = (threshold * 100.0) as u32;
+                let config = Config::global();
+                let threshold = config
+                    .get_param::<f64>("GOOSE_AUTO_COMPACT_THRESHOLD")
+                    .unwrap_or(DEFAULT_COMPACTION_THRESHOLD);
+                let threshold_percentage = (threshold * 100.0) as u32;
 
-                    let inline_msg = format!(
-                        "Exceeded auto-compact threshold of {}%. Performing auto-compaction...",
-                        threshold_percentage
-                    );
+                let inline_msg = format!(
+                    "Exceeded auto-compact threshold of {}%. Performing auto-compaction...",
+                    threshold_percentage
+                );
 
-                    yield AgentEvent::Message(
-                        Message::assistant().with_system_notification(
-                            SystemNotificationType::InlineMessage,
-                            inline_msg,
-                        )
-                    );
-                }
+                yield AgentEvent::Message(
+                    Message::assistant().with_system_notification(
+                        SystemNotificationType::InlineMessage,
+                        inline_msg,
+                    )
+                );
 
                 yield AgentEvent::Message(
                     Message::assistant().with_system_notification(
@@ -860,10 +1046,17 @@ impl Agent {
                     )
                 );
 
-                match compact_messages(self.provider().await?.as_ref(), &conversation_to_compact, is_manual_compact).await {
+                match compact_messages(
+                    self.provider().await?.as_ref(),
+                    &session_config.id,
+                    &conversation_to_compact,
+                    false,
+                )
+                .await
+                {
                     Ok((compacted_conversation, summarization_usage)) => {
-                        SessionManager::replace_conversation(&session_config.id, &compacted_conversation).await?;
-                        Self::update_session_metrics(&session_config, &summarization_usage, true).await?;
+                        session_manager.replace_conversation(&session_config.id, &compacted_conversation).await?;
+                        self.update_session_metrics(&session_config.id, session_config.schedule_id.clone(), &summarization_usage, true).await?;
 
                         yield AgentEvent::HistoryReplaced(compacted_conversation.clone());
 
@@ -887,11 +1080,9 @@ impl Agent {
                 }
             };
 
-            if !is_manual_compact {
-                let mut reply_stream = self.reply_internal(final_conversation, session_config, session, cancel_token).await?;
-                while let Some(event) = reply_stream.next().await {
-                    yield event?;
-                }
+            let mut reply_stream = self.reply_internal(final_conversation, session_config, session, cancel_token).await?;
+            while let Some(event) = reply_stream.next().await {
+                yield event?;
             }
         }))
     }
@@ -904,13 +1095,14 @@ impl Agent {
         cancel_token: Option<CancellationToken>,
     ) -> Result<BoxStream<'_, Result<AgentEvent>>> {
         let context = self
-            .prepare_reply_context(conversation, &session.working_dir)
+            .prepare_reply_context(&session.id, conversation, session.working_dir.as_path())
             .await?;
         let ReplyContext {
             mut conversation,
             mut tools,
             mut toolshim_tools,
             mut system_prompt,
+            tool_call_cut_off,
             goose_mode,
             initial_messages,
         } = context;
@@ -918,18 +1110,24 @@ impl Agent {
         self.reset_retry_attempts().await;
 
         let provider = self.provider().await?;
+        let session_manager = self.config.session_manager.clone();
         let session_id = session_config.id.clone();
-        let working_dir = session.working_dir.clone();
+        let manager_for_spawn = session_manager.clone();
         tokio::spawn(async move {
-            if let Err(e) = SessionManager::maybe_update_name(&session_id, provider).await {
+            if let Err(e) = manager_for_spawn
+                .maybe_update_name(&session_id, provider)
+                .await
+            {
                 warn!("Failed to generate session description: {}", e);
             }
         });
 
+        let working_dir = session.working_dir.clone();
         Ok(Box::pin(async_stream::try_stream! {
             let _ = reply_span.enter();
             let mut turns_taken = 0u32;
             let max_turns = session_config.max_turns.unwrap_or(DEFAULT_MAX_TURNS);
+            let mut compaction_attempts = 0;
 
             loop {
                 if is_token_cancelled(&cancel_token) {
@@ -956,13 +1154,27 @@ impl Agent {
                     break;
                 }
 
+                let tool_pair_summarization_task = crate::context_mgmt::maybe_summarize_tool_pair(
+                    self.provider().await?,
+                    session_config.id.clone(),
+                    conversation.clone(),
+                    tool_call_cut_off,
+                );
+
+                let conversation_with_moim = super::moim::inject_moim(
+                    &session_config.id,
+                    conversation.clone(),
+                    &self.extension_manager,
+                    &working_dir,
+                ).await;
+
                 let mut stream = Self::reply_fast_and_slow(
                     self.provider().await?,
+                    &session_config.id,
                     &system_prompt,
-                    &conversation,
+                    &conversation_with_moim,
                     &tools,
                     &toolshim_tools,
-                    &self.extension_manager,
                 ).await?;
 
                 let mut no_tools_called = true;
@@ -977,6 +1189,8 @@ impl Agent {
 
                     match next {
                         Ok((response, usage)) => {
+                            compaction_attempts = 0;
+
                             // Emit model change event if provider is lead-worker
                             let provider = self.provider().await?;
                             if let Some(lead_worker) = provider.as_lead_worker() {
@@ -999,7 +1213,7 @@ impl Agent {
                             }
 
                             if let Some(ref usage) = usage {
-                                Self::update_session_metrics(&session_config, usage, false).await?;
+                                self.update_session_metrics(&session_config.id, session_config.schedule_id.clone(), usage, false).await?;
                             }
 
                             if let Some(response) = response {
@@ -1008,10 +1222,6 @@ impl Agent {
                                     remaining_requests,
                                     filtered_response,
                                 } = self.categorize_tools(&response, &tools).await;
-                                let requests_to_record: Vec<ToolRequest> = frontend_requests.iter().chain(remaining_requests.iter()).cloned().collect();
-                                self.tool_route_manager
-                                    .record_tool_requests(&requests_to_record)
-                                    .await;
 
                                 yield AgentEvent::Message(filtered_response.clone());
                                 tokio::task::yield_now().await;
@@ -1023,14 +1233,14 @@ impl Agent {
                                 }
 
                                 let tool_response_messages: Vec<Arc<Mutex<Message>>> = (0..num_tool_requests)
-                                    .map(|_| Arc::new(Mutex::new(Message::user().with_id(
-                                        format!("msg_{}", Uuid::new_v4())
-                                    ))))
+                                    .map(|_| Arc::new(Mutex::new(Message::user().with_generated_id())))
                                     .collect();
 
                                 let mut request_to_response_map = HashMap::new();
+                                let mut request_metadata: HashMap<String, Option<ProviderMetadata>> = HashMap::new();
                                 for (idx, request) in frontend_requests.iter().chain(remaining_requests.iter()).enumerate() {
                                     request_to_response_map.insert(request.id.clone(), tool_response_messages[idx].clone());
+                                    request_metadata.insert(request.id.clone(), request.metadata.clone());
                                 }
 
                                 for (idx, request) in frontend_requests.iter().enumerate() {
@@ -1048,9 +1258,15 @@ impl Agent {
                                     for request in remaining_requests.iter() {
                                         if let Some(response_msg) = request_to_response_map.get(&request.id) {
                                             let mut response = response_msg.lock().await;
-                                            *response = response.clone().with_tool_response(
+                                            *response = response.clone().with_tool_response_with_metadata(
                                                 request.id.clone(),
-                                                Ok(vec![Content::text(CHAT_MODE_TOOL_SKIPPED_RESPONSE)]),
+                                                Ok(CallToolResult {
+                                                    content: vec![Content::text(CHAT_MODE_TOOL_SKIPPED_RESPONSE)],
+                                                    structured_content: None,
+                                                    is_error: Some(false),
+                                                    meta: None,
+                                                }),
+                                                request.metadata.as_ref(),
                                             );
                                         }
                                     }
@@ -1060,6 +1276,7 @@ impl Agent {
                                         .inspect_tools(
                                             &remaining_requests,
                                             conversation.messages(),
+                                            goose_mode,
                                         )
                                         .await?;
 
@@ -1125,26 +1342,71 @@ impl Agent {
                                     let mut combined = stream::select_all(with_id);
                                     let mut all_install_successful = true;
 
-                                    while let Some((request_id, item)) = combined.next().await {
+                                    loop {
                                         if is_token_cancelled(&cancel_token) {
                                             break;
                                         }
-                                        match item {
-                                            ToolStreamItem::Result(output) => {
-                                                if enable_extension_request_ids.contains(&request_id)
-                                                    && output.is_err()
-                                                {
-                                                    all_install_successful = false;
-                                                }
-                                                if let Some(response_msg) = request_to_response_map.get(&request_id) {
-                                                    let mut response = response_msg.lock().await;
-                                                    *response = response.clone().with_tool_response(request_id, output);
+
+                                        for msg in self.drain_elicitation_messages(&session_config.id).await {
+                                            yield AgentEvent::Message(msg);
+                                        }
+
+                                        tokio::select! {
+                                            biased;
+
+                                            tool_item = combined.next() => {
+                                                match tool_item {
+                                                    Some((request_id, item)) => {
+                                                        match item {
+                                                            ToolStreamItem::Result(output) => {
+                                                                let output = call_tool_result::validate(output);
+
+                                                                if let Ok(ref call_result) = output {
+                                                                    if let Some(ref meta) = call_result.meta {
+                                                                        if let Some(notification_data) = meta.0.get("platform_notification") {
+                                                                            if let Some(method) = notification_data.get("method").and_then(|v| v.as_str()) {
+                                                                                let params = notification_data.get("params").cloned();
+                                                                                let custom_notification = rmcp::model::CustomNotification::new(
+                                                                                    method.to_string(),
+                                                                                    params,
+                                                                                );
+
+                                                                                let server_notification = rmcp::model::ServerNotification::CustomNotification(custom_notification);
+                                                                                yield AgentEvent::McpNotification((request_id.clone(), server_notification));
+                                                                            }
+                                                                        }
+                                                                    }
+                                                                }
+
+                                                                if enable_extension_request_ids.contains(&request_id)
+                                                                    && output.is_err()
+                                                                {
+                                                                    all_install_successful = false;
+                                                                }
+                                                                if let Some(response_msg) = request_to_response_map.get(&request_id) {
+                                                                    let metadata = request_metadata.get(&request_id).and_then(|m| m.as_ref());
+                                                                    let mut response = response_msg.lock().await;
+                                                                    *response = response.clone().with_tool_response_with_metadata(request_id, output, metadata);
+                                                                }
+                                                            }
+                                                            ToolStreamItem::Message(msg) => {
+                                                                yield AgentEvent::McpNotification((request_id, msg));
+                                                            }
+                                                        }
+                                                    }
+                                                    None => break,
                                                 }
                                             }
-                                            ToolStreamItem::Message(msg) => {
-                                                yield AgentEvent::McpNotification((request_id, msg));
+
+                                            _ = tokio::time::sleep(std::time::Duration::from_millis(100)) => {
+                                                // Continue loop to drain elicitation messages
                                             }
                                         }
+                                    }
+
+                                    // check for remaining elicitation messages after all tools complete
+                                    for msg in self.drain_elicitation_messages(&session_config.id).await {
+                                        yield AgentEvent::Message(msg);
                                     }
 
                                     if all_install_successful && !enable_extension_request_ids.is_empty() {
@@ -1155,11 +1417,31 @@ impl Agent {
                                     }
                                 }
 
+                                // Preserve thinking content from the original response
+                                // Gemini (and other thinking models) require thinking to be echoed back
+                                let thinking_content: Vec<MessageContent> = response.content.iter()
+                                    .filter(|c| matches!(c, MessageContent::Thinking(_)))
+                                    .cloned()
+                                    .collect();
+                                if !thinking_content.is_empty() {
+                                    let thinking_msg = Message::new(
+                                        response.role.clone(),
+                                        response.created,
+                                        thinking_content,
+                                    ).with_id(format!("msg_{}", Uuid::new_v4()));
+                                    messages_to_add.push(thinking_msg);
+                                }
+
                                 for (idx, request) in frontend_requests.iter().chain(remaining_requests.iter()).enumerate() {
                                     if request.tool_call.is_ok() {
                                         let request_msg = Message::assistant()
                                             .with_id(format!("msg_{}", Uuid::new_v4()))
-                                            .with_tool_request(request.id.clone(), request.tool_call.clone());
+                                            .with_tool_request_with_metadata(
+                                                request.id.clone(),
+                                                request.tool_call.clone(),
+                                                request.metadata.as_ref(),
+                                                request.tool_meta.clone(),
+                                            );
                                         messages_to_add.push(request_msg);
                                         let final_response = tool_response_messages[idx]
                                                                 .lock().await.clone();
@@ -1171,7 +1453,21 @@ impl Agent {
                                 no_tools_called = false;
                             }
                         }
-                        Err(ProviderError::ContextLengthExceeded(_error_msg)) => {
+                        Err(ref provider_err @ ProviderError::ContextLengthExceeded(_)) => {
+                            crate::posthog::emit_error(provider_err.telemetry_type(), &provider_err.to_string());
+                            compaction_attempts += 1;
+
+                            if compaction_attempts >= 2 {
+                                error!("Context limit exceeded after compaction - prompt too large");
+                                yield AgentEvent::Message(
+                                    Message::assistant().with_system_notification(
+                                        SystemNotificationType::InlineMessage,
+                                        "Unable to continue: Context limit still exceeded after compaction. Try using a shorter message, a model with a larger context window, or start a new session."
+                                    )
+                                );
+                                break;
+                            }
+
                             yield AgentEvent::Message(
                                 Message::assistant().with_system_notification(
                                     SystemNotificationType::InlineMessage,
@@ -1185,31 +1481,35 @@ impl Agent {
                                 )
                             );
 
-                            match compact_messages(self.provider().await?.as_ref(), &conversation, false).await {
+                            match compact_messages(
+                                self.provider().await?.as_ref(),
+                                &session_config.id,
+                                &conversation,
+                                false,
+                            )
+                            .await
+                            {
                                 Ok((compacted_conversation, usage)) => {
-                                    SessionManager::replace_conversation(&session_config.id, &compacted_conversation).await?;
-                                    Self::update_session_metrics(&session_config, &usage, true).await?;
+                                    session_manager.replace_conversation(&session_config.id, &compacted_conversation).await?;
+                                    self.update_session_metrics(&session_config.id, session_config.schedule_id.clone(), &usage, true).await?;
                                     conversation = compacted_conversation;
                                     did_recovery_compact_this_iteration = true;
                                     yield AgentEvent::HistoryReplaced(conversation.clone());
-                                    continue;
+                                    break;
                                 }
                                 Err(e) => {
-                                    error!("Error: {}", e);
-                                    yield AgentEvent::Message(
-                                        Message::assistant().with_text(
-                                            format!("Ran into this error trying to compact: {e}.\n\nPlease retry if you think this is a transient or recoverable error.")
-                                        )
-                                    );
+                                    crate::posthog::emit_error("compaction_failed", &e.to_string());
+                                    error!("Compaction failed: {}", e);
                                     break;
                                 }
                             }
                         }
-                        Err(e) => {
-                            error!("Error: {}", e);
+                        Err(ref provider_err) => {
+                            crate::posthog::emit_error(provider_err.telemetry_type(), &provider_err.to_string());
+                            error!("Error: {}", provider_err);
                             yield AgentEvent::Message(
                                 Message::assistant().with_text(
-                                    format!("Ran into this error: {e}.\n\nPlease retry if you think this is a transient or recoverable error.")
+                                    format!("Ran into this error: {provider_err}.\n\nPlease retry if you think this is a transient or recoverable error.")
                                 )
                             );
                             break;
@@ -1218,7 +1518,7 @@ impl Agent {
                 }
                 if tools_updated {
                     (tools, toolshim_tools, system_prompt) =
-                        self.prepare_tools_and_prompt(&working_dir).await?;
+                        self.prepare_tools_and_prompt(&session_config.id, &session.working_dir).await?;
                 }
                 let mut exit_chat = false;
                 if no_tools_called {
@@ -1258,8 +1558,38 @@ impl Agent {
                     }
                 }
 
+                if let Ok(Some((summary_msg, tool_id))) = tool_pair_summarization_task.await {
+                    let mut updated_messages = conversation.messages().clone();
+
+                    let matching: Vec<&mut Message> = updated_messages
+                        .iter_mut()
+                        .filter(|msg| {
+                            msg.id.is_some() && msg.content.iter().any(|c| match c {
+                                MessageContent::ToolRequest(req) => req.id == tool_id,
+                                MessageContent::ToolResponse(resp) => resp.id == tool_id,
+                                _ => false,
+                            })
+                        })
+                        .collect();
+
+                    if matching.len() == 2 {
+                        for msg in matching {
+                            let id = msg.id.as_ref().unwrap();
+                            msg.metadata = msg.metadata.with_agent_invisible();
+                            SessionManager::update_message_metadata(&session_config.id, id, |metadata| {
+                                metadata.with_agent_invisible()
+                            }).await?;
+                        }
+                        conversation = Conversation::new_unvalidated(updated_messages);
+                        messages_to_add.push(summary_msg);
+                    } else {
+                        warn!("Expected a tool request/reply pair, but found {} matching messages",
+                            matching.len());
+                    }
+                }
+
                 for msg in &messages_to_add {
-                    SessionManager::add_message(&session_config.id, msg).await?;
+                    session_manager.add_message(&session_config.id, msg).await?;
                 }
                 conversation.extend(messages_to_add);
                 if exit_chat {
@@ -1281,34 +1611,50 @@ impl Agent {
         provider: Arc<dyn Provider>,
         session_id: &str,
     ) -> Result<()> {
+        let provider_name = provider.get_name().to_string();
+        let model_config = provider.get_model_config();
+
         let mut current_provider = self.provider.lock().await;
-        *current_provider = Some(provider.clone());
+        *current_provider = Some(provider);
 
-        self.update_router_tool_selector(Some(provider.clone()), None)
-            .await?;
-
-        SessionManager::update_session(session_id)
-            .provider_name(provider.get_name())
-            .model_config(provider.get_model_config())
+        self.config
+            .session_manager
+            .clone()
+            .update(session_id)
+            .provider_name(&provider_name)
+            .model_config(model_config)
             .apply()
             .await
             .context("Failed to persist provider config to session")
     }
 
-    pub async fn update_router_tool_selector(
-        &self,
-        provider: Option<Arc<dyn Provider>>,
-        reindex_all: Option<bool>,
-    ) -> Result<()> {
-        let provider = match provider {
-            Some(p) => p,
-            None => self.provider().await?,
+    /// Restore the provider from session data or fall back to global config
+    /// This is used when resuming a session to restore the provider state
+    pub async fn restore_provider_from_session(&self, session: &Session) -> Result<()> {
+        let config = Config::global();
+
+        let provider_name = session
+            .provider_name
+            .clone()
+            .or_else(|| config.get_goose_provider().ok())
+            .ok_or_else(|| anyhow!("Could not configure agent: missing provider"))?;
+
+        let model_config = match session.model_config.clone() {
+            Some(saved_config) => saved_config,
+            None => {
+                let model_name = config
+                    .get_goose_model()
+                    .map_err(|_| anyhow!("Could not configure agent: missing model"))?;
+                crate::model::ModelConfig::new(&model_name)
+                    .map_err(|e| anyhow!("Could not configure agent: invalid model {}", e))?
+            }
         };
 
-        // Delegate to ToolRouteManager
-        self.tool_route_manager
-            .update_router_tool_selector(provider, reindex_all, &self.extension_manager)
+        let provider = crate::providers::create(&provider_name, model_config)
             .await
+            .map_err(|e| anyhow!("Could not create provider: {}", e))?;
+
+        self.update_provider(provider, &session.id).await
     }
 
     /// Override the system prompt with a custom template
@@ -1317,18 +1663,23 @@ impl Agent {
         prompt_manager.set_system_prompt_override(template);
     }
 
-    pub async fn list_extension_prompts(&self) -> HashMap<String, Vec<Prompt>> {
+    pub async fn list_extension_prompts(&self, session_id: &str) -> HashMap<String, Vec<Prompt>> {
         self.extension_manager
-            .list_prompts(CancellationToken::default())
+            .list_prompts(session_id, CancellationToken::default())
             .await
             .expect("Failed to list prompts")
     }
 
-    pub async fn get_prompt(&self, name: &str, arguments: Value) -> Result<GetPromptResult> {
+    pub async fn get_prompt(
+        &self,
+        session_id: &str,
+        name: &str,
+        arguments: Value,
+    ) -> Result<GetPromptResult> {
         // First find which extension has this prompt
         let prompts = self
             .extension_manager
-            .list_prompts(CancellationToken::default())
+            .list_prompts(session_id, CancellationToken::default())
             .await
             .map_err(|e| anyhow!("Failed to list prompts: {}", e))?;
 
@@ -1339,7 +1690,13 @@ impl Agent {
         {
             return self
                 .extension_manager
-                .get_prompt(extension, name, arguments, CancellationToken::default())
+                .get_prompt(
+                    session_id,
+                    extension,
+                    name,
+                    arguments,
+                    CancellationToken::default(),
+                )
                 .await
                 .map_err(|e| anyhow!("Failed to get prompt: {}", e));
         }
@@ -1347,8 +1704,11 @@ impl Agent {
         Err(anyhow!("Prompt '{}' not found", name))
     }
 
-    pub async fn get_plan_prompt(&self) -> Result<String> {
-        let tools = self.extension_manager.get_prefixed_tools(None).await?;
+    pub async fn get_plan_prompt(&self, session_id: &str) -> Result<String> {
+        let tools = self
+            .extension_manager
+            .get_prefixed_tools(session_id, None)
+            .await?;
         let tools_info = tools
             .into_iter()
             .map(|tool| {
@@ -1369,19 +1729,25 @@ impl Agent {
         Ok(plan_prompt)
     }
 
-    pub async fn handle_tool_result(&self, id: String, result: ToolResult<Vec<Content>>) {
+    pub async fn handle_tool_result(&self, id: String, result: ToolResult<CallToolResult>) {
         if let Err(e) = self.tool_result_tx.send((id, result)).await {
             error!("Failed to send tool result: {}", e);
         }
     }
 
-    pub async fn create_recipe(&self, mut messages: Conversation) -> Result<Recipe> {
+    pub async fn create_recipe(
+        &self,
+        session_id: &str,
+        mut messages: Conversation,
+    ) -> Result<Recipe> {
         tracing::info!("Starting recipe creation with {} messages", messages.len());
 
         let extensions_info = self.extension_manager.get_extensions_info().await;
         tracing::debug!("Retrieved {} extensions info", extensions_info.len());
-        let (extension_count, tool_count) =
-            self.extension_manager.get_extension_and_tool_counts().await;
+        let (extension_count, tool_count) = self
+            .extension_manager
+            .get_extension_and_tool_counts(session_id)
+            .await;
 
         // Get model name from provider
         let provider = self.provider().await.map_err(|e| {
@@ -1394,7 +1760,7 @@ impl Agent {
 
         let prompt_manager = self.prompt_manager.lock().await;
         let system_prompt = prompt_manager
-            .builder(model_name)
+            .builder()
             .with_extensions(extensions_info.into_iter())
             .with_frontend_instructions(self.frontend_instructions.lock().await.clone())
             .with_extension_and_tool_counts(extension_count, tool_count)
@@ -1403,7 +1769,7 @@ impl Agent {
         let recipe_prompt = prompt_manager.get_recipe_prompt().await;
         let tools = self
             .extension_manager
-            .get_prefixed_tools(None)
+            .get_prefixed_tools(session_id, None)
             .await
             .map_err(|e| {
                 tracing::error!("Failed to get tools for recipe creation: {}", e);
@@ -1435,7 +1801,7 @@ impl Agent {
                 tracing::error!("{}", error);
                 error
             })?
-            .complete(&system_prompt, messages.messages(), &tools)
+            .complete(session_id, &system_prompt, messages.messages(), &tools)
             .await
             .map_err(|e| {
                 tracing::error!("Provider completion failed during recipe creation: {}", e);
@@ -1534,6 +1900,7 @@ impl Agent {
             goose_provider: Some(provider_name.clone()),
             goose_model: Some(model_name.clone()),
             temperature: Some(model_config.temperature.unwrap_or(0.0)),
+            max_turns: None,
         };
 
         tracing::debug!(
@@ -1603,7 +1970,7 @@ mod tests {
 
         agent.add_final_output_tool(response).await;
 
-        let tools = agent.list_tools(None).await;
+        let tools = agent.list_tools("test-session-id", None).await;
         let final_output_tool = tools
             .iter()
             .find(|tool| tool.name == FINAL_OUTPUT_TOOL_NAME);
@@ -1614,7 +1981,7 @@ mod tests {
         );
 
         let prompt_manager = agent.prompt_manager.lock().await;
-        let system_prompt = prompt_manager.builder("gpt-4o").build();
+        let system_prompt = prompt_manager.builder().build();
 
         let final_output_tool_ref = agent.final_output_tool.lock().await;
         let final_output_tool_system_prompt =

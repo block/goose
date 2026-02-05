@@ -6,7 +6,8 @@ description: "Share a goose session setup (including tools, goals, and instructi
 
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
-import { PanelLeft, Bot, SquarePen, Link, Calendar } from 'lucide-react';
+import { PanelLeft, ChefHat, SquarePen, Link, Clock, Terminal, Share2 } from 'lucide-react';
+import RecipeFields from '@site/src/components/RecipeFields';
 
 Sometimes you finish a task in goose and realize, "Hey, this setup could be useful again." Maybe you have curated a great combination of tools, defined a clear goal, and want to preserve that flow. Or maybe you're trying to help someone else replicate what you just did without walking them through it step by step. 
 
@@ -21,30 +22,23 @@ You can turn your current goose session into a reusable recipe that includes the
 
   <Tabs>
     <TabItem value="session" label="Current Session" default>
-      1. While in the session you want to save as a recipe, click the <Bot className="inline" size={16} /> button at the bottom of the app
-      2. Click `Create a recipe from this session`
-      3. A dialog opens with automatically generated instructions and activities:
-         - Provide a **title** and **description** for the recipe
-         - Review the **instructions** and edit them as needed
-         - Provide an optional **initial prompt** to display in the chat box
-         - Add or remove optional **activities** to display as buttons
-      4. When you're finished, you can:
-         - Copy the recipe link to share the recipe with others or [open it from the link](#use-recipe)
-         - Click `Save Recipe` to [save the recipe](/docs/guides/recipes/storing-recipes) locally
-         - Click `Create Schedule` to [schedule the recipe](#schedule-recipe)
+      1. While in the session you want to save as a recipe, click the <ChefHat className="inline" size={16} /> button at the bottom of the app
+      2. In the dialog that opens, review and edit the recipe fields as needed:
+         <RecipeFields />
+      3. When you're finished, you can:
+         - Click `Create Recipe` to save the recipe to your Recipe Library
+         - Click `Create & Run Recipe` to save and immediately run the recipe in a new session
     </TabItem>
     <TabItem value="new" label="Template">
       1. Click the <PanelLeft className="inline" size={16} /> button in the top-left to open the sidebar
-      2. Click the `Recipes` button in the sidebar
+      2. Click `Recipes` in the sidebar
       3. Click `Create Recipe`
-      4. A dialog opens with placeholder content:
-         - Provide a **title** and **description** for the recipe
-         - Edit the **instructions** as needed
-         - Provide an optional **initial prompt** to display in the chat box
-         - Add or remove optional **activities** to display as buttons
-         - Provide a **recipe name**
-         - Choose to [save the recipe](/docs/guides/recipes/storing-recipes) with **global** or **directory** availability
-      5. Click `Create Recipe`
+      4. In the dialog that opens, fill in the recipe fields as needed:
+         <RecipeFields />
+      5. When you're finished, you can:
+         - Copy the recipe link to share the recipe with others
+         - Click `Save Recipe` to save the recipe to your Recipe Library
+         - Click `Save & Run Recipe` to save and immediately run the recipe in a new session
     </TabItem>
   </Tabs>
 
@@ -186,28 +180,26 @@ You can turn your current goose session into a reusable recipe that includes the
   </TabItem>
 </Tabs>
 
+:::tip Customize Recipe Generation
+You can customize how goose generates recipes by editing the `recipe.md` [prompt template](/docs/guides/prompt-templates).
+:::
+
 ## Edit Recipe
 <Tabs groupId="interface">
   <TabItem value="ui" label="goose Desktop" default>
 
    1. Click the <PanelLeft className="inline" size={16} /> button in the top-left to open the sidebar
-   2. Click `Recipes`
+   2. Click `Recipes` in the sidebar
    3. Find the recipe you want to edit and click the <SquarePen className="inline" size={16} /> button
    4. In the dialog that appears, edit any of the following:
-      - Title
-      - Description
-      - Instructions
-      - Initial prompt
-      - Activities
-      - Parameters
-      - Response schema
-  4. When you're finished, you can:
+      <RecipeFields />
+   5. When you're finished, you can:
       - Copy the recipe link to share the recipe with others
       - Click `Save Recipe` to save your changes
-      - Click `Create Schedule` to [schedule the recipe](#schedule-recipe)
+      - Click `Save & Run Recipe` to save and immediately run the recipe in a new session
 
-  :::tip
-  You can also access the edit dialog while using a recipe in a session: Just click the <Bot className="inline" size={16} /> button at the bottom of the app and select `View/Edit Recipe`.
+  :::tip Edit In-Use Recipe
+  You can also access the edit dialog while using a recipe in a session: Just click the <ChefHat className="inline" size={16} /> button at the bottom of the app. The button shows up after you've sent your first message.
   :::
    
   </TabItem>
@@ -240,6 +232,10 @@ You can turn your current goose session into a reusable recipe that includes the
          2. Click `Recipes` in the sidebar
          3. Find your recipe in the Recipe Library
          4. Click `Use` next to the recipe you want to open
+
+     **Slash Command:**
+
+         1. Enter a [custom slash command](/docs/guides/context-engineering/slash-commands) in any goose chat session
 
   2. The first time you run a recipe, a warning dialog displays the recipe's title, description, and instructions for you to review. If you trust the recipe content, click `Trust and Execute` to continue. You won't be prompted again for the same recipe unless it changes.
 
@@ -373,6 +369,8 @@ You can turn your current goose session into a reusable recipe that includes the
        goose run --recipe recipe.yaml --params language=Python
        ```
 
+       **Slash Command** - Enter a [custom slash command](/docs/guides/context-engineering/slash-commands) in any goose chat session
+
      </TabItem>
 
      <TabItem value="github" label="GitHub Recipe">
@@ -480,6 +478,11 @@ You can share a recipe with Desktop users via a recipe link.
     ```sh
     goose recipe deeplink <FILE>
     ```
+
+    You can also provide parameter values to pre-fill the `Recipe Parameters` dialog:
+    ```sh
+    goose recipe deeplink <FILE> --param key1=value1 --param key2=value2
+    ```
   </TabItem>
 </Tabs>
 
@@ -488,8 +491,29 @@ When someone clicks the link, it will open goose Desktop with your recipe config
 ### Share via Recipe File
 You can share a recipe with Desktop or CLI users by sending the recipe file directly.
 
-- Desktop users can [import the recipe](/docs/guides/recipes/storing-recipes#importing-recipes) (YAML only).
-- CLI users can run a YAML or JSON recipe using `goose run --recipe <FILE>` or open it directly in goose desktop with `goose recipe open <FILE>`. See the [CLI Commands guide](/docs/guides/goose-cli-commands#recipe) for details.
+<Tabs groupId="interface">
+  <TabItem value="ui" label="goose Desktop" default>
+
+  In goose Desktop, you can export a recipe file or copy its content to share with others.
+
+  1. Click the <PanelLeft className="inline" size={16} /> button in the top-left to open the sidebar
+  2. Click `Recipes` in the sidebar
+  3. Find the recipe you want to share and click the <Share2 className="inline" size={16} /> button
+  4. Choose a sharing method:
+     - To download the recipe as a `.yaml` file: Choose `Export to File`, select a download location, and click `Save`
+     - To copy the recipe's YAML content to your clipboard: Choose `Copy YAML`
+
+  Other Desktop users can [import the recipe](/docs/guides/recipes/storing-recipes#importing-recipes) to their Recipe Library.
+
+  </TabItem>
+  <TabItem value="cli" label="goose CLI">
+
+  Exporting or copying recipe content is only available through the Desktop, but you can copy local recipe files directly.
+
+  CLI users can run a shared recipe file using `goose run --recipe <FILE>` or open it directly in goose Desktop with `goose recipe open <FILE>`. See the [CLI Commands guide](/docs/guides/goose-cli-commands#recipe) for details.
+
+  </TabItem>
+</Tabs>
 
 ## Schedule Recipe
 <Tabs groupId="interface">
@@ -503,8 +527,8 @@ Automate goose recipes by running them on a schedule. When creating a schedule, 
 **Schedule from Recipe Library:**
 
    1. Click the <PanelLeft className="inline" size={16} /> button in the top-left to open the sidebar
-   2. Click `Recipes`
-   3. Find the recipe you want to schedule and click the <Calendar className="inline" size={16} /> button
+   2. Click `Recipes` in the sidebar
+   3. Find the recipe you want to schedule and click the <Clock className="inline" size={16} /> button
    4. Click `Create Schedule`
    5. In the dialog that appears, configure the schedule. For **Source**, your recipe link is already provided.
    6. Click `Create Schedule`
@@ -588,11 +612,11 @@ retry:
    - Recipe execution starts over
 4. Process continues until either success or max retries reached
 
-See the [Recipe Reference Guide](/docs/guides/recipes/recipe-reference#automated-retry-with-success-validation) for complete retry configuration options and examples.
+See the [Recipe Reference Guide](/docs/guides/recipes/recipe-reference#retry) for complete retry configuration options and examples.
 
 ### Structured Output for Automation
 
-Recipes can enforce [structured JSON output](/docs/guides/recipes/recipe-reference#structured-output-with-response), making them ideal for automation workflows that need to parse and process agent responses reliably. Key benefits include:
+Recipes can enforce [structured JSON output](/docs/guides/recipes/recipe-reference#response), making them ideal for automation workflows that need to parse and process agent responses reliably. Key benefits include:
 
 - **Reliable parsing**: Consistent JSON format for scripts, automation, and CI/CD pipelines
 - **Built-in validation**: Ensures output matches your requirements  

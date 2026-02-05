@@ -7,6 +7,9 @@
 # Generated files
 .docusaurus
 .cache-loader
+static/goose-docs-map.md
+static/skills-manifest.json
+static/skills-data-zips/
 
 # Misc
 .DS_Store
@@ -16,3 +19,4 @@
 .env.production.local
 
 npm-debug.log*
+.tmp/

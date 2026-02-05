@@ -1,8 +1,10 @@
+use crate::cli::StreamableHttpOptions;
 use crate::session::build_session;
 use crate::session::SessionBuilderConfig;
 use crate::{logging, CliSession};
 use async_trait::async_trait;
 use goose::conversation::Conversation;
+use goose::session::session_manager::Session;
 use goose_bench::bench_session::{BenchAgent, BenchBaseSession};
 use goose_bench::eval_suites::ExtensionRequirements;
 use std::sync::Arc;
@@ -25,25 +27,33 @@ impl BenchBaseSession for CliSession {
         })
     }
 
-    fn get_session_id(&self) -> anyhow::Result<String> {
-        Ok(self.session_id().to_string())
+    async fn get_session(&self) -> anyhow::Result<Session> {
+        self.get_session().await
     }
 }
 pub async fn agent_generator(
     requirements: ExtensionRequirements,
     session_id: String,
 ) -> BenchAgent {
+    let streamable_http_extensions: Vec<StreamableHttpOptions> = requirements
+        .streamable_http
+        .iter()
+        .map(|s| StreamableHttpOptions {
+            url: s.clone(),
+            timeout: goose::config::DEFAULT_EXTENSION_TIMEOUT,
+        })
+        .collect();
     let base_session = build_session(SessionBuilderConfig {
         session_id: Some(session_id),
         resume: false,
+        fork: false,
         no_session: false,
         extensions: requirements.external,
-        remote_extensions: requirements.remote,
-        streamable_http_extensions: Vec::new(),
+        streamable_http_extensions,
         builtins: requirements.builtin,
-        extensions_override: None,
+        no_profile: true,
+        recipe: None,
         additional_system_prompt: None,
-        settings: None,
         provider: None,
         model: None,
         debug: false,
@@ -52,10 +62,8 @@ pub async fn agent_generator(
         scheduled_job_id: None,
         max_turns: None,
         quiet: false,
-        sub_recipes: None,
-        final_output_response: None,
-        retry_config: None,
         output_format: "text".to_string(),
+        container: None,
     })
     .await;
 

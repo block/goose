@@ -7,7 +7,7 @@ use std::process::Stdio;
 use tokio::io::{AsyncBufReadExt, BufReader};
 use tokio::process::Command;
 
-use super::base::{Provider, ProviderMetadata, ProviderUsage, Usage};
+use super::base::{Provider, ProviderDef, ProviderMetadata, ProviderUsage, Usage};
 use super::errors::ProviderError;
 use super::utils::{filter_extensions_from_system_prompt, RequestLog};
 use crate::config::base::GeminiCliCommand;
@@ -17,11 +17,17 @@ use crate::conversation::message::{Message, MessageContent};
 use crate::model::ModelConfig;
 use crate::providers::base::ConfigKey;
 use crate::subprocess::configure_command_no_window;
+use futures::future::BoxFuture;
 use rmcp::model::Role;
 use rmcp::model::Tool;
 
+const GEMINI_CLI_PROVIDER_NAME: &str = "gemini-cli";
 pub const GEMINI_CLI_DEFAULT_MODEL: &str = "gemini-2.5-pro";
-pub const GEMINI_CLI_KNOWN_MODELS: &[&str] = &["gemini-2.5-pro"];
+pub const GEMINI_CLI_KNOWN_MODELS: &[&str] = &[
+    "gemini-2.5-pro",
+    "gemini-2.5-flash",
+    "gemini-2.5-flash-lite",
+];
 
 pub const GEMINI_CLI_DOC_URL: &str = "https://ai.google.dev/gemini-api/docs";
 
@@ -42,7 +48,7 @@ impl GeminiCliProvider {
         Ok(Self {
             command: resolved_command,
             model,
-            name: Self::metadata().name,
+            name: GEMINI_CLI_PROVIDER_NAME.to_string(),
         })
     }
 
@@ -98,7 +104,13 @@ impl GeminiCliProvider {
             cmd.arg("-m").arg(&self.model.model_name);
         }
 
-        cmd.arg("-p").arg(&full_prompt).arg("--yolo");
+        if cfg!(windows) {
+            let sanitized_prompt = full_prompt.replace("\r\n", "\\n").replace('\n', "\\n");
+
+            cmd.arg("-p").arg(&sanitized_prompt).arg("--yolo");
+        } else {
+            cmd.arg("-p").arg(&full_prompt).arg("--yolo");
+        }
 
         cmd.stdout(Stdio::piped()).stderr(Stdio::piped());
 
@@ -225,11 +237,12 @@ impl GeminiCliProvider {
     }
 }
 
-#[async_trait]
-impl Provider for GeminiCliProvider {
+impl ProviderDef for GeminiCliProvider {
+    type Provider = Self;
+
     fn metadata() -> ProviderMetadata {
         ProviderMetadata::new(
-            "gemini-cli",
+            GEMINI_CLI_PROVIDER_NAME,
             "Gemini CLI",
             "Execute Gemini models via gemini CLI tool",
             GEMINI_CLI_DEFAULT_MODEL,
@@ -239,6 +252,13 @@ impl Provider for GeminiCliProvider {
         )
     }
 
+    fn from_env(model: ModelConfig) -> BoxFuture<'static, Result<Self::Provider>> {
+        Box::pin(Self::from_env(model))
+    }
+}
+
+#[async_trait]
+impl Provider for GeminiCliProvider {
     fn get_name(&self) -> &str {
         &self.name
     }
@@ -254,6 +274,7 @@ impl Provider for GeminiCliProvider {
     )]
     async fn complete_with_model(
         &self,
+        _session_id: Option<&str>, // CLI has no external session-id flag to propagate.
         _model_config: &ModelConfig,
         system: &str,
         messages: &[Message],

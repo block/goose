@@ -1,5 +1,5 @@
 ---
-sidebar_position: 25
+sidebar_position: 20
 title: goose Permission Modes
 sidebar_label: goose Permissions
 ---

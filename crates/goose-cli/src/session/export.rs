@@ -1,4 +1,6 @@
-use goose::conversation::message::{Message, MessageContent, ToolRequest, ToolResponse};
+use goose::conversation::message::{
+    ActionRequiredData, Message, MessageContent, ToolRequest, ToolResponse,
+};
 use goose::utils::safe_truncate;
 use rmcp::model::{RawContent, ResourceContents, Role};
 use serde_json::Value;
@@ -219,12 +221,12 @@ pub fn tool_response_to_markdown(resp: &ToolResponse, export_all_content: bool) 
     md.push_str("#### Tool Response:\n");
 
     match &resp.tool_result {
-        Ok(contents) => {
-            if contents.is_empty() {
+        Ok(result) => {
+            if result.content.is_empty() {
                 md.push_str("*No textual output from tool.*\n");
             }
 
-            for content in contents {
+            for content in &result.content {
                 if !export_all_content {
                     if let Some(audience) = content.audience() {
                         if !audience.contains(&Role::Assistant) {
@@ -340,6 +342,28 @@ pub fn message_to_markdown(message: &Message, export_all_content: bool) -> Strin
     let mut md = String::new();
     for content in &message.content {
         match content {
+            MessageContent::ActionRequired(action) => match &action.data {
+                ActionRequiredData::ToolConfirmation { tool_name, .. } => {
+                    md.push_str(&format!(
+                        "**Action Required** (tool_confirmation): {}\n\n",
+                        tool_name
+                    ));
+                }
+                ActionRequiredData::Elicitation { message, .. } => {
+                    md.push_str(&format!(
+                        "**Action Required** (elicitation): {}\n\n",
+                        message
+                    ));
+                }
+                ActionRequiredData::ElicitationResponse { id, user_data } => {
+                    md.push_str(&format!(
+                        "**Action Required** (elicitation_response): {}\n```json\n{}\n```\n\n",
+                        id,
+                        serde_json::to_string_pretty(user_data)
+                            .unwrap_or_else(|_| "{}".to_string())
+                    ));
+                }
+            },
             MessageContent::Text(text) => {
                 md.push_str(&text.text);
                 md.push_str("\n\n");
@@ -386,7 +410,7 @@ pub fn message_to_markdown(message: &Message, export_all_content: bool) -> Strin
 mod tests {
     use super::*;
     use goose::conversation::message::{Message, ToolRequest, ToolResponse};
-    use rmcp::model::{CallToolRequestParam, Content, RawTextContent, TextContent};
+    use rmcp::model::{CallToolRequestParams, Content, RawTextContent, TextContent};
     use rmcp::object;
     use serde_json::json;
 
@@ -502,7 +526,9 @@ mod tests {
 
     #[test]
     fn test_tool_request_to_markdown_shell() {
-        let tool_call = CallToolRequestParam {
+        let tool_call = CallToolRequestParams {
+            meta: None,
+            task: None,
             name: "developer__shell".into(),
             arguments: Some(object!({
                 "command": "ls -la",
@@ -512,7 +538,8 @@ mod tests {
         let tool_request = ToolRequest {
             id: "test-id".to_string(),
             tool_call: Ok(tool_call),
-            thought_signature: None,
+            metadata: None,
+            tool_meta: None,
         };
 
         let result = tool_request_to_markdown(&tool_request, true);
@@ -526,7 +553,9 @@ mod tests {
 
     #[test]
     fn test_tool_request_to_markdown_text_editor() {
-        let tool_call = CallToolRequestParam {
+        let tool_call = CallToolRequestParams {
+            meta: None,
+            task: None,
             name: "developer__text_editor".into(),
             arguments: Some(object!({
                 "path": "/path/to/file.txt",
@@ -536,7 +565,8 @@ mod tests {
         let tool_request = ToolRequest {
             id: "test-id".to_string(),
             tool_call: Ok(tool_call),
-            thought_signature: None,
+            metadata: None,
+            tool_meta: None,
         };
 
         let result = tool_request_to_markdown(&tool_request, true);
@@ -556,8 +586,14 @@ mod tests {
             annotations: None,
         };
         let tool_response = ToolResponse {
+            metadata: None,
             id: "test-id".to_string(),
-            tool_result: Ok(vec![Content::text(text_content.raw.text)]),
+            tool_result: Ok(rmcp::model::CallToolResult {
+                content: vec![Content::text(text_content.raw.text)],
+                structured_content: None,
+                is_error: Some(false),
+                meta: None,
+            }),
         };
 
         let result = tool_response_to_markdown(&tool_response, true);
@@ -576,8 +612,14 @@ mod tests {
             annotations: None,
         };
         let tool_response = ToolResponse {
+            metadata: None,
             id: "test-id".to_string(),
-            tool_result: Ok(vec![Content::text(text_content.raw.text)]),
+            tool_result: Ok(rmcp::model::CallToolResult {
+                content: vec![Content::text(text_content.raw.text)],
+                structured_content: None,
+                is_error: Some(false),
+                meta: None,
+            }),
         };
 
         let result = tool_response_to_markdown(&tool_response, true);
@@ -596,7 +638,9 @@ mod tests {
 
     #[test]
     fn test_message_to_markdown_with_tool_request() {
-        let tool_call = CallToolRequestParam {
+        let tool_call = CallToolRequestParams {
+            meta: None,
+            task: None,
             name: "test_tool".into(),
             arguments: Some(object!({"param": "value"})),
         };
@@ -655,7 +699,9 @@ mod tests {
 
     #[test]
     fn test_shell_tool_with_code_output() {
-        let tool_call = CallToolRequestParam {
+        let tool_call = CallToolRequestParams {
+            meta: None,
+            task: None,
             name: "developer__shell".into(),
             arguments: Some(object!({
                 "command": "cat main.py"
@@ -664,7 +710,8 @@ mod tests {
         let tool_request = ToolRequest {
             id: "shell-cat".to_string(),
             tool_call: Ok(tool_call),
-            thought_signature: None,
+            metadata: None,
+            tool_meta: None,
         };
 
         let python_code = r#"#!/usr/bin/env python3
@@ -682,8 +729,14 @@ if __name__ == "__main__":
             annotations: None,
         };
         let tool_response = ToolResponse {
+            metadata: None,
             id: "shell-cat".to_string(),
-            tool_result: Ok(vec![Content::text(text_content.raw.text)]),
+            tool_result: Ok(rmcp::model::CallToolResult {
+                content: vec![Content::text(text_content.raw.text)],
+                structured_content: None,
+                is_error: Some(false),
+                meta: None,
+            }),
         };
 
         let request_result = tool_request_to_markdown(&tool_request, true);
@@ -702,7 +755,9 @@ if __name__ == "__main__":
 
     #[test]
     fn test_shell_tool_with_git_commands() {
-        let git_status_call = CallToolRequestParam {
+        let git_status_call = CallToolRequestParams {
+            meta: None,
+            task: None,
             name: "developer__shell".into(),
             arguments: Some(object!({
                 "command": "git status --porcelain"
@@ -711,7 +766,8 @@ if __name__ == "__main__":
         let tool_request = ToolRequest {
             id: "git-status".to_string(),
             tool_call: Ok(git_status_call),
-            thought_signature: None,
+            metadata: None,
+            tool_meta: None,
         };
 
         let git_output = " M src/main.rs\n?? temp.txt\n A new_feature.rs";
@@ -723,8 +779,14 @@ if __name__ == "__main__":
             annotations: None,
         };
         let tool_response = ToolResponse {
+            metadata: None,
             id: "git-status".to_string(),
-            tool_result: Ok(vec![Content::text(text_content.raw.text)]),
+            tool_result: Ok(rmcp::model::CallToolResult {
+                content: vec![Content::text(text_content.raw.text)],
+                structured_content: None,
+                is_error: Some(false),
+                meta: None,
+            }),
         };
 
         let request_result = tool_request_to_markdown(&tool_request, true);
@@ -741,7 +803,9 @@ if __name__ == "__main__":
 
     #[test]
     fn test_shell_tool_with_build_output() {
-        let cargo_build_call = CallToolRequestParam {
+        let cargo_build_call = CallToolRequestParams {
+            meta: None,
+            task: None,
             name: "developer__shell".into(),
             arguments: Some(object!({
                 "command": "cargo build"
@@ -750,7 +814,8 @@ if __name__ == "__main__":
         let _tool_request = ToolRequest {
             id: "cargo-build".to_string(),
             tool_call: Ok(cargo_build_call),
-            thought_signature: None,
+            metadata: None,
+            tool_meta: None,
         };
 
         let build_output = r#"   Compiling goose-cli v0.1.0 (/Users/user/goose)
@@ -772,8 +837,14 @@ warning: unused variable `x`
             annotations: None,
         };
         let tool_response = ToolResponse {
+            metadata: None,
             id: "cargo-build".to_string(),
-            tool_result: Ok(vec![Content::text(text_content.raw.text)]),
+            tool_result: Ok(rmcp::model::CallToolResult {
+                content: vec![Content::text(text_content.raw.text)],
+                structured_content: None,
+                is_error: Some(false),
+                meta: None,
+            }),
         };
 
         let response_result = tool_response_to_markdown(&tool_response, true);
@@ -786,7 +857,9 @@ warning: unused variable `x`
 
     #[test]
     fn test_shell_tool_with_json_api_response() {
-        let curl_call = CallToolRequestParam {
+        let curl_call = CallToolRequestParams {
+            meta: None,
+            task: None,
             name: "developer__shell".into(),
             arguments: Some(object!({
                 "command": "curl -s https://api.github.com/repos/microsoft/vscode/releases/latest"
@@ -795,7 +868,8 @@ warning: unused variable `x`
         let _tool_request = ToolRequest {
             id: "curl-api".to_string(),
             tool_call: Ok(curl_call),
-            thought_signature: None,
+            metadata: None,
+            tool_meta: None,
         };
 
         let api_response = r#"{
@@ -819,8 +893,14 @@ warning: unused variable `x`
             annotations: None,
         };
         let tool_response = ToolResponse {
+            metadata: None,
             id: "curl-api".to_string(),
-            tool_result: Ok(vec![Content::text(text_content.raw.text)]),
+            tool_result: Ok(rmcp::model::CallToolResult {
+                content: vec![Content::text(text_content.raw.text)],
+                structured_content: None,
+                is_error: Some(false),
+                meta: None,
+            }),
         };
 
         let response_result = tool_response_to_markdown(&tool_response, true);
@@ -833,7 +913,9 @@ warning: unused variable `x`
 
     #[test]
     fn test_text_editor_tool_with_code_creation() {
-        let editor_call = CallToolRequestParam {
+        let editor_call = CallToolRequestParams {
+            meta: None,
+            task: None,
             name: "developer__text_editor".into(),
             arguments: Some(object!({
                 "command": "write",
@@ -844,7 +926,8 @@ warning: unused variable `x`
         let tool_request = ToolRequest {
             id: "editor-write".to_string(),
             tool_call: Ok(editor_call),
-            thought_signature: None,
+            metadata: None,
+            tool_meta: None,
         };
 
         let text_content = TextContent {
@@ -855,8 +938,14 @@ warning: unused variable `x`
             annotations: None,
         };
         let tool_response = ToolResponse {
+            metadata: None,
             id: "editor-write".to_string(),
-            tool_result: Ok(vec![Content::text(text_content.raw.text)]),
+            tool_result: Ok(rmcp::model::CallToolResult {
+                content: vec![Content::text(text_content.raw.text)],
+                structured_content: None,
+                is_error: Some(false),
+                meta: None,
+            }),
         };
 
         let request_result = tool_request_to_markdown(&tool_request, true);
@@ -875,7 +964,9 @@ warning: unused variable `x`
 
     #[test]
     fn test_text_editor_tool_view_code() {
-        let editor_call = CallToolRequestParam {
+        let editor_call = CallToolRequestParams {
+            meta: None,
+            task: None,
             name: "developer__text_editor".into(),
             arguments: Some(object!({
                 "command": "view",
@@ -885,7 +976,8 @@ warning: unused variable `x`
         let _tool_request = ToolRequest {
             id: "editor-view".to_string(),
             tool_call: Ok(editor_call),
-            thought_signature: None,
+            metadata: None,
+            tool_meta: None,
         };
 
         let python_code = r#"import os
@@ -912,8 +1004,14 @@ def process_data(data: List[Dict]) -> List[Dict]:
             annotations: None,
         };
         let tool_response = ToolResponse {
+            metadata: None,
             id: "editor-view".to_string(),
-            tool_result: Ok(vec![Content::text(text_content.raw.text)]),
+            tool_result: Ok(rmcp::model::CallToolResult {
+                content: vec![Content::text(text_content.raw.text)],
+                structured_content: None,
+                is_error: Some(false),
+                meta: None,
+            }),
         };
 
         let response_result = tool_response_to_markdown(&tool_response, true);
@@ -926,7 +1024,9 @@ def process_data(data: List[Dict]) -> List[Dict]:
 
     #[test]
     fn test_shell_tool_with_error_output() {
-        let error_call = CallToolRequestParam {
+        let error_call = CallToolRequestParams {
+            meta: None,
+            task: None,
             name: "developer__shell".into(),
             arguments: Some(object!({
                 "command": "python nonexistent_script.py"
@@ -935,7 +1035,8 @@ def process_data(data: List[Dict]) -> List[Dict]:
         let _tool_request = ToolRequest {
             id: "shell-error".to_string(),
             tool_call: Ok(error_call),
-            thought_signature: None,
+            metadata: None,
+            tool_meta: None,
         };
 
         let error_output = r#"python: can't open file 'nonexistent_script.py': [Errno 2] No such file or directory
@@ -949,8 +1050,14 @@ Command failed with exit code 2"#;
             annotations: None,
         };
         let tool_response = ToolResponse {
+            metadata: None,
             id: "shell-error".to_string(),
-            tool_result: Ok(vec![Content::text(text_content.raw.text)]),
+            tool_result: Ok(rmcp::model::CallToolResult {
+                content: vec![Content::text(text_content.raw.text)],
+                structured_content: None,
+                is_error: Some(false),
+                meta: None,
+            }),
         };
 
         let response_result = tool_response_to_markdown(&tool_response, true);
@@ -962,7 +1069,9 @@ Command failed with exit code 2"#;
 
     #[test]
     fn test_shell_tool_complex_script_execution() {
-        let script_call = CallToolRequestParam {
+        let script_call = CallToolRequestParams {
+            meta: None,
+            task: None,
             name: "developer__shell".into(),
             arguments: Some(object!({
                 "command": "python -c \"import sys; print(f'Python {sys.version}'); [print(f'{i}^2 = {i**2}') for i in range(1, 6)]\""
@@ -971,7 +1080,8 @@ Command failed with exit code 2"#;
         let tool_request = ToolRequest {
             id: "script-exec".to_string(),
             tool_call: Ok(script_call),
-            thought_signature: None,
+            metadata: None,
+            tool_meta: None,
         };
 
         let script_output = r#"Python 3.11.5 (main, Aug 24 2023, 15:18:16) [Clang 14.0.3 ]
@@ -989,8 +1099,14 @@ Command failed with exit code 2"#;
             annotations: None,
         };
         let tool_response = ToolResponse {
+            metadata: None,
             id: "script-exec".to_string(),
-            tool_result: Ok(vec![Content::text(text_content.raw.text)]),
+            tool_result: Ok(rmcp::model::CallToolResult {
+                content: vec![Content::text(text_content.raw.text)],
+                structured_content: None,
+                is_error: Some(false),
+                meta: None,
+            }),
         };
 
         let request_result = tool_request_to_markdown(&tool_request, true);
@@ -1009,7 +1125,9 @@ Command failed with exit code 2"#;
 
     #[test]
     fn test_shell_tool_with_multi_command() {
-        let multi_call = CallToolRequestParam {
+        let multi_call = CallToolRequestParams {
+            meta: None,
+            task: None,
             name: "developer__shell".into(),
             arguments: Some(object!({
                 "command": "cd /tmp && ls -la | head -5 && pwd"
@@ -1018,7 +1136,8 @@ Command failed with exit code 2"#;
         let _tool_request = ToolRequest {
             id: "multi-cmd".to_string(),
             tool_call: Ok(multi_call),
-            thought_signature: None,
+            metadata: None,
+            tool_meta: None,
         };
 
         let multi_output = r#"total 24
@@ -1036,8 +1155,14 @@ drwx------   3 user  staff    96 Dec  6 16:20 com.apple.launchd.abc
             annotations: None,
         };
         let tool_response = ToolResponse {
+            metadata: None,
             id: "multi-cmd".to_string(),
-            tool_result: Ok(vec![Content::text(text_content.raw.text)]),
+            tool_result: Ok(rmcp::model::CallToolResult {
+                content: vec![Content::text(text_content.raw.text)],
+                structured_content: None,
+                is_error: Some(false),
+                meta: None,
+            }),
         };
 
         let request_result = tool_request_to_markdown(&_tool_request, true);
@@ -1054,7 +1179,9 @@ drwx------   3 user  staff    96 Dec  6 16:20 com.apple.launchd.abc
 
     #[test]
     fn test_developer_tool_grep_code_search() {
-        let grep_call = CallToolRequestParam {
+        let grep_call = CallToolRequestParams {
+            meta: None,
+            task: None,
             name: "developer__shell".into(),
             arguments: Some(object!({
                 "command": "rg 'async fn' --type rust -n"
@@ -1063,7 +1190,8 @@ drwx------   3 user  staff    96 Dec  6 16:20 com.apple.launchd.abc
         let tool_request = ToolRequest {
             id: "grep-search".to_string(),
             tool_call: Ok(grep_call),
-            thought_signature: None,
+            metadata: None,
+            tool_meta: None,
         };
 
         let grep_output = r#"src/main.rs:15:async fn process_request(req: Request) -> Result<Response> {
@@ -1079,8 +1207,14 @@ src/middleware.rs:12:async fn auth_middleware(req: Request, next: Next) -> Resul
             annotations: None,
         };
         let tool_response = ToolResponse {
+            metadata: None,
             id: "grep-search".to_string(),
-            tool_result: Ok(vec![Content::text(text_content.raw.text)]),
+            tool_result: Ok(rmcp::model::CallToolResult {
+                content: vec![Content::text(text_content.raw.text)],
+                structured_content: None,
+                is_error: Some(false),
+                meta: None,
+            }),
         };
 
         let request_result = tool_request_to_markdown(&tool_request, true);
@@ -1098,7 +1232,9 @@ src/middleware.rs:12:async fn auth_middleware(req: Request, next: Next) -> Resul
     #[test]
     fn test_shell_tool_json_detection_works() {
         // This test shows that JSON detection in tool responses DOES work
-        let tool_call = CallToolRequestParam {
+        let tool_call = CallToolRequestParams {
+            meta: None,
+            task: None,
             name: "developer__shell".into(),
             arguments: Some(object!({
                 "command": "echo '{\"test\": \"json\"}'"
@@ -1107,7 +1243,8 @@ src/middleware.rs:12:async fn auth_middleware(req: Request, next: Next) -> Resul
         let _tool_request = ToolRequest {
             id: "json-test".to_string(),
             tool_call: Ok(tool_call),
-            thought_signature: None,
+            metadata: None,
+            tool_meta: None,
         };
 
         let json_output = r#"{"status": "success", "data": {"count": 42}}"#;
@@ -1119,8 +1256,14 @@ src/middleware.rs:12:async fn auth_middleware(req: Request, next: Next) -> Resul
             annotations: None,
         };
         let tool_response = ToolResponse {
+            metadata: None,
             id: "json-test".to_string(),
-            tool_result: Ok(vec![Content::text(text_content.raw.text)]),
+            tool_result: Ok(rmcp::model::CallToolResult {
+                content: vec![Content::text(text_content.raw.text)],
+                structured_content: None,
+                is_error: Some(false),
+                meta: None,
+            }),
         };
 
         let response_result = tool_response_to_markdown(&tool_response, true);
@@ -1133,7 +1276,9 @@ src/middleware.rs:12:async fn auth_middleware(req: Request, next: Next) -> Resul
 
     #[test]
     fn test_shell_tool_with_package_management() {
-        let npm_call = CallToolRequestParam {
+        let npm_call = CallToolRequestParams {
+            meta: None,
+            task: None,
             name: "developer__shell".into(),
             arguments: Some(object!({
                 "command": "npm install express typescript @types/node --save-dev"
@@ -1142,7 +1287,8 @@ src/middleware.rs:12:async fn auth_middleware(req: Request, next: Next) -> Resul
         let tool_request = ToolRequest {
             id: "npm-install".to_string(),
             tool_call: Ok(npm_call),
-            thought_signature: None,
+            metadata: None,
+            tool_meta: None,
         };
 
         let npm_output = r#"added 57 packages, and audited 58 packages in 3s
@@ -1160,8 +1306,14 @@ found 0 vulnerabilities"#;
             annotations: None,
         };
         let tool_response = ToolResponse {
+            metadata: None,
             id: "npm-install".to_string(),
-            tool_result: Ok(vec![Content::text(text_content.raw.text)]),
+            tool_result: Ok(rmcp::model::CallToolResult {
+                content: vec![Content::text(text_content.raw.text)],
+                structured_content: None,
+                is_error: Some(false),
+                meta: None,
+            }),
         };
 
         let request_result = tool_request_to_markdown(&tool_request, true);

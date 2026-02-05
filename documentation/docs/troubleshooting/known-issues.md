@@ -459,7 +459,7 @@ goose Desktop uses **"shims"** (packaged versions of `npx` and `uvx`) that autom
 
 3. **Why this works:** goose only replaces known command names (`npx`, `uvx`, `jbang`, etc.) with its packaged shims. Custom names are passed through unchanged to your system's actual executables.
 
-4. **Require more changes**: In a corporate proxy environment or airgapped environment where the above doesn't work, it is recommended that you customize and package up goose desktop with shims/config that will work given the network constraints you have (for example, TLS certificate limitations, proxies, inability to download required content etc).
+4. **Require more changes**: In a corporate proxy environment or airgapped environment where the above doesn't work, it is recommended that you customize and package up goose Desktop with shims/config that will work given the network constraints you have (for example, TLS certificate limitations, [proxy configuration](/docs/guides/environment-variables#network-configuration), inability to download required content etc).
 
 ---
 ### Need Further Help? 
@@ -475,6 +475,6 @@ If you can share a [diagnostic report](/docs/troubleshooting/diagnostics-and-rep
 [handling-rate-limits]: /docs/guides/handling-llm-rate-limits-with-goose
 [installation]: /docs/getting-started/installation
 [discord]: https://discord.gg/goose-oss
-[goosehints]: /docs/guides/using-goosehints
+[goosehints]: /docs/guides/context-engineering/using-goosehints
 [configure-llm-provider]: /docs/getting-started/providers
 [extensions-directory]: /extensions

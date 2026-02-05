@@ -29,7 +29,7 @@ import { PanelLeft } from 'lucide-react';
           2. Run the executable file to launch the goose Desktop application.
 
           :::tip Updating goose
-          It's best to keep goose updated by periodically running the installation steps again.
+          It's best to periodically [update goose](/docs/guides/updating-goose).
           :::
         </div>
         <h3>Option 2: Install via Homebrew</h3>
@@ -99,7 +99,7 @@ import { PanelLeft } from 'lucide-react';
           4. Launch goose from the app menu
 
           :::tip Updating goose
-          It's best to keep goose updated by periodically running the installation steps again.
+          It's best to periodically [update goose](/docs/guides/updating-goose).
           :::
         </div>
       </TabItem>
@@ -142,7 +142,7 @@ import { PanelLeft } from 'lucide-react';
           2. Run the executable file to launch the goose Desktop application.
 
           :::tip Updating goose
-          It's best to keep goose updated by periodically running the installation steps again.
+          It's best to periodically [update goose](/docs/guides/updating-goose).
           :::
         </div>
       </TabItem>
@@ -320,7 +320,7 @@ You can change your LLM provider and/or model or update your API key at any time
     1. Click the <PanelLeft className="inline" size={16} /> button in the top-left to open the sidebar.
     2. Click the `Settings` button on the sidebar.
     3. Click the `Models` tab.
-    4. Choose to update your provider, switch models, or click `Reset Provider and Model` to clear your settings and return to the welcome screen. See details about these [configuration options](/docs/getting-started/providers#configure-provider).
+    4. Choose to update your provider, switch models, or click `Reset Provider and Model` to clear your settings and return to the welcome screen. See details about these [configuration options](/docs/getting-started/providers#configure-provider-and-model).
   </TabItem>
   <TabItem value="cli" label="goose CLI">
     1. Run the following command:

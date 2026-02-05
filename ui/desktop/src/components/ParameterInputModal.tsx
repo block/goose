@@ -1,34 +1,37 @@
 import React, { useState, useEffect } from 'react';
 import { Parameter } from '../recipe';
 import { Button } from './ui/button';
+import { getInitialWorkingDir } from '../utils/workingDir';
 
 interface ParameterInputModalProps {
   parameters: Parameter[];
   onSubmit: (values: Record<string, string>) => void;
   onClose: () => void;
+  initialValues?: Record<string, string>;
 }
 
 const ParameterInputModal: React.FC<ParameterInputModalProps> = ({
   parameters,
   onSubmit,
   onClose,
+  initialValues,
 }) => {
   const [inputValues, setInputValues] = useState<Record<string, string>>({});
   const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
   const [showCancelOptions, setShowCancelOptions] = useState(false);
 
-  // Pre-fill the form with default values from the recipe
+  // Pre-fill the form with default values from the recipe and initialValues from deeplink
   useEffect(() => {
-    const initialValues: Record<string, string> = {};
+    const defaultValues: Record<string, string> = {};
     parameters.forEach((param) => {
       if (param.requirement === 'optional' && param.default) {
-        const defaultValue =
+        defaultValues[param.key] =
           param.input_type === 'boolean' ? param.default.toLowerCase() : param.default;
-        initialValues[param.key] = defaultValue;
       }
     });
-    setInputValues(initialValues);
-  }, [parameters]);
+
+    setInputValues({ ...defaultValues, ...initialValues });
+  }, [parameters, initialValues]);
 
   const handleChange = (name: string, value: string): void => {
     setInputValues((prevValues: Record<string, string>) => ({ ...prevValues, [name]: value }));
@@ -70,16 +73,12 @@ const ParameterInputModal: React.FC<ParameterInputModalProps> = ({
 
   const handleCancelOption = (option: 'new-chat' | 'back-to-form'): void => {
     if (option === 'new-chat') {
-      // Create a new chat window without recipe config
       try {
-        const workingDir = window.appConfig.get('GOOSE_WORKING_DIR');
-        console.log(`Creating new chat window without recipe, working dir: ${workingDir}`);
-        window.electron.createChatWindow(undefined, workingDir as string);
-        // Close the current window after creating the new one
+        const workingDir = getInitialWorkingDir();
+        window.electron.createChatWindow(undefined, workingDir);
         window.electron.hideWindow();
       } catch (error) {
         console.error('Error creating new window:', error);
-        // Fallback: just close the modal
         onClose();
       }
     } else {

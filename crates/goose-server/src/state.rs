@@ -1,40 +1,89 @@
 use axum::http::StatusCode;
+use goose::builtin_extension::register_builtin_extensions;
 use goose::execution::manager::AgentManager;
 use goose::scheduler_trait::SchedulerTrait;
+use goose::session::SessionManager;
 use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
-use std::sync::atomic::AtomicUsize;
 use std::sync::Arc;
 use tokio::sync::Mutex;
+use tokio::task::JoinHandle;
 
 use crate::tunnel::TunnelManager;
+use goose::agents::ExtensionLoadResult;
+
+type ExtensionLoadingTasks =
+    Arc<Mutex<HashMap<String, Arc<Mutex<Option<JoinHandle<Vec<ExtensionLoadResult>>>>>>>>;
 
 #[derive(Clone)]
 pub struct AppState {
     pub(crate) agent_manager: Arc<AgentManager>,
     pub recipe_file_hash_map: Arc<Mutex<HashMap<String, PathBuf>>>,
-    pub session_counter: Arc<AtomicUsize>,
     /// Tracks sessions that have already emitted recipe telemetry to prevent double counting.
     recipe_session_tracker: Arc<Mutex<HashSet<String>>>,
     pub tunnel_manager: Arc<TunnelManager>,
+    pub extension_loading_tasks: ExtensionLoadingTasks,
 }
 
 impl AppState {
     pub async fn new() -> anyhow::Result<Arc<AppState>> {
+        register_builtin_extensions(goose_mcp::BUILTIN_EXTENSIONS.clone());
+
         let agent_manager = AgentManager::instance().await?;
         let tunnel_manager = Arc::new(TunnelManager::new());
 
         Ok(Arc::new(Self {
             agent_manager,
             recipe_file_hash_map: Arc::new(Mutex::new(HashMap::new())),
-            session_counter: Arc::new(AtomicUsize::new(0)),
             recipe_session_tracker: Arc::new(Mutex::new(HashSet::new())),
             tunnel_manager,
+            extension_loading_tasks: Arc::new(Mutex::new(HashMap::new())),
         }))
+    }
+
+    pub async fn set_extension_loading_task(
+        &self,
+        session_id: String,
+        task: JoinHandle<Vec<ExtensionLoadResult>>,
+    ) {
+        let mut tasks = self.extension_loading_tasks.lock().await;
+        tasks.insert(session_id, Arc::new(Mutex::new(Some(task))));
+    }
+
+    pub async fn take_extension_loading_task(
+        &self,
+        session_id: &str,
+    ) -> Option<Vec<ExtensionLoadResult>> {
+        let task_holder = {
+            let tasks = self.extension_loading_tasks.lock().await;
+            tasks.get(session_id).cloned()
+        };
+
+        if let Some(holder) = task_holder {
+            let task = holder.lock().await.take();
+            if let Some(handle) = task {
+                match handle.await {
+                    Ok(results) => return Some(results),
+                    Err(e) => {
+                        tracing::warn!("Background extension loading task failed: {}", e);
+                    }
+                }
+            }
+        }
+        None
+    }
+
+    pub async fn remove_extension_loading_task(&self, session_id: &str) {
+        let mut tasks = self.extension_loading_tasks.lock().await;
+        tasks.remove(session_id);
     }
 
     pub fn scheduler(&self) -> Arc<dyn SchedulerTrait> {
         self.agent_manager.scheduler()
+    }
+
+    pub fn session_manager(&self) -> &SessionManager {
+        self.agent_manager.session_manager()
     }
 
     pub async fn set_recipe_file_hash_map(&self, hash_map: HashMap<String, PathBuf>) {

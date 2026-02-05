@@ -10,6 +10,7 @@ import { createRecipe } from '../../api/sdk.gen';
 import { RecipeParameter } from './shared/recipeFormSchema';
 import { toastError } from '../../toasts';
 import { saveRecipe } from '../../recipe/recipe_management';
+import { errorMessage } from '../../utils/conversionUtils';
 
 interface CreateRecipeFromSessionModalProps {
   isOpen: boolean;
@@ -155,7 +156,6 @@ export default function CreateRecipeFromSessionModal({
 
     setIsCreating(true);
     try {
-      // Create the recipe object from form data
       const recipe: Recipe = {
         title: formData.title,
         description: formData.description,
@@ -180,7 +180,6 @@ export default function CreateRecipeFromSessionModal({
                 json_schema: JSON.parse(formData.jsonSchema),
               }
             : undefined,
-        extensions: [], // Will be populated based on current extensions
       };
 
       let recipeId = await saveRecipe(recipe, null);
@@ -202,10 +201,10 @@ export default function CreateRecipeFromSessionModal({
       console.error('Failed to create recipe:', error);
       toastError({
         title: 'Failed to create recipe',
-        msg:
-          error instanceof Error
-            ? error.message
-            : 'An unexpected error occurred while creating the recipe. Please try again.',
+        msg: errorMessage(
+          error,
+          'An unexpected error occurred while creating the recipe. Please try again.'
+        ),
       });
     } finally {
       setIsCreating(false);
@@ -263,7 +262,7 @@ export default function CreateRecipeFromSessionModal({
                   className="text-lg font-medium text-textProminent"
                   data-testid="analyzing-title"
                 >
-                  Analyzing your conversation...
+                  Analyzing your conversation
                 </div>
               </div>
               <div className="text-textSubtle text-center max-w-md" data-testid="analysis-stage">

@@ -8,8 +8,7 @@ use axum::routing::get;
 use axum::{extract::State, http::StatusCode, routing::post, Json, Router};
 use goose::recipe::local_recipes;
 use goose::recipe::validate_recipe::validate_recipe_template_from_content;
-use goose::recipe::Recipe;
-use goose::session::SessionManager;
+use goose::recipe::{strip_error_location, Recipe};
 use goose::{recipe_deeplink, slash_commands};
 
 use serde::{Deserialize, Serialize};
@@ -137,6 +136,16 @@ pub struct SetSlashCommandRequest {
     slash_command: Option<String>,
 }
 
+#[derive(Debug, Deserialize, ToSchema)]
+pub struct RecipeToYamlRequest {
+    recipe: Recipe,
+}
+
+#[derive(Debug, Serialize, ToSchema)]
+pub struct RecipeToYamlResponse {
+    yaml: String,
+}
+
 #[utoipa::path(
     post,
     path = "/recipes/create",
@@ -158,7 +167,11 @@ async fn create_recipe(
         request.session_id
     );
 
-    let session = match SessionManager::get_session(&request.session_id, true).await {
+    let session = match state
+        .session_manager()
+        .get_session(&request.session_id, true)
+        .await
+    {
         Ok(session) => session,
         Err(e) => {
             tracing::error!("Failed to get session: {}", e);
@@ -166,7 +179,7 @@ async fn create_recipe(
         }
     };
 
-    let conversation = match session.conversation {
+    let conversation = match session.conversation.clone() {
         Some(conversation) => conversation,
         None => {
             let error_message = "Session has no conversation".to_string();
@@ -180,7 +193,7 @@ async fn create_recipe(
 
     let agent = state.get_agent_for_route(request.session_id).await?;
 
-    let recipe_result = agent.create_recipe(conversation).await;
+    let recipe_result = agent.create_recipe(&session.id, conversation).await;
 
     match recipe_result {
         Ok(mut recipe) => {
@@ -198,6 +211,7 @@ async fn create_recipe(
         }
         Err(e) => {
             tracing::error!("Error details: {:?}", e);
+            goose::posthog::emit_error("recipe_create_failed", &e.to_string());
             let error_response = CreateRecipeResponse {
                 recipe: None,
                 error: Some(format!("Failed to create recipe: {}", e)),
@@ -224,6 +238,7 @@ async fn encode_recipe(
         Ok(encoded) => Ok(Json(EncodeRecipeResponse { deeplink: encoded })),
         Err(err) => {
             tracing::error!("Failed to encode recipe: {}", err);
+            goose::posthog::emit_error("recipe_encode_failed", &err.to_string());
             Err(StatusCode::BAD_REQUEST)
         }
     }
@@ -249,6 +264,7 @@ async fn decode_recipe(
         },
         Err(err) => {
             tracing::error!("Failed to decode deeplink: {}", err);
+            goose::posthog::emit_error("recipe_decode_failed", &err.to_string());
             Err(StatusCode::BAD_REQUEST)
         }
     }
@@ -374,6 +390,7 @@ async fn schedule_recipe(
         Ok(_) => Ok(StatusCode::OK),
         Err(e) => {
             tracing::error!("Failed to schedule recipe: {}", e);
+            goose::posthog::emit_error("recipe_schedule_failed", &e.to_string());
             Err(StatusCode::INTERNAL_SERVER_ERROR)
         }
     }
@@ -426,7 +443,7 @@ async fn save_recipe(
     payload: Result<Json<Value>, JsonRejection>,
 ) -> Result<Json<SaveRecipeResponse>, ErrorResponse> {
     let Json(raw_json) = payload.map_err(json_rejection_to_error_response)?;
-    let request = deserialize_save_recipe_request(raw_json)?;
+    let request: SaveRecipeRequest = deserialize_save_recipe_request(raw_json)?;
     let has_security_warnings = request.recipe.check_for_security_warnings();
     if has_security_warnings {
         return Err(ErrorResponse {
@@ -475,7 +492,7 @@ fn deserialize_save_recipe_request(value: Value) -> Result<SaveRecipeRequest, Er
     let result: Result<SaveRecipeRequest, _> = deserialize_with_path(&mut deserializer);
     result.map_err(|err| {
         let path = err.path().to_string();
-        let inner = err.into_inner();
+        let inner = strip_error_location(&err.into_inner().to_string());
         let message = if path.is_empty() {
             format!("Save recipe validation failed: {}", inner)
         } else {
@@ -516,6 +533,27 @@ async fn parse_recipe(
     Ok(Json(ParseRecipeResponse { recipe }))
 }
 
+#[utoipa::path(
+    post,
+    path = "/recipes/to-yaml",
+    request_body = RecipeToYamlRequest,
+    responses(
+        (status = 200, description = "Recipe converted to YAML successfully", body = RecipeToYamlResponse),
+        (status = 400, description = "Bad request - Failed to convert recipe to YAML", body = ErrorResponse),
+    ),
+    tag = "Recipe Management"
+)]
+async fn recipe_to_yaml(
+    Json(request): Json<RecipeToYamlRequest>,
+) -> Result<Json<RecipeToYamlResponse>, ErrorResponse> {
+    let yaml = request.recipe.to_yaml().map_err(|e| ErrorResponse {
+        message: format!("Failed to convert recipe to YAML: {}", e),
+        status: StatusCode::BAD_REQUEST,
+    })?;
+
+    Ok(Json(RecipeToYamlResponse { yaml }))
+}
+
 pub fn routes(state: Arc<AppState>) -> Router {
     Router::new()
         .route("/recipes/create", post(create_recipe))
@@ -528,6 +566,7 @@ pub fn routes(state: Arc<AppState>) -> Router {
         .route("/recipes/slash-command", post(set_recipe_slash_command))
         .route("/recipes/save", post(save_recipe))
         .route("/recipes/parse", post(parse_recipe))
+        .route("/recipes/to-yaml", post(recipe_to_yaml))
         .with_state(state)
 }
 

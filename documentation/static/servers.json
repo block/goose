@@ -79,6 +79,17 @@
     "environmentVariables": []
   },
   {
+    "id": "beads",
+    "name": "Beads",
+    "description": "Git-backed issue tracker for AI agent task management",
+    "command": "uvx beads-mcp",
+    "link": "https://github.com/steveyegge/beads",
+    "installation_notes": "Install using uvx package manager. Requires uv to be installed.",
+    "is_builtin": false,
+    "endorsed": false,
+    "environmentVariables": []
+  },
+  {
     "id": "blender-mcp",
     "name": "Blender",
     "description": "3D modeling and animation integration (requires local server setup)",
@@ -121,25 +132,15 @@
     "id": "cloudinary-asset-management-mcp",
     "name": "Cloudinary Asset Management",
     "description": "Cloud-based image and video management",
-    "command": "npx -y cloudinary-asset-management-mcp",
+    "command": "npx -y --package @cloudinary/asset-management -- mcp start",
     "link": "https://github.com/cloudinary/asset-management-js",
-    "installation_notes": "Install using npx package manager.",
+    "installation_notes": "Requires Node.js v20 or greater. Get your Cloudinary URL from the Cloudinary Console (https://console.cloudinary.com/settings/api-keys).",
     "is_builtin": false,
     "endorsed": true,
     "environmentVariables": [
       {
-        "name": "CLOUDINARY_CLOUD_NAME",
-        "description": "Required environment variable",
-        "required": true
-      },
-      {
-        "name": "CLOUDINARY_API_KEY",
-        "description": "Required environment variable",
-        "required": true
-      },
-      {
-        "name": "CLOUDINARY_API_SECRET",
-        "description": "Required environment variable",
+        "name": "CLOUDINARY_URL",
+        "description": "Your Cloudinary URL (cloudinary://api_key:api_secret@cloud_name)",
         "required": true
       }
     ]
@@ -191,6 +192,17 @@
     "command": "npx -y @upstash/context7-mcp",
     "link": "https://github.com/upstash/context7",
     "installation_notes": "Install using npx package manager.",
+    "is_builtin": false,
+    "endorsed": true,
+    "environmentVariables": []
+  },
+  {
+    "id": "council-of-mine",
+    "name": "Council of Mine",
+    "description": "LLM council debate with 9 distinct personas for decision-making",
+    "command": "uvx --from git+https://github.com/block/mcp-council-of-mine mcp_council_of_mine",
+    "link": "https://github.com/block/mcp-council-of-mine",
+    "installation_notes": "Requires uv to be installed (https://github.com/astral-sh/uv). Installs via uvx from GitHub.",
     "is_builtin": false,
     "endorsed": true,
     "environmentVariables": []
@@ -356,10 +368,10 @@
     "id": "jetbrains",
     "name": "JetBrains",
     "description": "Integrate with any JetBrains IDE (requires local setup, dependent on your IDE version)",
-    "url": "http://localhost:<PORT>/sse",
-    "type": "remote",
+    "command": "",
+    "show_install_command": false,
     "link": "https://github.com/JetBrains/mcp-jetbrains",
-    "installation_notes": "IDE v2025.2 and later: Enable SSE configuration from Settings > Tools > MCP Server, then update the placeholder SSE URL in the following command. If installing from the link, you must update the URL from the Extensions page before activating the extension. For earlier IDE versions, you must install the MCP Server plugin and use npx package manager to install the extension.",
+    "installation_notes": "Requires IDE v2025.2+. Use STDIO from Settings > Tools > MCP Server.",
     "is_builtin": false,
     "endorsed": true,
     "environmentVariables": []
@@ -426,13 +438,30 @@
     "environmentVariables": []
   },
   {
+    "id": "nano-banana-mcp",
+    "name": "Nano Banana",
+    "description": "AI-powered image generation and editing",
+    "command": "npx nano-banana-mcp",
+    "link": "https://github.com/ConechoAI/Nano-Banana-MCP",
+    "installation_notes": "Install using npx package manager.",
+    "is_builtin": false,
+    "endorsed": false,
+    "environmentVariables": [
+      {
+        "name": "GEMINI_API_KEY",
+        "description": "API key from Google AI Studio",
+        "required": true
+      }
+    ]
+  },
+  {
     "id": "neon",
     "name": "Neon",
     "description": "Manage Neon Postgres databases, projects, and branches",
     "type": "streamable-http",
     "url": "https://mcp.neon.tech/mcp",
     "link": "https://github.com/neondatabase/mcp-server-neon",
-    "installation_notes": "Streaming HTTP extension with OAuth browser authentication to your Neon account.",
+    "installation_notes": "Streamable HTTP extension with OAuth browser authentication to your Neon account.",
     "is_builtin": false,
     "endorsed": true,
     "environmentVariables": []
@@ -497,13 +526,12 @@
     "id": "pieces",
     "name": "Pieces",
     "description": "Provides access to your Pieces long-term memory. You need to have Pieces installed to use this.",
-    "url": "http://localhost:39300/model_context_protocol/2024-11-05/sse",
+    "command": "uvx --from pieces-cli pieces --ignore-onboarding mcp start",
     "link": "https://pieces.app?utm_source=goose&utm_medium=collab&utm_campaign=mcp",
-    "installation_notes": "You need to install Pieces first, and have this running.",
+    "installation_notes": "Install PiecesOS first.",
     "is_builtin": false,
     "endorsed": true,
-    "environmentVariables": [],
-    "type": "remote"
+    "environmentVariables": []
   },
   {
     "id": "playwright",
@@ -515,6 +543,23 @@
     "is_builtin": false,
     "endorsed": true,
     "environmentVariables": []
+  },
+  {
+    "id": "prompts-chat-mcp",
+    "name": "prompts.chat",
+    "description": "Access thousands of AI prompts directly in your AI assistant",
+    "command": "npx -y @fkadev/prompts.chat-mcp@latest",
+    "link": "https://github.com/f/prompts.chat-mcp",
+    "installation_notes": "Install using npx package manager.",
+    "is_builtin": false,
+    "endorsed": false,
+    "environmentVariables": [
+      {
+        "name": "PROMPTS_API_KEY",
+        "description": "API Key to save and list private prompts on prompts.chat",
+        "required": false
+      }
+    ]
   },
   {
     "id": "reddit-mcp",
@@ -556,7 +601,7 @@
     "type": "streamable-http",
     "url": "https://rube.app/mcp",
     "link": "https://rube.app",
-    "installation_notes": "Streaming HTTP extension with OAuth browser authentication to your Rube account.",
+    "installation_notes": "Streamable HTTP extension with OAuth browser authentication to your Rube account.",
     "is_builtin": false,
     "endorsed": true,
     "environmentVariables": []
@@ -601,13 +646,30 @@
     "type": "streamable-http",
     "url": "https://mcp.supabase.com/mcp",
     "link": "https://github.com/supabase-community/supabase-mcp",
-    "installation_notes": "Streaming HTTP extension with OAuth browser authentication to your Supabase account.",
+    "installation_notes": "Streamable HTTP extension with OAuth browser authentication to your Supabase account.",
     "is_builtin": false,
     "endorsed": true,
     "environmentVariables": [
       {
         "name": "SUPABASE_PERSONAL_ACCESS_TOKEN",
         "description": "Personal access token (optional; use if not authenticating via browser OAuth)",
+        "required": false
+      }
+    ]
+  },
+  {
+    "id": "sugar",
+    "name": "Sugar",
+    "description": "Autonomous AI development system - delegate tasks, run 24/7, auto-discover work from errors and GitHub issues",
+    "command": "npx -y sugarai-mcp",
+    "link": "https://github.com/cdnsteve/sugar",
+    "installation_notes": "Requires Python 3.11+ and Sugar CLI: pip install sugarai && sugar init",
+    "is_builtin": false,
+    "endorsed": false,
+    "environmentVariables": [
+      {
+        "name": "SUGAR_PROJECT_ROOT",
+        "description": "Project directory for Sugar operations (defaults to current directory)",
         "required": false
       }
     ]

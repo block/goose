@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { IpcRendererEvent } from 'electron';
 import {
   Dialog,
@@ -13,6 +13,9 @@ import { extractExtensionName } from './settings/extensions/utils';
 import { addExtensionFromDeepLink } from './settings/extensions/deeplink';
 import type { ExtensionConfig } from '../api/types.gen';
 import { View, ViewOptions } from '../utils/navigationUtils';
+import { useConfig } from './ConfigContext';
+import { toastService } from '../toasts';
+import { errorMessage } from '../utils/conversionUtils';
 
 type ModalType = 'blocked' | 'untrusted' | 'trusted';
 
@@ -66,6 +69,14 @@ function extractRemoteUrl(link: string): string | null {
 }
 
 export function ExtensionInstallModal({ addExtension, setView }: ExtensionInstallModalProps) {
+  const { getExtensions } = useConfig();
+  const getExtensionsRef = useRef(getExtensions);
+  const processingLinkRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    getExtensionsRef.current = getExtensions;
+  }, [getExtensions]);
+
   const [modalState, setModalState] = useState<ExtensionModalState>({
     isOpen: false,
     modalType: 'trusted',
@@ -149,12 +160,30 @@ export function ExtensionInstallModal({ addExtension, setView }: ExtensionInstal
   };
 
   const handleExtensionRequest = useCallback(async (link: string): Promise<void> => {
+    if (processingLinkRef.current === link) {
+      console.log(`Skipping duplicate extension request (already processing): ${link}`);
+      return;
+    }
+    processingLinkRef.current = link;
+
     try {
       console.log(`Processing extension request: ${link}`);
 
       const command = extractCommand(link);
       const remoteUrl = extractRemoteUrl(link);
       const extName = extractExtensionName(link);
+      const extensionsList = await getExtensionsRef.current(true);
+
+      if (extensionsList?.find((ext) => ext.name === extName)) {
+        console.log(`Extension Already Installed: ${extName}`);
+
+        toastService.success({
+          title: `Extension '${extName}' Already Installed`,
+          msg: `'${extName}' extension has already been installed successfully. Start a new chat session to use it.`,
+        });
+        return;
+      }
+      console.log('Extension not found, continuing to show modal');
 
       const extensionInfo: ExtensionInfo = {
         name: extName,
@@ -180,8 +209,10 @@ export function ExtensionInstallModal({ addExtension, setView }: ExtensionInstal
       console.error('Error processing extension request:', error);
       setModalState((prev) => ({
         ...prev,
-        error: error instanceof Error ? error.message : 'Unknown error',
+        error: errorMessage(error, 'Unknown error'),
       }));
+    } finally {
+      processingLinkRef.current = null;
     }
   }, []);
 
@@ -218,16 +249,11 @@ export function ExtensionInstallModal({ addExtension, setView }: ExtensionInstal
       } else {
         throw new Error('addExtension function not provided to component');
       }
-
-      // Only dismiss modal after successful installation
       dismissModal();
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Installation failed';
-      console.error('Extension installation failed:', error);
-
       setModalState((prev) => ({
         ...prev,
-        error: errorMessage,
+        error: errorMessage(error, 'Installation failed'),
         isPending: false,
       }));
     }
@@ -285,7 +311,7 @@ export function ExtensionInstallModal({ addExtension, setView }: ExtensionInstal
       <DialogContent className="sm:max-w-[500px]">
         <DialogHeader>
           <DialogTitle className={getTitleClassName()}>{config.title}</DialogTitle>
-          <DialogDescription className="whitespace-pre-wrap text-left">
+          <DialogDescription className="text-left whitespace-pre-wrap">
             {config.message}
           </DialogDescription>
         </DialogHeader>

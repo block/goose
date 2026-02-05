@@ -1,7 +1,9 @@
+pub mod classification_client;
 pub mod patterns;
 pub mod scanner;
 pub mod security_inspector;
 
+use crate::config::Config;
 use crate::conversation::message::{Message, ToolRequest};
 use crate::permission::permission_judge::PermissionCheckResult;
 use anyhow::Result;
@@ -30,17 +32,28 @@ impl SecurityManager {
         }
     }
 
-    /// Check if prompt injection security is enabled
     pub fn is_prompt_injection_detection_enabled(&self) -> bool {
-        use crate::config::Config;
         let config = Config::global();
 
         config
-            .get_param::<bool>("security_prompt_enabled")
+            .get_param::<bool>("SECURITY_PROMPT_ENABLED")
             .unwrap_or(false)
     }
 
-    /// New method for tool inspection framework - works directly with tool requests
+    fn is_ml_scanning_enabled(&self) -> bool {
+        let config = Config::global();
+
+        let prompt_enabled = config
+            .get_param::<bool>("SECURITY_PROMPT_CLASSIFIER_ENABLED")
+            .unwrap_or(false);
+
+        let command_enabled = config
+            .get_param::<bool>("SECURITY_COMMAND_CLASSIFIER_ENABLED")
+            .unwrap_or(false);
+
+        prompt_enabled || command_enabled
+    }
+
     pub async fn analyze_tool_requests(
         &self,
         tool_requests: &[ToolRequest],
@@ -55,29 +68,51 @@ impl SecurityManager {
         }
 
         let scanner = self.scanner.get_or_init(|| {
-            tracing::info!(
-                counter.goose.prompt_injection_scanner_enabled = 1,
-                "Security scanner initialized and enabled"
-            );
-            PromptInjectionScanner::new()
+            let ml_enabled = self.is_ml_scanning_enabled();
+
+            let scanner = if ml_enabled {
+                match PromptInjectionScanner::with_ml_detection() {
+                    Ok(s) => {
+                        tracing::info!(
+                            counter.goose.prompt_injection_scanner_enabled = 1,
+                            "Security scanner initialized with ML-based detection"
+                        );
+                        s
+                    }
+                    Err(e) => {
+                        let error_chain = format!("{:#}", e);
+                        tracing::warn!(
+                            "ML scanning requested but failed to initialize. Falling back to pattern-only scanning.\n\nError details:\n{}",
+                            error_chain
+                        );
+                        PromptInjectionScanner::new()
+                    }
+                }
+            } else {
+                tracing::info!(
+                    counter.goose.prompt_injection_scanner_enabled = 1,
+                    "Security scanner initialized with pattern-based detection only"
+                );
+                PromptInjectionScanner::new()
+            };
+
+            scanner
         });
 
         let mut results = Vec::new();
 
-        tracing::info!(
-            "🔍 Starting security analysis - {} tool requests, {} messages",
+        tracing::debug!(
+            "Starting security analysis - {} tool requests, {} messages",
             tool_requests.len(),
             messages.len()
         );
 
-        // Analyze each tool request
         for tool_request in tool_requests.iter() {
             if let Ok(tool_call) = &tool_request.tool_call {
                 let analysis_result = scanner
                     .analyze_tool_call_with_context(tool_call, messages)
                     .await?;
 
-                // Get threshold from config - only flag things above threshold
                 let config_threshold = scanner.get_threshold_from_config();
                 let sanitized_explanation = analysis_result.explanation.replace('\n', " | ");
 
@@ -85,20 +120,25 @@ impl SecurityManager {
                     let above_threshold = analysis_result.confidence > config_threshold;
                     let finding_id = format!("SEC-{}", Uuid::new_v4().simple());
 
+                    let tool_call_json =
+                        serde_json::to_string(&tool_call).unwrap_or_else(|_| "{}".to_string());
+
                     tracing::warn!(
                         counter.goose.prompt_injection_finding = 1,
+                        threat_type = "command_injection",
                         above_threshold = above_threshold,
                         tool_name = %tool_call.name,
                         tool_request_id = %tool_request.id,
+                        tool_call_json = %tool_call_json,
                         confidence = analysis_result.confidence,
                         explanation = %sanitized_explanation,
                         finding_id = %finding_id,
                         threshold = config_threshold,
                         "{}",
                         if above_threshold {
-                            "Current tool call flagged as malicious after security analysis (above threshold)"
+                            "Prompt injection detection: Current tool call flagged as malicious after security analysis (above threshold)"
                         } else {
-                            "Security finding below threshold - logged but not blocking execution"
+                            "Prompt injection detection: Security finding below threshold (logged but not blocking execution)"
                         }
                     );
                     if above_threshold {
@@ -126,21 +166,17 @@ impl SecurityManager {
         tracing::info!(
             counter.goose.prompt_injection_analysis_performed = 1,
             security_issues_found = results.len(),
-            "Security analysis complete"
+            "Prompt injection detection: Security analysis complete"
         );
         Ok(results)
     }
 
-    /// Main security check function - called from reply_internal
-    /// Uses the proper two-step security analysis process
-    /// Scans ALL tools (approved + needs_approval) for security threats
     pub async fn filter_malicious_tool_calls(
         &self,
         messages: &[Message],
         permission_check_result: &PermissionCheckResult,
         _system_prompt: Option<&str>,
     ) -> Result<Vec<SecurityResult>> {
-        // Extract tool requests from permission result and delegate to new method
         let tool_requests: Vec<_> = permission_check_result
             .approved
             .iter()
@@ -149,12 +185,6 @@ impl SecurityManager {
             .collect();
 
         self.analyze_tool_requests(&tool_requests, messages).await
-    }
-
-    /// Check if models need to be downloaded and return appropriate user message
-    pub async fn check_model_download_status(&self) -> Option<String> {
-        // Phase 1: No ML models needed, pattern matching is instant
-        None
     }
 }
 

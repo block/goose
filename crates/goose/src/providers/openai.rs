@@ -1,34 +1,40 @@
-use anyhow::Result;
-use async_stream::try_stream;
-use async_trait::async_trait;
-use futures::TryStreamExt;
-use reqwest::StatusCode;
-use serde_json::{json, Value};
-use std::collections::HashMap;
-use std::io;
-use tokio::pin;
-use tokio_stream::StreamExt;
-use tokio_util::codec::{FramedRead, LinesCodec};
-use tokio_util::io::StreamReader;
-
 use super::api_client::{ApiClient, AuthMethod};
-use super::base::{ConfigKey, ModelInfo, Provider, ProviderMetadata, ProviderUsage, Usage};
+use super::base::{
+    ConfigKey, ModelInfo, Provider, ProviderDef, ProviderMetadata, ProviderUsage, Usage,
+};
 use super::embedding::{EmbeddingCapable, EmbeddingRequest, EmbeddingResponse};
 use super::errors::ProviderError;
 use super::formats::openai::{create_request, get_usage, response_to_message};
-use super::retry::ProviderRetry;
-use super::utils::{
-    get_model, handle_response_openai_compat, handle_status_openai_compat, ImageFormat,
+use super::formats::openai_responses::{
+    create_responses_request, get_responses_usage, responses_api_to_message,
+    responses_api_to_streaming_message, ResponsesApiResponse,
 };
+use super::openai_compatible::{
+    handle_response_openai_compat, handle_status_openai_compat, stream_openai_compat,
+};
+use super::retry::ProviderRetry;
+use super::utils::{get_model, ImageFormat};
 use crate::config::declarative_providers::DeclarativeProviderConfig;
 use crate::conversation::message::Message;
+use anyhow::Result;
+use async_stream::try_stream;
+use async_trait::async_trait;
+use futures::future::BoxFuture;
+use futures::{StreamExt, TryStreamExt};
+use reqwest::StatusCode;
+use serde_json::Value;
+use std::collections::HashMap;
+use std::io;
+use tokio::pin;
+use tokio_util::codec::{FramedRead, LinesCodec};
+use tokio_util::io::StreamReader;
 
 use crate::model::ModelConfig;
 use crate::providers::base::MessageStream;
-use crate::providers::formats::openai::response_to_streaming_message;
 use crate::providers::utils::RequestLog;
 use rmcp::model::Tool;
 
+const OPEN_AI_PROVIDER_NAME: &str = "openai";
 pub const OPEN_AI_DEFAULT_MODEL: &str = "gpt-4o";
 pub const OPEN_AI_DEFAULT_FAST_MODEL: &str = "gpt-4o-mini";
 pub const OPEN_AI_KNOWN_MODELS: &[(&str, usize)] = &[
@@ -41,6 +47,8 @@ pub const OPEN_AI_KNOWN_MODELS: &[(&str, usize)] = &[
     ("gpt-3.5-turbo", 16_385),
     ("gpt-4-turbo", 128_000),
     ("o4-mini", 128_000),
+    ("gpt-5.1-codex", 400_000),
+    ("gpt-5-codex", 400_000),
 ];
 
 pub const OPEN_AI_DOC_URL: &str = "https://platform.openai.com/docs/models";
@@ -63,23 +71,30 @@ impl OpenAiProvider {
         let model = model.with_fast(OPEN_AI_DEFAULT_FAST_MODEL.to_string());
 
         let config = crate::config::Config::global();
-        let api_key: String = config.get_secret("OPENAI_API_KEY")?;
         let host: String = config
             .get_param("OPENAI_HOST")
             .unwrap_or_else(|_| "https://api.openai.com".to_string());
+
+        let secrets = config
+            .get_secrets("OPENAI_API_KEY", &["OPENAI_CUSTOM_HEADERS"])
+            .unwrap_or_default();
+        let api_key: Option<String> = secrets.get("OPENAI_API_KEY").cloned();
+        let custom_headers: Option<HashMap<String, String>> = secrets
+            .get("OPENAI_CUSTOM_HEADERS")
+            .cloned()
+            .map(parse_custom_headers);
+
         let base_path: String = config
             .get_param("OPENAI_BASE_PATH")
             .unwrap_or_else(|_| "v1/chat/completions".to_string());
         let organization: Option<String> = config.get_param("OPENAI_ORGANIZATION").ok();
         let project: Option<String> = config.get_param("OPENAI_PROJECT").ok();
-        let custom_headers: Option<HashMap<String, String>> = config
-            .get_secret("OPENAI_CUSTOM_HEADERS")
-            .or_else(|_| config.get_param("OPENAI_CUSTOM_HEADERS"))
-            .ok()
-            .map(parse_custom_headers);
         let timeout_secs: u64 = config.get_param("OPENAI_TIMEOUT").unwrap_or(600);
 
-        let auth = AuthMethod::BearerToken(api_key);
+        let auth = match api_key {
+            Some(key) if !key.is_empty() => AuthMethod::BearerToken(key),
+            _ => AuthMethod::NoAuth,
+        };
         let mut api_client =
             ApiClient::with_timeout(host, auth, std::time::Duration::from_secs(timeout_secs))?;
 
@@ -109,7 +124,7 @@ impl OpenAiProvider {
             model,
             custom_headers,
             supports_streaming: true,
-            name: Self::metadata().name,
+            name: OPEN_AI_PROVIDER_NAME.to_string(),
         })
     }
 
@@ -123,7 +138,7 @@ impl OpenAiProvider {
             model,
             custom_headers: None,
             supports_streaming: true,
-            name: Self::metadata().name,
+            name: OPEN_AI_PROVIDER_NAME.to_string(),
         }
     }
 
@@ -132,9 +147,12 @@ impl OpenAiProvider {
         config: DeclarativeProviderConfig,
     ) -> Result<Self> {
         let global_config = crate::config::Config::global();
-        let api_key: String = global_config
-            .get_secret(&config.api_key_env)
-            .map_err(|_e| anyhow::anyhow!("Missing API key: {}", config.api_key_env))?;
+
+        let api_key: Option<String> = if config.requires_auth && !config.api_key_env.is_empty() {
+            global_config.get_secret(&config.api_key_env).ok()
+        } else {
+            None
+        };
 
         let url = url::Url::parse(&config.base_url)
             .map_err(|e| anyhow::anyhow!("Invalid base URL '{}': {}", config.base_url, e))?;
@@ -150,14 +168,18 @@ impl OpenAiProvider {
             format!("{}://{}", url.scheme(), url.host_str().unwrap_or(""))
         };
         let base_path = url.path().trim_start_matches('/').to_string();
-        let base_path = if base_path.is_empty() {
+        let base_path = if base_path.is_empty() || base_path == "v1" || base_path == "v1/" {
             "v1/chat/completions".to_string()
         } else {
             base_path
         };
 
         let timeout_secs = config.timeout_seconds.unwrap_or(600);
-        let auth = AuthMethod::BearerToken(api_key);
+
+        let auth = match api_key {
+            Some(key) if !key.is_empty() => AuthMethod::BearerToken(key),
+            _ => AuthMethod::NoAuth,
+        };
         let mut api_client =
             ApiClient::with_timeout(host, auth, std::time::Duration::from_secs(timeout_secs))?;
 
@@ -184,31 +206,52 @@ impl OpenAiProvider {
         })
     }
 
-    async fn post(&self, payload: &Value) -> Result<Value, ProviderError> {
+    fn uses_responses_api(model_name: &str) -> bool {
+        model_name.starts_with("gpt-5-codex") || model_name.starts_with("gpt-5.1-codex")
+    }
+
+    async fn post(
+        &self,
+        session_id: Option<&str>,
+        payload: &Value,
+    ) -> Result<Value, ProviderError> {
         let response = self
             .api_client
-            .response_post(&self.base_path, payload)
+            .response_post(session_id, &self.base_path, payload)
+            .await?;
+        handle_response_openai_compat(response).await
+    }
+
+    async fn post_responses(
+        &self,
+        session_id: Option<&str>,
+        payload: &Value,
+    ) -> Result<Value, ProviderError> {
+        let response = self
+            .api_client
+            .response_post(session_id, "v1/responses", payload)
             .await?;
         handle_response_openai_compat(response).await
     }
 }
 
-#[async_trait]
-impl Provider for OpenAiProvider {
+impl ProviderDef for OpenAiProvider {
+    type Provider = Self;
+
     fn metadata() -> ProviderMetadata {
         let models = OPEN_AI_KNOWN_MODELS
             .iter()
             .map(|(name, limit)| ModelInfo::new(*name, *limit))
             .collect();
         ProviderMetadata::with_models(
-            "openai",
+            OPEN_AI_PROVIDER_NAME,
             "OpenAI",
             "GPT-4 and other OpenAI models, including OpenAI compatible ones",
             OPEN_AI_DEFAULT_MODEL,
             models,
             OPEN_AI_DOC_URL,
             vec![
-                ConfigKey::new("OPENAI_API_KEY", true, true, None),
+                ConfigKey::new("OPENAI_API_KEY", false, true, None),
                 ConfigKey::new("OPENAI_HOST", true, false, Some("https://api.openai.com")),
                 ConfigKey::new("OPENAI_BASE_PATH", true, false, Some("v1/chat/completions")),
                 ConfigKey::new("OPENAI_ORGANIZATION", false, false, None),
@@ -219,6 +262,13 @@ impl Provider for OpenAiProvider {
         )
     }
 
+    fn from_env(model: ModelConfig) -> BoxFuture<'static, Result<Self::Provider>> {
+        Box::pin(Self::from_env(model))
+    }
+}
+
+#[async_trait]
+impl Provider for OpenAiProvider {
     fn get_name(&self) -> &str {
         &self.name
     }
@@ -233,64 +283,95 @@ impl Provider for OpenAiProvider {
     )]
     async fn complete_with_model(
         &self,
+        session_id: Option<&str>,
         model_config: &ModelConfig,
         system: &str,
         messages: &[Message],
         tools: &[Tool],
     ) -> Result<(Message, ProviderUsage), ProviderError> {
-        let payload = create_request(model_config, system, messages, tools, &ImageFormat::OpenAi)?;
+        if Self::uses_responses_api(&model_config.model_name) {
+            let payload = create_responses_request(model_config, system, messages, tools)?;
+            let mut log = RequestLog::start(&self.model, &payload)?;
 
-        let mut log = RequestLog::start(&self.model, &payload)?;
-        let json_response = self
-            .with_retry(|| async {
-                let payload_clone = payload.clone();
-                self.post(&payload_clone).await
-            })
-            .await
-            .inspect_err(|e| {
-                let _ = log.error(e);
-            })?;
+            let json_response = self
+                .with_retry(|| async {
+                    let payload_clone = payload.clone();
+                    self.post_responses(session_id, &payload_clone).await
+                })
+                .await
+                .inspect_err(|e| {
+                    let _ = log.error(e);
+                })?;
 
-        let message = response_to_message(&json_response)?;
-        let usage = json_response
-            .get("usage")
-            .map(get_usage)
-            .unwrap_or_else(|| {
-                tracing::debug!("Failed to get usage data");
-                Usage::default()
-            });
+            let responses_api_response: ResponsesApiResponse =
+                serde_json::from_value(json_response.clone()).map_err(|e| {
+                    ProviderError::ExecutionError(format!(
+                        "Failed to parse responses API response: {}",
+                        e
+                    ))
+                })?;
 
-        let model = get_model(&json_response);
-        log.write(&json_response, Some(&usage))?;
-        Ok((message, ProviderUsage::new(model, usage)))
+            let message = responses_api_to_message(&responses_api_response)?;
+            let usage = get_responses_usage(&responses_api_response);
+            let model = responses_api_response.model.clone();
+
+            log.write(&json_response, Some(&usage))?;
+            Ok((message, ProviderUsage::new(model, usage)))
+        } else {
+            let payload = create_request(
+                model_config,
+                system,
+                messages,
+                tools,
+                &ImageFormat::OpenAi,
+                false,
+            )?;
+
+            let mut log = RequestLog::start(&self.model, &payload)?;
+            let json_response = self
+                .with_retry(|| async {
+                    let payload_clone = payload.clone();
+                    self.post(session_id, &payload_clone).await
+                })
+                .await
+                .inspect_err(|e| {
+                    let _ = log.error(e);
+                })?;
+
+            let message = response_to_message(&json_response)?;
+            let usage = json_response
+                .get("usage")
+                .map(get_usage)
+                .unwrap_or_else(|| {
+                    tracing::debug!("Failed to get usage data");
+                    Usage::default()
+                });
+
+            let model = get_model(&json_response);
+            log.write(&json_response, Some(&usage))?;
+            Ok((message, ProviderUsage::new(model, usage)))
+        }
     }
 
     async fn fetch_supported_models(&self) -> Result<Option<Vec<String>>, ProviderError> {
         let models_path = self.base_path.replace("v1/chat/completions", "v1/models");
         let response = self
-            .with_retry(|| async {
-                let response = self.api_client.response_get(&models_path).await?;
-                let json = handle_response_openai_compat(response).await?;
-                if let Some(err_obj) = json.get("error") {
-                    let msg = err_obj
-                        .get("message")
-                        .and_then(|v| v.as_str())
-                        .unwrap_or("unknown error");
-                    return Err(ProviderError::Authentication(msg.to_string()));
-                }
-                Ok(json)
-            })
-            .await
-            .inspect_err(|e| {
-                tracing::warn!("Failed to fetch supported models from OpenAI: {:?}", e);
-            })?;
+            .api_client
+            .request(None, &models_path)
+            .response_get()
+            .await?;
+        let json = handle_response_openai_compat(response).await?;
+        if let Some(err_obj) = json.get("error") {
+            let msg = err_obj
+                .get("message")
+                .and_then(|v| v.as_str())
+                .unwrap_or("unknown error");
+            return Err(ProviderError::Authentication(msg.to_string()));
+        }
 
-        let data = response
-            .get("data")
-            .and_then(|v| v.as_array())
-            .ok_or_else(|| {
-                ProviderError::UsageError("Missing data field in JSON response".into())
-            })?;
+        let data = json.get("data").and_then(|v| v.as_array()).ok_or_else(|| {
+            ProviderError::UsageError("Missing data field in JSON response".into())
+        })?;
         let mut models: Vec<String> = data
             .iter()
             .filter_map(|m| m.get("id").and_then(|v| v.as_str()).map(str::to_string))
@@ -303,8 +384,12 @@ impl Provider for OpenAiProvider {
         true
     }
 
-    async fn create_embeddings(&self, texts: Vec<String>) -> Result<Vec<Vec<f32>>, ProviderError> {
-        EmbeddingCapable::create_embeddings(self, texts)
+    async fn create_embeddings(
+        &self,
+        session_id: &str,
+        texts: Vec<String>,
+    ) -> Result<Vec<Vec<f32>>, ProviderError> {
+        EmbeddingCapable::create_embeddings(self, session_id, texts)
             .await
             .map_err(|e| ProviderError::ExecutionError(e.to_string()))
     }
@@ -315,44 +400,71 @@ impl Provider for OpenAiProvider {
 
     async fn stream(
         &self,
+        session_id: &str,
         system: &str,
         messages: &[Message],
         tools: &[Tool],
     ) -> Result<MessageStream, ProviderError> {
-        let mut payload =
-            create_request(&self.model, system, messages, tools, &ImageFormat::OpenAi)?;
-        payload["stream"] = serde_json::Value::Bool(true);
-        payload["stream_options"] = json!({
-            "include_usage": true,
-        });
-        let mut log = RequestLog::start(&self.model, &payload)?;
+        if Self::uses_responses_api(&self.model.model_name) {
+            let mut payload = create_responses_request(&self.model, system, messages, tools)?;
+            payload["stream"] = serde_json::Value::Bool(true);
 
-        let response = self
-            .with_retry(|| async {
-                let resp = self
-                    .api_client
-                    .response_post(&self.base_path, &payload)
-                    .await?;
-                handle_status_openai_compat(resp).await
-            })
-            .await
-            .inspect_err(|e| {
-                let _ = log.error(e);
-            })?;
-        let stream = response.bytes_stream().map_err(io::Error::other);
+            let mut log = RequestLog::start(&self.model, &payload)?;
 
-        Ok(Box::pin(try_stream! {
-            let stream_reader = StreamReader::new(stream);
-            let framed = FramedRead::new(stream_reader, LinesCodec::new()).map_err(anyhow::Error::from);
+            let response = self
+                .with_retry(|| async {
+                    let payload_clone = payload.clone();
+                    let resp = self
+                        .api_client
+                        .response_post(Some(session_id), "v1/responses", &payload_clone)
+                        .await?;
+                    handle_status_openai_compat(resp).await
+                })
+                .await
+                .inspect_err(|e| {
+                    let _ = log.error(e);
+                })?;
 
-            let message_stream = response_to_streaming_message(framed);
-            pin!(message_stream);
-            while let Some(message) = message_stream.next().await {
-                let (message, usage) = message.map_err(|e| ProviderError::RequestFailed(format!("Stream decode error: {}", e)))?;
-                log.write(&message, usage.as_ref().map(|f| f.usage).as_ref())?;
-                yield (message, usage);
-            }
-        }))
+            let stream = response.bytes_stream().map_err(io::Error::other);
+
+            Ok(Box::pin(try_stream! {
+                let stream_reader = StreamReader::new(stream);
+                let framed = FramedRead::new(stream_reader, LinesCodec::new()).map_err(anyhow::Error::from);
+
+                let message_stream = responses_api_to_streaming_message(framed);
+                pin!(message_stream);
+                while let Some(message) = message_stream.next().await {
+                    let (message, usage) = message.map_err(|e| ProviderError::RequestFailed(format!("Stream decode error: {}", e)))?;
+                    log.write(&message, usage.as_ref().map(|f| f.usage).as_ref())?;
+                    yield (message, usage);
+                }
+            }))
+        } else {
+            let payload = create_request(
+                &self.model,
+                system,
+                messages,
+                tools,
+                &ImageFormat::OpenAi,
+                true,
+            )?;
+            let mut log = RequestLog::start(&self.model, &payload)?;
+
+            let response = self
+                .with_retry(|| async {
+                    let resp = self
+                        .api_client
+                        .response_post(Some(session_id), &self.base_path, &payload)
+                        .await?;
+                    handle_status_openai_compat(resp).await
+                })
+                .await
+                .inspect_err(|e| {
+                    let _ = log.error(e);
+                })?;
+
+            stream_openai_compat(response, log)
+        }
     }
 }
 
@@ -369,7 +481,11 @@ fn parse_custom_headers(s: String) -> HashMap<String, String> {
 
 #[async_trait]
 impl EmbeddingCapable for OpenAiProvider {
-    async fn create_embeddings(&self, texts: Vec<String>) -> Result<Vec<Vec<f32>>> {
+    async fn create_embeddings(
+        &self,
+        session_id: &str,
+        texts: Vec<String>,
+    ) -> Result<Vec<Vec<f32>>> {
         if texts.is_empty() {
             return Ok(vec![]);
         }
@@ -391,7 +507,7 @@ impl EmbeddingCapable for OpenAiProvider {
                 let request_value = serde_json::to_value(request_clone)
                     .map_err(|e| ProviderError::ExecutionError(e.to_string()))?;
                 self.api_client
-                    .api_post("v1/embeddings", &request_value)
+                    .api_post(Some(session_id), "v1/embeddings", &request_value)
                     .await
                     .map_err(|e| ProviderError::ExecutionError(e.to_string()))
             })

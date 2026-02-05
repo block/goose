@@ -16,7 +16,7 @@ use goose::providers::sagemaker_tgi::SAGEMAKER_TGI_DEFAULT_MODEL;
 use goose::providers::snowflake::SNOWFLAKE_DEFAULT_MODEL;
 use goose::providers::xai::XAI_DEFAULT_MODEL;
 use rmcp::model::{AnnotateAble, Content, RawImageContent};
-use rmcp::model::{CallToolRequestParam, Tool};
+use rmcp::model::{CallToolRequestParams, Tool};
 use rmcp::object;
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -100,7 +100,12 @@ impl ProviderTester {
 
         let (response, _) = self
             .provider
-            .complete("You are a helpful assistant.", &[message], &[])
+            .complete(
+                "test-session-id",
+                "You are a helpful assistant.",
+                &[message],
+                &[],
+            )
             .await?;
 
         assert_eq!(
@@ -138,6 +143,7 @@ impl ProviderTester {
         let (response1, _) = self
             .provider
             .complete(
+                "test-session-id",
                 "You are a helpful weather assistant.",
                 std::slice::from_ref(&message),
                 std::slice::from_ref(&weather_tool),
@@ -166,8 +172,9 @@ impl ProviderTester {
 
         let weather = Message::user().with_tool_response(
             id,
-            Ok(vec![Content::text(
-                "
+            Ok(rmcp::model::CallToolResult {
+                content: vec![Content::text(
+                    "
                   50°F°C
                   Precipitation: 0%
                   Humidity: 84%
@@ -175,12 +182,17 @@ impl ProviderTester {
                   Weather
                   Saturday 9:00 PM
                   Clear",
-            )]),
+                )],
+                structured_content: None,
+                is_error: Some(false),
+                meta: None,
+            }),
         );
 
         let (response2, _) = self
             .provider
             .complete(
+                "test-session-id",
                 "You are a helpful weather assistant.",
                 &[message, response1, weather],
                 &[weather_tool],
@@ -223,17 +235,22 @@ impl ProviderTester {
 
         let result = self
             .provider
-            .complete("You are a helpful assistant.", &messages, &[])
+            .complete(
+                "test-session-id",
+                "You are a helpful assistant.",
+                &messages,
+                &[],
+            )
             .await;
 
         println!("=== {}::context_length_exceeded_error ===", self.name);
         dbg!(&result);
         println!("===================");
 
-        if self.name.to_lowercase() == "ollama" {
+        if self.name.to_lowercase() == "ollama" || self.name.to_lowercase() == "openrouter" {
             assert!(
                 result.is_ok(),
-                "Expected to succeed because of default truncation"
+                "Expected to succeed because of default truncation or large context window"
             );
             return Ok(());
         }
@@ -281,6 +298,7 @@ impl ProviderTester {
         let result = self
             .provider
             .complete(
+                "test-session-id",
                 "You are a helpful assistant. Describe what you see in the image briefly.",
                 &[message_with_image],
                 &[],
@@ -311,22 +329,30 @@ impl ProviderTester {
         let user_message = Message::user().with_text("Take a screenshot please");
         let tool_request = Message::assistant().with_tool_request(
             "test_id",
-            Ok(CallToolRequestParam {
+            Ok(CallToolRequestParams {
+                meta: None,
+                task: None,
                 name: "get_screenshot".into(),
                 arguments: Some(object!({})),
             }),
         );
         let tool_response = Message::user().with_tool_response(
             "test_id",
-            Ok(vec![Content::image(
-                image_content.data.clone(),
-                image_content.mime_type.clone(),
-            )]),
+            Ok(rmcp::model::CallToolResult {
+                content: vec![Content::image(
+                    image_content.data.clone(),
+                    image_content.mime_type.clone(),
+                )],
+                structured_content: None,
+                is_error: Some(false),
+                meta: None,
+            }),
         );
 
         let result2 = self
             .provider
             .complete(
+                "test-session-id",
                 "You are a helpful assistant.",
                 &[user_message, tool_request, tool_response],
                 &[screenshot_tool],
@@ -369,6 +395,15 @@ async fn test_provider(
 
         load_env();
 
+        // Check required_vars BEFORE applying env_modifications to avoid
+        // leaving the environment mutated when skipping
+        let missing_vars = required_vars.iter().any(|var| std::env::var(var).is_err());
+        if missing_vars {
+            println!("Skipping {} tests - credentials not configured", name);
+            TEST_REPORT.record_skip(name);
+            return Ok(());
+        }
+
         let mut original_env = HashMap::new();
         for &var in required_vars {
             if let Ok(val) = std::env::var(var) {
@@ -390,13 +425,6 @@ async fn test_provider(
                     None => std::env::remove_var(var),
                 }
             }
-        }
-
-        let missing_vars = required_vars.iter().any(|var| std::env::var(var).is_err());
-        if missing_vars {
-            println!("Skipping {} tests - credentials not configured", name);
-            TEST_REPORT.record_skip(name);
-            return Ok(());
         }
 
         original_env
@@ -462,7 +490,7 @@ async fn test_azure_provider() -> Result<()> {
 #[tokio::test]
 async fn test_bedrock_provider_long_term_credentials() -> Result<()> {
     test_provider(
-        "Bedrock",
+        "aws_bedrock",
         BEDROCK_DEFAULT_MODEL,
         &["AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY"],
         None,
@@ -476,9 +504,27 @@ async fn test_bedrock_provider_aws_profile_credentials() -> Result<()> {
         HashMap::from_iter([("AWS_ACCESS_KEY_ID", None), ("AWS_SECRET_ACCESS_KEY", None)]);
 
     test_provider(
-        "Bedrock",
+        "aws_bedrock",
         BEDROCK_DEFAULT_MODEL,
         &["AWS_PROFILE"],
+        Some(env_mods),
+    )
+    .await
+}
+
+#[tokio::test]
+async fn test_bedrock_provider_bearer_token() -> Result<()> {
+    // Clear standard AWS credentials to ensure bearer token auth is used
+    let env_mods = HashMap::from_iter([
+        ("AWS_ACCESS_KEY_ID", None),
+        ("AWS_SECRET_ACCESS_KEY", None),
+        ("AWS_PROFILE", None),
+    ]);
+
+    test_provider(
+        "aws_bedrock",
+        BEDROCK_DEFAULT_MODEL,
+        &["AWS_BEARER_TOKEN_BEDROCK", "AWS_REGION"],
         Some(env_mods),
     )
     .await

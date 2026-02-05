@@ -151,7 +151,7 @@ echo ""
 # TEST 2: Auto Compaction
 # ==================================================
 echo "---------------------------------------------------"
-echo "TEST 2: Auto Compaction via threshold (0.01)"
+echo "TEST 2: Auto Compaction via threshold (0.005)"
 echo "---------------------------------------------------"
 
 TESTDIR=$(mktemp -d)
@@ -159,13 +159,15 @@ echo "test content" > "$TESTDIR/test.txt"
 echo "Test directory: $TESTDIR"
 echo ""
 
-# Set auto-compact threshold very low (1%) to trigger it quickly
-export GOOSE_AUTO_COMPACT_THRESHOLD=0.01
+# Set auto-compact threshold very low (.5%) to trigger it quickly
+export GOOSE_AUTO_COMPACT_THRESHOLD=0.005
 
 OUTPUT=$(mktemp)
 
-echo "Step 1: Creating session with first message..."
-(cd "$TESTDIR" && "$GOOSE_BIN" run --text "hello" 2>&1) | tee "$OUTPUT"
+LONG_RESPONSE_PROMPT="Count from 1 to 200, one number per line."
+
+echo "Step 1: Creating session with first message (generating tokens for threshold)..."
+(cd "$TESTDIR" && "$GOOSE_BIN" run --text "$LONG_RESPONSE_PROMPT" 2>&1) | tee "$OUTPUT"
 
 if ! command -v jq &> /dev/null; then
   echo "✗ FAILED: jq is required for this test"
@@ -197,7 +199,7 @@ else
       fi
     else
       echo "✗ FAILED: Auto compaction was not triggered"
-      echo "   Expected to see auto-compact messages with threshold of 0.01"
+      echo "   Expected to see auto-compact messages with threshold of 0.005"
       RESULTS+=("✗ Auto Compaction")
     fi
   fi

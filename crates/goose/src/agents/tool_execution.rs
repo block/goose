@@ -16,12 +16,12 @@ use rmcp::model::{Content, ServerNotification};
 // ToolCallResult combines the result of a tool call with an optional notification stream that
 // can be used to receive notifications from the tool.
 pub struct ToolCallResult {
-    pub result: Box<dyn Future<Output = ToolResult<Vec<Content>>> + Send + Unpin>,
+    pub result: Box<dyn Future<Output = ToolResult<rmcp::model::CallToolResult>> + Send + Unpin>,
     pub notification_stream: Option<Box<dyn Stream<Item = ServerNotification> + Send + Unpin>>,
 }
 
-impl From<ToolResult<Vec<Content>>> for ToolCallResult {
-    fn from(result: ToolResult<Vec<Content>>) -> Self {
+impl From<ToolResult<rmcp::model::CallToolResult>> for ToolCallResult {
+    fn from(result: ToolResult<rmcp::model::CallToolResult>) -> Self {
         Self {
             result: Box::new(futures::future::ready(result)),
             notification_stream: None,
@@ -73,7 +73,7 @@ impl Agent {
                     });
 
                 let confirmation = Message::assistant()
-                    .with_tool_confirmation_request(
+                    .with_action_required(
                         request.id.clone(),
                         tool_call.name.to_string().clone(),
                         tool_call.arguments.clone().unwrap_or_default(),
@@ -91,7 +91,8 @@ impl Agent {
                                 counter.goose.prompt_injection_user_decisions = 1,
                                 decision = ?confirmation.permission,
                                 finding_id = %finding_id,
-                                "User security decision"
+                                tool_request_id = %request.id,
+                                "Prompt injection detection: user decision on command injection finding"
                             );
                         }
 
@@ -120,10 +121,22 @@ impl Agent {
                             // User declined - update the specific response message for this request
                             if let Some(response_msg) = request_to_response_map.get(&request.id) {
                                 let mut response = response_msg.lock().await;
-                                *response = response.clone().with_tool_response(
+                                *response = response.clone().with_tool_response_with_metadata(
                                     request.id.clone(),
-                                    Ok(vec![Content::text(DECLINED_RESPONSE)]),
+                                    Ok(rmcp::model::CallToolResult {
+                                        content: vec![Content::text(DECLINED_RESPONSE)],
+                                        structured_content: None,
+                                        is_error: Some(true),
+                                        meta: None,
+                                    }),
+                                    request.metadata.as_ref(),
                                 );
+                            }
+
+                            if confirmation.permission == Permission::AlwaysDeny {
+                                self.tool_inspection_manager
+                                    .update_permission_manager(&tool_call.name, PermissionLevel::NeverAllow)
+                                    .await;
                             }
                         }
                         break; // Exit the loop once the matching `req_id` is found
@@ -150,7 +163,11 @@ impl Agent {
 
                         if let Some((id, result)) = self.tool_result_rx.lock().await.recv().await {
                             let mut response = message_tool_response.lock().await;
-                            *response = response.clone().with_tool_response(id, result);
+                            *response = response.clone().with_tool_response_with_metadata(
+                                id,
+                                result,
+                                tool_request.metadata.as_ref(),
+                            );
                         }
                     }
             }

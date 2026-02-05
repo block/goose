@@ -39,7 +39,7 @@ use crate::model::ModelConfig;
 use crate::providers::formats::openai::create_request;
 use anyhow::Result;
 use reqwest::Client;
-use rmcp::model::{object, CallToolRequestParam, RawContent, Tool};
+use rmcp::model::{object, CallToolRequestParams, RawContent, Tool};
 use serde_json::{json, Value};
 use std::ops::Deref;
 use std::time::Duration;
@@ -59,7 +59,7 @@ pub trait ToolInterpreter {
         &self,
         content: &str,
         tools: &[Tool],
-    ) -> Result<Vec<CallToolRequestParam>, ProviderError>;
+    ) -> Result<Vec<CallToolRequestParams>, ProviderError>;
 }
 
 /// Ollama-specific implementation of the ToolInterpreter trait
@@ -162,6 +162,7 @@ impl OllamaInterpreter {
             &messages,
             &[], // No tools
             &super::utils::ImageFormat::OpenAi,
+            false,
         )?;
 
         payload["stream"] = json!(false); // needed for the /api/chat endpoint to work
@@ -199,7 +200,7 @@ impl OllamaInterpreter {
 
     fn process_interpreter_response(
         response: &Value,
-    ) -> Result<Vec<CallToolRequestParam>, ProviderError> {
+    ) -> Result<Vec<CallToolRequestParams>, ProviderError> {
         let mut tool_calls = Vec::new();
         tracing::info!(
             "Tool interpreter response is {}",
@@ -224,7 +225,9 @@ impl OllamaInterpreter {
                                 let arguments = item["arguments"].clone();
 
                                 // Add the tool call to our result vector
-                                tool_calls.push(CallToolRequestParam {
+                                tool_calls.push(CallToolRequestParams {
+                                    meta: None,
+                                    task: None,
                                     name: name.into(),
                                     arguments: Some(object(arguments)),
                                 });
@@ -245,7 +248,7 @@ impl ToolInterpreter for OllamaInterpreter {
         &self,
         last_assistant_msg: &str,
         tools: &[Tool],
-    ) -> Result<Vec<CallToolRequestParam>, ProviderError> {
+    ) -> Result<Vec<CallToolRequestParams>, ProviderError> {
         if tools.is_empty() {
             return Ok(vec![]);
         }
@@ -343,8 +346,9 @@ pub fn convert_tool_messages_to_text(messages: &[Message]) -> Conversation {
                         has_tool_content = true;
                         // Convert tool response to text format
                         let text = match &res.tool_result {
-                            Ok(contents) => {
-                                let text_contents: Vec<String> = contents
+                            Ok(result) => {
+                                let text_contents: Vec<String> = result
+                                    .content
                                     .iter()
                                     .filter_map(|c| match c.deref() {
                                         RawContent::Text(t) => Some(t.text.clone()),

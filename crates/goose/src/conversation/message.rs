@@ -1,17 +1,17 @@
+use crate::conversation::tool_result_serde;
 use crate::mcp_utils::ToolResult;
+use crate::utils::sanitize_unicode_tags;
 use chrono::Utc;
 use rmcp::model::{
-    AnnotateAble, CallToolRequestParam, Content, ImageContent, JsonObject, PromptMessage,
-    PromptMessageContent, PromptMessageRole, RawContent, RawImageContent, RawTextContent,
-    ResourceContents, Role, TextContent,
+    AnnotateAble, CallToolRequestParams, CallToolResult, Content, ImageContent, JsonObject,
+    PromptMessage, PromptMessageContent, PromptMessageRole, RawContent, RawImageContent,
+    RawTextContent, ResourceContents, Role, TextContent,
 };
 use serde::{Deserialize, Deserializer, Serialize};
 use std::collections::HashSet;
 use std::fmt;
 use utoipa::ToSchema;
-
-use crate::conversation::tool_result_serde;
-use crate::utils::sanitize_unicode_tags;
+use uuid::Uuid;
 
 #[derive(ToSchema)]
 pub enum ToolCallResult<T> {
@@ -53,6 +53,10 @@ where
     Ok(content)
 }
 
+/// Provider-specific metadata for tool requests/responses.
+/// Allows providers to store custom data without polluting the core model.
+pub type ProviderMetadata = serde_json::Map<String, serde_json::Value>;
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 #[derive(ToSchema)]
@@ -60,9 +64,13 @@ pub struct ToolRequest {
     pub id: String,
     #[serde(with = "tool_result_serde")]
     #[schema(value_type = Object)]
-    pub tool_call: ToolResult<CallToolRequestParam>,
+    pub tool_call: ToolResult<CallToolRequestParams>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub thought_signature: Option<String>,
+    #[schema(value_type = Object)]
+    pub metadata: Option<ProviderMetadata>,
+    #[serde(rename = "_meta", skip_serializing_if = "Option::is_none")]
+    #[schema(value_type = Object)]
+    pub tool_meta: Option<serde_json::Value>,
 }
 
 impl ToolRequest {
@@ -86,9 +94,12 @@ impl ToolRequest {
 #[derive(ToSchema)]
 pub struct ToolResponse {
     pub id: String,
-    #[serde(with = "tool_result_serde")]
+    #[serde(with = "tool_result_serde::call_tool_result")]
     #[schema(value_type = Object)]
-    pub tool_result: ToolResult<Vec<Content>>,
+    pub tool_result: ToolResult<CallToolResult>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[schema(value_type = Object)]
+    pub metadata: Option<ProviderMetadata>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -99,6 +110,33 @@ pub struct ToolConfirmationRequest {
     pub tool_name: String,
     pub arguments: JsonObject,
     pub prompt: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ToSchema)]
+#[serde(tag = "actionType", rename_all = "camelCase")]
+pub enum ActionRequiredData {
+    #[serde(rename_all = "camelCase")]
+    ToolConfirmation {
+        id: String,
+        tool_name: String,
+        arguments: JsonObject,
+        prompt: Option<String>,
+    },
+    Elicitation {
+        id: String,
+        message: String,
+        requested_schema: serde_json::Value,
+    },
+    ElicitationResponse {
+        id: String,
+        user_data: serde_json::Value,
+    },
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct ActionRequired {
+    pub data: ActionRequiredData,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ToSchema)]
@@ -118,7 +156,7 @@ pub struct FrontendToolRequest {
     pub id: String,
     #[serde(with = "tool_result_serde")]
     #[schema(value_type = Object)]
-    pub tool_call: ToolResult<CallToolRequestParam>,
+    pub tool_call: ToolResult<CallToolRequestParams>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ToSchema)]
@@ -133,6 +171,8 @@ pub enum SystemNotificationType {
 pub struct SystemNotificationContent {
     pub notification_type: SystemNotificationType,
     pub msg: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub data: Option<serde_json::Value>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ToSchema)]
@@ -144,6 +184,7 @@ pub enum MessageContent {
     ToolRequest(ToolRequest),
     ToolResponse(ToolResponse),
     ToolConfirmationRequest(ToolConfirmationRequest),
+    ActionRequired(ActionRequired),
     FrontendToolRequest(FrontendToolRequest),
     Thinking(ThinkingContent),
     RedactedThinking(RedactedThinkingContent),
@@ -162,13 +203,24 @@ impl fmt::Display for MessageContent {
                 f,
                 "[ToolResponse: {}]",
                 match &r.tool_result {
-                    Ok(contents) => format!("{} content item(s)", contents.len()),
+                    Ok(result) => format!("{} content item(s)", result.content.len()),
                     Err(e) => format!("Error: {e}"),
                 }
             ),
             MessageContent::ToolConfirmationRequest(r) => {
                 write!(f, "[ToolConfirmationRequest: {}]", r.tool_name)
             }
+            MessageContent::ActionRequired(a) => match &a.data {
+                ActionRequiredData::ToolConfirmation { tool_name, .. } => {
+                    write!(f, "[ActionRequired: ToolConfirmation for {}]", tool_name)
+                }
+                ActionRequiredData::Elicitation { message, .. } => {
+                    write!(f, "[ActionRequired: Elicitation - {}]", message)
+                }
+                ActionRequiredData::ElicitationResponse { id, .. } => {
+                    write!(f, "[ActionRequired: ElicitationResponse for {}]", id)
+                }
+            },
             MessageContent::FrontendToolRequest(r) => match &r.tool_call {
                 Ok(tool_call) => write!(f, "[FrontendToolRequest: {}]", tool_call.name),
                 Err(e) => write!(f, "[FrontendToolRequest: Error: {}]", e),
@@ -193,6 +245,62 @@ impl MessageContent {
         )
     }
 
+    pub fn filter_for_audience(&self, audience: Role) -> Option<MessageContent> {
+        match self {
+            MessageContent::Text(text) => {
+                if text
+                    .audience()
+                    .map(|roles| roles.contains(&audience))
+                    .unwrap_or(true)
+                {
+                    Some(self.clone())
+                } else {
+                    None
+                }
+            }
+            MessageContent::Image(img) => {
+                if img
+                    .audience()
+                    .map(|roles| roles.contains(&audience))
+                    .unwrap_or(true)
+                {
+                    Some(self.clone())
+                } else {
+                    None
+                }
+            }
+            MessageContent::ToolResponse(res) => {
+                let Ok(result) = &res.tool_result else {
+                    return Some(self.clone());
+                };
+
+                let filtered_content: Vec<Content> = result
+                    .content
+                    .iter()
+                    .filter(|c| {
+                        c.audience()
+                            .map(|roles| roles.contains(&audience))
+                            .unwrap_or(true)
+                    })
+                    .cloned()
+                    .collect();
+
+                // Preserve ToolResponse even when content is empty - some providers
+                // (like Google) need to handle empty tool responses specially
+                Some(MessageContent::ToolResponse(ToolResponse {
+                    id: res.id.clone(),
+                    tool_result: Ok(CallToolResult {
+                        content: filtered_content,
+                        ..result.clone()
+                    }),
+                    metadata: res.metadata.clone(),
+                }))
+            }
+            MessageContent::Thinking(_) | MessageContent::RedactedThinking(_) => None,
+            _ => Some(self.clone()),
+        }
+    }
+
     pub fn image<S: Into<String>, T: Into<String>>(data: S, mime_type: T) -> Self {
         MessageContent::Image(
             RawImageContent {
@@ -206,45 +314,88 @@ impl MessageContent {
 
     pub fn tool_request<S: Into<String>>(
         id: S,
-        tool_call: ToolResult<CallToolRequestParam>,
+        tool_call: ToolResult<CallToolRequestParams>,
     ) -> Self {
         MessageContent::ToolRequest(ToolRequest {
             id: id.into(),
             tool_call,
-            thought_signature: None,
+            metadata: None,
+            tool_meta: None,
         })
     }
 
-    pub fn tool_request_with_signature<S1: Into<String>, S2: Into<String>>(
-        id: S1,
-        tool_call: ToolResult<CallToolRequestParam>,
-        thought_signature: Option<S2>,
+    pub fn tool_request_with_metadata<S: Into<String>>(
+        id: S,
+        tool_call: ToolResult<CallToolRequestParams>,
+        metadata: Option<&ProviderMetadata>,
     ) -> Self {
         MessageContent::ToolRequest(ToolRequest {
             id: id.into(),
             tool_call,
-            thought_signature: thought_signature.map(|s| s.into()),
+            metadata: metadata.cloned(),
+            tool_meta: None,
         })
     }
 
-    pub fn tool_response<S: Into<String>>(id: S, tool_result: ToolResult<Vec<Content>>) -> Self {
+    pub fn tool_response<S: Into<String>>(id: S, tool_result: ToolResult<CallToolResult>) -> Self {
         MessageContent::ToolResponse(ToolResponse {
             id: id.into(),
             tool_result,
+            metadata: None,
         })
     }
 
-    pub fn tool_confirmation_request<S: Into<String>>(
+    pub fn tool_response_with_metadata<S: Into<String>>(
+        id: S,
+        tool_result: ToolResult<CallToolResult>,
+        metadata: Option<&ProviderMetadata>,
+    ) -> Self {
+        MessageContent::ToolResponse(ToolResponse {
+            id: id.into(),
+            tool_result,
+            metadata: metadata.cloned(),
+        })
+    }
+
+    pub fn action_required<S: Into<String>>(
         id: S,
         tool_name: String,
         arguments: JsonObject,
         prompt: Option<String>,
     ) -> Self {
-        MessageContent::ToolConfirmationRequest(ToolConfirmationRequest {
-            id: id.into(),
-            tool_name,
-            arguments,
-            prompt,
+        MessageContent::ActionRequired(ActionRequired {
+            data: ActionRequiredData::ToolConfirmation {
+                id: id.into(),
+                tool_name,
+                arguments,
+                prompt,
+            },
+        })
+    }
+
+    pub fn action_required_elicitation<S: Into<String>>(
+        id: S,
+        message: String,
+        requested_schema: serde_json::Value,
+    ) -> Self {
+        MessageContent::ActionRequired(ActionRequired {
+            data: ActionRequiredData::Elicitation {
+                id: id.into(),
+                message,
+                requested_schema,
+            },
+        })
+    }
+
+    pub fn action_required_elicitation_response<S: Into<String>>(
+        id: S,
+        user_data: serde_json::Value,
+    ) -> Self {
+        MessageContent::ActionRequired(ActionRequired {
+            data: ActionRequiredData::ElicitationResponse {
+                id: id.into(),
+                user_data,
+            },
         })
     }
 
@@ -261,7 +412,7 @@ impl MessageContent {
 
     pub fn frontend_tool_request<S: Into<String>>(
         id: S,
-        tool_call: ToolResult<CallToolRequestParam>,
+        tool_call: ToolResult<CallToolRequestParams>,
     ) -> Self {
         MessageContent::FrontendToolRequest(FrontendToolRequest {
             id: id.into(),
@@ -276,6 +427,19 @@ impl MessageContent {
         MessageContent::SystemNotification(SystemNotificationContent {
             notification_type,
             msg: msg.into(),
+            data: None,
+        })
+    }
+
+    pub fn system_notification_with_data<S: Into<String>>(
+        notification_type: SystemNotificationType,
+        msg: S,
+        data: serde_json::Value,
+    ) -> Self {
+        MessageContent::SystemNotification(SystemNotificationContent {
+            notification_type,
+            msg: msg.into(),
+            data: Some(data),
         })
     }
 
@@ -303,9 +467,9 @@ impl MessageContent {
         }
     }
 
-    pub fn as_tool_confirmation_request(&self) -> Option<&ToolConfirmationRequest> {
-        if let MessageContent::ToolConfirmationRequest(ref tool_confirmation_request) = self {
-            Some(tool_confirmation_request)
+    pub fn as_action_required(&self) -> Option<&ActionRequired> {
+        if let MessageContent::ActionRequired(ref action_required) = self {
+            Some(action_required)
         } else {
             None
         }
@@ -313,8 +477,9 @@ impl MessageContent {
 
     pub fn as_tool_response_text(&self) -> Option<String> {
         if let Some(tool_response) = self.as_tool_response() {
-            if let Ok(contents) = &tool_response.tool_result {
-                let texts: Vec<String> = contents
+            if let Ok(result) = &tool_response.tool_result {
+                let texts: Vec<String> = result
+                    .content
                     .iter()
                     .filter_map(|content| content.as_text().map(|t| t.text.to_string()))
                     .collect();
@@ -512,6 +677,19 @@ impl Message {
         format!("{:?}", self)
     }
 
+    pub fn agent_visible_content(&self) -> Message {
+        let filtered_content = self
+            .content
+            .iter()
+            .filter_map(|c| c.filter_for_audience(Role::Assistant))
+            .collect();
+
+        Message {
+            content: filtered_content,
+            ..self.clone()
+        }
+    }
+
     /// Create a new user message with the current timestamp
     pub fn user() -> Self {
         Message {
@@ -537,6 +715,10 @@ impl Message {
     pub fn with_id<S: Into<String>>(mut self, id: S) -> Self {
         self.id = Some(id.into());
         self
+    }
+
+    pub fn with_generated_id(self) -> Self {
+        self.with_id(format!("msg_{}", Uuid::new_v4()))
     }
 
     /// Add any MessageContent to the message
@@ -568,29 +750,55 @@ impl Message {
     pub fn with_tool_request<S: Into<String>>(
         self,
         id: S,
-        tool_call: ToolResult<CallToolRequestParam>,
+        tool_call: ToolResult<CallToolRequestParams>,
     ) -> Self {
         self.with_content(MessageContent::tool_request(id, tool_call))
+    }
+
+    pub fn with_tool_request_with_metadata<S: Into<String>>(
+        self,
+        id: S,
+        tool_call: ToolResult<CallToolRequestParams>,
+        metadata: Option<&ProviderMetadata>,
+        tool_meta: Option<serde_json::Value>,
+    ) -> Self {
+        self.with_content(MessageContent::ToolRequest(ToolRequest {
+            id: id.into(),
+            tool_call,
+            metadata: metadata.cloned(),
+            tool_meta,
+        }))
     }
 
     /// Add a tool response to the message
     pub fn with_tool_response<S: Into<String>>(
         self,
         id: S,
-        result: ToolResult<Vec<Content>>,
+        result: ToolResult<CallToolResult>,
     ) -> Self {
         self.with_content(MessageContent::tool_response(id, result))
     }
 
-    /// Add a tool confirmation request to the message
-    pub fn with_tool_confirmation_request<S: Into<String>>(
+    pub fn with_tool_response_with_metadata<S: Into<String>>(
+        self,
+        id: S,
+        result: ToolResult<CallToolResult>,
+        metadata: Option<&ProviderMetadata>,
+    ) -> Self {
+        self.with_content(MessageContent::tool_response_with_metadata(
+            id, result, metadata,
+        ))
+    }
+
+    /// Add an action required message for tool confirmation
+    pub fn with_action_required<S: Into<String>>(
         self,
         id: S,
         tool_name: String,
         arguments: JsonObject,
         prompt: Option<String>,
     ) -> Self {
-        self.with_content(MessageContent::tool_confirmation_request(
+        self.with_content(MessageContent::action_required(
             id, tool_name, arguments, prompt,
         ))
     }
@@ -598,7 +806,7 @@ impl Message {
     pub fn with_frontend_tool_request<S: Into<String>>(
         self,
         id: S,
-        tool_call: ToolResult<CallToolRequestParam>,
+        tool_call: ToolResult<CallToolRequestParams>,
     ) -> Self {
         self.with_content(MessageContent::frontend_tool_request(id, tool_call))
     }
@@ -696,39 +904,47 @@ impl Message {
             .with_metadata(MessageMetadata::user_only())
     }
 
-    /// Set the visibility metadata for the message
+    pub fn with_system_notification_with_data<S: Into<String>>(
+        self,
+        notification_type: SystemNotificationType,
+        msg: S,
+        data: serde_json::Value,
+    ) -> Self {
+        self.with_content(MessageContent::system_notification_with_data(
+            notification_type,
+            msg,
+            data,
+        ))
+        .with_metadata(MessageMetadata::user_only())
+    }
+
     pub fn with_visibility(mut self, user_visible: bool, agent_visible: bool) -> Self {
         self.metadata.user_visible = user_visible;
         self.metadata.agent_visible = agent_visible;
         self
     }
 
-    /// Set the entire metadata for the message
     pub fn with_metadata(mut self, metadata: MessageMetadata) -> Self {
         self.metadata = metadata;
         self
     }
 
-    /// Mark the message as only visible to the user (not the agent)
     pub fn user_only(mut self) -> Self {
         self.metadata.user_visible = true;
         self.metadata.agent_visible = false;
         self
     }
 
-    /// Mark the message as only visible to the agent (not the user)
     pub fn agent_only(mut self) -> Self {
         self.metadata.user_visible = false;
         self.metadata.agent_visible = true;
         self
     }
 
-    /// Check if the message is visible to the user
     pub fn is_user_visible(&self) -> bool {
         self.metadata.user_visible
     }
 
-    /// Check if the message is visible to the agent
     pub fn is_agent_visible(&self) -> bool {
         self.metadata.agent_visible
     }
@@ -750,8 +966,8 @@ mod tests {
     use crate::conversation::message::{Message, MessageContent, MessageMetadata};
     use crate::conversation::*;
     use rmcp::model::{
-        AnnotateAble, CallToolRequestParam, PromptMessage, PromptMessageContent, PromptMessageRole,
-        RawEmbeddedResource, RawImageContent, ResourceContents,
+        AnnotateAble, CallToolRequestParams, PromptMessage, PromptMessageContent,
+        PromptMessageRole, RawEmbeddedResource, RawImageContent, ResourceContents,
     };
     use rmcp::model::{ErrorCode, ErrorData};
     use rmcp::object;
@@ -777,7 +993,9 @@ mod tests {
             .with_text("Hello, I'll help you with that.")
             .with_tool_request(
                 "tool123",
-                Ok(CallToolRequestParam {
+                Ok(CallToolRequestParams {
+                    meta: None,
+                    task: None,
                     name: "test_tool".into(),
                     arguments: Some(object!({"param": "value"})),
                 }),
@@ -1035,7 +1253,9 @@ mod tests {
 
     #[test]
     fn test_message_with_tool_request() {
-        let tool_call = Ok(CallToolRequestParam {
+        let tool_call = Ok(CallToolRequestParams {
+            meta: None,
+            task: None,
             name: "test_tool".into(),
             arguments: Some(object!({})),
         });
@@ -1234,5 +1454,171 @@ mod tests {
             .with_agent_visible();
         assert!(metadata.user_visible);
         assert!(metadata.agent_visible);
+    }
+
+    #[test]
+    fn test_legacy_tool_response_deserialization() {
+        let legacy_json = r#"{
+            "role": "user",
+            "created": 1640995200,
+            "content": [{
+                "type": "toolResponse",
+                "id": "tool123",
+                "toolResult": {
+                    "status": "success",
+                    "value": [
+                        {
+                            "type": "text",
+                            "text": "Tool output text"
+                        }
+                    ]
+                }
+            }],
+            "metadata": { "agentVisible": true, "userVisible": true }
+        }"#;
+
+        let message: Message = serde_json::from_str(legacy_json).unwrap();
+        assert_eq!(message.content.len(), 1);
+
+        if let MessageContent::ToolResponse(response) = &message.content[0] {
+            assert_eq!(response.id, "tool123");
+            if let Ok(result) = &response.tool_result {
+                assert_eq!(result.content.len(), 1);
+                assert_eq!(
+                    result.content[0].as_text().unwrap().text,
+                    "Tool output text"
+                );
+            } else {
+                panic!("Expected successful tool result");
+            }
+        } else {
+            panic!("Expected ToolResponse content");
+        }
+    }
+
+    #[test]
+    fn test_new_tool_response_deserialization() {
+        let new_json = r#"{
+            "role": "user",
+            "created": 1640995200,
+            "content": [{
+                "type": "toolResponse",
+                "id": "tool456",
+                "toolResult": {
+                    "status": "success",
+                    "value": {
+                        "content": [
+                            {
+                                "type": "text",
+                                "text": "New format output"
+                            }
+                        ],
+                        "isError": false
+                    }
+                }
+            }],
+            "metadata": { "agentVisible": true, "userVisible": true }
+        }"#;
+
+        let message: Message = serde_json::from_str(new_json).unwrap();
+        assert_eq!(message.content.len(), 1);
+
+        if let MessageContent::ToolResponse(response) = &message.content[0] {
+            assert_eq!(response.id, "tool456");
+            if let Ok(result) = &response.tool_result {
+                assert_eq!(result.content.len(), 1);
+                assert_eq!(
+                    result.content[0].as_text().unwrap().text,
+                    "New format output"
+                );
+            } else {
+                panic!("Expected successful tool result");
+            }
+        } else {
+            panic!("Expected ToolResponse content");
+        }
+    }
+
+    #[test]
+    fn test_tool_request_with_value_arguments_backward_compatibility() {
+        struct TestCase {
+            name: &'static str,
+            arguments_json: &'static str,
+            expected: Option<Value>,
+        }
+
+        let test_cases = [
+            TestCase {
+                name: "string",
+                arguments_json: r#""string_argument""#,
+                expected: Some(serde_json::json!({"value": "string_argument"})),
+            },
+            TestCase {
+                name: "array",
+                arguments_json: r#"["a", "b", "c"]"#,
+                expected: Some(serde_json::json!({"value": ["a", "b", "c"]})),
+            },
+            TestCase {
+                name: "number",
+                arguments_json: "42",
+                expected: Some(serde_json::json!({"value": 42})),
+            },
+            TestCase {
+                name: "null",
+                arguments_json: "null",
+                expected: None,
+            },
+            TestCase {
+                name: "object",
+                arguments_json: r#"{"key": "value", "number": 123}"#,
+                expected: Some(serde_json::json!({"key": "value", "number": 123})),
+            },
+        ];
+
+        for tc in test_cases {
+            let json = format!(
+                r#"{{
+                    "role": "assistant",
+                    "created": 1640995200,
+                    "content": [{{
+                        "type": "toolRequest",
+                        "id": "tool123",
+                        "toolCall": {{
+                            "status": "success",
+                            "value": {{
+                                "name": "test_tool",
+                                "arguments": {}
+                            }}
+                        }}
+                    }}],
+                    "metadata": {{ "agentVisible": true, "userVisible": true }}
+                }}"#,
+                tc.arguments_json
+            );
+
+            let message: Message = serde_json::from_str(&json)
+                .unwrap_or_else(|e| panic!("{}: parse failed: {}", tc.name, e));
+
+            let MessageContent::ToolRequest(request) = &message.content[0] else {
+                panic!("{}: expected ToolRequest content", tc.name);
+            };
+
+            let Ok(tool_call) = &request.tool_call else {
+                panic!("{}: expected successful tool call", tc.name);
+            };
+
+            assert_eq!(tool_call.name, "test_tool", "{}: wrong tool name", tc.name);
+
+            match (&tool_call.arguments, &tc.expected) {
+                (None, None) => {}
+                (Some(args), Some(expected)) => {
+                    let args_value = serde_json::to_value(args).unwrap();
+                    assert_eq!(&args_value, expected, "{}: arguments mismatch", tc.name);
+                }
+                (actual, expected) => {
+                    panic!("{}: expected {:?}, got {:?}", tc.name, expected, actual);
+                }
+            }
+        }
     }
 }

@@ -1,19 +1,21 @@
 use anyhow::Result;
 use async_trait::async_trait;
+use futures::future::BoxFuture;
 use serde_json::{json, Value};
 use std::collections::HashMap;
 
 use super::api_client::{ApiClient, AuthMethod};
-use super::base::{ConfigKey, ModelInfo, Provider, ProviderMetadata, ProviderUsage};
+use super::base::{ConfigKey, ModelInfo, Provider, ProviderDef, ProviderMetadata, ProviderUsage};
 use super::embedding::EmbeddingCapable;
 use super::errors::ProviderError;
+use super::openai_compatible::handle_response_openai_compat;
 use super::retry::ProviderRetry;
-use super::utils::{get_model, handle_response_openai_compat, ImageFormat, RequestLog};
+use super::utils::{get_model, ImageFormat, RequestLog};
 use crate::conversation::message::Message;
-
 use crate::model::ModelConfig;
 use rmcp::model::Tool;
 
+const LITELLM_PROVIDER_NAME: &str = "litellm";
 pub const LITELLM_DEFAULT_MODEL: &str = "gpt-4o-mini";
 pub const LITELLM_DOC_URL: &str = "https://docs.litellm.ai/docs/";
 
@@ -30,24 +32,24 @@ pub struct LiteLLMProvider {
 impl LiteLLMProvider {
     pub async fn from_env(model: ModelConfig) -> Result<Self> {
         let config = crate::config::Config::global();
-        let api_key: String = config
-            .get_secret("LITELLM_API_KEY")
-            .unwrap_or_else(|_| String::new());
+        let secrets = config
+            .get_secrets("LITELLM_API_KEY", &["LITELLM_CUSTOM_HEADERS"])
+            .unwrap_or_default();
+        let api_key = secrets.get("LITELLM_API_KEY").cloned().unwrap_or_default();
         let host: String = config
             .get_param("LITELLM_HOST")
             .unwrap_or_else(|_| "https://api.litellm.ai".to_string());
         let base_path: String = config
             .get_param("LITELLM_BASE_PATH")
             .unwrap_or_else(|_| "v1/chat/completions".to_string());
-        let custom_headers: Option<HashMap<String, String>> = config
-            .get_secret("LITELLM_CUSTOM_HEADERS")
-            .or_else(|_| config.get_param("LITELLM_CUSTOM_HEADERS"))
-            .ok()
+        let custom_headers: Option<HashMap<String, String>> = secrets
+            .get("LITELLM_CUSTOM_HEADERS")
+            .cloned()
             .map(parse_custom_headers);
         let timeout_secs: u64 = config.get_param("LITELLM_TIMEOUT").unwrap_or(600);
 
         let auth = if api_key.is_empty() {
-            AuthMethod::Custom(Box::new(NoAuth))
+            AuthMethod::NoAuth
         } else {
             AuthMethod::BearerToken(api_key)
         };
@@ -69,12 +71,16 @@ impl LiteLLMProvider {
             api_client,
             base_path,
             model,
-            name: Self::metadata().name,
+            name: LITELLM_PROVIDER_NAME.to_string(),
         })
     }
 
     async fn fetch_models(&self) -> Result<Vec<ModelInfo>, ProviderError> {
-        let response = self.api_client.response_get("model/info").await?;
+        let response = self
+            .api_client
+            .request(None, "model/info")
+            .response_get()
+            .await?;
 
         if !response.status().is_success() {
             return Err(ProviderError::RequestFailed(format!(
@@ -112,31 +118,25 @@ impl LiteLLMProvider {
         Ok(models)
     }
 
-    async fn post(&self, payload: &Value) -> Result<Value, ProviderError> {
+    async fn post(
+        &self,
+        session_id: Option<&str>,
+        payload: &Value,
+    ) -> Result<Value, ProviderError> {
         let response = self
             .api_client
-            .response_post(&self.base_path, payload)
+            .response_post(session_id, &self.base_path, payload)
             .await?;
         handle_response_openai_compat(response).await
     }
 }
 
-// No authentication provider for LiteLLM when API key is not provided
-struct NoAuth;
+impl ProviderDef for LiteLLMProvider {
+    type Provider = Self;
 
-#[async_trait]
-impl super::api_client::AuthProvider for NoAuth {
-    async fn get_auth_header(&self) -> Result<(String, String)> {
-        // Return a dummy header that won't be used
-        Ok(("X-No-Auth".to_string(), "true".to_string()))
-    }
-}
-
-#[async_trait]
-impl Provider for LiteLLMProvider {
     fn metadata() -> ProviderMetadata {
         ProviderMetadata::new(
-            "litellm",
+            LITELLM_PROVIDER_NAME,
             "LiteLLM",
             "LiteLLM proxy supporting multiple models with automatic prompt caching",
             LITELLM_DEFAULT_MODEL,
@@ -157,6 +157,13 @@ impl Provider for LiteLLMProvider {
         )
     }
 
+    fn from_env(model: ModelConfig) -> BoxFuture<'static, Result<Self::Provider>> {
+        Box::pin(Self::from_env(model))
+    }
+}
+
+#[async_trait]
+impl Provider for LiteLLMProvider {
     fn get_name(&self) -> &str {
         &self.name
     }
@@ -168,6 +175,7 @@ impl Provider for LiteLLMProvider {
     #[tracing::instrument(skip_all, name = "provider_complete")]
     async fn complete_with_model(
         &self,
+        session_id: Option<&str>,
         model_config: &ModelConfig,
         system: &str,
         messages: &[Message],
@@ -179,6 +187,7 @@ impl Provider for LiteLLMProvider {
             messages,
             tools,
             &ImageFormat::OpenAi,
+            false,
         )?;
 
         if self.supports_cache_control().await {
@@ -188,7 +197,7 @@ impl Provider for LiteLLMProvider {
         let response = self
             .with_retry(|| async {
                 let payload_clone = payload.clone();
-                self.post(&payload_clone).await
+                self.post(session_id, &payload_clone).await
             })
             .await?;
 
@@ -230,7 +239,11 @@ impl Provider for LiteLLMProvider {
 
 #[async_trait]
 impl EmbeddingCapable for LiteLLMProvider {
-    async fn create_embeddings(&self, texts: Vec<String>) -> Result<Vec<Vec<f32>>, anyhow::Error> {
+    async fn create_embeddings(
+        &self,
+        session_id: &str,
+        texts: Vec<String>,
+    ) -> Result<Vec<Vec<f32>>, anyhow::Error> {
         let embedding_model = std::env::var("GOOSE_EMBEDDING_MODEL")
             .unwrap_or_else(|_| "text-embedding-3-small".to_string());
 
@@ -242,7 +255,7 @@ impl EmbeddingCapable for LiteLLMProvider {
 
         let response = self
             .api_client
-            .response_post("v1/embeddings", &payload)
+            .response_post(Some(session_id), "v1/embeddings", &payload)
             .await?;
         let response_text = response.text().await?;
         let response_json: Value = serde_json::from_str(&response_text)?;

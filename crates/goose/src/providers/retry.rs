@@ -48,6 +48,10 @@ impl RetryConfig {
         }
     }
 
+    pub fn max_retries(&self) -> usize {
+        self.max_retries
+    }
+
     pub fn delay_for_attempt(&self, attempt: usize) -> Duration {
         if attempt == 0 {
             return Duration::from_millis(0);
@@ -64,6 +68,56 @@ impl RetryConfig {
             (capped_delay_ms as f64 * jitter_factor_to_avoid_thundering_herd) as u64;
 
         Duration::from_millis(jitter_delay_ms)
+    }
+}
+
+pub fn should_retry(error: &ProviderError) -> bool {
+    matches!(
+        error,
+        ProviderError::RateLimitExceeded { .. }
+            | ProviderError::ServerError(_)
+            | ProviderError::RequestFailed(_)
+    )
+}
+
+pub async fn retry_operation<F, Fut, T>(
+    config: &RetryConfig,
+    operation: F,
+) -> Result<T, ProviderError>
+where
+    F: Fn() -> Fut + Send,
+    Fut: Future<Output = Result<T, ProviderError>> + Send,
+    T: Send,
+{
+    let mut attempts = 0;
+
+    loop {
+        match operation().await {
+            Ok(result) => return Ok(result),
+            Err(error) => {
+                if should_retry(&error) && attempts < config.max_retries {
+                    attempts += 1;
+                    tracing::warn!(
+                        "Request failed, retrying ({}/{}): {:?}",
+                        attempts,
+                        config.max_retries,
+                        error
+                    );
+
+                    let delay = match &error {
+                        ProviderError::RateLimitExceeded {
+                            retry_delay: Some(d),
+                            ..
+                        } => *d,
+                        _ => config.delay_for_attempt(attempts),
+                    };
+
+                    sleep(delay).await;
+                    continue;
+                }
+                return Err(error);
+            }
+        }
     }
 }
 
@@ -87,12 +141,7 @@ pub trait ProviderRetry {
             return match operation().await {
                 Ok(result) => Ok(result),
                 Err(error) => {
-                    let should_retry = matches!(
-                        error,
-                        ProviderError::RateLimitExceeded { .. } | ProviderError::ServerError(_)
-                    );
-
-                    if should_retry && attempts < config.max_retries {
+                    if should_retry(&error) && attempts < config.max_retries {
                         attempts += 1;
                         tracing::warn!(
                             "Request failed, retrying ({}/{}): {:?}",
@@ -130,7 +179,6 @@ pub trait ProviderRetry {
     }
 }
 
-// Let specific providers define their retry config if desired
 impl<P: Provider> ProviderRetry for P {
     fn retry_config(&self) -> RetryConfig {
         Provider::retry_config(self)

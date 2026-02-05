@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from 'react';
-import { ArrowLeftRight, ExternalLink } from 'lucide-react';
+import { Bot, ExternalLink } from 'lucide-react';
 
 import {
   Dialog,
@@ -19,20 +19,71 @@ import type { View } from '../../../../utils/navigationUtils';
 import Model, { getProviderMetadata, fetchModelsForProviders } from '../modelInterface';
 import { getPredefinedModelsFromEnv, shouldShowPredefinedModels } from '../predefinedModelsUtils';
 import { ProviderType } from '../../../../api';
+import { trackModelChanged } from '../../../../utils/analytics';
+
+const PREFERRED_MODEL_PATTERNS = [
+  /claude-sonnet-4/i,
+  /claude-4/i,
+  /gpt-4o(?!-mini)/i,
+  /claude-3-5-sonnet/i,
+  /claude-3\.5-sonnet/i,
+  /gpt-4-turbo/i,
+  /gpt-4(?!-|o)/i,
+  /claude-3-opus/i,
+  /claude-3-sonnet/i,
+  /gemini-pro/i,
+  /llama-3/i,
+  /gpt-4o-mini/i,
+  /claude-3-haiku/i,
+  /gemini/i,
+];
+
+function findPreferredModel(
+  models: { value: string; label: string; provider: string }[]
+): string | null {
+  if (models.length === 0) return null;
+
+  const validModels = models.filter(
+    (m) => m.value !== 'custom' && m.value !== '__loading__' && !m.value.startsWith('__')
+  );
+
+  if (validModels.length === 0) return null;
+
+  for (const pattern of PREFERRED_MODEL_PATTERNS) {
+    const match = validModels.find((m) => pattern.test(m.value));
+    if (match) {
+      return match.value;
+    }
+  }
+
+  return validModels[0].value;
+}
 
 type SwitchModelModalProps = {
   sessionId: string | null;
   onClose: () => void;
   setView: (view: View) => void;
+  onModelSelected?: (model: string) => void;
+  initialProvider?: string | null;
+  titleOverride?: string;
 };
-export const SwitchModelModal = ({ sessionId, onClose, setView }: SwitchModelModalProps) => {
-  const { getProviders, getProviderModels, read } = useConfig();
-  const { changeModel } = useModelAndProvider();
+export const SwitchModelModal = ({
+  sessionId,
+  onClose,
+  setView,
+  onModelSelected,
+  initialProvider,
+  titleOverride,
+}: SwitchModelModalProps) => {
+  const { getProviders, read } = useConfig();
+  const { changeModel, currentModel, currentProvider } = useModelAndProvider();
   const [providerOptions, setProviderOptions] = useState<{ value: string; label: string }[]>([]);
   type ModelOption = { value: string; label: string; provider: string; isDisabled?: boolean };
   const [modelOptions, setModelOptions] = useState<{ options: ModelOption[] }[]>([]);
-  const [provider, setProvider] = useState<string | null>(null);
-  const [model, setModel] = useState<string>('');
+  const [provider, setProvider] = useState<string | null>(
+    initialProvider || currentProvider || null
+  );
+  const [model, setModel] = useState<string>(currentModel || '');
   const [isCustomModel, setIsCustomModel] = useState(false);
   const [validationErrors, setValidationErrors] = useState({
     provider: '',
@@ -44,6 +95,8 @@ export const SwitchModelModal = ({ sessionId, onClose, setView }: SwitchModelMod
   const [selectedPredefinedModel, setSelectedPredefinedModel] = useState<Model | null>(null);
   const [predefinedModels, setPredefinedModels] = useState<Model[]>([]);
   const [loadingModels, setLoadingModels] = useState<boolean>(false);
+  const [userClearedModel, setUserClearedModel] = useState(false);
+  const [providerErrors, setProviderErrors] = useState<Record<string, string>>({});
 
   // Validate form data
   const validateForm = useCallback(() => {
@@ -95,6 +148,12 @@ export const SwitchModelModal = ({ sessionId, onClose, setView }: SwitchModelMod
       }
 
       await changeModel(sessionId, modelObj);
+
+      trackModelChanged(modelObj.provider || '', modelObj.name);
+
+      if (onModelSelected) {
+        onModelSelected(modelObj.name);
+      }
       onClose();
     }
   };
@@ -129,7 +188,8 @@ export const SwitchModelModal = ({ sessionId, onClose, setView }: SwitchModelMod
     // Load providers for manual model selection
     (async () => {
       try {
-        const providersResponse = await getProviders(false);
+        // Force refresh if initialProvider is set (OAuth flow needs fresh data)
+        const providersResponse = await getProviders(!!initialProvider);
         const activeProviders = providersResponse.filter((provider) => provider.is_configured);
         // Create provider options and add "Use other provider" option
         setProviderOptions([
@@ -145,59 +205,50 @@ export const SwitchModelModal = ({ sessionId, onClose, setView }: SwitchModelMod
 
         setLoadingModels(true);
 
-        // Fetching models for all providers
-        const results = await fetchModelsForProviders(activeProviders, getProviderModels);
+        const results = await fetchModelsForProviders(activeProviders);
 
         // Process results and build grouped options
         const groupedOptions: {
           options: { value: string; label: string; provider: string; providerType: ProviderType }[];
         }[] = [];
-        const errors: string[] = [];
+        const errorMap: Record<string, string> = {};
 
         results.forEach(({ provider: p, models, error }) => {
           if (error) {
-            errors.push(error);
-            // Fallback to metadata known_models on error
-            if (p.metadata.known_models && p.metadata.known_models.length > 0) {
-              groupedOptions.push({
-                options: p.metadata.known_models.map(({ name }) => ({
-                  value: name,
-                  label: name,
-                  providerType: p.provider_type,
-                  provider: p.name,
-                })),
-              });
-            }
-          } else if (models && models.length > 0) {
-            groupedOptions.push({
-              options: models.map((m) => ({
-                value: m,
-                label: m,
-                provider: p.name,
-                providerType: p.provider_type,
-              })),
-            });
+            errorMap[p.name] = error;
+            return;
           }
-        });
 
-        // Log errors if any providers failed (don't show to user)
-        if (errors.length > 0) {
-          console.error('Provider model fetch errors:', errors);
-        }
+          const modelList = models || [];
 
-        // Add the "Custom model" option to each provider group
-        groupedOptions.forEach((group) => {
-          const option = group.options[0];
-          const providerName = option?.provider;
-          if (providerName && option?.providerType !== 'Custom') {
-            group.options.push({
+          const options: {
+            value: string;
+            label: string;
+            provider: string;
+            providerType: ProviderType;
+          }[] = modelList.map((m) => ({
+            value: m,
+            label: m,
+            provider: p.name,
+            providerType: p.provider_type,
+          }));
+
+          if (p.metadata.allows_unlisted_models && p.provider_type !== 'Custom') {
+            options.push({
               value: 'custom',
-              label: 'Use custom model',
-              provider: providerName,
-              providerType: option?.providerType,
+              label: 'Enter a model not listed...',
+              provider: p.name,
+              providerType: p.provider_type,
             });
           }
+
+          if (options.length > 0) {
+            groupedOptions.push({ options });
+          }
         });
+
+        // Save provider errors to state
+        setProviderErrors(errorMap);
 
         setModelOptions(groupedOptions);
         setOriginalModelOptions(groupedOptions);
@@ -207,12 +258,27 @@ export const SwitchModelModal = ({ sessionId, onClose, setView }: SwitchModelMod
         setLoadingModels(false);
       }
     })();
-  }, [getProviders, getProviderModels, usePredefinedModels, read]);
+  }, [getProviders, usePredefinedModels, read, initialProvider]);
 
-  // Filter model options based on selected provider
   const filteredModelOptions = provider
     ? modelOptions.filter((group) => group.options[0]?.provider === provider)
     : [];
+
+  useEffect(() => {
+    // Don't auto-select if user explicitly cleared the model
+    if (!provider || loadingModels || model || isCustomModel || userClearedModel) return;
+
+    const providerModels = modelOptions
+      .filter((group) => group.options[0]?.provider === provider)
+      .flatMap((group) => group.options);
+
+    if (providerModels.length > 0) {
+      const preferredModel = findPreferredModel(providerModels);
+      if (preferredModel) {
+        setModel(preferredModel);
+      }
+    }
+  }, [provider, modelOptions, loadingModels, model, isCustomModel, userClearedModel]);
 
   // Handle model selection change
   const handleModelChange = (newValue: unknown) => {
@@ -220,9 +286,18 @@ export const SwitchModelModal = ({ sessionId, onClose, setView }: SwitchModelMod
     if (selectedOption?.value === 'custom') {
       setIsCustomModel(true);
       setModel('');
+      setProvider(selectedOption.provider);
+      setUserClearedModel(false);
+    } else if (selectedOption === null) {
+      // User cleared the selection
+      setIsCustomModel(false);
+      setModel('');
+      setUserClearedModel(true);
     } else {
       setIsCustomModel(false);
       setModel(selectedOption?.value || '');
+      setProvider(selectedOption?.provider || '');
+      setUserClearedModel(false);
     }
   };
 
@@ -277,30 +352,16 @@ export const SwitchModelModal = ({ sessionId, onClose, setView }: SwitchModelMod
       <DialogContent className="sm:max-w-[500px]">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <ArrowLeftRight size={24} className="text-textStandard" />
-            Switch models
+            <Bot size={24} className="text-textStandard" />
+            {titleOverride || 'Switch models'}
           </DialogTitle>
           <DialogDescription>
-            Configure your AI model providers by adding their API keys. Your keys are stored
-            securely and encrypted locally.
+            Select a provider and model to use for your conversations.
           </DialogDescription>
         </DialogHeader>
 
         <div className="flex flex-col gap-4 py-4">
-          <div>
-            <a
-              href={QUICKSTART_GUIDE_URL}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex items-center text-textStandard font-medium text-sm"
-            >
-              <ExternalLink size={16} className="mr-1" />
-              View quick start guide
-            </a>
-          </div>
-
           {usePredefinedModels ? (
-            /* Predefined Models Section */
             <div className="w-full flex flex-col gap-4">
               <div className="flex justify-between items-center">
                 <label className="text-sm font-medium text-textStandard">Choose a model:</label>
@@ -377,6 +438,7 @@ export const SwitchModelModal = ({ sessionId, onClose, setView }: SwitchModelMod
                       setProvider(option?.value || null);
                       setModel('');
                       setIsCustomModel(false);
+                      setUserClearedModel(false);
                     }
                   }}
                   placeholder="Provider, type to search"
@@ -389,31 +451,45 @@ export const SwitchModelModal = ({ sessionId, onClose, setView }: SwitchModelMod
 
               {provider && (
                 <>
-                  {!isCustomModel ? (
+                  {providerErrors[provider] ? (
+                    /* Show error message when provider failed to connect */
+                    <div className="rounded-md bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 p-3">
+                      <div className="flex items-start">
+                        <div className="flex-1">
+                          <h3 className="text-sm font-medium text-red-800 dark:text-red-200">
+                            Could not contact provider
+                          </h3>
+                          <div className="mt-1 text-sm text-red-700 dark:text-red-300">
+                            {providerErrors[provider]}
+                          </div>
+                          <div className="mt-2 text-xs text-red-600 dark:text-red-400">
+                            Check your provider configuration in Settings → Providers
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  ) : !isCustomModel ? (
                     <div>
                       <Select
                         options={
                           loadingModels
-                            ? [
-                                {
-                                  options: [
-                                    {
-                                      value: '__loading__',
-                                      label: 'Loading models…',
-                                      provider: provider || '',
-                                      isDisabled: true,
-                                    },
-                                  ],
-                                },
-                              ]
+                            ? []
                             : filteredModelOptions.length > 0
                               ? filteredModelOptions
                               : []
                         }
                         onChange={handleModelChange}
-                        onInputChange={handleInputChange} // Added for input handling
-                        value={model ? { value: model, label: model } : null}
+                        onInputChange={handleInputChange}
+                        value={
+                          loadingModels
+                            ? { value: '', label: 'Loading models…', isDisabled: true }
+                            : model
+                              ? { value: model, label: model }
+                              : null
+                        }
                         placeholder="Select a model, type to search"
+                        isClearable
+                        isDisabled={loadingModels}
                       />
 
                       {attemptedSubmit && validationErrors.model && (
@@ -448,13 +524,24 @@ export const SwitchModelModal = ({ sessionId, onClose, setView }: SwitchModelMod
           )}
         </div>
 
-        <DialogFooter className="pt-2">
-          <Button variant="outline" onClick={handleClose} type="button">
-            Cancel
-          </Button>
-          <Button onClick={handleSubmit} disabled={!isValid}>
-            Select model
-          </Button>
+        <DialogFooter className="pt-4 flex-col sm:flex-row gap-3">
+          <a
+            href={QUICKSTART_GUIDE_URL}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center text-text-muted hover:text-textStandard text-sm mr-auto"
+          >
+            <ExternalLink size={14} className="mr-1" />
+            Quick start guide
+          </a>
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={handleClose} type="button">
+              Cancel
+            </Button>
+            <Button onClick={handleSubmit} disabled={!isValid}>
+              Select model
+            </Button>
+          </div>
         </DialogFooter>
       </DialogContent>
     </Dialog>

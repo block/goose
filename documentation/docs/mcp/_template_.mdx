@@ -3,6 +3,8 @@ title: {Extension Name} Extension
 description: Add {Extension Name} MCP Server as a goose Extension
 ---
 
+<!-- You can use the "Add MCP Server" recipe from the Recipe Cookbook to create a draft tutorial -->
+
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
 import YouTubeShortEmbed from '@site/src/components/YouTubeShortEmbed';
@@ -36,6 +38,14 @@ This tutorial covers how to add the [{Extension Name} MCP Server](/) as a goose 
 
 ## Configuration
 
+:::info
+Note that you'll need [Node.js](https://nodejs.org/) installed on your system to run this command, as it uses `npx`.
+:::
+
+:::info
+Note that you'll need [uv](https://docs.astral.sh/uv/#installation) installed on your system to run this command, as it uses `uvx`.
+:::
+
 <Tabs groupId="interface">
   <TabItem value="ui" label="goose Desktop" default>
 
@@ -62,13 +72,13 @@ This tutorial covers how to add the [{Extension Name} MCP Server](/) as a goose 
       apiKeyLinkText="Service Access Token"
     />
 
-    <!-- For external SSE or HTTP MCP servers -->
+    <!-- For HTTP MCP servers -->
     <GooseDesktopInstaller
       extensionId="{extension_id}"
       extensionName="{Extension Name}"
       description="{Extension description}"
-      type="sse"                                    // or "http"
-      url="https://example-server.com/endpoint"
+      type="http"
+      url="https://example-server.com/mcp"
       envVars={[                                    // also used for http request headers
         { name: "SOME_KEY", label: "Description or placeholder value" }
       ]}
@@ -99,12 +109,12 @@ This tutorial covers how to add the [{Extension Name} MCP Server](/) as a goose 
       }
     />
 
-    <!-- For external SSE or HTTP MCP servers -->
+    <!-- For HTTP MCP servers -->
     <CLIExtensionInstructions
       name="{Extension Name}"
       description="{Extension description}"
-      type="sse"                                    // or "http"
-      url="https://example-server.com/endpoint"
+      type="http"
+      url="https://example-server.com/mcp"
       timeout={300}
       envVars={[                                    // also used for http request headers
         { key: "API_KEY", value: "▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪" }

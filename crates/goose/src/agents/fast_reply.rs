@@ -6,7 +6,7 @@ use std::sync::Arc;
 use crate::conversation::message::{Message, MessageContent};
 use crate::conversation::Conversation;
 use crate::providers::base::Provider;
-use rmcp::model::{CallToolRequestParam, Role};
+use rmcp::model::{CallToolRequestParams, Role};
 use uuid::Uuid;
 
 pub struct FastReply;
@@ -20,7 +20,12 @@ impl FastReply {
         let stripped_conversation = Self::strip_conversation(conversation);
 
         let (response, _usage) = provider
-            .complete_fast(&system_prompt, stripped_conversation.messages(), &[])
+            .complete_fast(
+                "fast_reply",
+                &system_prompt,
+                stripped_conversation.messages(),
+                &[],
+            )
             .await?;
 
         let reply_text = response.as_concat_text();
@@ -34,9 +39,11 @@ impl FastReply {
             let mut arguments = serde_json::Map::new();
             arguments.insert("command".to_string(), serde_json::json!(command.trim()));
 
-            let tool_call = CallToolRequestParam {
-                name: "developer__execute".into(),
+            let tool_call = CallToolRequestParams {
+                name: "developer__shell".into(),
                 arguments: Some(arguments),
+                meta: None,
+                task: None,
             };
 
             let request_id = format!("f_{}", Uuid::new_v4());

@@ -7,22 +7,6 @@ use std::collections::HashMap;
 #[derive(Deserialize)]
 #[serde(tag = "type")]
 enum RecipeExtensionConfigInternal {
-    #[serde(rename = "sse")]
-    Sse {
-        name: String,
-        #[serde(default)]
-        description: Option<String>,
-        uri: String,
-        #[serde(default)]
-        envs: Envs,
-        #[serde(default)]
-        env_keys: Vec<String>,
-        timeout: Option<u64>,
-        #[serde(default)]
-        bundled: Option<bool>,
-        #[serde(default)]
-        available_tools: Vec<String>,
-    },
     #[serde(rename = "stdio")]
     Stdio {
         name: String,
@@ -57,6 +41,8 @@ enum RecipeExtensionConfigInternal {
         name: String,
         #[serde(default)]
         description: Option<String>,
+        #[serde(default)]
+        display_name: Option<String>,
         #[serde(default)]
         bundled: Option<bool>,
         #[serde(default)]
@@ -127,15 +113,7 @@ macro_rules! map_recipe_extensions {
 impl From<RecipeExtensionConfigInternal> for ExtensionConfig {
     fn from(internal_variant: RecipeExtensionConfigInternal) -> Self {
         map_recipe_extensions!(
-            internal_variant;
-            Sse {
-                uri,
-                envs,
-                env_keys,
-                timeout,
-                bundled,
-                available_tools
-            },
+        internal_variant;
             Stdio {
                 cmd,
                 args,
@@ -152,6 +130,7 @@ impl From<RecipeExtensionConfigInternal> for ExtensionConfig {
                 available_tools
             },
             Platform {
+                display_name,
                 bundled,
                 available_tools
             },
@@ -187,12 +166,7 @@ where
     D: Deserializer<'de>,
 {
     let remotes = Option::<Vec<RecipeExtensionConfigInternal>>::deserialize(deserializer)?;
-    Ok(remotes.map(|items| {
-        items
-            .into_iter()
-            .map(ExtensionConfig::from)
-            .collect::<Vec<_>>()
-    }))
+    Ok(remotes.map(|items| items.into_iter().map(ExtensionConfig::from).collect()))
 }
 
 #[cfg(test)]

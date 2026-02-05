@@ -1,4 +1,4 @@
-use anyhow::Result;
+use anyhow::{anyhow, Result};
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
@@ -7,10 +7,11 @@ use std::fs;
 use std::path::Path;
 use std::sync::{Arc, Mutex};
 
-use super::base::{Provider, ProviderMetadata, ProviderUsage};
+use super::base::{Provider, ProviderDef, ProviderMetadata, ProviderUsage};
 use super::errors::ProviderError;
 use crate::conversation::message::Message;
 use crate::model::ModelConfig;
+use futures::future::BoxFuture;
 use rmcp::model::Tool;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -40,12 +41,14 @@ pub struct TestProvider {
 }
 
 impl TestProvider {
+    const PROVIDER_NAME: &str = "test";
+
     pub fn new_recording(inner: Arc<dyn Provider>, file_path: impl Into<String>) -> Self {
         Self {
             inner: Some(inner),
             records: Arc::new(Mutex::new(HashMap::new())),
             file_path: file_path.into(),
-            name: Self::metadata().name,
+            name: Self::PROVIDER_NAME.to_string(),
         }
     }
 
@@ -57,7 +60,7 @@ impl TestProvider {
             inner: None,
             records: Arc::new(Mutex::new(records)),
             file_path,
-            name: Self::metadata().name,
+            name: Self::PROVIDER_NAME.to_string(),
         })
     }
 
@@ -101,11 +104,12 @@ impl TestProvider {
     }
 }
 
-#[async_trait]
-impl Provider for TestProvider {
+impl ProviderDef for TestProvider {
+    type Provider = Self;
+
     fn metadata() -> ProviderMetadata {
         ProviderMetadata::new(
-            "test",
+            Self::PROVIDER_NAME,
             "Test Provider",
             "Provider for testing that can record/replay interactions",
             "test-model",
@@ -115,12 +119,20 @@ impl Provider for TestProvider {
         )
     }
 
+    fn from_env(_model: ModelConfig) -> BoxFuture<'static, Result<Self::Provider>> {
+        Box::pin(async { Err(anyhow!("TestProvider must be constructed explicitly")) })
+    }
+}
+
+#[async_trait]
+impl Provider for TestProvider {
     fn get_name(&self) -> &str {
         &self.name
     }
 
     async fn complete_with_model(
         &self,
+        session_id: Option<&str>,
         _model_config: &ModelConfig,
         system: &str,
         messages: &[Message],
@@ -129,7 +141,10 @@ impl Provider for TestProvider {
         let hash = Self::hash_input(messages);
 
         if let Some(inner) = &self.inner {
-            let (message, usage) = inner.complete(system, messages, tools).await?;
+            let model_config = inner.get_model_config();
+            let (message, usage) = inner
+                .complete_with_model(session_id, &model_config, system, messages, tools)
+                .await?;
 
             let record = TestRecord {
                 input: TestInput {
@@ -184,24 +199,13 @@ mod tests {
 
     #[async_trait]
     impl Provider for MockProvider {
-        fn metadata() -> ProviderMetadata {
-            ProviderMetadata::new(
-                "mock",
-                "Mock Provider",
-                "Mock provider for testing",
-                "mock-model",
-                vec!["mock-model"],
-                "",
-                vec![],
-            )
-        }
-
         fn get_name(&self) -> &str {
             "mock-testprovider"
         }
 
         async fn complete_with_model(
             &self,
+            _session_id: Option<&str>,
             _model_config: &ModelConfig,
             _system: &str,
             _messages: &[Message],
@@ -244,7 +248,9 @@ mod tests {
         {
             let test_provider = TestProvider::new_recording(mock, &temp_file);
 
-            let result = test_provider.complete("You are helpful", &[], &[]).await;
+            let result = test_provider
+                .complete("test-session-id", "You are helpful", &[], &[])
+                .await;
 
             assert!(result.is_ok());
             let (message, _) = result.unwrap();
@@ -260,7 +266,9 @@ mod tests {
         {
             let replay_provider = TestProvider::new_replaying(&temp_file).unwrap();
 
-            let result = replay_provider.complete("You are helpful", &[], &[]).await;
+            let result = replay_provider
+                .complete("test-session-id", "You are helpful", &[], &[])
+                .await;
 
             assert!(result.is_ok());
             let (message, _) = result.unwrap();
@@ -284,7 +292,7 @@ mod tests {
         let replay_provider = TestProvider::new_replaying(&temp_file).unwrap();
 
         let result = replay_provider
-            .complete("Different system prompt", &[], &[])
+            .complete("test-session-id", "Different system prompt", &[], &[])
             .await;
 
         assert!(result.is_err());

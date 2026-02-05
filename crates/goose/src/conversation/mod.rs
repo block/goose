@@ -6,7 +6,7 @@ use thiserror::Error;
 use utoipa::ToSchema;
 
 pub mod message;
-mod tool_result_serde;
+pub mod tool_result_serde;
 
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema, PartialEq)]
 pub struct Conversation(Vec<Message>);
@@ -202,6 +202,7 @@ pub fn fix_conversation(conversation: Conversation) -> (Conversation, Vec<String
 fn fix_messages(messages: Vec<Message>) -> (Vec<Message>, Vec<String>) {
     [
         merge_text_content_items,
+        trim_assistant_text_whitespace,
         remove_empty_messages,
         fix_tool_calling,
         merge_consecutive_messages,
@@ -255,6 +256,32 @@ fn merge_text_content_items(messages: Vec<Message>) -> (Vec<Message>, Vec<String
             (messages, issues)
         },
     )
+}
+
+fn trim_assistant_text_whitespace(messages: Vec<Message>) -> (Vec<Message>, Vec<String>) {
+    let mut issues = Vec::new();
+
+    let fixed_messages = messages
+        .into_iter()
+        .map(|mut message| {
+            if message.role == Role::Assistant {
+                for content in &mut message.content {
+                    if let MessageContent::Text(text) = content {
+                        let trimmed = text.text.trim_end();
+                        if trimmed.len() != text.text.len() {
+                            issues.push(
+                                "Trimmed trailing whitespace from assistant message".to_string(),
+                            );
+                            text.text = trimmed.to_string();
+                        }
+                    }
+                }
+            }
+            message
+        })
+        .collect();
+
+    (fixed_messages, issues)
 }
 
 fn remove_empty_messages(messages: Vec<Message>) -> (Vec<Message>, Vec<String>) {
@@ -397,7 +424,7 @@ fn has_tool_response(message: &Message) -> bool {
         .any(|content| matches!(content, MessageContent::ToolResponse(_)))
 }
 
-fn effective_role(message: &Message) -> String {
+pub fn effective_role(message: &Message) -> String {
     if message.role == Role::User && has_tool_response(message) {
         "tool".to_string()
     } else {
@@ -476,7 +503,7 @@ pub fn debug_conversation_fix(
 mod tests {
     use crate::conversation::message::Message;
     use crate::conversation::{debug_conversation_fix, fix_conversation, Conversation};
-    use rmcp::model::{CallToolRequestParam, Role};
+    use rmcp::model::{CallToolRequestParams, Role};
     use rmcp::object;
 
     macro_rules! assert_has_issues_unordered {
@@ -517,18 +544,28 @@ mod tests {
 
     #[test]
     fn test_valid_conversation() {
-        let all_messages = vec![
+        let all_messages = [
             Message::user().with_text("Can you help me search for something?"),
             Message::assistant()
                 .with_text("I'll help you search.")
                 .with_tool_request(
                     "search_1",
-                    Ok(CallToolRequestParam {
+                    Ok(CallToolRequestParams {
+                        meta: None,
+                        task: None,
                         name: "web_search".into(),
                         arguments: Some(object!({"query": "rust programming"})),
                     }),
                 ),
-            Message::user().with_tool_response("search_1", Ok(vec![])),
+            Message::user().with_tool_response(
+                "search_1",
+                Ok(rmcp::model::CallToolResult {
+                    content: vec![],
+                    structured_content: None,
+                    is_error: Some(false),
+                    meta: None,
+                }),
+            ),
             Message::assistant().with_text("Based on the search results, here's what I found..."),
         ];
 
@@ -565,12 +602,22 @@ mod tests {
             Message::user().with_text("Another user message"),
             Message::assistant()
                 .with_text("Response")
-                .with_tool_response("orphan_1", Ok(vec![])), // Wrong role
+                .with_tool_response(
+                    "orphan_1",
+                    Ok(rmcp::model::CallToolResult {
+                        content: vec![],
+                        structured_content: None,
+                        is_error: Some(false),
+                        meta: None,
+                    }),
+                ), // Wrong role
             Message::assistant().with_thinking("Let me think", "sig"),
             Message::user()
                 .with_tool_request(
                     "bad_req",
-                    Ok(CallToolRequestParam {
+                    Ok(CallToolRequestParams {
+                        meta: None,
+                        task: None,
                         name: "search".into(),
                         arguments: Some(object!({})),
                     }),
@@ -609,16 +656,28 @@ mod tests {
                 .with_text("I'll search for you")
                 .with_tool_request(
                     "search_1",
-                    Ok(CallToolRequestParam {
+                    Ok(CallToolRequestParams {
+                        meta: None,
+                        task: None,
                         name: "search".into(),
                         arguments: Some(object!({})),
                     }),
                 ),
             Message::user(),
-            Message::user().with_tool_response("wrong_id", Ok(vec![])),
+            Message::user().with_tool_response(
+                "wrong_id",
+                Ok(rmcp::model::CallToolResult {
+                    content: vec![],
+                    structured_content: None,
+                    is_error: Some(false),
+                    meta: None,
+                }),
+            ),
             Message::assistant().with_tool_request(
                 "search_2",
-                Ok(CallToolRequestParam {
+                Ok(CallToolRequestParams {
+                    meta: None,
+                    task: None,
                     name: "search".into(),
                     arguments: Some(object!({})),
                 }),
@@ -653,14 +712,19 @@ mod tests {
 
             Message::assistant()
                 .with_text("I'll help you run `ls` in the current directory and then perform a word count on the smallest file. Let me start by listing the directory contents.")
-                .with_tool_request("toolu_bdrk_018adWbP4X26CfoJU5hkhu3i", Ok(CallToolRequestParam { name: "developer__shell".into(), arguments: Some(object!({"command": "ls -la"})) })),
+                .with_tool_request("toolu_bdrk_018adWbP4X26CfoJU5hkhu3i", Ok(CallToolRequestParams { meta: None, task: None, name: "developer__shell".into(), arguments: Some(object!({"command": "ls -la"})) })),
 
             Message::assistant()
                 .with_text("Now I'll identify the smallest file by size. Looking at the output, I can see that both `slack.yaml` and `subrecipes.yaml` have a size of 0 bytes, making them the smallest files. I'll run a word count on one of them:")
-                .with_tool_request("toolu_bdrk_01KgDYHs4fAodi22NqxRzmwx", Ok(CallToolRequestParam { name: "developer__shell".into(), arguments: Some(object!({"command": "wc slack.yaml"})) })),
+                .with_tool_request("toolu_bdrk_01KgDYHs4fAodi22NqxRzmwx", Ok(CallToolRequestParams { meta: None, task: None, name: "developer__shell".into(), arguments: Some(object!({"command": "wc slack.yaml"})) })),
 
             Message::user()
-                .with_tool_response("toolu_bdrk_01KgDYHs4fAodi22NqxRzmwx", Ok(vec![])),
+                .with_tool_response("toolu_bdrk_01KgDYHs4fAodi22NqxRzmwx", Ok(rmcp::model::CallToolResult {
+                    content: vec![],
+                    structured_content: None,
+                    is_error: Some(false),
+                    meta: None,
+                })),
 
             Message::assistant()
                 .with_text("I ran `ls -la` in the current directory and found several files. Looking at the file sizes, I can see that both `slack.yaml` and `subrecipes.yaml` are 0 bytes (the smallest files). I ran a word count on `slack.yaml` which shows: **0 lines**, **0 words**, **0 characters**"),
@@ -686,12 +750,22 @@ mod tests {
                 .with_text("I'll search for you")
                 .with_tool_request(
                     "search_1",
-                    Ok(CallToolRequestParam {
+                    Ok(CallToolRequestParams {
+                        meta: None,
+                        task: None,
                         name: "search".into(),
                         arguments: Some(object!({})),
                     }),
                 ),
-            Message::user().with_tool_response("search_1", Ok(vec![])),
+            Message::user().with_tool_response(
+                "search_1",
+                Ok(rmcp::model::CallToolResult {
+                    content: vec![],
+                    structured_content: None,
+                    is_error: Some(false),
+                    meta: None,
+                }),
+            ),
             Message::user().with_text("Thanks!"),
         ];
 
