@@ -372,9 +372,8 @@ fn substitute_env_vars(value: &str, env_map: &HashMap<String, String>) -> String
     result
 }
 
-fn goose_user_agent() -> String {
-    format!("goose/{}", env!("CARGO_PKG_VERSION"))
-}
+const GOOSE_USER_AGENT: reqwest::header::HeaderValue =
+    reqwest::header::HeaderValue::from_static(concat!("goose/", env!("CARGO_PKG_VERSION")));
 
 async fn create_streamable_http_client(
     uri: &str,
@@ -386,12 +385,7 @@ async fn create_streamable_http_client(
 ) -> ExtensionResult<Box<dyn McpClientTrait>> {
     let mut default_headers = HeaderMap::new();
 
-    default_headers.insert(
-        reqwest::header::USER_AGENT,
-        goose_user_agent()
-            .parse()
-            .expect("valid user agent header value"),
-    );
+    default_headers.insert(reqwest::header::USER_AGENT, GOOSE_USER_AGENT);
 
     for (key, value) in headers {
         let substituted_value = substitute_env_vars(value, all_envs);
@@ -427,12 +421,7 @@ async fn create_streamable_http_client(
             .await
             .map_err(|_| ExtensionError::SetupError("auth error".to_string()))?;
         let mut auth_headers = HeaderMap::new();
-        auth_headers.insert(
-            reqwest::header::USER_AGENT,
-            goose_user_agent()
-                .parse()
-                .expect("valid user agent header value"),
-        );
+        auth_headers.insert(reqwest::header::USER_AGENT, GOOSE_USER_AGENT);
         let auth_http_client = reqwest::Client::builder()
             .default_headers(auth_headers)
             .build()
