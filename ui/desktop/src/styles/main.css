@@ -412,10 +412,14 @@
   animation: fade-slide-up 0.15s ease-out forwards;
 }
 
-/* Force scrollbars to be visible */
+/* Hide native scrollbars in Radix ScrollArea (custom scrollbar will show instead) */
 [data-radix-scroll-area-viewport] {
-  scrollbar-width: auto !important;
-  -ms-overflow-style: auto !important;
+  scrollbar-width: none !important;
+  -ms-overflow-style: none !important;
+}
+
+[data-radix-scroll-area-viewport]::-webkit-scrollbar {
+  display: none;
 }
 
 /* Override Radix UI ScrollArea styles */
