@@ -6,7 +6,6 @@ use super::azureauth::{AuthError, AzureAuth};
 use super::base::{ConfigKey, ProviderDef, ProviderMetadata};
 use super::openai_compatible::OpenAiCompatibleProvider;
 use crate::model::ModelConfig;
-use futures::future::BoxFuture;
 
 const AZURE_PROVIDER_NAME: &str = "azure_openai";
 pub const AZURE_DEFAULT_MODEL: &str = "gpt-4o";
@@ -43,6 +42,7 @@ impl AuthProvider for AzureAuthProvider {
     }
 }
 
+#[async_trait]
 impl ProviderDef for AzureProvider {
     type Provider = OpenAiCompatibleProvider;
 
@@ -63,38 +63,39 @@ impl ProviderDef for AzureProvider {
         )
     }
 
-    fn from_env(model: ModelConfig) -> BoxFuture<'static, Result<Self::Provider>> {
-        Box::pin(async move {
-            let config = crate::config::Config::global();
-            let endpoint: String = config.get_param("AZURE_OPENAI_ENDPOINT")?;
-            let deployment_name: String = config.get_param("AZURE_OPENAI_DEPLOYMENT_NAME")?;
-            let api_version: String = config
-                .get_param("AZURE_OPENAI_API_VERSION")
-                .unwrap_or_else(|_| AZURE_DEFAULT_API_VERSION.to_string());
+    async fn from_env(
+        model: ModelConfig,
+        _extensions: Vec<crate::config::ExtensionConfig>,
+    ) -> Result<Self::Provider> {
+        let config = crate::config::Config::global();
+        let endpoint: String = config.get_param("AZURE_OPENAI_ENDPOINT")?;
+        let deployment_name: String = config.get_param("AZURE_OPENAI_DEPLOYMENT_NAME")?;
+        let api_version: String = config
+            .get_param("AZURE_OPENAI_API_VERSION")
+            .unwrap_or_else(|_| AZURE_DEFAULT_API_VERSION.to_string());
 
-            let api_key = config
-                .get_secret("AZURE_OPENAI_API_KEY")
-                .ok()
-                .filter(|key: &String| !key.is_empty());
-            let auth = AzureAuth::new(api_key).map_err(|e| match e {
-                AuthError::Credentials(msg) => anyhow::anyhow!("Credentials error: {}", msg),
-                AuthError::TokenExchange(msg) => anyhow::anyhow!("Token exchange error: {}", msg),
-            })?;
+        let api_key = config
+            .get_secret("AZURE_OPENAI_API_KEY")
+            .ok()
+            .filter(|key: &String| !key.is_empty());
+        let auth = AzureAuth::new(api_key).map_err(|e| match e {
+            AuthError::Credentials(msg) => anyhow::anyhow!("Credentials error: {}", msg),
+            AuthError::TokenExchange(msg) => anyhow::anyhow!("Token exchange error: {}", msg),
+        })?;
 
-            let auth_provider = AzureAuthProvider { auth };
-            let host = format!(
-                "{}/openai/deployments/{}",
-                endpoint.trim_end_matches('/'),
-                deployment_name
-            );
-            let api_client = ApiClient::new(host, AuthMethod::Custom(Box::new(auth_provider)))?
-                .with_query(vec![("api-version".to_string(), api_version)]);
+        let auth_provider = AzureAuthProvider { auth };
+        let host = format!(
+            "{}/openai/deployments/{}",
+            endpoint.trim_end_matches('/'),
+            deployment_name
+        );
+        let api_client = ApiClient::new(host, AuthMethod::Custom(Box::new(auth_provider)))?
+            .with_query(vec![("api-version".to_string(), api_version)]);
 
-            Ok(OpenAiCompatibleProvider::new(
-                AZURE_PROVIDER_NAME.to_string(),
-                api_client,
-                model,
-            ))
-        })
+        Ok(OpenAiCompatibleProvider::new(
+            AZURE_PROVIDER_NAME.to_string(),
+            api_client,
+            model,
+        ))
     }
 }

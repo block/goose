@@ -11,7 +11,6 @@ use super::base::{Provider, ProviderDef, ProviderMetadata, ProviderUsage};
 use super::errors::ProviderError;
 use crate::conversation::message::Message;
 use crate::model::ModelConfig;
-use futures::future::BoxFuture;
 use rmcp::model::Tool;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -104,6 +103,7 @@ impl TestProvider {
     }
 }
 
+#[async_trait]
 impl ProviderDef for TestProvider {
     type Provider = Self;
 
@@ -119,8 +119,11 @@ impl ProviderDef for TestProvider {
         )
     }
 
-    fn from_env(_model: ModelConfig) -> BoxFuture<'static, Result<Self::Provider>> {
-        Box::pin(async { Err(anyhow!("TestProvider must be constructed explicitly")) })
+    async fn from_env(
+        _model: ModelConfig,
+        _extensions: Vec<crate::config::ExtensionConfig>,
+    ) -> Result<Self::Provider> {
+        Err(anyhow!("TestProvider must be constructed explicitly"))
     }
 }
 

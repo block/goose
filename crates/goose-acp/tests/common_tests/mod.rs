@@ -4,13 +4,11 @@
 
 #[path = "../fixtures/mod.rs"]
 pub mod fixtures;
-use fixtures::{
-    ExpectedSessionId, McpFixture, OpenAiFixture, PermissionDecision, Session, TestSessionConfig,
-    FAKE_CODE,
-};
+use fixtures::{OpenAiFixture, PermissionDecision, Session, TestSessionConfig};
 use fs_err as fs;
 use goose::config::base::CONFIG_YAML_NAME;
 use goose::config::GooseMode;
+use goose_test_support::{ExpectedSessionId, McpFixture, FAKE_CODE};
 use sacp::schema::{McpServer, McpServerHttp, ToolCallStatus};
 
 pub async fn run_basic_completion<S: Session>() {
@@ -25,7 +23,7 @@ pub async fn run_basic_completion<S: Session>() {
     .await;
 
     let mut session = S::new(TestSessionConfig::default(), openai).await;
-    expected_session_id.set(session.id());
+    expected_session_id.set(session.id().0.to_string());
 
     let output = session
         .prompt("what is 1+1", PermissionDecision::Cancel)
@@ -36,7 +34,7 @@ pub async fn run_basic_completion<S: Session>() {
 
 pub async fn run_mcp_http_server<S: Session>() {
     let expected_session_id = ExpectedSessionId::default();
-    let mcp = McpFixture::new(expected_session_id.clone()).await;
+    let mcp = McpFixture::new(Some(expected_session_id.clone())).await;
     let openai = OpenAiFixture::new(
         vec![
             (
@@ -57,7 +55,7 @@ pub async fn run_mcp_http_server<S: Session>() {
         ..Default::default()
     };
     let mut session = S::new(config, openai).await;
-    expected_session_id.set(session.id());
+    expected_session_id.set(session.id().0.to_string());
 
     let output = session
         .prompt(
@@ -73,7 +71,7 @@ pub async fn run_builtin_and_mcp<S: Session>() {
     let expected_session_id = ExpectedSessionId::default();
     let prompt =
         "Search for getCode and textEditor tools. Use them to save the code to /tmp/result.txt.";
-    let mcp = McpFixture::new(expected_session_id.clone()).await;
+    let mcp = McpFixture::new(Some(expected_session_id.clone())).await;
     let openai = OpenAiFixture::new(
         vec![
             (
@@ -102,7 +100,7 @@ pub async fn run_builtin_and_mcp<S: Session>() {
     let _ = fs::remove_file("/tmp/result.txt");
 
     let mut session = S::new(config, openai).await;
-    expected_session_id.set(session.id());
+    expected_session_id.set(session.id().0.to_string());
 
     let output = session.prompt(prompt, PermissionDecision::Cancel).await;
     if matches!(output.tool_status, Some(ToolCallStatus::Failed)) || output.text.contains("error") {
@@ -134,7 +132,7 @@ pub async fn run_permission_persistence<S: Session>() {
     let temp_dir = tempfile::tempdir().unwrap();
     let prompt = "Use the get_code tool and output only its result.";
     let expected_session_id = ExpectedSessionId::default();
-    let mcp = McpFixture::new(expected_session_id.clone()).await;
+    let mcp = McpFixture::new(Some(expected_session_id.clone())).await;
     let openai = OpenAiFixture::new(
         vec![
             (
@@ -158,7 +156,7 @@ pub async fn run_permission_persistence<S: Session>() {
     };
 
     let mut session = S::new(config, openai).await;
-    expected_session_id.set(session.id());
+    expected_session_id.set(session.id().0.to_string());
 
     for (decision, expected_status, expected_yaml) in cases {
         session.reset_openai();
@@ -186,7 +184,7 @@ pub async fn run_configured_extension<S: Session>() {
     let temp_dir = tempfile::tempdir().unwrap();
     let expected_session_id = ExpectedSessionId::default();
     let prompt = "Use the get_code tool and output only its result.";
-    let mcp = McpFixture::new(expected_session_id.clone()).await;
+    let mcp = McpFixture::new(Some(expected_session_id.clone())).await;
 
     let config_yaml = format!(
         "extensions:\n  lookup:\n    enabled: true\n    type: streamable_http\n    name: lookup\n    description: Lookup server\n    uri: \"{}\"\n",
@@ -215,7 +213,7 @@ pub async fn run_configured_extension<S: Session>() {
     };
 
     let mut session = S::new(config, openai).await;
-    expected_session_id.set(session.id());
+    expected_session_id.set(session.id().0.to_string());
 
     let output = session.prompt(prompt, PermissionDecision::Cancel).await;
     assert_eq!(output.text, FAKE_CODE);

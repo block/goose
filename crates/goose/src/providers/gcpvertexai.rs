@@ -4,7 +4,6 @@ use std::time::Duration;
 use anyhow::Result;
 use async_stream::try_stream;
 use async_trait::async_trait;
-use futures::future::BoxFuture;
 use futures::StreamExt;
 use futures::TryStreamExt;
 use once_cell::sync::Lazy;
@@ -150,40 +149,6 @@ pub struct GcpVertexAIProvider {
 }
 
 impl GcpVertexAIProvider {
-    /// Creates a new provider instance from environment configuration.
-    ///
-    /// This is a convenience method that initializes the provider using
-    /// environment variables and default settings.
-    ///
-    /// # Arguments
-    /// * `model` - Configuration for the model to be used
-    pub async fn from_env(model: ModelConfig) -> Result<Self> {
-        let config = crate::config::Config::global();
-        let project_id = config.get_param("GCP_PROJECT_ID")?;
-        let location = Self::determine_location(config)?;
-        let host = Self::build_host_url(&location);
-
-        let client = Client::builder()
-            .timeout(Duration::from_secs(DEFAULT_TIMEOUT_SECS))
-            .build()?;
-
-        let auth = GcpAuth::new().await?;
-
-        // Load optional retry configuration from environment
-        let retry_config = Self::load_retry_config(config);
-
-        Ok(Self {
-            client,
-            auth,
-            host,
-            project_id,
-            location,
-            model,
-            retry_config,
-            name: GCP_VERTEX_AI_PROVIDER_NAME.to_string(),
-        })
-    }
-
     /// Loads retry configuration from environment variables or uses defaults.
     fn load_retry_config(config: &crate::config::Config) -> RetryConfig {
         // Load max retries for 429 rate limit errors
@@ -545,6 +510,7 @@ impl GcpVertexAIProvider {
     }
 }
 
+#[async_trait]
 impl ProviderDef for GcpVertexAIProvider {
     type Provider = Self;
 
@@ -593,8 +559,34 @@ impl ProviderDef for GcpVertexAIProvider {
         .with_unlisted_models()
     }
 
-    fn from_env(model: ModelConfig) -> BoxFuture<'static, Result<Self::Provider>> {
-        Box::pin(Self::from_env(model))
+    async fn from_env(
+        model: ModelConfig,
+        _extensions: Vec<crate::config::ExtensionConfig>,
+    ) -> Result<Self::Provider> {
+        let config = crate::config::Config::global();
+        let project_id = config.get_param("GCP_PROJECT_ID")?;
+        let location = Self::determine_location(config)?;
+        let host = Self::build_host_url(&location);
+
+        let client = Client::builder()
+            .timeout(Duration::from_secs(DEFAULT_TIMEOUT_SECS))
+            .build()?;
+
+        let auth = GcpAuth::new().await?;
+
+        // Load optional retry configuration from environment
+        let retry_config = Self::load_retry_config(config);
+
+        Ok(Self {
+            client,
+            auth,
+            host,
+            project_id,
+            location,
+            model,
+            retry_config,
+            name: GCP_VERTEX_AI_PROVIDER_NAME.to_string(),
+        })
     }
 }
 

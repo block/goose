@@ -1,8 +1,11 @@
 use anyhow::Result;
 use async_trait::async_trait;
+use base64::{engine::general_purpose::STANDARD as BASE64, Engine as _};
 use serde_json::json;
-use std::path::PathBuf;
+use std::io::Write;
+use std::path::{Path, PathBuf};
 use std::process::Stdio;
+use tempfile::NamedTempFile;
 use tokio::io::{AsyncBufReadExt, BufReader};
 use tokio::process::Command;
 
@@ -10,12 +13,12 @@ use super::base::{ConfigKey, Provider, ProviderDef, ProviderMetadata, ProviderUs
 use super::errors::ProviderError;
 use super::utils::{filter_extensions_from_system_prompt, RequestLog};
 use crate::config::base::{CodexCommand, CodexReasoningEffort, CodexSkipGitCheck};
+use crate::config::paths::Paths;
 use crate::config::search_path::SearchPaths;
-use crate::config::{Config, GooseMode};
+use crate::config::{Config, ExtensionConfig, GooseMode};
 use crate::conversation::message::{Message, MessageContent};
 use crate::model::ModelConfig;
 use crate::subprocess::configure_command_no_window;
-use futures::future::BoxFuture;
 use rmcp::model::Role;
 use rmcp::model::Tool;
 
@@ -32,6 +35,10 @@ pub const CODEX_DOC_URL: &str = "https://developers.openai.com/codex/cli";
 /// Valid reasoning effort levels for Codex
 pub const CODEX_REASONING_LEVELS: &[&str] = &["none", "low", "medium", "high", "xhigh"];
 
+/// Spawns the Codex CLI (`codex exec`) as a one-shot child process per turn.
+/// Text prompt is piped via stdin (`-`), images are passed as temporary files
+/// via the `-i` flag. Output is JSONL on stdout (`--json`), with events like
+/// `item.completed`, `turn.completed`, and `error`.
 #[derive(Debug, serde::Serialize)]
 pub struct CodexProvider {
     command: PathBuf,
@@ -42,48 +49,11 @@ pub struct CodexProvider {
     reasoning_effort: String,
     /// Whether to skip git repo check
     skip_git_check: bool,
+    /// CLI config overrides for MCP servers
+    mcp_config_overrides: Vec<String>,
 }
 
 impl CodexProvider {
-    pub async fn from_env(model: ModelConfig) -> Result<Self> {
-        let config = Config::global();
-        let command: String = config.get_codex_command().unwrap_or_default().into();
-        let resolved_command = SearchPaths::builder().with_npm().resolve(&command)?;
-
-        // Get reasoning effort from config, default to "high"
-        let reasoning_effort = config
-            .get_codex_reasoning_effort()
-            .map(String::from)
-            .unwrap_or_else(|_| "high".to_string());
-
-        // Validate reasoning effort
-        let reasoning_effort =
-            if Self::supports_reasoning_effort(&model.model_name, &reasoning_effort) {
-                reasoning_effort
-            } else {
-                tracing::warn!(
-                    "Invalid CODEX_REASONING_EFFORT '{}' for model '{}', using 'high'",
-                    reasoning_effort,
-                    model.model_name
-                );
-                "high".to_string()
-            };
-
-        // Get skip_git_check from config, default to false
-        let skip_git_check = config
-            .get_codex_skip_git_check()
-            .map(|s| s.to_lowercase() == "true")
-            .unwrap_or(false);
-
-        Ok(Self {
-            command: resolved_command,
-            model,
-            name: CODEX_PROVIDER_NAME.to_string(),
-            reasoning_effort,
-            skip_git_check,
-        })
-    }
-
     fn supports_reasoning_effort(model_name: &str, reasoning_effort: &str) -> bool {
         if !CODEX_REASONING_LEVELS.contains(&reasoning_effort) {
             return false;
@@ -94,38 +64,6 @@ impl CodexProvider {
         }
 
         true
-    }
-
-    /// Convert goose messages to a simple text prompt format
-    /// Similar to Gemini CLI, we use Human:/Assistant: prefixes
-    fn messages_to_prompt(&self, system: &str, messages: &[Message]) -> String {
-        let mut full_prompt = String::new();
-
-        let filtered_system = filter_extensions_from_system_prompt(system);
-        if !filtered_system.is_empty() {
-            full_prompt.push_str(&filtered_system);
-            full_prompt.push_str("\n\n");
-        }
-
-        // Add conversation history
-        for message in messages.iter().filter(|m| m.is_agent_visible()) {
-            let role_prefix = match message.role {
-                Role::User => "Human: ",
-                Role::Assistant => "Assistant: ",
-            };
-            full_prompt.push_str(role_prefix);
-
-            for content in &message.content {
-                if let MessageContent::Text(text_content) = content {
-                    full_prompt.push_str(&text_content.text);
-                    full_prompt.push('\n');
-                }
-            }
-            full_prompt.push('\n');
-        }
-
-        full_prompt.push_str("Assistant: ");
-        full_prompt
     }
 
     /// Apply permission flags based on GOOSE_MODE setting
@@ -161,7 +99,10 @@ impl CodexProvider {
         messages: &[Message],
         _tools: &[Tool],
     ) -> Result<Vec<String>, ProviderError> {
-        let prompt = self.messages_to_prompt(system, messages);
+        // Single pass: text → prompt (stdin), images → temp files (-i flags)
+        let image_dir = Paths::state_dir().join("codex/images");
+        std::fs::create_dir_all(&image_dir).ok();
+        let (prompt, temp_files) = prepare_input(system, messages, &image_dir)?;
 
         if std::env::var("GOOSE_CODEX_DEBUG").is_ok() {
             println!("=== CODEX PROVIDER DEBUG ===");
@@ -171,6 +112,7 @@ impl CodexProvider {
             println!("Skip git check: {}", self.skip_git_check);
             println!("Prompt length: {} chars", prompt.len());
             println!("Prompt: {}", prompt);
+            println!("Image files: {}", temp_files.len());
             println!("============================");
         }
 
@@ -192,6 +134,10 @@ impl CodexProvider {
             self.reasoning_effort
         ));
 
+        for override_config in &self.mcp_config_overrides {
+            cmd.arg("-c").arg(override_config);
+        }
+
         // JSON output format for structured parsing
         cmd.arg("--json");
 
@@ -201,6 +147,11 @@ impl CodexProvider {
         // Skip git repo check if configured
         if self.skip_git_check {
             cmd.arg("--skip-git-repo-check");
+        }
+
+        // Codex treats -i as supplementary context, not positionally interleaved with text
+        for tmp in &temp_files {
+            cmd.arg("-i").arg(tmp.path());
         }
 
         // Pass the prompt via stdin using '-' argument
@@ -234,6 +185,19 @@ impl CodexProvider {
             .take()
             .ok_or_else(|| ProviderError::RequestFailed("Failed to capture stdout".to_string()))?;
 
+        // Drain stderr concurrently to prevent pipe buffer deadlock
+        let stderr_handle = {
+            let stderr = child.stderr.take();
+            tokio::spawn(async move {
+                let mut output = String::new();
+                if let Some(mut stderr) = stderr {
+                    use tokio::io::AsyncReadExt;
+                    let _ = stderr.read_to_string(&mut output).await;
+                }
+                output
+            })
+        };
+
         let mut reader = BufReader::new(stdout);
         let mut lines = Vec::new();
         let mut line = String::new();
@@ -261,7 +225,10 @@ impl CodexProvider {
             ProviderError::RequestFailed(format!("Failed to wait for command: {}", e))
         })?;
 
-        if !exit_status.success() {
+        // Allow the stderr task to finish
+        let _ = stderr_handle.await;
+
+        if !exit_status.success() && lines.is_empty() {
             return Err(ProviderError::RequestFailed(format!(
                 "Codex command failed with exit code: {:?}",
                 exit_status.code()
@@ -393,6 +360,15 @@ impl CodexProvider {
 
         if let Some(err) = error_message {
             if all_text_content.is_empty() {
+                if err.contains("context window") || err.contains("context_length_exceeded") {
+                    return Err(ProviderError::ContextLengthExceeded(err));
+                }
+                if err.to_lowercase().contains("rate limit") {
+                    return Err(ProviderError::RateLimitExceeded {
+                        details: err,
+                        retry_delay: None,
+                    });
+                }
                 return Err(ProviderError::RequestFailed(format!(
                     "Codex CLI error: {}",
                     err
@@ -472,6 +448,144 @@ impl CodexProvider {
     }
 }
 
+/// Builds the text prompt and extracts images to temp files in a single pass.
+/// Text goes to the prompt string (piped via stdin); images become temp files
+/// (passed via `-i` flags). Returns (prompt, temp_files).
+fn prepare_input(
+    system: &str,
+    messages: &[Message],
+    image_dir: &Path,
+) -> Result<(String, Vec<NamedTempFile>), ProviderError> {
+    let mut prompt = String::new();
+    let mut temp_files = Vec::new();
+
+    let filtered_system = filter_extensions_from_system_prompt(system);
+    if !filtered_system.is_empty() {
+        prompt.push_str(&filtered_system);
+        prompt.push_str("\n\n");
+    }
+
+    for message in messages.iter().filter(|m| m.is_agent_visible()) {
+        let role_prefix = match message.role {
+            Role::User => "Human: ",
+            Role::Assistant => "Assistant: ",
+        };
+        prompt.push_str(role_prefix);
+
+        for content in &message.content {
+            match content {
+                MessageContent::Text(t) => {
+                    prompt.push_str(&t.text);
+                    prompt.push('\n');
+                }
+                MessageContent::Image(img) => {
+                    let decoded = BASE64.decode(&img.data).map_err(|e| {
+                        ProviderError::RequestFailed(format!("Failed to decode image: {}", e))
+                    })?;
+                    let ext = img.mime_type.split('/').next_back().unwrap_or("png");
+                    let mut tmp = tempfile::Builder::new()
+                        .suffix(&format!(".{}", ext))
+                        .tempfile_in(image_dir)
+                        .map_err(|e| {
+                            ProviderError::RequestFailed(format!(
+                                "Failed to create temp file: {}",
+                                e
+                            ))
+                        })?;
+                    tmp.write_all(&decoded).map_err(|e| {
+                        ProviderError::RequestFailed(format!("Failed to write image: {}", e))
+                    })?;
+                    temp_files.push(tmp);
+                }
+                MessageContent::ToolRequest(req) => {
+                    if let Ok(call) = &req.tool_call {
+                        prompt.push_str(&format!("[tool_use: {} id={}]\n", call.name, req.id));
+                    }
+                }
+                MessageContent::ToolResponse(resp) => {
+                    if let Ok(result) = &resp.tool_result {
+                        let text: String = result
+                            .content
+                            .iter()
+                            .filter_map(|c| match &c.raw {
+                                rmcp::model::RawContent::Text(t) => Some(t.text.as_str()),
+                                _ => None,
+                            })
+                            .collect::<Vec<&str>>()
+                            .join("\n");
+                        prompt.push_str(&format!("[tool_result id={}] {}\n", resp.id, text));
+                    }
+                }
+                _ => {}
+            }
+        }
+        prompt.push('\n');
+    }
+
+    prompt.push_str("Assistant: ");
+    Ok((prompt, temp_files))
+}
+
+/// Quote a string as a TOML basic string value.
+fn toml_quote(s: &str) -> String {
+    format!("\"{}\"", s.replace('\\', "\\\\").replace('"', "\\\""))
+}
+
+fn codex_mcp_config_overrides(extensions: &[ExtensionConfig]) -> Vec<String> {
+    let mut overrides = Vec::new();
+    for extension in extensions {
+        match extension {
+            ExtensionConfig::StreamableHttp { uri, headers, .. } => {
+                let key = extension.derived_key();
+                overrides.push(format!("mcp_servers.{}.url={}", key, toml_quote(uri)));
+                if !headers.is_empty() {
+                    let mut hkeys: Vec<_> = headers.keys().collect();
+                    hkeys.sort();
+                    let entries: Vec<_> = hkeys
+                        .iter()
+                        .map(|k| format!("{} = {}", k, toml_quote(&headers[*k])))
+                        .collect();
+                    overrides.push(format!(
+                        "mcp_servers.{}.http_headers={{{}}}",
+                        key,
+                        entries.join(", ")
+                    ));
+                }
+            }
+            ExtensionConfig::Stdio {
+                cmd, args, envs, ..
+            } => {
+                let key = extension.derived_key();
+                overrides.push(format!("mcp_servers.{}.command={}", key, toml_quote(cmd)));
+                if !args.is_empty() {
+                    let items: Vec<_> = args.iter().map(|a| toml_quote(a)).collect();
+                    overrides.push(format!("mcp_servers.{}.args=[{}]", key, items.join(", ")));
+                }
+                let env_map = envs.get_env();
+                if !env_map.is_empty() {
+                    let mut ekeys: Vec<_> = env_map.keys().collect();
+                    ekeys.sort();
+                    let entries: Vec<_> = ekeys
+                        .iter()
+                        .map(|k| format!("{} = {}", k, toml_quote(&env_map[k.as_str()])))
+                        .collect();
+                    overrides.push(format!(
+                        "mcp_servers.{}.env={{{}}}",
+                        key,
+                        entries.join(", ")
+                    ));
+                }
+            }
+            ExtensionConfig::Sse { name, .. } => {
+                tracing::debug!(name, "skipping SSE extension, migrate to streamable_http");
+            }
+            _ => {}
+        }
+    }
+    overrides
+}
+
+#[async_trait]
 impl ProviderDef for CodexProvider {
     type Provider = Self;
 
@@ -491,8 +605,47 @@ impl ProviderDef for CodexProvider {
         )
     }
 
-    fn from_env(model: ModelConfig) -> BoxFuture<'static, Result<Self::Provider>> {
-        Box::pin(Self::from_env(model))
+    async fn from_env(
+        model: ModelConfig,
+        extensions: Vec<ExtensionConfig>,
+    ) -> Result<Self::Provider> {
+        let config = Config::global();
+        let command: String = config.get_codex_command().unwrap_or_default().into();
+        let resolved_command = SearchPaths::builder().with_npm().resolve(command)?;
+
+        // Get reasoning effort from config, default to "high"
+        let reasoning_effort = config
+            .get_codex_reasoning_effort()
+            .map(String::from)
+            .unwrap_or_else(|_| "high".to_string());
+
+        // Validate reasoning effort
+        let reasoning_effort =
+            if Self::supports_reasoning_effort(&model.model_name, &reasoning_effort) {
+                reasoning_effort
+            } else {
+                tracing::warn!(
+                    "Invalid CODEX_REASONING_EFFORT '{}' for model '{}', using 'high'",
+                    reasoning_effort,
+                    model.model_name
+                );
+                "high".to_string()
+            };
+
+        // Get skip_git_check from config, default to false
+        let skip_git_check = config
+            .get_codex_skip_git_check()
+            .map(|s| s.to_lowercase() == "true")
+            .unwrap_or(false);
+
+        Ok(Self {
+            command: resolved_command,
+            model,
+            name: CODEX_PROVIDER_NAME.to_string(),
+            reasoning_effort,
+            skip_git_check,
+            mcp_config_overrides: codex_mcp_config_overrides(&extensions),
+        })
     }
 }
 
@@ -559,6 +712,9 @@ impl Provider for CodexProvider {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::agents::extension::Envs;
+    use std::collections::HashMap;
+    use test_case::test_case;
 
     #[test]
     fn test_codex_metadata() {
@@ -573,61 +729,182 @@ mod tests {
             .any(|m| m.name == CODEX_DEFAULT_MODEL));
     }
 
-    #[test]
-    fn test_messages_to_prompt_empty() {
-        let provider = CodexProvider {
-            command: PathBuf::from("codex"),
-            model: ModelConfig::new("gpt-5.2-codex").unwrap(),
-            name: "codex".to_string(),
-            reasoning_effort: "high".to_string(),
-            skip_git_check: false,
-        };
+    #[test_case(
+        ExtensionConfig::Stdio {
+            name: "lookup".into(),
+            cmd: "node".into(),
+            args: vec!["server.js".into()],
+            envs: Envs::new([("API_KEY".into(), "secret".into())].into()),
+            env_keys: vec![],
+            description: "Lookup".into(),
+            timeout: Some(30),
+            bundled: None,
+            available_tools: vec![],
+        },
+        &[
+            r#"mcp_servers.lookup.command="node""#,
+            r#"mcp_servers.lookup.args=["server.js"]"#,
+            r#"mcp_servers.lookup.env={API_KEY = "secret"}"#,
+        ]
+        ; "stdio_converts_to_mcp_overrides"
+    )]
+    #[test_case(
+        ExtensionConfig::StreamableHttp {
+            name: "lookup".into(),
+            description: String::new(),
+            uri: "http://localhost/mcp".into(),
+            envs: Envs::default(),
+            env_keys: vec![],
+            headers: HashMap::from([("Authorization".into(), "Bearer token".into())]),
+            timeout: None,
+            bundled: Some(false),
+            available_tools: vec![],
+        },
+        &[
+            r#"mcp_servers.lookup.url="http://localhost/mcp""#,
+            r#"mcp_servers.lookup.http_headers={Authorization = "Bearer token"}"#,
+        ]
+        ; "streamable_http_converts_to_mcp_overrides"
+    )]
+    #[test_case(
+        ExtensionConfig::StreamableHttp {
+            name: String::new(),
+            description: String::new(),
+            uri: "https://mcp.kiwi.com".into(),
+            envs: Envs::default(),
+            env_keys: vec![],
+            headers: HashMap::new(),
+            timeout: None,
+            bundled: None,
+            available_tools: vec![],
+        },
+        &[
+            r#"mcp_servers.mcp_kiwi_com.url="https://mcp.kiwi.com""#,
+        ]
+        ; "empty_name_derives_key_from_host"
+    )]
+    #[test_case(
+        ExtensionConfig::Stdio {
+            name: String::new(),
+            cmd: "/usr/bin/my-server".into(),
+            args: vec![],
+            envs: Envs::default(),
+            env_keys: vec![],
+            description: String::new(),
+            timeout: None,
+            bundled: None,
+            available_tools: vec![],
+        },
+        &[
+            r#"mcp_servers.my-server.command="/usr/bin/my-server""#,
+        ]
+        ; "empty_name_derives_key_from_cmd"
+    )]
+    fn test_codex_mcp_overrides(config: ExtensionConfig, expected: &[&str]) {
+        let overrides = codex_mcp_config_overrides(&[config]);
+        let expected: Vec<String> = expected.iter().map(|s| s.to_string()).collect();
+        assert_eq!(overrides, expected);
+    }
 
-        let prompt = provider.messages_to_prompt("", &[]);
-        assert_eq!(prompt, "Assistant: ");
+    // -- prepare_input --
+
+    const TINY_PNG_B64: &str = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR4nGNgYAAAAAMAASsJTYQAAAAASUVORK5CYII=";
+
+    #[test_case("", vec![], "Assistant: ", &[] ; "empty")]
+    #[test_case(
+        "", vec![Message::user().with_text("Hello")],
+        "Human: Hello\n\nAssistant: ", &[]
+        ; "text_only"
+    )]
+    #[test_case(
+        "Be helpful", vec![Message::user().with_text("Hello")],
+        "Be helpful\n\nHuman: Hello\n\nAssistant: ", &[]
+        ; "with_system"
+    )]
+    #[test_case(
+        "", vec![Message::user().with_text("Hello"), Message::assistant().with_text("Hi!")],
+        "Human: Hello\n\nAssistant: Hi!\n\nAssistant: ", &[]
+        ; "multi_turn"
+    )]
+    #[test_case(
+        "", vec![Message::user().with_text("Describe this").with_image(TINY_PNG_B64, "image/png")],
+        "Human: Describe this\n\nAssistant: ", &["png"]
+        ; "text_and_image"
+    )]
+    #[test_case(
+        "", vec![Message::user().with_image(TINY_PNG_B64, "image/png")],
+        "Human: \nAssistant: ", &["png"]
+        ; "image_only"
+    )]
+    #[test_case(
+        "", vec![Message::user().with_text("Look").with_image(TINY_PNG_B64, "image/jpeg")],
+        "Human: Look\n\nAssistant: ", &["jpeg"]
+        ; "jpeg_extension"
+    )]
+    fn test_prepare_input(
+        system: &str,
+        messages: Vec<Message>,
+        expected_prompt: &str,
+        expected_extensions: &[&str],
+    ) {
+        let dir = tempfile::tempdir().unwrap();
+        let (prompt, temp_files) = prepare_input(system, &messages, dir.path()).unwrap();
+        assert_eq!(prompt, expected_prompt);
+        assert_eq!(temp_files.len(), expected_extensions.len());
+        for (tmp, ext) in temp_files.iter().zip(expected_extensions) {
+            assert_eq!(tmp.path().extension().unwrap().to_str().unwrap(), *ext);
+        }
     }
 
     #[test]
-    fn test_messages_to_prompt_with_system() {
-        let provider = CodexProvider {
-            command: PathBuf::from("codex"),
-            model: ModelConfig::new("gpt-5.2-codex").unwrap(),
-            name: "codex".to_string(),
-            reasoning_effort: "high".to_string(),
-            skip_git_check: false,
-        };
-
-        let prompt = provider.messages_to_prompt("You are a helpful assistant.", &[]);
-        assert!(prompt.starts_with("You are a helpful assistant."));
-        assert!(prompt.ends_with("Assistant: "));
+    fn test_prepare_input_decodes_png() {
+        let dir = tempfile::tempdir().unwrap();
+        let messages = vec![Message::user()
+            .with_text("Describe")
+            .with_image(TINY_PNG_B64, "image/png")];
+        let (_prompt, temp_files) = prepare_input("", &messages, dir.path()).unwrap();
+        let content = std::fs::read(temp_files[0].path()).unwrap();
+        assert_eq!(&content[..4], b"\x89PNG");
     }
 
     #[test]
-    fn test_messages_to_prompt_with_messages() {
-        let provider = CodexProvider {
-            command: PathBuf::from("codex"),
-            model: ModelConfig::new("gpt-5.2-codex").unwrap(),
-            name: "codex".to_string(),
-            reasoning_effort: "high".to_string(),
-            skip_git_check: false,
+    fn test_prepare_input_tool_request() {
+        use rmcp::model::CallToolRequestParams;
+        let dir = tempfile::tempdir().unwrap();
+        let tool_call = Ok(CallToolRequestParams {
+            name: "developer__shell".into(),
+            arguments: Some(serde_json::from_value(json!({"cmd": "ls"})).unwrap()),
+            meta: None,
+            task: None,
+        });
+        let messages = vec![Message::new(
+            Role::Assistant,
+            0,
+            vec![MessageContent::tool_request("call_123", tool_call)],
+        )];
+        let (prompt, temp_files) = prepare_input("", &messages, dir.path()).unwrap();
+        assert!(prompt.contains("[tool_use: developer__shell id=call_123]"));
+        assert!(temp_files.is_empty());
+    }
+
+    #[test]
+    fn test_prepare_input_tool_response() {
+        use rmcp::model::{CallToolResult, Content};
+        let dir = tempfile::tempdir().unwrap();
+        let result = CallToolResult {
+            content: vec![Content::text("file1.txt\nfile2.txt")],
+            is_error: None,
+            structured_content: None,
+            meta: None,
         };
-
-        let messages = vec![
-            Message::new(
-                Role::User,
-                chrono::Utc::now().timestamp(),
-                vec![MessageContent::text("Hello")],
-            ),
-            Message::new(
-                Role::Assistant,
-                chrono::Utc::now().timestamp(),
-                vec![MessageContent::text("Hi there!")],
-            ),
-        ];
-
-        let prompt = provider.messages_to_prompt("", &messages);
-        assert!(prompt.contains("Human: Hello"));
-        assert!(prompt.contains("Assistant: Hi there!"));
+        let messages = vec![Message::new(
+            Role::User,
+            0,
+            vec![MessageContent::tool_response("call_123", Ok(result))],
+        )];
+        let (prompt, temp_files) = prepare_input("", &messages, dir.path()).unwrap();
+        assert!(prompt.contains("[tool_result id=call_123] file1.txt\nfile2.txt"));
+        assert!(temp_files.is_empty());
     }
 
     #[test]
@@ -638,6 +915,7 @@ mod tests {
             name: "codex".to_string(),
             reasoning_effort: "high".to_string(),
             skip_git_check: false,
+            mcp_config_overrides: Vec::new(),
         };
 
         let lines = vec!["Hello, world!".to_string()];
@@ -657,6 +935,7 @@ mod tests {
             name: "codex".to_string(),
             reasoning_effort: "high".to_string(),
             skip_git_check: false,
+            mcp_config_overrides: Vec::new(),
         };
 
         // Test with actual Codex CLI output format
@@ -689,6 +968,7 @@ mod tests {
             name: "codex".to_string(),
             reasoning_effort: "high".to_string(),
             skip_git_check: false,
+            mcp_config_overrides: Vec::new(),
         };
 
         let lines: Vec<String> = vec![];
@@ -736,6 +1016,7 @@ mod tests {
             name: "codex".to_string(),
             reasoning_effort: "high".to_string(),
             skip_git_check: false,
+            mcp_config_overrides: Vec::new(),
         };
 
         let lines = vec![
@@ -760,6 +1041,7 @@ mod tests {
             name: "codex".to_string(),
             reasoning_effort: "high".to_string(),
             skip_git_check: false,
+            mcp_config_overrides: Vec::new(),
         };
 
         let lines = vec![
@@ -775,25 +1057,68 @@ mod tests {
         assert_eq!(usage.total_tokens, Some(5100));
     }
 
-    #[test]
-    fn test_parse_response_error_event() {
+    #[test_case(
+        &[
+            r#"{"type":"thread.started","thread_id":"test"}"#,
+            r#"{"type":"error","message":"Codex ran out of room in the model's context window and could not finish the task."}"#,
+        ],
+        ProviderError::ContextLengthExceeded(
+            "Codex ran out of room in the model's context window and could not finish the task.".to_string()
+        )
+        ; "context_window_exceeded"
+    )]
+    #[test_case(
+        &[
+            r#"{"type":"thread.started","thread_id":"test"}"#,
+            r#"{"type":"error","message":"Rate limit reached for gpt-5.1 in organization on tokens per min (TPM): Limit 30000."}"#,
+        ],
+        ProviderError::RateLimitExceeded {
+            details: "Rate limit reached for gpt-5.1 in organization on tokens per min (TPM): Limit 30000.".to_string(),
+            retry_delay: None,
+        }
+        ; "rate_limit"
+    )]
+    #[test_case(
+        &[
+            r#"{"type":"thread.started","thread_id":"test"}"#,
+            r#"{"type":"error","message":"You exceeded your current quota, please check your plan and billing details."}"#,
+        ],
+        ProviderError::RequestFailed(
+            "Codex CLI error: You exceeded your current quota, please check your plan and billing details.".to_string()
+        )
+        ; "quota_exceeded"
+    )]
+    #[test_case(
+        &[
+            r#"{"type":"thread.started","thread_id":"test"}"#,
+            r#"{"type":"error","message":"Model not supported"}"#,
+        ],
+        ProviderError::RequestFailed("Codex CLI error: Model not supported".to_string())
+        ; "generic_error"
+    )]
+    #[test_case(
+        &[
+            r#"{"type":"thread.started","thread_id":"test"}"#,
+            r#"{"type":"turn.failed","message":"response.failed event received (connection reset)"}"#,
+        ],
+        ProviderError::RequestFailed(
+            "Codex CLI error: response.failed event received (connection reset)".to_string()
+        )
+        ; "stream_error"
+    )]
+    fn test_parse_response_error_event(lines: &[&str], expected: ProviderError) {
         let provider = CodexProvider {
             command: PathBuf::from("codex"),
             model: ModelConfig::new("gpt-5.2-codex").unwrap(),
             name: "codex".to_string(),
             reasoning_effort: "high".to_string(),
             skip_git_check: false,
+            mcp_config_overrides: Vec::new(),
         };
 
-        let lines = vec![
-            r#"{"type":"thread.started","thread_id":"test"}"#.to_string(),
-            r#"{"type":"error","message":"Model not supported"}"#.to_string(),
-        ];
+        let lines: Vec<String> = lines.iter().map(|s| s.to_string()).collect();
         let result = provider.parse_response(&lines);
-        assert!(result.is_err());
-
-        let err = result.unwrap_err();
-        assert!(err.to_string().contains("Model not supported"));
+        assert_eq!(result.unwrap_err(), expected);
     }
 
     #[test]
@@ -804,6 +1129,7 @@ mod tests {
             name: "codex".to_string(),
             reasoning_effort: "high".to_string(),
             skip_git_check: false,
+            mcp_config_overrides: Vec::new(),
         };
 
         let lines = vec![
@@ -830,6 +1156,7 @@ mod tests {
             name: "codex".to_string(),
             reasoning_effort: "high".to_string(),
             skip_git_check: false,
+            mcp_config_overrides: Vec::new(),
         };
 
         let messages = vec![Message::new(
@@ -861,6 +1188,7 @@ mod tests {
             name: "codex".to_string(),
             reasoning_effort: "high".to_string(),
             skip_git_check: false,
+            mcp_config_overrides: Vec::new(),
         };
 
         let messages: Vec<Message> = vec![];
@@ -896,31 +1224,6 @@ mod tests {
     }
 
     #[test]
-    fn test_messages_to_prompt_filters_non_text() {
-        let provider = CodexProvider {
-            command: PathBuf::from("codex"),
-            model: ModelConfig::new("gpt-5.2-codex").unwrap(),
-            name: "codex".to_string(),
-            reasoning_effort: "high".to_string(),
-            skip_git_check: false,
-        };
-
-        // Create messages with both text and non-text content
-        let messages = vec![Message::new(
-            Role::User,
-            chrono::Utc::now().timestamp(),
-            vec![
-                MessageContent::text("Hello"),
-                // Tool requests would be filtered out as they're not text
-            ],
-        )];
-
-        let prompt = provider.messages_to_prompt("System prompt", &messages);
-        assert!(prompt.contains("System prompt"));
-        assert!(prompt.contains("Human: Hello"));
-    }
-
-    #[test]
     fn test_parse_response_multiple_agent_messages() {
         let provider = CodexProvider {
             command: PathBuf::from("codex"),
@@ -928,6 +1231,7 @@ mod tests {
             name: "codex".to_string(),
             reasoning_effort: "high".to_string(),
             skip_git_check: false,
+            mcp_config_overrides: Vec::new(),
         };
 
         let lines = vec![

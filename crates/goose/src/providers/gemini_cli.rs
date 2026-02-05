@@ -16,7 +16,6 @@ use crate::conversation::message::{Message, MessageContent};
 use crate::model::ModelConfig;
 use crate::providers::base::ConfigKey;
 use crate::subprocess::configure_command_no_window;
-use futures::future::BoxFuture;
 use rmcp::model::Role;
 use rmcp::model::Tool;
 
@@ -39,18 +38,6 @@ pub struct GeminiCliProvider {
 }
 
 impl GeminiCliProvider {
-    pub async fn from_env(model: ModelConfig) -> Result<Self> {
-        let config = Config::global();
-        let command: String = config.get_gemini_cli_command().unwrap_or_default().into();
-        let resolved_command = SearchPaths::builder().with_npm().resolve(&command)?;
-
-        Ok(Self {
-            command: resolved_command,
-            model,
-            name: GEMINI_CLI_PROVIDER_NAME.to_string(),
-        })
-    }
-
     /// Execute gemini CLI command with simple text prompt
     async fn execute_command(
         &self,
@@ -236,6 +223,7 @@ impl GeminiCliProvider {
     }
 }
 
+#[async_trait]
 impl ProviderDef for GeminiCliProvider {
     type Provider = Self;
 
@@ -251,8 +239,19 @@ impl ProviderDef for GeminiCliProvider {
         )
     }
 
-    fn from_env(model: ModelConfig) -> BoxFuture<'static, Result<Self::Provider>> {
-        Box::pin(Self::from_env(model))
+    async fn from_env(
+        model: ModelConfig,
+        _extensions: Vec<crate::config::ExtensionConfig>,
+    ) -> Result<Self::Provider> {
+        let config = Config::global();
+        let command: String = config.get_gemini_cli_command().unwrap_or_default().into();
+        let resolved_command = SearchPaths::builder().with_npm().resolve(command)?;
+
+        Ok(Self {
+            command: resolved_command,
+            model,
+            name: GEMINI_CLI_PROVIDER_NAME.to_string(),
+        })
     }
 }
 

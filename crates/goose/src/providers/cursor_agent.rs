@@ -12,10 +12,10 @@ use super::errors::ProviderError;
 use super::utils::{filter_extensions_from_system_prompt, RequestLog};
 use crate::config::base::CursorAgentCommand;
 use crate::config::search_path::SearchPaths;
+use crate::config::ExtensionConfig;
 use crate::conversation::message::{Message, MessageContent};
 use crate::model::ModelConfig;
 use crate::subprocess::configure_command_no_window;
-use futures::future::BoxFuture;
 use rmcp::model::Tool;
 
 const CURSOR_AGENT_PROVIDER_NAME: &str = "cursor-agent";
@@ -33,18 +33,6 @@ pub struct CursorAgentProvider {
 }
 
 impl CursorAgentProvider {
-    pub async fn from_env(model: ModelConfig) -> Result<Self> {
-        let config = crate::config::Config::global();
-        let command: String = config.get_cursor_agent_command().unwrap_or_default().into();
-        let resolved_command = SearchPaths::builder().with_npm().resolve(&command)?;
-
-        Ok(Self {
-            command: resolved_command,
-            model,
-            name: CURSOR_AGENT_PROVIDER_NAME.to_string(),
-        })
-    }
-
     /// Get authentication status from cursor-agent
     async fn get_authentication_status(&self) -> bool {
         Command::new(&self.command)
@@ -322,6 +310,7 @@ impl CursorAgentProvider {
     }
 }
 
+#[async_trait]
 impl ProviderDef for CursorAgentProvider {
     type Provider = Self;
 
@@ -339,8 +328,19 @@ impl ProviderDef for CursorAgentProvider {
         )
     }
 
-    fn from_env(model: ModelConfig) -> BoxFuture<'static, Result<Self::Provider>> {
-        Box::pin(Self::from_env(model))
+    async fn from_env(
+        model: ModelConfig,
+        _extensions: Vec<ExtensionConfig>,
+    ) -> Result<Self::Provider> {
+        let config = crate::config::Config::global();
+        let command: String = config.get_cursor_agent_command().unwrap_or_default().into();
+        let resolved_command = SearchPaths::builder().with_npm().resolve(command)?;
+
+        Ok(Self {
+            command: resolved_command,
+            model,
+            name: CURSOR_AGENT_PROVIDER_NAME.to_string(),
+        })
     }
 }
 

@@ -3,7 +3,7 @@ use super::base::{ConfigKey, ProviderDef, ProviderMetadata};
 use super::openai_compatible::OpenAiCompatibleProvider;
 use crate::model::ModelConfig;
 use anyhow::Result;
-use futures::future::BoxFuture;
+use async_trait::async_trait;
 
 const XAI_PROVIDER_NAME: &str = "xai";
 pub const XAI_API_HOST: &str = "https://api.x.ai/v1";
@@ -33,6 +33,7 @@ pub const XAI_DOC_URL: &str = "https://docs.x.ai/docs/overview";
 
 pub struct XaiProvider;
 
+#[async_trait]
 impl ProviderDef for XaiProvider {
     type Provider = OpenAiCompatibleProvider;
 
@@ -51,21 +52,22 @@ impl ProviderDef for XaiProvider {
         )
     }
 
-    fn from_env(model: ModelConfig) -> BoxFuture<'static, Result<OpenAiCompatibleProvider>> {
-        Box::pin(async move {
-            let config = crate::config::Config::global();
-            let api_key: String = config.get_secret("XAI_API_KEY")?;
-            let host: String = config
-                .get_param("XAI_HOST")
-                .unwrap_or_else(|_| XAI_API_HOST.to_string());
+    async fn from_env(
+        model: ModelConfig,
+        _extensions: Vec<crate::config::ExtensionConfig>,
+    ) -> Result<OpenAiCompatibleProvider> {
+        let config = crate::config::Config::global();
+        let api_key: String = config.get_secret("XAI_API_KEY")?;
+        let host: String = config
+            .get_param("XAI_HOST")
+            .unwrap_or_else(|_| XAI_API_HOST.to_string());
 
-            let api_client = ApiClient::new(host, AuthMethod::BearerToken(api_key))?;
+        let api_client = ApiClient::new(host, AuthMethod::BearerToken(api_key))?;
 
-            Ok(OpenAiCompatibleProvider::new(
-                XAI_PROVIDER_NAME.to_string(),
-                api_client,
-                model,
-            ))
-        })
+        Ok(OpenAiCompatibleProvider::new(
+            XAI_PROVIDER_NAME.to_string(),
+            api_client,
+            model,
+        ))
     }
 }

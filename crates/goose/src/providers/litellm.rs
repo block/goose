@@ -1,6 +1,5 @@
 use anyhow::Result;
 use async_trait::async_trait;
-use futures::future::BoxFuture;
 use serde_json::{json, Value};
 use std::collections::HashMap;
 
@@ -30,51 +29,6 @@ pub struct LiteLLMProvider {
 }
 
 impl LiteLLMProvider {
-    pub async fn from_env(model: ModelConfig) -> Result<Self> {
-        let config = crate::config::Config::global();
-        let secrets = config
-            .get_secrets("LITELLM_API_KEY", &["LITELLM_CUSTOM_HEADERS"])
-            .unwrap_or_default();
-        let api_key = secrets.get("LITELLM_API_KEY").cloned().unwrap_or_default();
-        let host: String = config
-            .get_param("LITELLM_HOST")
-            .unwrap_or_else(|_| "https://api.litellm.ai".to_string());
-        let base_path: String = config
-            .get_param("LITELLM_BASE_PATH")
-            .unwrap_or_else(|_| "v1/chat/completions".to_string());
-        let custom_headers: Option<HashMap<String, String>> = secrets
-            .get("LITELLM_CUSTOM_HEADERS")
-            .cloned()
-            .map(parse_custom_headers);
-        let timeout_secs: u64 = config.get_param("LITELLM_TIMEOUT").unwrap_or(600);
-
-        let auth = if api_key.is_empty() {
-            AuthMethod::NoAuth
-        } else {
-            AuthMethod::BearerToken(api_key)
-        };
-
-        let mut api_client =
-            ApiClient::with_timeout(host, auth, std::time::Duration::from_secs(timeout_secs))?;
-
-        if let Some(headers) = custom_headers {
-            let mut header_map = reqwest::header::HeaderMap::new();
-            for (key, value) in headers {
-                let header_name = reqwest::header::HeaderName::from_bytes(key.as_bytes())?;
-                let header_value = reqwest::header::HeaderValue::from_str(&value)?;
-                header_map.insert(header_name, header_value);
-            }
-            api_client = api_client.with_headers(header_map)?;
-        }
-
-        Ok(Self {
-            api_client,
-            base_path,
-            model,
-            name: LITELLM_PROVIDER_NAME.to_string(),
-        })
-    }
-
     async fn fetch_models(&self) -> Result<Vec<ModelInfo>, ProviderError> {
         let response = self
             .api_client
@@ -131,6 +85,7 @@ impl LiteLLMProvider {
     }
 }
 
+#[async_trait]
 impl ProviderDef for LiteLLMProvider {
     type Provider = Self;
 
@@ -157,8 +112,52 @@ impl ProviderDef for LiteLLMProvider {
         )
     }
 
-    fn from_env(model: ModelConfig) -> BoxFuture<'static, Result<Self::Provider>> {
-        Box::pin(Self::from_env(model))
+    async fn from_env(
+        model: ModelConfig,
+        _extensions: Vec<crate::config::ExtensionConfig>,
+    ) -> Result<Self::Provider> {
+        let config = crate::config::Config::global();
+        let secrets = config
+            .get_secrets("LITELLM_API_KEY", &["LITELLM_CUSTOM_HEADERS"])
+            .unwrap_or_default();
+        let api_key = secrets.get("LITELLM_API_KEY").cloned().unwrap_or_default();
+        let host: String = config
+            .get_param("LITELLM_HOST")
+            .unwrap_or_else(|_| "https://api.litellm.ai".to_string());
+        let base_path: String = config
+            .get_param("LITELLM_BASE_PATH")
+            .unwrap_or_else(|_| "v1/chat/completions".to_string());
+        let custom_headers: Option<HashMap<String, String>> = secrets
+            .get("LITELLM_CUSTOM_HEADERS")
+            .cloned()
+            .map(parse_custom_headers);
+        let timeout_secs: u64 = config.get_param("LITELLM_TIMEOUT").unwrap_or(600);
+
+        let auth = if api_key.is_empty() {
+            AuthMethod::NoAuth
+        } else {
+            AuthMethod::BearerToken(api_key)
+        };
+
+        let mut api_client =
+            ApiClient::with_timeout(host, auth, std::time::Duration::from_secs(timeout_secs))?;
+
+        if let Some(headers) = custom_headers {
+            let mut header_map = reqwest::header::HeaderMap::new();
+            for (key, value) in headers {
+                let header_name = reqwest::header::HeaderName::from_bytes(key.as_bytes())?;
+                let header_value = reqwest::header::HeaderValue::from_str(&value)?;
+                header_map.insert(header_name, header_value);
+            }
+            api_client = api_client.with_headers(header_map)?;
+        }
+
+        Ok(Self {
+            api_client,
+            base_path,
+            model,
+            name: LITELLM_PROVIDER_NAME.to_string(),
+        })
     }
 }
 

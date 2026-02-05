@@ -59,5 +59,3 @@ tokio-util = "0.7.16"
 
 [dev-dependencies]
 serial_test = { workspace = true }
-
-[features]

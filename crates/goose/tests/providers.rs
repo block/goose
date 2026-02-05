@@ -1,11 +1,15 @@
 use anyhow::Result;
 use dotenvy::dotenv;
+use goose::config::ExtensionConfig;
 use goose::conversation::message::{Message, MessageContent};
+use goose::model::ModelConfig;
 use goose::providers::anthropic::ANTHROPIC_DEFAULT_MODEL;
 use goose::providers::azure::AZURE_DEFAULT_MODEL;
 use goose::providers::base::Provider;
 use goose::providers::bedrock::BEDROCK_DEFAULT_MODEL;
-use goose::providers::create_with_named_model;
+use goose::providers::claude_code::CLAUDE_CODE_DEFAULT_MODEL;
+use goose::providers::codex::CODEX_DEFAULT_MODEL;
+use goose::providers::create;
 use goose::providers::databricks::DATABRICKS_DEFAULT_MODEL;
 use goose::providers::errors::ProviderError;
 use goose::providers::google::GOOGLE_DEFAULT_MODEL;
@@ -15,12 +19,11 @@ use goose::providers::openai::OPEN_AI_DEFAULT_MODEL;
 use goose::providers::sagemaker_tgi::SAGEMAKER_TGI_DEFAULT_MODEL;
 use goose::providers::snowflake::SNOWFLAKE_DEFAULT_MODEL;
 use goose::providers::xai::XAI_DEFAULT_MODEL;
-use rmcp::model::{AnnotateAble, Content, RawImageContent};
-use rmcp::model::{CallToolRequestParams, Tool};
+use goose_test_support::{ExpectedSessionId, McpFixture, FAKE_CODE, FAKE_SCREENSHOT};
+use rmcp::model::{Content, Tool};
 use rmcp::object;
 use std::collections::HashMap;
-use std::sync::Arc;
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
 
 #[derive(Debug, Clone, Copy)]
 enum TestStatus {
@@ -123,30 +126,25 @@ impl ProviderTester {
     }
 
     async fn test_tool_usage(&self) -> Result<()> {
-        let weather_tool = Tool::new(
-            "get_weather",
-            "Get the weather for a location",
+        // Invoke get_code from the test MCP server
+        let lookup_tool = Tool::new(
+            "get_code",
+            "Get the lookup code",
             object!({
                 "type": "object",
-                "required": ["location"],
-                "properties": {
-                    "location": {
-                        "type": "string",
-                        "description": "The city and state, e.g. San Francisco, CA"
-                    }
-                }
+                "properties": {}
             }),
         );
 
-        let message = Message::user().with_text("What's the weather like in San Francisco?");
+        let message = Message::user().with_text("Use get_code to fetch the lookup code.");
 
         let (response1, _) = self
             .provider
             .complete(
                 "test-session-id",
-                "You are a helpful weather assistant.",
+                "Use the get_code tool and output only its result.",
                 std::slice::from_ref(&message),
-                std::slice::from_ref(&weather_tool),
+                std::slice::from_ref(&lookup_tool),
             )
             .await?;
 
@@ -154,35 +152,35 @@ impl ProviderTester {
         dbg!(&response1);
         println!("===================");
 
-        assert!(
-            response1
-                .content
-                .iter()
-                .any(|content| matches!(content, MessageContent::ToolRequest(_))),
-            "Expected tool request in response"
-        );
-
-        let id = &response1
+        let tool_request = response1
             .content
             .iter()
             .filter_map(|message| message.as_tool_request())
-            .next_back()
-            .expect("got tool request")
-            .id;
+            .next_back();
 
-        let weather = Message::user().with_tool_response(
+        let response_text: String = response1
+            .content
+            .iter()
+            .filter_map(|c| c.as_text())
+            .collect();
+
+        // Agentic providers call tools internally
+        if tool_request.is_none() {
+            assert!(
+                response_text.contains(FAKE_CODE),
+                "Expected MCP lookup code in response"
+            );
+            return Ok(());
+        }
+
+        // LLM providers need us to invoke the tool directly and add its
+        // response to the message list.
+        let id = &tool_request.expect("got tool request").id;
+
+        let lookup = Message::user().with_tool_response(
             id,
             Ok(rmcp::model::CallToolResult {
-                content: vec![Content::text(
-                    "
-                  50°F°C
-                  Precipitation: 0%
-                  Humidity: 84%
-                  Wind: 2 mph
-                  Weather
-                  Saturday 9:00 PM
-                  Clear",
-                )],
+                content: vec![Content::text(FAKE_CODE)],
                 structured_content: None,
                 is_error: Some(false),
                 meta: None,
@@ -193,9 +191,9 @@ impl ProviderTester {
             .provider
             .complete(
                 "test-session-id",
-                "You are a helpful weather assistant.",
-                &[message, response1, weather],
-                &[weather_tool],
+                "Use the get_code tool and output only its result.",
+                &[message, response1, lookup],
+                &[lookup_tool],
             )
             .await?;
 
@@ -204,11 +202,8 @@ impl ProviderTester {
         println!("===================");
 
         assert!(
-            response2
-                .content
-                .iter()
-                .any(|content| matches!(content, MessageContent::Text(_))),
-            "Expected text for final response"
+            response2.as_concat_text().contains(FAKE_CODE),
+            "Expected lookup code in final response"
         );
 
         Ok(())
@@ -247,7 +242,10 @@ impl ProviderTester {
         dbg!(&result);
         println!("===================");
 
-        if self.name.to_lowercase() == "ollama" || self.name.to_lowercase() == "openrouter" {
+        if self.name.to_lowercase() == "ollama"
+            || self.name.to_lowercase() == "openrouter"
+            || self.name.to_lowercase() == "claude-code"
+        {
             assert!(
                 result.is_ok(),
                 "Expected to succeed because of default truncation or large context window"
@@ -268,32 +266,11 @@ impl ProviderTester {
     }
 
     async fn test_image_content_support(&self) -> Result<()> {
-        use base64::{engine::general_purpose::STANDARD as BASE64, Engine as _};
-        use goose::conversation::message::Message;
-        use std::fs;
-
-        let image_path = "crates/goose/examples/test_assets/test_image.png";
-        let image_data = match fs::read(image_path) {
-            Ok(data) => data,
-            Err(_) => {
-                println!(
-                    "Test image not found at {}, skipping image test",
-                    image_path
-                );
-                return Ok(());
-            }
-        };
-
-        let base64_image = BASE64.encode(image_data);
-        let image_content = RawImageContent {
-            data: base64_image,
-            mime_type: "image/png".to_string(),
-            meta: None,
-        }
-        .no_annotation();
-
-        let message_with_image =
-            Message::user().with_image(image_content.data.clone(), image_content.mime_type.clone());
+        // Part 1: Inline image in user message
+        let message_with_image = Message::user().with_image(
+            FAKE_SCREENSHOT.as_str().to_string(),
+            "image/png".to_string(),
+        );
 
         let result = self
             .provider
@@ -317,6 +294,7 @@ impl ProviderTester {
         );
         println!("===================");
 
+        // Part 2: Image from tool response (follows test_tool_usage pattern)
         let screenshot_tool = Tool::new(
             "get_screenshot",
             "Get a screenshot of the current screen",
@@ -326,42 +304,58 @@ impl ProviderTester {
             }),
         );
 
-        let user_message = Message::user().with_text("Take a screenshot please");
-        let tool_request = Message::assistant().with_tool_request(
-            "test_id",
-            Ok(CallToolRequestParams {
-                meta: None,
-                task: None,
-                name: "get_screenshot".into(),
-                arguments: Some(object!({})),
-            }),
-        );
+        let message = Message::user().with_text("Take a screenshot please");
+
+        let (response1, _) = self
+            .provider
+            .complete(
+                "test-session-id",
+                "Use the get_screenshot tool and describe the result.",
+                std::slice::from_ref(&message),
+                std::slice::from_ref(&screenshot_tool),
+            )
+            .await?;
+
+        println!("=== {}::tool_image_response1 ===", self.name);
+        dbg!(&response1);
+        println!("===================");
+
+        let tool_request = response1
+            .content
+            .iter()
+            .filter_map(|message| message.as_tool_request())
+            .next_back();
+
+        // Agentic providers call tools internally
+        if tool_request.is_none() {
+            return Ok(());
+        }
+
+        // LLM providers need us to invoke the tool and add its response
+        let id = &tool_request.expect("got tool request").id;
+
         let tool_response = Message::user().with_tool_response(
-            "test_id",
+            id,
             Ok(rmcp::model::CallToolResult {
-                content: vec![Content::image(
-                    image_content.data.clone(),
-                    image_content.mime_type.clone(),
-                )],
+                content: vec![Content::image(FAKE_SCREENSHOT.as_str(), "image/png")],
                 structured_content: None,
                 is_error: Some(false),
                 meta: None,
             }),
         );
 
-        let result2 = self
+        let (response2, _) = self
             .provider
             .complete(
                 "test-session-id",
-                "You are a helpful assistant.",
-                &[user_message, tool_request, tool_response],
+                "Use the get_screenshot tool and describe the result.",
+                &[message, response1, tool_response],
                 &[screenshot_tool],
             )
-            .await;
+            .await?;
 
-        println!("=== {}::tool_image_response ===", self.name);
-        let (response, _) = result2?;
-        println!("Tool image response: {:?}", response);
+        println!("=== {}::tool_image_response2 ===", self.name);
+        dbg!(&response2);
         println!("===================");
 
         Ok(())
@@ -430,7 +424,24 @@ async fn test_provider(
         original_env
     };
 
-    let provider = match create_with_named_model(&name.to_lowercase(), model_name).await {
+    let expected_session_id = ExpectedSessionId::default();
+    let provider_name = name.to_lowercase();
+    let expected_session_id_for_mcp = if matches!(provider_name.as_str(), "codex" | "claude-code") {
+        None
+    } else {
+        Some(expected_session_id.clone())
+    };
+    let mcp = McpFixture::new(expected_session_id_for_mcp).await;
+    let extensions = vec![ExtensionConfig::streamable_http(
+        "lookup",
+        &mcp.url,
+        "Lookup server",
+        30_u64,
+    )];
+    let model_config = ModelConfig::new(model_name)?;
+    expected_session_id.set("test-session-id");
+
+    let provider = match create(&provider_name, model_config, extensions).await {
         Ok(p) => p,
         Err(e) => {
             println!("Skipping {} tests - failed to create provider: {}", name, e);
@@ -454,7 +465,10 @@ async fn test_provider(
     }
 
     let tester = ProviderTester::new(provider, name.to_string());
-    match tester.run_test_suite().await {
+    let _mcp = mcp;
+    let result = tester.run_test_suite().await;
+
+    match result {
         Ok(_) => {
             TEST_REPORT.record_pass(name);
             Ok(())
@@ -614,6 +628,26 @@ async fn test_litellm_provider() -> Result<()> {
 #[tokio::test]
 async fn test_xai_provider() -> Result<()> {
     test_provider("Xai", XAI_DEFAULT_MODEL, &["XAI_API_KEY"], None).await
+}
+
+#[tokio::test]
+async fn test_claude_code_provider() -> Result<()> {
+    if which::which("claude").is_err() {
+        println!("'claude' CLI not found, skipping test");
+        TEST_REPORT.record_skip("claude-code");
+        return Ok(());
+    }
+    test_provider("claude-code", CLAUDE_CODE_DEFAULT_MODEL, &[], None).await
+}
+
+#[tokio::test]
+async fn test_codex_provider() -> Result<()> {
+    if which::which("codex").is_err() {
+        println!("'codex' CLI not found, skipping test");
+        TEST_REPORT.record_skip("codex");
+        return Ok(());
+    }
+    test_provider("codex", CODEX_DEFAULT_MODEL, &[], None).await
 }
 
 #[ctor::dtor]

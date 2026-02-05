@@ -47,6 +47,7 @@ impl MockProvider {
     }
 }
 
+#[async_trait]
 impl ProviderDef for MockProvider {
     type Provider = Self;
 
@@ -54,8 +55,11 @@ impl ProviderDef for MockProvider {
         ProviderMetadata::empty()
     }
 
-    fn from_env(model: ModelConfig) -> futures::future::BoxFuture<'static, anyhow::Result<Self>> {
-        Box::pin(async move { Ok(Self::new(model)) })
+    async fn from_env(
+        model: ModelConfig,
+        _extensions: Vec<goose::config::ExtensionConfig>,
+    ) -> anyhow::Result<Self> {
+        Ok(Self::new(model))
     }
 }
 
