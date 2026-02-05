@@ -276,9 +276,10 @@ export default function ChatInput({
         ? filteredText.replace(/\bsubmit[.,!?;'"\s]*$/i, '').trim()
         : filteredText;
 
-      const newValue = displayValue.trim() && cleanedText
-        ? `${displayValue.trim()} ${cleanedText}`
-        : displayValue.trim() || cleanedText;
+      const newValue =
+        displayValue.trim() && cleanedText
+          ? `${displayValue.trim()} ${cleanedText}`
+          : displayValue.trim() || cleanedText;
 
       setDisplayValue(newValue);
       setValue(newValue);
@@ -928,7 +929,6 @@ export default function ChatInput({
     ]
   );
 
-
   const handleKeyDown = (evt: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (mentionPopover.isOpen && mentionPopoverRef.current) {
       if (evt.key === 'ArrowDown') {
@@ -1383,9 +1383,7 @@ export default function ChatInput({
                       Listening
                     </span>
                   )}
-                  {isRecording && isTranscribing && (
-                    <span className="text-text-muted">•</span>
-                  )}
+                  {isRecording && isTranscribing && <span className="text-text-muted">•</span>}
                   {isTranscribing && (
                     <span className="flex items-center gap-1 text-blue-500">
                       <span className="inline-block w-2 h-2 bg-blue-500 rounded-full animate-pulse" />
@@ -1468,7 +1466,7 @@ export default function ChatInput({
                 </div>
               ) : (
                 // File box preview
-                <div className="flex items-center gap-2 px-3 py-2 bg-background-muted border border-border-default rounded-lg min-w-[120px] max-w-[200px]">
+                <div className="flex items-center gap-2 px-3 py-2 bg-bgSubtle border border-border-default rounded-lg min-w-[120px] max-w-[200px]">
                   <div className="flex-shrink-0 w-8 h-8 bg-background-default border border-border-default rounded flex items-center justify-center text-xs font-mono text-text-muted">
                     {file.name.split('.').pop()?.toUpperCase() || 'FILE'}
                   </div>
@@ -1513,7 +1511,7 @@ export default function ChatInput({
           onRestartStart={() => setChatState?.(ChatState.RestartingAgent)}
           onRestartEnd={() => setChatState?.(ChatState.Idle)}
         />
-        <div className="w-px h-4 mx-2" />
+        <div className="w-px h-4 bg-border-default mx-2" />
         <Tooltip>
           <TooltipTrigger asChild>
             <Button
@@ -1529,7 +1527,7 @@ export default function ChatInput({
           </TooltipTrigger>
           <TooltipContent>Attach file</TooltipContent>
         </Tooltip>
-        <div className="w-px h-4 mx-2" />
+        <div className="w-px h-4 bg-border-default mx-2" />
         {/* Model selector, mode selector, alerts, summarize button */}
         <div className="flex flex-row items-center">
           {/* Cost Tracker */}
@@ -1554,13 +1552,13 @@ export default function ChatInput({
               />
             </div>
           </Tooltip>
-          <div className="w-px h-4 mx-2" />
+          <div className="w-px h-4 bg-border-default mx-2" />
           <BottomMenuModeSelection />
-          <div className="w-px h-4 mx-2" />
+          <div className="w-px h-4 bg-border-default mx-2" />
           <BottomMenuExtensionSelection sessionId={sessionId} />
           {sessionId && messages.length > 0 && (
             <>
-              <div className="w-px h-4 mx-2" />
+              <div className="w-px h-4 bg-border-default mx-2" />
               <div className="flex items-center h-full">
                 <Tooltip>
                   <TooltipTrigger asChild>

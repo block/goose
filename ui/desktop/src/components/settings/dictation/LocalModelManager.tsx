@@ -66,8 +66,8 @@ export const LocalModelManager = () => {
   };
 
   const selectModel = async (modelId: string) => {
-      await upsert(LOCAL_WHISPER_MODEL_CONFIG_KEY, modelId, false);
-      setSelectedModelId(modelId);
+    await upsert(LOCAL_WHISPER_MODEL_CONFIG_KEY, modelId, false);
+    setSelectedModelId(modelId);
   };
 
   const loadModels = async () => {
@@ -151,7 +151,10 @@ export const LocalModelManager = () => {
   return (
     <div className="space-y-3">
       <div className="text-xs text-text-muted mb-2">
-        <p>Supports GPU acceleration (CUDA for NVIDIA, Metal for Apple Silicon). GPU features must be enabled at build time for hardware acceleration.</p>
+        <p>
+          Supports GPU acceleration (CUDA for NVIDIA, Metal for Apple Silicon). GPU features must be
+          enabled at build time for hardware acceleration.
+        </p>
       </div>
 
       <div className="space-y-2">
@@ -184,9 +187,7 @@ export const LocalModelManager = () => {
                     <h4 className="text-sm font-medium text-text-default">
                       {capitalize(model.id)}
                     </h4>
-                    <span className="text-xs text-text-muted">
-                      {model.size_mb}MB
-                    </span>
+                    <span className="text-xs text-text-muted">{model.size_mb}MB</span>
                     {model.recommended && (
                       <span className="text-xs bg-blue-500 text-white px-2 py-0.5 rounded">
                         Recommended
@@ -199,9 +200,7 @@ export const LocalModelManager = () => {
                     )}
                   </div>
 
-                  <p className="text-xs text-text-muted mt-1">
-                    {model.description}
-                  </p>
+                  <p className="text-xs text-text-muted mt-1">{model.description}</p>
                   {model.recommended && (
                     <p className="text-xs text-blue-600 mt-1 font-medium">
                       Recommended for your hardware
@@ -230,11 +229,7 @@ export const LocalModelManager = () => {
                       <div className="text-xs text-text-muted min-w-[60px]">
                         {progress.progress_percent.toFixed(0)}%
                       </div>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => cancelDownload(model.id)}
-                      >
+                      <Button variant="ghost" size="sm" onClick={() => cancelDownload(model.id)}>
                         <X className="w-4 h-4" />
                       </Button>
                     </>
@@ -259,9 +254,7 @@ export const LocalModelManager = () => {
                     <span>
                       {formatBytes(progress.bytes_downloaded)} / {formatBytes(progress.total_bytes)}
                     </span>
-                    {progress.speed_bps && (
-                      <span>{formatBytes(progress.speed_bps)}/s</span>
-                    )}
+                    {progress.speed_bps && <span>{formatBytes(progress.speed_bps)}/s</span>}
                   </div>
                 </div>
               )}
@@ -296,9 +289,7 @@ export const LocalModelManager = () => {
       )}
 
       {models.length === 0 && (
-        <div className="text-center py-6 text-text-muted text-sm">
-          No models available
-        </div>
+        <div className="text-center py-6 text-text-muted text-sm">No models available</div>
       )}
     </div>
   );
