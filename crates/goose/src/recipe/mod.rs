@@ -226,6 +226,24 @@ pub struct RecipeBuilder {
 }
 
 impl Recipe {
+    fn ensure_summon_for_subrecipes(&mut self) {
+        if self.sub_recipes.is_none() {
+            return;
+        }
+        let summon = ExtensionConfig::Platform {
+            name: "summon".to_string(),
+            description: String::new(),
+            display_name: None,
+            bundled: None,
+            available_tools: vec![],
+        };
+        match &mut self.extensions {
+            Some(exts) if !exts.iter().any(|e| e.name() == "summon") => exts.push(summon),
+            None => self.extensions = Some(vec![summon]),
+            _ => {}
+        }
+    }
+
     /// Returns true if harmful content is detected in instructions, prompt, or activities fields
     pub fn check_for_security_warnings(&self) -> bool {
         if [self.instructions.as_deref(), self.prompt.as_deref()]
@@ -277,7 +295,7 @@ impl Recipe {
     }
 
     pub fn from_content(content: &str) -> Result<Self> {
-        let recipe: Recipe = match serde_yaml::from_str::<serde_yaml::Value>(content) {
+        let mut recipe: Recipe = match serde_yaml::from_str::<serde_yaml::Value>(content) {
             Ok(yaml_value) => {
                 if let Some(nested_recipe) = yaml_value.get("recipe") {
                     serde_yaml::from_value(nested_recipe.clone())
@@ -291,6 +309,7 @@ impl Recipe {
                 .map_err(|e| anyhow::anyhow!("{}", strip_error_location(&e.to_string())))?,
         };
 
+        recipe.ensure_summon_for_subrecipes();
         Ok(recipe)
     }
 }
@@ -450,8 +469,10 @@ mod tests {
         assert_eq!(recipe.prompt, Some("Test prompt".to_string()));
 
         assert!(recipe.extensions.is_some());
-        let extensions = recipe.extensions.unwrap();
-        assert_eq!(extensions.len(), 1);
+        let extensions = recipe.extensions.as_ref().unwrap();
+        assert_eq!(extensions.len(), 2);
+        assert!(extensions.iter().any(|e| e.name() == "test_extension"));
+        assert!(extensions.iter().any(|e| e.name() == "summon"));
 
         assert!(recipe.parameters.is_some());
         let parameters = recipe.parameters.unwrap();
@@ -533,8 +554,10 @@ sub_recipes:
         assert_eq!(recipe.prompt, Some("Test prompt".to_string()));
 
         assert!(recipe.extensions.is_some());
-        let extensions = recipe.extensions.unwrap();
-        assert_eq!(extensions.len(), 1);
+        let extensions = recipe.extensions.as_ref().unwrap();
+        assert_eq!(extensions.len(), 2);
+        assert!(extensions.iter().any(|e| e.name() == "test_extension"));
+        assert!(extensions.iter().any(|e| e.name() == "summon"));
 
         assert!(recipe.parameters.is_some());
         let parameters = recipe.parameters.unwrap();
