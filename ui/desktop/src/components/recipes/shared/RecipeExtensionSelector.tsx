@@ -40,7 +40,10 @@ export const RecipeExtensionSelector = ({
     if (isSelected) {
       onExtensionsChange(selectedExtensions.filter((ext) => ext.name !== extensionConfig.name));
     } else {
-      onExtensionsChange([...selectedExtensions, extensionConfig]);
+      const { enabled: _enabled, ...cleanExtension } = extensionConfig as ExtensionConfig & {
+        enabled?: boolean;
+      };
+      onExtensionsChange([...selectedExtensions, cleanExtension]);
     }
   };
 

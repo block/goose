@@ -137,8 +137,11 @@ export default function CreateEditRecipeModal({
       }
     }
 
-    const cleanedExtensions = extensions?.map((extension) =>
-      'envs' in extension ? { ...extension, envs: undefined } : extension
+    const cleanedExtensions = extensions?.map(
+      (extension: ExtensionConfig & { envs?: unknown; enabled?: boolean }) => {
+        const { envs: _envs, enabled: _enabled, ...rest } = extension;
+        return rest;
+      }
     ) as ExtensionConfig[] | undefined;
 
     const mergedSettings: Settings = {
