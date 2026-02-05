@@ -133,19 +133,25 @@ pub struct ComputerUseInterface {
 #[derive(Debug)]
 pub struct SessionManager {
     sessions: HashMap<String, Session>,
+    #[allow(dead_code)]
     active_session: Option<String>,
 }
 
 #[derive(Debug, Clone)]
 pub struct Session {
     id: String,
+    #[allow(dead_code)]
     project_path: PathBuf,
+    #[allow(dead_code)]
     permissions: Permissions,
+    #[allow(dead_code)]
     commands_executed: Vec<CommandRecord>,
+    #[allow(dead_code)]
     created_at: std::time::SystemTime,
 }
 
 #[derive(Debug, Clone)]
+#[allow(dead_code)]
 pub struct Permissions {
     read_files: bool,
     write_files: bool,
@@ -155,6 +161,7 @@ pub struct Permissions {
 }
 
 #[derive(Debug, Clone)]
+#[allow(dead_code)]
 pub struct CommandRecord {
     command: String,
     args: Vec<String>,
@@ -168,16 +175,19 @@ pub struct CommandRecord {
 /// Vision processing for UI testing
 pub struct VisionProcessor {
     capture_enabled: bool,
+    #[allow(dead_code)]
     screenshot_dir: PathBuf,
 }
 
 /// Remote support for collaborative debugging
 pub struct RemoteSupport {
+    #[allow(dead_code)]
     listener: Option<TcpListener>,
     connections: HashMap<String, RemoteConnection>,
 }
 
 #[derive(Debug)]
+#[allow(dead_code)]
 pub struct RemoteConnection {
     id: String,
     stream: TcpStream,
@@ -186,9 +196,13 @@ pub struct RemoteConnection {
 
 /// Interactive debugging capabilities
 pub struct InteractiveDebugger {
+    #[allow(dead_code)]
     attached_processes: Vec<u32>,
+    #[allow(dead_code)]
     breakpoints: HashMap<String, Vec<u32>>,
+    #[allow(dead_code)]
     command_tx: mpsc::Sender<DebugCommand>,
+    #[allow(dead_code)]
     event_rx: mpsc::Receiver<DebugEvent>,
 }
 
@@ -565,6 +579,7 @@ impl ComputerUseInterface {
 // Supporting types and implementations
 
 #[derive(Debug)]
+#[allow(dead_code)]
 pub struct WorkflowFailure {
     workflow_name: String,
     failure_type: FailureType,
@@ -582,6 +597,7 @@ pub enum FailureType {
 }
 
 pub struct WorkflowAnalyzer {
+    #[allow(dead_code)]
     project_root: PathBuf,
 }
 
@@ -603,6 +619,12 @@ impl WorkflowAnalyzer {
     ) -> Result<Vec<WorkflowFailure>> {
         // This would analyze specific workflow types
         Ok(vec![])
+    }
+}
+
+impl Default for SessionManager {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
@@ -685,6 +707,12 @@ impl VisionProcessor {
         info!("Enabling visual testing capabilities");
         self.capture_enabled = true;
         Ok(())
+    }
+}
+
+impl Default for RemoteSupport {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
