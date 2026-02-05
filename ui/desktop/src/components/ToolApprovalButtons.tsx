@@ -91,11 +91,7 @@ export default function ToolApprovalButtons({ data }: { data: ToolApprovalData }
           Always Allow
         </Button>
       )}
-      <Button
-        className="rounded-full"
-        variant="outline"
-        onClick={() => handleAction('always_deny')}
-      >
+      <Button className="rounded-full" variant="outline" onClick={() => handleAction('deny_once')}>
         Deny
       </Button>
     </div>
