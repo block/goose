@@ -268,7 +268,7 @@ impl ComputerUseInterface {
     async fn handle_debug(&mut self, args: DebugArgs) -> Result<()> {
         info!("Starting interactive debug session");
 
-        let debugger = InteractiveDebugger::new().await?;
+        let mut debugger = InteractiveDebugger::new().await?;
 
         if let Some(pid) = args.attach_process {
             debugger.attach_to_process(pid).await?;
@@ -400,18 +400,51 @@ impl ComputerUseInterface {
             self.suggest_assertion_fix(failure_name).await?;
         }
 
+        if stderr.contains("cannot borrow") {
+            warn!("Borrow checker error detected in test output");
+            self.suggest_borrow_fix().await?;
+        }
+
+        if stderr.contains("unused_mut") || stderr.contains("does not need to be mutable") {
+            warn!("Unused mut detected in test output");
+            self.suggest_unused_mut_fix().await?;
+        }
+
         Ok(())
     }
 
     async fn suggest_timeout_fix(&self, test_name: &str) -> Result<()> {
         info!("Suggesting timeout fix for test: {}", test_name);
-        // This would integrate with the AI agent to suggest and apply fixes
+        println!("\nSuggested fix for timeout in '{test_name}':");
+        println!("  1) Inspect loops for missing break conditions or long waits.");
+        println!("  2) Add explicit timeouts around network or IO calls.");
+        println!("  3) Reduce test data size or split the scenario into smaller tests.");
         Ok(())
     }
 
     async fn suggest_assertion_fix(&self, test_name: &str) -> Result<()> {
         info!("Suggesting assertion fix for test: {}", test_name);
-        // This would integrate with the AI agent to suggest and apply fixes
+        println!("\nSuggested fix for assertion in '{test_name}':");
+        println!("  1) Compare expected vs actual values in the failing assertion.");
+        println!("  2) Update fixtures or golden files if behavior changed intentionally.");
+        println!("  3) Add focused unit tests around the failing logic.");
+        Ok(())
+    }
+
+    async fn suggest_borrow_fix(&self) -> Result<()> {
+        info!("Suggesting fix for borrow checker error");
+        println!("\nSuggested fix for borrow checker errors:");
+        println!("  1) Mark the binding as mutable when calling &mut methods.");
+        println!("  2) Shorten the lifetime of borrows to avoid overlapping mut refs.");
+        println!("  3) Use scoped blocks to release borrows before reuse.");
+        Ok(())
+    }
+
+    async fn suggest_unused_mut_fix(&self) -> Result<()> {
+        info!("Suggesting fix for unused mut warnings");
+        println!("\nSuggested fix for unused mut warnings:");
+        println!("  1) Remove 'mut' from bindings that are never mutated.");
+        println!("  2) If mutation is intended, ensure the value is updated.");
         Ok(())
     }
 
@@ -421,10 +454,7 @@ impl ComputerUseInterface {
         Ok(())
     }
 
-    async fn run_interactive_debug_loop(
-        &mut self,
-        mut debugger: InteractiveDebugger,
-    ) -> Result<()> {
+    async fn run_interactive_debug_loop(&mut self, debugger: InteractiveDebugger) -> Result<()> {
         info!("Starting interactive debugging session");
         self.debug_session = Some(debugger);
         // This would implement an interactive debugging REPL

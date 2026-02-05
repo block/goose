@@ -18,6 +18,7 @@ use crate::commands::recipe::{handle_deeplink, handle_list, handle_open, handle_
 use crate::commands::term::{
     handle_term_info, handle_term_init, handle_term_log, handle_term_run, Shell,
 };
+use crate::computer_use::{ComputerUseArgs, ComputerUseInterface};
 
 use crate::commands::schedule::{
     handle_schedule_add, handle_schedule_cron_help, handle_schedule_list, handle_schedule_remove,
@@ -1104,6 +1105,13 @@ enum Command {
         #[arg(long, default_value = "goose", help = "Provide a custom binary name")]
         bin_name: String,
     },
+
+    /// Computer Use interface for AI agents - full project control and debugging
+    #[command(about = "Computer Use interface for AI agents")]
+    ComputerUse {
+        #[command(flatten)]
+        args: ComputerUseArgs,
+    },
 }
 
 #[derive(Subcommand)]
@@ -1198,6 +1206,7 @@ fn get_command_name(command: &Option<Command>) -> &'static str {
         Some(Command::Web { .. }) => "web",
         Some(Command::Term { .. }) => "term",
         Some(Command::Completion { .. }) => "completion",
+        Some(Command::ComputerUse { .. }) => "computer_use",
         None => "default_session",
     }
 }
@@ -1715,6 +1724,11 @@ pub async fn cli() -> anyhow::Result<()> {
             let mut cmd = Cli::command();
             generate(shell, &mut cmd, bin_name, &mut std::io::stdout());
             Ok(())
+        }
+        Some(Command::ComputerUse { args }) => {
+            let project_root = std::env::current_dir()?;
+            let mut interface = ComputerUseInterface::new(project_root)?;
+            interface.execute(args).await
         }
         Some(Command::Configure {}) => handle_configure().await,
         Some(Command::Info { verbose }) => handle_info(verbose),

@@ -2,6 +2,7 @@ import * as React from 'react';
 import { Slot } from '@radix-ui/react-slot';
 import { cva, type VariantProps } from 'class-variance-authority';
 import { cn } from '../../utils';
+import { guardEventHandler } from '../../utils/eventAudit';
 
 const buttonVariants = cva(
   "inline-flex items-center justify-center gap-2 whitespace-nowrap text-sm transition-all cursor-pointer disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg:not([class*='size-'])]:size-4 shrink-0 [&_svg]:shrink-0 outline-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[1px] aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive",
@@ -84,15 +85,22 @@ const Button = React.forwardRef<
       asChild?: boolean;
       shape?: 'pill' | 'round';
     }
->(({ className, variant, size, asChild = false, shape = 'pill', ...props }, ref) => {
+>((props, ref) => {
+  const { className, variant, size, asChild = false, shape = 'pill', onClick, ...restProps } = props;
   const Comp = asChild ? Slot : 'button';
+  const guardedOnClick = guardEventHandler(onClick, {
+    component: 'Button',
+    action: 'click',
+    recoverable: true,
+  });
 
   return (
     <Comp
       data-slot="button"
       className={cn(buttonVariants({ variant, size, shape, className }))}
       ref={ref}
-      {...props}
+      onClick={guardedOnClick}
+      {...restProps}
     />
   );
 });
