@@ -562,17 +562,41 @@ impl SummonClient {
                 continue;
             }
             seen.insert(sr.name.clone());
+
+            let description = self.build_subrecipe_description(sr).await;
+
             sources.push(Source {
                 name: sr.name.clone(),
                 kind: SourceKind::Subrecipe,
-                description: sr
-                    .description
-                    .clone()
-                    .unwrap_or_else(|| format!("Subrecipe from {}", sr.path)),
+                description,
                 path: PathBuf::from(&sr.path),
                 content: String::new(),
             });
         }
+    }
+
+    async fn build_subrecipe_description(&self, sr: &crate::recipe::SubRecipe) -> String {
+        if let Some(desc) = &sr.description {
+            return desc.clone();
+        }
+
+        if let Ok(recipe_file) = load_local_recipe_file(&sr.path) {
+            if let Ok(recipe) = Recipe::from_content(&recipe_file.content) {
+                let mut desc = recipe.description.clone();
+
+                if let Some(params) = &recipe.parameters {
+                    let param_names: Vec<&str> = params.iter().map(|p| p.key.as_str()).collect();
+                    if !param_names.is_empty() {
+                        let params_str = param_names.join(", ");
+                        desc = format!("{} (params: {})", desc, params_str);
+                    }
+                }
+
+                return desc;
+            }
+        }
+
+        format!("Subrecipe from {}", sr.path)
     }
 
     fn scan_recipes_dir(

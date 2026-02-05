@@ -469,6 +469,17 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> CliSession {
             process::exit(1);
         });
 
+    if let Some(recipe) = session_config.recipe.clone() {
+        if let Err(e) = session_manager
+            .update(&session_id)
+            .recipe(Some(recipe))
+            .apply()
+            .await
+        {
+            tracing::warn!("Failed to store recipe on session: {}", e);
+        }
+    }
+
     if session_config.resume {
         let session = agent
             .config
