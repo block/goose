@@ -1,3 +1,0 @@
-- hosts: localhost
-  gather_facts: no
-  validate_argspec: "no"

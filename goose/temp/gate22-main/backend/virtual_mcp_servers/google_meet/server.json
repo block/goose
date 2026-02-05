@@ -1,4 +1,0 @@
-{
-  "name": "GOOGLE_MEET",
-  "description": "The Google Meet API allows developers to access and manage Google Meet resources programmatically. It provides information about meetings, participants, and recordings through RESTful HTTP calls including listing conference records, participants, and meeting spaces."
-}

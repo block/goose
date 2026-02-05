@@ -1,7 +1,0 @@
-- unexpected:
-  register: result
-  ignore_errors: true
-
-- assert:
-    that:
-      - 'result.msg == "Task failed: boom"'

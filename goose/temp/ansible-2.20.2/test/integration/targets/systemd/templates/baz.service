@@ -1,9 +1,0 @@
-[Unit]
-Description=Baz Server
-Documentation=Baz
-
-[Service]
-ExecStart=/bin/yes
-
-[Install]
-WantedBy=default.target

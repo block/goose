@@ -1,4 +1,0 @@
-plugin_routing:
-  modules:
-    module:
-      action_plugin: ns.col.action

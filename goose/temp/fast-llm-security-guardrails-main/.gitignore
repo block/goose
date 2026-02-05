@@ -1,6 +1,0 @@
-run_zenguard.py
-.venv
-dist/
-__pycache__
-.idea/
-poetry.lock

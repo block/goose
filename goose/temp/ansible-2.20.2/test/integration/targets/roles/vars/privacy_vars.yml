@@ -1,2 +1,0 @@
-is_private: "{{lookup('config', 'DEFAULT_PRIVATE_ROLE_VARS')}}"
-is_default: "{{lookup('env', 'ANSIBLE_PRIVATE_ROLE_VARS') == ''}}"

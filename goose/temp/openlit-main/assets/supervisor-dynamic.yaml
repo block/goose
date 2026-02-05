@@ -1,2 +1,0 @@
-server:
-  endpoint: wss://localhost:4320/v1/opamp

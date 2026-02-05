@@ -1,7 +1,0 @@
-- hosts: localhost
-  gather_facts: false
-  tasks:
-    - block:
-        - fail:
-      rescue:
-        - meta: end_host

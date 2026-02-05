@@ -1,3 +1,0 @@
-- assert:
-    that:
-      - auto_role_var is defined

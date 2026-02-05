@@ -1,5 +1,0 @@
-shippable/windows/group1
-shippable/windows/smoketest
-needs/target/collection
-needs/target/setup_remote_tmp_dir
-destructive  # modifies files in the ansible installation dir

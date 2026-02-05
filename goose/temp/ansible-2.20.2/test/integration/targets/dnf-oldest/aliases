@@ -1,4 +1,0 @@
-context/target
-destructive
-shippable/posix/group7
-needs/target/dnf

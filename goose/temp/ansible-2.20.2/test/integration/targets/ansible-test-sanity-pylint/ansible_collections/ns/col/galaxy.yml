@@ -1,6 +1,0 @@
-namespace: ns
-name: col
-version:
-readme: README.rst
-authors:
-    - Ansible

@@ -1,3 +1,0 @@
-- name: main.yml task
-  command: echo
-  notify: handler

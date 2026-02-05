@@ -1,3 +1,0 @@
-- include_tasks: "{{ item }}"
-  with_items:
-    - "{{ role_path }}/tests/one.yml"

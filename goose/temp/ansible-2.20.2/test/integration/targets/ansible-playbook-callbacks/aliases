@@ -1,4 +1,0 @@
-shippable/posix/group3
-context/controller
-needs/target/setup_remote_tmp_dir
-needs/target/support-callback_plugins

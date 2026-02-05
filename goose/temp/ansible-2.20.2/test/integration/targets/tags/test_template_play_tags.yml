@@ -1,8 +1,0 @@
-- hosts: localhost
-  gather_facts: false
-  vars:
-    t: tag1
-  tags: "{{ t }}"
-  tasks:
-    - debug:
-        msg: Tagged_task

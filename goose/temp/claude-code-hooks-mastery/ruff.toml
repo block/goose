@@ -1,4 +1,0 @@
-# ruff linter configuration
-# https://docs.astral.sh/ruff/configuration/
-
-target-version = "py311"

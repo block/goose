@@ -1,4 +1,0 @@
-{
-  "name": "OPEN_WEATHER_MAP",
-  "description": "OpenWeatherMap provides comprehensive weather data including current conditions and 5-day/3-hour forecasts. The API delivers accurate weather information based on the proprietary OpenWeather Model. This integration uses the free API endpoints (Current Weather Data and 5-day/3-hour Forecast) which are available on the free plan with a limit of 1,000 calls per day."
-}

@@ -1,2 +1,0 @@
-- name: clean up service_facts
-  include_tasks: systemd_cleanup.yml

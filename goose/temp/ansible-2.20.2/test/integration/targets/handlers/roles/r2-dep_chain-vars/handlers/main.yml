@@ -1,4 +1,0 @@
-- name: h
-  assert:
-    that:
-      - v is defined

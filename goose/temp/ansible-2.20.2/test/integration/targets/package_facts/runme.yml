@@ -1,4 +1,0 @@
-- hosts: all
-  gather_facts: true
-  roles:
-    - { role: ../package_facts }

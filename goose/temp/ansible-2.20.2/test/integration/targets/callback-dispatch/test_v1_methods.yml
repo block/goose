@@ -1,9 +1,0 @@
-- hosts: localhost
-  gather_facts: no
-  tasks:
-    - debug:
-    - debug:
-      loop: [1]
-    - shell: echo hey
-      async: 2
-      poll: 1

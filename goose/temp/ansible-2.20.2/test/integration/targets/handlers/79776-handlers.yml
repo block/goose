@@ -1,2 +1,0 @@
-- debug:
-    msg: "Handler for {{ inventory_hostname }}"

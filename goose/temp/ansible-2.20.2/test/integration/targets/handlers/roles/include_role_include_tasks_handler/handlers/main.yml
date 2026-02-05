@@ -1,2 +1,0 @@
-- name: handler
-  include_tasks: include_handlers.yml

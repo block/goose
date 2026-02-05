@@ -1,3 +1,0 @@
-- name: other.yml task
-  command: echo
-  notify: handler

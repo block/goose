@@ -1,8 +1,0 @@
-namespace: ns
-name: col
-version: 3.0.0
-readme: README.rst
-license_file: GPL
-authors:
-    - Ansible
-manifest:

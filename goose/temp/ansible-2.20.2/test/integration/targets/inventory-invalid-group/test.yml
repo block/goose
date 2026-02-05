@@ -1,3 +1,0 @@
-- hosts: testhost
-  gather_facts: no
-  tasks: []

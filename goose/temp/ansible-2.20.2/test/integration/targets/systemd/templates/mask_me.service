@@ -1,9 +1,0 @@
-[Unit]
-Description=Mask Me Server
-Documentation=Mask
-
-[Service]
-ExecStart=/bin/yes
-
-[Install]
-WantedBy=default.target

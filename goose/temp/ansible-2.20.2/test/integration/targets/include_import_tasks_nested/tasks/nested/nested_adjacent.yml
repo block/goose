@@ -1,2 +1,0 @@
-- set_fact:
-    nested_adjacent_count: '{{ nested_adjacent_count|default(0)|int + 1 }}'

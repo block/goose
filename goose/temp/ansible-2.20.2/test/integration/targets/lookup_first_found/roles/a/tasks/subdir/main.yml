@@ -1,7 +1,0 @@
-- assert:
-    that:
-      - "lookup('first_found', task_adjacent) is is_file"
-  vars:
-    task_adjacent:
-      - files:
-          - relative

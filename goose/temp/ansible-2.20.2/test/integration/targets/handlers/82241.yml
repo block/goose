@@ -1,6 +1,0 @@
-- hosts: A
-  gather_facts: false
-  tasks:
-    - import_role:
-        name: role-82241
-        tasks_from: entry_point.yml

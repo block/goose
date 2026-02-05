@@ -1,3 +1,0 @@
-- name: handler1
-  debug:
-    msg: handler1

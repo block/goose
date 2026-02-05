@@ -1,5 +1,0 @@
-namespace: ns
-name: no_version
-version: null
-authors:
-  - Ansible

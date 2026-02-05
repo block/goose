@@ -1,5 +1,0 @@
-all:
-  children:
-    kids:
-      hosts:
-        1234: {}

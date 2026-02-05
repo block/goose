@@ -1,6 +1,0 @@
-- hosts: testhost
-  gather_facts: false
-  tasks:
-  - import_role:
-      name: a
-      tasks_from: subdir/../../../../no_outside.yml

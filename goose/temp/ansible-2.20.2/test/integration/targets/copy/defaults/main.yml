@@ -1,3 +1,0 @@
----
-remote_unprivileged_user: tmp_ansible_test_user
-remote_unprivileged_user_group: test_ansible_test_group

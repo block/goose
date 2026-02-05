@@ -1,3 +1,0 @@
-- name: Test play argspec
-  hosts: localhost
-  validate_argspec: True

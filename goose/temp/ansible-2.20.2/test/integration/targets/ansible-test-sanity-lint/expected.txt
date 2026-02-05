@@ -1,1 +1,0 @@
-plugins/modules/python-wrong-shebang.py:1:1: expected module shebang "b'#!/usr/bin/python'" but found: b'#!invalid'

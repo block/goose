@@ -1,6 +1,0 @@
-#!/bin/sh
-
-echo '{
-    "changed": false,
-    "ansible_facts": {"factsone": "from facts_one module"}
-}'

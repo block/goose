@@ -1,6 +1,0 @@
-shippable/posix/group1
-destructive
-needs/root
-skip/freebsd
-skip/macos
-skip/rhel

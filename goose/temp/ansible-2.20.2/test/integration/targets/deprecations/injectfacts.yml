@@ -1,8 +1,0 @@
-- hosts: localhost
-  gather_facts: true
-  tasks:
-  - debug:
-      msg: '{{ansible_distribution}}'
-  - debug:
-      msg: '{{ansible_local}}'
-    tags: alocal

@@ -75,3 +75,6 @@ gooseselftest/
 
 # External reference implementations (not part of goose)
 external/
+
+# Temporary test projects with vulnerable dependencies
+goose/temp/

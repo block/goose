@@ -1,4 +1,0 @@
-- assert:
-    that:
-      - inherit_var is defined
-      - inherit_default is defined

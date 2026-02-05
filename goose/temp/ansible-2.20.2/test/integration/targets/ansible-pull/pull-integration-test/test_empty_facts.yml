@@ -1,5 +1,0 @@
-- hosts: localhost
-  gather_facts: false
-  tasks:
-  - assert:
-      that: ansible_facts == {}

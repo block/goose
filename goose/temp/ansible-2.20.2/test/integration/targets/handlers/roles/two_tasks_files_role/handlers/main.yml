@@ -1,3 +1,0 @@
-- name: handler
-  debug:
-    msg: handler ran

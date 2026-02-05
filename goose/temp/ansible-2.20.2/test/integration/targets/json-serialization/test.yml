@@ -1,7 +1,0 @@
-- hosts: localhost
-  gather_facts: no
-  tasks:
-    - debug:
-        msg: |
-          {{ '"hi \udc80 mom"' | from_json }}
-      ignore_errors: true

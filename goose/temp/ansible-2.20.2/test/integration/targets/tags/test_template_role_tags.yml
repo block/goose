@@ -1,7 +1,0 @@
-- hosts: localhost
-  gather_facts: false
-  vars:
-    t: tag1
-  roles:
-    - name: a
-      tags: "{{ t }}"

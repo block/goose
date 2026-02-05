@@ -1,3 +1,0 @@
-- name: a task from role2
-  command: echo
-  notify: role_handler
