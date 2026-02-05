@@ -87,6 +87,18 @@ export function getTextAndImageContent(message: Message): {
   return { textContent, imagePaths };
 }
 
+export function getThinkingContent(message: Message): string | null {
+  const thinkingParts: string[] = [];
+
+  for (const content of message.content) {
+    if (content.type === 'thinking' && content.thinking) {
+      thinkingParts.push(content.thinking);
+    }
+  }
+
+  return thinkingParts.length > 0 ? thinkingParts.join('\n\n') : null;
+}
+
 export function getToolRequests(message: Message): (ToolRequest & { type: 'toolRequest' })[] {
   return message.content.filter(
     (content): content is ToolRequest & { type: 'toolRequest' } => content.type === 'toolRequest'

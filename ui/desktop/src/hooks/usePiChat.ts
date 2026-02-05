@@ -299,11 +299,9 @@ export function usePiChat({
       }
     };
 
-    const handlePiComplete = (_e: unknown, data?: { messages?: Message[] }) => {
-      // Update with final messages if provided
-      if (data?.messages) {
-        dispatch({ type: 'SET_MESSAGES', payload: data.messages });
-      }
+    const handlePiComplete = (_e: unknown, _data?: { messages?: Message[] }) => {
+      // Don't replace messages - we've been updating them incrementally
+      // The final messages are already in state from message_update/message_end events
       dispatch({ type: 'STREAM_FINISH' });
       onStreamFinish();
     };

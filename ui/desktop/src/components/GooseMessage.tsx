@@ -5,6 +5,7 @@ import MarkdownContent from './MarkdownContent';
 import ToolCallWithResponse from './ToolCallWithResponse';
 import {
   getTextAndImageContent,
+  getThinkingContent,
   getToolRequests,
   getToolResponses,
   getToolConfirmationContent,
@@ -62,7 +63,13 @@ export default function GooseMessage({
     };
   };
 
-  const { displayText, cotText } = splitChainOfThought(textContent);
+  const { displayText, cotText: taggedThinking } = splitChainOfThought(textContent);
+
+  // Get thinking from content type (extended thinking from Claude/Pi)
+  const contentThinking = getThinkingContent(message);
+
+  // Combine both sources of thinking (tagged inline and content type)
+  const cotText = [taggedThinking, contentThinking].filter(Boolean).join('\n\n') || null;
 
   const timestamp = useMemo(() => formatMessageTimestamp(message.created), [message.created]);
   const toolRequests = getToolRequests(message);

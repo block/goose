@@ -345,7 +345,7 @@ export async function promptPi(
     return;
   }
 
-  // Create user message
+  // Add user message to session for persistence (UI already shows it via usePiChat)
   const userMessage: GooseMessage = {
     id: `msg_${Date.now()}_user`,
     role: 'user',
@@ -353,14 +353,12 @@ export async function promptPi(
     content: [{ type: 'text', text: message }],
     metadata: { userVisible: true, agentVisible: true },
   };
-  
-  // Add user message to conversation
   currentSession.conversation.push(userMessage);
   currentSession.message_count++;
   currentSession.updated_at = new Date().toISOString();
   
-  // Update session name from first message
-  if (currentSession.conversation.length === 1) {
+  // Update session name from first user message
+  if (currentSession.conversation.filter(m => m.role === 'user').length === 1) {
     currentSession.name = generateSessionName(currentSession.conversation);
   }
   
@@ -387,11 +385,11 @@ export async function promptPi(
       onNotification(result.notification);
     }
     
-    // Send translated message to renderer
-    if (result.message) {
+    // Send translated message to renderer (skip user messages - UI already has them)
+    if (result.message && result.message.role !== 'user') {
       onEvent(piEvent, result.message);
       
-      // Update conversation with assistant messages
+      // Update conversation with assistant messages for persistence
       if (result.message.role === 'assistant') {
         // Find or add this message in conversation
         const existingIdx = currentSession!.conversation.findIndex(m => m.id === result.message!.id);
