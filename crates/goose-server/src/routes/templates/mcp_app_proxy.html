@@ -134,7 +134,6 @@
         window.addEventListener('message', handleMessage);
 
         // Notify Host that Sandbox is ready
-        // Note: @mcp-ui/client expects 'sandbox-proxy-ready' (with 'proxy' in the name)
         window
           .parent
           .postMessage({
