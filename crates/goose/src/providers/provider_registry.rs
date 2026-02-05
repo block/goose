@@ -19,7 +19,8 @@ pub struct ProviderEntry {
 impl ProviderEntry {
     pub async fn create_with_default_model(&self) -> Result<Arc<dyn Provider>> {
         let default_model = &self.metadata.default_model;
-        let model_config = ModelConfig::new(default_model.as_str())?;
+        let provider_name = &self.metadata.name;
+        let model_config = ModelConfig::new(default_model.as_str(), provider_name)?;
         (self.constructor)(model_config).await
     }
 }

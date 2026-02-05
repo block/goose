@@ -1382,12 +1382,13 @@ mod tests {
         // Test default medium reasoning effort for O3 model
         let model_config = ModelConfig {
             model_name: "gpt-4o".to_string(),
+            provider_name: "openai".to_string(),
             context_limit: Some(4096),
             temperature: None,
             max_tokens: Some(1024),
             toolshim: false,
             toolshim_model: None,
-            fast_model: None,
+            fast_model_config: None,
             request_params: None,
         };
         let request = create_request(
@@ -1422,12 +1423,13 @@ mod tests {
         // Test default medium reasoning effort for O1 model
         let model_config = ModelConfig {
             model_name: "o1".to_string(),
+            provider_name: "openai".to_string(),
             context_limit: Some(4096),
             temperature: None,
             max_tokens: Some(1024),
             toolshim: false,
             toolshim_model: None,
-            fast_model: None,
+            fast_model_config: None,
             request_params: None,
         };
         let request = create_request(
@@ -1463,12 +1465,13 @@ mod tests {
         // Test custom reasoning effort for O3 model
         let model_config = ModelConfig {
             model_name: "o3-mini-high".to_string(),
+            provider_name: "openai".to_string(),
             context_limit: Some(4096),
             temperature: None,
             max_tokens: Some(1024),
             toolshim: false,
             toolshim_model: None,
-            fast_model: None,
+            fast_model_config: None,
             request_params: None,
         };
         let request = create_request(

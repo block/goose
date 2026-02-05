@@ -1,6 +1,7 @@
 use crate::routes::errors::ErrorResponse;
 use crate::routes::utils::check_provider_configured;
 use crate::state::AppState;
+use axum::http::StatusCode;
 use axum::routing::put;
 use axum::{
     extract::Path,
@@ -227,13 +228,6 @@ fn is_valid_provider_name(provider_name: &str) -> bool {
 pub async fn read_config(
     Json(query): Json<ConfigKeyQuery>,
 ) -> Result<Json<ConfigValueResponse>, ErrorResponse> {
-    if query.key == "model-limits" {
-        let limits = ModelConfig::get_all_model_limits();
-        return Ok(Json(ConfigValueResponse::Value(serde_json::to_value(
-            limits,
-        )?)));
-    }
-
     let config = Config::global();
 
     let response_value = match config.get(&query.key, query.is_secret) {
@@ -399,7 +393,7 @@ pub async fn get_provider_models(
         )));
     }
 
-    let model_config = ModelConfig::new(&metadata.default_model)?;
+    let model_config = ModelConfig::new(&metadata.default_model, &name)?;
     let provider = goose::providers::create(&name, model_config).await?;
 
     let models_result = provider.fetch_recommended_models().await;
@@ -440,66 +434,65 @@ pub async fn get_slash_commands() -> Result<Json<SlashCommandsResponse>, ErrorRe
 }
 
 #[derive(Serialize, ToSchema)]
-pub struct PricingData {
+pub struct ModelInfoData {
     pub provider: String,
     pub model: String,
-    pub input_token_cost: f64,
-    pub output_token_cost: f64,
+    pub context_limit: usize,
+    pub max_output_tokens: Option<usize>,
+    pub input_token_cost: Option<f64>,
+    pub output_token_cost: Option<f64>,
+    pub cache_read_token_cost: Option<f64>,
+    pub cache_write_token_cost: Option<f64>,
     pub currency: String,
-    pub context_length: Option<u32>,
 }
 
 #[derive(Serialize, ToSchema)]
-pub struct PricingResponse {
-    pub pricing: Vec<PricingData>,
+pub struct ModelInfoResponse {
+    pub model_info: ModelInfoData,
     pub source: String,
 }
 
 #[derive(Deserialize, ToSchema)]
-pub struct PricingQuery {
+pub struct ModelInfoQuery {
     pub provider: String,
     pub model: String,
 }
 
 #[utoipa::path(
     post,
-    path = "/config/pricing",
-    request_body = PricingQuery,
+    path = "/config/canonical-model-info",
+    request_body = ModelInfoQuery,
     responses(
-        (status = 200, description = "Model pricing data retrieved successfully", body = PricingResponse)
+        (status = 200, description = "Model information retrieved successfully", body = ModelInfoResponse),
+        (status = 404, description = "Model not found in canonical registry")
     )
 )]
-pub async fn get_pricing(
-    Json(query): Json<PricingQuery>,
-) -> Result<Json<PricingResponse>, ErrorResponse> {
-    let canonical_model =
-        maybe_get_canonical_model(&query.provider, &query.model).ok_or_else(|| {
-            ErrorResponse::not_found(format!(
-                "Model '{}/{}' not found",
-                query.provider, query.model
-            ))
-        })?;
+pub async fn get_canonical_model_info(
+    Json(query): Json<ModelInfoQuery>,
+) -> Result<Json<ModelInfoResponse>, StatusCode> {
+    let canonical_model = maybe_get_canonical_model(&query.provider, &query.model);
 
-    let mut pricing_data = Vec::new();
-
-    if let (Some(input_cost), Some(output_cost)) =
-        (canonical_model.cost.input, canonical_model.cost.output)
-    {
-        pricing_data.push(PricingData {
+    if let Some(canonical_model) = canonical_model {
+        let model_info = ModelInfoData {
             provider: query.provider.clone(),
             model: query.model.clone(),
-            // Canonical model costs are per million tokens, convert to per-token
-            input_token_cost: input_cost / 1_000_000.0,
-            output_token_cost: output_cost / 1_000_000.0,
+            context_limit: canonical_model.limit.context,
+            max_output_tokens: canonical_model.limit.output,
+            // Costs are per million tokens - client handles division for display
+            input_token_cost: canonical_model.cost.input,
+            output_token_cost: canonical_model.cost.output,
+            cache_read_token_cost: canonical_model.cost.cache_read,
+            cache_write_token_cost: canonical_model.cost.cache_write,
             currency: "$".to_string(),
-            context_length: Some(canonical_model.limit.context as u32),
-        });
-    }
+        };
 
-    Ok(Json(PricingResponse {
-        pricing: pricing_data,
-        source: "canonical".to_string(),
-    }))
+        Ok(Json(ModelInfoResponse {
+            model_info,
+            source: "canonical".to_string(),
+        }))
+    } else {
+        Err(StatusCode::NOT_FOUND)
+    }
 }
 
 #[utoipa::path(
@@ -817,7 +810,7 @@ pub async fn configure_provider_oauth(
         )));
     }
 
-    let temp_model = ModelConfig::new("temp").map_err(|e| {
+    let temp_model = ModelConfig::new("temp", &provider_name).map_err(|e| {
         ErrorResponse::bad_request(format!("Failed to create temporary model config: {}", e))
     })?;
 
@@ -856,7 +849,10 @@ pub fn routes(state: Arc<AppState>) -> Router {
         .route("/config/providers/{name}/models", get(get_provider_models))
         .route("/config/detect-provider", post(detect_provider))
         .route("/config/slash_commands", get(get_slash_commands))
-        .route("/config/pricing", post(get_pricing))
+        .route(
+            "/config/canonical-model-info",
+            post(get_canonical_model_info),
+        )
         .route("/config/init", post(init_config))
         .route("/config/backup", post(backup_config))
         .route("/config/recover", post(recover_config))
@@ -879,33 +875,4 @@ pub fn routes(state: Arc<AppState>) -> Router {
 }
 
 #[cfg(test)]
-mod tests {
-    use http::HeaderMap;
-
-    use super::*;
-
-    #[tokio::test]
-    async fn test_read_model_limits() {
-        let mut headers = HeaderMap::new();
-        headers.insert("X-Secret-Key", "test".parse().unwrap());
-
-        let result = read_config(Json(ConfigKeyQuery {
-            key: "model-limits".to_string(),
-            is_secret: false,
-        }))
-        .await;
-
-        assert!(result.is_ok());
-        let response = match result.unwrap().0 {
-            ConfigValueResponse::Value(value) => value,
-            ConfigValueResponse::MaskedValue(_) => panic!("unexpected secret"),
-        };
-
-        let limits: Vec<goose::model::ModelLimitConfig> = serde_json::from_value(response).unwrap();
-        assert!(!limits.is_empty());
-
-        let gpt4_limit = limits.iter().find(|l| l.pattern == "gpt-4o");
-        assert!(gpt4_limit.is_some());
-        assert_eq!(gpt4_limit.unwrap().context_limit, 128_000);
-    }
-}
+mod tests {}

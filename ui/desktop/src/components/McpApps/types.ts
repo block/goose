@@ -1,4 +1,8 @@
-export type { CspMetadata, PermissionsMetadata, CallToolResponse as ToolResult } from '../../api/types.gen';
+export type {
+  CspMetadata,
+  PermissionsMetadata,
+  CallToolResponse as ToolResult,
+} from '../../api/types.gen';
 
 export type ContentBlock =
   | { type: 'text'; text: string }

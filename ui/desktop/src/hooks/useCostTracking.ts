@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useModelAndProvider } from '../components/ModelAndProviderContext';
-import { fetchModelPricing } from '../utils/pricing';
+import { fetchCanonicalModelInfo } from '../utils/canonical';
 import { Session } from '../api';
 
 interface UseCostTrackingProps {
@@ -42,13 +42,18 @@ export const useCostTracking = ({
         const prevKey = `${prevProviderRef.current}/${prevModelRef.current}`;
 
         // Get pricing info for the previous model
-        const prevCostInfo = await fetchModelPricing(prevProviderRef.current, prevModelRef.current);
+        const prevCostInfo = await fetchCanonicalModelInfo(
+          prevProviderRef.current,
+          prevModelRef.current
+        );
 
         if (prevCostInfo) {
           const prevInputCost =
-            (sessionInputTokens || localInputTokens) * (prevCostInfo.input_token_cost || 0);
+            ((sessionInputTokens || localInputTokens) * (prevCostInfo.input_token_cost || 0)) /
+            1_000_000;
           const prevOutputCost =
-            (sessionOutputTokens || localOutputTokens) * (prevCostInfo.output_token_cost || 0);
+            ((sessionOutputTokens || localOutputTokens) * (prevCostInfo.output_token_cost || 0)) /
+            1_000_000;
           const prevTotalCost = prevInputCost + prevOutputCost;
 
           // Save the accumulated costs for this model
