@@ -99,7 +99,7 @@ export function useSandboxBridge(options: SandboxBridgeOptions): SandboxBridgeRe
     isGuestInitializedRef.current = false;
   }, [resourceUri]);
 
-  const sendToView = useCallback((message: JsonRpcMessage) => {
+  const sendToSandbox = useCallback((message: JsonRpcMessage) => {
     iframeRef.current?.contentWindow?.postMessage(message, '*');
   }, []);
 
@@ -116,14 +116,14 @@ export function useSandboxBridge(options: SandboxBridgeOptions): SandboxBridgeRe
             isGuestInitializedRef.current = true;
             // Send any pending tool data that arrived before initialization
             if (toolInput) {
-              sendToView({
+              sendToSandbox({
                 jsonrpc: '2.0',
                 method: 'ui/notifications/tool-input',
                 params: { arguments: toolInput.arguments },
               });
             }
             if (toolResult) {
-              sendToView({
+              sendToSandbox({
                 jsonrpc: '2.0',
                 method: 'ui/notifications/tool-result',
                 params: toolResult,
@@ -171,7 +171,7 @@ export function useSandboxBridge(options: SandboxBridgeOptions): SandboxBridgeRe
               safeAreaInsets: { top: 0, right: 0, bottom: 0, left: 0 },
             };
 
-            sendToView({
+            sendToSandbox({
               jsonrpc: '2.0',
               id: msg.id,
               result: {
@@ -189,12 +189,12 @@ export function useSandboxBridge(options: SandboxBridgeOptions): SandboxBridgeRe
 
           const result = await onMcpRequest(msg.method, msg.params, msg.id);
           if (msg.id !== undefined) {
-            sendToView({ jsonrpc: '2.0', id: msg.id, result });
+            sendToSandbox({ jsonrpc: '2.0', id: msg.id, result });
           }
         } catch (error) {
           console.error(`[Secure Context Bridge] Error handling ${msg.method}:`, error);
           if (msg.id !== undefined) {
-            sendToView({
+            sendToSandbox({
               jsonrpc: '2.0',
               id: msg.id,
               error: {
@@ -208,7 +208,7 @@ export function useSandboxBridge(options: SandboxBridgeOptions): SandboxBridgeRe
     },
     [
       resolvedTheme,
-      sendToView,
+      sendToSandbox,
       onMcpRequest,
       onSizeChanged,
       toolInput,
@@ -228,48 +228,48 @@ export function useSandboxBridge(options: SandboxBridgeOptions): SandboxBridgeRe
   // Send tool input notification when it changes
   useEffect(() => {
     if (!isGuestInitializedRef.current || !toolInput) return;
-    sendToView({
+    sendToSandbox({
       jsonrpc: '2.0',
       method: 'ui/notifications/tool-input',
       params: { arguments: toolInput.arguments },
     });
-  }, [toolInput, sendToView]);
+  }, [toolInput, sendToSandbox]);
 
   useEffect(() => {
     if (!isGuestInitializedRef.current || !toolInputPartial) return;
-    sendToView({
+    sendToSandbox({
       jsonrpc: '2.0',
       method: 'ui/notifications/tool-input-partial',
       params: { arguments: toolInputPartial.arguments },
     });
-  }, [toolInputPartial, sendToView]);
+  }, [toolInputPartial, sendToSandbox]);
 
   useEffect(() => {
     if (!isGuestInitializedRef.current || !toolResult) return;
-    sendToView({
+    sendToSandbox({
       jsonrpc: '2.0',
       method: 'ui/notifications/tool-result',
       params: toolResult,
     });
-  }, [toolResult, sendToView]);
+  }, [toolResult, sendToSandbox]);
 
   useEffect(() => {
     if (!isGuestInitializedRef.current || !toolCancelled) return;
-    sendToView({
+    sendToSandbox({
       jsonrpc: '2.0',
       method: 'ui/notifications/tool-cancelled',
       params: toolCancelled.reason ? { reason: toolCancelled.reason } : {},
     });
-  }, [toolCancelled, sendToView]);
+  }, [toolCancelled, sendToSandbox]);
 
   useEffect(() => {
     if (!isGuestInitializedRef.current) return;
-    sendToView({
+    sendToSandbox({
       jsonrpc: '2.0',
       method: 'ui/notifications/host-context-changed',
       params: { theme: resolvedTheme },
     });
-  }, [resolvedTheme, sendToView]);
+  }, [resolvedTheme, sendToSandbox]);
 
   useEffect(() => {
     if (!isGuestInitializedRef.current || !iframeRef.current) return;
@@ -286,7 +286,7 @@ export function useSandboxBridge(options: SandboxBridgeOptions): SandboxBridgeRe
       if (w !== lastWidth || h !== lastHeight) {
         lastWidth = w;
         lastHeight = h;
-        sendToView({
+        sendToSandbox({
           jsonrpc: '2.0',
           method: 'ui/notifications/host-context-changed',
           params: {
@@ -303,12 +303,12 @@ export function useSandboxBridge(options: SandboxBridgeOptions): SandboxBridgeRe
 
     observer.observe(iframe);
     return () => observer.disconnect();
-  }, [sendToView]);
+  }, [sendToSandbox]);
 
   useEffect(() => {
     return () => {
       if (isGuestInitializedRef.current) {
-        sendToView({
+        sendToSandbox({
           jsonrpc: '2.0',
           id: Date.now(),
           method: 'ui/resource-teardown',
@@ -316,7 +316,7 @@ export function useSandboxBridge(options: SandboxBridgeOptions): SandboxBridgeRe
         });
       }
     };
-  }, [sendToView]);
+  }, [sendToSandbox]);
 
   return { iframeRef, proxyUrl, isLoading };
 }
