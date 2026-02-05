@@ -54,7 +54,7 @@ goose session
 
 You should now be able to connect to goose with your configured extensions enabled.
 
-## Running Extensions in a Container
+## Running Extensions in Docker Containers
 
 The `--container` flag allows you to run goose extensions inside your Docker containers.
 
