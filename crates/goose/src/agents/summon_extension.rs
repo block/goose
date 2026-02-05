@@ -234,6 +234,17 @@ pub struct SummonClient {
     completed_tasks: Mutex<HashMap<String, CompletedTask>>,
 }
 
+impl Drop for SummonClient {
+    fn drop(&mut self) {
+        // Best-effort cancellation of running tasks on shutdown
+        if let Ok(tasks) = self.background_tasks.try_lock() {
+            for task in tasks.values() {
+                task.cancellation_token.cancel();
+            }
+        }
+    }
+}
+
 impl SummonClient {
     pub fn new(context: PlatformExtensionContext) -> Result<Self> {
         let info = InitializeResult {
@@ -1276,7 +1287,8 @@ impl SummonClient {
         let mut model_config = session
             .model_config
             .clone()
-            .unwrap_or_else(|| crate::model::ModelConfig::new("default").unwrap());
+            .map(Ok)
+            .unwrap_or_else(|| crate::model::ModelConfig::new("default"))?;
 
         if let Some(model) = &params.model {
             model_config.model_name = model.clone();

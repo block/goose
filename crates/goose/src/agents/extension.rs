@@ -168,12 +168,14 @@ impl PlatformExtensionContext {
     }
 }
 
+/// Definition for a platform extension that runs in-process with direct agent access.
 #[derive(Debug, Clone)]
 pub struct PlatformExtensionDef {
     pub name: &'static str,
     pub display_name: &'static str,
     pub description: &'static str,
     pub default_enabled: bool,
+    /// If true, tools are exposed without extension prefix for intuitive first-class use.
     pub unprefixed_tools: bool,
     pub client_factory: fn(PlatformExtensionContext) -> Box<dyn McpClientTrait>,
 }
