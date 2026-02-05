@@ -2,9 +2,9 @@
 // Ensures agents execute documentation as binding contracts, not suggestions
 
 use anyhow::{Context, Result};
+use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
-use chrono::{DateTime, Utc};
 use tokio::fs;
 
 /// A parsed step from a runbook
@@ -119,17 +119,25 @@ impl RunbookCompliance {
                         step.command = Some(cmd_line.trim().to_string());
                     }
                 } else if trimmed.starts_with("Expected:") {
-                    step.expected_result =
-                        trimmed.strip_prefix("Expected:").unwrap().trim().to_string();
+                    step.expected_result = trimmed
+                        .strip_prefix("Expected:")
+                        .unwrap()
+                        .trim()
+                        .to_string();
                 } else if trimmed.starts_with("If fails:") {
-                    step.failure_action =
-                        trimmed.strip_prefix("If fails:").unwrap().trim().to_string();
+                    step.failure_action = trimmed
+                        .strip_prefix("If fails:")
+                        .unwrap()
+                        .trim()
+                        .to_string();
                 } else if trimmed.starts_with("Requires:") {
-                    let req = trimmed.strip_prefix("Requires:").unwrap().trim().to_string();
+                    let req = trimmed
+                        .strip_prefix("Requires:")
+                        .unwrap()
+                        .trim()
+                        .to_string();
                     step.preconditions.push(req);
-                } else if !trimmed.is_empty()
-                    && !trimmed.starts_with('#')
-                    && step.command.is_none()
+                } else if !trimmed.is_empty() && !trimmed.starts_with('#') && step.command.is_none()
                 {
                     // If we see code block content after ```bash
                     if !trimmed.starts_with("```") && !trimmed.starts_with("##") {
@@ -165,7 +173,10 @@ impl RunbookCompliance {
                     criteria.push(crit);
                 }
 
-                let desc = trimmed.trim_start_matches('-').trim_start_matches('*').trim();
+                let desc = trimmed
+                    .trim_start_matches('-')
+                    .trim_start_matches('*')
+                    .trim();
                 current = Some(SuccessCriteria {
                     description: desc.to_string(),
                     check_command: None,
@@ -244,13 +255,27 @@ impl RunbookCompliance {
     }
 
     /// Update PROGRESS.md with current status
-    pub async fn update_progress(&self, state: &ExecutionState, steps: &[RunbookStep]) -> Result<()> {
+    pub async fn update_progress(
+        &self,
+        state: &ExecutionState,
+        steps: &[RunbookStep],
+    ) -> Result<()> {
         let mut content = String::new();
         content.push_str("# Execution Progress\n\n");
         content.push_str(&format!("Status: {:?}\n", state.status));
-        content.push_str(&format!("Started: {}\n", state.started_at.format("%Y-%m-%d %H:%M:%S")));
-        content.push_str(&format!("Last Update: {}\n\n", state.last_update.format("%Y-%m-%d %H:%M:%S")));
-        content.push_str(&format!("Progress: {}/{} steps completed\n\n", state.completed_steps.len(), state.total_steps));
+        content.push_str(&format!(
+            "Started: {}\n",
+            state.started_at.format("%Y-%m-%d %H:%M:%S")
+        ));
+        content.push_str(&format!(
+            "Last Update: {}\n\n",
+            state.last_update.format("%Y-%m-%d %H:%M:%S")
+        ));
+        content.push_str(&format!(
+            "Progress: {}/{} steps completed\n\n",
+            state.completed_steps.len(),
+            state.total_steps
+        ));
 
         content.push_str("## Steps\n\n");
         for step in steps {
@@ -262,7 +287,10 @@ impl RunbookCompliance {
                 "⏳"
             };
 
-            content.push_str(&format!("{}. {} {}\n", step.number, status, step.description));
+            content.push_str(&format!(
+                "{}. {} {}\n",
+                step.number, status, step.description
+            ));
         }
 
         if !state.failures.is_empty() {
@@ -336,12 +364,7 @@ impl RunbookCompliance {
     }
 
     /// Record a step failure
-    pub fn record_failure(
-        &self,
-        state: &mut ExecutionState,
-        step_num: usize,
-        error: String,
-    ) {
+    pub fn record_failure(&self, state: &mut ExecutionState, step_num: usize, error: String) {
         let retry_count = self.get_retry_count(state, step_num) + 1;
         state.failures.push(StepFailure {
             step: step_num,

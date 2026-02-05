@@ -64,7 +64,7 @@ async fn test_multi_session_tracking() {
     let tracker = CostTracker::new();
 
     // Create multiple sessions
-    let sessions = vec!["session-1", "session-2", "session-3"];
+    let sessions = ["session-1", "session-2", "session-3"];
 
     for (i, session_id) in sessions.iter().enumerate() {
         let usage = TokenUsage::new(100 * (i as u64 + 1), 50 * (i as u64 + 1));
