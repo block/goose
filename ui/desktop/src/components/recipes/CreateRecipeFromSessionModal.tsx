@@ -239,7 +239,7 @@ export default function CreateRecipeFromSessionModal({
             onClick={onClose}
             variant="ghost"
             size="sm"
-            className="p-2 hover:bg-bgSubtle rounded-lg transition-colors"
+            className="p-2 hover:bg-background-muted rounded-lg transition-colors"
             data-testid="close-button"
           >
             <X className="w-5 h-5" />
@@ -288,7 +288,7 @@ export default function CreateRecipeFromSessionModal({
           <Button
             onClick={onClose}
             variant="ghost"
-            className="px-4 py-2 text-text-muted rounded-lg hover:bg-bgSubtle transition-colors"
+            className="px-4 py-2 text-text-muted rounded-lg hover:bg-background-muted transition-colors"
             data-testid="cancel-button"
           >
             Cancel
@@ -303,7 +303,7 @@ export default function CreateRecipeFromSessionModal({
                   }}
                   disabled={!isFormValid || isCreating}
                   variant="outline"
-                  className="px-4 py-2 border border-border-default rounded-lg hover:bg-bgSubtle transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="px-4 py-2 border border-border-default rounded-lg hover:bg-background-muted transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                   data-testid="create-recipe-button"
                 >
                   <Save className="w-4 h-4 mr-2" />

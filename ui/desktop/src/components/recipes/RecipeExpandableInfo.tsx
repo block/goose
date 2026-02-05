@@ -68,7 +68,7 @@ export default function RecipeExpandableInfo({
               setValueExpanded(true);
               onClickEdit();
             }}
-            className="w-36 px-3 py-3 text-sm text-text-defaultInverse rounded-xl hover:bg-bgStandardInverse transition-colors"
+            className="w-36 px-3 py-3 text-sm text-text-inverse rounded-xl hover:bg-background-inverse transition-colors"
           >
             {infoValue ? 'Edit' : 'Add'} {infoLabel.toLowerCase()}
           </Button>

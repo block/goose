@@ -106,7 +106,7 @@ export const SessionMessages: React.FC<SessionMessagesProps> = ({
                       className={`p-4 ${
                         message.role === 'user'
                           ? 'bg-bgSecondary border border-border-default'
-                          : 'bg-bgSubtle'
+                          : 'bg-background-muted'
                       }`}
                     >
                       <div className="flex justify-between items-center mb-2">

@@ -41,7 +41,7 @@ export default function RecipeInfoModal({
         <div className="flex flex-col flex-grow overflow-y-auto space-y-8">
           <textarea
             ref={textareaRef}
-            className="w-full flex-grow resize-none min-h-[300px] max-h-[calc(100vh-300px)] border border-border-default rounded-lg p-3 text-text-default bg-background-default focus:outline-none focus:ring-1 focus:ring-borderProminent focus:border-borderProminent"
+            className="w-full flex-grow resize-none min-h-[300px] max-h-[calc(100vh-300px)] border border-border-default rounded-lg p-3 text-text-default bg-background-default focus:outline-none focus:ring-1 focus:ring-border-strong focus:border-border-strong"
             value={value}
             onChange={(e) => setValue(e.target.value)}
             placeholder={`Enter ${infoLabel.toLowerCase()}...`}
@@ -49,14 +49,14 @@ export default function RecipeInfoModal({
         </div>
         <Button
           onClick={onSave}
-          className="w-full h-[60px] rounded-none border-b border-border-default bg-transparent hover:bg-bgSubtle text-text-default font-medium text-md"
+          className="w-full h-[60px] rounded-none border-b border-border-default bg-transparent hover:bg-background-muted text-text-default font-medium text-md"
         >
           Save Changes
         </Button>
         <Button
           onClick={onClose}
           variant="ghost"
-          className="w-full h-[60px] rounded-none hover:bg-bgSubtle text-text-muted hover:text-text-default text-md font-regular"
+          className="w-full h-[60px] rounded-none hover:bg-background-muted text-text-muted hover:text-text-default text-md font-regular"
         >
           Cancel
         </Button>

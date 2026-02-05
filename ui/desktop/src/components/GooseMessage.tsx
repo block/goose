@@ -102,7 +102,7 @@ export default function GooseMessage({
     <div className="goose-message flex w-[90%] justify-start min-w-0">
       <div className="flex flex-col w-full min-w-0">
         {cotText && (
-          <details className="bg-bgSubtle border border-border-default rounded p-2 mb-2">
+          <details className="bg-background-muted border border-border-default rounded p-2 mb-2">
             <summary className="cursor-pointer text-sm text-text-muted select-none">
               Show thinking
             </summary>

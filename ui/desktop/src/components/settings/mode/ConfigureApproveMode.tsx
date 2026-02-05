@@ -85,7 +85,7 @@ export function ConfigureApproveMode({
               variant="ghost"
               disabled={isSubmitting}
               onClick={handleModeSubmit}
-              className="w-full h-[60px] rounded-none border-t border-border-default hover:bg-bgSubtle text-text-default dark:border-gray-600 text-base font-regular"
+              className="w-full h-[60px] rounded-none border-t border-border-default hover:bg-background-muted text-text-default dark:border-gray-600 text-base font-regular"
             >
               {isSubmitting ? 'Saving...' : 'Save'}
             </Button>
@@ -94,7 +94,7 @@ export function ConfigureApproveMode({
               variant="ghost"
               disabled={isSubmitting}
               onClick={onClose}
-              className="w-full h-[60px] rounded-none border-t border-border-default text-text-muted hover:bg-bgSubtle dark:border-gray-600 text-base font-regular"
+              className="w-full h-[60px] rounded-none border-t border-border-default text-text-muted hover:bg-background-muted dark:border-gray-600 text-base font-regular"
             >
               Cancel
             </Button>

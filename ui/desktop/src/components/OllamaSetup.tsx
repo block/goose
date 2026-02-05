@@ -174,7 +174,7 @@ export function OllamaSetup({ onSuccess, onCancel }: OllamaSetupProps) {
               <button
                 onClick={handleDownloadModel}
                 disabled={false}
-                className="w-full px-6 py-3 bg-background-muted text-text-default rounded-lg hover:bg-background-hover transition-colors font-medium flex items-center justify-center gap-2"
+                className="w-full px-6 py-3 bg-background-muted text-text-default rounded-lg transition-colors font-medium flex items-center justify-center gap-2"
               >
                 Download {getPreferredModel()} (~11GB)
               </button>
@@ -209,7 +209,7 @@ export function OllamaSetup({ onSuccess, onCancel }: OllamaSetupProps) {
             <button
               onClick={handleConnectOllama}
               disabled={isConnecting}
-              className="w-full px-6 py-3 bg-background-muted text-text-default rounded-lg hover:bg-background-hover transition-colors font-medium flex items-center justify-center gap-2"
+              className="w-full px-6 py-3 bg-background-muted text-text-default rounded-lg transition-colors font-medium flex items-center justify-center gap-2"
             >
               {isConnecting ? 'Connecting...' : 'Use Goose with Ollama'}
             </button>
@@ -239,7 +239,7 @@ export function OllamaSetup({ onSuccess, onCancel }: OllamaSetupProps) {
               target="_blank"
               rel="noopener noreferrer"
               onClick={handleInstallClick}
-              className="block w-full px-6 py-3 bg-background-muted text-text-default rounded-lg hover:bg-background-hover transition-colors font-medium text-center"
+              className="block w-full px-6 py-3 bg-background-muted text-text-default rounded-lg transition-colors font-medium text-center"
             >
               Install Ollama
             </a>

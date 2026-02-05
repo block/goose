@@ -325,7 +325,7 @@ const SessionHistoryView: React.FC<SessionHistoryViewProps> = ({
 
           <div className="py-4">
             <div className="relative rounded-full border border-border-default px-3 py-2 flex items-center bg-gray-100 dark:bg-gray-600">
-              <code className="text-sm text-text-default dark:text-text-defaultInverse overflow-x-hidden break-all pr-8 w-full">
+              <code className="text-sm text-text-default dark:text-text-inverse overflow-x-hidden break-all pr-8 w-full">
                 {shareLink}
               </code>
               <Button

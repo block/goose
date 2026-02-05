@@ -81,7 +81,7 @@ export default function RecipeActivityEditor({
           value={messageContent}
           onChange={(e) => handleMessageChange(e.target.value)}
           onBlur={onBlur}
-          className="w-full px-4 py-3 border rounded-lg bg-background-default text-text-default placeholder-textPlaceholder focus:outline-none focus:ring-2 focus:ring-borderProminent resize-vertical"
+          className="w-full px-4 py-3 border rounded-lg bg-background-default text-text-default placeholder:text-text-muted focus:outline-none focus:ring-2 focus:ring-border-strong resize-vertical"
           placeholder="Enter a user facing introduction message for your recipe (supports **bold**, *italic*, `code`, etc.)"
           rows={3}
           autoCorrect="off"

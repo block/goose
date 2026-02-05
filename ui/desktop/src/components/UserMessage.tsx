@@ -131,13 +131,13 @@ export default function UserMessage({ message, onMessageUpdate }: UserMessagePro
       <div className="flex flex-col group">
         {isEditing ? (
           // Truly wide, centered, in-place edit box replacing the bubble
-          <div className="w-full max-w-4xl mx-auto dark:bg-background-dark text-text-default rounded-xl border border-border-default shadow-lg py-4 px-4 my-2 transition-all duration-200 ease-in-out">
+          <div className="w-full max-w-4xl mx-auto text-text-default rounded-xl border border-border-default shadow-lg py-4 px-4 my-2 transition-all duration-200 ease-in-out">
             <textarea
               ref={textareaRef}
               value={editContent}
               onChange={handleContentChange}
               onKeyDown={handleKeyDown}
-              className="w-full resize-none bg-transparent text-text-default placeholder:text-text-muted border border-border-default rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-blue-400 transition-all duration-200 text-base leading-relaxed"
+              className="w-full resize-none bg-transparent text-text-default placeholder:text-text-muted border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-blue-400 transition-all duration-200 text-base leading-relaxed"
               style={{
                 minHeight: '120px',
                 maxHeight: '300px',

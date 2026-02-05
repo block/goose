@@ -358,7 +358,7 @@ export default function CreateEditRecipeModal({
             onClick={() => onClose(false)}
             variant="ghost"
             size="sm"
-            className="p-2 hover:bg-bgSubtle rounded-lg transition-colors"
+            className="p-2 hover:bg-background-muted rounded-lg transition-colors"
           >
             <X className="w-5 h-5" />
           </Button>
@@ -370,7 +370,7 @@ export default function CreateEditRecipeModal({
 
           {/* Deep Link Display */}
           {requiredFieldsAreFilled() && (
-            <div className="w-full p-4 bg-bgSubtle rounded-lg mt-6">
+            <div className="w-full p-4 bg-background-muted rounded-lg mt-6">
               <div className="flex items-center justify-between mb-2">
                 <div className="text-sm text-text-muted">
                   Copy this link to share with friends or paste directly in Chrome to open
@@ -411,7 +411,7 @@ export default function CreateEditRecipeModal({
           <Button
             onClick={() => onClose(false)}
             variant="ghost"
-            className="px-4 py-2 text-text-muted rounded-lg hover:bg-bgSubtle transition-colors"
+            className="px-4 py-2 text-text-muted rounded-lg hover:bg-background-muted transition-colors"
           >
             Close
           </Button>

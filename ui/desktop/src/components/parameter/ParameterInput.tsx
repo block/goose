@@ -30,7 +30,7 @@ const ParameterInput: React.FC<ParameterInputProps> = ({
   };
 
   return (
-    <div className="parameter-input my-4 border rounded-lg bg-bgSubtle shadow-sm relative">
+    <div className="parameter-input my-4 border rounded-lg bg-background-muted shadow-sm relative">
       {/* Collapsed header - always visible */}
       <div
         className={`flex items-center justify-between p-4 ${onToggleExpanded ? 'cursor-pointer hover:bg-background-default/50' : ''} transition-colors`}
@@ -97,7 +97,7 @@ const ParameterInput: React.FC<ParameterInputProps> = ({
                 type="text"
                 value={description || ''}
                 onChange={(e) => onChange(key, { description: e.target.value })}
-                className="w-full p-3 border rounded-lg bg-background-default text-text-default focus:outline-none focus:ring-2 focus:ring-borderProminent"
+                className="w-full p-3 border rounded-lg bg-background-default text-text-default focus:outline-none focus:ring-2 focus:ring-border-strong"
                 placeholder={`E.g., "Enter the name for the new component"`}
               />
               <p className="text-sm text-text-muted mt-1">
@@ -177,7 +177,7 @@ const ParameterInput: React.FC<ParameterInputProps> = ({
                       e.stopPropagation();
                     }
                   }}
-                  className="w-full p-3 border rounded-lg bg-background-default text-text-default focus:outline-none focus:ring-2 focus:ring-borderProminent"
+                  className="w-full p-3 border rounded-lg bg-background-default text-text-default focus:outline-none focus:ring-2 focus:ring-border-strong"
                   placeholder="Option 1&#10;Option 2&#10;Option 3"
                   rows={4}
                 />
