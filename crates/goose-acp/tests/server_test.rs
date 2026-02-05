@@ -3,7 +3,7 @@ use common_tests::fixtures::run_test;
 use common_tests::fixtures::server::ClientToAgentSession;
 use common_tests::{
     run_basic_completion, run_builtin_and_mcp, run_configured_extension, run_mcp_http_server,
-    run_permission_persistence,
+    run_permission_persistence, run_text_editor_write_acp,
 };
 
 #[test]
@@ -29,4 +29,9 @@ fn test_permission_persistence() {
 #[test]
 fn test_configured_extension() {
     run_test(async { run_configured_extension::<ClientToAgentSession>().await });
+}
+
+#[test]
+fn test_text_editor_write_acp() {
+    run_test(async { run_text_editor_write_acp::<ClientToAgentSession>().await });
 }

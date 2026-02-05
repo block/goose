@@ -10,6 +10,7 @@ use goose::config::permission::PermissionManager;
 use goose::config::Config;
 use goose::conversation::message::{ActionRequiredData, Message, MessageContent};
 use goose::conversation::Conversation;
+
 use goose::mcp_utils::ToolResult;
 use goose::permission::permission_confirmation::PrincipalType;
 use goose::permission::{Permission, PermissionConfirmation};
@@ -19,14 +20,14 @@ use goose::session::{Session, SessionManager};
 use rmcp::model::{CallToolResult, RawContent, ResourceContents, Role};
 use sacp::schema::{
     AgentCapabilities, AuthenticateRequest, AuthenticateResponse, BlobResourceContents,
-    CancelNotification, Content, ContentBlock, ContentChunk, EmbeddedResource,
+    CancelNotification, ClientCapabilities, Content, ContentBlock, ContentChunk, EmbeddedResource,
     EmbeddedResourceResource, ImageContent, InitializeRequest, InitializeResponse,
     LoadSessionRequest, LoadSessionResponse, McpCapabilities, McpServer, NewSessionRequest,
     NewSessionResponse, PermissionOption, PermissionOptionKind, PromptCapabilities, PromptRequest,
     PromptResponse, RequestPermissionOutcome, RequestPermissionRequest, ResourceLink, SessionId,
     SessionNotification, SessionUpdate, StopReason, TextContent, TextResourceContents, ToolCall,
     ToolCallContent, ToolCallId, ToolCallLocation, ToolCallStatus, ToolCallUpdate,
-    ToolCallUpdateFields, ToolKind,
+    ToolCallUpdateFields, ToolKind, WriteTextFileRequest, WriteTextFileResponse,
 };
 use sacp::{AgentToClient, ByteStreams, Handled, JrConnectionCx, JrMessageHandler, MessageCx};
 use std::collections::HashMap;
@@ -43,10 +44,30 @@ struct GooseAcpSession {
     cancel_token: Option<CancellationToken>,
 }
 
+#[derive(Debug, Clone, Default)]
+pub struct AcpClientCapabilities {
+    pub fs_write_text_file: bool,
+    #[allow(dead_code)] // TODO: implement read file gating when ACP supports it
+    pub fs_read_text_file: bool,
+    #[allow(dead_code)] // TODO: implement terminal gating when ACP supports it
+    pub terminal: bool,
+}
+
+impl From<&ClientCapabilities> for AcpClientCapabilities {
+    fn from(caps: &ClientCapabilities) -> Self {
+        Self {
+            fs_write_text_file: caps.fs.write_text_file,
+            fs_read_text_file: caps.fs.read_text_file,
+            terminal: caps.terminal,
+        }
+    }
+}
+
 pub struct GooseAcpAgent {
     sessions: Arc<Mutex<HashMap<String, GooseAcpSession>>>,
     agent: Arc<Agent>,
     provider: Arc<dyn goose::providers::base::Provider>,
+    client_capabilities: Arc<Mutex<AcpClientCapabilities>>,
 }
 
 pub struct AcpServerConfig {
@@ -55,6 +76,15 @@ pub struct AcpServerConfig {
     pub data_dir: std::path::PathBuf,
     pub config_dir: std::path::PathBuf,
     pub goose_mode: goose::config::GooseMode,
+}
+
+struct PromptStreamContext<'a> {
+    session_config: SessionConfig,
+    user_message: Message,
+    cancel_token: CancellationToken,
+    acp_session_id: SessionId,
+    session_id: String,
+    cx: &'a JrConnectionCx<AgentToClient>,
 }
 
 fn mcp_server_to_extension_config(mcp_server: McpServer) -> Result<ExtensionConfig, String> {
@@ -184,10 +214,30 @@ fn extract_first_line_number(text: &str) -> Option<usize> {
 }
 
 fn read_resource_link(link: ResourceLink) -> Option<String> {
-    let url = Url::parse(&link.uri).ok()?;
+    let url = match Url::parse(&link.uri) {
+        Ok(u) => u,
+        Err(e) => {
+            tracing::debug!(uri = %link.uri, error = %e, "Failed to parse resource link URI");
+            return None;
+        }
+    };
+
     if url.scheme() == "file" {
-        let path = url.to_file_path().ok()?;
-        let contents = fs::read_to_string(&path).ok()?;
+        let path = match url.to_file_path() {
+            Ok(p) => p,
+            Err(_) => {
+                tracing::debug!(url = %url, "Failed to convert URL to file path");
+                return None;
+            }
+        };
+
+        let contents = match fs::read_to_string(&path) {
+            Ok(c) => c,
+            Err(e) => {
+                tracing::debug!(path = ?path, error = %e, "Failed to read resource file");
+                return None;
+            }
+        };
 
         Some(format!(
             "\n\n# {}\n```\n{}\n```",
@@ -331,6 +381,8 @@ impl GooseAcpAgent {
         let config_file = Config::new(&config_path, "goose")?;
         let extensions = get_enabled_extensions_with_config(&config_file);
 
+        goose_mcp::developer::text_editor::enable_acp_mode();
+
         add_builtins(&agent_ptr, config.builtins).await;
         add_extensions(&agent_ptr, extensions).await;
 
@@ -338,6 +390,7 @@ impl GooseAcpAgent {
             provider: config.provider.clone(),
             sessions: Arc::new(Mutex::new(HashMap::new())),
             agent: agent_ptr,
+            client_capabilities: Arc::new(Mutex::new(AcpClientCapabilities::default())),
         })
     }
 
@@ -507,7 +560,8 @@ impl GooseAcpAgent {
             Err(_) => ToolCallStatus::Failed,
         };
 
-        let content = build_tool_call_content(&tool_response.tool_result);
+        let ToolCallContentWithDiffs { content, diffs } =
+            build_tool_call_content(&tool_response.tool_result);
 
         let locations = if let Some(tool_request) = session.tool_requests.get(&tool_response.id) {
             extract_tool_locations(tool_request, tool_response)
@@ -526,6 +580,41 @@ impl GooseAcpAgent {
                 fields,
             )),
         ))?;
+
+        let supports_write = self.supports_fs_write().await;
+
+        if !diffs.is_empty() {
+            if supports_write {
+                for diff in diffs {
+                    if let Err(e) = self
+                        .write_file_via_client(
+                            session_id,
+                            &diff.path,
+                            &diff.new_text,
+                            diff.old_text.as_deref(),
+                            cx,
+                        )
+                        .await
+                    {
+                        warn!(
+                            path = %diff.path.display(),
+                            error = %e,
+                            "Failed to write file via ACP client"
+                        );
+                    }
+                }
+            } else {
+                for diff in diffs {
+                    if let Err(e) = tokio::fs::write(&diff.path, &diff.new_text).await {
+                        warn!(
+                            path = %diff.path.display(),
+                            error = %e,
+                            "Failed to write file directly"
+                        );
+                    }
+                }
+            }
+        }
 
         Ok(())
     }
@@ -629,47 +718,80 @@ fn outcome_to_confirmation(outcome: &RequestPermissionOutcome) -> PermissionConf
     }
 }
 
-fn build_tool_call_content(tool_result: &ToolResult<CallToolResult>) -> Vec<ToolCallContent> {
+use goose_mcp::developer::text_editor::{FileDiff, GooseFileDiffEnvelope};
+
+fn try_parse_file_diff(text: &str) -> Option<FileDiff> {
+    match serde_json::from_str::<GooseFileDiffEnvelope>(text) {
+        Ok(envelope) => Some(envelope.diff),
+        Err(e) => {
+            tracing::trace!(error = %e, "Text is not a FileDiff envelope");
+            None
+        }
+    }
+}
+
+struct ToolCallContentWithDiffs {
+    content: Vec<ToolCallContent>,
+    diffs: Vec<FileDiff>,
+}
+
+fn build_tool_call_content(tool_result: &ToolResult<CallToolResult>) -> ToolCallContentWithDiffs {
     match tool_result {
-        Ok(result) => result
-            .content
-            .iter()
-            .filter_map(|content| match &content.raw {
-                RawContent::Text(val) => Some(ToolCallContent::Content(Content::new(
-                    ContentBlock::Text(TextContent::new(val.text.clone())),
-                ))),
-                RawContent::Image(val) => Some(ToolCallContent::Content(Content::new(
-                    ContentBlock::Image(ImageContent::new(val.data.clone(), val.mime_type.clone())),
-                ))),
-                RawContent::Resource(val) => {
-                    let resource = match &val.resource {
-                        ResourceContents::TextResourceContents {
-                            mime_type,
-                            text,
-                            uri,
-                            ..
-                        } => EmbeddedResourceResource::TextResourceContents(
-                            TextResourceContents::new(text.clone(), uri.clone())
-                                .mime_type(mime_type.clone()),
-                        ),
-                        ResourceContents::BlobResourceContents {
-                            mime_type,
-                            blob,
-                            uri,
-                            ..
-                        } => EmbeddedResourceResource::BlobResourceContents(
-                            BlobResourceContents::new(blob.clone(), uri.clone())
-                                .mime_type(mime_type.clone()),
-                        ),
-                    };
-                    Some(ToolCallContent::Content(Content::new(
-                        ContentBlock::Resource(EmbeddedResource::new(resource)),
-                    )))
+        Ok(result) => {
+            let mut content = Vec::new();
+            let mut diffs = Vec::new();
+
+            for item in result.content.iter() {
+                match &item.raw {
+                    RawContent::Text(val) => {
+                        if let Some(parsed_diff) = try_parse_file_diff(&val.text) {
+                            diffs.push(parsed_diff);
+                        } else {
+                            content.push(ToolCallContent::Content(Content::new(
+                                ContentBlock::Text(TextContent::new(val.text.clone())),
+                            )));
+                        }
+                    }
+                    RawContent::Image(val) => {
+                        content.push(ToolCallContent::Content(Content::new(ContentBlock::Image(
+                            ImageContent::new(val.data.clone(), val.mime_type.clone()),
+                        ))));
+                    }
+                    RawContent::Resource(val) => {
+                        let resource = match &val.resource {
+                            ResourceContents::TextResourceContents {
+                                mime_type,
+                                text,
+                                uri,
+                                ..
+                            } => EmbeddedResourceResource::TextResourceContents(
+                                TextResourceContents::new(text.clone(), uri.clone())
+                                    .mime_type(mime_type.clone()),
+                            ),
+                            ResourceContents::BlobResourceContents {
+                                mime_type,
+                                blob,
+                                uri,
+                                ..
+                            } => EmbeddedResourceResource::BlobResourceContents(
+                                BlobResourceContents::new(blob.clone(), uri.clone())
+                                    .mime_type(mime_type.clone()),
+                            ),
+                        };
+                        content.push(ToolCallContent::Content(Content::new(
+                            ContentBlock::Resource(EmbeddedResource::new(resource)),
+                        )));
+                    }
+                    RawContent::Audio(_) | RawContent::ResourceLink(_) => {}
                 }
-                RawContent::Audio(_) | RawContent::ResourceLink(_) => None,
-            })
-            .collect(),
-        Err(_) => Vec::new(),
+            }
+
+            ToolCallContentWithDiffs { content, diffs }
+        }
+        Err(_) => ToolCallContentWithDiffs {
+            content: Vec::new(),
+            diffs: Vec::new(),
+        },
     }
 }
 
@@ -679,6 +801,15 @@ impl GooseAcpAgent {
         args: InitializeRequest,
     ) -> Result<InitializeResponse, sacp::Error> {
         debug!(?args, "initialize request");
+
+        let client_caps = AcpClientCapabilities::from(&args.client_capabilities);
+        info!(
+            fs_write = client_caps.fs_write_text_file,
+            fs_read = client_caps.fs_read_text_file,
+            terminal = client_caps.terminal,
+            "Client capabilities received"
+        );
+        *self.client_capabilities.lock().await = client_caps;
 
         let capabilities = AgentCapabilities::new()
             .load_session(true)
@@ -690,6 +821,36 @@ impl GooseAcpAgent {
             )
             .mcp_capabilities(McpCapabilities::new().http(true));
         Ok(InitializeResponse::new(args.protocol_version).agent_capabilities(capabilities))
+    }
+
+    pub async fn supports_fs_write(&self) -> bool {
+        self.client_capabilities.lock().await.fs_write_text_file
+    }
+
+    pub async fn write_file_via_client(
+        &self,
+        session_id: &SessionId,
+        path: impl Into<std::path::PathBuf>,
+        content: impl Into<String>,
+        old_text: Option<&str>,
+        cx: &JrConnectionCx<AgentToClient>,
+    ) -> Result<(), sacp::Error> {
+        let path = path.into();
+        let content = content.into();
+
+        let mut request = WriteTextFileRequest::new(session_id.clone(), path, content);
+
+        if let Some(old) = old_text {
+            let mut meta = serde_json::Map::new();
+            meta.insert(
+                "old_text".to_string(),
+                serde_json::Value::String(old.to_string()),
+            );
+            request = request.meta(meta);
+        }
+
+        let _response: WriteTextFileResponse = cx.send_request(request).block_task().await?;
+        Ok(())
     }
 
     async fn on_new_session(
@@ -876,9 +1037,36 @@ impl GooseAcpAgent {
             retry_config: None,
         };
 
+        let ctx = PromptStreamContext {
+            session_config,
+            user_message,
+            cancel_token: cancel_token.clone(),
+            acp_session_id: args.session_id.clone(),
+            session_id: session_id.clone(),
+            cx,
+        };
+
+        let result = self.process_prompt_stream(ctx).await;
+
+        let mut sessions = self.sessions.lock().await;
+        if let Some(session) = sessions.get_mut(&session_id) {
+            session.cancel_token = None;
+        }
+
+        result
+    }
+
+    async fn process_prompt_stream(
+        &self,
+        ctx: PromptStreamContext<'_>,
+    ) -> Result<PromptResponse, sacp::Error> {
         let mut stream = self
             .agent
-            .reply(user_message, session_config, Some(cancel_token.clone()))
+            .reply(
+                ctx.user_message,
+                ctx.session_config,
+                Some(ctx.cancel_token.clone()),
+            )
             .await
             .map_err(|e| {
                 sacp::Error::internal_error().data(format!("Error getting agent reply: {}", e))
@@ -889,7 +1077,7 @@ impl GooseAcpAgent {
         let mut was_cancelled = false;
 
         while let Some(event) = stream.next().await {
-            if cancel_token.is_cancelled() {
+            if ctx.cancel_token.is_cancelled() {
                 was_cancelled = true;
                 break;
             }
@@ -897,16 +1085,21 @@ impl GooseAcpAgent {
             match event {
                 Ok(goose::agents::AgentEvent::Message(message)) => {
                     let mut sessions = self.sessions.lock().await;
-                    let session = sessions.get_mut(&session_id).ok_or_else(|| {
+                    let session = sessions.get_mut(&ctx.session_id).ok_or_else(|| {
                         sacp::Error::invalid_params()
-                            .data(format!("Session not found: {}", session_id))
+                            .data(format!("Session not found: {}", ctx.session_id))
                     })?;
 
                     session.messages.push(message.clone());
 
                     for content_item in &message.content {
-                        self.handle_message_content(content_item, &args.session_id, session, cx)
-                            .await?;
+                        self.handle_message_content(
+                            content_item,
+                            &ctx.acp_session_id,
+                            session,
+                            ctx.cx,
+                        )
+                        .await?;
                     }
                 }
                 Ok(_) => {}
@@ -915,11 +1108,6 @@ impl GooseAcpAgent {
                         .data(format!("Error in agent response stream: {}", e)));
                 }
             }
-        }
-
-        let mut sessions = self.sessions.lock().await;
-        if let Some(session) = sessions.get_mut(&session_id) {
-            session.cancel_token = None;
         }
 
         Ok(PromptResponse::new(if was_cancelled {
@@ -1200,5 +1388,56 @@ print(\"hello, world\")
         expected: PermissionConfirmation,
     ) {
         assert_eq!(outcome_to_confirmation(&input), expected);
+    }
+
+    #[test]
+    fn test_acp_client_capabilities_default() {
+        let caps = AcpClientCapabilities::default();
+        assert!(!caps.fs_write_text_file);
+        assert!(!caps.fs_read_text_file);
+        assert!(!caps.terminal);
+    }
+
+    #[test]
+    fn test_acp_client_capabilities_from_sacp() {
+        use sacp::schema::{ClientCapabilities, FileSystemCapability};
+
+        let sacp_caps = ClientCapabilities::new()
+            .fs(FileSystemCapability::new()
+                .read_text_file(true)
+                .write_text_file(true))
+            .terminal(true);
+
+        let caps = AcpClientCapabilities::from(&sacp_caps);
+        assert!(caps.fs_write_text_file);
+        assert!(caps.fs_read_text_file);
+        assert!(caps.terminal);
+
+        let sacp_caps_disabled = ClientCapabilities::new()
+            .fs(FileSystemCapability::new()
+                .read_text_file(false)
+                .write_text_file(false))
+            .terminal(false);
+
+        let caps_disabled = AcpClientCapabilities::from(&sacp_caps_disabled);
+        assert!(!caps_disabled.fs_write_text_file);
+        assert!(!caps_disabled.fs_read_text_file);
+        assert!(!caps_disabled.terminal);
+    }
+
+    #[test]
+    fn test_acp_client_capabilities_partial() {
+        use sacp::schema::{ClientCapabilities, FileSystemCapability};
+
+        let sacp_caps = ClientCapabilities::new()
+            .fs(FileSystemCapability::new()
+                .write_text_file(true)
+                .read_text_file(false))
+            .terminal(false);
+
+        let caps = AcpClientCapabilities::from(&sacp_caps);
+        assert!(caps.fs_write_text_file);
+        assert!(!caps.fs_read_text_file);
+        assert!(!caps.terminal);
     }
 }

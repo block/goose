@@ -105,12 +105,16 @@ pub async fn run_builtin_and_mcp<S: Session>() {
     expected_session_id.set(session.id());
 
     let output = session.prompt(prompt, PermissionDecision::Cancel).await;
-    if matches!(output.tool_status, Some(ToolCallStatus::Failed)) || output.text.contains("error") {
-        panic!("{}", output.text);
-    }
 
-    let result = fs::read_to_string("/tmp/result.txt").unwrap_or_default();
-    assert_eq!(result, format!("{FAKE_CODE}\n"));
+    assert!(
+        !std::path::Path::new("/tmp/result.txt").exists(),
+        "File should not be written in ACP mode"
+    );
+
+    assert!(
+        output.text.contains("result.txt") || output.text.contains("wrote"),
+        "Response should mention the file write"
+    );
     expected_session_id.assert_matches(&session.id().0);
 }
 
@@ -219,5 +223,57 @@ pub async fn run_configured_extension<S: Session>() {
 
     let output = session.prompt(prompt, PermissionDecision::Cancel).await;
     assert_eq!(output.text, FAKE_CODE);
+    expected_session_id.assert_matches(&session.id().0);
+}
+
+pub async fn run_text_editor_write_acp<S: Session>() {
+    let expected_session_id = ExpectedSessionId::default();
+
+    let prompt = "Write hello to /tmp/acp_test_write.txt";
+
+    let openai = OpenAiFixture::new(
+        vec![
+            (
+                prompt.to_string(),
+                include_str!("../test_data/openai_text_editor_write.txt"),
+            ),
+            (
+                "__goose_file_diff__".to_string(),
+                include_str!("../test_data/openai_text_editor_final.txt"),
+            ),
+        ],
+        expected_session_id.clone(),
+    )
+    .await;
+
+    let test_file = std::path::Path::new("/tmp/acp_test_write.txt");
+    if test_file.exists() {
+        std::fs::remove_file(test_file).ok();
+    }
+
+    let config = TestSessionConfig {
+        builtins: vec!["developer".to_string()],
+        ..Default::default()
+    };
+
+    let mut session = S::new(config, openai).await;
+    expected_session_id.set(session.id());
+
+    let output = session.prompt(prompt, PermissionDecision::AllowOnce).await;
+
+    assert!(
+        !test_file.exists(),
+        "File should NOT be written directly to disk in ACP mode"
+    );
+
+    assert!(
+        output
+            .write_requests
+            .iter()
+            .any(|p| p.to_string_lossy().contains("acp_test_write.txt")),
+        "Should have sent a WriteTextFileRequest for acp_test_write.txt, got: {:?}",
+        output.write_requests
+    );
+
     expected_session_id.assert_matches(&session.id().0);
 }
