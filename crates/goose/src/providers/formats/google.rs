@@ -533,6 +533,21 @@ struct GenerationConfig {
     temperature: Option<f64>,
     #[serde(skip_serializing_if = "Option::is_none")]
     max_output_tokens: Option<i32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    thinking_config: Option<ThinkingConfig>,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "lowercase")]
+enum ThinkingLevel {
+    Low,
+    High,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct ThinkingConfig {
+    thinking_level: ThinkingLevel,
 }
 
 #[derive(Serialize)]
@@ -544,6 +559,45 @@ struct GoogleRequest<'a> {
     tools: Option<ToolsWrapper>,
     #[serde(skip_serializing_if = "Option::is_none")]
     generation_config: Option<GenerationConfig>,
+}
+
+fn get_thinking_config(model_config: &ModelConfig) -> Option<ThinkingConfig> {
+    if !model_config
+        .model_name
+        .to_lowercase()
+        .starts_with("gemini-3")
+    {
+        return None;
+    }
+
+    let thinking_level_str = model_config
+        .request_params
+        .as_ref()
+        .and_then(|params| params.get("thinking_level"))
+        .and_then(|v| v.as_str())
+        .map(|s| s.to_lowercase())
+        .or_else(|| {
+            crate::config::Config::global()
+                .get_param::<String>("gemini3_thinking_level")
+                .ok()
+                .map(|s| s.to_lowercase())
+        })
+        .unwrap_or_else(|| "low".to_string());
+
+    let thinking_level = match thinking_level_str.as_str() {
+        "high" => ThinkingLevel::High,
+        "low" => ThinkingLevel::Low,
+        invalid => {
+            tracing::warn!(
+                "Invalid thinking level '{}' for model '{}'. Valid levels: low, high. Using 'low'.",
+                invalid,
+                model_config.model_name,
+            );
+            ThinkingLevel::Low
+        }
+    };
+
+    Some(ThinkingConfig { thinking_level })
 }
 
 pub fn create_request(
@@ -560,15 +614,20 @@ pub fn create_request(
         })
     };
 
-    let generation_config =
-        if model_config.temperature.is_some() || model_config.max_tokens.is_some() {
-            Some(GenerationConfig {
-                temperature: model_config.temperature.map(|t| t as f64),
-                max_output_tokens: model_config.max_tokens,
-            })
-        } else {
-            None
-        };
+    let thinking_config = get_thinking_config(model_config);
+
+    let generation_config = if model_config.temperature.is_some()
+        || model_config.max_tokens.is_some()
+        || thinking_config.is_some()
+    {
+        Some(GenerationConfig {
+            temperature: model_config.temperature.map(|t| t as f64),
+            max_output_tokens: model_config.max_tokens,
+            thinking_config,
+        })
+    } else {
+        None
+    };
 
     let request = GoogleRequest {
         system_instruction: SystemInstruction {
@@ -1292,5 +1351,27 @@ data: [DONE]"#;
         let schema = &result[0]["parametersJsonSchema"];
         assert_eq!(schema["properties"]["field"]["$ref"], "#/$defs/MyType");
         assert!(schema.get("$defs").is_some());
+    }
+
+    #[test]
+    fn test_get_thinking_config() {
+        use crate::model::ModelConfig;
+
+        // Test 1: Gemini 3 model defaults to low thinking level
+        let config = ModelConfig::new("gemini-3-pro").unwrap();
+        let result = get_thinking_config(&config);
+        assert!(result.is_some());
+        let thinking_config = result.unwrap();
+        assert!(matches!(thinking_config.thinking_level, ThinkingLevel::Low));
+
+        // Test 2: Case-insensitive model detection
+        let config = ModelConfig::new("Gemini-3-Flash").unwrap();
+        let result = get_thinking_config(&config);
+        assert!(result.is_some());
+
+        // Test 3: Non-Gemini 3 model returns None
+        let config = ModelConfig::new("gpt-4o").unwrap();
+        let result = get_thinking_config(&config);
+        assert!(result.is_none());
     }
 }

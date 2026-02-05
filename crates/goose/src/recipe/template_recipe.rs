@@ -41,6 +41,12 @@ fn filter_unparseable_variables(template_variables: &[String]) -> Result<Vec<Str
     let mut vars_to_convert = Vec::new();
 
     for var in template_variables {
+        let trimmed = var.trim();
+
+        if trimmed.starts_with('\'') || trimmed.starts_with('"') {
+            continue;
+        }
+
         let mut env = Environment::new();
         env.set_undefined_behavior(UndefinedBehavior::Lenient);
 
@@ -279,6 +285,14 @@ description: "A test recipe"
             assert!(!result.contains(r#"prompt: "\"\"""#)); // Should not contain escaped quotes
 
             assert!(result.contains(r#"name: "Simple Recipe""#));
+        }
+
+        #[test]
+        fn test_jinja_escape_syntax() {
+            let content = r#"{{'{{param_key}}'}}"#;
+            let params = HashMap::from([("recipe_dir".to_string(), "test_dir".to_string())]);
+            let result = render_recipe_content_with_params(content, &params).unwrap();
+            assert_eq!(result, "{{param_key}}");
         }
     }
 }

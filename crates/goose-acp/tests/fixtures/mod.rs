@@ -1,7 +1,6 @@
 #![recursion_limit = "256"]
 #![allow(unused_attributes)]
 
-use assert_json_diff::{assert_json_matches_no_panic, CompareMode, Config};
 use async_trait::async_trait;
 use fs_err as fs;
 use goose::builtin_extension::register_builtin_extensions;
@@ -153,8 +152,9 @@ impl OpenAiFixture {
                 let queue = queue.clone();
                 let expected_session_id = expected_session_id.clone();
                 move |req: &wiremock::Request| {
-                    let body = String::from_utf8_lossy(&req.body);
+                    let body = std::str::from_utf8(&req.body).unwrap_or("");
 
+                    // Validate session ID header
                     let actual = req
                         .headers
                         .get(SESSION_ID_HEADER)
@@ -174,28 +174,30 @@ impl OpenAiFixture {
                             ));
                     }
 
-                    let (expected_body, response) = {
-                        let mut q = queue.lock().unwrap();
-                        q.pop_front().unwrap_or_default()
-                    };
-
-                    if body.contains(&expected_body) && !expected_body.is_empty() {
+                    // See if the actual request matches the expected pattern
+                    let mut q = queue.lock().unwrap();
+                    let (expected_body, response) = q.front().cloned().unwrap_or_default();
+                    if !expected_body.is_empty() && body.contains(&expected_body) {
+                        q.pop_front();
                         return ResponseTemplate::new(200)
                             .insert_header("content-type", "text/event-stream")
                             .set_body_string(response);
                     }
+                    drop(q);
 
-                    // Coerce non-json to allow a uniform JSON diff error response.
-                    let exp = serde_json::from_str(&expected_body)
-                        .unwrap_or(serde_json::Value::String(expected_body.clone()));
-                    let act = serde_json::from_str(&body)
-                        .unwrap_or(serde_json::Value::String(body.to_string()));
-                    let diff =
-                        assert_json_matches_no_panic(&exp, &act, Config::new(CompareMode::Strict))
-                            .unwrap_err();
+                    // If there was no body, the request was unexpected. Otherwise, it is a mismatch.
+                    let message = if expected_body.is_empty() {
+                        format!("Unexpected request:\n  {}", body)
+                    } else {
+                        format!(
+                            "Expected body to contain:\n  {}\n\nActual body:\n  {}",
+                            expected_body, body
+                        )
+                    };
+                    // Use OpenAI's error response schema so the provider will pass the error through.
                     ResponseTemplate::new(417)
                         .insert_header("content-type", "application/json")
-                        .set_body_json(serde_json::json!({"error": {"message": diff}}))
+                        .set_body_json(serde_json::json!({"error": {"message": message}}))
                 }
             })
             .mount(&mock_server)
@@ -464,7 +466,10 @@ where
             runtime.block_on(fut);
         })
         .unwrap();
-    handle.join().unwrap();
+    if let Err(err) = handle.join() {
+        // Re-raise the original panic so the test shows the real failure message.
+        std::panic::resume_unwind(err);
+    }
 }
 
 pub mod server;
