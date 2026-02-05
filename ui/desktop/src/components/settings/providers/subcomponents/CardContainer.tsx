@@ -39,11 +39,11 @@ export default function CardContainer({
   return (
     <div
       data-testid={testId}
-      className={`relative h-full p-[2px] overflow-hidden rounded-[9px] group/card 
+      className={`relative h-full p-[2px] overflow-hidden rounded-[9px] group/card
                  ${
                    grayedOut
-                     ? 'bg-borderSubtle hover:bg-gray-700'
-                     : 'bg-borderSubtle hover:bg-transparent hover:duration-300'
+                     ? 'bg-background-muted hover:bg-gray-700'
+                     : 'bg-background-muted hover:bg-transparent hover:duration-300'
                  }`}
       onClick={!grayedOut ? onClick : undefined}
       style={{
@@ -57,8 +57,8 @@ export default function CardContainer({
                    ${borderStyle === 'dashed' ? 'border-2 border-dashed' : 'border'}
                    ${
                      grayedOut
-                       ? 'border-borderSubtle'
-                       : 'border-borderSubtle hover:border-borderStandard'
+                       ? 'border-border-default'
+                       : 'border-border-default hover:border-border-default'
                    }`}
       >
         {header && (

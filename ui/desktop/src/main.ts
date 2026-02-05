@@ -16,7 +16,6 @@ import {
   Tray,
 } from 'electron';
 import { pathToFileURL, format as formatUrl, URLSearchParams } from 'node:url';
-import { Buffer } from 'node:buffer';
 import fs from 'node:fs/promises';
 import fsSync from 'node:fs';
 import started from 'electron-squirrel-startup';
@@ -29,15 +28,10 @@ import { expandTilde } from './utils/pathUtils';
 import log from './utils/logger';
 import { ensureWinShims } from './utils/winShims';
 import { addRecentDir, loadRecentDirs } from './utils/recentDirs';
-import { formatAppName } from './utils/conversionUtils';
-import {
-  EnvToggles,
-  loadSettings,
-  saveSettings,
-  updateEnvironmentVariables,
-} from './utils/settings';
+import { formatAppName, errorMessage } from './utils/conversionUtils';
+import type { Settings } from './utils/settings';
+import { defaultKeyboardShortcuts, getKeyboardShortcuts } from './utils/settings';
 import * as crypto from 'crypto';
-// import electron from "electron";
 import * as yaml from 'yaml';
 import windowStateKeeper from 'electron-window-state';
 import {
@@ -52,86 +46,36 @@ import './utils/recipeHash';
 import { Client, createClient, createConfig } from './api/client';
 import { GooseApp } from './api';
 import installExtension, { REACT_DEVELOPER_TOOLS } from 'electron-devtools-installer';
+import { BLOCKED_PROTOCOLS, WEB_PROTOCOLS } from './utils/urlSecurity';
 
-// Updater functions (moved here to keep updates.ts minimal for release replacement)
 function shouldSetupUpdater(): boolean {
   // Setup updater if either the flag is enabled OR dev updates are enabled
   return UPDATES_ENABLED || process.env.ENABLE_DEV_UPDATES === 'true';
 }
 
-// Define temp directory for pasted images
-const gooseTempDir = path.join(app.getPath('temp'), 'goose-pasted-images');
+// Settings management
+const SETTINGS_FILE = path.join(app.getPath('userData'), 'settings.json');
 
-// Function to ensure the temporary directory exists
-async function ensureTempDirExists(): Promise<string> {
-  try {
-    // Check if the path already exists
-    try {
-      const stats = await fs.stat(gooseTempDir);
+const defaultSettings: Settings = {
+  showMenuBarIcon: true,
+  showDockIcon: true,
+  enableWakelock: false,
+  spellcheckEnabled: true,
+  keyboardShortcuts: defaultKeyboardShortcuts,
+};
 
-      // If it exists but is not a directory, remove it and recreate
-      if (!stats.isDirectory()) {
-        await fs.unlink(gooseTempDir);
-        await fs.mkdir(gooseTempDir, { recursive: true });
-      }
-
-      // Startup cleanup: remove old files and any symlinks
-      const files = await fs.readdir(gooseTempDir);
-      const now = Date.now();
-      const MAX_AGE = 24 * 60 * 60 * 1000; // 24 hours in milliseconds
-
-      for (const file of files) {
-        const filePath = path.join(gooseTempDir, file);
-        try {
-          const fileStats = await fs.lstat(filePath);
-
-          // Always remove symlinks
-          if (fileStats.isSymbolicLink()) {
-            console.warn(
-              `[Main] Found symlink in temp directory during startup: ${filePath}. Removing it.`
-            );
-            await fs.unlink(filePath);
-            continue;
-          }
-
-          // Remove old files (older than 24 hours)
-          if (fileStats.isFile()) {
-            const fileAge = now - fileStats.mtime.getTime();
-            if (fileAge > MAX_AGE) {
-              console.log(
-                `[Main] Removing old temp file during startup: ${filePath} (age: ${Math.round(fileAge / (60 * 60 * 1000))} hours)`
-              );
-              await fs.unlink(filePath);
-            }
-          }
-        } catch (fileError) {
-          // If we can't stat the file, try to remove it anyway
-          console.warn(`[Main] Could not stat file ${filePath}, attempting to remove:`, fileError);
-          try {
-            await fs.unlink(filePath);
-          } catch (unlinkError) {
-            console.error(`[Main] Failed to remove problematic file ${filePath}:`, unlinkError);
-          }
-        }
-      }
-    } catch (error) {
-      if (error && typeof error === 'object' && 'code' in error && error.code === 'ENOENT') {
-        // Directory doesn't exist, create it
-        await fs.mkdir(gooseTempDir, { recursive: true });
-      } else {
-        throw error;
-      }
-    }
-
-    // Set proper permissions on the directory (0755 = rwxr-xr-x)
-    await fs.chmod(gooseTempDir, 0o755);
-
-    console.log('[Main] Temporary directory for pasted images ensured:', gooseTempDir);
-  } catch (error) {
-    console.error('[Main] Failed to create temp directory:', gooseTempDir, error);
-    throw error; // Propagate error
+function getSettings(): Settings {
+  if (fsSync.existsSync(SETTINGS_FILE)) {
+    const data = fsSync.readFileSync(SETTINGS_FILE, 'utf8');
+    return JSON.parse(data);
   }
-  return gooseTempDir;
+  return defaultSettings;
+}
+
+function updateSettings(modifier: (settings: Settings) => void): void {
+  const settings = getSettings();
+  modifier(settings);
+  fsSync.writeFileSync(SETTINGS_FILE, JSON.stringify(settings, null, 2));
 }
 
 async function configureProxy() {
@@ -154,8 +98,9 @@ async function configureProxy() {
 if (started) app.quit();
 
 if (process.env.ENABLE_PLAYWRIGHT) {
-  console.log('[Main] Enabling Playwright remote debugging on port 9222');
-  app.commandLine.appendSwitch('remote-debugging-port', '9222');
+  const debugPort = process.env.PLAYWRIGHT_DEBUG_PORT || '9222';
+  console.log(`[Main] Enabling Playwright remote debugging on port ${debugPort}`);
+  app.commandLine.appendSwitch('remote-debugging-port', debugPort);
 }
 
 // In development mode, force registration as the default protocol client
@@ -450,8 +395,11 @@ async function handleFileOpen(filePath: string) {
 declare var MAIN_WINDOW_VITE_DEV_SERVER_URL: string;
 declare var MAIN_WINDOW_VITE_NAME: string;
 
-// State for environment variable toggles
-let envToggles: EnvToggles = loadSettings().envToggles;
+function getAppUrl(): URL {
+  return MAIN_WINDOW_VITE_DEV_SERVER_URL
+    ? new URL(MAIN_WINDOW_VITE_DEV_SERVER_URL)
+    : pathToFileURL(path.join(__dirname, `../renderer/${MAIN_WINDOW_VITE_NAME}/index.html`));
+}
 
 // Parse command line arguments
 const parseArgs = () => {
@@ -495,7 +443,7 @@ const { defaultProvider, defaultModel, predefinedModels, baseUrlShare, version }
 
 const GENERATED_SECRET = crypto.randomBytes(32).toString('hex');
 
-const getServerSecret = (settings: ReturnType<typeof loadSettings>): string => {
+const getServerSecret = (settings: Settings): string => {
   if (settings.externalGoosed?.enabled && settings.externalGoosed.secret) {
     return settings.externalGoosed.secret;
   }
@@ -535,9 +483,7 @@ const createChat = async (
   recipeId?: string,
   recipeParameters?: Record<string, string> // Recipe parameter values from deeplink URL
 ) => {
-  updateEnvironmentVariables(envToggles);
-
-  const settings = loadSettings();
+  const settings = getSettings();
   const serverSecret = getServerSecret(settings);
 
   const goosedResult = await startGoosed({
@@ -629,15 +575,11 @@ const createChat = async (
       });
 
       if (response === 0) {
-        const updatedSettings = {
-          ...settings,
-          externalGoosed: {
-            enabled: false,
-            url: settings.externalGoosed?.url || '',
-            secret: settings.externalGoosed?.secret || '',
-          },
-        };
-        saveSettings(updatedSettings);
+        updateSettings((s) => {
+          if (s.externalGoosed) {
+            s.externalGoosed.enabled = false;
+          }
+        });
         mainWindow.destroy();
         return createChat(app, initialMessage, dir);
       }
@@ -718,14 +660,19 @@ const createChat = async (
     }
   });
 
-  // Handle new window creation for links
+  // Handle new window creation for links (fallback for any links not handled by onClick)
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
-    // Open all links in external browser
-    if (url.startsWith('http:') || url.startsWith('https:')) {
-      shell.openExternal(url);
+    try {
+      const protocol = new URL(url).protocol;
+      if (BLOCKED_PROTOCOLS.includes(protocol)) {
+        return { action: 'deny' };
+      }
+    } catch {
       return { action: 'deny' };
     }
-    return { action: 'allow' };
+
+    shell.openExternal(url);
+    return { action: 'deny' };
   });
 
   // Handle new-window events (alternative approach for external links)
@@ -733,13 +680,19 @@ const createChat = async (
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   mainWindow.webContents.on('new-window' as any, function (event: any, url: string) {
     event.preventDefault();
+    try {
+      const protocol = new URL(url).protocol;
+      if (BLOCKED_PROTOCOLS.includes(protocol)) {
+        return;
+      }
+    } catch {
+      return;
+    }
     shell.openExternal(url);
   });
 
   const windowId = mainWindow.id;
-  const url = MAIN_WINDOW_VITE_DEV_SERVER_URL
-    ? new URL(MAIN_WINDOW_VITE_DEV_SERVER_URL)
-    : pathToFileURL(path.join(__dirname, `../renderer/${MAIN_WINDOW_VITE_NAME}/index.html`));
+  const url = getAppUrl();
 
   let appPath = '/';
   const routeMap: Record<string, string> = {
@@ -897,9 +850,7 @@ const createLauncher = () => {
   );
 
   // Load launcher window content
-  const url = MAIN_WINDOW_VITE_DEV_SERVER_URL
-    ? new URL(MAIN_WINDOW_VITE_DEV_SERVER_URL)
-    : pathToFileURL(path.join(__dirname, `../renderer/${MAIN_WINDOW_VITE_NAME}/index.html`));
+  const url = getAppUrl();
 
   url.hash = '/launcher';
   launcherWindow.loadURL(formatUrl(url));
@@ -936,9 +887,9 @@ const destroyTray = () => {
 };
 
 const disableTray = () => {
-  const settings = loadSettings();
-  settings.showMenuBarIcon = false;
-  saveSettings(settings);
+  updateSettings((s) => {
+    s.showMenuBarIcon = false;
+  });
 };
 
 const createTray = () => {
@@ -1138,8 +1089,7 @@ function parseRecipeDeeplink(url: string): RecipeDeeplinkData | undefined {
       try {
         recipeDeeplink = decodeURIComponent(recipeDeeplinkTmp);
       } catch (error) {
-        const errorMessage = error instanceof Error ? error.message : String(error);
-        console.error('[Main] parseRecipeDeeplink - Failed to decode:', errorMessage);
+        console.error('[Main] parseRecipeDeeplink - Failed to decode:', errorMessage(error));
         return undefined;
       }
     }
@@ -1230,15 +1180,15 @@ ipcMain.on('react-ready', (event) => {
   log.info('React ready - window is prepared for deep links');
 });
 
-// Handle external URL opening
 ipcMain.handle('open-external', async (_event, url: string) => {
-  try {
-    await shell.openExternal(url);
-    return true;
-  } catch (error) {
-    console.error('Error opening external URL:', error);
-    throw error;
+  const parsedUrl = new URL(url);
+
+  if (BLOCKED_PROTOCOLS.includes(parsedUrl.protocol)) {
+    console.warn(`[Main] Blocked dangerous protocol: ${parsedUrl.protocol}`);
+    return;
   }
+
+  await shell.openExternal(url);
 });
 
 ipcMain.handle('directory-chooser', async () => {
@@ -1256,26 +1206,27 @@ ipcMain.handle('add-recent-dir', (_event, dir: string) => {
 
 // Handle scheduling engine settings
 ipcMain.handle('get-settings', () => {
-  try {
-    return loadSettings();
-  } catch (error) {
-    console.error('Error getting settings:', error);
-    return null;
-  }
+  return getSettings(); // Always returns Settings (uses defaults as fallback)
 });
 
 ipcMain.handle('save-settings', (_event, settings) => {
-  try {
-    saveSettings(settings);
-    return true;
-  } catch (error) {
-    console.error('Error saving settings:', error);
-    return false;
+  const oldSettings = getSettings();
+
+  const oldShortcuts = getKeyboardShortcuts(oldSettings);
+  const newShortcuts = getKeyboardShortcuts(settings);
+  const shortcutsChanged = JSON.stringify(oldShortcuts) !== JSON.stringify(newShortcuts);
+
+  fsSync.writeFileSync(SETTINGS_FILE, JSON.stringify(settings, null, 2));
+
+  if (shortcutsChanged) {
+    registerGlobalShortcuts();
   }
+
+  return true;
 });
 
 ipcMain.handle('get-secret-key', () => {
-  const settings = loadSettings();
+  const settings = getSettings();
   return getServerSecret(settings);
 });
 
@@ -1293,26 +1244,21 @@ ipcMain.handle('get-goosed-host-port', async (event) => {
 
 // Handle menu bar icon visibility
 ipcMain.handle('set-menu-bar-icon', async (_event, show: boolean) => {
-  try {
-    const settings = loadSettings();
-    settings.showMenuBarIcon = show;
-    saveSettings(settings);
+  updateSettings((s) => {
+    s.showMenuBarIcon = show;
+  });
 
-    if (show) {
-      createTray();
-    } else {
-      destroyTray();
-    }
-    return true;
-  } catch (error) {
-    console.error('Error setting menu bar icon:', error);
-    return false;
+  if (show) {
+    createTray();
+  } else {
+    destroyTray();
   }
+  return true;
 });
 
 ipcMain.handle('get-menu-bar-icon-state', () => {
   try {
-    const settings = loadSettings();
+    const settings = getSettings();
     return settings.showMenuBarIcon ?? true;
   } catch (error) {
     console.error('Error getting menu bar icon state:', error);
@@ -1322,35 +1268,31 @@ ipcMain.handle('get-menu-bar-icon-state', () => {
 
 // Handle dock icon visibility (macOS only)
 ipcMain.handle('set-dock-icon', async (_event, show: boolean) => {
-  try {
-    if (process.platform !== 'darwin') return false;
+  if (process.platform !== 'darwin') return false;
 
-    const settings = loadSettings();
-    settings.showDockIcon = show;
-    saveSettings(settings);
+  const settings = getSettings();
+  updateSettings((s) => {
+    s.showDockIcon = show;
+  });
 
-    if (show) {
-      app.dock?.show();
-    } else {
-      // Only hide the dock if we have a menu bar icon to maintain accessibility
-      if (settings.showMenuBarIcon) {
-        app.dock?.hide();
-        setTimeout(() => {
-          focusWindow();
-        }, 50);
-      }
+  if (show) {
+    app.dock?.show();
+  } else {
+    // Only hide the dock if we have a menu bar icon to maintain accessibility
+    if (settings.showMenuBarIcon) {
+      app.dock?.hide();
+      setTimeout(() => {
+        focusWindow();
+      }, 50);
     }
-    return true;
-  } catch (error) {
-    console.error('Error setting dock icon:', error);
-    return false;
   }
+  return true;
 });
 
 ipcMain.handle('get-dock-icon-state', () => {
   try {
     if (process.platform !== 'darwin') return true;
-    const settings = loadSettings();
+    const settings = getSettings();
     return settings.showDockIcon ?? true;
   } catch (error) {
     console.error('Error getting dock icon state:', error);
@@ -1416,39 +1358,34 @@ ipcMain.handle('open-notifications-settings', async () => {
 
 // Handle wakelock setting
 ipcMain.handle('set-wakelock', async (_event, enable: boolean) => {
-  try {
-    const settings = loadSettings();
-    settings.enableWakelock = enable;
-    saveSettings(settings);
+  updateSettings((s) => {
+    s.enableWakelock = enable;
+  });
 
-    // Stop all existing power save blockers when disabling the setting
-    if (!enable) {
-      for (const [windowId, blockerId] of windowPowerSaveBlockers.entries()) {
-        try {
-          powerSaveBlocker.stop(blockerId);
-          console.log(
-            `[Main] Stopped power save blocker ${blockerId} for window ${windowId} due to wakelock setting disabled`
-          );
-        } catch (error) {
-          console.error(
-            `[Main] Failed to stop power save blocker ${blockerId} for window ${windowId}:`,
-            error
-          );
-        }
+  // Stop all existing power save blockers when disabling the setting
+  if (!enable) {
+    for (const [windowId, blockerId] of windowPowerSaveBlockers.entries()) {
+      try {
+        powerSaveBlocker.stop(blockerId);
+        console.log(
+          `[Main] Stopped power save blocker ${blockerId} for window ${windowId} due to wakelock setting disabled`
+        );
+      } catch (error) {
+        console.error(
+          `[Main] Failed to stop power save blocker ${blockerId} for window ${windowId}:`,
+          error
+        );
       }
-      windowPowerSaveBlockers.clear();
     }
-
-    return true;
-  } catch (error) {
-    console.error('Error setting wakelock:', error);
-    return false;
+    windowPowerSaveBlockers.clear();
   }
+
+  return true;
 });
 
 ipcMain.handle('get-wakelock-state', () => {
   try {
-    const settings = loadSettings();
+    const settings = getSettings();
     return settings.enableWakelock ?? false;
   } catch (error) {
     console.error('Error getting wakelock state:', error);
@@ -1457,20 +1394,15 @@ ipcMain.handle('get-wakelock-state', () => {
 });
 
 ipcMain.handle('set-spellcheck', async (_event, enable: boolean) => {
-  try {
-    const settings = loadSettings();
-    settings.spellcheckEnabled = enable;
-    saveSettings(settings);
-    return true;
-  } catch (error) {
-    console.error('Error setting spellcheck:', error);
-    return false;
-  }
+  updateSettings((s) => {
+    s.spellcheckEnabled = enable;
+  });
+  return true;
 });
 
 ipcMain.handle('get-spellcheck-state', () => {
   try {
-    const settings = loadSettings();
+    const settings = getSettings();
     return settings.spellcheckEnabled ?? true;
   } catch (error) {
     console.error('Error getting spellcheck state:', error);
@@ -1511,130 +1443,6 @@ ipcMain.handle('select-file-or-directory', async (_event, defaultPath?: string) 
     return result.filePaths[0];
   }
   return null;
-});
-
-// IPC handler to save data URL to a temporary file
-ipcMain.handle('save-data-url-to-temp', async (_event, dataUrl: string, uniqueId: string) => {
-  console.log(`[Main] Received save-data-url-to-temp for ID: ${uniqueId}`);
-  try {
-    // Input validation for uniqueId - only allow alphanumeric characters and hyphens
-    if (!uniqueId || !/^[a-zA-Z0-9-]+$/.test(uniqueId) || uniqueId.length > 50) {
-      console.error('[Main] Invalid uniqueId format received.');
-      return { id: uniqueId, error: 'Invalid uniqueId format' };
-    }
-
-    // Input validation for dataUrl
-    if (!dataUrl || typeof dataUrl !== 'string' || dataUrl.length > 10 * 1024 * 1024) {
-      // 10MB limit
-      console.error('[Main] Invalid or too large data URL received.');
-      return { id: uniqueId, error: 'Invalid or too large data URL' };
-    }
-
-    const tempDir = await ensureTempDirExists();
-    const matches = dataUrl.match(/^data:(image\/(png|jpeg|jpg|gif|webp));base64,(.*)$/);
-
-    if (!matches || matches.length < 4) {
-      console.error('[Main] Invalid data URL format received.');
-      return { id: uniqueId, error: 'Invalid data URL format or unsupported image type' };
-    }
-
-    const imageExtension = matches[2]; // e.g., "png", "jpeg"
-    const base64Data = matches[3];
-
-    // Validate base64 data
-    if (!base64Data || !/^[A-Za-z0-9+/]*={0,2}$/.test(base64Data)) {
-      console.error('[Main] Invalid base64 data received.');
-      return { id: uniqueId, error: 'Invalid base64 data' };
-    }
-
-    const buffer = Buffer.from(base64Data, 'base64');
-
-    // Validate image size (max 5MB)
-    if (buffer.length > 5 * 1024 * 1024) {
-      console.error('[Main] Image too large.');
-      return { id: uniqueId, error: 'Image too large (max 5MB)' };
-    }
-
-    const randomString = crypto.randomBytes(8).toString('hex');
-    const fileName = `pasted-${uniqueId}-${randomString}.${imageExtension}`;
-    const filePath = path.join(tempDir, fileName);
-
-    // Ensure the resolved path is still within the temp directory
-    const resolvedPath = path.resolve(filePath);
-    const resolvedTempDir = path.resolve(tempDir);
-    if (!resolvedPath.startsWith(resolvedTempDir + path.sep)) {
-      console.error('[Main] Attempted path traversal detected.');
-      return { id: uniqueId, error: 'Invalid file path' };
-    }
-
-    await fs.writeFile(filePath, buffer);
-    console.log(`[Main] Saved image for ID ${uniqueId} to: ${filePath}`);
-    return { id: uniqueId, filePath: filePath };
-  } catch (error) {
-    console.error(`[Main] Failed to save image to temp for ID ${uniqueId}:`, error);
-    return { id: uniqueId, error: error instanceof Error ? error.message : 'Failed to save image' };
-  }
-});
-
-ipcMain.on('delete-temp-file', async (_event, filePath: string) => {
-  console.log(`[Main] Received delete-temp-file for path: ${filePath}`);
-
-  // Input validation
-  if (!filePath || typeof filePath !== 'string') {
-    console.warn('[Main] Invalid file path provided for deletion');
-    return;
-  }
-
-  // Ensure the path is within the designated temp directory
-  const resolvedPath = path.resolve(filePath);
-  const resolvedTempDir = path.resolve(gooseTempDir);
-
-  if (!resolvedPath.startsWith(resolvedTempDir + path.sep)) {
-    console.warn(`[Main] Attempted to delete file outside designated temp directory: ${filePath}`);
-    return;
-  }
-
-  try {
-    // Check if it's a regular file first, before trying realpath
-    const stats = await fs.lstat(filePath);
-    if (!stats.isFile()) {
-      console.warn(`[Main] Not a regular file, refusing to delete: ${filePath}`);
-      return;
-    }
-
-    // Get the real paths for both the temp directory and the file to handle symlinks properly
-    let actualPath = filePath;
-
-    try {
-      const realTempDir = await fs.realpath(gooseTempDir);
-      const realPath = await fs.realpath(filePath);
-
-      // Double-check that the real path is still within our real temp directory
-      if (!realPath.startsWith(realTempDir + path.sep)) {
-        console.warn(
-          `[Main] Real path is outside designated temp directory: ${realPath} not in ${realTempDir}`
-        );
-        return;
-      }
-      actualPath = realPath;
-    } catch (realpathError) {
-      // If realpath fails, use the original path validation
-      console.log(
-        `[Main] realpath failed for ${filePath}, using original path validation:`,
-        realpathError instanceof Error ? realpathError.message : String(realpathError)
-      );
-    }
-
-    await fs.unlink(actualPath);
-    console.log(`[Main] Deleted temp file: ${filePath}`);
-  } catch (error) {
-    if (error && typeof error === 'object' && 'code' in error && error.code !== 'ENOENT') {
-      // ENOENT means file doesn't exist, which is fine
-      console.error(`[Main] Failed to delete temp file: ${filePath}`, error);
-    } else {
-      console.log(`[Main] Temp file already deleted or not found: ${filePath}`);
-    }
-  }
 });
 
 ipcMain.handle('check-ollama', async () => {
@@ -1806,6 +1614,33 @@ const focusWindow = () => {
   }
 };
 
+const registerGlobalShortcuts = () => {
+  globalShortcut.unregisterAll();
+
+  const settings = getSettings();
+  const shortcuts = getKeyboardShortcuts(settings);
+
+  if (shortcuts.focusWindow) {
+    try {
+      globalShortcut.register(shortcuts.focusWindow, () => {
+        focusWindow();
+      });
+    } catch (e) {
+      console.error('Error registering focus window hotkey:', e);
+    }
+  }
+
+  if (shortcuts.quickLauncher) {
+    try {
+      globalShortcut.register(shortcuts.quickLauncher, () => {
+        createLauncher();
+      });
+    } catch (e) {
+      console.error('Error registering launcher hotkey:', e);
+    }
+  }
+};
+
 async function appMain() {
   await configureProxy();
 
@@ -1835,7 +1670,7 @@ async function appMain() {
       'https://objects.githubusercontent.com',
     ];
 
-    const settings = loadSettings();
+    const settings = getSettings();
     if (settings.externalGoosed?.enabled && settings.externalGoosed.url) {
       try {
         const externalUrl = new URL(settings.externalGoosed.url);
@@ -1872,28 +1707,23 @@ async function appMain() {
     });
   });
 
-  try {
-    globalShortcut.register('CommandOrControl+Alt+Shift+G', () => {
-      createLauncher();
+  // Migrate old settings format if needed (one-time migration)
+  const settings = getSettings();
+  if (!settings.keyboardShortcuts && settings.globalShortcut !== undefined) {
+    updateSettings((s) => {
+      s.keyboardShortcuts = getKeyboardShortcuts(s);
+      delete s.globalShortcut;
     });
-  } catch (e) {
-    console.error('Error registering launcher hotkey:', e);
   }
 
-  try {
-    globalShortcut.register('CommandOrControl+Alt+G', () => {
-      focusWindow();
-    });
-  } catch (e) {
-    console.error('Error registering focus window hotkey:', e);
-  }
+  // Register global shortcuts based on settings
+  registerGlobalShortcuts();
 
   session.defaultSession.webRequest.onBeforeSendHeaders((details, callback) => {
     details.requestHeaders['Origin'] = 'http://localhost:5173';
     callback({ cancel: false, requestHeaders: details.requestHeaders });
   });
 
-  const settings = loadSettings();
   if (settings.showMenuBarIcon) {
     createTray();
   }
@@ -1936,20 +1766,24 @@ async function appMain() {
 
   const menu = Menu.getApplicationMenu();
 
+  const shortcuts = getKeyboardShortcuts(settings);
+
   const appMenu = menu?.items.find((item) => item.label === 'Goose');
   if (appMenu?.submenu) {
     appMenu.submenu.insert(1, new MenuItem({ type: 'separator' }));
-    appMenu.submenu.insert(
-      1,
-      new MenuItem({
-        label: 'Settings',
-        accelerator: 'CmdOrCtrl+,',
-        click() {
-          const focusedWindow = BrowserWindow.getFocusedWindow();
-          if (focusedWindow) focusedWindow.webContents.send('set-view', 'settings');
-        },
-      })
-    );
+    if (shortcuts.settings) {
+      appMenu.submenu.insert(
+        1,
+        new MenuItem({
+          label: 'Settings',
+          accelerator: shortcuts.settings,
+          click() {
+            const focusedWindow = BrowserWindow.getFocusedWindow();
+            if (focusedWindow) focusedWindow.webContents.send('set-view', 'settings');
+          },
+        })
+      );
+    }
     appMenu.submenu.insert(1, new MenuItem({ type: 'separator' }));
   }
 
@@ -1960,7 +1794,7 @@ async function appMain() {
     const findSubmenu = Menu.buildFromTemplate([
       {
         label: 'Find…',
-        accelerator: process.platform === 'darwin' ? 'Command+F' : 'Control+F',
+        accelerator: shortcuts.find || undefined,
         click() {
           const focusedWindow = BrowserWindow.getFocusedWindow();
           if (focusedWindow) focusedWindow.webContents.send('find-command');
@@ -1968,7 +1802,7 @@ async function appMain() {
       },
       {
         label: 'Find Next',
-        accelerator: process.platform === 'darwin' ? 'Command+G' : 'Control+G',
+        accelerator: shortcuts.findNext || undefined,
         click() {
           const focusedWindow = BrowserWindow.getFocusedWindow();
           if (focusedWindow) focusedWindow.webContents.send('find-next');
@@ -1976,7 +1810,7 @@ async function appMain() {
       },
       {
         label: 'Find Previous',
-        accelerator: process.platform === 'darwin' ? 'Shift+Command+G' : 'Shift+Control+G',
+        accelerator: shortcuts.findPrevious || undefined,
         click() {
           const focusedWindow = BrowserWindow.getFocusedWindow();
           if (focusedWindow) focusedWindow.webContents.send('find-previous');
@@ -2005,42 +1839,51 @@ async function appMain() {
   const fileMenu = menu?.items.find((item) => item.label === 'File');
 
   if (fileMenu?.submenu) {
-    fileMenu.submenu.insert(
-      0,
-      new MenuItem({
-        label: 'New Chat',
-        accelerator: 'CmdOrCtrl+T',
-        click() {
-          const focusedWindow = BrowserWindow.getFocusedWindow();
-          if (focusedWindow) focusedWindow.webContents.send('new-chat');
-        },
-      })
-    );
+    // Use a counter to track the actual insertion index
+    let menuIndex = 0;
 
-    fileMenu.submenu.insert(
-      1,
-      new MenuItem({
-        label: 'New Chat Window',
-        accelerator: process.platform === 'darwin' ? 'Cmd+N' : 'Ctrl+N',
-        click() {
-          ipcMain.emit('create-chat-window');
-        },
-      })
-    );
+    if (shortcuts.newChat) {
+      fileMenu.submenu.insert(
+        menuIndex++,
+        new MenuItem({
+          label: 'New Chat',
+          accelerator: shortcuts.newChat,
+          click() {
+            const focusedWindow = BrowserWindow.getFocusedWindow();
+            if (focusedWindow) focusedWindow.webContents.send('new-chat');
+          },
+        })
+      );
+    }
 
-    fileMenu.submenu.insert(
-      2,
-      new MenuItem({
-        label: 'Open Directory...',
-        accelerator: 'CmdOrCtrl+O',
-        click: () => openDirectoryDialog(),
-      })
-    );
+    if (shortcuts.newChatWindow) {
+      fileMenu.submenu.insert(
+        menuIndex++,
+        new MenuItem({
+          label: 'New Chat Window',
+          accelerator: shortcuts.newChatWindow,
+          click() {
+            ipcMain.emit('create-chat-window');
+          },
+        })
+      );
+    }
+
+    if (shortcuts.openDirectory) {
+      fileMenu.submenu.insert(
+        menuIndex++,
+        new MenuItem({
+          label: 'Open Directory...',
+          accelerator: shortcuts.openDirectory,
+          click: () => openDirectoryDialog(),
+        })
+      );
+    }
 
     const recentFilesSubmenu = buildRecentFilesMenu();
     if (recentFilesSubmenu.length > 0) {
       fileMenu.submenu.insert(
-        3,
+        menuIndex++,
         new MenuItem({
           label: 'Recent Directories',
           submenu: recentFilesSubmenu,
@@ -2048,27 +1891,31 @@ async function appMain() {
       );
     }
 
-    fileMenu.submenu.insert(4, new MenuItem({ type: 'separator' }));
+    fileMenu.submenu.insert(menuIndex++, new MenuItem({ type: 'separator' }));
 
-    fileMenu.submenu.append(
-      new MenuItem({
-        label: 'Focus Goose Window',
-        accelerator: 'CmdOrCtrl+Alt+G',
-        click() {
-          focusWindow();
-        },
-      })
-    );
+    if (shortcuts.focusWindow) {
+      fileMenu.submenu.append(
+        new MenuItem({
+          label: 'Focus Goose Window',
+          accelerator: shortcuts.focusWindow,
+          click() {
+            focusWindow();
+          },
+        })
+      );
+    }
 
-    fileMenu.submenu.append(
-      new MenuItem({
-        label: 'Quick Launcher',
-        accelerator: 'CmdOrCtrl+Alt+Shift+G',
-        click() {
-          createLauncher();
-        },
-      })
-    );
+    if (shortcuts.quickLauncher) {
+      fileMenu.submenu.append(
+        new MenuItem({
+          label: 'Quick Launcher',
+          accelerator: shortcuts.quickLauncher,
+          click() {
+            createLauncher();
+          },
+        })
+      );
+    }
   }
 
   if (menu) {
@@ -2089,29 +1936,31 @@ async function appMain() {
     }
 
     if (windowMenu.submenu) {
-      windowMenu.submenu.append(
-        new MenuItem({
-          label: 'Always on Top',
-          type: 'checkbox',
-          accelerator: process.platform === 'darwin' ? 'Cmd+Shift+T' : 'Ctrl+Shift+T',
-          click(menuItem) {
-            const focusedWindow = BrowserWindow.getFocusedWindow();
-            if (focusedWindow) {
-              const isAlwaysOnTop = menuItem.checked;
+      if (shortcuts.alwaysOnTop) {
+        windowMenu.submenu.append(
+          new MenuItem({
+            label: 'Always on Top',
+            type: 'checkbox',
+            accelerator: shortcuts.alwaysOnTop,
+            click(menuItem) {
+              const focusedWindow = BrowserWindow.getFocusedWindow();
+              if (focusedWindow) {
+                const isAlwaysOnTop = menuItem.checked;
 
-              if (process.platform === 'darwin') {
-                focusedWindow.setAlwaysOnTop(isAlwaysOnTop, 'floating');
-              } else {
-                focusedWindow.setAlwaysOnTop(isAlwaysOnTop);
+                if (process.platform === 'darwin') {
+                  focusedWindow.setAlwaysOnTop(isAlwaysOnTop, 'floating');
+                } else {
+                  focusedWindow.setAlwaysOnTop(isAlwaysOnTop);
+                }
+
+                console.log(
+                  `[Main] Set always-on-top to ${isAlwaysOnTop} for window ${focusedWindow.id}`
+                );
               }
-
-              console.log(
-                `[Main] Set always-on-top to ${isAlwaysOnTop} for window ${focusedWindow.id}`
-              );
-            }
-          },
-        })
-      );
+            },
+          })
+        );
+      }
     }
   }
 
@@ -2315,8 +2164,8 @@ async function appMain() {
       // Validate URL
       const parsedUrl = new URL(url);
 
-      // Only allow http and https protocols
-      if (!['http:', 'https:'].includes(parsedUrl.protocol)) {
+      // Only allow http and https protocols for fetching web content
+      if (!WEB_PROTOCOLS.includes(parsedUrl.protocol)) {
         throw new Error('Invalid URL protocol. Only HTTP and HTTPS are allowed.');
       }
 
@@ -2354,8 +2203,8 @@ async function appMain() {
       // Validate URL
       const parsedUrl = new URL(url);
 
-      // Only allow http and https protocols
-      if (!['http:', 'https:'].includes(parsedUrl.protocol)) {
+      // Only allow http and https protocols for browser URLs
+      if (!WEB_PROTOCOLS.includes(parsedUrl.protocol)) {
         console.error('Invalid URL protocol. Only HTTP and HTTPS are allowed.');
         return;
       }
@@ -2408,9 +2257,6 @@ async function appMain() {
         throw new Error('No client found for launching window');
       }
 
-      const currentUrl = launchingWindow.webContents.getURL();
-      const baseUrl = new URL(currentUrl).origin;
-
       const appWindow = new BrowserWindow({
         title: formatAppName(gooseApp.name),
         width: gooseApp.width ?? 800,
@@ -2436,14 +2282,17 @@ async function appMain() {
 
       const workingDir = app.getPath('home');
       const extensionName = gooseApp.mcpServers?.[0] ?? '';
-      const standaloneUrl =
-        `${baseUrl}/#/standalone-app?` +
-        `resourceUri=${encodeURIComponent(gooseApp.uri)}` +
-        `&extensionName=${encodeURIComponent(extensionName)}` +
-        `&appName=${encodeURIComponent(gooseApp.name)}` +
-        `&workingDir=${encodeURIComponent(workingDir)}`;
 
-      await appWindow.loadURL(standaloneUrl);
+      const url = getAppUrl();
+
+      const searchParams = new URLSearchParams();
+      searchParams.set('resourceUri', gooseApp.uri);
+      searchParams.set('extensionName', extensionName);
+      searchParams.set('appName', gooseApp.name);
+      searchParams.set('workingDir', workingDir);
+
+      url.hash = `/standalone-app?${searchParams.toString()}`;
+      await appWindow.loadURL(formatUrl(url));
       appWindow.show();
     } catch (error) {
       console.error('Failed to launch app:', error);
@@ -2545,54 +2394,7 @@ app.on('will-quit', async () => {
   }
   windowPowerSaveBlockers.clear();
 
-  // Unregister all shortcuts when quitting
   globalShortcut.unregisterAll();
-
-  try {
-    await fs.access(gooseTempDir); // Check if directory exists to avoid error on fs.rm if it doesn't
-
-    // First, check for any symlinks in the directory and refuse to delete them
-    let hasSymlinks = false;
-    try {
-      const files = await fs.readdir(gooseTempDir);
-      for (const file of files) {
-        const filePath = path.join(gooseTempDir, file);
-        const stats = await fs.lstat(filePath);
-        if (stats.isSymbolicLink()) {
-          console.warn(`[Main] Found symlink in temp directory: ${filePath}. Skipping deletion.`);
-          hasSymlinks = true;
-          // Delete the individual file but leave the symlink
-          continue;
-        }
-
-        // Delete regular files individually
-        if (stats.isFile()) {
-          await fs.unlink(filePath);
-        }
-      }
-
-      // If no symlinks were found, it's safe to remove the directory
-      if (!hasSymlinks) {
-        await fs.rm(gooseTempDir, { recursive: true, force: true });
-        console.log('[Main] Pasted images temp directory cleaned up successfully.');
-      } else {
-        console.log(
-          '[Main] Cleaned up files in temp directory but left directory intact due to symlinks.'
-        );
-      }
-    } catch (err) {
-      console.error('[Main] Error while cleaning up temp directory contents:', err);
-    }
-  } catch (error) {
-    if (error && typeof error === 'object' && 'code' in error && error.code === 'ENOENT') {
-      console.log('[Main] Temp directory did not exist during "will-quit", no cleanup needed.');
-    } else {
-      console.error(
-        '[Main] Failed to clean up pasted images temp directory during "will-quit":',
-        error
-      );
-    }
-  }
 });
 
 app.on('window-all-closed', () => {

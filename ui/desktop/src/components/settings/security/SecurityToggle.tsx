@@ -10,32 +10,123 @@ interface SecurityConfig {
   SECURITY_PROMPT_CLASSIFIER_MODEL?: string;
   SECURITY_PROMPT_CLASSIFIER_ENDPOINT?: string;
   SECURITY_PROMPT_CLASSIFIER_TOKEN?: string;
+  SECURITY_COMMAND_CLASSIFIER_ENABLED?: boolean;
+  SECURITY_COMMAND_CLASSIFIER_ENDPOINT?: string;
+  SECURITY_COMMAND_CLASSIFIER_TOKEN?: string;
 }
+
+interface ClassifierEndpointInputsProps {
+  endpointValue: string;
+  tokenValue: string;
+  onEndpointChange: (value: string) => void;
+  onTokenChange: (value: string) => void;
+  onEndpointBlur: (value: string) => void;
+  onTokenBlur: (value: string) => void;
+  disabled: boolean;
+  endpointPlaceholder: string;
+  tokenPlaceholder: string;
+  endpointLabel?: string;
+  endpointDescription?: string;
+  tokenLabel?: string;
+  tokenDescription?: string;
+}
+
+const ClassifierEndpointInputs = ({
+  endpointValue,
+  tokenValue,
+  onEndpointChange,
+  onTokenChange,
+  onEndpointBlur,
+  onTokenBlur,
+  disabled,
+  endpointPlaceholder,
+  tokenPlaceholder,
+  endpointLabel = 'Classification Endpoint',
+  endpointDescription = 'Enter the full URL for your classification service',
+  tokenLabel = 'API Token (Optional)',
+  tokenDescription = 'Authentication token for the classification service',
+}: ClassifierEndpointInputsProps) => {
+  return (
+    <div className="space-y-3">
+      <div>
+        <label
+          className={`text-sm font-medium ${disabled ? 'text-text-muted' : 'text-text-default'}`}
+        >
+          {endpointLabel}
+        </label>
+        <p className="text-xs text-text-muted mb-2">{endpointDescription}</p>
+        <input
+          type="url"
+          value={endpointValue}
+          onChange={(e) => onEndpointChange(e.target.value)}
+          onBlur={(e) => onEndpointBlur(e.target.value)}
+          disabled={disabled}
+          placeholder={endpointPlaceholder}
+          className={`w-full px-3 py-2 text-sm border rounded placeholder:text-text-muted ${
+            disabled
+              ? 'border-border-default bg-background-muted text-text-muted cursor-not-allowed'
+              : 'border-border-default bg-background-default text-text-default'
+          }`}
+        />
+      </div>
+
+      <div>
+        <label
+          className={`text-sm font-medium ${disabled ? 'text-text-muted' : 'text-text-default'}`}
+        >
+          {tokenLabel}
+        </label>
+        <p className="text-xs text-text-muted mb-2">{tokenDescription}</p>
+        <input
+          type="password"
+          value={tokenValue}
+          onChange={(e) => onTokenChange(e.target.value)}
+          onBlur={(e) => onTokenBlur(e.target.value)}
+          disabled={disabled}
+          placeholder={tokenPlaceholder}
+          className={`w-full px-3 py-2 text-sm border rounded placeholder:text-text-muted ${
+            disabled
+              ? 'border-border-default bg-background-muted text-text-muted cursor-not-allowed'
+              : 'border-border-default bg-background-default text-text-default'
+          }`}
+        />
+      </div>
+    </div>
+  );
+};
 
 export const SecurityToggle = () => {
   const { config, upsert } = useConfig();
 
-  const availableModels = useMemo(() => {
+  const modelMapping = useMemo(() => {
     const mappingEnv = window.appConfig?.get('SECURITY_ML_MODEL_MAPPING') as string | undefined;
     if (!mappingEnv) {
-      return [];
+      return null;
     }
 
     try {
-      const mapping = JSON.parse(mappingEnv);
-      return Object.keys(mapping).map((modelName) => ({
-        value: modelName,
-        label: modelName,
-      }));
+      return JSON.parse(mappingEnv) as Record<string, { model_type?: string }>;
     } catch {
-      // Invalid JSON in optional env var - gracefully fall back to manual endpoint input
-      return [];
+      return null;
     }
   }, []);
 
+  const availablePromptModels = useMemo(() => {
+    if (!modelMapping) {
+      return [];
+    }
+
+    return Object.entries(modelMapping)
+      .filter(([_, modelInfo]) => modelInfo.model_type === 'prompt')
+      .map(([modelName, _]) => ({
+        value: modelName,
+        label: modelName,
+      }));
+  }, [modelMapping]);
+
   const showModelDropdown = useMemo(() => {
-    return availableModels.length > 0;
-  }, [availableModels]);
+    return availablePromptModels.length > 0;
+  }, [availablePromptModels]);
 
   const {
     SECURITY_PROMPT_ENABLED: enabled = false,
@@ -44,24 +135,33 @@ export const SecurityToggle = () => {
     SECURITY_PROMPT_CLASSIFIER_MODEL: mlModel = '',
     SECURITY_PROMPT_CLASSIFIER_ENDPOINT: mlEndpoint = '',
     SECURITY_PROMPT_CLASSIFIER_TOKEN: mlToken = '',
+    SECURITY_COMMAND_CLASSIFIER_ENABLED: commandClassifierEnabled,
+    SECURITY_COMMAND_CLASSIFIER_ENDPOINT: commandEndpoint = '',
+    SECURITY_COMMAND_CLASSIFIER_TOKEN: commandToken = '',
   } = (config as SecurityConfig) ?? {};
 
-  const effectiveModel = mlModel || availableModels[0]?.value || '';
+  const hasCommandModel = useMemo(() => {
+    if (!modelMapping) {
+      return false;
+    }
+    return Object.values(modelMapping).some((modelInfo) => modelInfo.model_type === 'command');
+  }, [modelMapping]);
+
+  const effectiveCommandClassifierEnabled = commandClassifierEnabled ?? false;
+  const effectiveModel = mlModel || availablePromptModels[0]?.value || '';
   const [thresholdInput, setThresholdInput] = useState(configThreshold.toString());
   const [endpointInput, setEndpointInput] = useState(mlEndpoint);
   const [tokenInput, setTokenInput] = useState(mlToken);
+  const [commandEndpointInput, setCommandEndpointInput] = useState(commandEndpoint);
+  const [commandTokenInput, setCommandTokenInput] = useState(commandToken);
 
   useEffect(() => {
     setThresholdInput(configThreshold.toString());
-  }, [configThreshold]);
-
-  useEffect(() => {
     setEndpointInput(mlEndpoint);
-  }, [mlEndpoint]);
-
-  useEffect(() => {
     setTokenInput(mlToken);
-  }, [mlToken]);
+    setCommandEndpointInput(commandEndpoint);
+    setCommandTokenInput(commandToken);
+  }, [configThreshold, mlEndpoint, mlToken, commandEndpoint, commandToken]);
 
   const handleToggle = async (enabled: boolean) => {
     await upsert('SECURITY_PROMPT_ENABLED', enabled, false);
@@ -78,7 +178,7 @@ export const SecurityToggle = () => {
 
     if (enabled) {
       if (showModelDropdown) {
-        const modelToSet = mlModel || availableModels[0]?.value;
+        const modelToSet = mlModel || availablePromptModels[0]?.value;
         if (modelToSet) {
           await upsert('SECURITY_PROMPT_CLASSIFIER_MODEL', modelToSet, false);
         }
@@ -100,6 +200,19 @@ export const SecurityToggle = () => {
     await upsert('SECURITY_PROMPT_CLASSIFIER_TOKEN', token, true); // true = secret
   };
 
+  const handleCommandClassifierToggle = async (enabled: boolean) => {
+    await upsert('SECURITY_COMMAND_CLASSIFIER_ENABLED', enabled, false);
+    trackSettingToggled('command_classifier', enabled);
+  };
+
+  const handleCommandEndpointChange = async (endpoint: string) => {
+    await upsert('SECURITY_COMMAND_CLASSIFIER_ENDPOINT', endpoint, false);
+  };
+
+  const handleCommandTokenChange = async (token: string) => {
+    await upsert('SECURITY_COMMAND_CLASSIFIER_TOKEN', token, true); // true = secret
+  };
+
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between py-2 px-2 hover:bg-background-muted rounded-lg transition-all">
@@ -116,7 +229,7 @@ export const SecurityToggle = () => {
 
       <div
         className={`overflow-hidden transition-all duration-300 ease-in-out ${
-          enabled ? 'max-h-[36rem] opacity-100' : 'max-h-0 opacity-0'
+          enabled ? 'max-h-[1000px] opacity-100' : 'max-h-0 opacity-0'
         }`}
       >
         <div className="space-y-4 px-2 pb-2">
@@ -152,23 +265,79 @@ export const SecurityToggle = () => {
               className={`w-24 px-2 py-1 text-sm border rounded ${
                 enabled
                   ? 'border-border-default bg-background-default text-text-default'
-                  : 'border-border-muted bg-background-muted text-text-muted cursor-not-allowed'
+                  : 'border-border-default bg-background-muted text-text-muted cursor-not-allowed'
               }`}
               placeholder="0.80"
             />
           </div>
 
-          {/* ML Detection Toggle */}
+          {/* Command Injection Detection Toggle */}
           <div className="border-t border-border-default pt-4">
             <div className="flex items-center justify-between py-2 hover:bg-background-muted rounded-lg transition-all">
               <div>
                 <h4
                   className={`text-sm font-medium ${enabled ? 'text-text-default' : 'text-text-muted'}`}
                 >
-                  Enable ML-Based Detection
+                  Enable Command Injection ML Detection
                 </h4>
                 <p className="text-xs text-text-muted max-w-md mt-[2px]">
-                  Use machine learning models for more accurate detection
+                  Use ML models to detect malicious shell commands
+                </p>
+              </div>
+              <div className="flex items-center">
+                <Switch
+                  checked={effectiveCommandClassifierEnabled}
+                  onCheckedChange={handleCommandClassifierToggle}
+                  disabled={!enabled}
+                  variant="mono"
+                />
+              </div>
+            </div>
+
+            {hasCommandModel ? (
+              enabled &&
+              effectiveCommandClassifierEnabled && (
+                <div className="text-sm text-gray-700 dark:text-gray-300 mt-2">
+                  ✓ Command classifier active (auto-configured from environment)
+                </div>
+              )
+            ) : (
+              <div
+                className={`overflow-hidden transition-all duration-300 ease-in-out ${
+                  enabled && effectiveCommandClassifierEnabled
+                    ? 'max-h-[32rem] opacity-100 mt-3'
+                    : 'max-h-0 opacity-0'
+                }`}
+              >
+                <div className={enabled && effectiveCommandClassifierEnabled ? '' : 'opacity-50'}>
+                  <ClassifierEndpointInputs
+                    endpointValue={commandEndpointInput}
+                    tokenValue={commandTokenInput}
+                    onEndpointChange={setCommandEndpointInput}
+                    onTokenChange={setCommandTokenInput}
+                    onEndpointBlur={handleCommandEndpointChange}
+                    onTokenBlur={handleCommandTokenChange}
+                    disabled={!enabled || !effectiveCommandClassifierEnabled}
+                    endpointPlaceholder="https://example.com/classify"
+                    tokenPlaceholder="token..."
+                    endpointDescription="Enter the full URL for your command injection classification service"
+                  />
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Prompt Injection Detection Toggle */}
+          <div className="border-t border-border-default pt-4">
+            <div className="flex items-center justify-between py-2 hover:bg-background-muted rounded-lg transition-all">
+              <div>
+                <h4
+                  className={`text-sm font-medium ${enabled ? 'text-text-default' : 'text-text-muted'}`}
+                >
+                  Enable Prompt Injection ML Detection
+                </h4>
+                <p className="text-xs text-text-muted max-w-md mt-[2px]">
+                  Use ML models to detect potential prompt injection in your chat
                 </p>
               </div>
               <div className="flex items-center">
@@ -206,10 +375,10 @@ export const SecurityToggle = () => {
                         className={`w-full px-3 py-2 text-sm border rounded ${
                           enabled && mlEnabled
                             ? 'border-border-default bg-background-default text-text-default'
-                            : 'border-border-muted bg-background-muted text-text-muted cursor-not-allowed'
+                            : 'border-border-default bg-background-muted text-text-muted cursor-not-allowed'
                         }`}
                       >
-                        {availableModels.map((model) => (
+                        {availablePromptModels.map((model) => (
                           <option key={model.value} value={model.value}>
                             {model.label}
                           </option>
@@ -218,56 +387,19 @@ export const SecurityToggle = () => {
                     </div>
                   </div>
                 ) : (
-                  <div className="space-y-3">
-                    <div>
-                      <label
-                        className={`text-sm font-medium ${enabled && mlEnabled ? 'text-text-default' : 'text-text-muted'}`}
-                      >
-                        Classification Endpoint
-                      </label>
-                      <p className="text-xs text-text-muted mb-2">
-                        Enter the full URL for your ML classification service (including model
-                        identifier)
-                      </p>
-                      <input
-                        type="url"
-                        value={endpointInput}
-                        onChange={(e) => setEndpointInput(e.target.value)}
-                        onBlur={(e) => handleEndpointChange(e.target.value)}
-                        disabled={!enabled || !mlEnabled}
-                        placeholder="https://router.huggingface.co/hf-inference/models/protectai/deberta-v3-base-prompt-injection-v2"
-                        className={`w-full px-3 py-2 text-sm border rounded placeholder:text-text-muted ${
-                          enabled && mlEnabled
-                            ? 'border-border-default bg-background-default text-text-default'
-                            : 'border-border-muted bg-background-muted text-text-muted cursor-not-allowed'
-                        }`}
-                      />
-                    </div>
-
-                    <div>
-                      <label
-                        className={`text-sm font-medium ${enabled && mlEnabled ? 'text-text-default' : 'text-text-muted'}`}
-                      >
-                        API Token (Optional)
-                      </label>
-                      <p className="text-xs text-text-muted mb-2">
-                        Authentication token for the ML service (e.g., HuggingFace token)
-                      </p>
-                      <input
-                        type="password"
-                        value={tokenInput}
-                        onChange={(e) => setTokenInput(e.target.value)}
-                        onBlur={(e) => handleTokenChange(e.target.value)}
-                        disabled={!enabled || !mlEnabled}
-                        placeholder="hf_..."
-                        className={`w-full px-3 py-2 text-sm border rounded placeholder:text-text-muted ${
-                          enabled && mlEnabled
-                            ? 'border-border-default bg-background-default text-text-default'
-                            : 'border-border-muted bg-background-muted text-text-muted cursor-not-allowed'
-                        }`}
-                      />
-                    </div>
-                  </div>
+                  <ClassifierEndpointInputs
+                    endpointValue={endpointInput}
+                    tokenValue={tokenInput}
+                    onEndpointChange={setEndpointInput}
+                    onTokenChange={setTokenInput}
+                    onEndpointBlur={handleEndpointChange}
+                    onTokenBlur={handleTokenChange}
+                    disabled={!enabled || !mlEnabled}
+                    endpointPlaceholder="https://router.huggingface.co/hf-inference/models/protectai/deberta-v3-base-prompt-injection-v2"
+                    tokenPlaceholder="hf_..."
+                    endpointDescription="Enter the full URL for your ML classification service (including model identifier)"
+                    tokenDescription="Authentication token for the ML service (e.g., HuggingFace token)"
+                  />
                 )}
               </div>
             </div>

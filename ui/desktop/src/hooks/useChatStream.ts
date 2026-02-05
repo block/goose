@@ -195,6 +195,12 @@ function pushMessage(currentMessages: Message[], incomingMsg: Message): Message[
   }
 }
 
+function prefersReducedMotion(): boolean {
+  return window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+}
+
+const REDUCED_MOTION_BATCH_INTERVAL = 1000;
+
 async function streamFromResponse(
   stream: AsyncIterable<MessageEvent>,
   initialMessages: Message[],
@@ -203,6 +209,45 @@ async function streamFromResponse(
   sessionId: string
 ): Promise<void> {
   let currentMessages = initialMessages;
+  const reduceMotion = prefersReducedMotion();
+  let latestTokenState: TokenState | null = null;
+  let latestChatState: ChatState = ChatState.Streaming;
+  let lastBatchUpdate = Date.now();
+  let hasPendingUpdate = false;
+
+  const flushBatchedUpdates = () => {
+    if (reduceMotion && hasPendingUpdate) {
+      if (latestTokenState) {
+        dispatch({ type: 'SET_TOKEN_STATE', payload: latestTokenState });
+      }
+      dispatch({ type: 'SET_MESSAGES', payload: currentMessages });
+      dispatch({ type: 'SET_CHAT_STATE', payload: latestChatState });
+      hasPendingUpdate = false;
+      lastBatchUpdate = Date.now();
+    }
+  };
+
+  const maybeUpdateUI = (tokenState: TokenState, chatState: ChatState, forceImmediate = false) => {
+    if (!reduceMotion) {
+      dispatch({ type: 'SET_TOKEN_STATE', payload: tokenState });
+      dispatch({ type: 'SET_MESSAGES', payload: currentMessages });
+      dispatch({ type: 'SET_CHAT_STATE', payload: chatState });
+    } else if (forceImmediate) {
+      dispatch({ type: 'SET_TOKEN_STATE', payload: tokenState });
+      dispatch({ type: 'SET_MESSAGES', payload: currentMessages });
+      dispatch({ type: 'SET_CHAT_STATE', payload: chatState });
+      hasPendingUpdate = false;
+      lastBatchUpdate = Date.now();
+    } else {
+      latestTokenState = tokenState;
+      latestChatState = chatState;
+      hasPendingUpdate = true;
+      const now = Date.now();
+      if (now - lastBatchUpdate >= REDUCED_MOTION_BATCH_INTERVAL) {
+        flushBatchedUpdates();
+      }
+    }
+  };
 
   try {
     for await (const event of stream) {
@@ -212,7 +257,8 @@ async function streamFromResponse(
           currentMessages = pushMessage(currentMessages, msg);
 
           const hasToolConfirmation = msg.content.some(
-            (content) => content.type === 'toolConfirmationRequest'
+            (content) =>
+              content.type === 'actionRequired' && content.data.actionType === 'toolConfirmation'
           );
 
           const hasElicitation = msg.content.some(
@@ -221,24 +267,23 @@ async function streamFromResponse(
           );
 
           if (hasToolConfirmation || hasElicitation) {
-            dispatch({ type: 'SET_CHAT_STATE', payload: ChatState.WaitingForUserInput });
+            maybeUpdateUI(event.token_state, ChatState.WaitingForUserInput, true);
           } else if (getCompactingMessage(msg)) {
-            dispatch({ type: 'SET_CHAT_STATE', payload: ChatState.Compacting });
+            maybeUpdateUI(event.token_state, ChatState.Compacting);
           } else if (getThinkingMessage(msg)) {
-            dispatch({ type: 'SET_CHAT_STATE', payload: ChatState.Thinking });
+            maybeUpdateUI(event.token_state, ChatState.Thinking);
           } else {
-            dispatch({ type: 'SET_CHAT_STATE', payload: ChatState.Streaming });
+            maybeUpdateUI(event.token_state, ChatState.Streaming);
           }
-
-          dispatch({ type: 'SET_TOKEN_STATE', payload: event.token_state });
-          dispatch({ type: 'SET_MESSAGES', payload: currentMessages });
           break;
         }
         case 'Error': {
+          flushBatchedUpdates();
           onFinish('Stream error: ' + event.error);
           return;
         }
         case 'Finish': {
+          flushBatchedUpdates();
           onFinish();
           return;
         }
@@ -247,7 +292,11 @@ async function streamFromResponse(
         }
         case 'UpdateConversation': {
           currentMessages = event.conversation;
-          dispatch({ type: 'SET_MESSAGES', payload: event.conversation });
+          if (!reduceMotion) {
+            dispatch({ type: 'SET_MESSAGES', payload: event.conversation });
+          } else {
+            hasPendingUpdate = true;
+          }
           break;
         }
         case 'Notification': {
@@ -260,8 +309,10 @@ async function streamFromResponse(
       }
     }
 
+    flushBatchedUpdates();
     onFinish();
   } catch (error) {
+    flushBatchedUpdates();
     if (error instanceof Error && error.name !== 'AbortError') {
       onFinish('Stream error: ' + errorMessage(error));
     }
@@ -654,6 +705,8 @@ export function useChatStream({
     async (messageId: string, newContent: string, editType: 'fork' | 'edit' = 'fork') => {
       const currentState = stateRef.current;
 
+      dispatch({ type: 'SET_CHAT_STATE', payload: ChatState.Thinking });
+
       try {
         const { forkSession } = await import('../api');
         const message = currentState.messages.find((m) => m.id === messageId);
@@ -680,6 +733,7 @@ export function useChatStream({
         }
 
         if (editType === 'fork') {
+          dispatch({ type: 'SET_CHAT_STATE', payload: ChatState.Idle });
           const event = new CustomEvent(AppEvents.SESSION_FORKED, {
             detail: {
               newSessionId: targetSessionId,
@@ -697,11 +751,61 @@ export function useChatStream({
           });
 
           if (sessionResponse.data?.conversation) {
+            const updatedMessages = [...sessionResponse.data.conversation];
+
+            if (updatedMessages.length > 0) {
+              const lastMessage = updatedMessages[updatedMessages.length - 1];
+              if (lastMessage.role === 'user') {
+                lastMessage.content = [{ type: 'text', text: newContent }];
+
+                for (const content of message.content) {
+                  if (content.type === 'image') {
+                    lastMessage.content.push(content);
+                  }
+                }
+
+                dispatch({ type: 'SET_MESSAGES', payload: updatedMessages });
+                dispatch({ type: 'START_STREAMING' });
+                abortControllerRef.current = new AbortController();
+
+                try {
+                  const placeholderMessage = createUserMessage(newContent);
+
+                  const { stream } = await reply({
+                    body: {
+                      session_id: targetSessionId,
+                      user_message: placeholderMessage,
+                    },
+                    throwOnError: true,
+                    signal: abortControllerRef.current.signal,
+                  });
+
+                  await streamFromResponse(
+                    stream,
+                    updatedMessages,
+                    dispatch,
+                    onFinish,
+                    targetSessionId
+                  );
+                } catch (error) {
+                  if (error instanceof Error && error.name === 'AbortError') {
+                    dispatch({ type: 'SET_CHAT_STATE', payload: ChatState.Idle });
+                  } else {
+                    throw error;
+                  }
+                }
+                return;
+              }
+            }
+
             dispatch({ type: 'SET_MESSAGES', payload: sessionResponse.data.conversation });
+            await handleSubmit({ msg: newContent, images: [] });
+          } else {
+            await handleSubmit({ msg: newContent, images: [] });
           }
-          await handleSubmit({ msg: newContent, images: [] });
         }
       } catch (error) {
+        dispatch({ type: 'SET_CHAT_STATE', payload: ChatState.Idle });
         const errorMsg = errorMessage(error);
         console.error('Failed to edit message:', error);
         const { toastError } = await import('../toasts');
@@ -711,7 +815,7 @@ export function useChatStream({
         });
       }
     },
-    [sessionId, handleSubmit]
+    [sessionId, handleSubmit, onFinish]
   );
 
   const setChatState = useCallback((newState: ChatState) => {

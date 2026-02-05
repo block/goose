@@ -43,8 +43,8 @@ module.exports = {
       name: '@electron-forge/publisher-github',
       config: {
         repository: {
-          owner: 'block',
-          name: 'goose',
+          owner: process.env.GITHUB_OWNER || 'block',
+          name: process.env.GITHUB_REPO || 'goose',
         },
         prerelease: false,
         draft: true,

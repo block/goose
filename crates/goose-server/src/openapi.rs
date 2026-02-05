@@ -4,8 +4,9 @@ use goose::agents::ExtensionConfig;
 use goose::config::permission::PermissionLevel;
 use goose::config::ExtensionEntry;
 use goose::conversation::Conversation;
+use goose::dictation::download_manager::{DownloadProgress, DownloadStatus};
 use goose::model::ModelConfig;
-use goose::permission::permission_confirmation::PrincipalType;
+use goose::permission::permission_confirmation::{Permission, PrincipalType};
 use goose::providers::base::{ConfigKey, ModelInfo, ProviderMetadata, ProviderType};
 use goose::session::{Session, SessionInsights, SessionType, SystemInfo};
 use rmcp::model::{
@@ -412,6 +413,13 @@ derive_utoipa!(Icon as IconSchema);
         super::routes::tunnel::stop_tunnel,
         super::routes::tunnel::get_tunnel_status,
         super::routes::telemetry::send_telemetry_event,
+        super::routes::dictation::transcribe_dictation,
+        super::routes::dictation::get_dictation_config,
+        super::routes::dictation::list_models,
+        super::routes::dictation::download_model,
+        super::routes::dictation::get_download_progress,
+        super::routes::dictation::cancel_download,
+        super::routes::dictation::delete_model,
     ),
     components(schemas(
         super::routes::config_management::UpsertConfigQuery,
@@ -490,6 +498,7 @@ derive_utoipa!(Icon as IconSchema);
         ToolAnnotationsSchema,
         ToolInfo,
         PermissionLevel,
+        Permission,
         PrincipalType,
         ModelInfo,
         ModelConfig,
@@ -568,8 +577,16 @@ derive_utoipa!(Icon as IconSchema);
         goose::goose_apps::WindowProps,
         goose::goose_apps::McpAppResource,
         goose::goose_apps::CspMetadata,
+        goose::goose_apps::PermissionsMetadata,
         goose::goose_apps::UiMetadata,
         goose::goose_apps::ResourceMetadata,
+        super::routes::dictation::TranscribeRequest,
+        super::routes::dictation::TranscribeResponse,
+        goose::dictation::providers::DictationProvider,
+        super::routes::dictation::DictationProviderStatus,
+        super::routes::dictation::WhisperModelResponse,
+        DownloadProgress,
+        DownloadStatus,
     ))
 )]
 pub struct ApiDoc;

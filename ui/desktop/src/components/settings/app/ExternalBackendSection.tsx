@@ -3,16 +3,8 @@ import { Switch } from '../../ui/switch';
 import { Input } from '../../ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../ui/card';
 import { AlertCircle } from 'lucide-react';
-
-interface ExternalGoosedConfig {
-  enabled: boolean;
-  url: string;
-  secret: string;
-}
-
-interface Settings {
-  externalGoosed?: Partial<ExternalGoosedConfig>;
-}
+import { ExternalGoosedConfig } from '../../../utils/settings';
+import { WEB_PROTOCOLS } from '../../../utils/urlSecurity';
 
 const DEFAULT_CONFIG: ExternalGoosedConfig = {
   enabled: false,
@@ -20,11 +12,12 @@ const DEFAULT_CONFIG: ExternalGoosedConfig = {
   secret: '',
 };
 
-function parseConfig(partial: Partial<ExternalGoosedConfig> | undefined): ExternalGoosedConfig {
+function parseConfig(config: ExternalGoosedConfig | undefined): ExternalGoosedConfig {
+  if (!config) return DEFAULT_CONFIG;
   return {
-    enabled: partial?.enabled ?? DEFAULT_CONFIG.enabled,
-    url: partial?.url ?? DEFAULT_CONFIG.url,
-    secret: partial?.secret ?? DEFAULT_CONFIG.secret,
+    enabled: config.enabled ?? DEFAULT_CONFIG.enabled,
+    url: config.url ?? DEFAULT_CONFIG.url,
+    secret: config.secret ?? DEFAULT_CONFIG.secret,
   };
 }
 
@@ -35,8 +28,8 @@ export default function ExternalBackendSection() {
 
   useEffect(() => {
     const loadSettings = async () => {
-      const settings = (await window.electron.getSettings()) as Settings | null;
-      setConfig(parseConfig(settings?.externalGoosed));
+      const settings = await window.electron.getSettings();
+      setConfig(parseConfig(settings.externalGoosed));
     };
     loadSettings();
   }, []);
@@ -48,7 +41,7 @@ export default function ExternalBackendSection() {
     }
     try {
       const parsed = new URL(value);
-      if (!['http:', 'https:'].includes(parsed.protocol)) {
+      if (!WEB_PROTOCOLS.includes(parsed.protocol)) {
         setUrlError('URL must use http or https protocol');
         return false;
       }
@@ -63,7 +56,7 @@ export default function ExternalBackendSection() {
   const saveConfig = async (newConfig: ExternalGoosedConfig): Promise<void> => {
     setIsSaving(true);
     try {
-      const currentSettings = ((await window.electron.getSettings()) as Settings) || {};
+      const currentSettings = await window.electron.getSettings();
       await window.electron.saveSettings({
         ...currentSettings,
         externalGoosed: newConfig,

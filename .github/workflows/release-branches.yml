@@ -18,7 +18,7 @@ jobs:
       pull-requests: write
     steps:
       - name: Comment with download link
-        uses: peter-evans/create-or-update-comment@71345be0265236311c031f5c7866368bd1eff043 # pin@v4
+        uses: peter-evans/create-or-update-comment@e8674b075228eee787fea43ef493e45ece1004c9  # v5.0.0
         with:
           issue-number: ${{ github.event.number }}
           body: |

@@ -79,6 +79,17 @@
     "environmentVariables": []
   },
   {
+    "id": "beads",
+    "name": "Beads",
+    "description": "Git-backed issue tracker for AI agent task management",
+    "command": "uvx beads-mcp",
+    "link": "https://github.com/steveyegge/beads",
+    "installation_notes": "Install using uvx package manager. Requires uv to be installed.",
+    "is_builtin": false,
+    "endorsed": false,
+    "environmentVariables": []
+  },
+  {
     "id": "blender-mcp",
     "name": "Blender",
     "description": "3D modeling and animation integration (requires local server setup)",

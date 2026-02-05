@@ -5,6 +5,7 @@ import { Download, Play, Upload } from 'lucide-react';
 import { exportApp, GooseApp, importApp, listApps } from '../../api';
 import { useChatContext } from '../../contexts/ChatContext';
 import { formatAppName } from '../../utils/conversionUtils';
+import { errorMessage } from '../../utils/conversionUtils';
 
 const GridLayout = ({ children }: { children: React.ReactNode }) => {
   return (
@@ -63,7 +64,7 @@ export default function AppsView() {
         console.warn('Failed to refresh apps:', err);
         // Don't set error if we already have cached apps
         if (apps.length === 0) {
-          setError(err instanceof Error ? err.message : 'Failed to load apps');
+          setError(errorMessage(err, 'Failed to load apps'));
         }
       }
     };
@@ -115,7 +116,7 @@ export default function AppsView() {
     } catch (err) {
       // Only set error if we don't have apps to show
       if (apps.length === 0) {
-        setError(err instanceof Error ? err.message : 'Failed to load apps');
+        setError(errorMessage(err, 'Failed to load apps'));
       }
     } finally {
       setLoading(false);
@@ -151,7 +152,7 @@ export default function AppsView() {
       }
     } catch (err) {
       console.error('Failed to export app:', err);
-      setError(err instanceof Error ? err.message : 'Failed to export app');
+      setError(errorMessage(err, 'Failed to export app'));
     }
   };
 
@@ -179,7 +180,7 @@ export default function AppsView() {
       setError(null);
     } catch (err) {
       console.error('Failed to import app:', err);
-      setError(err instanceof Error ? err.message : 'Failed to import app');
+      setError(errorMessage(err, 'Failed to import app'));
     }
     event.target.value = '';
   };
@@ -232,7 +233,7 @@ export default function AppsView() {
           </div>
         </div>
 
-        <div className="flex-1 overflow-y-auto bg-background-subtle px-8 pb-8">
+        <div className="flex-1 overflow-y-auto bg-background-muted px-8 pb-8">
           {loading ? (
             <div className="flex items-center justify-center h-64">
               <p className="text-text-muted">Loading apps...</p>
@@ -255,7 +256,7 @@ export default function AppsView() {
                 return (
                   <div
                     key={`${app.uri}-${app.mcpServers?.join(',')}`}
-                    className="flex flex-col p-4 border border-border-muted rounded-lg bg-background-panel hover:border-border-default transition-colors"
+                    className="flex flex-col p-4 border rounded-lg hover:border-border-default transition-colors"
                   >
                     <div className="flex-1 mb-4">
                       <h3 className="font-medium text-text-default mb-2">
@@ -265,7 +266,7 @@ export default function AppsView() {
                         <p className="text-sm text-text-muted mb-2">{app.description}</p>
                       )}
                       {app.mcpServers && app.mcpServers.length > 0 && (
-                        <span className="inline-block px-2 py-1 text-xs bg-background-subtle text-text-muted rounded">
+                        <span className="inline-block px-2 py-1 text-xs bg-background-muted text-text-muted rounded">
                           {isCustomApp ? 'Custom app' : app.mcpServers.join(', ')}
                         </span>
                       )}

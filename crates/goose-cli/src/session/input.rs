@@ -1,9 +1,11 @@
 use super::completion::GooseCompleter;
+use super::{CompletionCache, HintStatus};
 use anyhow::Result;
 use goose::config::Config;
 use rustyline::Editor;
 use shlex;
 use std::collections::HashMap;
+use std::sync::Arc;
 
 #[derive(Debug)]
 pub enum InputResult {
@@ -37,10 +39,18 @@ pub struct PlanCommandOptions {
     pub message_text: String,
 }
 
-struct CtrlCHandler;
+struct CtrlCHandler {
+    completion_cache: Arc<std::sync::RwLock<CompletionCache>>,
+}
+
+impl CtrlCHandler {
+    fn new(completion_cache: Arc<std::sync::RwLock<CompletionCache>>) -> Self {
+        Self { completion_cache }
+    }
+}
 
 impl rustyline::ConditionalEventHandler for CtrlCHandler {
-    /// Handle Ctrl+C to clear the line if text is entered, otherwise exit the session.
+    /// Handle Ctrl+C to clear the line if text is entered, otherwise check if we should exit.
     fn handle(
         &self,
         _event: &rustyline::Event,
@@ -49,9 +59,21 @@ impl rustyline::ConditionalEventHandler for CtrlCHandler {
         ctx: &rustyline::EventContext,
     ) -> Option<rustyline::Cmd> {
         if !ctx.line().is_empty() {
+            // Clear the line if there's text
+            let mut cache = self.completion_cache.write().unwrap();
+            cache.hint_status = HintStatus::Default;
             Some(rustyline::Cmd::Kill(rustyline::Movement::WholeBuffer))
         } else {
-            Some(rustyline::Cmd::Interrupt)
+            let mut cache = self.completion_cache.write().unwrap();
+
+            if cache.hint_status == HintStatus::MaybeExit {
+                return Some(rustyline::Cmd::Interrupt);
+            }
+
+            cache.hint_status = HintStatus::MaybeExit;
+            drop(cache);
+
+            Some(rustyline::Cmd::Repaint)
         }
     }
 }
@@ -67,7 +89,27 @@ pub fn get_newline_key() -> char {
 
 pub fn get_input(
     editor: &mut Editor<GooseCompleter, rustyline::history::DefaultHistory>,
+    conversation_messages: Option<&Vec<String>>,
 ) -> Result<InputResult> {
+    let config = Config::global();
+    if let Ok(Some(editor_cmd)) = config.get_goose_prompt_editor() {
+        let messages = extract_recent_messages(conversation_messages);
+        let message_refs: Vec<&str> = messages.iter().map(|s| s.as_str()).collect();
+        let (message, has_meaningful_content) =
+            crate::session::editor::get_editor_input(&editor_cmd, &message_refs)?;
+
+        if !has_meaningful_content {
+            return get_regular_input(editor);
+        }
+        editor.add_history_entry(message.as_str())?;
+        return Ok(InputResult::Message(message));
+    }
+
+    let completion_cache = editor
+        .helper()
+        .map(|h| h.completion_cache.clone())
+        .ok_or_else(|| anyhow::anyhow!("Editor helper not set"))?;
+
     let newline_key = get_newline_key();
     editor.bind_sequence(
         rustyline::KeyEvent(
@@ -79,7 +121,68 @@ pub fn get_input(
 
     editor.bind_sequence(
         rustyline::KeyEvent(rustyline::KeyCode::Char('c'), rustyline::Modifiers::CTRL),
-        rustyline::EventHandler::Conditional(Box::new(CtrlCHandler)),
+        rustyline::EventHandler::Conditional(Box::new(CtrlCHandler::new(completion_cache))),
+    );
+
+    let prompt = get_input_prompt_string();
+
+    let input = match editor.readline(&prompt) {
+        Ok(text) => text,
+        Err(e) => match e {
+            rustyline::error::ReadlineError::Interrupted => return Ok(InputResult::Exit),
+            rustyline::error::ReadlineError::Eof => return Ok(InputResult::Exit),
+            _ => return Err(e.into()),
+        },
+    };
+
+    // Add valid input to history (history saving to file is handled in the Session::interactive method)
+    if !input.trim().is_empty() {
+        editor.add_history_entry(input.as_str())?;
+    }
+
+    // Handle non-slash commands first
+    if !input.starts_with('/') {
+        let trimmed = input.trim();
+        if trimmed.is_empty()
+            || trimmed.eq_ignore_ascii_case("exit")
+            || trimmed.eq_ignore_ascii_case("quit")
+        {
+            return Ok(if trimmed.is_empty() {
+                InputResult::Retry
+            } else {
+                InputResult::Exit
+            });
+        }
+        return Ok(InputResult::Message(trimmed.to_string()));
+    }
+
+    // Handle slash commands
+    match handle_slash_command(&input) {
+        Some(result) => Ok(result),
+        None => Ok(InputResult::Message(input.trim().to_string())),
+    }
+}
+
+fn get_regular_input(
+    editor: &mut Editor<GooseCompleter, rustyline::history::DefaultHistory>,
+) -> Result<InputResult> {
+    let completion_cache = editor
+        .helper()
+        .map(|h| h.completion_cache.clone())
+        .ok_or_else(|| anyhow::anyhow!("Editor helper not set"))?;
+
+    let newline_key = get_newline_key();
+    editor.bind_sequence(
+        rustyline::KeyEvent(
+            rustyline::KeyCode::Char(newline_key),
+            rustyline::Modifiers::CTRL,
+        ),
+        rustyline::EventHandler::Simple(rustyline::Cmd::Newline),
+    );
+
+    editor.bind_sequence(
+        rustyline::KeyEvent(rustyline::KeyCode::Char('c'), rustyline::Modifiers::CTRL),
+        rustyline::EventHandler::Conditional(Box::new(CtrlCHandler::new(completion_cache))),
     );
 
     let prompt = get_input_prompt_string();
@@ -142,6 +245,7 @@ fn handle_slash_command(input: &str) -> Option<InputResult> {
         "/exit" | "/quit" => Some(InputResult::Exit),
         "/?" | "/help" => {
             print_help();
+            print_editor_help();
             Some(InputResult::Retry)
         }
         "/t" => Some(InputResult::ToggleTheme),
@@ -338,6 +442,27 @@ Navigation:
 Ctrl+C - Clear current line if text is entered, otherwise exit the session
 Ctrl+{newline_key} - Add a newline (configurable via GOOSE_CLI_NEWLINE_KEY)
 Up/Down arrows - Navigate through command history"
+    );
+}
+
+/// Extract recent messages for editor context
+fn extract_recent_messages(conversation_messages: Option<&Vec<String>>) -> Vec<String> {
+    match conversation_messages {
+        Some(messages) => {
+            // Return the messages in reverse chronological order (newest first)
+            messages.clone()
+        }
+        None => Vec::new(),
+    }
+}
+
+/// Print help information about editor input
+fn print_editor_help() {
+    println!(
+        "Editor Input:
+When goose_prompt_editor is configured, prompts will open in your editor instead of the CLI.
+Previous conversation is included as markdown headings for context.
+Configure with: goose configure set goose_prompt_editor \"vim\""
     );
 }
 

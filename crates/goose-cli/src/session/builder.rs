@@ -1,12 +1,12 @@
+use crate::cli::StreamableHttpOptions;
+
 use super::output;
 use super::CliSession;
 use console::style;
-use goose::agents::Agent;
+use goose::agents::{Agent, Container};
 use goose::config::get_enabled_extensions;
 use goose::config::resolve_extensions_for_new_session;
-use goose::config::{
-    extensions::get_extension_by_name, get_all_extensions, Config, ExtensionConfig,
-};
+use goose::config::{get_all_extensions, Config, ExtensionConfig};
 use goose::providers::create;
 use goose::recipe::Recipe;
 use goose::session::session_manager::SessionType;
@@ -30,7 +30,7 @@ fn truncate_with_ellipsis(s: &str, max_len: usize) -> String {
 
 fn parse_cli_flag_extensions(
     extensions: &[String],
-    streamable_http_extensions: &[String],
+    streamable_http_extensions: &[StreamableHttpOptions],
     builtins: &[String],
 ) -> Vec<(String, ExtensionConfig)> {
     let mut extensions_to_load = Vec::new();
@@ -55,9 +55,9 @@ fn parse_cli_flag_extensions(
         }
     }
 
-    for (idx, ext_str) in streamable_http_extensions.iter().enumerate() {
-        let config = CliSession::parse_streamable_http_extension(ext_str);
-        let hint = truncate_with_ellipsis(ext_str, EXTENSION_HINT_MAX_LEN);
+    for (idx, opts) in streamable_http_extensions.iter().enumerate() {
+        let config = CliSession::parse_streamable_http_extension(&opts.url, opts.timeout);
+        let hint = truncate_with_ellipsis(&opts.url, EXTENSION_HINT_MAX_LEN);
         let label = format!("http #{}({})", idx + 1, hint);
         extensions_to_load.push((label, config));
     }
@@ -89,9 +89,10 @@ pub struct SessionBuilderConfig {
     /// List of stdio extension commands to add
     pub extensions: Vec<String>,
     /// List of streamable HTTP extension commands to add
-    pub streamable_http_extensions: Vec<String>,
+    pub streamable_http_extensions: Vec<StreamableHttpOptions>,
     /// List of builtin extension commands to add
     pub builtins: Vec<String>,
+    pub no_profile: bool,
     /// Recipe for the session
     pub recipe: Option<Recipe>,
     /// Any additional system prompt to append to the default
@@ -114,6 +115,8 @@ pub struct SessionBuilderConfig {
     pub quiet: bool,
     /// Output format (text, json)
     pub output_format: String,
+    /// Docker container to run stdio extensions inside
+    pub container: Option<Container>,
 }
 
 /// Manual implementation of Default to ensure proper initialization of output_format
@@ -128,6 +131,7 @@ impl Default for SessionBuilderConfig {
             extensions: Vec::new(),
             streamable_http_extensions: Vec::new(),
             builtins: Vec::new(),
+            no_profile: false,
             recipe: None,
             additional_system_prompt: None,
             provider: None,
@@ -139,6 +143,7 @@ impl Default for SessionBuilderConfig {
             interactive: false,
             quiet: false,
             output_format: "text".to_string(),
+            container: None,
         }
     }
 }
@@ -206,7 +211,10 @@ async fn offer_extension_debugging_help(
     let extensions = get_all_extensions();
     for ext_wrapper in extensions {
         if ext_wrapper.enabled && ext_wrapper.config.name() == "developer" {
-            if let Err(e) = debug_agent.add_extension(ext_wrapper.config).await {
+            if let Err(e) = debug_agent
+                .add_extension(ext_wrapper.config, &session.id)
+                .await
+            {
                 // If we can't add developer extension, continue without it
                 eprintln!(
                     "Note: Could not load developer extension for debugging: {}",
@@ -253,6 +261,7 @@ async fn load_extensions(
     extensions_to_load: Vec<(String, ExtensionConfig)>,
     provider_for_debug: Arc<dyn goose::providers::base::Provider>,
     interactive: bool,
+    session_id: &str,
 ) -> Arc<Agent> {
     let mut set = JoinSet::new();
     let agent_ptr = Arc::new(agent);
@@ -261,7 +270,8 @@ async fn load_extensions(
     for (id, (_label, extension)) in extensions_to_load.iter().enumerate() {
         let agent_ptr = agent_ptr.clone();
         let cfg = extension.clone();
-        set.spawn(async move { (id, agent_ptr.add_extension(cfg).await) });
+        let sid = session_id.to_string();
+        set.spawn(async move { (id, agent_ptr.add_extension(cfg, &sid).await) });
     }
 
     let get_message = |waiting_ids: &BTreeSet<usize>| {
@@ -327,50 +337,16 @@ async fn load_extensions(
     agent_ptr
 }
 
-fn check_missing_extensions_or_exit(saved_extensions: &[ExtensionConfig], interactive: bool) {
-    let missing: Vec<_> = saved_extensions
-        .iter()
-        .filter(|ext| get_extension_by_name(&ext.name()).is_none())
-        .cloned()
-        .collect();
-
-    if !missing.is_empty() {
-        let names = missing
-            .iter()
-            .map(|e| e.name())
-            .collect::<Vec<_>>()
-            .join(", ");
-
-        if interactive {
-            if !cliclack::confirm(format!(
-                "Extension(s) {} from previous session are no longer available. Restore for this session?",
-                names
-            ))
-            .initial_value(true)
-            .interact()
-            .unwrap_or(false)
-            {
-                println!("{}", style("Resume cancelled.").yellow());
-                process::exit(0);
-            }
-        } else {
-            eprintln!(
-                "{}",
-                style(format!(
-                    "Warning: Extension(s) {} from previous session are no longer available, continuing without them.",
-                    names
-                ))
-                .yellow()
-            );
-        }
-    }
-}
-
 pub async fn build_session(session_config: SessionBuilderConfig) -> CliSession {
     goose::posthog::set_session_context("cli", session_config.resume);
 
     let config = Config::global();
     let agent: Agent = Agent::new();
+
+    if session_config.container.is_some() {
+        agent.set_container(session_config.container.clone()).await;
+    }
+
     let session_manager = agent.config.session_manager.clone();
 
     let (saved_provider, saved_model_config) = if session_config.resume {
@@ -558,11 +534,10 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> CliSession {
             .await
             .ok()
             .and_then(|s| EnabledExtensionsState::from_extension_data(&s.extension_data))
-            .map(|state| {
-                check_missing_extensions_or_exit(&state.extensions, session_config.interactive);
-                state.extensions
-            })
+            .map(|state| state.extensions)
             .unwrap_or_else(get_enabled_extensions)
+    } else if session_config.no_profile {
+        Vec::new()
     } else {
         resolve_extensions_for_new_session(recipe.and_then(|r| r.extensions.as_deref()), None)
     };
@@ -584,6 +559,7 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> CliSession {
         extensions_to_load,
         Arc::clone(&provider_for_display),
         session_config.interactive,
+        &session_id,
     )
     .await;
 
@@ -665,8 +641,12 @@ mod tests {
             fork: false,
             no_session: false,
             extensions: vec!["echo test".to_string()],
-            streamable_http_extensions: vec!["http://localhost:8080/mcp".to_string()],
+            streamable_http_extensions: vec![StreamableHttpOptions {
+                url: "http://localhost:8080/mcp".to_string(),
+                timeout: goose::config::DEFAULT_EXTENSION_TIMEOUT,
+            }],
             builtins: vec!["developer".to_string()],
+            no_profile: false,
             recipe: None,
             additional_system_prompt: Some("Test prompt".to_string()),
             provider: None,
@@ -678,6 +658,7 @@ mod tests {
             interactive: true,
             quiet: false,
             output_format: "text".to_string(),
+            container: None,
         };
 
         assert_eq!(config.extensions.len(), 1);
@@ -701,6 +682,7 @@ mod tests {
         assert!(config.extensions.is_empty());
         assert!(config.streamable_http_extensions.is_empty());
         assert!(config.builtins.is_empty());
+        assert!(!config.no_profile);
         assert!(config.recipe.is_none());
         assert!(config.additional_system_prompt.is_none());
         assert!(!config.debug);

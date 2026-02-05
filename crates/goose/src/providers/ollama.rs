@@ -1,27 +1,30 @@
 use super::api_client::{ApiClient, AuthMethod};
-use super::base::{ConfigKey, MessageStream, Provider, ProviderMetadata, ProviderUsage, Usage};
-use super::errors::ProviderError;
-use super::retry::ProviderRetry;
-use super::utils::{
-    get_model, handle_response_openai_compat, handle_status_openai_compat, stream_openai_compat,
-    RequestLog,
+use super::base::{
+    ConfigKey, MessageStream, Provider, ProviderDef, ProviderMetadata, ProviderUsage, Usage,
 };
+use super::errors::ProviderError;
+use super::openai_compatible::{
+    handle_response_openai_compat, handle_status_openai_compat, stream_openai_compat,
+};
+use super::retry::ProviderRetry;
+use super::utils::{get_model, ImageFormat, RequestLog};
 use crate::config::declarative_providers::DeclarativeProviderConfig;
 use crate::config::GooseMode;
 use crate::conversation::message::Message;
 use crate::conversation::Conversation;
-
 use crate::model::ModelConfig;
 use crate::providers::formats::openai::{create_request, get_usage, response_to_message};
 use crate::utils::safe_truncate;
 use anyhow::Result;
 use async_trait::async_trait;
+use futures::future::BoxFuture;
 use regex::Regex;
 use rmcp::model::Tool;
 use serde_json::Value;
 use std::time::Duration;
 use url::Url;
 
+const OLLAMA_PROVIDER_NAME: &str = "ollama";
 pub const OLLAMA_HOST: &str = "localhost";
 pub const OLLAMA_TIMEOUT: u64 = 600;
 pub const OLLAMA_DEFAULT_PORT: u16 = 11434;
@@ -71,14 +74,14 @@ impl OllamaProvider {
                 .map_err(|_| anyhow::anyhow!("Failed to set default port"))?;
         }
 
-        let auth = AuthMethod::Custom(Box::new(NoAuth));
-        let api_client = ApiClient::with_timeout(base_url.to_string(), auth, timeout)?;
+        let api_client =
+            ApiClient::with_timeout(base_url.to_string(), AuthMethod::NoAuth, timeout)?;
 
         Ok(Self {
             api_client,
             model,
             supports_streaming: true,
-            name: Self::metadata().name,
+            name: OLLAMA_PROVIDER_NAME.to_string(),
         })
     }
 
@@ -108,8 +111,18 @@ impl OllamaProvider {
                 .map_err(|_| anyhow::anyhow!("Failed to set default port"))?;
         }
 
-        let auth = AuthMethod::Custom(Box::new(NoAuth));
-        let api_client = ApiClient::with_timeout(base_url.to_string(), auth, timeout)?;
+        let mut api_client =
+            ApiClient::with_timeout(base_url.to_string(), AuthMethod::NoAuth, timeout)?;
+
+        if let Some(headers) = &config.headers {
+            let mut header_map = reqwest::header::HeaderMap::new();
+            for (key, value) in headers {
+                let header_name = reqwest::header::HeaderName::from_bytes(key.as_bytes())?;
+                let header_value = reqwest::header::HeaderValue::from_str(value)?;
+                header_map.insert(header_name, header_value);
+            }
+            api_client = api_client.with_headers(header_map)?;
+        }
 
         Ok(Self {
             api_client,
@@ -119,7 +132,11 @@ impl OllamaProvider {
         })
     }
 
-    async fn post(&self, session_id: &str, payload: &Value) -> Result<Value, ProviderError> {
+    async fn post(
+        &self,
+        session_id: Option<&str>,
+        payload: &Value,
+    ) -> Result<Value, ProviderError> {
         let response = self
             .api_client
             .response_post(session_id, "v1/chat/completions", payload)
@@ -128,20 +145,12 @@ impl OllamaProvider {
     }
 }
 
-struct NoAuth;
+impl ProviderDef for OllamaProvider {
+    type Provider = Self;
 
-#[async_trait]
-impl super::api_client::AuthProvider for NoAuth {
-    async fn get_auth_header(&self) -> Result<(String, String)> {
-        Ok(("X-No-Auth".to_string(), "true".to_string()))
-    }
-}
-
-#[async_trait]
-impl Provider for OllamaProvider {
     fn metadata() -> ProviderMetadata {
         ProviderMetadata::new(
-            "ollama",
+            OLLAMA_PROVIDER_NAME,
             "Ollama",
             "Local open source models",
             OLLAMA_DEFAULT_MODEL,
@@ -159,6 +168,13 @@ impl Provider for OllamaProvider {
         )
     }
 
+    fn from_env(model: ModelConfig) -> BoxFuture<'static, Result<Self::Provider>> {
+        Box::pin(Self::from_env(model))
+    }
+}
+
+#[async_trait]
+impl Provider for OllamaProvider {
     fn get_name(&self) -> &str {
         &self.name
     }
@@ -173,7 +189,7 @@ impl Provider for OllamaProvider {
     )]
     async fn complete_with_model(
         &self,
-        session_id: &str,
+        session_id: Option<&str>,
         model_config: &ModelConfig,
         system: &str,
         messages: &[Message],
@@ -192,7 +208,7 @@ impl Provider for OllamaProvider {
             system,
             messages,
             filtered_tools,
-            &super::utils::ImageFormat::OpenAi,
+            &ImageFormat::OpenAi,
             false,
         )?;
 
@@ -264,7 +280,7 @@ impl Provider for OllamaProvider {
             system,
             messages,
             filtered_tools,
-            &super::utils::ImageFormat::OpenAi,
+            &ImageFormat::OpenAi,
             true,
         )?;
         let mut log = RequestLog::start(&self.model, &payload)?;
@@ -273,7 +289,7 @@ impl Provider for OllamaProvider {
             .with_retry(|| async {
                 let resp = self
                     .api_client
-                    .response_post(session_id, "v1/chat/completions", &payload)
+                    .response_post(Some(session_id), "v1/chat/completions", &payload)
                     .await?;
                 handle_status_openai_compat(resp).await
             })
@@ -284,13 +300,11 @@ impl Provider for OllamaProvider {
         stream_openai_compat(response, log)
     }
 
-    async fn fetch_supported_models(
-        &self,
-        session_id: &str,
-    ) -> Result<Option<Vec<String>>, ProviderError> {
+    async fn fetch_supported_models(&self) -> Result<Option<Vec<String>>, ProviderError> {
         let response = self
             .api_client
-            .response_get(session_id, "api/tags")
+            .request(None, "api/tags")
+            .response_get()
             .await
             .map_err(|e| ProviderError::RequestFailed(format!("Failed to fetch models: {}", e)))?;
 

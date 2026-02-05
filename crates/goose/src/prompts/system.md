@@ -31,8 +31,8 @@ in your tool specification.
 ## {{extension.name}}
 
 {% if extension.has_resources %}
-{{extension.name}} supports resources, you can use platform__read_resource,
-and platform__list_resources on this extension.
+{{extension.name}} supports resources, you can use extensionmanager__read_resource,
+and extensionmanager__list_resources on this extension.
 {% endif %}
 {% if extension.instructions %}### Instructions
 {{extension.instructions}}{% endif %}
