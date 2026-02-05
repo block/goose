@@ -49,6 +49,7 @@ jobs:
   rust-build-and-test:
     name: Build and Test Rust Project
     runs-on: ubuntu-latest
+    timeout-minutes: 25
     needs: changes
     if: needs.changes.outputs.code == 'true' || github.event_name != 'pull_request'
     steps:
@@ -70,11 +71,38 @@ jobs:
           gnome-keyring-daemon --components=secrets --daemonize --unlock <<< 'foobar'
           export CARGO_INCREMENTAL=0
           cargo test -- --skip scenario_tests::scenarios::tests
-          cargo test --jobs 1 scenario_tests::scenarios::tests
         working-directory: crates
         env:
           RUST_MIN_STACK: 8388608
 
+  rust-scenario-tests:
+    name: Run Scenario Tests (Optional)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    needs: changes
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8  # v6.0.1
+
+      - uses: actions-rust-lang/setup-rust-toolchain@v1
+
+      - name: Install Dependencies
+        run: |
+          sudo apt update -y
+          sudo apt install -y libdbus-1-dev gnome-keyring libxcb1-dev
+
+      - name: Cache Cargo artifacts
+        uses: Swatinem/rust-cache@v2
+
+      - name: Run Scenario Tests
+        run: |
+          gnome-keyring-daemon --components=secrets --daemonize --unlock <<< 'foobar'
+          export CARGO_INCREMENTAL=0
+          cargo test --jobs 1 scenario_tests::scenarios::tests
+        working-directory: crates
+        env:
+          RUST_MIN_STACK: 8388608
 
   rust-lint:
     name: Lint Rust Code
