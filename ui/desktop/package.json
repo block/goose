@@ -143,6 +143,7 @@
     "prettier": "^3.7.4",
     "tailwindcss": "^4.1.18",
     "tar": "^7.5.7",
+    "tmp": "^0.2.5",
     "typescript": "~5.9.3",
     "vite": "^7.3.1",
     "vitest": "^4.0.17"
