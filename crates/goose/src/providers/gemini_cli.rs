@@ -1,7 +1,6 @@
 use anyhow::Result;
 use async_trait::async_trait;
 use serde_json::json;
-use std::ffi::OsString;
 use std::path::PathBuf;
 use std::process::Stdio;
 use tokio::io::{AsyncBufReadExt, BufReader};
@@ -42,8 +41,8 @@ pub struct GeminiCliProvider {
 impl GeminiCliProvider {
     pub async fn from_env(model: ModelConfig) -> Result<Self> {
         let config = Config::global();
-        let command: OsString = config.get_gemini_cli_command().unwrap_or_default().into();
-        let resolved_command = SearchPaths::builder().with_npm().resolve(command)?;
+        let command: String = config.get_gemini_cli_command().unwrap_or_default().into();
+        let resolved_command = SearchPaths::builder().with_npm().resolve(&command)?;
 
         Ok(Self {
             command: resolved_command,
