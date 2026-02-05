@@ -329,7 +329,7 @@ For enterprise deployments, you can pre-configure these values using environment
 
 ## Configure Custom Provider
 
-Custom providers let you connect to services that aren't in the [available providers](#available-providers) list. They appear in goose's provider list and can be selected like any other provider.
+Create custom providers to connect to services that aren't [already supported](#available-providers) or customize how you connect to them. Custom providers appear in goose's provider list and can be selected like any other provider.
 
 **Benefits:**
 - **Multiple endpoints**: Switch between different services (e.g., vLLM, corporate proxy, OpenAI)
@@ -338,7 +338,7 @@ Custom providers let you connect to services that aren't in the [available provi
 - **Custom naming**: Show "Corporate API" instead of "OpenAI" in the UI
 - **Separate credentials**: Assign each provider its own API key
 
-Custom providers must use OpenAI, Anthropic, or Ollama compatible API formats. OpenAI-compatible providers can include custom headers for additional authentication, API keys, tokens, or tenant identifiers. Each custom provider maps to a JSON configuration file.
+Custom providers must use OpenAI, Anthropic, or Ollama compatible API formats. They can include custom headers for additional authentication, API keys, tokens, or tenant identifiers. Each custom provider maps to a JSON configuration file.
 
 **To add a custom provider:**
 <Tabs groupId="interface">
@@ -362,7 +362,7 @@ Custom providers must use OpenAI, Anthropic, or Ollama compatible API formats. O
     7. Click `Create Provider`
 
     :::info Custom Headers
-    Currently, custom headers for OpenAI compatible providers can't be defined in goose Desktop. As a workaround, configure the provider using goose CLI or edit the provider configuration file directly.
+    Currently, custom headers can't be defined in goose Desktop. As a workaround, configure the provider using goose CLI or edit the provider configuration file directly.
     :::
 
   </TabItem>
@@ -417,7 +417,7 @@ Custom providers must use OpenAI, Anthropic, or Ollama compatible API formats. O
          - For `Ollama Compatible` providers, press `Enter` to skip (or enter any value to be able to use the provider in goose Desktop)
        - **Available Models**: Comma-separated list of available model names
        - **Streaming Support**: Whether the API supports streaming responses
-       - **Custom Headers**: Required header names and values (`OpenAI Compatible` providers only)
+       - **Custom Headers**: Any required header names and values
 
   </TabItem>
   <TabItem value="config" label="Config File">
@@ -476,7 +476,6 @@ Custom providers must use OpenAI, Anthropic, or Ollama compatible API formats. O
     4. Click `Configure providers`
     5. Click on your custom provider in the list
     6. Update the fields you want to change
-       <br/>**Important:** Verify that `Provider Type` shows the correct value before saving. Otherwise, it may default to `OpenAI Compatible` regardless of the original setting.
     7. Click `Update Provider`
 
   </TabItem>
