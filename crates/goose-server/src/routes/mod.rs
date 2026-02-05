@@ -4,6 +4,7 @@ pub mod config_management;
 pub mod dictation;
 pub mod errors;
 pub mod mcp_app_proxy;
+pub mod mcp_app_view;
 pub mod mcp_ui_proxy;
 pub mod prompts;
 pub mod recipe;
@@ -23,6 +24,9 @@ use axum::Router;
 
 // Function to configure all routes
 pub fn configure(state: Arc<crate::state::AppState>, secret_key: String) -> Router {
+    // Create shared store for MCP App View (secure context endpoint)
+    let mcp_app_view_store = mcp_app_view::McpAppViewStore::new();
+
     Router::new()
         .merge(status::routes(state.clone()))
         .merge(reply::routes(state.clone()))
@@ -38,5 +42,6 @@ pub fn configure(state: Arc<crate::state::AppState>, secret_key: String) -> Rout
         .merge(telemetry::routes(state.clone()))
         .merge(tunnel::routes(state.clone()))
         .merge(mcp_ui_proxy::routes(secret_key.clone()))
-        .merge(mcp_app_proxy::routes(secret_key))
+        .merge(mcp_app_proxy::routes(secret_key.clone()))
+        .merge(mcp_app_view::routes(secret_key, mcp_app_view_store))
 }

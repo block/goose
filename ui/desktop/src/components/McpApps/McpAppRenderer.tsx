@@ -2,9 +2,10 @@ import { AppEvents } from '../../constants/events';
 /**
  * MCP Apps Renderer
  *
- * Temporary Goose implementation while waiting for official SDK components.
+ * Renders MCP Apps in a secure iframe with proper origin and secure context.
+ * This enables Web Payments SDK, WebAuthn, and other APIs that require
+ * window.isSecureContext to be true.
  *
- * @see SEP-1865 https://github.com/modelcontextprotocol/ext-apps/blob/main/specification/draft/apps.mdx
  */
 
 import { useState, useCallback, useEffect } from 'react';
@@ -85,7 +86,13 @@ export default function McpAppRenderer({
         if (response.data) {
           const content = response.data;
           const meta = content._meta as
-            | { ui?: { csp?: CspMetadata; permissions?: PermissionsMetadata; prefersBorder?: boolean } }
+            | {
+                ui?: {
+                  csp?: CspMetadata;
+                  permissions?: PermissionsMetadata;
+                  prefersBorder?: boolean;
+                };
+              }
             | undefined;
 
           if (content.text !== cachedHtml) {
@@ -242,7 +249,8 @@ export default function McpAppRenderer({
     setIframeWidth(width ?? null);
   }, []);
 
-  const { iframeRef, proxyUrl } = useSandboxBridge({
+  // Use sandbox bridge - serves HTML from real URL for secure context
+  const { iframeRef, viewUrl, isLoading } = useSandboxBridge({
     resourceHtml: resource.html || '',
     resourceCsp: resource.csp,
     resourcePermissions: resource.permissions,
@@ -264,16 +272,15 @@ export default function McpAppRenderer({
   }
 
   if (fullscreen) {
-    return proxyUrl ? (
+    return viewUrl ? (
       <iframe
         ref={iframeRef}
-        src={proxyUrl}
+        src={viewUrl}
         style={{
           width: '100%',
           height: '100%',
           border: 'none',
         }}
-        sandbox="allow-scripts allow-same-origin"
       />
     ) : (
       <div
@@ -297,18 +304,16 @@ export default function McpAppRenderer({
         resource.prefersBorder ? 'border border-borderSubtle rounded-lg' : 'my-6'
       )}
     >
-      {resource.html && proxyUrl ? (
+      {resource.html && viewUrl && !isLoading ? (
         <iframe
           ref={iframeRef}
-          src={proxyUrl}
+          src={viewUrl}
           style={{
-            width: iframeWidth ? `${iframeWidth}px` : '100%',
-            maxWidth: '100%',
+            width: '100%',
             height: `${iframeHeight}px`,
             border: 'none',
             overflow: 'hidden',
           }}
-          sandbox="allow-scripts allow-same-origin"
         />
       ) : (
         <div className="flex items-center justify-center p-4" style={{ minHeight: '200px' }}>
