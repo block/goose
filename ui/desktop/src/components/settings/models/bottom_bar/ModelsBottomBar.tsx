@@ -124,9 +124,9 @@ export default function ModelsBottomBar({
     if (effectiveProvider) {
       (async () => {
         if (recipeProvider) {
-          const capitalizedProvider =
-            recipeProvider.charAt(0).toUpperCase() + recipeProvider.slice(1);
-          setDisplayProvider(capitalizedProvider);
+          const metadata = await getProviderMetadata(recipeProvider, getProviders);
+          const displayName = metadata?.display_name ?? metadata?.name ?? recipeProvider;
+          setDisplayProvider(displayName);
         } else {
           const providerDisplayName = await getCurrentProviderDisplayName();
           if (providerDisplayName) {
@@ -144,6 +144,8 @@ export default function ModelsBottomBar({
     currentProvider,
     getCurrentProviderDisplayName,
     getCurrentModelAndProviderForDisplay,
+    recipe,
+    getProviders,
   ]);
 
   // Fetch provider default model when provider changes and no current model
@@ -173,7 +175,7 @@ export default function ModelsBottomBar({
         setDisplayModelName(displayName);
       }
     })();
-  }, [effectiveModel, recipeModel, currentModel, getCurrentModelDisplayName]);
+  }, [effectiveModel, recipeModel, currentModel, getCurrentModelDisplayName, recipe]);
 
   return (
     <div className="relative flex items-center" ref={dropdownRef}>
