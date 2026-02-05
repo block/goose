@@ -119,10 +119,18 @@
         window.addEventListener('message', handleMessage);
 
         // Create the guest iframe immediately (content URL and permissions are embedded)
-        // Note: Unlike web hosts that use sandbox-proxy-ready/sandbox-resource-ready handshake,
-        // we embed the content URL directly since this is for Electron (desktop) which needs
-        // secure context but can trust the content source.
+        // Note: We deviate slightly from the spec's sandbox-proxy-ready/sandbox-resource-ready
+        // handshake by embedding the content URL directly. This is more efficient since the
+        // HTML is already stored server-side with a token.
         createGuestIframe();
+
+        // Notify Host that Sandbox proxy is ready (per MCP Apps spec)
+        // Even though we create the iframe immediately, we send this for spec compliance
+        window.parent.postMessage({
+          jsonrpc: '2.0',
+          method: 'ui/notifications/sandbox-proxy-ready',
+          params: {}
+        }, '*');
       })();
     </script>
   </body>
