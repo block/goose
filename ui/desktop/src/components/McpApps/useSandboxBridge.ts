@@ -51,7 +51,7 @@ interface SandboxBridgeOptions {
 
 interface SandboxBridgeResult {
   iframeRef: React.RefObject<HTMLIFrameElement | null>;
-  viewUrl: string | null;
+  proxyUrl: string | null;
   isLoading: boolean;
 }
 
@@ -73,17 +73,17 @@ export function useSandboxBridge(options: SandboxBridgeOptions): SandboxBridgeRe
   const iframeRef = useRef<HTMLIFrameElement | null>(null);
   const isGuestInitializedRef = useRef(false);
   const appCapabilitiesRef = useRef<AppCapabilities | null>(null);
-  const [viewUrl, setViewUrl] = useState<string | null>(null);
+  const [proxyUrl, setProxyUrl] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
   // Display modes supported by the host
   const hostAvailableDisplayModes = useMemo<DisplayMode[]>(() => ['inline'], []);
   const currentDisplayMode: DisplayMode = 'inline';
 
-  // Create the secure view URL when HTML changes
+  // Create the proxy URL when HTML changes
   useEffect(() => {
     if (!resourceHtml) {
-      setViewUrl(null);
+      setProxyUrl(null);
       setIsLoading(false);
       return;
     }
@@ -91,12 +91,12 @@ export function useSandboxBridge(options: SandboxBridgeOptions): SandboxBridgeRe
     setIsLoading(true);
     createMcpAppProxyUrl(resourceHtml, resourceCsp, resourcePermissions)
       .then((url) => {
-        setViewUrl(url);
+        setProxyUrl(url);
         setIsLoading(false);
       })
       .catch((err) => {
-        console.error('Failed to create secure view URL:', err);
-        setViewUrl(null);
+        console.error('Failed to create proxy URL:', err);
+        setProxyUrl(null);
         setIsLoading(false);
       });
   }, [resourceHtml, resourceCsp, resourcePermissions]);
@@ -364,5 +364,5 @@ export function useSandboxBridge(options: SandboxBridgeOptions): SandboxBridgeRe
     };
   }, [sendToView]);
 
-  return { iframeRef, viewUrl, isLoading };
+  return { iframeRef, proxyUrl, isLoading };
 }

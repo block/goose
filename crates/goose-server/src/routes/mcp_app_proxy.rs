@@ -87,20 +87,28 @@ impl McpAppProxyStore {
 #[derive(Debug, Clone, Default, Deserialize, Serialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct CspConfig {
-    pub connect_domains: Option<Vec<String>>,
-    pub resource_domains: Option<Vec<String>>,
-    pub frame_domains: Option<Vec<String>>,
-    pub base_uri_domains: Option<Vec<String>>,
+    #[serde(default)]
+    pub connect_domains: Vec<String>,
+    #[serde(default)]
+    pub resource_domains: Vec<String>,
+    #[serde(default)]
+    pub frame_domains: Vec<String>,
+    #[serde(default)]
+    pub base_uri_domains: Vec<String>,
 }
 
 /// Permissions configuration from the MCP server
 #[derive(Debug, Clone, Default, Deserialize, Serialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct PermissionsConfig {
-    pub camera: Option<bool>,
-    pub microphone: Option<bool>,
-    pub geolocation: Option<bool>,
-    pub clipboard_write: Option<bool>,
+    #[serde(default)]
+    pub camera: bool,
+    #[serde(default)]
+    pub microphone: bool,
+    #[serde(default)]
+    pub geolocation: bool,
+    #[serde(default)]
+    pub clipboard_write: bool,
 }
 
 /// Request body for creating a new MCP App proxy
@@ -122,34 +130,29 @@ pub struct CreateProxyResponse {
 /// Build CSP header string from configuration
 /// Matches the style from main branch's build_outer_csp function
 fn build_csp(csp: &CspConfig) -> String {
-    let connect_domains = csp.connect_domains.clone().unwrap_or_default();
-    let resource_domains = csp.resource_domains.clone().unwrap_or_default();
-    let frame_domains = csp.frame_domains.clone().unwrap_or_default();
-    let base_uri_domains = csp.base_uri_domains.clone().unwrap_or_default();
-
-    let resources = if resource_domains.is_empty() {
+    let resources = if csp.resource_domains.is_empty() {
         String::new()
     } else {
-        format!(" {}", resource_domains.join(" "))
+        format!(" {}", csp.resource_domains.join(" "))
     };
 
-    let connections = if connect_domains.is_empty() {
+    let connections = if csp.connect_domains.is_empty() {
         String::new()
     } else {
-        format!(" {}", connect_domains.join(" "))
+        format!(" {}", csp.connect_domains.join(" "))
     };
 
     // For frame-src, we need 'self' to allow the inner iframe
-    let frame_src = if frame_domains.is_empty() {
+    let frame_src = if csp.frame_domains.is_empty() {
         "frame-src 'self'".to_string()
     } else {
-        format!("frame-src 'self' {}", frame_domains.join(" "))
+        format!("frame-src 'self' {}", csp.frame_domains.join(" "))
     };
 
-    let base_uris = if base_uri_domains.is_empty() {
+    let base_uris = if csp.base_uri_domains.is_empty() {
         String::new()
     } else {
-        format!(" {}", base_uri_domains.join(" "))
+        format!(" {}", csp.base_uri_domains.join(" "))
     };
 
     format!(
@@ -172,25 +175,25 @@ fn build_csp(csp: &CspConfig) -> String {
 fn build_permissions_policy(permissions: &PermissionsConfig) -> String {
     let mut policies = Vec::new();
 
-    if permissions.camera == Some(true) {
+    if permissions.camera {
         policies.push("camera=(self)");
     } else {
         policies.push("camera=()");
     }
 
-    if permissions.microphone == Some(true) {
+    if permissions.microphone {
         policies.push("microphone=(self)");
     } else {
         policies.push("microphone=()");
     }
 
-    if permissions.geolocation == Some(true) {
+    if permissions.geolocation {
         policies.push("geolocation=(self)");
     } else {
         policies.push("geolocation=()");
     }
 
-    if permissions.clipboard_write == Some(true) {
+    if permissions.clipboard_write {
         policies.push("clipboard-write=(self)");
     } else {
         policies.push("clipboard-write=()");
@@ -203,16 +206,16 @@ fn build_permissions_policy(permissions: &PermissionsConfig) -> String {
 fn build_allow_attribute(permissions: &PermissionsConfig) -> String {
     let mut allows = Vec::new();
 
-    if permissions.camera == Some(true) {
+    if permissions.camera {
         allows.push("camera");
     }
-    if permissions.microphone == Some(true) {
+    if permissions.microphone {
         allows.push("microphone");
     }
-    if permissions.geolocation == Some(true) {
+    if permissions.geolocation {
         allows.push("geolocation");
     }
-    if permissions.clipboard_write == Some(true) {
+    if permissions.clipboard_write {
         allows.push("clipboard-write");
     }
 
@@ -357,10 +360,10 @@ mod tests {
     #[test]
     fn test_build_csp_with_domains() {
         let csp = CspConfig {
-            connect_domains: Some(vec!["https://api.example.com".to_string()]),
-            resource_domains: Some(vec!["https://cdn.example.com".to_string()]),
-            frame_domains: Some(vec!["https://embed.example.com".to_string()]),
-            base_uri_domains: None,
+            connect_domains: vec!["https://api.example.com".to_string()],
+            resource_domains: vec!["https://cdn.example.com".to_string()],
+            frame_domains: vec!["https://embed.example.com".to_string()],
+            base_uri_domains: vec![],
         };
         let result = build_csp(&csp);
         assert!(result.contains("connect-src 'self' https://api.example.com"));
@@ -371,10 +374,10 @@ mod tests {
     #[test]
     fn test_build_permissions_policy() {
         let permissions = PermissionsConfig {
-            camera: Some(true),
-            microphone: Some(false),
-            geolocation: None,
-            clipboard_write: Some(true),
+            camera: true,
+            microphone: false,
+            geolocation: false,
+            clipboard_write: true,
         };
         let result = build_permissions_policy(&permissions);
         assert!(result.contains("camera=(self)"));
@@ -386,10 +389,10 @@ mod tests {
     #[test]
     fn test_build_allow_attribute() {
         let permissions = PermissionsConfig {
-            camera: Some(true),
-            microphone: Some(true),
-            geolocation: None,
-            clipboard_write: Some(false),
+            camera: true,
+            microphone: true,
+            geolocation: false,
+            clipboard_write: false,
         };
         let result = build_allow_attribute(&permissions);
         assert_eq!(result, "camera; microphone");

@@ -247,7 +247,7 @@ export default function McpAppRenderer({
     setIframeHeight(newHeight);
   }, []);
 
-  const { iframeRef, viewUrl, isLoading } = useSandboxBridge({
+  const { iframeRef, proxyUrl, isLoading } = useSandboxBridge({
     resourceHtml: resource.html || '',
     resourceCsp: resource.csp,
     resourcePermissions: resource.permissions,
@@ -269,10 +269,10 @@ export default function McpAppRenderer({
   }
 
   if (fullscreen) {
-    return viewUrl ? (
+    return proxyUrl ? (
       <iframe
         ref={iframeRef}
-        src={viewUrl}
+        src={proxyUrl}
         style={{
           width: '100%',
           height: '100%',
@@ -301,10 +301,10 @@ export default function McpAppRenderer({
         resource.prefersBorder ? 'border border-borderSubtle rounded-lg' : 'my-6'
       )}
     >
-      {resource.html && viewUrl && !isLoading ? (
+      {resource.html && proxyUrl && !isLoading ? (
         <iframe
           ref={iframeRef}
-          src={viewUrl}
+          src={proxyUrl}
           style={{
             width: '100%',
             height: `${iframeHeight}px`,
