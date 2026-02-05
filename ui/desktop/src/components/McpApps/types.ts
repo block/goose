@@ -71,8 +71,8 @@ export interface HostContext {
   viewport: {
     width: number;
     height: number;
-    maxWidth: number;
     maxHeight: number;
+    maxWidth: number;
   };
   locale: string;
   timeZone: string;
