@@ -3672,12 +3672,28 @@
         "type": "object",
         "description": "Content Security Policy metadata for MCP Apps\nSpecifies allowed domains for network connections and resource loading",
         "properties": {
+          "baseUriDomains": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Domains allowed for base-uri",
+            "nullable": true
+          },
           "connectDomains": {
             "type": "array",
             "items": {
               "type": "string"
             },
             "description": "Domains allowed for connect-src (fetch, XHR, WebSocket)",
+            "nullable": true
+          },
+          "frameDomains": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Domains allowed for frame-src (nested iframes)",
             "nullable": true
           },
           "resourceDomains": {

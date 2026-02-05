@@ -2,14 +2,6 @@ import type { CspMetadata, PermissionsMetadata } from './types';
 
 export const DEFAULT_IFRAME_HEIGHT = 200;
 
-// Extended CSP metadata type that includes all fields (some may not be in generated types yet)
-interface ExtendedCspMetadata {
-  connectDomains?: string[] | null;
-  resourceDomains?: string[] | null;
-  frameDomains?: string[] | null;
-  baseUriDomains?: string[] | null;
-}
-
 /**
  * Create a secure MCP App Proxy URL.
  *
@@ -26,7 +18,7 @@ interface ExtendedCspMetadata {
  * 2. Backend stores it temporarily and returns a token
  * 3. Use the returned URL as iframe src
  * 4. Backend serves HTML with proper CSP headers
- * 5. Token expires after 60 seconds
+ * 5. Token expires after 5 minutes
  */
 export async function createMcpAppProxyUrl(
   html: string,
@@ -41,9 +33,6 @@ export async function createMcpAppProxyUrl(
       return null;
     }
 
-    // Cast to extended type to access all CSP fields
-    const extendedCsp = csp as ExtendedCspMetadata | null | undefined;
-
     console.log('[MCP App Proxy] Creating proxy URL', { baseUrl, secretKeyLength: secretKey?.length });
     const response = await fetch(`${baseUrl}/mcp-app-proxy`, {
       method: 'POST',
@@ -53,11 +42,11 @@ export async function createMcpAppProxyUrl(
       body: JSON.stringify({
         secret: secretKey,
         html,
-        csp: extendedCsp ? {
-          connectDomains: extendedCsp.connectDomains || [],
-          resourceDomains: extendedCsp.resourceDomains || [],
-          frameDomains: extendedCsp.frameDomains || [],
-          baseUriDomains: extendedCsp.baseUriDomains || [],
+        csp: csp ? {
+          connectDomains: csp.connectDomains || [],
+          resourceDomains: csp.resourceDomains || [],
+          frameDomains: csp.frameDomains || [],
+          baseUriDomains: csp.baseUriDomains || [],
         } : {},
         permissions: permissions ? {
           camera: permissions.camera || false,
