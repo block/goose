@@ -302,7 +302,7 @@ impl SummonClient {
         Tool::new(
             "load",
             "Load knowledge into your current context or discover available sources.\n\n\
-             Call with no arguments to list all available sources (recipes, skills, agents).\n\
+             Call with no arguments to list all available sources (subrecipes, recipes, skills, agents).\n\
              Call with a source name to load its content into your context.\n\
              For background tasks: load(source: \"task_id\", cancel: true) stops and returns output.\n\n\
              Examples:\n\
@@ -360,7 +360,7 @@ impl SummonClient {
             "Delegate a task to a subagent that runs independently with its own context.\n\n\
              Modes:\n\
              1. Ad-hoc: Provide `instructions` for a custom task\n\
-             2. Source-based: Provide `source` name to run a recipe, skill, or agent\n\
+             2. Source-based: Provide `source` name to run a subrecipe, recipe, skill, or agent\n\
              3. Combined: Provide both `source` and `instructions` for additional context\n\n\
              Options:\n\
              - `extensions`: Limit which extensions the subagent can use\n\
