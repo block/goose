@@ -119,18 +119,15 @@
         window.addEventListener('message', handleMessage);
 
         // Create the guest iframe immediately (content URL and permissions are embedded)
-        // Note: We deviate slightly from the spec's sandbox-proxy-ready/sandbox-resource-ready
-        // handshake by embedding the content URL directly. This is more efficient since the
-        // HTML is already stored server-side with a token.
+        //
+        // Note: The MCP Apps spec defines a sandbox-proxy-ready/sandbox-resource-ready handshake
+        // where the Sandbox notifies the Host it's ready, then the Host sends HTML via postMessage.
+        // We skip this handshake because:
+        // 1. The HTML is stored server-side with a token
+        // 2. The content URL is embedded in this template at render time
+        // 3. The inner iframe loads directly via src attribute
+        // This is more efficient and equally secure.
         createGuestIframe();
-
-        // Notify Host that Sandbox proxy is ready (per MCP Apps spec)
-        // Even though we create the iframe immediately, we send this for spec compliance
-        window.parent.postMessage({
-          jsonrpc: '2.0',
-          method: 'ui/notifications/sandbox-proxy-ready',
-          params: {}
-        }, '*');
       })();
     </script>
   </body>
