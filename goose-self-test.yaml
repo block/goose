@@ -251,6 +251,39 @@ prompt: |
   - Turn counting works correctly
   - Task cleanup happens when complete
 
+  ### Async Delegate Cancellation Test
+  This tests the ability to stop a running background task mid-execution.
+
+  1. Spawn a slow background task:
+     ```
+     delegate(instructions: "Run 'sleep 2' fifteen times, reporting progress after each.", async: true)
+     ```
+     Note the task ID returned (e.g., "20260204_42").
+
+  2. Wait 8 seconds: `sleep 8`
+
+  3. Check MOIM and confirm the task is running with some turns completed.
+
+  4. Cancel the task:
+     ```
+     load(source: "<task_id>", cancel: true)
+     ```
+
+  5. Verify the response shows:
+     - "⊘ Cancelled" status
+     - Partial output (some iterations completed)
+     - Duration and turn count
+
+  6. Check MOIM again - the task should be gone (not in running or completed).
+
+  7. Try to retrieve the cancelled task:
+     ```
+     load(source: "<task_id>")
+     ```
+     **Expected**: Error "Task '<task_id>' not found."
+
+  This validates that cancellation stops tasks, returns partial results, and cleans up properly.
+
   ### Source-Based Delegate Test
   If `load()` discovered any recipes or skills, test delegating with a source:
   ```
@@ -343,6 +376,7 @@ prompt: |
   • Load tool: [✓/✗]
   • Delegate (sync): [✓/✗]
   • Delegate (async): [✓/✗]
+  • Delegate cancellation: [✓/✗]
   • Nested delegation blocked: [✓/✗]
 
   ⚠️ Issues Found:

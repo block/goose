@@ -119,6 +119,7 @@ pub struct BackgroundTask {
     pub turns: Arc<AtomicU32>,
     pub last_activity: Arc<AtomicU64>,
     pub handle: JoinHandle<Result<String>>,
+    pub cancellation_token: CancellationToken,
 }
 
 pub struct CompletedTask {
@@ -277,6 +278,11 @@ impl SummonClient {
                 "source": {
                     "type": "string",
                     "description": "Name of the source to load. If omitted, lists all available sources."
+                },
+                "cancel": {
+                    "type": "boolean",
+                    "default": false,
+                    "description": "For running background tasks: cancel and return output."
                 }
             }
         });
@@ -285,11 +291,11 @@ impl SummonClient {
             "load",
             "Load knowledge into your current context or discover available sources.\n\n\
              Call with no arguments to list all available sources (recipes, skills, agents).\n\
-             Call with a source name to load its content into your context.\n\n\
+             Call with a source name to load its content into your context.\n\
+             For background tasks: load(source: \"task_id\", cancel: true) stops and returns output.\n\n\
              Examples:\n\
              - load() → Lists available sources\n\
-             - load(source: \"rust-patterns\") → Loads the rust-patterns skill\n\n\
-             Use this when you want to learn an approach or adopt expertise without delegating."
+             - load(source: \"rust-patterns\") → Loads the rust-patterns skill"
                 .to_string(),
             schema.as_object().unwrap().clone(),
         )
@@ -698,6 +704,12 @@ impl SummonClient {
             .and_then(|args| args.get("source"))
             .and_then(|v| v.as_str());
 
+        let cancel = arguments
+            .as_ref()
+            .and_then(|args| args.get("cancel"))
+            .and_then(|v| v.as_bool())
+            .unwrap_or(false);
+
         let working_dir = self.get_working_dir(session_id).await;
 
         if source_name.is_none() {
@@ -707,14 +719,18 @@ impl SummonClient {
         let name = source_name.unwrap();
 
         if is_session_id(name) {
-            return self.handle_load_task_result(name).await;
+            return self.handle_load_task_result(name, cancel).await;
         }
 
         self.handle_load_source(session_id, name, &working_dir)
             .await
     }
 
-    async fn handle_load_task_result(&self, task_id: &str) -> Result<Vec<Content>, String> {
+    async fn handle_load_task_result(
+        &self,
+        task_id: &str,
+        cancel: bool,
+    ) -> Result<Vec<Content>, String> {
         let mut completed = self.completed_tasks.lock().await;
 
         if let Some(task) = completed.remove(task_id) {
@@ -745,12 +761,50 @@ impl SummonClient {
 
         drop(completed);
 
-        let running = self.background_tasks.lock().await;
+        let mut running = self.background_tasks.lock().await;
         if running.contains_key(task_id) {
-            return Err(format!(
-                "Task '{}' is still running. Check back later.",
-                task_id
-            ));
+            if !cancel {
+                return Err(format!(
+                    "Task '{}' is still running. Use load(source: \"{}\", cancel: true) to stop.",
+                    task_id, task_id
+                ));
+            }
+
+            let task = running.remove(task_id).unwrap();
+            drop(running);
+
+            task.cancellation_token.cancel();
+
+            let duration = task.started_at.elapsed();
+            let turns_taken = task.turns.load(Ordering::Relaxed);
+
+            let mut handle = task.handle;
+            let output = tokio::select! {
+                result = &mut handle => {
+                    match result {
+                        Ok(Ok(s)) => s,
+                        Ok(Err(e)) => format!("Error: {}", e),
+                        Err(e) => format!("Task panicked: {}", e),
+                    }
+                }
+                _ = tokio::time::sleep(Duration::from_secs(5)) => {
+                    handle.abort();
+                    "Task did not stop in time (aborted)".to_string()
+                }
+            };
+
+            return Ok(vec![Content::text(format!(
+                "# Background Task Result: {}\n\n\
+                 **Task:** {}\n\
+                 **Status:** ⊘ Cancelled\n\
+                 **Duration:** {} ({} turns)\n\n\
+                 ## Output\n\n{}",
+                task_id,
+                task.description,
+                round_duration(duration),
+                turns_taken,
+                output
+            ))]);
         }
 
         Err(format!("Task '{}' not found.", task_id))
@@ -1393,6 +1447,9 @@ impl SummonClient {
             last_activity_clone.store(current_epoch_millis(), Ordering::Relaxed);
         });
 
+        let task_token = CancellationToken::new();
+        let task_token_clone = task_token.clone();
+
         let handle = tokio::spawn(async move {
             run_subagent_task_with_callback(
                 agent_config,
@@ -1400,7 +1457,7 @@ impl SummonClient {
                 task_config,
                 true,
                 subagent_session.id,
-                Some(CancellationToken::new()),
+                Some(task_token_clone),
                 Some(on_message),
             )
             .await
@@ -1413,6 +1470,7 @@ impl SummonClient {
             turns,
             last_activity,
             handle,
+            cancellation_token: task_token,
         };
 
         self.background_tasks
@@ -1547,7 +1605,7 @@ impl McpClientTrait for SummonClient {
         if let Some(shortest) = shortest_elapsed_secs {
             let sleep_secs = 300u64.saturating_sub(shortest).max(10);
             lines.push(format!(
-                "\n→ if you're idle, sleep {} to wait for running tasks",
+                "\n→ sleep {} to wait, or load(source: \"id\", cancel: true) to stop",
                 sleep_secs
             ));
         }
@@ -1720,7 +1778,7 @@ You review code."#;
         let client = SummonClient::new(create_test_context()).unwrap();
         let temp_dir = TempDir::new().unwrap();
 
-        let result = client.handle_load_task_result("20260204_999").await;
+        let result = client.handle_load_task_result("20260204_999", false).await;
         assert!(result.is_err());
         assert!(result.unwrap_err().contains("not found"));
 
@@ -1738,17 +1796,21 @@ You review code."#;
                         tokio::time::sleep(Duration::from_secs(1000)).await;
                         Ok("done".to_string())
                     }),
+                    cancellation_token: CancellationToken::new(),
                 },
             );
         }
-        let result = client.handle_load_task_result("20260204_1").await;
+        let result = client.handle_load_task_result("20260204_1", false).await;
         assert!(result.is_err());
-        assert!(result.unwrap_err().contains("still running"));
+        let err = result.unwrap_err();
+        assert!(err.contains("still running"));
+        assert!(err.contains("cancel: true"));
 
         let moim = client.get_moim("test").await.unwrap();
         assert!(moim.contains("20260204_1"));
         assert!(moim.contains("running"));
         assert!(moim.contains("sleep"));
+        assert!(moim.contains("cancel: true"));
 
         {
             let mut completed = client.completed_tasks.lock().await;
@@ -1789,7 +1851,10 @@ You review code."#;
         assert!(discovery_text.contains("20260204_2"));
         assert!(discovery_text.contains("20260204_3"));
 
-        let result = client.handle_load_task_result("20260204_2").await.unwrap();
+        let result = client
+            .handle_load_task_result("20260204_2", false)
+            .await
+            .unwrap();
         let text = extract_text(&result[0]);
         assert!(text.contains("20260204_2"));
         assert!(text.contains("Successful task"));
@@ -1804,12 +1869,15 @@ You review code."#;
             .await
             .contains_key("20260204_2"));
 
-        let result = client.handle_load_task_result("20260204_3").await.unwrap();
+        let result = client
+            .handle_load_task_result("20260204_3", false)
+            .await
+            .unwrap();
         let text = extract_text(&result[0]);
         assert!(text.contains("✗ Failed"));
         assert!(text.contains("Error: Something went wrong"));
 
-        let result = client.handle_load_task_result("20260204_3").await;
+        let result = client.handle_load_task_result("20260204_3", false).await;
         assert!(result.is_err());
         assert!(result.unwrap_err().contains("not found"));
 
@@ -1818,5 +1886,45 @@ You review code."#;
         assert!(moim.contains("sleep"));
         assert!(!moim.contains("20260204_2"));
         assert!(!moim.contains("20260204_3"));
+    }
+
+    #[tokio::test]
+    async fn test_cancel_running_task() {
+        let client = SummonClient::new(create_test_context()).unwrap();
+        let token = CancellationToken::new();
+
+        {
+            let mut running = client.background_tasks.lock().await;
+            running.insert(
+                "20260204_1".to_string(),
+                BackgroundTask {
+                    id: "20260204_1".to_string(),
+                    description: "Cancellable task".to_string(),
+                    started_at: Instant::now(),
+                    turns: Arc::new(AtomicU32::new(3)),
+                    last_activity: Arc::new(AtomicU64::new(current_epoch_millis())),
+                    handle: tokio::spawn(async {
+                        tokio::time::sleep(Duration::from_secs(1000)).await;
+                        Ok("should not see this".to_string())
+                    }),
+                    cancellation_token: token.clone(),
+                },
+            );
+        }
+
+        let result = client
+            .handle_load_task_result("20260204_1", true)
+            .await
+            .unwrap();
+        let text = extract_text(&result[0]);
+        assert!(text.contains("Cancelled"));
+        assert!(text.contains("20260204_1"));
+        assert!(text.contains("Cancellable task"));
+        assert!(token.is_cancelled());
+        assert!(!client
+            .background_tasks
+            .lock()
+            .await
+            .contains_key("20260204_1"));
     }
 }
