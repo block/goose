@@ -32,6 +32,7 @@ use std::sync::atomic::{AtomicU32, AtomicU64, Ordering};
 use std::sync::Arc;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 use tokio::sync::Mutex;
+
 use tokio::task::JoinHandle;
 use tokio_util::sync::CancellationToken;
 use tracing::{info, warn};
@@ -1438,11 +1439,7 @@ impl SummonClient {
         let subagent_session = self
             .context
             .session_manager
-            .create_session(
-                working_dir.clone(),
-                description.clone(),
-                SessionType::SubAgent,
-            )
+            .create_session(working_dir, description.clone(), SessionType::SubAgent)
             .await
             .map_err(|e| format!("Failed to create subagent session: {}", e))?;
 

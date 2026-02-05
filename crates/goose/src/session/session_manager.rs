@@ -381,6 +381,7 @@ pub struct SessionStorage {
     pool: Pool<Sqlite>,
     initialized: tokio::sync::OnceCell<()>,
     session_dir: PathBuf,
+    write_lock: tokio::sync::Mutex<()>,
 }
 
 fn role_to_string(role: &Role) -> &'static str {
@@ -504,6 +505,7 @@ impl SessionStorage {
             pool: Self::create_pool(&db_path),
             initialized: tokio::sync::OnceCell::new(),
             session_dir,
+            write_lock: tokio::sync::Mutex::new(()),
         }
     }
 
@@ -898,6 +900,7 @@ impl SessionStorage {
         name: String,
         session_type: SessionType,
     ) -> Result<Session> {
+        let _guard = self.write_lock.lock().await;
         let pool = self.pool().await?;
         let mut tx = pool.begin().await?;
 
@@ -969,6 +972,7 @@ impl SessionStorage {
 
     #[allow(clippy::too_many_lines)]
     async fn apply_update(&self, builder: SessionUpdateBuilder<'_>) -> Result<()> {
+        let _guard = self.write_lock.lock().await;
         let mut updates = Vec::new();
         let mut query = String::from("UPDATE sessions SET ");
 
@@ -1115,6 +1119,7 @@ impl SessionStorage {
     }
 
     async fn add_message(&self, session_id: &str, message: &Message) -> Result<()> {
+        let _guard = self.write_lock.lock().await;
         let pool = self.pool().await?;
         let mut tx = pool.begin().await?;
 
@@ -1194,6 +1199,7 @@ impl SessionStorage {
         session_id: &str,
         conversation: &Conversation,
     ) -> Result<()> {
+        let _guard = self.write_lock.lock().await;
         let pool = self.pool().await?;
         Self::replace_conversation_inner(pool, session_id, conversation).await
     }
@@ -1236,6 +1242,7 @@ impl SessionStorage {
     }
 
     async fn delete_session(&self, session_id: &str) -> Result<()> {
+        let _guard = self.write_lock.lock().await;
         let pool = self.pool().await?;
         let mut tx = pool.begin().await?;
 
@@ -1371,6 +1378,7 @@ impl SessionStorage {
     }
 
     async fn truncate_conversation(&self, session_id: &str, timestamp: i64) -> Result<()> {
+        let _guard = self.write_lock.lock().await;
         let pool = self.pool().await?;
         sqlx::query("DELETE FROM messages WHERE session_id = ? AND created_timestamp >= ?")
             .bind(session_id)
@@ -1415,6 +1423,7 @@ impl SessionStorage {
             crate::conversation::message::MessageMetadata,
         ) -> crate::conversation::message::MessageMetadata,
     {
+        let _guard = self.write_lock.lock().await;
         let pool = self.pool().await?;
         let mut tx = pool.begin().await?;
 
