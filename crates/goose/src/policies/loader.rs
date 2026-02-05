@@ -429,13 +429,13 @@ rules:
         // by checking the extension extraction
         assert!(Path::new("test.yaml")
             .extension()
-            .map_or(false, |e| e == "yaml" || e == "yml"));
+            .is_some_and(|e| e == "yaml" || e == "yml"));
         assert!(Path::new("test.yml")
             .extension()
-            .map_or(false, |e| e == "yaml" || e == "yml"));
+            .is_some_and(|e| e == "yaml" || e == "yml"));
         assert!(!Path::new("test.txt")
             .extension()
-            .map_or(false, |e| e == "yaml" || e == "yml"));
+            .is_some_and(|e| e == "yaml" || e == "yml"));
     }
 
     #[test]

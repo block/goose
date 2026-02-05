@@ -514,7 +514,7 @@ mod tests {
 
     #[test]
     fn test_prometheus_metric_with_labels() {
-        let metric = PrometheusMetric::gauge("test_gauge", "A test gauge", 3.14)
+        let metric = PrometheusMetric::gauge("test_gauge", "A test gauge", std::f64::consts::PI)
             .with_label("env", "production")
             .with_label("region", "us-west");
 

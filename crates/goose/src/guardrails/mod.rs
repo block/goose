@@ -328,8 +328,10 @@ mod tests {
 
     #[tokio::test]
     async fn test_guardrails_disabled() {
-        let mut config = GuardrailsConfig::default();
-        config.enabled = false;
+        let config = GuardrailsConfig {
+            enabled: false,
+            ..Default::default()
+        };
 
         let engine = GuardrailsEngine::new(config);
         let context = DetectionContext::default();
