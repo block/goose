@@ -182,6 +182,14 @@ pub fn format_messages(messages: &[Message]) -> Vec<Value> {
                         }
                         parts.push(json!(part));
                     }
+                    MessageContent::Image(image) => {
+                        parts.push(json!({
+                            "inline_data": {
+                                "mime_type": image.mime_type,
+                                "data": image.data,
+                            }
+                        }));
+                    }
 
                     _ => {}
                 }
@@ -717,6 +725,38 @@ mod tests {
         assert_eq!(payload[0]["parts"][0]["text"], "Hello");
         assert_eq!(payload[1]["role"], "model");
         assert_eq!(payload[1]["parts"][0]["text"], "World");
+    }
+
+    #[test]
+    fn test_message_to_google_spec_image_message() {
+        use rmcp::model::{AnnotateAble, RawImageContent};
+
+        let image = RawImageContent {
+            mime_type: "image/png".to_string(),
+            data: "base64encodeddata".to_string(),
+            meta: None,
+        };
+        let messages = vec![Message::new(
+            Role::User,
+            0,
+            vec![
+                MessageContent::text("What is in this image?".to_string()),
+                MessageContent::Image(image.no_annotation()),
+            ],
+        )];
+        let payload = format_messages(&messages);
+
+        assert_eq!(payload.len(), 1);
+        assert_eq!(payload[0]["role"], "user");
+        assert_eq!(payload[0]["parts"][0]["text"], "What is in this image?");
+        assert_eq!(
+            payload[0]["parts"][1]["inline_data"]["mime_type"],
+            "image/png"
+        );
+        assert_eq!(
+            payload[0]["parts"][1]["inline_data"]["data"],
+            "base64encodeddata"
+        );
     }
 
     #[test]
