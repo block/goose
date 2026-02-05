@@ -68,10 +68,8 @@ Extensions configured in your `config.yaml` will automatically run inside the sp
 
 ### Requirements
 
-**Your container must have:**
-- The extension's command/runtime installed (e.g., `uvx`, `python`, `node`)
-- Network access (if the extension needs to download packages)
-- Commands accessible via the same paths used in your extension config. For example, if your config uses `cmd: uvx`, the container must be able to find `uvx` by running that exact command.
+- Extensions must exist in the container and be accessible via the same paths used in your extension config
+- To run built-in extensions, the goose CLI must be [installed](/docs/getting-started/installation) inside the container
 
 ### Examples
 
@@ -85,6 +83,6 @@ goose run --container my-dev-container --text "your instructions here"
 # Specify an extension to run in the container
 goose session --container 4c76a1beed85 --with-extension "uvx mcp-server-fetch"
 
-# Use full paths if the command isn't in a standard location
+# Workaround: Use full path if container can't find the command
 goose session --container 4c76a1beed85 --with-extension "/root/.local/bin/uvx mcp-server-fetch"
 ```
