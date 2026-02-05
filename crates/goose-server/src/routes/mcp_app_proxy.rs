@@ -202,26 +202,6 @@ fn build_permissions_policy(permissions: &PermissionsConfig) -> String {
     policies.join(", ")
 }
 
-/// Build the `allow` attribute for the inner iframe
-fn build_allow_attribute(permissions: &PermissionsConfig) -> String {
-    let mut allows = Vec::new();
-
-    if permissions.camera {
-        allows.push("camera");
-    }
-    if permissions.microphone {
-        allows.push("microphone");
-    }
-    if permissions.geolocation {
-        allows.push("geolocation");
-    }
-    if permissions.clipboard_write {
-        allows.push("clipboard-write");
-    }
-
-    allows.join("; ")
-}
-
 // === Route Handlers ===
 
 /// POST /mcp-app-proxy - Store HTML and return a token
@@ -260,13 +240,16 @@ async fn get_proxy(State(store): State<McpAppProxyStore>, Path(token): Path<Stri
         return (StatusCode::NOT_FOUND, "Token not found or expired").into_response();
     };
 
-    // Build the allow attribute for the inner iframe
-    let allow_attr = build_allow_attribute(&permissions);
+    // Build the content URL for the inner iframe
+    let content_url = format!("/mcp-app-proxy/{}/content", token);
+
+    // Serialize permissions to JSON for the template
+    let permissions_json = serde_json::to_string(&permissions).unwrap_or_else(|_| "{}".to_string());
 
     // Replace placeholders in the bridge template
     let html = BRIDGE_TEMPLATE
-        .replace("{{TOKEN}}", &token)
-        .replace("{{ALLOW_ATTR}}", &allow_attr);
+        .replace("{{CONTENT_URL}}", &content_url)
+        .replace("{{PERMISSIONS_JSON}}", &permissions_json);
 
     // Build security headers
     let csp_header = build_csp(&csp);
@@ -384,18 +367,6 @@ mod tests {
         assert!(result.contains("microphone=()"));
         assert!(result.contains("geolocation=()"));
         assert!(result.contains("clipboard-write=(self)"));
-    }
-
-    #[test]
-    fn test_build_allow_attribute() {
-        let permissions = PermissionsConfig {
-            camera: true,
-            microphone: true,
-            geolocation: false,
-            clipboard_write: false,
-        };
-        let result = build_allow_attribute(&permissions);
-        assert_eq!(result, "camera; microphone");
     }
 
     #[tokio::test]

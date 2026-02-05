@@ -74,7 +74,7 @@ export async function createMcpAppProxyUrl(
     }
 
     const data = await response.json();
-    return `${baseUrl}${data.url}`;
+    return `${baseUrl}/mcp-app-proxy/${data.token}`;
   } catch (error) {
     console.error('Error creating MCP App Proxy URL:', error);
     return null;
