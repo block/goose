@@ -83,7 +83,11 @@ export const SwitchModelModal = ({
   const [provider, setProvider] = useState<string | null>(
     initialProvider || currentProvider || null
   );
-  const [model, setModel] = useState<string>(currentModel || '');
+  // Only use currentModel if we're not switching to a different provider
+  // Otherwise, let the auto-select logic pick an appropriate model for the new provider
+  const [model, setModel] = useState<string>(
+    initialProvider && initialProvider !== currentProvider ? '' : currentModel || ''
+  );
   const [isCustomModel, setIsCustomModel] = useState(false);
   const [validationErrors, setValidationErrors] = useState({
     provider: '',
