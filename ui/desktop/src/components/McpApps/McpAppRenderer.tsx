@@ -2,28 +2,26 @@ import { AppEvents } from '../../constants/events';
 /**
  * MCP Apps Renderer
  *
- * Temporary Goose implementation while waiting for official SDK components.
+ * Uses the official @mcp-ui/client AppRenderer component for rendering MCP Apps.
  *
  * @see SEP-1865 https://github.com/modelcontextprotocol/ext-apps/blob/main/specification/draft/apps.mdx
+ * @see @mcp-ui/client https://github.com/MCP-UI-Org/mcp-ui
  */
 
-import { useState, useCallback, useEffect } from 'react';
-import { useSandboxBridge } from './useSandboxBridge';
-import {
-  ToolInput,
-  ToolInputPartial,
-  ToolResult,
-  ToolCancelled,
-  CspMetadata,
-  PermissionsMetadata,
-  McpMethodParams,
-  McpMethodResponse,
-} from './types';
+import { useState, useCallback, useEffect, useMemo } from 'react';
+import { AppRenderer } from '@mcp-ui/client';
+import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
+import type {
+  McpUiSizeChangedNotification,
+  McpUiResourceCsp,
+} from '@modelcontextprotocol/ext-apps/app-bridge';
+import { ToolInput, ToolInputPartial, ToolResult, ToolCancelled, CspMetadata } from './types';
 import { cn } from '../../utils';
-import { DEFAULT_IFRAME_HEIGHT } from './utils';
+import { DEFAULT_IFRAME_HEIGHT, fetchMcpAppProxyUrl } from './utils';
 import { readResource, callTool } from '../../api';
 import { errorMessage } from '../../utils/conversionUtils';
 import { isProtocolSafe, getProtocol } from '../../utils/urlSecurity';
+import { useTheme } from '../../contexts/ThemeContext';
 
 interface McpAppRendererProps {
   resourceUri: string;
@@ -41,7 +39,7 @@ interface McpAppRendererProps {
 interface ResourceData {
   html: string | null;
   csp: CspMetadata | null;
-  permissions: PermissionsMetadata | null;
+  permissions: string | null;
   prefersBorder: boolean;
 }
 
@@ -57,6 +55,7 @@ export default function McpAppRenderer({
   fullscreen = false,
   cachedHtml,
 }: McpAppRendererProps) {
+  const { resolvedTheme } = useTheme();
   const [resource, setResource] = useState<ResourceData>({
     html: cachedHtml || null,
     csp: null,
@@ -66,13 +65,24 @@ export default function McpAppRenderer({
   const [error, setError] = useState<string | null>(null);
   const [iframeHeight, setIframeHeight] = useState(DEFAULT_IFRAME_HEIGHT);
   const [iframeWidth, setIframeWidth] = useState<number | null>(null);
+  const [sandboxUrl, setSandboxUrl] = useState<URL | null>(null);
 
+  // Fetch the sandbox proxy URL
+  useEffect(() => {
+    fetchMcpAppProxyUrl(resource.csp).then((url) => {
+      if (url) {
+        setSandboxUrl(new URL(url));
+      }
+    });
+  }, [resource.csp]);
+
+  // Fetch the resource HTML and metadata
   useEffect(() => {
     if (!sessionId) {
       return;
     }
 
-    const fetchResource = async () => {
+    const fetchResourceData = async () => {
       try {
         const response = await readResource({
           body: {
@@ -85,14 +95,20 @@ export default function McpAppRenderer({
         if (response.data) {
           const content = response.data;
           const meta = content._meta as
-            | { ui?: { csp?: CspMetadata; permissions?: PermissionsMetadata; prefersBorder?: boolean } }
+            | {
+                ui?: {
+                  csp?: CspMetadata;
+                  permissions?: { sandbox?: string };
+                  prefersBorder?: boolean;
+                };
+              }
             | undefined;
 
           if (content.text !== cachedHtml) {
             setResource({
               html: content.text,
               csp: meta?.ui?.csp || null,
-              permissions: meta?.ui?.permissions || null,
+              permissions: meta?.ui?.permissions?.sandbox || null,
               prefersBorder: meta?.ui?.prefersBorder ?? true,
             });
           }
@@ -106,154 +122,227 @@ export default function McpAppRenderer({
       }
     };
 
-    fetchResource();
+    fetchResourceData();
   }, [resourceUri, extensionName, sessionId, cachedHtml]);
 
-  const handleMcpRequest = useCallback(
-    async (
-      method: string,
-      params: Record<string, unknown> = {},
-      _id?: string | number
-    ): Promise<unknown> => {
-      // Methods that require a session
-      const requiresSession = ['tools/call', 'resources/read'];
-      if (requiresSession.includes(method) && !sessionId) {
+  // Handler for open-link requests from the guest UI
+  const handleOpenLink = useCallback(async ({ url }: { url: string }) => {
+    // Safe protocols open directly, unknown protocols require confirmation
+    // Dangerous protocols are blocked by main.ts in the open-external handler
+    if (isProtocolSafe(url)) {
+      await window.electron.openExternal(url);
+      return { status: 'success' as const };
+    }
+
+    const protocol = getProtocol(url);
+    if (!protocol) {
+      return { status: 'error' as const, message: 'Invalid URL' };
+    }
+
+    const result = await window.electron.showMessageBox({
+      type: 'question',
+      buttons: ['Cancel', 'Open'],
+      defaultId: 0,
+      title: 'Open External Link',
+      message: `Open ${protocol} link?`,
+      detail: `This will open: ${url}`,
+    });
+
+    if (result.response !== 1) {
+      return { status: 'error' as const, message: 'User cancelled' };
+    }
+
+    await window.electron.openExternal(url);
+    return { status: 'success' as const };
+  }, []);
+
+  // Handler for message requests from the guest UI
+  const handleMessage = useCallback(
+    async ({ content }: { content: Array<{ type: string; text?: string }> }) => {
+      if (!append) {
+        throw new Error('Message handler not available in this context');
+      }
+
+      if (!Array.isArray(content)) {
+        throw new Error('Invalid message format: content must be an array of ContentBlock');
+      }
+
+      // Extract first text block from content, ignoring other block types
+      const textContent = content.find((block) => block.type === 'text');
+      if (!textContent || !textContent.text) {
+        throw new Error('Invalid message format: content must contain a text block');
+      }
+
+      append(textContent.text);
+      window.dispatchEvent(new CustomEvent(AppEvents.SCROLL_CHAT_TO_BOTTOM));
+      return {};
+    },
+    [append]
+  );
+
+  // Handler for tools/call requests from the guest UI
+  const handleCallTool = useCallback(
+    async ({
+      name,
+      arguments: args,
+    }: {
+      name: string;
+      arguments?: Record<string, unknown>;
+    }): Promise<CallToolResult> => {
+      if (!sessionId) {
         throw new Error('Session not initialized for MCP request');
       }
 
-      switch (method) {
-        case 'ui/open-link': {
-          const { url } = params as McpMethodParams['ui/open-link'];
+      const fullToolName = `${extensionName}__${name}`;
+      const response = await callTool({
+        body: {
+          session_id: sessionId,
+          name: fullToolName,
+          arguments: args || {},
+        },
+      });
 
-          // Safe protocols open directly, unknown protocols require confirmation
-          // Dangerous protocols are blocked by main.ts in the open-external handler
-          if (isProtocolSafe(url)) {
-            await window.electron.openExternal(url);
-          } else {
-            const protocol = getProtocol(url);
-            if (!protocol) {
-              return {
-                status: 'error',
-                message: 'Invalid URL',
-              } as McpMethodResponse['ui/open-link'];
-            }
-
-            const result = await window.electron.showMessageBox({
-              type: 'question',
-              buttons: ['Cancel', 'Open'],
-              defaultId: 0,
-              title: 'Open External Link',
-              message: `Open ${protocol} link?`,
-              detail: `This will open: ${url}`,
-            });
-            if (result.response !== 1) {
-              return {
-                status: 'error',
-                message: 'User cancelled',
-              } as McpMethodResponse['ui/open-link'];
-            }
-            await window.electron.openExternal(url);
+      // Map from snake_case API response to camelCase SDK types
+      const content = response.data?.content || [];
+      return {
+        content: content.map((item) => {
+          if ('text' in item && item.text !== undefined) {
+            return { type: 'text' as const, text: item.text };
           }
-
-          return {
-            status: 'success',
-            message: 'Link opened successfully',
-          } satisfies McpMethodResponse['ui/open-link'];
-        }
-
-        case 'ui/message': {
-          const { content } = params as McpMethodParams['ui/message'];
-          if (!append) {
-            throw new Error('Message handler not available in this context');
+          if ('data' in item && item.data !== undefined) {
+            return {
+              type: 'image' as const,
+              data: item.data,
+              mimeType: item.mimeType || 'image/png',
+            };
           }
-
-          if (!Array.isArray(content)) {
-            throw new Error('Invalid message format: content must be an array of ContentBlock');
-          }
-
-          // Extract first text block from content, ignoring other block types
-          const textContent = content.find((block) => block.type === 'text');
-          if (!textContent) {
-            throw new Error('Invalid message format: content must contain a text block');
-          }
-
-          // MCP Apps can send other content block types, but we only append text blocks for now
-
-          append(textContent.text);
-          window.dispatchEvent(new CustomEvent(AppEvents.SCROLL_CHAT_TO_BOTTOM));
-          return {} satisfies McpMethodResponse['ui/message'];
-        }
-
-        case 'tools/call': {
-          const { name, arguments: args } = params as McpMethodParams['tools/call'];
-          const fullToolName = `${extensionName}__${name}`;
-          const response = await callTool({
-            body: {
-              session_id: sessionId!,
-              name: fullToolName,
-              arguments: args || {},
-            },
-          });
-          return {
-            content: response.data?.content || [],
-            isError: response.data?.is_error || false,
-            structuredContent: (response.data as Record<string, unknown>)?.structured_content as
-              | Record<string, unknown>
-              | undefined,
-          } satisfies McpMethodResponse['tools/call'];
-        }
-
-        case 'resources/read': {
-          const { uri } = params as McpMethodParams['resources/read'];
-          const response = await readResource({
-            body: {
-              session_id: sessionId!,
-              uri,
-              extension_name: extensionName,
-            },
-          });
-          return {
-            contents: response.data ? [response.data] : [],
-          } satisfies McpMethodResponse['resources/read'];
-        }
-
-        case 'notifications/message': {
-          const { level, logger, data } = params as McpMethodParams['notifications/message'];
-          console.log(
-            `[MCP App Notification]${logger ? ` [${logger}]` : ''} ${level || 'info'}:`,
-            data
-          );
-          return {} satisfies McpMethodResponse['notifications/message'];
-        }
-
-        case 'ping':
-          return {} satisfies McpMethodResponse['ping'];
-
-        default:
-          throw new Error(`Unknown method: ${method}`);
-      }
+          // Default to text type for unknown content
+          return { type: 'text' as const, text: JSON.stringify(item) };
+        }),
+        isError: response.data?.is_error || false,
+      };
     },
-    [append, sessionId, extensionName]
+    [sessionId, extensionName]
   );
 
-  const handleSizeChanged = useCallback((height: number, width?: number) => {
-    const newHeight = Math.max(DEFAULT_IFRAME_HEIGHT, height);
-    setIframeHeight(newHeight);
-    setIframeWidth(width ?? null);
+  // Handler for resources/read requests from the guest UI
+  const handleReadResource = useCallback(
+    async ({ uri }: { uri: string }) => {
+      if (!sessionId) {
+        throw new Error('Session not initialized for MCP request');
+      }
+
+      const response = await readResource({
+        body: {
+          session_id: sessionId,
+          uri,
+          extension_name: extensionName,
+        },
+      });
+
+      // Map from API response to SDK types
+      const data = response.data;
+      if (!data) {
+        return { contents: [] };
+      }
+
+      // Convert to the expected format with required uri field
+      const resourceContent = {
+        uri: data.uri || uri,
+        text: data.text,
+        mimeType: data.mimeType || undefined,
+      };
+
+      return {
+        contents: [resourceContent],
+      };
+    },
+    [sessionId, extensionName]
+  );
+
+  // Handler for logging messages from the guest UI
+  const handleLoggingMessage = useCallback(
+    ({ level, logger, data }: { level?: string; logger?: string; data?: unknown }) => {
+      console.log(
+        `[MCP App Notification]${logger ? ` [${logger}]` : ''} ${level || 'info'}:`,
+        data
+      );
+    },
+    []
+  );
+
+  // Handler for size change notifications from the guest UI
+  const handleSizeChanged = useCallback(
+    ({ height, width }: McpUiSizeChangedNotification['params']) => {
+      if (height !== undefined) {
+        const newHeight = Math.max(DEFAULT_IFRAME_HEIGHT, height);
+        setIframeHeight(newHeight);
+      }
+      setIframeWidth(width ?? null);
+    },
+    []
+  );
+
+  // Handler for errors
+  const handleError = useCallback((err: Error) => {
+    console.error('[MCP App Error]:', err);
+    setError(errorMessage(err));
   }, []);
 
-  const { iframeRef, proxyUrl } = useSandboxBridge({
-    resourceHtml: resource.html || '',
-    resourceCsp: resource.csp,
-    resourcePermissions: resource.permissions,
-    resourceUri,
-    toolInput,
-    toolInputPartial,
-    toolResult,
-    toolCancelled,
-    onMcpRequest: handleMcpRequest,
-    onSizeChanged: handleSizeChanged,
-  });
+  // Convert CspMetadata to McpUiResourceCsp (handle null -> undefined)
+  const convertCspToMcpUi = useCallback((csp: CspMetadata | null): McpUiResourceCsp | undefined => {
+    if (!csp) return undefined;
+    return {
+      connectDomains: csp.connectDomains ?? undefined,
+      resourceDomains: csp.resourceDomains ?? undefined,
+    };
+  }, []);
+
+  // Sandbox configuration
+  const sandboxConfig = useMemo(() => {
+    if (!sandboxUrl) return null;
+    return {
+      url: sandboxUrl,
+      permissions: resource.permissions || 'allow-scripts allow-same-origin allow-forms',
+      csp: convertCspToMcpUi(resource.csp),
+    };
+  }, [sandboxUrl, resource.permissions, resource.csp, convertCspToMcpUi]);
+
+  // Host context for the guest UI
+  const hostContext = useMemo(
+    () => ({
+      theme: resolvedTheme,
+      displayMode: fullscreen ? ('fullscreen' as const) : ('inline' as const),
+      availableDisplayModes: ['inline' as const, 'fullscreen' as const],
+    }),
+    [resolvedTheme, fullscreen]
+  );
+
+  // Convert toolResult to CallToolResult format expected by AppRenderer
+  const appToolResult = useMemo((): CallToolResult | undefined => {
+    if (!toolResult) return undefined;
+    // Map from snake_case to camelCase
+    const content = toolResult.content || [];
+    return {
+      content: content.map((item) => {
+        if ('text' in item && item.text !== undefined) {
+          return { type: 'text' as const, text: item.text };
+        }
+        if ('data' in item && item.data !== undefined) {
+          return {
+            type: 'image' as const,
+            data: item.data,
+            mimeType: item.mimeType || 'image/png',
+          };
+        }
+        return { type: 'text' as const, text: JSON.stringify(item) };
+      }),
+      isError: toolResult.is_error || false,
+    };
+  }, [toolResult]);
+
+  // Convert toolCancelled to boolean
+  const isToolCancelled = toolCancelled?.reason !== undefined;
 
   if (error) {
     return (
@@ -263,58 +352,51 @@ export default function McpAppRenderer({
     );
   }
 
-  if (fullscreen) {
-    return proxyUrl ? (
-      <iframe
-        ref={iframeRef}
-        src={proxyUrl}
-        style={{
-          width: '100%',
-          height: '100%',
-          border: 'none',
-        }}
-        sandbox="allow-scripts allow-same-origin"
-      />
-    ) : (
+  if (!sandboxConfig || !resource.html) {
+    return (
       <div
-        style={{
-          width: '100%',
-          height: '100%',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-        }}
+        className={cn('flex items-center justify-center p-4', fullscreen ? 'w-full h-full' : '')}
+        style={{ minHeight: fullscreen ? '100%' : '200px' }}
       >
-        Loading...
+        Loading MCP app...
       </div>
     );
   }
+
+  const containerStyle = fullscreen
+    ? { width: '100%', height: '100%' }
+    : {
+        width: iframeWidth ? `${iframeWidth}px` : '100%',
+        maxWidth: '100%',
+        height: `${iframeHeight}px`,
+      };
 
   return (
     <div
       className={cn(
         'bg-bgApp overflow-hidden',
-        resource.prefersBorder ? 'border border-borderSubtle rounded-lg' : 'my-6'
+        !fullscreen && resource.prefersBorder ? 'border border-borderSubtle rounded-lg' : '',
+        fullscreen ? 'w-full h-full' : 'my-6'
       )}
+      style={containerStyle}
     >
-      {resource.html && proxyUrl ? (
-        <iframe
-          ref={iframeRef}
-          src={proxyUrl}
-          style={{
-            width: iframeWidth ? `${iframeWidth}px` : '100%',
-            maxWidth: '100%',
-            height: `${iframeHeight}px`,
-            border: 'none',
-            overflow: 'hidden',
-          }}
-          sandbox="allow-scripts allow-same-origin"
-        />
-      ) : (
-        <div className="flex items-center justify-center p-4" style={{ minHeight: '200px' }}>
-          Loading MCP app...
-        </div>
-      )}
+      <AppRenderer
+        sandbox={sandboxConfig}
+        toolName={resourceUri}
+        html={resource.html}
+        toolInput={toolInput?.arguments}
+        toolInputPartial={toolInputPartial ? { arguments: toolInputPartial.arguments } : undefined}
+        toolResult={appToolResult}
+        toolCancelled={isToolCancelled}
+        hostContext={hostContext}
+        onOpenLink={handleOpenLink}
+        onMessage={handleMessage}
+        onCallTool={handleCallTool}
+        onReadResource={handleReadResource}
+        onLoggingMessage={handleLoggingMessage}
+        onSizeChanged={handleSizeChanged}
+        onError={handleError}
+      />
     </div>
   );
 }
