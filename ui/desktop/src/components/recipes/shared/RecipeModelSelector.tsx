@@ -143,51 +143,49 @@ export const RecipeModelSelector = ({
         />
       </div>
 
-      {selectedProvider && (
-        <div>
-          <div className="flex justify-between items-center mb-2">
-            <label className="block text-sm font-medium text-textStandard">Model (Optional)</label>
-            {isCustomModel && (
-              <button
-                onClick={() => {
-                  setIsCustomModel(false);
-                  onModelChange(undefined);
-                }}
-                className="text-xs text-textSubtle hover:underline"
-                type="button"
-              >
-                Back to model list
-              </button>
-            )}
-          </div>
-          <p className="text-xs text-textSubtle mb-2">
-            Leave empty to use the default model for the selected provider
-          </p>
-          {isCustomModel ? (
-            <Input
-              type="text"
-              placeholder="Enter custom model name"
-              value={selectedModel || ''}
-              onChange={(e) => onModelChange(e.target.value || undefined)}
-            />
-          ) : (
-            <Select
-              options={loadingModels ? [] : filteredModelOptions}
-              value={
-                loadingModels
-                  ? { value: '', label: 'Loading models…', isDisabled: true }
-                  : selectedModel
-                    ? { value: selectedModel, label: selectedModel }
-                    : null
-              }
-              onChange={handleModelChange}
-              placeholder="Select a model"
-              isClearable
-              isDisabled={loadingModels}
-            />
+      <div>
+        <div className="flex justify-between items-center mb-2">
+          <label className="block text-sm font-medium text-textStandard">Model (Optional)</label>
+          {isCustomModel && (
+            <button
+              onClick={() => {
+                setIsCustomModel(false);
+                onModelChange(undefined);
+              }}
+              className="text-xs text-textSubtle hover:underline"
+              type="button"
+            >
+              Back to model list
+            </button>
           )}
         </div>
-      )}
+        <p className="text-xs text-textSubtle mb-2">
+          Leave empty to use the default model for the selected provider
+        </p>
+        {isCustomModel ? (
+          <Input
+            type="text"
+            placeholder="Enter custom model name"
+            value={selectedModel || ''}
+            onChange={(e) => onModelChange(e.target.value || undefined)}
+          />
+        ) : (
+          <Select
+            options={loadingModels ? [] : filteredModelOptions}
+            value={
+              loadingModels
+                ? { value: '', label: 'Loading models…', isDisabled: true }
+                : selectedModel
+                  ? { value: selectedModel, label: selectedModel }
+                  : null
+            }
+            onChange={handleModelChange}
+            placeholder="Select a model"
+            isClearable
+            isDisabled={loadingModels}
+          />
+        )}
+      </div>
     </div>
   );
 };
