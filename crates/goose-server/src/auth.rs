@@ -12,7 +12,7 @@ pub async fn check_token(
 ) -> Result<Response, StatusCode> {
     if request.uri().path() == "/status"
         || request.uri().path() == "/mcp-ui-proxy"
-        || request.uri().path().starts_with("/mcp-app-view")
+        || request.uri().path().starts_with("/mcp-app-proxy")
     {
         return Ok(next.run(request).await);
     }

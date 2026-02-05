@@ -11,7 +11,7 @@ interface ExtendedCspMetadata {
 }
 
 /**
- * Create a secure MCP App View URL.
+ * Create a secure MCP App Proxy URL.
  *
  * This approach serves the MCP App HTML from a real URL endpoint instead of
  * using srcdoc iframes. This gives the MCP App a proper origin and secure
@@ -22,13 +22,13 @@ interface ExtendedCspMetadata {
  * - Any API that checks window.isSecureContext
  *
  * Flow:
- * 1. POST HTML + metadata to /mcp-app-view
+ * 1. POST HTML + metadata to /mcp-app-proxy
  * 2. Backend stores it temporarily and returns a token
  * 3. Use the returned URL as iframe src
  * 4. Backend serves HTML with proper CSP headers
- * 5. Token is single-use and expires after 60 seconds
+ * 5. Token expires after 60 seconds
  */
-export async function createMcpAppViewUrl(
+export async function createMcpAppProxyUrl(
   html: string,
   csp?: CspMetadata | null,
   permissions?: PermissionsMetadata | null
@@ -44,8 +44,8 @@ export async function createMcpAppViewUrl(
     // Cast to extended type to access all CSP fields
     const extendedCsp = csp as ExtendedCspMetadata | null | undefined;
 
-    console.log('[MCP App View] Creating view URL', { baseUrl, secretKeyLength: secretKey?.length });
-    const response = await fetch(`${baseUrl}/mcp-app-view`, {
+    console.log('[MCP App Proxy] Creating proxy URL', { baseUrl, secretKeyLength: secretKey?.length });
+    const response = await fetch(`${baseUrl}/mcp-app-proxy`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -69,14 +69,14 @@ export async function createMcpAppViewUrl(
     });
 
     if (!response.ok) {
-      console.error('Failed to create MCP App View:', response.statusText);
+      console.error('Failed to create MCP App Proxy:', response.statusText);
       return null;
     }
 
     const data = await response.json();
     return `${baseUrl}${data.url}`;
   } catch (error) {
-    console.error('Error creating MCP App View URL:', error);
+    console.error('Error creating MCP App Proxy URL:', error);
     return null;
   }
 }

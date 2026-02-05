@@ -7,7 +7,7 @@
  * other APIs that check window.isSecureContext.
  *
  * How it works:
- * - HTML is served from /mcp-app-view/{token} endpoint
+ * - HTML is served from /mcp-app-proxy/{token} endpoint
  * - The iframe has a real localhost origin (secure context)
  * - postMessage is used for JSON-RPC communication
  */
@@ -27,7 +27,7 @@ import type {
   AppCapabilities,
   DisplayMode,
 } from './types';
-import { createMcpAppViewUrl } from './utils';
+import { createMcpAppProxyUrl } from './utils';
 import { useTheme } from '../../contexts/ThemeContext';
 import packageJson from '../../../package.json';
 import { errorMessage } from '../../utils/conversionUtils';
@@ -89,7 +89,7 @@ export function useMcpAppBridge(options: McpAppBridgeOptions): McpAppBridgeResul
     }
 
     setIsLoading(true);
-    createMcpAppViewUrl(resourceHtml, resourceCsp, resourcePermissions)
+    createMcpAppProxyUrl(resourceHtml, resourceCsp, resourcePermissions)
       .then((url) => {
         setViewUrl(url);
         setIsLoading(false);

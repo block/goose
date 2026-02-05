@@ -1,4 +1,4 @@
-//! MCP App View - Secure Context with Sandboxed Iframe
+//! MCP App Proxy - Secure Context with Sandboxed Iframe
 //!
 //! This module provides endpoints for serving MCP App HTML content using a
 //! double-iframe architecture that provides both:
@@ -11,13 +11,13 @@
 //! ┌─────────────────────────────────────────────────────────┐
 //! │  Host (Electron/Browser)                                │
 //! │  ┌───────────────────────────────────────────────────┐  │
-//! │  │  Outer iframe (src="/mcp-app-view/{token}")       │  │  ← Real URL = Secure Context
+//! │  │  Outer iframe (src="/mcp-app-proxy/{token}")      │  │  ← Real URL = Secure Context
 //! │  │  CSP + Permissions-Policy headers from server     │  │
 //! │  │  ┌─────────────────────────────────────────────┐  │  │
-//! │  │  │  mcp_app_view.html (bridge template)        │  │  │  ← Message forwarding
+//! │  │  │  mcp_app_proxy.html (bridge template)       │  │  │  ← Message forwarding
 //! │  │  │  ┌───────────────────────────────────────┐  │  │  │
 //! │  │  │  │  Inner iframe (sandboxed)             │  │  │  │  ← sandbox="allow-scripts allow-same-origin"
-//! │  │  │  │  src="/mcp-app-view/{token}/content"  │  │  │  │
+//! │  │  │  │  src="/mcp-app-proxy/{token}/content" │  │  │  │
 //! │  │  │  │  ┌─────────────────────────────────┐  │  │  │  │
 //! │  │  │  │  │  Actual MCP App HTML            │  │  │  │  │
 //! │  │  │  │  └─────────────────────────────────┘  │  │  │  │
@@ -40,11 +40,11 @@
 //!
 //! ## How it works
 //!
-//! 1. Frontend POSTs MCP App HTML + metadata to `/mcp-app-view`
+//! 1. Frontend POSTs MCP App HTML + metadata to `/mcp-app-proxy`
 //! 2. Backend stores it and returns a unique token
-//! 3. Frontend creates iframe with `src="/mcp-app-view/{token}"`
+//! 3. Frontend creates iframe with `src="/mcp-app-proxy/{token}"`
 //! 4. Backend serves the bridge template with CSP headers
-//! 5. Bridge template creates sandboxed inner iframe with `src="/mcp-app-view/{token}/content"`
+//! 5. Bridge template creates sandboxed inner iframe with `src="/mcp-app-proxy/{token}/content"`
 //! 6. Backend serves the actual MCP App HTML to the inner iframe
 //!
 //! ## Security
@@ -74,7 +74,7 @@ use uuid::Uuid;
 const TOKEN_TTL: Duration = Duration::from_secs(60);
 
 /// The bridge template HTML (loaded at compile time)
-const BRIDGE_TEMPLATE: &str = include_str!("templates/mcp_app_view.html");
+const BRIDGE_TEMPLATE: &str = include_str!("templates/mcp_app_proxy.html");
 
 /// Stored MCP App content waiting to be served
 #[derive(Clone)]
@@ -107,11 +107,11 @@ pub struct PermissionsConfig {
 
 /// In-memory store for pending MCP App content
 #[derive(Clone, Default)]
-pub struct McpAppViewStore {
+pub struct McpAppProxyStore {
     pending: Arc<RwLock<HashMap<String, PendingApp>>>,
 }
 
-impl McpAppViewStore {
+impl McpAppProxyStore {
     pub fn new() -> Self {
         Self {
             pending: Arc::new(RwLock::new(HashMap::new())),
@@ -157,16 +157,16 @@ impl McpAppViewStore {
     }
 }
 
-/// Shared state for the MCP App View routes
+/// Shared state for the MCP App Proxy routes
 #[derive(Clone)]
 struct AppState {
     secret_key: String,
-    store: McpAppViewStore,
+    store: McpAppProxyStore,
 }
 
-/// Request body for POST /mcp-app-view
+/// Request body for POST /mcp-app-proxy
 #[derive(Deserialize)]
-struct CreateViewRequest {
+struct CreateProxyRequest {
     secret: String,
     html: String,
     #[serde(default)]
@@ -175,29 +175,29 @@ struct CreateViewRequest {
     permissions: PermissionsConfig,
 }
 
-/// Response body for POST /mcp-app-view
+/// Response body for POST /mcp-app-proxy
 #[derive(Serialize)]
-struct CreateViewResponse {
+struct CreateProxyResponse {
     token: String,
     url: String,
 }
 
-/// POST /mcp-app-view - Store HTML and get a token
-async fn create_view(
+/// POST /mcp-app-proxy - Store HTML and get a token
+async fn create_proxy(
     State(state): State<AppState>,
-    result: Result<Json<CreateViewRequest>, axum::extract::rejection::JsonRejection>,
+    result: Result<Json<CreateProxyRequest>, axum::extract::rejection::JsonRejection>,
 ) -> Response {
     let req = match result {
         Ok(Json(req)) => req,
         Err(e) => {
-            tracing::error!("MCP App View JSON parse error: {}", e);
+            tracing::error!("MCP App Proxy JSON parse error: {}", e);
             return (StatusCode::BAD_REQUEST, format!("Invalid JSON: {}", e)).into_response();
         }
     };
 
     if req.secret != state.secret_key {
         tracing::warn!(
-            "MCP App View auth failed: received secret length={}, expected length={}",
+            "MCP App Proxy auth failed: received secret length={}, expected length={}",
             req.secret.len(),
             state.secret_key.len()
         );
@@ -209,8 +209,8 @@ async fn create_view(
 
     let token = state.store.store(req.html, req.csp, req.permissions).await;
 
-    Json(CreateViewResponse {
-        url: format!("/mcp-app-view/{}", token),
+    Json(CreateProxyResponse {
+        url: format!("/mcp-app-proxy/{}", token),
         token,
     })
     .into_response()
@@ -283,8 +283,8 @@ fn build_permission_policy(permissions: &PermissionsConfig) -> Option<String> {
     }
 }
 
-/// GET /mcp-app-view/{token} - Serve the bridge template
-async fn get_view(State(state): State<AppState>, Path(token): Path<String>) -> Response {
+/// GET /mcp-app-proxy/{token} - Serve the bridge template
+async fn get_proxy(State(state): State<AppState>, Path(token): Path<String>) -> Response {
     let Some(app) = state.store.get(&token).await else {
         return (StatusCode::NOT_FOUND, "Token not found or expired").into_response();
     };
@@ -293,7 +293,7 @@ async fn get_view(State(state): State<AppState>, Path(token): Path<String>) -> R
     let permission_policy = build_permission_policy(&app.permissions);
 
     // Build the bridge HTML with the content URL and permissions injected
-    let content_url = format!("/mcp-app-view/{}/content", token);
+    let content_url = format!("/mcp-app-proxy/{}/content", token);
     let permissions_json =
         serde_json::to_string(&app.permissions).unwrap_or_else(|_| "null".to_string());
 
@@ -328,7 +328,7 @@ async fn get_view(State(state): State<AppState>, Path(token): Path<String>) -> R
     response
 }
 
-/// GET /mcp-app-view/{token}/content - Serve the actual MCP App HTML
+/// GET /mcp-app-proxy/{token}/content - Serve the actual MCP App HTML
 async fn get_content(State(state): State<AppState>, Path(token): Path<String>) -> Response {
     let Some(app) = state.store.get(&token).await else {
         return (StatusCode::NOT_FOUND, "Token not found or expired").into_response();
@@ -351,13 +351,13 @@ async fn get_content(State(state): State<AppState>, Path(token): Path<String>) -
     response
 }
 
-pub fn routes(secret_key: String, store: McpAppViewStore) -> Router {
+pub fn routes(secret_key: String, store: McpAppProxyStore) -> Router {
     let state = AppState { secret_key, store };
 
     Router::new()
-        .route("/mcp-app-view", post(create_view))
-        .route("/mcp-app-view/{token}", get(get_view))
-        .route("/mcp-app-view/{token}/content", get(get_content))
+        .route("/mcp-app-proxy", post(create_proxy))
+        .route("/mcp-app-proxy/{token}", get(get_proxy))
+        .route("/mcp-app-proxy/{token}/content", get(get_content))
         .with_state(state)
 }
 
@@ -367,7 +367,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_store_and_retrieve() {
-        let store = McpAppViewStore::new();
+        let store = McpAppProxyStore::new();
 
         let token = store
             .store(
@@ -388,7 +388,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_invalid_token() {
-        let store = McpAppViewStore::new();
+        let store = McpAppProxyStore::new();
         let app = store.get("invalid-token").await;
         assert!(app.is_none());
     }
