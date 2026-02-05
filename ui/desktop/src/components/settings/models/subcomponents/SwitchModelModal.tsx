@@ -21,6 +21,11 @@ import { getPredefinedModelsFromEnv, shouldShowPredefinedModels } from '../prede
 import { ProviderType } from '../../../../api';
 import { trackModelChanged } from '../../../../utils/analytics';
 
+const THINKING_LEVEL_OPTIONS = [
+  { value: 'low', label: 'Low - Better latency, lighter reasoning' },
+  { value: 'high', label: 'High - Deeper reasoning, higher latency' },
+];
+
 const PREFERRED_MODEL_PATTERNS = [
   /claude-sonnet-4/i,
   /claude-4/i,
@@ -83,7 +88,11 @@ export const SwitchModelModal = ({
   const [provider, setProvider] = useState<string | null>(
     initialProvider || currentProvider || null
   );
-  const [model, setModel] = useState<string>(currentModel || '');
+  // Only use currentModel if we're not switching to a different provider
+  // Otherwise, let the auto-select logic pick an appropriate model for the new provider
+  const [model, setModel] = useState<string>(
+    initialProvider && initialProvider !== currentProvider ? '' : currentModel || ''
+  );
   const [isCustomModel, setIsCustomModel] = useState(false);
   const [validationErrors, setValidationErrors] = useState({
     provider: '',
@@ -97,6 +106,10 @@ export const SwitchModelModal = ({
   const [loadingModels, setLoadingModels] = useState<boolean>(false);
   const [userClearedModel, setUserClearedModel] = useState(false);
   const [providerErrors, setProviderErrors] = useState<Record<string, string>>({});
+  const [thinkingLevel, setThinkingLevel] = useState<string>('low');
+
+  const modelName = usePredefinedModels ? selectedPredefinedModel?.name : model;
+  const isGemini3Model = modelName?.toLowerCase().startsWith('gemini-3') ?? false;
 
   // Validate form data
   const validateForm = useCallback(() => {
@@ -144,7 +157,18 @@ export const SwitchModelModal = ({
       } else {
         const providerMetaData = await getProviderMetadata(provider || '', getProviders);
         const providerDisplayName = providerMetaData.display_name;
-        modelObj = { name: model, provider: provider, subtext: providerDisplayName } as Model;
+        modelObj = {
+          name: model,
+          provider: provider,
+          subtext: providerDisplayName,
+        } as Model;
+      }
+
+      if (isGemini3Model) {
+        modelObj = {
+          ...modelObj,
+          request_params: { ...modelObj.request_params, thinking_level: thinkingLevel },
+        };
       }
 
       await changeModel(sessionId, modelObj);
@@ -406,7 +430,7 @@ export const SwitchModelModal = ({
                           className="peer sr-only"
                         />
                         <div
-                          className="h-4 w-4 rounded-full border border-border-default 
+                          className="h-4 w-4 rounded-full border border-border-default
                                 peer-checked:border-[6px] peer-checked:border-black dark:peer-checked:border-white
                                 peer-checked:bg-white dark:peer-checked:bg-black
                                 transition-all duration-200 ease-in-out group-hover:border-border-default"
@@ -419,6 +443,24 @@ export const SwitchModelModal = ({
 
               {attemptedSubmit && validationErrors.model && (
                 <div className="text-red-500 text-sm mt-1">{validationErrors.model}</div>
+              )}
+
+              {isGemini3Model && (
+                <div className="mt-2">
+                  <label className="text-sm text-textSubtle mb-1 block">
+                    Thinking Level
+                    <span className="text-xs text-textMuted ml-2">(Gemini 3 models only)</span>
+                  </label>
+                  <Select
+                    options={THINKING_LEVEL_OPTIONS}
+                    value={THINKING_LEVEL_OPTIONS.find((o) => o.value === thinkingLevel)}
+                    onChange={(newValue: unknown) => {
+                      const option = newValue as { value: string; label: string } | null;
+                      setThinkingLevel(option?.value || 'low');
+                    }}
+                    placeholder="Select thinking level"
+                  />
+                </div>
               )}
             </div>
           ) : (
@@ -542,6 +584,24 @@ export const SwitchModelModal = ({
                       {attemptedSubmit && validationErrors.model && (
                         <div className="text-red-500 text-sm mt-1">{validationErrors.model}</div>
                       )}
+                    </div>
+                  )}
+
+                  {isGemini3Model && (
+                    <div className="mt-2">
+                      <label className="text-sm text-textSubtle mb-1 block">
+                        Thinking Level
+                        <span className="text-xs text-textMuted ml-2">(Gemini 3 models only)</span>
+                      </label>
+                      <Select
+                        options={THINKING_LEVEL_OPTIONS}
+                        value={THINKING_LEVEL_OPTIONS.find((o) => o.value === thinkingLevel)}
+                        onChange={(newValue: unknown) => {
+                          const option = newValue as { value: string; label: string } | null;
+                          setThinkingLevel(option?.value || 'low');
+                        }}
+                        placeholder="Select thinking level"
+                      />
                     </div>
                   )}
                 </>

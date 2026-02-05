@@ -554,6 +554,7 @@ impl McpClientTrait for AppsManagerClient {
         session_id: &str,
         name: &str,
         arguments: Option<JsonObject>,
+        _working_dir: Option<&str>,
         _cancel_token: CancellationToken,
     ) -> Result<CallToolResult, Error> {
         let result = match name {

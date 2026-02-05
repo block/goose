@@ -437,6 +437,7 @@ impl McpClientTrait for ExtensionManagerClient {
         session_id: &str,
         name: &str,
         arguments: Option<JsonObject>,
+        _working_dir: Option<&str>,
         _cancellation_token: CancellationToken,
     ) -> Result<CallToolResult, Error> {
         let result = match name {

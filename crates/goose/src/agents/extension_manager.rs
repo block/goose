@@ -606,16 +606,6 @@ impl ExtensionManager {
                     .await?;
                     Box::new(client)
                 } else {
-                    // Set GOOSE_WORKING_DIR in the current process for builtin extensions
-                    // since they run in-process and read from std::env::var
-                    if effective_working_dir.exists() && effective_working_dir.is_dir() {
-                        std::env::set_var("GOOSE_WORKING_DIR", &effective_working_dir);
-                        tracing::info!(
-                            "Set GOOSE_WORKING_DIR for builtin extension: {:?}",
-                            effective_working_dir
-                        );
-                    }
-
                     let (server_read, client_write) = tokio::io::duplex(65536);
                     let (client_read, server_write) = tokio::io::duplex(65536);
                     extension_fn(server_read, server_write);
@@ -825,7 +815,7 @@ impl ExtensionManager {
         tools
             .iter()
             .filter(|tool| {
-                let tool_prefix = tool.name.as_ref().split("__").next().unwrap_or("");
+                let tool_prefix = tool.name.split("__").next().unwrap_or("");
 
                 if let Some(ref excluded) = exclude_normalized {
                     if tool_prefix == excluded {
@@ -1223,16 +1213,17 @@ impl ExtensionManager {
         &self,
         session_id: &str,
         tool_call: CallToolRequestParams,
+        working_dir: Option<&std::path::Path>,
         cancellation_token: CancellationToken,
     ) -> Result<ToolCallResult> {
         // Some models strip the tool prefix, so auto-add it for known code_execution tools
         let tool_name_str = tool_call.name.to_string();
         let prefixed_name = if !tool_name_str.contains("__") {
-            let code_exec_tools = ["execute_code", "read_module", "search_modules"];
+            let code_exec_tools = ["execute", "list_functions", "get_function_details"];
             if code_exec_tools.contains(&tool_name_str.as_str())
                 && self.extensions.lock().await.contains_key("code_execution")
             {
-                format!("code_execution__{}", tool_name_str)
+                format!("code_execution__{tool_name_str}")
             } else {
                 tool_name_str
             }
@@ -1282,16 +1273,24 @@ impl ExtensionManager {
         let client = client.clone();
         let notifications_receiver = client.lock().await.subscribe().await;
         let session_id = session_id.to_string();
+        let working_dir_str = working_dir.map(|p| p.to_string_lossy().to_string());
 
         let fut = async move {
             tracing::debug!(
-                "dispatch_tool_call fut: calling client.call_tool tool={} session_id={}",
+                "dispatch_tool_call fut: calling client.call_tool tool={} session_id={} working_dir={:?}",
                 tool_name,
-                session_id
+                session_id,
+                working_dir_str
             );
             let client_guard = client.lock().await;
             client_guard
-                .call_tool(&session_id, &tool_name, arguments, cancellation_token)
+                .call_tool(
+                    &session_id,
+                    &tool_name,
+                    arguments,
+                    working_dir_str.as_deref(),
+                    cancellation_token,
+                )
                 .await
                 .map_err(|e| match e {
                     ServiceError::McpError(error_data) => error_data,
@@ -1625,6 +1624,7 @@ mod tests {
             _session_id: &str,
             name: &str,
             _arguments: Option<JsonObject>,
+            _working_dir: Option<&str>,
             _cancellation_token: CancellationToken,
         ) -> Result<CallToolResult, Error> {
             match name {
@@ -1761,7 +1761,12 @@ mod tests {
         };
 
         let result = extension_manager
-            .dispatch_tool_call("test-session-id", tool_call, CancellationToken::default())
+            .dispatch_tool_call(
+                "test-session-id",
+                tool_call,
+                None,
+                CancellationToken::default(),
+            )
             .await;
         assert!(result.is_ok());
 
@@ -1773,7 +1778,12 @@ mod tests {
         };
 
         let result = extension_manager
-            .dispatch_tool_call("test-session-id", tool_call, CancellationToken::default())
+            .dispatch_tool_call(
+                "test-session-id",
+                tool_call,
+                None,
+                CancellationToken::default(),
+            )
             .await;
         assert!(result.is_ok());
 
@@ -1786,7 +1796,12 @@ mod tests {
         };
 
         let result = extension_manager
-            .dispatch_tool_call("test-session-id", tool_call, CancellationToken::default())
+            .dispatch_tool_call(
+                "test-session-id",
+                tool_call,
+                None,
+                CancellationToken::default(),
+            )
             .await;
         assert!(result.is_ok());
 
@@ -1799,7 +1814,12 @@ mod tests {
         };
 
         let result = extension_manager
-            .dispatch_tool_call("test-session-id", tool_call, CancellationToken::default())
+            .dispatch_tool_call(
+                "test-session-id",
+                tool_call,
+                None,
+                CancellationToken::default(),
+            )
             .await;
         assert!(result.is_ok());
 
@@ -1811,7 +1831,12 @@ mod tests {
         };
 
         let result = extension_manager
-            .dispatch_tool_call("test-session-id", tool_call, CancellationToken::default())
+            .dispatch_tool_call(
+                "test-session-id",
+                tool_call,
+                None,
+                CancellationToken::default(),
+            )
             .await;
         assert!(result.is_ok());
 
@@ -1827,6 +1852,7 @@ mod tests {
             .dispatch_tool_call(
                 "test-session-id",
                 invalid_tool_call,
+                None,
                 CancellationToken::default(),
             )
             .await
@@ -1854,6 +1880,7 @@ mod tests {
             .dispatch_tool_call(
                 "test-session-id",
                 invalid_tool_call,
+                None,
                 CancellationToken::default(),
             )
             .await;
@@ -1956,6 +1983,7 @@ mod tests {
             .dispatch_tool_call(
                 "test-session-id",
                 unavailable_tool_call,
+                None,
                 CancellationToken::default(),
             )
             .await;
@@ -1981,6 +2009,7 @@ mod tests {
             .dispatch_tool_call(
                 "test-session-id",
                 available_tool_call,
+                None,
                 CancellationToken::default(),
             )
             .await;

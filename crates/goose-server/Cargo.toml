@@ -10,6 +10,10 @@ description.workspace = true
 [lints]
 workspace = true
 
+[features]
+default = []
+cuda = ["goose/cuda"]
+
 [dependencies]
 goose = { path = "../goose" }
 goose-mcp = { path = "../goose-mcp" }

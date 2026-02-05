@@ -9,13 +9,17 @@ description.workspace = true
 
 [features]
 default = []
+cuda = ["candle-core/cuda", "candle-nn/cuda"]
 
 [lints]
 workspace = true
 
 [build-dependencies]
 tokio = { workspace = true }
-reqwest = { workspace = true, features = ["json", "rustls-tls-native-roots"], default-features = false }
+reqwest = { workspace = true, features = [
+    "json",
+    "rustls-tls-native-roots",
+], default-features = false }
 
 [dependencies]
 lru = "0.16"
@@ -51,7 +55,7 @@ sha2 = "0.10"
 base64 = { workspace = true }
 url = { workspace = true }
 axum = "0.8.1"
-webbrowser = {workspace = true}
+webbrowser = { workspace = true }
 lazy_static = "1.5.0"
 tracing = { workspace = true }
 tracing-subscriber = "0.3"
@@ -59,8 +63,16 @@ tracing-opentelemetry = "0.28"
 opentelemetry = "0.27"
 opentelemetry-appender-tracing = "0.27"
 opentelemetry_sdk = { version = "0.27", features = ["rt-tokio", "metrics"] }
-opentelemetry-otlp = { version = "0.27", features = ["http-proto", "reqwest-client"] }
-keyring = { version = "3.6.2", features = ["apple-native", "windows-native", "sync-secret-service", "vendored"] }
+opentelemetry-otlp = { version = "0.27", features = [
+    "http-proto",
+    "reqwest-client",
+] }
+keyring = { version = "3.6.2", features = [
+    "apple-native",
+    "windows-native",
+    "sync-secret-service",
+    "vendored",
+] }
 serde_yaml = "0.9.34"
 once_cell = "1.20.2"
 etcetera = { workspace = true }
@@ -69,7 +81,12 @@ utoipa = { version = "4.1", features = ["chrono"] }
 tokio-cron-scheduler = "0.14.0"
 urlencoding = "2.1"
 v_htmlescape = "0.15"
-sqlx = { version = "0.8", features = ["runtime-tokio-rustls", "sqlite", "chrono", "json"] }
+sqlx = { version = "0.8", features = [
+    "runtime-tokio-rustls",
+    "sqlite",
+    "chrono",
+    "json",
+] }
 
 # For Bedrock provider
 aws-config = { version = "=1.8.12", features = ["behavior-version-latest"] }
@@ -93,9 +110,9 @@ unicode-normalization = "0.1"
 goose-mcp = { path = "../goose-mcp" }
 
 # For local Whisper transcription
-candle-core = { version = "0.8.4" }
-candle-nn = { version = "0.8.4" }
-candle-transformers = { version = "0.8.4" }
+candle-core = { version = "0.9", default-features = false }
+candle-nn = { version = "0.9", default-features = false }
+candle-transformers = { version = "0.9", default-features = false }
 byteorder = "1.5.0"
 tokenizers = "0.21.0"
 hf-hub = { version = "0.4.3", default-features = false, features = ["tokio"] }
@@ -104,15 +121,17 @@ rubato = "0.16"
 zip = "0.6"
 sys-info = "0.9"
 
-schemars = { version = "1.0.4", default-features = false, features = ["derive"] }
+schemars = { version = "1.0.4", default-features = false, features = [
+    "derive",
+] }
 insta = "1.43.2"
 paste = "1.0.0"
 posthog-rs = "0.3.7"
 shellexpand = "3.1.1"
 indexmap = "2.12.0"
 ignore = { workspace = true }
-which = { workspace = true}
-boa_engine = "0.21.0"
+which = { workspace = true }
+pctx_code_mode = "^0.2.3"
 unbinder = "0.1.7"
 
 [target.'cfg(target_os = "windows")'.dependencies]
@@ -120,8 +139,8 @@ winapi = { version = "0.3", features = ["wincred"] }
 
 # Platform-specific GPU acceleration for Whisper
 [target.'cfg(target_os = "macos")'.dependencies]
-candle-core = { version = "0.8.4", features = ["metal"] }
-candle-nn = { version = "0.8.4", features = ["metal"] }
+candle-core = { version = "0.9", default-features = false, features = ["metal"] }
+candle-nn = { version = "0.9", default-features = false, features = ["metal"] }
 
 [dev-dependencies]
 serial_test = { workspace = true }
