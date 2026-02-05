@@ -1,6 +1,6 @@
 ---
-title: goose and Docker
-sidebar_label: goose and Docker
+title: goose in Docker
+sidebar_label: goose in Docker
 description: Run goose inside Docker containers, or run extensions in existing containers for devcontainer workflows
 ---
 
