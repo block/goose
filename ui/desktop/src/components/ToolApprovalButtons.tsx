@@ -1,162 +1,103 @@
 import { useState, useEffect } from 'react';
 import { Button } from './ui/button';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from './ui/dialog';
 import { confirmToolAction, Permission } from '../api';
 
-const globalApprovalState = new Map<string, { isClicked: boolean; decision: Permission | null }>();
+const globalApprovalState = new Map<
+  string,
+  {
+    decision: Permission | null;
+    isClicked: boolean;
+  }
+>();
 
 export interface ToolApprovalData {
   id: string;
   toolName: string;
   prompt?: string;
-}
-
-interface ToolApprovalButtonsProps {
   sessionId: string;
-  data: ToolApprovalData;
-  isClicked: boolean;
-  isCancelled: boolean;
+  isClicked?: boolean;
 }
 
-export default function ToolApprovalButtons({
-  sessionId,
-  data,
-  isClicked: initialIsClicked,
-  isCancelled,
-}: ToolApprovalButtonsProps) {
-  const { id, toolName } = data;
+export default function ToolApprovalButtons({ data }: { data: ToolApprovalData }) {
+  const { id, toolName, prompt, sessionId, isClicked: initialIsClicked } = data;
 
-  const [isClicked, setIsClicked] = useState(() => {
-    const savedState = globalApprovalState.get(id);
-    return savedState?.isClicked ?? initialIsClicked;
-  });
-  const [decision, setDecision] = useState<Permission | null>(() => {
-    const savedState = globalApprovalState.get(id);
-    return savedState?.decision ?? null;
-  });
-  const [showPermissionModal, setShowPermissionModal] = useState(false);
-  const [pendingAction, setPendingAction] = useState<'allow' | 'deny' | null>(null);
+  const storedState = globalApprovalState.get(id);
+  const [decision, setDecision] = useState<Permission | null>(storedState?.decision ?? null);
+  const [isClicked, setIsClicked] = useState(storedState?.isClicked ?? initialIsClicked ?? false);
 
   useEffect(() => {
-    globalApprovalState.set(id, { isClicked, decision });
-  }, [id, isClicked, decision]);
+    const currentState = globalApprovalState.get(id);
+    if (currentState) {
+      setDecision(currentState.decision);
+      setIsClicked(currentState.isClicked);
+    }
+  }, [id]);
+
+  useEffect(() => {
+    globalApprovalState.set(id, { decision, isClicked });
+  }, [id, decision, isClicked]);
 
   const handleAction = async (action: Permission) => {
-    await confirmToolAction({
-      body: {
-        sessionId,
-        id,
-        action,
-      },
-    });
-    setIsClicked(true);
     setDecision(action);
-  };
+    setIsClicked(true);
 
-  const handleAllowClick = () => {
-    setPendingAction('allow');
-    setShowPermissionModal(true);
-  };
-
-  const handleDenyClick = () => {
-    setPendingAction('deny');
-    setShowPermissionModal(true);
-  };
-
-  const handleModalConfirm = async (permanent: boolean) => {
-    if (pendingAction === 'allow') {
-      await handleAction(permanent ? 'always_allow' : 'allow_once');
-    } else if (pendingAction === 'deny') {
-      await handleAction('always_deny');
+    try {
+      const response = await confirmToolAction({
+        body: {
+          sessionId,
+          id,
+          action,
+          principalType: 'Tool',
+        },
+      });
+      if (response.error) {
+        console.error('Failed to confirm tool action:', response.error);
+      }
+    } catch (err) {
+      console.error('Error confirming tool action:', err);
     }
-    setShowPermissionModal(false);
-    setPendingAction(null);
   };
 
-  const handleModalCancel = () => {
-    setShowPermissionModal(false);
-    setPendingAction(null);
-  };
-
-  if (isClicked || isCancelled) {
-    let statusMessage = '';
-    if (isCancelled) {
-      statusMessage = 'Tool confirmation is not available';
-    } else if (decision === 'allow_once') {
-      statusMessage = 'Allowed once';
-    } else if (decision === 'always_allow') {
-      statusMessage = 'Always allowed';
-    } else if (decision === 'always_deny') {
-      statusMessage = 'Denied';
-    }
-
-    return <div className="px-4 py-3 text-sm text-textSubtle">{statusMessage}</div>;
+  if (isClicked && decision) {
+    const statusMessages: Record<Permission, string> = {
+      allow_once: 'Allowed once',
+      always_allow: 'Always allowed',
+      always_deny: 'Denied',
+      deny_once: 'Denied once',
+      cancel: 'Cancelled',
+    };
+    return (
+      <p className="text-sm text-muted-foreground mt-2">
+        {toolName} - {statusMessages[decision]}
+      </p>
+    );
   }
 
   return (
-    <>
-      <div className="px-4 py-3 flex items-center gap-3">
+    <div className="flex items-center gap-2 mt-2">
+      <Button
+        className="rounded-full"
+        variant="secondary"
+        onClick={() => handleAction('allow_once')}
+      >
+        Allow Once
+      </Button>
+      {!prompt && (
         <Button
-          variant="default"
-          size="sm"
-          onClick={handleAllowClick}
-          className="bg-green-600 hover:bg-green-700 text-white"
+          className="rounded-full"
+          variant="secondary"
+          onClick={() => handleAction('always_allow')}
         >
-          Allow
+          Always Allow
         </Button>
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={handleDenyClick}
-          className="border-red-500/50 text-red-500 hover:bg-red-500/10"
-        >
-          Deny
-        </Button>
-      </div>
-
-      {/* Permission scope modal */}
-      <Dialog open={showPermissionModal} onOpenChange={setShowPermissionModal}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>{pendingAction === 'allow' ? 'Allow Tool?' : 'Deny Tool?'}</DialogTitle>
-            <DialogDescription>
-              {pendingAction === 'allow'
-                ? `Choose how to handle "${toolName}" calls.`
-                : `Deny "${toolName}" for this request?`}
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter className="flex gap-2 sm:gap-0">
-            <Button variant="ghost" onClick={handleModalCancel}>
-              Cancel
-            </Button>
-            {pendingAction === 'allow' ? (
-              <>
-                <Button variant="outline" onClick={() => handleModalConfirm(false)}>
-                  Allow Once
-                </Button>
-                <Button
-                  variant="default"
-                  onClick={() => handleModalConfirm(true)}
-                  className="bg-green-600 hover:bg-green-700"
-                >
-                  Always Allow
-                </Button>
-              </>
-            ) : (
-              <Button variant="destructive" onClick={() => handleModalConfirm(true)}>
-                Deny
-              </Button>
-            )}
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-    </>
+      )}
+      <Button
+        className="rounded-full"
+        variant="outline"
+        onClick={() => handleAction('always_deny')}
+      >
+        Deny
+      </Button>
+    </div>
   );
 }

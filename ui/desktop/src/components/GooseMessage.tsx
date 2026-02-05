@@ -203,7 +203,6 @@ export default function GooseMessage({
         {hasToolConfirmation && !toolConfirmationShownInline && (
           <ToolCallConfirmation
             sessionId={sessionId}
-            isCancelledMessage={false}
             isClicked={false}
             actionRequiredContent={toolConfirmationContent}
           />

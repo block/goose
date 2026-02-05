@@ -5,14 +5,12 @@ type ToolConfirmationData = Extract<ActionRequired['data'], { actionType: 'toolC
 
 interface ToolConfirmationProps {
   sessionId: string;
-  isCancelledMessage: boolean;
   isClicked: boolean;
   actionRequiredContent: ActionRequired & { type: 'actionRequired' };
 }
 
 export default function ToolConfirmation({
   sessionId,
-  isCancelledMessage,
   isClicked,
   actionRequiredContent,
 }: ToolConfirmationProps) {
@@ -27,10 +25,7 @@ export default function ToolConfirmation({
           : 'Goose would like to call the above tool. Allow?'}
       </div>
       <ToolApprovalButtons
-        sessionId={sessionId}
-        data={{ id, toolName, prompt: prompt ?? undefined }}
-        isClicked={isClicked}
-        isCancelled={isCancelledMessage}
+        data={{ id, toolName, prompt: prompt ?? undefined, sessionId, isClicked }}
       />
     </div>
   );

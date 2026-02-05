@@ -210,14 +210,13 @@ export default function ToolCallWithResponse({
               </div>
             )}
             <ToolApprovalButtons
-              sessionId={sessionId}
               data={{
                 id: confirmationContent.id,
                 toolName: confirmationContent.toolName,
                 prompt: confirmationContent.prompt ?? undefined,
+                sessionId,
+                isClicked: isApprovalClicked,
               }}
-              isClicked={isApprovalClicked ?? false}
-              isCancelled={isCancelledMessage}
             />
           </div>
         )}
