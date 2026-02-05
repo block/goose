@@ -18,6 +18,8 @@ concurrency:
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    # Only run on the canonical repo (forks don't have gh-pages permissions)
+    if: github.repository == 'block/goose'
     permissions:
       contents: write
 

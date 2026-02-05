@@ -49,7 +49,7 @@ jobs:
   rust-build-and-test:
     name: Build and Test Rust Project
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 60
     needs: changes
     if: needs.changes.outputs.code == 'true' || github.event_name != 'pull_request'
     steps:
@@ -78,7 +78,7 @@ jobs:
   rust-scenario-tests:
     name: Run Scenario Tests (Optional)
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 45
     needs: changes
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     steps:

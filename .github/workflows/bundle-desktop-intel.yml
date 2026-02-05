@@ -35,6 +35,7 @@ jobs:
   bundle-desktop-intel:
     runs-on: macos-latest
     name: Bundle Desktop App on Intel macOS
+    timeout-minutes: 60
     permissions:
       id-token: write
       contents: read

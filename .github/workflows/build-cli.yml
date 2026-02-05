@@ -25,6 +25,7 @@ jobs:
   build-cli:
     name: Build CLI
     runs-on: ${{ matrix.build-on }}
+    timeout-minutes: 90
     strategy:
       fail-fast: false
       matrix:

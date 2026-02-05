@@ -1,4 +1,5 @@
 # A release from main. Automatically triggered at midnight US Eastern.
+# NOTE: Only runs on the canonical repo (block/goose), not on forks
 
 name: Nightly Build
 
@@ -22,6 +23,8 @@ jobs:
   prepare-version:
     name: Prepare Version
     runs-on: ubuntu-latest
+    # Only run on the canonical repo to prevent fork failures
+    if: github.repository == 'block/goose'
     outputs:
       version: ${{ steps.set-version.outputs.version }}
       commit_sha: ${{ steps.get-commit.outputs.commit_sha }}

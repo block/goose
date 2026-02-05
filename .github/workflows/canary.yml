@@ -2,6 +2,7 @@
 # This workflow is identical to "release.yml" with these exceptions:
 #  - Triggered by push to main
 #  - Github Release tagged as "canary"
+# NOTE: Only runs on the canonical repo (block/goose), not on forks
 on:
   push:
     paths-ignore:
@@ -10,6 +11,10 @@ on:
       - main
 
 name: Canary
+
+# Only run on the canonical repository, skip forks
+env:
+  IS_CANONICAL_REPO: ${{ github.repository == 'block/goose' }}
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -22,6 +27,8 @@ jobs:
   prepare-version:
     name: Prepare Version
     runs-on: ubuntu-latest
+    # Only run on the canonical repo to prevent fork failures
+    if: github.repository == 'block/goose'
     outputs:
       version: ${{ steps.set-version.outputs.version }}
     steps:

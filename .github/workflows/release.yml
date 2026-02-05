@@ -1,4 +1,5 @@
 # This workflow is main release, needs to be manually tagged & pushed.
+# NOTE: Only runs on the canonical repo (block/goose), not on forks
 on:
   push:
     paths-ignore:
@@ -20,9 +21,20 @@ concurrency:
 
 jobs:
   # ------------------------------------
+  # 0) Check if running on canonical repo
+  # ------------------------------------
+  check-repo:
+    runs-on: ubuntu-latest
+    # Only run releases on the canonical repo
+    if: github.repository == 'block/goose'
+    steps:
+      - run: echo "Running release on canonical repo"
+
+  # ------------------------------------
   # 1) Build CLI for multiple OS/Arch
   # ------------------------------------
   build-cli:
+    needs: check-repo
     uses: ./.github/workflows/build-cli.yml
 
   # ------------------------------------

@@ -37,6 +37,7 @@ jobs:
   bundle-desktop:
     runs-on: macos-latest
     name: Bundle Desktop App on macOS
+    timeout-minutes: 60
     permissions:
       id-token: write
       contents: read

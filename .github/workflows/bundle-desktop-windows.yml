@@ -39,6 +39,7 @@ jobs:
   build-desktop-windows:
     name: Build Desktop (Windows)
     runs-on: ubuntu-latest  # Use Ubuntu for cross-compilation
+    timeout-minutes: 90
 
     steps:
       - name: Checkout repository

@@ -22,6 +22,7 @@ jobs:
   build-desktop-linux:
     name: Build Desktop (Linux)
     runs-on: ubuntu-x86-16core-64gb
+    timeout-minutes: 90
 
     steps:
       - name: Checkout repository
