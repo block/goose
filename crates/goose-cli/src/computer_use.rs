@@ -2,7 +2,7 @@ use anyhow::{Context, Result};
 use clap::{Args, Subcommand};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::process::Command;
 use tokio::net::{TcpListener, TcpStream};
 use tokio::sync::mpsc;
