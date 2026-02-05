@@ -26,9 +26,35 @@ impl LmStudioProvider {
     const DEFAULT_PORT: u16 = 1234;
 
     pub fn metadata() -> ProviderMetadata {
+        use super::base::ModelInfo;
+
         ProviderMetadata {
             name: "lmstudio".to_string(),
             display_name: "LM Studio".to_string(),
+            description: "Local LLM server with OpenAI-compatible API. Supports GLM, Qwen Coder, DeepSeek, and other models via localhost.".to_string(),
+            default_model: "qwen2.5-coder-7b-instruct".to_string(),
+            known_models: vec![
+                // GLM models
+                ModelInfo::new("glm-4-9b", 8192),
+                ModelInfo::new("glm-4.6", 8192),
+                ModelInfo::new("glm-4.7", 8192),
+                ModelInfo::new("glm4-9b-chat", 8192),
+                // Qwen Coder models
+                ModelInfo::new("qwen2.5-coder-32b-instruct", 32768),
+                ModelInfo::new("qwen2.5-coder-14b-instruct", 32768),
+                ModelInfo::new("qwen2.5-coder-7b-instruct", 32768),
+                ModelInfo::new("qwen3-coder", 32768),
+                ModelInfo::new("qwen3-coder-14b", 32768),
+                // DeepSeek for reasoning
+                ModelInfo::new("deepseek-r1-distill-qwen-7b", 32768),
+                ModelInfo::new("deepseek-r1-distill-qwen-32b", 64000),
+                // Vision models
+                ModelInfo::new("qwen2-vl-7b-instruct", 32768),
+                // General purpose
+                ModelInfo::new("meta-llama-3.1-8b-instruct", 131072),
+                ModelInfo::new("mistral-7b-instruct-v0.3", 32768),
+            ],
+            model_doc_link: "https://lmstudio.ai/docs/developer".to_string(),
             config_keys: vec![
                 ConfigKey {
                     name: "LMSTUDIO_BASE_URL".to_string(),
@@ -61,29 +87,7 @@ impl LmStudioProvider {
                     secret: false,
                 },
             ],
-            default_models: vec![
-                // GLM models
-                "glm-4-9b".to_string(),
-                "glm-4.6".to_string(),
-                "glm-4.7".to_string(),
-                "glm4-9b-chat".to_string(),
-                // Qwen Coder models
-                "qwen2.5-coder-32b-instruct".to_string(),
-                "qwen2.5-coder-14b-instruct".to_string(),
-                "qwen2.5-coder-7b-instruct".to_string(),
-                "qwen3-coder".to_string(),
-                "qwen3-coder-14b".to_string(),
-                // DeepSeek for reasoning
-                "deepseek-r1-distill-qwen-7b".to_string(),
-                "deepseek-r1-distill-qwen-32b".to_string(),
-                // Vision models
-                "qwen2-vl-7b-instruct".to_string(),
-                // General purpose
-                "meta-llama-3.1-8b-instruct".to_string(),
-                "mistral-7b-instruct-v0.3".to_string(),
-            ],
-            supports_streaming: true,
-            supports_tools: true,
+            allows_unlisted_models: true,
         }
     }
 
@@ -116,19 +120,23 @@ mod tests {
         let metadata = LmStudioProvider::metadata();
         assert_eq!(metadata.name, "lmstudio");
         assert_eq!(metadata.display_name, "LM Studio");
-        assert!(metadata.supports_streaming);
-        assert!(metadata.supports_tools);
+        assert_eq!(metadata.default_model, "qwen2.5-coder-7b-instruct");
+        assert!(metadata.allows_unlisted_models);
 
-        // Test GLM models
-        assert!(metadata.default_models.contains(&"glm-4.6".to_string()));
-        assert!(metadata.default_models.contains(&"glm-4.7".to_string()));
-        assert!(metadata.default_models.contains(&"glm-4-9b".to_string()));
+        // Test GLM models in known_models
+        assert!(metadata.known_models.iter().any(|m| m.name == "glm-4.6"));
+        assert!(metadata.known_models.iter().any(|m| m.name == "glm-4.7"));
+        assert!(metadata.known_models.iter().any(|m| m.name == "glm-4-9b"));
 
         // Test Qwen Coder models
-        assert!(metadata.default_models.contains(&"qwen3-coder".to_string()));
         assert!(metadata
-            .default_models
-            .contains(&"qwen2.5-coder-32b-instruct".to_string()));
+            .known_models
+            .iter()
+            .any(|m| m.name == "qwen3-coder"));
+        assert!(metadata
+            .known_models
+            .iter()
+            .any(|m| m.name == "qwen2.5-coder-32b-instruct"));
 
         // Test config keys
         assert_eq!(metadata.config_keys.len(), 5);
