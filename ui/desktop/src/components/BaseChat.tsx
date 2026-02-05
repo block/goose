@@ -429,12 +429,12 @@ export default function BaseChat({
                     isUserMessage={(m: Message) => {
                       const isUser = m.role === 'user';
                       // DEBUG: Log isUserMessage check
-                      console.log('[DEBUG BaseChat] isUserMessage check:', {
+                      console.log('[DEBUG BaseChat] isUserMessage check:', JSON.stringify({
                         messageId: m.id,
                         role: m.role,
                         isUser,
                         contentTypes: m.content.map((c) => c.type),
-                      });
+                      }, null, 2));
                       return isUser;
                     }}
                     isStreamingMessage={chatState !== ChatState.Idle}

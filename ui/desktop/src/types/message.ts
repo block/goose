@@ -43,7 +43,7 @@ export function createUserMessage(text: string, images?: ImageData[]): Message {
   };
 
   // DEBUG: Log user message creation
-  console.log('[DEBUG createUserMessage] Created user message:', {
+  console.log('[DEBUG createUserMessage] Created user message:', JSON.stringify({
     id: message.id,
     text: text.substring(0, 100),
     textLength: text.length,
@@ -51,7 +51,7 @@ export function createUserMessage(text: string, images?: ImageData[]): Message {
     imageCount: images?.length ?? 0,
     contentTypes: content.map((c) => c.type),
     metadata: message.metadata,
-  });
+  }, null, 2));
 
   return message;
 }
@@ -98,7 +98,7 @@ export function getTextAndImageContent(message: Message): {
   }
 
   // DEBUG: Log text/image extraction
-  console.log('[DEBUG getTextAndImageContent] Extracted content:', {
+  console.log('[DEBUG getTextAndImageContent] Extracted content:', JSON.stringify({
     messageId: message.id,
     messageRole: message.role,
     inputContentTypes: message.content.map((c) => c.type),
@@ -106,7 +106,7 @@ export function getTextAndImageContent(message: Message): {
     extractedTextTrimmedLength: textContent.trim().length,
     extractedTextPreview: textContent.substring(0, 100),
     extractedImageCount: imagePaths.length,
-  });
+  }, null, 2));
 
   return { textContent, imagePaths };
 }

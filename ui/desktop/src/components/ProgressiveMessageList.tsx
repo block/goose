@@ -173,7 +173,7 @@ export default function ProgressiveMessageList({
     const messagesToRender = messages.slice(0, renderedCount);
 
     // DEBUG: Log all messages being processed
-    console.log('[DEBUG ProgressiveMessageList] Processing messages:', {
+    console.log('[DEBUG ProgressiveMessageList] Processing messages:', JSON.stringify({
       totalMessages: messages.length,
       renderingCount: renderedCount,
       messages: messagesToRender.map((m, i) => ({
@@ -190,18 +190,18 @@ export default function ProgressiveMessageList({
           return c.type;
         }),
       })),
-    });
+    }, null, 2));
 
     return messagesToRender
       .map((message, index) => {
         if (!message.metadata.userVisible) {
           // DEBUG: Log when message is hidden due to userVisible
-          console.log('[DEBUG ProgressiveMessageList] HIDDEN - userVisible=false:', {
+          console.log('[DEBUG ProgressiveMessageList] HIDDEN - userVisible=false:', JSON.stringify({
             index,
             id: message.id,
             role: message.role,
             metadata: message.metadata,
-          });
+          }, null, 2));
           return null;
         }
         if (renderMessage) {
@@ -235,14 +235,14 @@ export default function ProgressiveMessageList({
         // DEBUG: Log user message rendering decisions
         if (isUser) {
           const onlyToolResponses = hasOnlyToolResponses(message);
-          console.log('[DEBUG ProgressiveMessageList] User message rendering decision:', {
+          console.log('[DEBUG ProgressiveMessageList] User message rendering decision:', JSON.stringify({
             index,
             id: message.id,
             isUser,
             hasOnlyToolResponses: onlyToolResponses,
             willRender: !onlyToolResponses,
             contentTypes: message.content.map((c) => c.type),
-          });
+          }, null, 2));
         }
 
         return (

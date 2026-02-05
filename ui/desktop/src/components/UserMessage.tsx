@@ -23,7 +23,7 @@ export default function UserMessage({ message, onMessageUpdate }: UserMessagePro
   const { textContent, imagePaths } = getTextAndImageContent(message);
 
   // DEBUG: Log UserMessage render with all relevant data
-  console.log('[DEBUG UserMessage] Rendering:', {
+  console.log('[DEBUG UserMessage] Rendering:', JSON.stringify({
     messageId: message.id,
     role: message.role,
     created: message.created,
@@ -38,7 +38,7 @@ export default function UserMessage({ message, onMessageUpdate }: UserMessagePro
     imageCount: imagePaths.length,
     willRenderTextBubble: !!textContent.trim(),
     willRenderImages: imagePaths.length > 0,
-  });
+  }, null, 2));
   const timestamp = formatMessageTimestamp(message.created);
 
   // Effect to handle message content changes and ensure persistence
