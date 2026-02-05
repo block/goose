@@ -255,8 +255,8 @@ impl Provider for TetrateProvider {
             Ok(response) => response,
             Err(e) => {
                 return Err(ProviderError::ExecutionError(format!(
-                    "Failed to fetch models from Tetrate API: {}",
-                    e
+                    "Failed to fetch models from Tetrate API: {}. Please check your API key and account at {}",
+                    e, TETRATE_DOC_URL
                 )));
             }
         };
