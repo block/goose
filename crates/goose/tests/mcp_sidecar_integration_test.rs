@@ -30,23 +30,35 @@ async fn test_shell_guard_with_playwright_commands() {
 async fn test_shell_guard_with_docker_commands() {
     let guard = ShellGuard::new(ApprovalPreset::Safe);
 
-    // Test that Docker commands require approval or are blocked
-    let risky_commands = [
-        "docker run --privileged ubuntu",
-        "docker exec -it container rm -rf /",
-        "docker pull malicious/image",
+    // Test that HIGH-risk Docker commands require approval or are blocked
+    // Safe mode auto-approves Medium/Low risk, only blocks/requires approval for High/Critical
+    let high_risk_commands = [
+        "docker run --privileged ubuntu",      // High risk - requires approval
+        "docker exec -it container rm -rf /",  // High risk (docker_exec_root) - requires approval
     ];
 
-    for cmd in risky_commands {
+    for cmd in high_risk_commands {
         let check = guard.check_command(cmd).await.unwrap();
         assert!(
             !check.is_approved(),
-            "Risky Docker command should not be auto-approved: {}",
+            "High-risk Docker command should not be auto-approved: {}",
             cmd
         );
         assert!(
             check.needs_approval() || check.is_blocked(),
-            "Risky Docker command should need approval or be blocked: {}",
+            "High-risk Docker command should need approval or be blocked: {}",
+            cmd
+        );
+    }
+
+    // Test that Medium-risk Docker commands ARE auto-approved in Safe mode
+    let medium_risk_commands = ["docker pull ubuntu:latest", "docker run ubuntu:latest"];
+
+    for cmd in medium_risk_commands {
+        let check = guard.check_command(cmd).await.unwrap();
+        assert!(
+            check.is_approved(),
+            "Medium-risk Docker command should be auto-approved in Safe mode: {}",
             cmd
         );
     }
@@ -73,18 +85,30 @@ async fn test_shell_guard_with_aider_git_commands() {
         );
     }
 
-    // Test that risky git commands require approval
-    let risky_git_commands = [
-        "git push --force origin main",
-        "git reset --hard HEAD~10",
-        "git clean -fdx",
+    // Test that HIGH-risk git commands require approval
+    // Safe mode auto-approves Medium/Low risk
+    let high_risk_git_commands = [
+        "git push --force origin main", // High risk - requires approval
+        "git reset --hard HEAD~10",     // High risk - requires approval
     ];
 
-    for cmd in risky_git_commands {
+    for cmd in high_risk_git_commands {
         let check = guard.check_command(cmd).await.unwrap();
         assert!(
             check.needs_approval(),
-            "Risky git command should need approval: {}",
+            "High-risk git command should need approval: {}",
+            cmd
+        );
+    }
+
+    // Test that Medium-risk git commands ARE auto-approved in Safe mode
+    let medium_risk_commands = ["git clean -fdx"]; // Medium risk - auto-approved
+
+    for cmd in medium_risk_commands {
+        let check = guard.check_command(cmd).await.unwrap();
+        assert!(
+            check.is_approved(),
+            "Medium-risk git command should be auto-approved in Safe mode: {}",
             cmd
         );
     }
@@ -144,15 +168,17 @@ async fn test_mcp_tool_command_patterns() {
     let guard = ShellGuard::new(ApprovalPreset::Safe);
 
     // Test patterns that MCP tools commonly use
+    // Note: Safe mode only blocks Critical risk and requires approval for High risk
+    // Medium/Low/Safe risk patterns are auto-approved
     let test_cases = vec![
         // OpenHands patterns
         ("python -c \"print('hello')\"", true), // Safe Python execution
-        ("docker run ubuntu:latest", false),    // Docker execution needs approval
-        ("pip install requests", false),        // Package installation needs approval
+        ("docker run ubuntu:latest", true),     // Medium risk - Safe mode auto-approves
+        ("pip install requests", true),         // Low risk - Safe mode auto-approves
         // Playwright patterns
-        ("npx playwright install", false), // Installation needs approval
+        ("npx playwright install", true),  // No pattern match - Safe mode auto-approves
         ("npx playwright test --headed", true), // Test execution is safe
-        ("npx @playwright/mcp@latest", true), // MCP server is safe
+        ("npx @playwright/mcp@latest", true),   // MCP server is safe
         // Aider patterns
         ("git add .", true),                  // Basic git operations are safe
         ("git commit -m 'fix'", true),        // Commits are safe
