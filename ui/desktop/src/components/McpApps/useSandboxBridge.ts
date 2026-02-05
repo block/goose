@@ -32,7 +32,7 @@ import { useTheme } from '../../contexts/ThemeContext';
 import packageJson from '../../../package.json';
 import { errorMessage } from '../../utils/conversionUtils';
 
-interface McpAppBridgeOptions {
+interface SandboxBridgeOptions {
   resourceHtml: string;
   resourceCsp: CspMetadata | null;
   resourcePermissions: PermissionsMetadata | null;
@@ -49,13 +49,13 @@ interface McpAppBridgeOptions {
   onSizeChanged?: (height: number, width?: number) => void;
 }
 
-interface McpAppBridgeResult {
+interface SandboxBridgeResult {
   iframeRef: React.RefObject<HTMLIFrameElement | null>;
   viewUrl: string | null;
   isLoading: boolean;
 }
 
-export function useMcpAppBridge(options: McpAppBridgeOptions): McpAppBridgeResult {
+export function useSandboxBridge(options: SandboxBridgeOptions): SandboxBridgeResult {
   const {
     resourceHtml,
     resourceCsp,

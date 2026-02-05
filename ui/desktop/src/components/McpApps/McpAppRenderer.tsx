@@ -9,7 +9,7 @@ import { AppEvents } from '../../constants/events';
  */
 
 import { useState, useCallback, useEffect } from 'react';
-import { useMcpAppBridge } from './useMcpAppBridge';
+import { useSandboxBridge } from './useSandboxBridge';
 import {
   ToolInput,
   ToolInputPartial,
@@ -247,7 +247,7 @@ export default function McpAppRenderer({
     setIframeHeight(newHeight);
   }, []);
 
-  const { iframeRef, viewUrl, isLoading } = useMcpAppBridge({
+  const { iframeRef, viewUrl, isLoading } = useSandboxBridge({
     resourceHtml: resource.html || '',
     resourceCsp: resource.csp,
     resourcePermissions: resource.permissions,
