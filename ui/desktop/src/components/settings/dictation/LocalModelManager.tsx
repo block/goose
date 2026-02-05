@@ -166,7 +166,7 @@ export const LocalModelManager = () => {
               key={model.id}
               className={`border rounded-lg p-3 transition-colors ${
                 isSelected
-                  ? 'border-accent-primary bg-accent-primary/5'
+                  ? 'border-border-accent bg-background-accent/5'
                   : 'border-border-subtle bg-background-default hover:border-border-default'
               }`}
             >
@@ -193,7 +193,7 @@ export const LocalModelManager = () => {
                       </span>
                     )}
                     {isSelected && (
-                      <span className="text-xs bg-accent-primary text-white px-2 py-0.5 rounded">
+                      <span className="text-xs bg-background-accent text-white px-2 py-0.5 rounded">
                         Active
                       </span>
                     )}
@@ -251,7 +251,7 @@ export const LocalModelManager = () => {
                 <div className="mt-2 space-y-1">
                   <div className="w-full bg-background-subtle rounded-full h-1.5">
                     <div
-                      className="bg-accent-primary h-1.5 rounded-full transition-all"
+                      className="bg-background-accent h-1.5 rounded-full transition-all"
                       style={{ width: `${progress.progress_percent}%` }}
                     />
                   </div>
