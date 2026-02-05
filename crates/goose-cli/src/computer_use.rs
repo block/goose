@@ -349,7 +349,7 @@ impl ComputerUseInterface {
     async fn handle_fix(&mut self, args: FixArgs) -> Result<()> {
         info!("Starting workflow failure analysis and fixes");
 
-        let workflow_analyzer = WorkflowAnalyzer::new(&self.project_root).await?;
+        let workflow_analyzer = WorkflowAnalyzer::new(&self.project_root.as_path()).await?;
 
         if args.all_workflows {
             let failures = workflow_analyzer.analyze_all_failures().await?;
@@ -602,9 +602,9 @@ pub struct WorkflowAnalyzer {
 }
 
 impl WorkflowAnalyzer {
-    pub async fn new(project_root: &PathBuf) -> Result<Self> {
+    pub async fn new(project_root: &Path) -> Result<Self> {
         Ok(Self {
-            project_root: project_root.clone(),
+            project_root: project_root.to_path_buf(),
         })
     }
 
