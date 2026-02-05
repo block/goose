@@ -24,6 +24,28 @@ Think of it as a fitness tracker for your AI practice—it shows you where you a
 
 ---
 
+## Installation
+
+Install the skill using the skills CLI:
+
+```bash
+npx skills add https://github.com/block/agent-skills --skill rp-why
+```
+
+Make sure you have the built-in skills extension enabled in Goose.
+
+### Verify Installation
+
+Once installed, test it with:
+
+```
+/rp-why current
+```
+
+You should see your session analysis with DOK distribution and growth nudges.
+
+---
+
 ## The Problem
 
 | Without rp-why | Impact |
@@ -34,7 +56,7 @@ Think of it as a fitness tracker for your AI practice—it shows you where you a
 | Wasting sophisticated tools on simple tasks | Unrealized ROI |
 
 | With rp-why | Outcome |
-|-------------|---------|
+|-------------|---------| 
 | Match your tools to your task complexity | Efficiency |
 | See your patterns clearly with data | Awareness |
 | Get actionable nudges to level up | Growth |
@@ -243,13 +265,19 @@ A: Yes! The output is designed to be shareable. Screenshot or copy the quadrant 
 
 ## Start Now
 
-Your first command:
+Install the skill:
+
+```bash
+npx skills add https://github.com/block/agent-skills --skill rp-why
+```
+
+Then run your first command:
 
 ```
 /rp-why init
 ```
 
-Then ask yourself:
+And ask yourself:
 
 > "What's the most strategic question I could ask right now?"
 
@@ -275,4 +303,3 @@ That's the rp-why mindset.
   <meta name="twitter:description" content="A Goose skill that measures the cognitive complexity of your AI collaboration using the Gas Town × DOK framework." />
   <meta name="twitter:image" content="https://block.github.io/goose/blog/images/rp-why-blog/rp-why-banner.png" />
 </head>
-
