@@ -14,6 +14,7 @@ import {
   Share2,
   Copy,
   Download,
+  Sparkles,
 } from 'lucide-react';
 import { ScrollArea } from '../ui/scroll-area';
 import { Card } from '../ui/card';
@@ -32,6 +33,7 @@ import {
 } from '../../api';
 import ImportRecipeForm, { ImportRecipeButton } from './ImportRecipeForm';
 import CreateEditRecipeModal from './CreateEditRecipeModal';
+import RecipeBuilder from './RecipeBuilder';
 import { generateDeepLink, Recipe, stripEmptyExtensions } from '../../recipe';
 import { useNavigation } from '../../hooks/useNavigation';
 import { CronPicker } from '../schedule/CronPicker';
@@ -72,6 +74,7 @@ export default function RecipesView() {
 
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [showImportDialog, setShowImportDialog] = useState(false);
+  const [showAIBuilder, setShowAIBuilder] = useState(false);
 
   const [showScheduleDialog, setShowScheduleDialog] = useState(false);
   const [scheduleRecipeManifest, setScheduleRecipeManifest] = useState<RecipeManifest | null>(null);
@@ -678,6 +681,18 @@ export default function RecipesView() {
     );
   };
 
+  if (showAIBuilder) {
+    return (
+      <RecipeBuilder
+        onClose={() => setShowAIBuilder(false)}
+        onRecipeSaved={() => {
+          setShowAIBuilder(false);
+          loadSavedRecipes();
+        }}
+      />
+    );
+  }
+
   return (
     <>
       <MainPanelLayout>
@@ -687,6 +702,15 @@ export default function RecipesView() {
               <div className="flex justify-between items-center mb-1">
                 <h1 className="text-4xl font-light">Recipes</h1>
                 <div className="flex gap-2">
+                  <Button
+                    onClick={() => setShowAIBuilder(true)}
+                    variant="default"
+                    size="sm"
+                    className="flex items-center gap-2"
+                  >
+                    <Sparkles className="w-4 h-4" />
+                    AI Recipe Builder
+                  </Button>
                   <Button
                     onClick={() => setShowCreateDialog(true)}
                     variant="outline"
