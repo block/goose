@@ -6,9 +6,10 @@ import ParameterInput from '../../parameter/ParameterInput';
 import RecipeActivityEditor from '../RecipeActivityEditor';
 import JsonSchemaEditor from './JsonSchemaEditor';
 import InstructionsEditor from './InstructionsEditor';
+import SubRecipeEditor from './SubRecipeEditor';
 import { Button } from '../../ui/button';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '../../ui/collapsible';
-import { RecipeFormApi, RecipeFormData } from './recipeFormSchema';
+import { RecipeFormApi, RecipeFormData, SubRecipeFormData } from './recipeFormSchema';
 
 // Type for field API to avoid linting issues - use any to bypass complex type constraints
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -325,7 +326,9 @@ export function RecipeFormFields({
             }`}
           />
           <span className="text-sm font-medium text-textStandard">Advanced Options</span>
-          <span className="text-xs text-textSubtle">Activities, parameters, response schema</span>
+          <span className="text-xs text-textSubtle">
+            Activities, parameters, response schema, subrecipe
+          </span>
         </CollapsibleTrigger>
 
         <CollapsibleContent className="mt-4 space-y-4 pl-6 border-l-2 border-borderSubtle ml-2">
@@ -510,6 +513,18 @@ export function RecipeFormFields({
                   error={
                     field.state.meta.errors.length > 0 ? field.state.meta.errors[0] : undefined
                   }
+                />
+              </div>
+            )}
+          </form.Field>
+
+          {/* Subrecipes Field */}
+          <form.Field name="subRecipes">
+            {(field: FormFieldApi<SubRecipeFormData[]>) => (
+              <div>
+                <SubRecipeEditor
+                  subRecipes={field.state.value}
+                  onChange={(subRecipes) => field.handleChange(subRecipes)}
                 />
               </div>
             )}
