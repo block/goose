@@ -1,9 +1,9 @@
 /**
- * Unified agent chat hook that can switch between Goose and Pi backends.
+ * Unified agent chat hook that routes between Goose and Pi backends.
  *
  * This hook provides a single interface for chat functionality,
  * delegating to either useChatStream (Goose/goosed) or usePiChat (Pi)
- * based on configuration.
+ * based on the backend setting.
  *
  * Usage:
  *   const chat = useAgentChat({ sessionId, backend: 'goose' }); // or 'pi'
@@ -19,7 +19,7 @@ export type AgentBackend = 'goose' | 'pi';
 
 interface UseAgentChatProps {
   sessionId: string;
-  backend?: AgentBackend;
+  backend: AgentBackend;
   onStreamFinish: () => void;
   onSessionLoaded?: () => void;
 }
@@ -49,21 +49,23 @@ interface UseAgentChatReturn {
 
 export function useAgentChat({
   sessionId,
-  backend = 'goose',
+  backend,
   onStreamFinish,
   onSessionLoaded,
 }: UseAgentChatProps): UseAgentChatReturn {
-  // Use the appropriate hook based on backend selection
+  // Only activate the hook for the selected backend
+  // This prevents both hooks from running simultaneously
+  
   const gooseChat = useChatStream({
-    sessionId,
-    onStreamFinish,
-    onSessionLoaded,
+    sessionId: backend === 'goose' ? sessionId : '',
+    onStreamFinish: backend === 'goose' ? onStreamFinish : () => {},
+    onSessionLoaded: backend === 'goose' ? onSessionLoaded : undefined,
   });
 
   const piChat = usePiChat({
-    sessionId,
-    onStreamFinish,
-    onSessionLoaded,
+    sessionId: backend === 'pi' ? sessionId : '',
+    onStreamFinish: backend === 'pi' ? onStreamFinish : () => {},
+    onSessionLoaded: backend === 'pi' ? onSessionLoaded : undefined,
   });
 
   if (backend === 'pi') {

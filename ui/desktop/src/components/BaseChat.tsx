@@ -83,9 +83,7 @@ export default function BaseChat({
   // Load agent backend preference from settings
   useEffect(() => {
     window.electron.getSettings().then((settings) => {
-      if (settings.agentBackend) {
-        setAgentBackend(settings.agentBackend);
-      }
+      setAgentBackend(settings.agentBackend || 'goose');
     });
   }, []);
 

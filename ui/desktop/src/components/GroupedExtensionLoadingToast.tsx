@@ -116,7 +116,8 @@ export function GroupedExtensionLoadingToast({
                                   startNewSession(
                                     ext.recoverHints,
                                     setView,
-                                    getInitialWorkingDir()
+                                    getInitialWorkingDir(),
+                                    'goose'
                                   );
                                 }}
                               >

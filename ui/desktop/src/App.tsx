@@ -81,6 +81,14 @@ const PairRouteWrapper = ({
     (location.state as PairRouteState) || (window.history.state as PairRouteState) || {};
   const [searchParams, setSearchParams] = useSearchParams();
   const [isCreatingSession, setIsCreatingSession] = useState(false);
+  const [agentBackend, setAgentBackend] = useState<'goose' | 'pi'>('goose');
+
+  // Load agent backend setting
+  useEffect(() => {
+    window.electron.getSettings().then((settings) => {
+      setAgentBackend(settings.agentBackend || 'goose');
+    });
+  }, []);
 
   const resumeSessionId = searchParams.get('resumeSessionId') ?? undefined;
   const recipeId = searchParams.get('recipeId') ?? undefined;
@@ -90,7 +98,7 @@ const PairRouteWrapper = ({
   // Create session if we have an initialMessage, recipeId, or recipeDeeplink but no sessionId
   useEffect(() => {
     if (
-      (initialMessage || recipeId || recipeDeeplinkFromConfig) &&
+      (initialMessage || (agentBackend === 'goose' && (recipeId || recipeDeeplinkFromConfig))) &&
       !resumeSessionId &&
       !isCreatingSession
     ) {
@@ -98,11 +106,15 @@ const PairRouteWrapper = ({
 
       (async () => {
         try {
-          const newSession = await createSession(getInitialWorkingDir(), {
-            recipeId,
-            recipeDeeplink: recipeDeeplinkFromConfig,
-            allExtensions: extensionsList,
-          });
+          const newSession = await createSession(
+            getInitialWorkingDir(),
+            agentBackend,
+            agentBackend === 'goose' ? {
+              recipeId,
+              recipeDeeplink: recipeDeeplinkFromConfig,
+              allExtensions: extensionsList,
+            } : undefined
+          );
 
           window.dispatchEvent(
             new CustomEvent(AppEvents.ADD_ACTIVE_SESSION, {
@@ -140,6 +152,7 @@ const PairRouteWrapper = ({
     resumeSessionId,
     setSearchParams,
     extensionsList,
+    agentBackend,
   ]);
 
   // Add resumed session to active sessions if not already there

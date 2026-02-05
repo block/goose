@@ -13,7 +13,7 @@ import BlockLogoBlack from './icons/block-lockup_black.png';
 import BlockLogoWhite from './icons/block-lockup_white.png';
 import TelemetrySettings from './TelemetrySettings';
 import { trackSettingToggled } from '../../../utils/analytics';
-import type { AgentBackend } from '../../../utils/settings';
+import type { AgentBackend } from '../../../hooks/useAgentChat';
 
 interface AppSettingsSectionProps {
   scrollToSection?: string;
@@ -294,39 +294,39 @@ export default function AppSettingsSection({ scrollToSection }: AppSettingsSecti
       <TunnelSection />
 
       {/* Experimental: Pi Agent Backend */}
-      <Card className="rounded-lg border-amber-500/50">
-        <CardHeader className="pb-0">
-          <CardTitle className="mb-1 flex items-center gap-2">
-            <span className="text-amber-500 text-xs font-normal px-2 py-0.5 bg-amber-500/10 rounded">
-              Experimental
-            </span>
-            Agent Backend
-          </CardTitle>
-          <CardDescription>
-            Switch between the default Goose agent and the Pi coding agent
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="pt-4 px-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <h3 className="text-text-default text-xs">Use Pi Agent</h3>
-              <p className="text-xs text-text-muted max-w-md mt-[2px]">
-                {isPiAvailable
-                  ? 'Pi is an alternative coding agent that runs natively in the app. New sessions will use the selected agent.'
-                  : 'Pi agent is not available. Check logs for loading errors.'}
-              </p>
+      {isPiAvailable && (
+        <Card className="rounded-lg border-amber-500/50">
+          <CardHeader className="pb-0">
+            <CardTitle className="mb-1 flex items-center gap-2">
+              <span className="text-amber-500 text-xs font-normal px-2 py-0.5 bg-amber-500/10 rounded">
+                Experimental
+              </span>
+              Agent Backend
+            </CardTitle>
+            <CardDescription>
+              Switch between the classic Goose experience and the new Pi coding agent
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="pt-4 px-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="text-text-default text-xs">Use Pi Agent</h3>
+                <p className="text-xs text-text-muted max-w-md mt-[2px]">
+                  Pi is a new coding agent experience. Classic Goose supports recipes, MCP apps, and extensions.
+                  Changes apply to new sessions.
+                </p>
+              </div>
+              <div className="flex items-center">
+                <Switch
+                  checked={agentBackend === 'pi'}
+                  onCheckedChange={handleAgentBackendToggle}
+                  variant="mono"
+                />
+              </div>
             </div>
-            <div className="flex items-center">
-              <Switch
-                checked={agentBackend === 'pi'}
-                onCheckedChange={handleAgentBackendToggle}
-                disabled={!isPiAvailable}
-                variant="mono"
-              />
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
+      )}
 
       <TelemetrySettings isWelcome={false} />
 

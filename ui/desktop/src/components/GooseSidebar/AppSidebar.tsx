@@ -32,6 +32,7 @@ import { SessionIndicators } from '../SessionIndicators';
 import { useSidebarSessionStatus } from '../../hooks/useSidebarSessionStatus';
 import { getInitialWorkingDir } from '../../utils/workingDir';
 import { useConfig } from '../ConfigContext';
+import type { AgentBackend } from '../../hooks/useAgentChat';
 
 interface SidebarProps {
   onSelectSession: (sessionId: string) => void;
@@ -196,6 +197,40 @@ const SessionList = React.memo<{
 
 SessionList.displayName = 'SessionList';
 
+// Helper to convert Pi session to Goose Session type
+function piSessionToGooseSession(piSession: {
+  id: string;
+  name: string;
+  created_at: string;
+  updated_at: string;
+  working_dir: string;
+  message_count: number;
+  conversation: unknown[];
+  input_tokens: number;
+  output_tokens: number;
+  total_tokens: number;
+  accumulated_input_tokens: number;
+  accumulated_output_tokens: number;
+  accumulated_total_tokens: number;
+}): Session {
+  return {
+    id: piSession.id,
+    name: piSession.name,
+    created_at: piSession.created_at,
+    updated_at: piSession.updated_at,
+    working_dir: piSession.working_dir,
+    message_count: piSession.message_count,
+    conversation: piSession.conversation as Session['conversation'],
+    input_tokens: piSession.input_tokens,
+    output_tokens: piSession.output_tokens,
+    total_tokens: piSession.total_tokens,
+    accumulated_input_tokens: piSession.accumulated_input_tokens,
+    accumulated_output_tokens: piSession.accumulated_output_tokens,
+    accumulated_total_tokens: piSession.accumulated_total_tokens,
+    extension_data: {},
+  };
+}
+
 const AppSidebar: React.FC<SidebarProps> = ({ currentPath }) => {
   const navigate = useNavigate();
   const chatContext = useChatContext();
@@ -207,8 +242,16 @@ const AppSidebar: React.FC<SidebarProps> = ({ currentPath }) => {
   const [searchParams] = useSearchParams();
   const [recentSessions, setRecentSessions] = useState<Session[]>([]);
   const [isChatExpanded, setIsChatExpanded] = useState(true);
+  const [agentBackend, setAgentBackend] = useState<AgentBackend>('goose');
   const activeSessionId = searchParams.get('resumeSessionId') ?? undefined;
   const { getSessionStatus, clearUnread } = useSidebarSessionStatus(activeSessionId);
+
+  // Load agent backend setting
+  useEffect(() => {
+    window.electron.getSettings().then((settings) => {
+      setAgentBackend(settings.agentBackend || 'goose');
+    });
+  }, []);
 
   // When activeSessionId changes, ensure it's in the recent sessions list
   // This handles the case where a session is loaded from history that's older than the top 10
@@ -221,14 +264,27 @@ const AppSidebar: React.FC<SidebarProps> = ({ currentPath }) => {
     // Fetch the active session and add it to the top of the list
     const fetchAndAddSession = async () => {
       try {
-        const { getSession } = await import('../../api');
-        const response = await getSession({ path: { session_id: activeSessionId } });
-        if (response.data) {
+        let session: Session | null = null;
+        
+        if (agentBackend === 'pi') {
+          const piSession = await window.electron.pi.getSession(activeSessionId);
+          if (piSession) {
+            session = piSessionToGooseSession(piSession);
+          }
+        } else {
+          const { getSession } = await import('../../api');
+          const response = await getSession({ path: { session_id: activeSessionId } });
+          if (response.data) {
+            session = response.data;
+          }
+        }
+        
+        if (session) {
           setRecentSessions((prev) => {
             // Don't add if it's already there (race condition check)
             if (prev.some((s) => s.id === activeSessionId)) return prev;
             // Add to the beginning and keep max 10
-            return [response.data as Session, ...prev].slice(0, 10);
+            return [session!, ...prev].slice(0, 10);
           });
         }
       } catch (error) {
@@ -237,13 +293,21 @@ const AppSidebar: React.FC<SidebarProps> = ({ currentPath }) => {
     };
 
     fetchAndAddSession();
-  }, [activeSessionId, recentSessions]);
+  }, [activeSessionId, recentSessions, agentBackend]);
 
   useEffect(() => {
     const loadRecentSessions = async () => {
       try {
-        const response = await listSessions<true>({ throwOnError: true });
-        const sessions = response.data.sessions.slice(0, 10);
+        let sessions: Session[] = [];
+        
+        if (agentBackend === 'pi') {
+          const piSessions = await window.electron.pi.listSessions();
+          sessions = piSessions.slice(0, 10).map(piSessionToGooseSession);
+        } else {
+          const response = await listSessions<true>({ throwOnError: true });
+          sessions = response.data.sessions.slice(0, 10);
+        }
+        
         setRecentSessions(sessions);
 
         const hasSessionWithDefaultName = sessions.some((s) => shouldShowNewChatTitle(s));
@@ -257,7 +321,7 @@ const AppSidebar: React.FC<SidebarProps> = ({ currentPath }) => {
     };
 
     loadRecentSessions();
-  }, []);
+  }, [agentBackend]);
 
   useEffect(() => {
     let pollingTimeouts: ReturnType<typeof setTimeout>[] = [];
@@ -289,8 +353,19 @@ const AppSidebar: React.FC<SidebarProps> = ({ currentPath }) => {
         pollCount++;
 
         try {
-          const response = await listSessions<true>({ throwOnError: true });
-          const apiSessions = response.data.sessions.slice(0, 10);
+          // Get current backend from settings each poll to stay current
+          const settings = await window.electron.getSettings();
+          const currentBackend = settings.agentBackend || 'goose';
+          
+          let apiSessions: Session[] = [];
+          
+          if (currentBackend === 'pi') {
+            const piSessions = await window.electron.pi.listSessions();
+            apiSessions = piSessions.slice(0, 10).map(piSessionToGooseSession);
+          } else {
+            const response = await listSessions<true>({ throwOnError: true });
+            apiSessions = response.data.sessions.slice(0, 10);
+          }
 
           // Merge API sessions with any locally-tracked empty sessions
           setRecentSessions((prev) => {
@@ -408,14 +483,14 @@ const AppSidebar: React.FC<SidebarProps> = ({ currentPath }) => {
     } else {
       isCreatingSessionRef.current = true;
       try {
-        await startNewSession('', setView, getInitialWorkingDir());
+        await startNewSession('', setView, getInitialWorkingDir(), agentBackend);
       } finally {
         setTimeout(() => {
           isCreatingSessionRef.current = false;
         }, 1000);
       }
     }
-  }, [setView, clearUnread]);
+  }, [setView, clearUnread, agentBackend]);
 
   useEffect(() => {
     const handleTriggerNewChat = () => {

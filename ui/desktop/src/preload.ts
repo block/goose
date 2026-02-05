@@ -54,20 +54,33 @@ interface UpdaterEvent {
 // Pi Agent types
 interface PiSessionOptions {
   workingDir?: string;
-  provider?: string;
-  model?: string;
-  systemPrompt?: string;
+}
+
+interface PiSession {
+  id: string;
+  name: string;
+  created_at: string;
+  updated_at: string;
+  working_dir: string;
+  message_count: number;
+  conversation: unknown[];
+  input_tokens: number;
+  output_tokens: number;
+  total_tokens: number;
+  accumulated_input_tokens: number;
+  accumulated_output_tokens: number;
+  accumulated_total_tokens: number;
 }
 
 interface PiState {
   available: boolean;
+  version: string | null;
   hasSession: boolean;
+  isStreaming: boolean;
+  currentSessionId: string | null;
 }
 
-interface PiAgentEvent {
-  type: string;
-  [key: string]: unknown;
-}
+
 
 // Define the API types in a single place
 type ElectronAPI = {
@@ -151,12 +164,17 @@ type ElectronAPI = {
   // Pi Agent API
   pi: {
     isAvailable: () => Promise<boolean>;
+    getVersion: () => Promise<string | null>;
     getState: () => Promise<PiState>;
-    startSession: (options: PiSessionOptions) => Promise<{ success: boolean }>;
+    createSession: (options: PiSessionOptions) => Promise<{ success: boolean; session?: PiSession; error?: string }>;
+    resumeSession: (sessionId: string) => Promise<{ success: boolean; session?: PiSession; error?: string }>;
+    getCurrentSession: () => Promise<PiSession | null>;
+    listSessions: () => Promise<PiSession[]>;
+    getSession: (sessionId: string) => Promise<PiSession | null>;
+    deleteSession: (sessionId: string) => Promise<boolean>;
     stopSession: () => Promise<{ success: boolean }>;
+    abort: () => Promise<{ success: boolean }>;
     prompt: (message: string) => Promise<{ success: boolean; error?: string }>;
-    onEvent: (callback: (event: PiAgentEvent) => void) => void;
-    offEvent: (callback: (event: PiAgentEvent) => void) => void;
   };
 };
 
@@ -294,18 +312,17 @@ const electronAPI: ElectronAPI = {
   // Pi Agent API
   pi: {
     isAvailable: () => ipcRenderer.invoke('pi:isAvailable'),
+    getVersion: () => ipcRenderer.invoke('pi:getVersion'),
     getState: () => ipcRenderer.invoke('pi:getState'),
-    startSession: (options: PiSessionOptions) => ipcRenderer.invoke('pi:startSession', options),
+    createSession: (options: PiSessionOptions) => ipcRenderer.invoke('pi:createSession', options),
+    resumeSession: (sessionId: string) => ipcRenderer.invoke('pi:resumeSession', sessionId),
+    getCurrentSession: () => ipcRenderer.invoke('pi:getCurrentSession'),
+    listSessions: () => ipcRenderer.invoke('pi:listSessions'),
+    getSession: (sessionId: string) => ipcRenderer.invoke('pi:getSession', sessionId),
+    deleteSession: (sessionId: string) => ipcRenderer.invoke('pi:deleteSession', sessionId),
     stopSession: () => ipcRenderer.invoke('pi:stopSession'),
+    abort: () => ipcRenderer.invoke('pi:abort'),
     prompt: (message: string) => ipcRenderer.invoke('pi:prompt', message),
-    onEvent: (callback: (event: PiAgentEvent) => void) => {
-      const wrappedCallback = (_event: Electron.IpcRendererEvent, data: PiAgentEvent) =>
-        callback(data);
-      ipcRenderer.on('pi:event', wrappedCallback);
-    },
-    offEvent: (callback: (event: PiAgentEvent) => void) => {
-      ipcRenderer.removeListener('pi:event', callback as unknown as (...args: unknown[]) => void);
-    },
   },
 };
 

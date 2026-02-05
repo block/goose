@@ -6,15 +6,16 @@
  *
  * Architecture:
  * - Pi runs in the Electron main process
+ * - Sessions are managed and persisted by this module
  * - IPC handlers expose Pi to the renderer
  * - Events are translated to Goose-compatible format
- * - MCP extensions configured via goosed are passed to Pi
  */
 
-import { ipcMain, IpcMainInvokeEvent } from 'electron';
-import { appendFileSync } from 'node:fs';
+import { ipcMain, IpcMainInvokeEvent, app } from 'electron';
+import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync, readdirSync, unlinkSync } from 'node:fs';
+import { join } from 'node:path';
 import log from '../utils/logger';
-import { PiEventAccumulator, type PiAgentEvent, type GooseMessage } from './eventTranslator';
+import { PiEventAccumulator, type PiAgentEvent, type GooseMessage, type ToolNotification } from './eventTranslator';
 
 const PI_LOG = '/tmp/pi-debug.log';
 const piLog = (msg: string, ...args: unknown[]) => {
@@ -36,11 +37,127 @@ interface PiModule {
   VERSION: string;
 }
 
+// Session data structure (matches Goose Session type for UI compatibility)
+export interface PiSession {
+  id: string;
+  name: string;
+  created_at: string;
+  updated_at: string;
+  working_dir: string;
+  message_count: number;
+  conversation: GooseMessage[];
+  // Token tracking (Pi doesn't provide this, but UI expects it)
+  input_tokens: number;
+  output_tokens: number;
+  total_tokens: number;
+  accumulated_input_tokens: number;
+  accumulated_output_tokens: number;
+  accumulated_total_tokens: number;
+}
+
 // Module state
 let piModule: PiModule | null = null;
-let currentSession: AgentSession | null = null;
+let currentAgentSession: AgentSession | null = null;
+let currentSessionId: string | null = null;
 let unsubscribeFn: (() => void) | null = null;
 let eventAccumulator = new PiEventAccumulator();
+
+// Session storage
+function getSessionsDir(): string {
+  const userDataPath = app.getPath('userData');
+  const sessionsDir = join(userDataPath, 'pi-sessions');
+  if (!existsSync(sessionsDir)) {
+    mkdirSync(sessionsDir, { recursive: true });
+  }
+  return sessionsDir;
+}
+
+function getSessionPath(sessionId: string): string {
+  return join(getSessionsDir(), `${sessionId}.json`);
+}
+
+function generateSessionId(): string {
+  const now = new Date();
+  const date = now.toISOString().slice(0, 10).replace(/-/g, '');
+  const time = now.toISOString().slice(11, 19).replace(/:/g, '');
+  return `${date}_${time}`;
+}
+
+function generateSessionName(messages: GooseMessage[]): string {
+  // Find the first user message to generate a name from
+  const firstUserMsg = messages.find(m => m.role === 'user');
+  if (firstUserMsg) {
+    const textContent = firstUserMsg.content.find(c => c.type === 'text');
+    if (textContent && 'text' in textContent) {
+      const text = textContent.text.slice(0, 50);
+      return text.length < textContent.text.length ? `${text}...` : text;
+    }
+  }
+  return 'New Chat';
+}
+
+/**
+ * Save session to disk.
+ */
+function saveSession(session: PiSession): void {
+  const path = getSessionPath(session.id);
+  writeFileSync(path, JSON.stringify(session, null, 2));
+  piLog('Session saved:', session.id);
+}
+
+/**
+ * Load session from disk.
+ */
+function loadSession(sessionId: string): PiSession | null {
+  const path = getSessionPath(sessionId);
+  if (!existsSync(path)) {
+    return null;
+  }
+  try {
+    const data = readFileSync(path, 'utf-8');
+    return JSON.parse(data) as PiSession;
+  } catch (error) {
+    piLog('Failed to load session:', sessionId, error);
+    return null;
+  }
+}
+
+/**
+ * List all sessions.
+ */
+function listAllSessions(): PiSession[] {
+  const sessionsDir = getSessionsDir();
+  const files = readdirSync(sessionsDir).filter(f => f.endsWith('.json'));
+  const sessions: PiSession[] = [];
+  
+  for (const file of files) {
+    try {
+      const data = readFileSync(join(sessionsDir, file), 'utf-8');
+      sessions.push(JSON.parse(data) as PiSession);
+    } catch {
+      // Skip invalid files
+    }
+  }
+  
+  // Sort by updated_at descending (most recent first)
+  sessions.sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime());
+  return sessions;
+}
+
+/**
+ * Delete a session.
+ */
+function deleteSessionFile(sessionId: string): boolean {
+  const path = getSessionPath(sessionId);
+  if (existsSync(path)) {
+    unlinkSync(path);
+    return true;
+  }
+  return false;
+}
+
+// In-memory session state for current session
+let currentSession: PiSession | null = null;
 
 /**
  * Initialize Pi module.
@@ -72,61 +189,143 @@ export function getPiVersion(): string | null {
   return piModule?.VERSION || null;
 }
 
-export interface StartSessionOptions {
+export interface CreateSessionOptions {
   workingDir?: string;
 }
 
 /**
- * Start a new Pi session.
+ * Create a new Pi session.
  */
-export async function startPiSession(options: StartSessionOptions = {}): Promise<void> {
-  piLog('startPiSession called with options:', options);
+export async function createPiSession(options: CreateSessionOptions = {}): Promise<PiSession> {
+  piLog('createPiSession called with options:', options);
   if (!piModule) {
     piLog('ERROR: Pi module not loaded');
     throw new Error('Pi module not loaded. Call initializePi() first.');
   }
 
-  // Stop existing session if any
-  if (currentSession) {
-    await stopPiSession();
+  // Stop existing agent session if any
+  if (currentAgentSession) {
+    await stopCurrentAgentSession();
   }
 
+  const workingDir = options.workingDir || process.cwd();
+  
   // Set working directory
-  if (options.workingDir) {
-    process.chdir(options.workingDir);
-  }
+  process.chdir(workingDir);
 
   const sessionConfig: CreateAgentSessionOptions = {
-    cwd: options.workingDir || process.cwd(),
+    cwd: workingDir,
   };
 
   piLog('Creating agent session with config:', sessionConfig);
   const result = await piModule.createAgentSession(sessionConfig);
-  piLog('Session created, result:', { hasSession: !!result.session });
-  currentSession = result.session;
+  piLog('Agent session created, result:', { hasSession: !!result.session });
+  
+  currentAgentSession = result.session;
   eventAccumulator.reset();
 
-  piLog('Session started successfully');
+  // Create session metadata
+  const sessionId = generateSessionId();
+  const now = new Date().toISOString();
+  
+  currentSession = {
+    id: sessionId,
+    name: 'New Chat',
+    created_at: now,
+    updated_at: now,
+    working_dir: workingDir,
+    message_count: 0,
+    conversation: [],
+    input_tokens: 0,
+    output_tokens: 0,
+    total_tokens: 0,
+    accumulated_input_tokens: 0,
+    accumulated_output_tokens: 0,
+    accumulated_total_tokens: 0,
+  };
+  
+  currentSessionId = sessionId;
+  saveSession(currentSession);
+
+  piLog('Session created successfully:', sessionId);
+  return currentSession;
 }
 
 /**
- * Stop the current Pi session.
+ * Resume an existing session.
  */
-export async function stopPiSession(): Promise<void> {
+export async function resumePiSession(sessionId: string): Promise<PiSession> {
+  piLog('resumePiSession called for:', sessionId);
+  if (!piModule) {
+    throw new Error('Pi module not loaded. Call initializePi() first.');
+  }
+
+  const session = loadSession(sessionId);
+  if (!session) {
+    throw new Error(`Session not found: ${sessionId}`);
+  }
+
+  // Stop existing agent session if any
+  if (currentAgentSession) {
+    await stopCurrentAgentSession();
+  }
+
+  // Set working directory
+  process.chdir(session.working_dir);
+
+  const sessionConfig: CreateAgentSessionOptions = {
+    cwd: session.working_dir,
+  };
+
+  piLog('Creating agent session for resume with config:', sessionConfig);
+  const result = await piModule.createAgentSession(sessionConfig);
+  currentAgentSession = result.session;
+  currentSession = session;
+  currentSessionId = sessionId;
+  eventAccumulator.reset();
+
+  // TODO: Replay conversation history to Pi if it supports it
+  // For now, Pi starts fresh but we show the old messages in UI
+
+  piLog('Session resumed successfully:', sessionId);
+  return session;
+}
+
+/**
+ * Stop the current agent session (but keep session data).
+ */
+async function stopCurrentAgentSession(): Promise<void> {
   if (unsubscribeFn) {
     unsubscribeFn();
     unsubscribeFn = null;
   }
-  if (currentSession) {
+  if (currentAgentSession) {
     try {
-      currentSession.abort();
+      currentAgentSession.abort();
     } catch {
       // Ignore abort errors
     }
-    currentSession = null;
-    eventAccumulator.reset();
-    log.info('[Pi] Session stopped');
+    currentAgentSession = null;
+    log.info('[Pi] Agent session stopped');
   }
+}
+
+/**
+ * Stop and clear the current session.
+ */
+export async function stopPiSession(): Promise<void> {
+  await stopCurrentAgentSession();
+  currentSession = null;
+  currentSessionId = null;
+  eventAccumulator.reset();
+  log.info('[Pi] Session cleared');
+}
+
+/**
+ * Get the current session.
+ */
+export function getCurrentSession(): PiSession | null {
+  return currentSession;
 }
 
 /**
@@ -135,15 +334,37 @@ export async function stopPiSession(): Promise<void> {
 export async function promptPi(
   message: string,
   onEvent: (event: PiAgentEvent, gooseMessage?: GooseMessage) => void,
-  onComplete: () => void,
+  onNotification: (notification: ToolNotification) => void,
+  onComplete: (finalMessages: GooseMessage[]) => void,
   onError: (error: Error) => void
 ): Promise<void> {
   piLog('promptPi called with message:', message.substring(0, 100));
-  if (!currentSession) {
+  if (!currentAgentSession || !currentSession) {
     piLog('ERROR: No Pi session');
-    onError(new Error('No Pi session. Call startPiSession() first.'));
+    onError(new Error('No Pi session. Call createPiSession() first.'));
     return;
   }
+
+  // Create user message
+  const userMessage: GooseMessage = {
+    id: `msg_${Date.now()}_user`,
+    role: 'user',
+    created: Math.floor(Date.now() / 1000),
+    content: [{ type: 'text', text: message }],
+    metadata: { userVisible: true, agentVisible: true },
+  };
+  
+  // Add user message to conversation
+  currentSession.conversation.push(userMessage);
+  currentSession.message_count++;
+  currentSession.updated_at = new Date().toISOString();
+  
+  // Update session name from first message
+  if (currentSession.conversation.length === 1) {
+    currentSession.name = generateSessionName(currentSession.conversation);
+  }
+  
+  saveSession(currentSession);
 
   eventAccumulator.reset();
 
@@ -151,12 +372,38 @@ export async function promptPi(
   if (unsubscribeFn) {
     unsubscribeFn();
   }
+  
   piLog('Subscribing to session events...');
-  unsubscribeFn = currentSession.subscribe((event: AgentSessionEvent) => {
+  unsubscribeFn = currentAgentSession.subscribe((event: AgentSessionEvent) => {
     const piEvent = event as PiAgentEvent;
-    piLog('Received event:', piEvent.type);
+    piLog('Received event:', piEvent.type, JSON.stringify(piEvent).substring(0, 500));
     const result = eventAccumulator.processEvent(piEvent);
-    onEvent(piEvent, result.message);
+    if (result.message) {
+      piLog('Translated message:', JSON.stringify(result.message).substring(0, 500));
+    }
+    
+    // Send tool notification if present
+    if (result.notification) {
+      onNotification(result.notification);
+    }
+    
+    // Send translated message to renderer
+    if (result.message) {
+      onEvent(piEvent, result.message);
+      
+      // Update conversation with assistant messages
+      if (result.message.role === 'assistant') {
+        // Find or add this message in conversation
+        const existingIdx = currentSession!.conversation.findIndex(m => m.id === result.message!.id);
+        if (existingIdx >= 0) {
+          currentSession!.conversation[existingIdx] = result.message;
+        } else {
+          currentSession!.conversation.push(result.message);
+          currentSession!.message_count++;
+        }
+        currentSession!.updated_at = new Date().toISOString();
+      }
+    }
 
     if (result.isComplete) {
       piLog('Event stream complete');
@@ -164,13 +411,16 @@ export async function promptPi(
         unsubscribeFn();
         unsubscribeFn = null;
       }
-      onComplete();
+      
+      // Save final conversation state
+      saveSession(currentSession!);
+      onComplete(currentSession!.conversation);
     }
   });
 
   try {
-    piLog('Calling currentSession.prompt()...');
-    await currentSession.prompt(message);
+    piLog('Calling currentAgentSession.prompt()...');
+    await currentAgentSession.prompt(message);
     piLog('prompt() returned');
   } catch (error) {
     piLog('prompt() threw error:', error);
@@ -178,6 +428,8 @@ export async function promptPi(
       unsubscribeFn();
       unsubscribeFn = null;
     }
+    // Still save what we have
+    saveSession(currentSession!);
     onError(error instanceof Error ? error : new Error(String(error)));
   }
 }
@@ -186,8 +438,8 @@ export async function promptPi(
  * Abort current Pi operation.
  */
 export function abortPi(): void {
-  if (currentSession) {
-    currentSession.abort();
+  if (currentAgentSession) {
+    currentAgentSession.abort();
   }
 }
 
@@ -199,12 +451,14 @@ export function getPiState(): {
   version: string | null;
   hasSession: boolean;
   isStreaming: boolean;
+  currentSessionId: string | null;
 } {
   return {
     available: isPiAvailable(),
     version: getPiVersion(),
     hasSession: currentSession !== null,
-    isStreaming: currentSession?.state.isStreaming || false,
+    isStreaming: currentAgentSession?.state.isStreaming || false,
+    currentSessionId,
   };
 }
 
@@ -225,16 +479,48 @@ export function registerPiIpcHandlers(): void {
   // Get Pi state
   ipcMain.handle('pi:getState', () => getPiState());
 
-  // Start Pi session
-  ipcMain.handle('pi:startSession', async (_event: IpcMainInvokeEvent, options: StartSessionOptions) => {
-    piLog('IPC pi:startSession called with options:', options);
+  // Create new session
+  ipcMain.handle('pi:createSession', async (_event: IpcMainInvokeEvent, options: CreateSessionOptions) => {
+    piLog('IPC pi:createSession called with options:', options);
     try {
-      await startPiSession(options);
-      return { success: true };
+      const session = await createPiSession(options);
+      return { success: true, session };
     } catch (error) {
-      piLog('IPC pi:startSession error:', error);
+      piLog('IPC pi:createSession error:', error);
       return { success: false, error: String(error) };
     }
+  });
+
+  // Resume existing session
+  ipcMain.handle('pi:resumeSession', async (_event: IpcMainInvokeEvent, sessionId: string) => {
+    piLog('IPC pi:resumeSession called for:', sessionId);
+    try {
+      const session = await resumePiSession(sessionId);
+      return { success: true, session };
+    } catch (error) {
+      piLog('IPC pi:resumeSession error:', error);
+      return { success: false, error: String(error) };
+    }
+  });
+
+  // Get current session
+  ipcMain.handle('pi:getCurrentSession', () => {
+    return getCurrentSession();
+  });
+
+  // List all sessions
+  ipcMain.handle('pi:listSessions', () => {
+    return listAllSessions();
+  });
+
+  // Get a specific session
+  ipcMain.handle('pi:getSession', (_event: IpcMainInvokeEvent, sessionId: string) => {
+    return loadSession(sessionId);
+  });
+
+  // Delete a session
+  ipcMain.handle('pi:deleteSession', (_event: IpcMainInvokeEvent, sessionId: string) => {
+    return deleteSessionFile(sessionId);
   });
 
   // Stop Pi session
@@ -266,9 +552,13 @@ export function registerPiIpcHandlers(): void {
             webContents.send('pi:message', gooseMessage);
           }
         },
+        // onNotification - tool execution events
+        (notification) => {
+          webContents.send('pi:notification', notification);
+        },
         // onComplete
-        () => {
-          webContents.send('pi:complete');
+        (finalMessages) => {
+          webContents.send('pi:complete', { messages: finalMessages });
           resolve({ success: true });
         },
         // onError

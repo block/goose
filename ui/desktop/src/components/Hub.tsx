@@ -15,7 +15,7 @@ import { AppEvents } from '../constants/events';
  * Hub (input submission) → Create Session → Pair (with session ID and initial message)
  */
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { SessionInsights } from './sessions/SessionsInsights';
 import ChatInput from './ChatInput';
 import { ChatState } from '../types/chatState';
@@ -30,6 +30,7 @@ import { getInitialWorkingDir } from '../utils/workingDir';
 import { createSession } from '../sessions';
 import LoadingGoose from './LoadingGoose';
 import { UserInput } from '../types/message';
+import type { AgentBackend } from '../hooks/useAgentChat';
 
 export default function Hub({
   setView,
@@ -39,19 +40,35 @@ export default function Hub({
   const { extensionsList } = useConfig();
   const [workingDir, setWorkingDir] = useState(getInitialWorkingDir());
   const [isCreatingSession, setIsCreatingSession] = useState(false);
+  const [agentBackend, setAgentBackend] = useState<AgentBackend>('goose');
+
+  // Load agent backend setting
+  useEffect(() => {
+    window.electron.getSettings().then((settings) => {
+      setAgentBackend(settings.agentBackend || 'goose');
+    });
+  }, []);
 
   const handleSubmit = async (input: UserInput) => {
     const { msg: userMessage, images } = input;
     if ((images.length > 0 || userMessage.trim()) && !isCreatingSession) {
-      const extensionConfigs = getExtensionConfigsWithOverrides(extensionsList);
-      clearExtensionOverrides();
+      const extensionConfigs = agentBackend === 'goose' 
+        ? getExtensionConfigsWithOverrides(extensionsList)
+        : [];
+      if (agentBackend === 'goose') {
+        clearExtensionOverrides();
+      }
       setIsCreatingSession(true);
 
       try {
-        const session = await createSession(workingDir, {
-          extensionConfigs,
-          allExtensions: extensionConfigs.length > 0 ? undefined : extensionsList,
-        });
+        const session = await createSession(
+          workingDir,
+          agentBackend,
+          agentBackend === 'goose' ? {
+            extensionConfigs,
+            allExtensions: extensionConfigs.length > 0 ? undefined : extensionsList,
+          } : undefined
+        );
 
         window.dispatchEvent(new CustomEvent(AppEvents.SESSION_CREATED));
         window.dispatchEvent(
