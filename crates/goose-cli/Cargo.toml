@@ -20,15 +20,15 @@ goose-acp = { path = "../goose-acp" }
 goose-bench = { path = "../goose-bench" }
 goose-mcp = { path = "../goose-mcp" }
 rmcp = { workspace = true }
-clap = { version = "4.4", features = ["derive"] }
+clap = { version = "4.5", features = ["derive"] }
 cliclack = "0.3.5"
 console = "0.16.1"
 uuid = { version = "1.11", features = ["v4"] }
 dotenvy = "0.15.7"
 bat = "0.25.0"
-anyhow = { workspace = true }
+anyhow = "1.0"
 serde_json = { workspace = true }
-tokio = { workspace = true }
+tokio = { version = "1.0", features = ["full"] }
 futures = { workspace = true }
 serde = { version = "1.0", features = ["derive"] }  # For serialization
 serde_yaml = "0.9"

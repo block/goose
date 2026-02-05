@@ -26,6 +26,7 @@ use crate::commands::schedule::{
 };
 use crate::commands::session::{handle_session_list, handle_session_remove};
 use crate::commands::workflow::handle_workflow_command;
+use crate::computer_use::ComputerUseArgs;
 use crate::recipes::extract_from_cli::extract_recipe_info_from_cli;
 use crate::recipes::recipe::{explain_recipe, render_recipe_as_yaml};
 use crate::session::{build_session, SessionBuilderConfig};
