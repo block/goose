@@ -1,4 +1,4 @@
-You are to look at adapting the best bits of pi to the goose agent code here (in rust). 
+you are in the process of improving goose. you can check the state of this branch for what has been done
 
 There is some analysis in ~/Development/research/pi-research/ you can look it - it refers to a few agents but we are focussing on the core bits of pi. There is a draft plan in there. 
 

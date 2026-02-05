@@ -149,3 +149,49 @@ cargo test -p goose-mcp
 5. ✅ **Fast Token Estimation** - chars/4 heuristic for quick threshold checks
 
 The turn-aware cut point detection (I3) was deferred as the current middle-out removal strategy already provides good context preservation.
+
+---
+
+## Future Improvements (Not Implemented)
+
+These items were identified in the gap analysis but not implemented in this phase:
+
+### System Prompt Simplification
+- Pi's system prompt is ~50 lines, focused on coding tasks
+- Goose's is ~70 lines, extension-focused
+- Could add conditional guidelines based on available tools
+- **Reason not implemented**: Would require broader discussion about Goose's identity and extension model
+
+### Model-Specific Prompts
+- OpenCode has different prompts for GPT, Claude, Gemini
+- Could optimize for each model's strengths
+- **Reason not implemented**: Lower priority, requires extensive testing
+
+### Iterative Summary Updates
+- Pi can update existing summaries rather than regenerating
+- Preserves historical context across multiple compactions
+- **Reason not implemented**: Current approach works well, complexity not justified
+
+### LSP Integration for Edit Validation
+- OpenCode validates edits produce valid code via LSP
+- Could catch syntax errors immediately after edit
+- **Reason not implemented**: High effort, requires LSP infrastructure
+
+---
+
+## Verification
+
+All changes have been verified:
+
+```bash
+# Build passes
+cargo build -p goose -p goose-mcp --release
+
+# All new tests pass
+cargo test -p goose --lib context_mgmt  # 7 tests
+cargo test -p goose-mcp test_fuzzy_match  # 14 tests
+cargo test -p goose-mcp text_editor  # 29 tests
+
+# Clippy passes (no new warnings)
+./scripts/clippy-lint.sh
+```
