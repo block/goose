@@ -12,7 +12,7 @@
  * - postMessage is used for JSON-RPC communication
  */
 
-import { useRef, useEffect, useState, useCallback, useMemo } from 'react';
+import { useRef, useEffect, useState, useCallback } from 'react';
 import type {
   JsonRpcMessage,
   JsonRpcRequest,
@@ -24,8 +24,6 @@ import type {
   HostContext,
   CspMetadata,
   PermissionsMetadata,
-  AppCapabilities,
-  DisplayMode,
 } from './types';
 import { createMcpAppProxyUrl } from './utils';
 import { useTheme } from '../../contexts/ThemeContext';
@@ -72,13 +70,8 @@ export function useSandboxBridge(options: SandboxBridgeOptions): SandboxBridgeRe
   const { resolvedTheme } = useTheme();
   const iframeRef = useRef<HTMLIFrameElement | null>(null);
   const isGuestInitializedRef = useRef(false);
-  const appCapabilitiesRef = useRef<AppCapabilities | null>(null);
   const [proxyUrl, setProxyUrl] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-
-  // Display modes supported by the host
-  const hostAvailableDisplayModes = useMemo<DisplayMode[]>(() => ['inline'], []);
-  const currentDisplayMode: DisplayMode = 'inline';
 
   // Create the proxy URL when HTML changes
   useEffect(() => {
@@ -104,7 +97,6 @@ export function useSandboxBridge(options: SandboxBridgeOptions): SandboxBridgeRe
   // Reset initialization state when resource changes
   useEffect(() => {
     isGuestInitializedRef.current = false;
-    appCapabilitiesRef.current = null;
   }, [resourceUri]);
 
   const sendToView = useCallback((message: JsonRpcMessage) => {
@@ -156,20 +148,16 @@ export function useSandboxBridge(options: SandboxBridgeOptions): SandboxBridgeRe
           if (msg.method === 'ui/initialize') {
             if (msg.id === undefined) return;
 
-            // Parse and store app capabilities from the View
-            const params = msg.params as { appCapabilities?: AppCapabilities } | undefined;
-            if (params?.appCapabilities) {
-              appCapabilitiesRef.current = params.appCapabilities;
-            }
-
             const iframe = iframeRef.current;
             const hostContext: HostContext = {
               toolInfo: undefined,
               theme: resolvedTheme,
-              displayMode: currentDisplayMode,
-              availableDisplayModes: hostAvailableDisplayModes,
-              containerDimensions: {
-                maxWidth: iframe?.clientWidth ?? window.innerWidth,
+              displayMode: 'inline',
+              availableDisplayModes: ['inline'],
+              viewport: {
+                width: iframe?.clientWidth ?? 0,
+                height: iframe?.clientHeight ?? 0,
+                maxWidth: window.innerWidth,
                 maxHeight: window.innerHeight,
               },
               locale: navigator.language,
@@ -187,14 +175,8 @@ export function useSandboxBridge(options: SandboxBridgeOptions): SandboxBridgeRe
               jsonrpc: '2.0',
               id: msg.id,
               result: {
-                protocolVersion: '2026-01-26',
-                hostCapabilities: {
-                  openLinks: {},
-                  messages: {},
-                  serverTools: {},
-                  serverResources: {},
-                  logging: {},
-                },
+                protocolVersion: '2025-06-18',
+                hostCapabilities: { links: true, messages: true },
                 hostInfo: {
                   name: packageJson.productName,
                   version: packageJson.version,
@@ -202,34 +184,6 @@ export function useSandboxBridge(options: SandboxBridgeOptions): SandboxBridgeRe
                 hostContext,
               },
             });
-            return;
-          }
-
-          if (msg.method === 'ui/request-display-mode') {
-            if (msg.id === undefined) return;
-
-            const params = msg.params as { mode?: DisplayMode } | undefined;
-            const requestedMode = params?.mode;
-
-            const appModes = appCapabilitiesRef.current?.availableDisplayModes;
-            const isHostSupported = requestedMode && hostAvailableDisplayModes.includes(requestedMode);
-            const isAppSupported = !appModes || (requestedMode && appModes.includes(requestedMode));
-
-            const actualMode: DisplayMode = isHostSupported && isAppSupported ? requestedMode! : currentDisplayMode;
-
-            sendToView({
-              jsonrpc: '2.0',
-              id: msg.id,
-              result: { mode: actualMode },
-            });
-
-            if (actualMode !== currentDisplayMode) {
-              sendToView({
-                jsonrpc: '2.0',
-                method: 'ui/notifications/host-context-changed',
-                params: { displayMode: actualMode },
-              });
-            }
             return;
           }
 
@@ -259,8 +213,6 @@ export function useSandboxBridge(options: SandboxBridgeOptions): SandboxBridgeRe
       onSizeChanged,
       toolInput,
       toolResult,
-      currentDisplayMode,
-      hostAvailableDisplayModes,
     ]
   );
 
@@ -338,8 +290,10 @@ export function useSandboxBridge(options: SandboxBridgeOptions): SandboxBridgeRe
           jsonrpc: '2.0',
           method: 'ui/notifications/host-context-changed',
           params: {
-            containerDimensions: {
-              maxWidth: w,
+            viewport: {
+              width: w,
+              height: h,
+              maxWidth: window.innerWidth,
               maxHeight: window.innerHeight,
             },
           },
