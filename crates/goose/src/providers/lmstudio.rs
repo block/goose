@@ -141,19 +141,15 @@ mod tests {
             .any(|m| m.name == "qwen2.5-coder-32b-instruct"));
 
         // Test config keys
-        assert_eq!(metadata.config_keys.len(), 5);
+        assert_eq!(metadata.config_keys.len(), 2);
+        assert!(metadata
+            .config_keys
+            .iter()
+            .any(|k| k.name == "LMSTUDIO_BASE_URL"));
         assert!(metadata
             .config_keys
             .iter()
             .any(|k| k.name == "LMSTUDIO_API_TOKEN"));
-        assert!(metadata
-            .config_keys
-            .iter()
-            .any(|k| k.name == "LMSTUDIO_DRAFT_MODEL"));
-        assert!(metadata
-            .config_keys
-            .iter()
-            .any(|k| k.name == "LMSTUDIO_MODEL_TTL"));
     }
 
     #[tokio::test]
