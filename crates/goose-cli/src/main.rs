@@ -1,6 +1,4 @@
 use anyhow::Result;
-use clap::Parser;
-use goose_cli::cli::Cli;
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -8,7 +6,7 @@ async fn main() -> Result<()> {
         eprintln!("Warning: Failed to initialize logging: {}", e);
     }
 
-    let result = Cli::parse().await;
+    let result = goose_cli::cli::cli().await;
 
     // Only wait for telemetry flush if OTLP is configured
     let should_wait = goose::config::Config::global()
