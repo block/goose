@@ -38,7 +38,9 @@ const isUserMessage = (message: Message): boolean => {
   if (message.role === 'assistant') {
     return false;
   }
-  return !message.content.every((c) => c.type === 'toolConfirmationRequest');
+  return !message.content.every(
+    (c) => c.type === 'actionRequired' && c.data.actionType === 'toolConfirmation'
+  );
 };
 
 const filterMessagesForDisplay = (messages: Message[]): Message[] => {
