@@ -10,7 +10,7 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use futures::future::BoxFuture;
-use futures::stream;
+use futures::stream::{self, StreamExt};
 use rig::client::{CompletionClient, ProviderClient};
 use rig::completion::{
     CompletionError, CompletionModel, CompletionRequest, CompletionRequestBuilder,
@@ -32,7 +32,7 @@ use crate::conversation::message::{
     Message, MessageContent, ThinkingContent, ToolRequest, ToolResponse,
 };
 use crate::model::ModelConfig;
-use crate::providers::base::{Provider, ProviderDef, ProviderUsage, Usage};
+use crate::providers::base::{MessageStream, Provider, ProviderDef, ProviderUsage, Usage};
 use crate::providers::errors::ProviderError;
 use rig::providers::anthropic;
 
@@ -320,6 +320,122 @@ where
         let provider_usage = ProviderUsage::new(model_config.model_name.clone(), usage);
 
         Ok((message, provider_usage))
+    }
+
+    fn supports_streaming(&self) -> bool {
+        true
+    }
+
+    async fn stream(
+        &self,
+        _session_id: &str,
+        system: &str,
+        messages: &[Message],
+        tools: &[Tool],
+    ) -> Result<MessageStream, ProviderError> {
+        use rig::streaming::StreamedAssistantContent;
+
+        let rig_messages = goose_messages_to_rig(messages);
+        let rig_tools = goose_tools_to_rig(tools);
+
+        let chat_history = if rig_messages.is_empty() {
+            OneOrMany::one(RigMessage::user(""))
+        } else {
+            OneOrMany::many(rig_messages).expect("rig_messages should not be empty")
+        };
+
+        let request = CompletionRequest {
+            preamble: Some(system.to_string()),
+            chat_history,
+            documents: vec![],
+            tools: rig_tools,
+            temperature: self.model_config.temperature.map(|t| t as f64),
+            max_tokens: self.model_config.max_tokens.map(|t| t as u64),
+            tool_choice: None,
+            additional_params: None,
+        };
+
+        let mut streaming_response = self
+            .model
+            .stream(request)
+            .await
+            .map_err(|e| ProviderError::ExecutionError(e.to_string()))?;
+
+        let model_name = self.model_config.model_name.clone();
+
+        let stream = async_stream::try_stream! {
+            let mut input_tokens: Option<i32> = None;
+            let mut output_tokens: Option<i32> = None;
+
+            while let Some(chunk) = streaming_response.next().await {
+                match chunk {
+                    Ok(choice) => {
+                        match choice {
+                            StreamedAssistantContent::Text(text) => {
+                                let message = Message::assistant().with_text(&text.text);
+                                yield (Some(message), None);
+                            }
+                            StreamedAssistantContent::ToolCall { tool_call, .. } => {
+                                let arguments = match &tool_call.function.arguments {
+                                    Value::Object(obj) => Some(obj.clone()),
+                                    Value::Null => None,
+                                    other => {
+                                        let mut map = serde_json::Map::new();
+                                        map.insert("value".to_string(), other.clone());
+                                        Some(map)
+                                    }
+                                };
+                                let message = Message::assistant().with_tool_request(
+                                    tool_call.id.clone(),
+                                    Ok(CallToolRequestParams {
+                                        meta: None,
+                                        name: Cow::Owned(tool_call.function.name.clone()),
+                                        arguments,
+                                        task: None,
+                                    }),
+                                );
+                                yield (Some(message), None);
+                            }
+                            StreamedAssistantContent::ToolCallDelta { .. } => {
+                                // Deltas are intermediate updates; we handle full tool calls above
+                            }
+                            StreamedAssistantContent::Reasoning(reasoning) => {
+                                let text = reasoning.reasoning.join("\n");
+                                let sig = reasoning.signature.unwrap_or_default();
+                                let message = Message::assistant().with_thinking(&text, &sig);
+                                yield (Some(message), None);
+                            }
+                            StreamedAssistantContent::ReasoningDelta { reasoning, .. } => {
+                                let message = Message::assistant().with_thinking(&reasoning, "");
+                                yield (Some(message), None);
+                            }
+                            StreamedAssistantContent::Final(response) => {
+                                if let Some(usage) = response.token_usage() {
+                                    input_tokens = Some(usage.input_tokens as i32);
+                                    output_tokens = Some(usage.output_tokens as i32);
+                                }
+                            }
+                        }
+                    }
+                    Err(e) => {
+                        Err(ProviderError::ExecutionError(e.to_string()))?;
+                    }
+                }
+            }
+
+            let usage = Usage {
+                input_tokens,
+                output_tokens,
+                total_tokens: match (input_tokens, output_tokens) {
+                    (Some(i), Some(o)) => Some(i + o),
+                    _ => None,
+                },
+            };
+            let provider_usage = ProviderUsage::new(model_name, usage);
+            yield (None, Some(provider_usage));
+        };
+
+        Ok(Box::pin(stream))
     }
 }
 
