@@ -25,7 +25,6 @@ pub struct LmStudioProvider;
 
 impl LmStudioProvider {
     const DEFAULT_BASE_URL: &'static str = "http://localhost:1234/v1";
-    const DEFAULT_PORT: u16 = 1234;
 
     pub fn metadata() -> ProviderMetadata {
         use super::base::ModelInfo;
