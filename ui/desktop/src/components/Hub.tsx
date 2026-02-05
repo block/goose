@@ -95,7 +95,7 @@ export default function Hub({
         <SessionInsights />
         {isCreatingSession && (
           <div className="absolute bottom-1 left-4 z-20 pointer-events-none">
-            <LoadingGoose chatState={ChatState.LoadingConversation} />
+            <LoadingGoose chatState={ChatState.LoadingConversation} message="preparing..." />
           </div>
         )}
       </div>
