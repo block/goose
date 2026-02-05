@@ -119,16 +119,10 @@
         window.addEventListener('message', handleMessage);
 
         // Create the guest iframe immediately (content URL and permissions are embedded)
+        // Note: Unlike web hosts that use sandbox-proxy-ready/sandbox-resource-ready handshake,
+        // we embed the content URL directly since this is for Electron (desktop) which needs
+        // secure context but can trust the content source.
         createGuestIframe();
-
-        // Notify Host that Sandbox is ready
-        window
-          .parent
-          .postMessage({
-            jsonrpc: '2.0',
-            method: 'ui/notifications/sandbox-ready',
-            params: {}
-          }, '*');
       })();
     </script>
   </body>
