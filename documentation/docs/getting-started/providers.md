@@ -362,7 +362,7 @@ Custom providers must use OpenAI, Anthropic, or Ollama compatible API formats. T
     7. Click `Create Provider`
 
     :::info Custom Headers
-    Currently, custom headers can't be defined in goose Desktop. As a workaround, configure the provider using goose CLI or edit the provider configuration file directly.
+    Currently, custom headers can't be defined in goose Desktop. As a workaround, edit the provider configuration file after creation.
     :::
 
   </TabItem>
@@ -418,6 +418,10 @@ Custom providers must use OpenAI, Anthropic, or Ollama compatible API formats. T
        - **Available Models**: Comma-separated list of available model names
        - **Streaming Support**: Whether the API supports streaming responses
        - **Custom Headers**: Any additional header names and values
+
+    :::info Custom Headers
+    Currently, custom headers can only be defined for OpenAI compatible providers in the CLI. For Anthropic or Ollama compatible providers, edit the provider configuration file after creation.
+    :::
 
   </TabItem>
   <TabItem value="config" label="Config File">
