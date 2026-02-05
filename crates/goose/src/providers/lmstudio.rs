@@ -156,8 +156,10 @@ mod tests {
 
     #[tokio::test]
     async fn test_lmstudio_provider_creation_with_default_url() {
-        let _guard =
-            env_lock::lock_env([("LMSTUDIO_BASE_URL", None), ("LMSTUDIO_API_TOKEN", None)]);
+        let _guard = env_lock::lock_env([
+            ("LMSTUDIO_BASE_URL", None::<&str>),
+            ("LMSTUDIO_API_TOKEN", None::<&str>),
+        ]);
 
         let model = ModelConfig::new_or_fail("glm-4.6");
         let provider = LmStudioProvider::new(model).await.unwrap();
@@ -170,7 +172,7 @@ mod tests {
     async fn test_lmstudio_provider_creation_with_custom_url() {
         let _guard = env_lock::lock_env([
             ("LMSTUDIO_BASE_URL", Some("http://192.168.1.100:1234/v1")),
-            ("LMSTUDIO_API_TOKEN", None),
+            ("LMSTUDIO_API_TOKEN", None::<&str>),
         ]);
 
         let model = ModelConfig::new_or_fail("qwen3-coder");
