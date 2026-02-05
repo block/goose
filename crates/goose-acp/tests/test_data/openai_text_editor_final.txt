@@ -1,0 +1,17 @@
+data: {"id":"chatcmpl-test-text-editor-final","object":"chat.completion.chunk","created":1766709752,"model":"gpt-5-nano-2025-08-07","service_tier":"default","system_fingerprint":null,"choices":[{"index":0,"delta":{"role":"assistant","content":"I've"},"finish_reason":null}],"usage":null}
+
+data: {"id":"chatcmpl-test-text-editor-final","object":"chat.completion.chunk","created":1766709752,"model":"gpt-5-nano-2025-08-07","service_tier":"default","system_fingerprint":null,"choices":[{"index":0,"delta":{"content":" written"},"finish_reason":null}],"usage":null}
+
+data: {"id":"chatcmpl-test-text-editor-final","object":"chat.completion.chunk","created":1766709752,"model":"gpt-5-nano-2025-08-07","service_tier":"default","system_fingerprint":null,"choices":[{"index":0,"delta":{"content":" the"},"finish_reason":null}],"usage":null}
+
+data: {"id":"chatcmpl-test-text-editor-final","object":"chat.completion.chunk","created":1766709752,"model":"gpt-5-nano-2025-08-07","service_tier":"default","system_fingerprint":null,"choices":[{"index":0,"delta":{"content":" file"},"finish_reason":null}],"usage":null}
+
+data: {"id":"chatcmpl-test-text-editor-final","object":"chat.completion.chunk","created":1766709752,"model":"gpt-5-nano-2025-08-07","service_tier":"default","system_fingerprint":null,"choices":[{"index":0,"delta":{"content":" to"},"finish_reason":null}],"usage":null}
+
+data: {"id":"chatcmpl-test-text-editor-final","object":"chat.completion.chunk","created":1766709752,"model":"gpt-5-nano-2025-08-07","service_tier":"default","system_fingerprint":null,"choices":[{"index":0,"delta":{"content":" /tmp/acp_test_write.txt"},"finish_reason":null}],"usage":null}
+
+data: {"id":"chatcmpl-test-text-editor-final","object":"chat.completion.chunk","created":1766709752,"model":"gpt-5-nano-2025-08-07","service_tier":"default","system_fingerprint":null,"choices":[{"index":0,"delta":{},"finish_reason":"stop"}],"usage":null}
+
+data: {"id":"chatcmpl-test-text-editor-final","object":"chat.completion.chunk","created":1766709752,"model":"gpt-5-nano-2025-08-07","service_tier":"default","system_fingerprint":null,"choices":[],"usage":{"prompt_tokens":600,"completion_tokens":20,"total_tokens":620,"prompt_tokens_details":{"cached_tokens":0,"audio_tokens":0},"completion_tokens_details":{"reasoning_tokens":0,"audio_tokens":0,"accepted_prediction_tokens":0,"rejected_prediction_tokens":0}}}
+
+data: [DONE]
