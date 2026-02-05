@@ -1,5 +1,5 @@
 use crate::config::paths::Paths;
-use crate::conversation::message::Message;
+use crate::conversation::message::{Message, MessageContent};
 use crate::model::ModelConfig;
 use crate::providers::base::{
     MessageStream, Provider, ProviderDef, ProviderMetadata, ProviderUsage, Usage,
@@ -214,7 +214,7 @@ impl LocalInferenceProvider {
         })
     }
 
-    async fn load_model(&self, model_id: &str) -> Result<LoadedModel, ProviderError> {
+    async fn load_model(model_id: &str) -> Result<LoadedModel, ProviderError> {
         // Get model definition
         let model = get_local_model(model_id)
             .ok_or_else(|| ProviderError::ExecutionError(format!("Unknown model: {}", model_id)))?;
@@ -367,36 +367,37 @@ impl LocalInferenceProvider {
         // Encode prompt
         let prompt_tokens = loaded
             .tokenizer
-            .encode(prompt, true)
+            .encode(prompt, false)
             .map_err(|e| ProviderError::ExecutionError(format!("Failed to encode prompt: {}", e)))?
             .get_ids()
             .to_vec();
 
-        // PREFILL: Process entire prompt in one forward pass to set up KV-cache correctly
-        let input = Tensor::new(prompt_tokens.as_slice(), &loaded.device)
-            .map_err(|e| ProviderError::ExecutionError(format!("Failed to create tensor: {}", e)))?
-            .unsqueeze(0)
-            .map_err(|e| {
-                ProviderError::ExecutionError(format!("Failed to unsqueeze tensor: {}", e))
+        // PREFILL: Process prompt tokens one-by-one for stability
+        let mut next_token = 0u32;
+        for (pos, &token) in prompt_tokens.iter().enumerate() {
+            let input = Tensor::new(&[token], &loaded.device)
+                .map_err(|e| ProviderError::ExecutionError(format!("Failed to create tensor at pos {}: {}", pos, e)))?
+                .unsqueeze(0)
+                .map_err(|e| {
+                    ProviderError::ExecutionError(format!("Failed to unsqueeze tensor at pos {}: {}", pos, e))
+                })?;
+
+            let logits = loaded.model.forward(&input, pos).map_err(|e| {
+                ProviderError::ExecutionError(format!("Prefill forward pass failed at pos {}: {}", pos, e))
             })?;
 
-        let logits = loaded.model.forward(&input, 0).map_err(|e| {
-            ProviderError::ExecutionError(format!("Prefill forward pass failed: {}", e))
-        })?;
-
-        // Model already returns only last token logits: [batch, vocab_size]
-        // Squeeze to [vocab_size]
-        let logits = logits.squeeze(0).map_err(|e| {
-            ProviderError::ExecutionError(format!("Failed to squeeze logits: {}", e))
-        })?;
-
-        let mut next_token = logits
-            .argmax(0)
-            .map_err(|e| ProviderError::ExecutionError(format!("Failed to sample token: {}", e)))?
-            .to_scalar::<u32>()
-            .map_err(|e| {
-                ProviderError::ExecutionError(format!("Failed to convert token: {}", e))
+            let logits = logits.squeeze(0).map_err(|e| {
+                ProviderError::ExecutionError(format!("Failed to squeeze logits at pos {}: {}", pos, e))
             })?;
+
+            next_token = logits
+                .argmax(0)
+                .map_err(|e| ProviderError::ExecutionError(format!("Failed to sample token at pos {}: {}", pos, e)))?
+                .to_scalar::<u32>()
+                .map_err(|e| {
+                    ProviderError::ExecutionError(format!("Failed to convert token at pos {}: {}", pos, e))
+                })?;
+        }
 
         let mut generated_text = loaded
             .tokenizer
@@ -420,9 +421,10 @@ impl LocalInferenceProvider {
                     ProviderError::ExecutionError(format!("Failed to unsqueeze tensor: {}", e))
                 })?;
 
-            // Forward pass: matches candle example exactly
-            // After prefill of N tokens, next token is at position N+0, then N+1, etc.
-            let pos = prompt_tokens.len() + index;
+            // Forward pass with correct position
+            // After prefill of N tokens at position 0, first generated token is at position N
+            // We already generated that token, so loop generates tokens at positions N+1, N+2, ...
+            let pos = prompt_tokens.len() + index + 1;
             let logits = loaded.model.forward(&input, pos).map_err(|e| {
                 ProviderError::ExecutionError(format!(
                     "Generation forward pass failed at pos {}: {}",
@@ -463,21 +465,34 @@ impl LocalInferenceProvider {
         Ok(clean_text)
     }
 
-    fn build_prompt(&self, system: &str, messages: &[Message], template: ChatTemplate) -> String {
+    fn build_prompt(&self, system: &str, messages: &[Message], template: ChatTemplate, tools: &[Tool]) -> String {
         match template {
-            ChatTemplate::Llama3 => Self::format_llama3(system, messages),
-            ChatTemplate::ChatML => Self::format_chatml(system, messages),
-            ChatTemplate::Mistral => Self::format_mistral(system, messages),
+            ChatTemplate::Llama3 => Self::format_llama3(system, messages, tools),
+            ChatTemplate::ChatML => Self::format_chatml(system, messages, tools),
+            ChatTemplate::Mistral => Self::format_mistral(system, messages, tools),
         }
     }
 
-    fn format_llama3(system: &str, messages: &[Message]) -> String {
+    fn format_llama3(system: &str, messages: &[Message], tools: &[Tool]) -> String {
         let mut prompt = String::from("<|begin_of_text|>");
 
         // Add system message
-        if !system.is_empty() {
+        if !system.is_empty() || !tools.is_empty() {
             prompt.push_str("<|start_header_id|>system<|end_header_id|>\n\n");
             prompt.push_str(system);
+
+            // Add tools if present
+            if !tools.is_empty() {
+                if !system.is_empty() {
+                    prompt.push_str("\n\n");
+                }
+                prompt.push_str("# Tools\n\nYou have access to the following tools:\n\n");
+                for tool in tools {
+                    let desc = tool.description.as_ref().map(|d| d.as_ref()).unwrap_or("No description");
+                    prompt.push_str(&format!("- {}: {}\n", tool.name, desc));
+                }
+            }
+
             prompt.push_str("<|eot_id|>");
         }
 
@@ -498,7 +513,7 @@ impl LocalInferenceProvider {
         prompt
     }
 
-    fn format_chatml(system: &str, messages: &[Message]) -> String {
+    fn format_chatml(system: &str, messages: &[Message], tools: &[Tool]) -> String {
         let mut prompt = String::new();
 
         // Add system message
@@ -525,7 +540,7 @@ impl LocalInferenceProvider {
         prompt
     }
 
-    fn format_mistral(system: &str, messages: &[Message]) -> String {
+    fn format_mistral(system: &str, messages: &[Message], tools: &[Tool]) -> String {
         let mut prompt = String::new();
 
         // Mistral doesn't have a separate system role, prepend to first user message
@@ -631,22 +646,69 @@ impl Provider for LocalInferenceProvider {
         &self,
         _session_id: Option<&str>,
         model_config: &ModelConfig,
-        _system: &str,
+        system: &str,
         messages: &[Message],
-        _tools: &[Tool],
+        tools: &[Tool],
     ) -> Result<(Message, ProviderUsage), ProviderError> {
         // Get model metadata to determine chat template
         let model_info = get_local_model(&model_config.model_name).ok_or_else(|| {
             ProviderError::ExecutionError(format!("Model not found: {}", model_config.model_name))
         })?;
 
-        // Build prompt with correct template - use local system prompt instead of default
-        let prompt = self.build_prompt(LOCAL_SYSTEM_PROMPT, messages, model_info.chat_template);
+        // Check first character of last user message for test mode
+        let mut test_mode = None;
+        let mut modified_messages = messages.to_vec();
+        if let Some(last_msg) = modified_messages.last_mut() {
+            // Find the text content item (skip info-msg blocks)
+            for (idx, content) in last_msg.content.iter().enumerate() {
+                if let MessageContent::Text(text) = content {
+                    // Skip info-msg blocks
+                    if text.text.starts_with("<info-msg>") {
+                        continue;
+                    }
 
-        // Lazy load model if needed
+                    // Check first character for test mode
+                    if let Some(first_char) = text.text.chars().next() {
+                        if first_char == '1' || first_char == '2' || first_char == '3' {
+                            test_mode = Some(first_char);
+                            eprintln!("TEST MODE {}: Detected from message", first_char);
+                            // Strip the first character from this content item
+                            let stripped = text.text.chars().skip(1).collect::<String>();
+                            last_msg.content[idx] = MessageContent::text(stripped);
+                            break;
+                        }
+                    }
+                    break; // Only check first non-info-msg text content
+                }
+            }
+        }
+
+        // Build prompt based on test mode
+        let (system_to_use, tools_to_use) = match test_mode {
+            Some('1') => {
+                eprintln!("TEST MODE 1: Local system prompt, no tools");
+                (LOCAL_SYSTEM_PROMPT, &[] as &[Tool])
+            }
+            Some('2') => {
+                eprintln!("TEST MODE 2: Provided system prompt, no tools");
+                (system, &[] as &[Tool])
+            }
+            Some('3') => {
+                eprintln!("TEST MODE 3: Provided system prompt with tools");
+                (system, tools)
+            }
+            _ => {
+                // Default: use local system prompt
+                (LOCAL_SYSTEM_PROMPT, &[] as &[Tool])
+            }
+        };
+
+        let prompt = self.build_prompt(system_to_use, &modified_messages, model_info.chat_template, tools_to_use);
+
+        // Load model if needed
         let mut model_lock = self.model.lock().await;
         if model_lock.is_none() {
-            *model_lock = Some(self.load_model(&model_config.model_name).await?);
+            *model_lock = Some(Self::load_model(&model_config.model_name).await?);
         }
         let loaded = model_lock.as_mut().unwrap();
 
@@ -669,9 +731,9 @@ impl Provider for LocalInferenceProvider {
     async fn stream(
         &self,
         _session_id: &str,
-        _system: &str,
+        system: &str,
         messages: &[Message],
-        _tools: &[Tool],
+        tools: &[Tool],
     ) -> Result<MessageStream, ProviderError> {
         // Get model metadata to determine chat template
         let model_config = &self.model_config;
@@ -680,13 +742,65 @@ impl Provider for LocalInferenceProvider {
         })?;
         let template = model_info.chat_template;
 
-        // Build prompt with correct template - use local system prompt instead of default
-        let prompt = self.build_prompt(LOCAL_SYSTEM_PROMPT, messages, template);
+        // Check first character of last user message for test mode
+        let mut test_mode = None;
+        let mut modified_messages = messages.to_vec();
+        if let Some(last_msg) = modified_messages.last_mut() {
+            // Find the text content item (skip info-msg blocks)
+            for (idx, content) in last_msg.content.iter().enumerate() {
+                if let MessageContent::Text(text) = content {
+                    // Skip info-msg blocks
+                    if text.text.starts_with("<info-msg>") {
+                        continue;
+                    }
+
+                    // Check first character for test mode
+                    if let Some(first_char) = text.text.chars().next() {
+                        if first_char == '1' || first_char == '2' || first_char == '3' {
+                            test_mode = Some(first_char);
+                            eprintln!("TEST MODE {}: Detected from message", first_char);
+                            // Strip the first character from this content item
+                            let stripped = text.text.chars().skip(1).collect::<String>();
+                            last_msg.content[idx] = MessageContent::text(stripped);
+                            break;
+                        }
+                    }
+                    break; // Only check first non-info-msg text content
+                }
+            }
+        }
+
+        // Build prompt based on test mode
+        let (system_to_use, tools_to_use) = match test_mode {
+            Some('1') => {
+                eprintln!("TEST MODE 1: Local system prompt, no tools");
+                (LOCAL_SYSTEM_PROMPT, &[] as &[Tool])
+            }
+            Some('2') => {
+                eprintln!("TEST MODE 2: Provided system prompt, no tools");
+                (system, &[] as &[Tool])
+            }
+            Some('3') => {
+                eprintln!("TEST MODE 3: Provided system prompt with tools");
+                (system, tools)
+            }
+            _ => {
+                // Default: use local system prompt
+                (LOCAL_SYSTEM_PROMPT, &[] as &[Tool])
+            }
+        };
+
+        let prompt = self.build_prompt(system_to_use, &modified_messages, template, tools_to_use);
+
+        // Debug: Save prompt to file for testing
+        if let Ok(_) = std::fs::write("/tmp/goose_prompt_stream.txt", &prompt) {
+            eprintln!("DEBUG: Saved prompt to /tmp/goose_prompt_stream.txt ({} bytes)", prompt.len());
+        }
 
         // Lazy load model if needed
         let mut model_lock = self.model.lock().await;
         if model_lock.is_none() {
-            *model_lock = Some(self.load_model(&model_config.model_name).await?);
+            *model_lock = Some(Self::load_model(&model_config.model_name).await?);
         }
 
         // Clone Arc to move into the stream
@@ -706,34 +820,61 @@ impl Provider for LocalInferenceProvider {
             // Encode prompt
             let prompt_tokens = loaded
                 .tokenizer
-                .encode(prompt.as_str(), true)
+                .encode(prompt.as_str(), false)
                 .map_err(|e| ProviderError::ExecutionError(format!("Failed to encode prompt: {}", e)))?
                 .get_ids()
                 .to_vec();
 
-            // PREFILL: Process entire prompt in one forward pass
-            let input = Tensor::new(prompt_tokens.as_slice(), &loaded.device)
-                .map_err(|e| ProviderError::ExecutionError(format!("Failed to create tensor: {}", e)))?
-                .unsqueeze(0)
-                .map_err(|e| ProviderError::ExecutionError(format!("Failed to unsqueeze tensor: {}", e)))?;
+            // PREFILL: Process prompt tokens one-by-one for stability
+            let mut next_token = 0u32;
+            for (pos, &token) in prompt_tokens.iter().enumerate() {
+                let input = Tensor::new(&[token], &loaded.device)
+                    .map_err(|e| ProviderError::ExecutionError(format!("Failed to create tensor at pos {}: {}", pos, e)))?
+                    .unsqueeze(0)
+                    .map_err(|e| ProviderError::ExecutionError(format!("Failed to unsqueeze tensor at pos {}: {}", pos, e)))?;
 
-            let logits = loaded
-                .model
-                .forward(&input, 0)
-                .map_err(|e| ProviderError::ExecutionError(format!("Prefill forward pass failed: {}", e)))?;
+                let logits = loaded
+                    .model
+                    .forward(&input, pos)
+                    .map_err(|e| ProviderError::ExecutionError(format!("Prefill forward pass failed at pos {}: {}", pos, e)))?;
 
-            let logits = logits.squeeze(0)
-                .map_err(|e| ProviderError::ExecutionError(format!("Failed to squeeze logits: {}", e)))?;
+                let logits = logits.squeeze(0)
+                    .map_err(|e| ProviderError::ExecutionError(format!("Failed to squeeze logits at pos {}: {}", pos, e)))?;
 
-            let mut next_token = logits.argmax(0)
-                .map_err(|e| ProviderError::ExecutionError(format!("Failed to sample token: {}", e)))?
-                .to_scalar::<u32>()
-                .map_err(|e| ProviderError::ExecutionError(format!("Failed to convert token: {}", e)))?;
+                next_token = logits.argmax(0)
+                    .map_err(|e| ProviderError::ExecutionError(format!("Failed to sample token at pos {}: {}", pos, e)))?
+                    .to_scalar::<u32>()
+                    .map_err(|e| ProviderError::ExecutionError(format!("Failed to convert token at pos {}: {}", pos, e)))?;
+
+                // Debug last few positions
+                if pos >= prompt_tokens.len().saturating_sub(5) {
+                    eprintln!("DEBUG: pos={}, input_token={}, next_token={}, logits_shape={:?}", pos, token, next_token, logits.shape());
+
+                    // At the very last position, check if logits are valid
+                    if pos == prompt_tokens.len() - 1 {
+                        // Get top 5 token IDs and their logit values
+                        if let Ok(flat_logits) = logits.to_vec1::<f32>() {
+                            let mut indexed: Vec<(usize, f32)> = flat_logits.iter().copied().enumerate().collect();
+                            indexed.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
+                            eprintln!("DEBUG: Top 5 tokens at last position:");
+                            for (i, (idx, val)) in indexed.iter().take(5).enumerate() {
+                                eprintln!("  {}. token_id={}, logit={:.4}", i+1, idx, val);
+                            }
+                            eprintln!("DEBUG: Token 791 ('The') logit: {:.4}", flat_logits.get(791).unwrap_or(&-999.0));
+                            eprintln!("DEBUG: Token 127999 (garbage) logit: {:.4}", flat_logits.get(127999).unwrap_or(&-999.0));
+                        }
+                    }
+                }
+            }
+
+            eprintln!("DEBUG: First token after prefill: ID={}, prompt_len={}", next_token, prompt_tokens.len());
 
             let decoded = loaded
                 .tokenizer
                 .decode(&[next_token], false)
                 .map_err(|e| ProviderError::ExecutionError(format!("Failed to decode token: {}", e)))?;
+
+            eprintln!("DEBUG: First decoded token: '{}'", decoded);
 
             // Yield first token
             let mut message = Message::assistant().with_text(&decoded);
@@ -754,7 +895,9 @@ impl Provider for LocalInferenceProvider {
                     .unsqueeze(0)
                     .map_err(|e| ProviderError::ExecutionError(format!("Failed to unsqueeze tensor: {}", e)))?;
 
-                let pos = prompt_tokens.len() + index;
+                // Position is prompt_len + already_generated_tokens
+                // We already generated 1 token from prefill, so add 1
+                let pos = prompt_tokens.len() + index + 1;
                 let logits = loaded
                     .model
                     .forward(&input, pos)

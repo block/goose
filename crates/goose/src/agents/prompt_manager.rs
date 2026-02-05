@@ -41,6 +41,7 @@ struct SystemPromptContext {
     max_extensions: usize,
     max_tools: usize,
     code_execution_mode: bool,
+    small_model: bool,
 }
 
 pub struct SystemPromptBuilder<'a, M> {
@@ -52,6 +53,7 @@ pub struct SystemPromptBuilder<'a, M> {
     subagents_enabled: bool,
     hints: Option<String>,
     code_execution_mode: bool,
+    small_model: bool,
 }
 
 impl<'a> SystemPromptBuilder<'a, PromptManager> {
@@ -118,6 +120,11 @@ impl<'a> SystemPromptBuilder<'a, PromptManager> {
         self
     }
 
+    pub fn with_small_model(mut self, is_small: bool) -> Self {
+        self.small_model = is_small;
+        self
+    }
+
     pub fn build(self) -> String {
         let mut extensions_info = self.extensions_info;
 
@@ -157,6 +164,7 @@ impl<'a> SystemPromptBuilder<'a, PromptManager> {
             max_extensions: MAX_EXTENSIONS,
             max_tools: MAX_TOOLS,
             code_execution_mode: self.code_execution_mode,
+            small_model: self.small_model,
         };
 
         let base_prompt = if let Some(override_prompt) = &self.manager.system_prompt_override {
@@ -240,6 +248,7 @@ impl PromptManager {
             subagents_enabled: false,
             hints: None,
             code_execution_mode: false,
+            small_model: false,
         }
     }
 

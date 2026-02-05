@@ -52,7 +52,11 @@ pub static PLATFORM_EXTENSIONS: Lazy<HashMap<&'static str, PlatformExtensionDef>
                 description:
                     "Enable a todo list for goose so it can keep track of what it is doing",
                 default_enabled: true,
-                client_factory: |ctx| Box::new(todo_extension::TodoClient::new(ctx).unwrap()),
+                client_factory: |ctx| {
+                    todo_extension::TodoClient::new(ctx)
+                        .ok()
+                        .map(|client| Box::new(client) as Box<dyn McpClientTrait>)
+                },
             },
         );
 
@@ -64,7 +68,11 @@ pub static PLATFORM_EXTENSIONS: Lazy<HashMap<&'static str, PlatformExtensionDef>
                 description:
                     "Create and manage custom Goose apps through chat. Apps are HTML/CSS/JavaScript and run in sandboxed windows.",
                 default_enabled: true,
-                client_factory: |ctx| Box::new(apps_extension::AppsManagerClient::new(ctx).unwrap()),
+                client_factory: |ctx| {
+                    apps_extension::AppsManagerClient::new(ctx)
+                        .ok()
+                        .map(|client| Box::new(client) as Box<dyn McpClientTrait>)
+                },
             },
         );
 
@@ -77,7 +85,9 @@ pub static PLATFORM_EXTENSIONS: Lazy<HashMap<&'static str, PlatformExtensionDef>
                     "Search past conversations and load session summaries for contextual memory",
                 default_enabled: false,
                 client_factory: |ctx| {
-                    Box::new(chatrecall_extension::ChatRecallClient::new(ctx).unwrap())
+                    chatrecall_extension::ChatRecallClient::new(ctx)
+                        .ok()
+                        .map(|client| Box::new(client) as Box<dyn McpClientTrait>)
                 },
             },
         );
@@ -90,7 +100,11 @@ pub static PLATFORM_EXTENSIONS: Lazy<HashMap<&'static str, PlatformExtensionDef>
                 description:
                     "Enable extension management tools for discovering, enabling, and disabling extensions",
                 default_enabled: true,
-                client_factory: |ctx| Box::new(extension_manager_extension::ExtensionManagerClient::new(ctx).unwrap()),
+                client_factory: |ctx| {
+                    extension_manager_extension::ExtensionManagerClient::new(ctx)
+                        .ok()
+                        .map(|client| Box::new(client) as Box<dyn McpClientTrait>)
+                },
             },
         );
 
@@ -101,7 +115,11 @@ pub static PLATFORM_EXTENSIONS: Lazy<HashMap<&'static str, PlatformExtensionDef>
                 display_name: "Skills",
                 description: "Load and use skills from relevant directories",
                 default_enabled: true,
-                client_factory: |ctx| Box::new(skills_extension::SkillsClient::new(ctx).unwrap()),
+                client_factory: |ctx| {
+                    skills_extension::SkillsClient::new(ctx)
+                        .ok()
+                        .map(|client| Box::new(client) as Box<dyn McpClientTrait>)
+                },
             },
         );
 
@@ -114,7 +132,9 @@ pub static PLATFORM_EXTENSIONS: Lazy<HashMap<&'static str, PlatformExtensionDef>
                     "Goose will make extension calls through code execution, saving tokens",
                 default_enabled: false,
                 client_factory: |ctx| {
-                    Box::new(code_execution_extension::CodeExecutionClient::new(ctx).unwrap())
+                    code_execution_extension::CodeExecutionClient::new(ctx)
+                        .ok()
+                        .map(|client| Box::new(client) as Box<dyn McpClientTrait>)
                 },
             },
         );
@@ -128,9 +148,40 @@ pub struct PlatformExtensionContext {
     pub extension_manager:
         Option<std::sync::Weak<crate::agents::extension_manager::ExtensionManager>>,
     pub session_manager: std::sync::Arc<crate::session::SessionManager>,
+    pub provider: crate::agents::types::SharedProvider,
 }
 
 impl PlatformExtensionContext {
+    /// Get the context limit from the provider, if available
+    pub fn get_context_limit(&self) -> Option<usize> {
+        if let Ok(provider_guard) = self.provider.try_lock() {
+            if let Some(provider) = provider_guard.as_ref() {
+                return Some(provider.get_model_config().context_limit());
+            }
+        }
+        None
+    }
+
+    /// Check if the model has sufficient context for this extension
+    /// Returns Err if context_limit < min_context
+    pub fn require_min_context(
+        &self,
+        min_context: usize,
+        extension_name: &str,
+    ) -> anyhow::Result<()> {
+        if let Some(context_limit) = self.get_context_limit() {
+            if context_limit < min_context {
+                return Err(anyhow::anyhow!(
+                    "{} extension requires >= {}K context (current: {})",
+                    extension_name,
+                    min_context / 1000,
+                    context_limit
+                ));
+            }
+        }
+        Ok(())
+    }
+
     pub fn result_with_platform_notification(
         &self,
         mut result: rmcp::model::CallToolResult,
@@ -168,7 +219,7 @@ pub struct PlatformExtensionDef {
     pub display_name: &'static str,
     pub description: &'static str,
     pub default_enabled: bool,
-    pub client_factory: fn(PlatformExtensionContext) -> Box<dyn McpClientTrait>,
+    pub client_factory: fn(PlatformExtensionContext) -> Option<Box<dyn McpClientTrait>>,
 }
 
 /// Errors from Extension operation

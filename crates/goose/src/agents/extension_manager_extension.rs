@@ -82,6 +82,8 @@ pub struct ExtensionManagerClient {
 
 impl ExtensionManagerClient {
     pub fn new(context: PlatformExtensionContext) -> Result<Self> {
+        context.require_min_context(10_000, EXTENSION_NAME)?;
+
         let info = InitializeResult {
             protocol_version: ProtocolVersion::V_2025_03_26,
             capabilities: ServerCapabilities {

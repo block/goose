@@ -176,8 +176,8 @@ pub async fn cancel_local_model_download(
     )
 )]
 pub async fn delete_local_model(Path(model_id): Path<String>) -> Result<StatusCode, ErrorResponse> {
-    let model = get_local_model(&model_id)
-        .ok_or_else(|| ErrorResponse::not_found("Model not found"))?;
+    let model =
+        get_local_model(&model_id).ok_or_else(|| ErrorResponse::not_found("Model not found"))?;
 
     let model_path = model.local_path();
     let tokenizer_path = model.tokenizer_path();
