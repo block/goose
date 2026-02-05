@@ -388,6 +388,73 @@
     "environmentVariables": []
   },
   {
+    "id": "linux-mcp-server",
+    "name": "Linux MCP Server",
+    "description": "Tools to allow LLM clients to interact with Linux systems remotely",
+    "command": "uvx linux-mcp-server",
+    "link": "https://github.com/rhel-lightspeed/linux-mcp-server",
+    "installation_notes": "Install using uvx package manager. Note: This is a read-only mcp server to discovering and interacting with remote/local systems.",
+    "is_builtin": false,
+    "endorsed": false,
+    "environmentVariables": [
+      {
+        "name": "LINUX_MCP_USER",
+        "description": "Default username for SSH connections",
+        "required": false,
+      },
+      {
+        "name": "LINUX_MCP_SSH_KEY_PATH",
+        "description": "Path to SSH private key",
+        "required": false,
+      },
+      {
+        "name": "LINUX_MCP_KEY_PASSPHRASE",
+        "description": "Passphrase for encrypted SSH key",
+        "required": false,
+      },
+      {
+        "name": "LINUX_MCP_SEARCH_FOR_SSH_KEY",
+        "description": "Auto-discover keys in `~/.ssh`",
+        "required": false,
+      },
+      {
+        "name": "LINUX_MCP_COMMAND_TIMEOUT",
+        "description": "SSH command timeout in seconds (default: 30)",
+        "required": false,
+      },
+      {
+        "name": "LINUX_MCP_VERIFY_HOST_KEYS",
+        "description": "Verify remote host identity via known_hosts",
+        "required": false,
+      },
+      {
+        "name": "LINUX_MCP_KNOWN_HOSTS_PATH",
+        "description": "Custom path to known_hosts file",
+        "required": false,
+      },
+      {
+        "name": "LINUX_MCP_ALLOWED_LOG_PATHS",
+        "description": "Comma-separated allowlist of log files",
+        "required": false,
+      },
+      {
+        "name": "LINUX_MCP_LOG_DIR",
+        "description": "Server log directory",
+        "required": false,
+      },
+      {
+        "name": "LINUX_MCP_LOG_LEVEL",
+        "description": "Log verbosity (DEBUG, INFO, WARNING)",
+        "required": false,
+      },
+      {
+        "name": "LINUX_MCP_LOG_RETENTION_DAYS",
+        "description": "Days to keep log files",
+        "required": false,
+      }
+    ]
+  },
+  {
     "id": "mbot-mcp",
     "name": "MBot",
     "description": "Control a MakeBlock mbot2 rover through MQTT (requires local setup)",
