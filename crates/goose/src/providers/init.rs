@@ -27,12 +27,13 @@ use super::{
     xai::XaiProvider,
 };
 use crate::model::ModelConfig;
-use crate::providers::base::ProviderType;
+use crate::providers::{base::ProviderType, rig::RigProvider};
 use crate::{
     config::declarative_providers::register_declarative_providers,
     providers::provider_registry::ProviderEntry,
 };
 use anyhow::Result;
+use rig::providers::anthropic;
 use tokio::sync::OnceCell;
 
 const DEFAULT_LEAD_TURNS: usize = 3;
@@ -64,6 +65,7 @@ async fn init_registry() -> RwLock<ProviderRegistry> {
         registry.register::<TetrateProvider>(true);
         registry.register::<VeniceProvider>(false);
         registry.register::<XaiProvider>(false);
+        registry.register::<RigProvider<anthropic::completion::CompletionModel>>(false);
     });
     if let Err(e) = load_custom_providers_into_registry(&mut registry) {
         tracing::warn!("Failed to load custom providers: {}", e);
