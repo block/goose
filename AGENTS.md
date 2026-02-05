@@ -200,6 +200,45 @@ Built-in and custom command handling:
 - `ParsedCommand` - Builtin, Recipe, or Unknown
 - Recipe-based custom commands
 
+## Phase 7-8 New Features
+
+### Computer Use CLI
+Integrated AI-driven computer control and debugging interface:
+- **Location**: crates/goose-cli/src/computer_use.rs
+- **Command**: `goose computer-use <subcommand>`
+- **Subcommands**:
+  - `control` - Direct keyboard/mouse control
+  - `debug` - Interactive debugging with breakpoints
+  - `test` - Automated testing (unit, integration, visual)
+  - `remote` - Remote access and collaboration
+  - `fix` - Workflow failure analysis and automated fixes
+- **Status**: CLI structure complete, core logic needs implementation
+
+### LM Studio Provider
+Local AI model hosting with OpenAI-compatible API:
+- **Location**: crates/goose/src/providers/lmstudio.rs
+- **Models Supported**:
+  - GLM 4.6, 4.7, 4-9b (Chinese language models)
+  - Qwen2.5 Coder (7B, 14B, 32B)
+  - Qwen3 Coder (latest)
+  - DeepSeek R1 distill (7B, 32B) for reasoning
+  - Qwen2 VL for vision tasks
+  - Meta Llama 3.1, Mistral 7B
+- **Features**:
+  - OpenAI-compatible API (/v1/*)
+  - Native LM Studio API (/api/v1/*)
+  - Anthropic-compatible API (/v1/messages)
+  - Model management (load/unload/download)
+  - MCP integration for tool calling
+  - Stateful chats with previous_response_id
+  - Speculative decoding with draft models
+  - Idle TTL and auto-evict
+  - Enhanced stats (tokens/second, TTFT)
+- **Configuration**:
+  - `LMSTUDIO_BASE_URL` (default: http://localhost:1234/v1)
+  - `LMSTUDIO_API_TOKEN` (optional authentication)
+- **Status**: Fully implemented and integrated
+
 ## Entry Points
 - CLI: crates/goose-cli/src/main.rs
 - Server: crates/goose-server/src/main.rs
@@ -208,6 +247,7 @@ Built-in and custom command handling:
 - Orchestrator: crates/goose/src/agents/orchestrator.rs
 - WorkflowEngine: crates/goose/src/agents/workflow_engine.rs
 - Specialists: crates/goose/src/agents/specialists/mod.rs
+- **ComputerUse: crates/goose-cli/src/computer_use.rs** [Phase 7]
 - Prompts: crates/goose/src/prompts/mod.rs
 - Observability: crates/goose/src/observability/mod.rs
 - Policies: crates/goose/src/policies/mod.rs
@@ -222,3 +262,4 @@ Built-in and custom command handling:
 - Subagents: crates/goose/src/subagents/mod.rs
 - Capabilities: crates/goose/src/agents/capabilities.rs
 - SlashCommands: crates/goose/src/slash_commands.rs
+- **LM Studio Provider: crates/goose/src/providers/lmstudio.rs** [Phase 7]
