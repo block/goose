@@ -254,8 +254,10 @@ impl Provider for TetrateProvider {
         {
             Ok(response) => response,
             Err(e) => {
-                tracing::warn!("Failed to fetch models from Tetrate Agent Router Service API: {}, falling back to manual model entry", e);
-                return Ok(None);
+                return Err(ProviderError::ExecutionError(format!(
+                    "Failed to fetch models from Tetrate API: {}",
+                    e
+                )));
             }
         };
 
