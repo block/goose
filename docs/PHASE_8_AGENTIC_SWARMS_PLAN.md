@@ -28,6 +28,7 @@ This phase transforms Goose from a capable multi-agent platform into a **state-o
 4. ✅ **Agent Swarm Orchestration** - Coordinate unlimited agents with sophisticated patterns
 5. ✅ **Hybrid Model Strategy** - Intelligently route between cloud and local models
 6. ✅ **Advanced Tool Use** - Multi-step tool workflows with reasoning
+7. ✅ **Feature Verification & Audit System** - **NEW** Prove all features work with automated verification
 
 ### Success Criteria
 - [ ] Extended Thinking works with configurable budgets (1K-128K tokens)
@@ -35,6 +36,12 @@ This phase transforms Goose from a capable multi-agent platform into a **state-o
 - [ ] LM Studio provider supports local Llama 4, DeepSeek V3, Qwen3
 - [ ] Agent swarms can coordinate 10+ specialized agents
 - [ ] Hybrid routing achieves <100ms decision latency
+- [ ] **Feature verification system operational** - **NEW**
+  - [ ] 50+ features registered in Feature Registry
+  - [ ] Automated verification tests for all features
+  - [ ] `goose features` CLI commands functional
+  - [ ] Feature matrix auto-generated and accurate
+  - [ ] Audit reports show 95%+ implementation score
 - [ ] Zero regressions in existing Phase 1-7 features
 
 ---
@@ -710,6 +717,139 @@ impl ToolWorkflow {
 
 ---
 
+### Milestone 7: Feature Verification & Audit System (Week 5)
+
+**CRITICAL NEW FEATURE** - Addresses user requirement: "How can users know all the features from phase 1-8 work and are included?"
+
+#### 7.1 Feature Registry
+**File:** `crates/goose/src/features/registry.rs`
+
+```rust
+/// Central registry of all Phase 1-8 features
+pub struct FeatureRegistry {
+    features: HashMap<FeatureId, FeatureMetadata>,
+}
+
+pub struct FeatureMetadata {
+    pub id: FeatureId,
+    pub name: String,
+    pub phase: Phase,
+    pub status: FeatureStatus,
+    pub implementation_files: Vec<PathBuf>,
+    pub test_files: Vec<PathBuf>,
+    pub verification_test: Option<Box<dyn VerificationTest>>,
+}
+
+pub enum FeatureStatus {
+    Implemented,      // Code + tests exist and pass
+    Documented,       // Only in docs, no code
+    Experimental,     // Code exists but unstable
+}
+```
+
+**Register 50+ features** across all phases with metadata linking to actual code.
+
+#### 7.2 Automated Verification
+**File:** `crates/goose/src/features/verification.rs`
+
+```rust
+pub trait VerificationTest: Send + Sync {
+    fn run(&self) -> VerificationResult;
+}
+
+pub struct VerificationResult {
+    pub success: bool,
+    pub duration: Duration,
+    pub evidence: Vec<Evidence>,  // Proof feature works
+}
+
+pub enum Evidence {
+    TestPassed { test_name: String },
+    APIResponded { endpoint: String },
+    FeatureUsed { example: String },
+}
+```
+
+**Automated tests** that prove each feature actually works, not just exists.
+
+#### 7.3 Health Check System
+**File:** `crates/goose/src/features/health.rs`
+
+Real-time health status for:
+- Memory system (Working/Episodic/Semantic)
+- Guardrails (6 detectors)
+- MCP Gateway (connections)
+- Observability (metrics)
+- Policies (rules loaded)
+- All providers (reachable)
+
+#### 7.4 Audit Reports
+**File:** `crates/goose/src/features/audit.rs`
+
+Compare documentation vs actual implementation:
+- Documented but not implemented → **GAP**
+- Implemented but not documented → **INCOMPLETE**
+- Fully verified → **VERIFIED**
+
+Generate reports in Markdown, JSON, HTML, CSV formats.
+
+#### 7.5 CLI Commands
+**File:** `crates/goose-cli/src/commands/features.rs`
+
+```bash
+goose features verify              # Verify all features
+goose features audit               # Audit report
+goose features matrix              # Feature matrix
+goose features demo run <feature>  # Interactive demo
+goose features health              # Health check
+```
+
+**User Output Example:**
+```
+$ goose features verify
+
+Phase 1: Guardrails
+  ✅ Secret Detection (30+ patterns) - 62ms
+  ✅ PII Detection (Luhn validation) - 45ms
+  ✅ Malware Scanning - 120ms
+  ✅ Jailbreak Detection - 38ms
+
+Phase 8: Agentic Swarms
+  ✅ Extended Thinking (1K-128K budgets) - 89ms
+  ✅ Batch API (50% cost savings) - 156ms
+  ✅ LM Studio (local inference) - 234ms
+  ✅ Agent Swarms (4 patterns) - 312ms
+
+✅ All 50 features verified successfully!
+```
+
+#### 7.6 API Endpoints
+**File:** `crates/goose-server/src/routes/features.rs`
+
+```rust
+GET /api/v1/features                 // List all
+GET /api/v1/features/{id}            // Get details
+POST /api/v1/features/verify          // Run verification
+GET /api/v1/health                    // Health check
+GET /api/v1/audit                     // Audit report
+GET /api/v1/capabilities              // Full capability list
+```
+
+#### 7.7 CI/CD Integration
+**File:** `.github/workflows/feature-verification.yml`
+
+Auto-generate feature matrix on every commit:
+- Run verification tests
+- Generate audit report
+- Update `docs/FEATURE_MATRIX.md`
+- Fail CI if verification fails
+
+**Estimated Time:** 5-6 days
+
+**Outcome:** Users can independently verify all features work. No trust required—pure proof.
+
+---
+
 ## 🧪 Testing Strategy
 
 ### Unit Tests
@@ -720,6 +860,10 @@ impl ToolWorkflow {
 - [ ] Swarm coordinator task decomposition
 - [ ] Agent pool management
 - [ ] Result aggregation strategies
+- [ ] **Feature registry operations** - **NEW**
+- [ ] **Verification test execution** - **NEW**
+- [ ] **Health check logic** - **NEW**
+- [ ] **Audit report generation** - **NEW**
 
 ### Integration Tests
 - [ ] Extended thinking + tool use workflows
@@ -729,6 +873,9 @@ impl ToolWorkflow {
 - [ ] Swarm patterns (all 4 types)
 - [ ] Inter-agent communication
 - [ ] Advanced tool workflows
+- [ ] **Full feature verification workflow** - **NEW**
+- [ ] **CLI feature commands** - **NEW**
+- [ ] **API feature endpoints** - **NEW**
 
 ### Performance Tests
 - [ ] Thinking token usage efficiency
@@ -737,12 +884,20 @@ impl ToolWorkflow {
 - [ ] Hybrid routing latency (<100ms)
 - [ ] Swarm scalability (10+ agents)
 - [ ] Tool workflow execution time
+- [ ] **Verification test execution speed** - **NEW**
 
 ### Regression Tests
 - [ ] All Phase 1-7 tests still pass
 - [ ] No performance degradation
 - [ ] No memory leaks with long-running swarms
 - [ ] Provider compatibility maintained
+
+### **Feature Verification Tests (NEW)**
+- [ ] **Phase 1-7 feature verification** - Automated tests proving existing features work
+- [ ] **Phase 8 feature verification** - Automated tests for new features
+- [ ] **Audit report accuracy** - Compare docs vs code and identify gaps
+- [ ] **Health check reliability** - All subsystems report correct status
+- [ ] **Feature matrix accuracy** - Auto-generated matrix matches reality
 
 ---
 
@@ -759,6 +914,8 @@ impl ToolWorkflow {
 - **Documentation:** Complete API docs + examples
 - **Zero Regressions:** All 1,125 Phase 1-7 tests pass
 - **Code Quality:** Zero warnings on build
+- **Feature Verification:** 95%+ audit score - **NEW**
+- **Documentation Accuracy:** Zero gaps between docs and code - **NEW**
 
 ### Cost Optimization
 - **Batch API Savings:** 50% vs standard API
@@ -771,6 +928,9 @@ impl ToolWorkflow {
 - **Swarm Patterns:** All 4 patterns implemented
 - **LM Studio Models:** Support 5+ model families
 - **Tool Workflows:** 10+ tool chains working
+- **Feature Registry:** 50+ features registered and verified - **NEW**
+- **Automated Verification:** All features provably working - **NEW**
+- **Independent Audit:** Users can verify features themselves - **NEW**
 
 ---
 
@@ -827,20 +987,35 @@ impl ToolWorkflow {
 - Implement inter-agent communication
 - Implement result aggregation
 
-### Week 5: Advanced Features
+### Week 5: Feature Verification System - **NEW**
+- Implement feature registry (50+ features)
+- Implement automated verification tests
+- Implement health check system
+- Implement audit report generation
+- Create CLI commands (`goose features`)
+- Create API endpoints
+- Write comprehensive tests
+
+### Week 6: Advanced Features + Integration
 - Implement advanced tool workflows
 - Implement tool reasoning
+- Integrate verification with all features
+- Auto-generate feature matrix
 - Polish and bug fixes
 - Performance optimization
 
-### Week 6: Testing & Documentation
+### Week 7: Testing & Documentation
 - Comprehensive integration testing
 - Performance benchmarking
+- Run full feature verification
 - Complete all documentation
 - User acceptance testing
+- CI/CD integration for feature verification
 
-### Week 7: Release
+### Week 8: Release
 - Final regression testing
+- Verify all features (automated + manual)
+- Generate final audit report (must be 95%+)
 - Release candidate build
 - Tag v1.24.0
 - Deploy to production
@@ -884,6 +1059,15 @@ impl ToolWorkflow {
 - Runbook compliance for swarm tasks
 - Extended thinking for complex runbooks
 - Batch processing for large runbook sets
+
+### **Phase 8: Feature Verification (NEW)**
+- All Phase 1-7 features registered and verified
+- All Phase 8 features verified as implemented
+- Automated tests prove features work
+- Independent audit capability for users
+- Real-time health monitoring
+- Auto-generated feature matrix
+- CI/CD ensures docs stay accurate
 
 ---
 
@@ -929,6 +1113,19 @@ impl ToolWorkflow {
 - Automated API health checks
 - Fallback to previous API versions
 
+### **Risk 6: Feature Claims vs Reality (NEW)**
+**Impact:** Users discover documented features don't actually work
+**Mitigation:**
+- Feature Verification System **eliminates this risk**
+- No feature marked "Implemented" without:
+  - Code files existing
+  - Tests passing
+  - Verification test succeeding
+  - Evidence collected
+- Automated CI checks prevent false claims
+- Users can independently verify with `goose features verify`
+- Audit reports expose any gaps immediately
+
 ---
 
 ## 📖 References
@@ -964,8 +1161,78 @@ impl ToolWorkflow {
 
 ---
 
-**Plan Status:** ✅ Complete
+**Plan Status:** ✅ Complete + Feature Verification Added
 **Ready for Implementation:** Yes
-**Estimated Duration:** 6-7 weeks
+**Estimated Duration:** 7-8 weeks (added 1 week for verification system)
 **Priority:** High
-**Last Updated:** 2026-02-04
+**Last Updated:** 2026-02-04 (Updated with Feature Verification System)
+
+---
+
+## 🔐 Feature Verification System (Critical Addition)
+
+### User Requirement Addressed
+
+**User Asked:** "How can users know all the features from phase 1-8 work and are included into goose? How to know features really working, able to audit and figure out? All features must be REAL working features only included."
+
+**Solution:** Comprehensive Feature Verification & Audit System integrated into Phase 8
+
+### How Users Verify Features
+
+```bash
+# 1. List all features
+$ goose features list
+50 features across 8 phases registered
+
+# 2. Verify all features work
+$ goose features verify
+✅ All 50 features verified in 3.2s
+
+# 3. Get audit report
+$ goose features audit
+📊 Audit Score: 96/100
+✅ 48/50 fully verified
+⚠️ 2/50 documented only
+
+# 4. View feature matrix
+$ goose features matrix
+[Table showing implementation status]
+
+# 5. Run interactive demo
+$ goose features demo run secret-detection
+✅ Detected 1 AWS key in test input
+```
+
+### Honesty Guarantee
+
+**No feature can be marked "Implemented" without:**
+1. ✅ Code files existing (registry links to actual files)
+2. ✅ Tests passing (test files referenced and verified)
+3. ✅ Verification succeeding (automated proof of functionality)
+4. ✅ Evidence collected (test results, API responses, outputs)
+
+**This makes it impossible to fake feature implementations.**
+
+### Key Benefits
+
+- **Transparency:** Users see exactly what's implemented vs documented
+- **Trust:** Automated verification eliminates need to trust claims
+- **Auditability:** Independent verification possible without access to code
+- **Accuracy:** Auto-generated matrix never goes stale
+- **Quality:** CI/CD fails if features don't actually work
+
+### Integration with Phase 8
+
+Feature Verification becomes a **core deliverable** alongside:
+- Extended Thinking
+- Batch Processing
+- LM Studio
+- Agent Swarms
+- Hybrid Router
+
+**All Phase 8 features will be verified before v1.24.0 release.**
+
+---
+
+**Plan Updated:** 2026-02-04
+**Status:** ✅ Ready to Implement with Feature Verification
