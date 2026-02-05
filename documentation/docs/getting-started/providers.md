@@ -417,7 +417,7 @@ Custom providers must use OpenAI, Anthropic, or Ollama compatible API formats. T
          - For `Ollama Compatible` providers, press `Enter` to skip (or enter any value to be able to use the provider in goose Desktop)
        - **Available Models**: Comma-separated list of available model names
        - **Streaming Support**: Whether the API supports streaming responses
-       - **Custom Headers**: Any required header names and values
+       - **Custom Headers**: Any additional header names and values
 
   </TabItem>
   <TabItem value="config" label="Config File">
