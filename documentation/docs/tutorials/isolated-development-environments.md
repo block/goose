@@ -6,7 +6,7 @@ import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
 
 This guide shows you how to set up isolated development environments using the **[Container Use MCP](https://github.com/dagger/container-use)** with goose. With this setup, your development work will be isolated to both git branches and containers, allowing you to experiment freely without affecting your main system state.
-The Container Use MCP offers powerful ways to do isolated development which are very agent friendly (build on tools like Docker, copy on write filesystems, and more)
+The Container Use MCP offers powerful ways to do isolated development which are very agent friendly (build on tools like Docker, copy on write filesystems, and more).
 
 ## Overview
 
