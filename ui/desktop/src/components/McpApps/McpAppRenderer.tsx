@@ -9,7 +9,7 @@ import { AppEvents } from '../../constants/events';
  */
 
 import { useState, useCallback, useEffect } from 'react';
-import { useSandboxBridge } from './useSandboxBridge';
+import { useMcpAppBridge } from './useMcpAppBridge';
 import {
   ToolInput,
   ToolInputPartial,
@@ -66,7 +66,6 @@ export default function McpAppRenderer({
   });
   const [error, setError] = useState<string | null>(null);
   const [iframeHeight, setIframeHeight] = useState(DEFAULT_IFRAME_HEIGHT);
-  const [iframeWidth, setIframeWidth] = useState<number | null>(null);
 
   useEffect(() => {
     if (!sessionId) {
@@ -243,14 +242,12 @@ export default function McpAppRenderer({
     [append, sessionId, extensionName]
   );
 
-  const handleSizeChanged = useCallback((height: number, width?: number) => {
+  const handleSizeChanged = useCallback((height: number, _width?: number) => {
     const newHeight = Math.max(DEFAULT_IFRAME_HEIGHT, height);
     setIframeHeight(newHeight);
-    setIframeWidth(width ?? null);
   }, []);
 
-  // Use sandbox bridge - serves HTML from real URL for secure context
-  const { iframeRef, viewUrl, isLoading } = useSandboxBridge({
+  const { iframeRef, viewUrl, isLoading } = useMcpAppBridge({
     resourceHtml: resource.html || '',
     resourceCsp: resource.csp,
     resourcePermissions: resource.permissions,

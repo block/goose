@@ -56,6 +56,12 @@ export interface JsonRpcResponse {
 
 export type JsonRpcMessage = JsonRpcRequest | JsonRpcNotification | JsonRpcResponse;
 
+export type DisplayMode = 'inline' | 'fullscreen' | 'standalone';
+
+export interface AppCapabilities {
+  availableDisplayModes?: DisplayMode[];
+}
+
 export interface HostContext {
   toolInfo?: {
     id?: string | number;
@@ -66,13 +72,11 @@ export interface HostContext {
     };
   };
   theme: 'light' | 'dark';
-  displayMode: 'inline' | 'fullscreen' | 'standalone';
-  availableDisplayModes: ('inline' | 'fullscreen' | 'standalone')[];
-  viewport: {
-    width: number;
-    height: number;
-    maxHeight: number;
+  displayMode: DisplayMode;
+  availableDisplayModes: DisplayMode[];
+  containerDimensions: {
     maxWidth: number;
+    maxHeight: number;
   };
   locale: string;
   timeZone: string;

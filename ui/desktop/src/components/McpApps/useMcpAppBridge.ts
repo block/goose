@@ -1,4 +1,18 @@
-import { useRef, useEffect, useState, useCallback } from 'react';
+/**
+ * MCP App Bridge
+ *
+ * This hook provides communication between the Host and an MCP App loaded
+ * in an iframe with a real URL. This gives the MCP App a proper origin and
+ * secure context, which is required for Web Payments SDK, WebAuthn, and
+ * other APIs that check window.isSecureContext.
+ *
+ * How it works:
+ * - HTML is served from /mcp-app-view/{token} endpoint
+ * - The iframe has a real localhost origin (secure context)
+ * - postMessage is used for JSON-RPC communication
+ */
+
+import { useRef, useEffect, useState, useCallback, useMemo } from 'react';
 import type {
   JsonRpcMessage,
   JsonRpcRequest,
@@ -10,13 +24,15 @@ import type {
   HostContext,
   CspMetadata,
   PermissionsMetadata,
+  AppCapabilities,
+  DisplayMode,
 } from './types';
 import { createMcpAppViewUrl } from './utils';
 import { useTheme } from '../../contexts/ThemeContext';
 import packageJson from '../../../package.json';
 import { errorMessage } from '../../utils/conversionUtils';
 
-interface SandboxBridgeOptions {
+interface McpAppBridgeOptions {
   resourceHtml: string;
   resourceCsp: CspMetadata | null;
   resourcePermissions: PermissionsMetadata | null;
@@ -33,13 +49,13 @@ interface SandboxBridgeOptions {
   onSizeChanged?: (height: number, width?: number) => void;
 }
 
-interface SandboxBridgeResult {
+interface McpAppBridgeResult {
   iframeRef: React.RefObject<HTMLIFrameElement | null>;
   viewUrl: string | null;
   isLoading: boolean;
 }
 
-export function useSandboxBridge(options: SandboxBridgeOptions): SandboxBridgeResult {
+export function useMcpAppBridge(options: McpAppBridgeOptions): McpAppBridgeResult {
   const {
     resourceHtml,
     resourceCsp,
@@ -56,10 +72,15 @@ export function useSandboxBridge(options: SandboxBridgeOptions): SandboxBridgeRe
   const { resolvedTheme } = useTheme();
   const iframeRef = useRef<HTMLIFrameElement | null>(null);
   const isGuestInitializedRef = useRef(false);
+  const appCapabilitiesRef = useRef<AppCapabilities | null>(null);
   const [viewUrl, setViewUrl] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  // Create secure view URL when HTML changes
+  // Display modes supported by the host
+  const hostAvailableDisplayModes = useMemo<DisplayMode[]>(() => ['inline'], []);
+  const currentDisplayMode: DisplayMode = 'inline';
+
+  // Create the secure view URL when HTML changes
   useEffect(() => {
     if (!resourceHtml) {
       setViewUrl(null);
@@ -69,16 +90,24 @@ export function useSandboxBridge(options: SandboxBridgeOptions): SandboxBridgeRe
 
     setIsLoading(true);
     createMcpAppViewUrl(resourceHtml, resourceCsp, resourcePermissions)
-      .then(setViewUrl)
-      .finally(() => setIsLoading(false));
+      .then((url) => {
+        setViewUrl(url);
+        setIsLoading(false);
+      })
+      .catch((err) => {
+        console.error('Failed to create secure view URL:', err);
+        setViewUrl(null);
+        setIsLoading(false);
+      });
   }, [resourceHtml, resourceCsp, resourcePermissions]);
 
   // Reset initialization state when resource changes
   useEffect(() => {
     isGuestInitializedRef.current = false;
+    appCapabilitiesRef.current = null;
   }, [resourceUri]);
 
-  const sendToSandbox = useCallback((message: JsonRpcMessage) => {
+  const sendToView = useCallback((message: JsonRpcMessage) => {
     iframeRef.current?.contentWindow?.postMessage(message, '*');
   }, []);
 
@@ -91,26 +120,18 @@ export function useSandboxBridge(options: SandboxBridgeOptions): SandboxBridgeRe
         const msg = data as JsonRpcNotification;
 
         switch (msg.method) {
-          case 'ui/notifications/sandbox-ready':
-            sendToSandbox({
-              jsonrpc: '2.0',
-              method: 'ui/notifications/sandbox-resource-ready',
-              params: { html: resourceHtml, csp: resourceCsp, permissions: resourcePermissions },
-            });
-            break;
-
           case 'ui/notifications/initialized':
             isGuestInitializedRef.current = true;
             // Send any pending tool data that arrived before initialization
             if (toolInput) {
-              sendToSandbox({
+              sendToView({
                 jsonrpc: '2.0',
                 method: 'ui/notifications/tool-input',
                 params: { arguments: toolInput.arguments },
               });
             }
             if (toolResult) {
-              sendToSandbox({
+              sendToView({
                 jsonrpc: '2.0',
                 method: 'ui/notifications/tool-result',
                 params: toolResult,
@@ -135,16 +156,20 @@ export function useSandboxBridge(options: SandboxBridgeOptions): SandboxBridgeRe
           if (msg.method === 'ui/initialize') {
             if (msg.id === undefined) return;
 
+            // Parse and store app capabilities from the View
+            const params = msg.params as { appCapabilities?: AppCapabilities } | undefined;
+            if (params?.appCapabilities) {
+              appCapabilitiesRef.current = params.appCapabilities;
+            }
+
             const iframe = iframeRef.current;
             const hostContext: HostContext = {
               toolInfo: undefined,
               theme: resolvedTheme,
-              displayMode: 'inline',
-              availableDisplayModes: ['inline'],
-              viewport: {
-                width: iframe?.clientWidth ?? 0,
-                height: iframe?.clientHeight ?? 0,
-                maxWidth: window.innerWidth,
+              displayMode: currentDisplayMode,
+              availableDisplayModes: hostAvailableDisplayModes,
+              containerDimensions: {
+                maxWidth: iframe?.clientWidth ?? window.innerWidth,
                 maxHeight: window.innerHeight,
               },
               locale: navigator.language,
@@ -158,12 +183,18 @@ export function useSandboxBridge(options: SandboxBridgeOptions): SandboxBridgeRe
               safeAreaInsets: { top: 0, right: 0, bottom: 0, left: 0 },
             };
 
-            sendToSandbox({
+            sendToView({
               jsonrpc: '2.0',
               id: msg.id,
               result: {
-                protocolVersion: '2025-06-18',
-                hostCapabilities: { links: true, messages: true },
+                protocolVersion: '2026-01-26',
+                hostCapabilities: {
+                  openLinks: {},
+                  messages: {},
+                  serverTools: {},
+                  serverResources: {},
+                  logging: {},
+                },
                 hostInfo: {
                   name: packageJson.productName,
                   version: packageJson.version,
@@ -174,14 +205,42 @@ export function useSandboxBridge(options: SandboxBridgeOptions): SandboxBridgeRe
             return;
           }
 
+          if (msg.method === 'ui/request-display-mode') {
+            if (msg.id === undefined) return;
+
+            const params = msg.params as { mode?: DisplayMode } | undefined;
+            const requestedMode = params?.mode;
+
+            const appModes = appCapabilitiesRef.current?.availableDisplayModes;
+            const isHostSupported = requestedMode && hostAvailableDisplayModes.includes(requestedMode);
+            const isAppSupported = !appModes || (requestedMode && appModes.includes(requestedMode));
+
+            const actualMode: DisplayMode = isHostSupported && isAppSupported ? requestedMode! : currentDisplayMode;
+
+            sendToView({
+              jsonrpc: '2.0',
+              id: msg.id,
+              result: { mode: actualMode },
+            });
+
+            if (actualMode !== currentDisplayMode) {
+              sendToView({
+                jsonrpc: '2.0',
+                method: 'ui/notifications/host-context-changed',
+                params: { displayMode: actualMode },
+              });
+            }
+            return;
+          }
+
           const result = await onMcpRequest(msg.method, msg.params, msg.id);
           if (msg.id !== undefined) {
-            sendToSandbox({ jsonrpc: '2.0', id: msg.id, result });
+            sendToView({ jsonrpc: '2.0', id: msg.id, result });
           }
         } catch (error) {
-          console.error(`[Sandbox Bridge] Error handling ${msg.method}:`, error);
+          console.error(`[Secure Context Bridge] Error handling ${msg.method}:`, error);
           if (msg.id !== undefined) {
-            sendToSandbox({
+            sendToView({
               jsonrpc: '2.0',
               id: msg.id,
               error: {
@@ -194,15 +253,14 @@ export function useSandboxBridge(options: SandboxBridgeOptions): SandboxBridgeRe
       }
     },
     [
-      resourceHtml,
-      resourceCsp,
-      resourcePermissions,
       resolvedTheme,
-      sendToSandbox,
+      sendToView,
       onMcpRequest,
       onSizeChanged,
       toolInput,
       toolResult,
+      currentDisplayMode,
+      hostAvailableDisplayModes,
     ]
   );
 
@@ -218,48 +276,48 @@ export function useSandboxBridge(options: SandboxBridgeOptions): SandboxBridgeRe
   // Send tool input notification when it changes
   useEffect(() => {
     if (!isGuestInitializedRef.current || !toolInput) return;
-    sendToSandbox({
+    sendToView({
       jsonrpc: '2.0',
       method: 'ui/notifications/tool-input',
       params: { arguments: toolInput.arguments },
     });
-  }, [toolInput, sendToSandbox]);
+  }, [toolInput, sendToView]);
 
   useEffect(() => {
     if (!isGuestInitializedRef.current || !toolInputPartial) return;
-    sendToSandbox({
+    sendToView({
       jsonrpc: '2.0',
       method: 'ui/notifications/tool-input-partial',
       params: { arguments: toolInputPartial.arguments },
     });
-  }, [toolInputPartial, sendToSandbox]);
+  }, [toolInputPartial, sendToView]);
 
   useEffect(() => {
     if (!isGuestInitializedRef.current || !toolResult) return;
-    sendToSandbox({
+    sendToView({
       jsonrpc: '2.0',
       method: 'ui/notifications/tool-result',
       params: toolResult,
     });
-  }, [toolResult, sendToSandbox]);
+  }, [toolResult, sendToView]);
 
   useEffect(() => {
     if (!isGuestInitializedRef.current || !toolCancelled) return;
-    sendToSandbox({
+    sendToView({
       jsonrpc: '2.0',
       method: 'ui/notifications/tool-cancelled',
       params: toolCancelled.reason ? { reason: toolCancelled.reason } : {},
     });
-  }, [toolCancelled, sendToSandbox]);
+  }, [toolCancelled, sendToView]);
 
   useEffect(() => {
     if (!isGuestInitializedRef.current) return;
-    sendToSandbox({
+    sendToView({
       jsonrpc: '2.0',
       method: 'ui/notifications/host-context-changed',
       params: { theme: resolvedTheme },
     });
-  }, [resolvedTheme, sendToSandbox]);
+  }, [resolvedTheme, sendToView]);
 
   useEffect(() => {
     if (!isGuestInitializedRef.current || !iframeRef.current) return;
@@ -276,14 +334,12 @@ export function useSandboxBridge(options: SandboxBridgeOptions): SandboxBridgeRe
       if (w !== lastWidth || h !== lastHeight) {
         lastWidth = w;
         lastHeight = h;
-        sendToSandbox({
+        sendToView({
           jsonrpc: '2.0',
           method: 'ui/notifications/host-context-changed',
           params: {
-            viewport: {
-              width: w,
-              height: h,
-              maxWidth: window.innerWidth,
+            containerDimensions: {
+              maxWidth: w,
               maxHeight: window.innerHeight,
             },
           },
@@ -293,12 +349,12 @@ export function useSandboxBridge(options: SandboxBridgeOptions): SandboxBridgeRe
 
     observer.observe(iframe);
     return () => observer.disconnect();
-  }, [sendToSandbox]);
+  }, [sendToView]);
 
   useEffect(() => {
     return () => {
       if (isGuestInitializedRef.current) {
-        sendToSandbox({
+        sendToView({
           jsonrpc: '2.0',
           id: Date.now(),
           method: 'ui/resource-teardown',
@@ -306,7 +362,7 @@ export function useSandboxBridge(options: SandboxBridgeOptions): SandboxBridgeRe
         });
       }
     };
-  }, [sendToSandbox]);
+  }, [sendToView]);
 
   return { iframeRef, viewUrl, isLoading };
 }

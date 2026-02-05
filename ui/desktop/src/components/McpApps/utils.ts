@@ -2,52 +2,6 @@ import type { CspMetadata, PermissionsMetadata } from './types';
 
 export const DEFAULT_IFRAME_HEIGHT = 200;
 
-/**
- * Fetch the MCP App proxy URL from the Electron backend.
- * The proxy enforces CSP as a security boundary for sandboxed apps.
- * 
- * @deprecated Use createMcpAppViewUrl for secure context support
- * TODO(Douwe): make this work better with the generated API rather than poking around
- */
-export async function fetchMcpAppProxyUrl(
-  csp?: {
-    connectDomains?: string[] | null;
-    resourceDomains?: string[] | null;
-    frameDomains?: string[] | null;
-    baseUriDomains?: string[] | null;
-  } | null
-): Promise<string | null> {
-  try {
-    const baseUrl = await window.electron.getGoosedHostPort();
-    const secretKey = await window.electron.getSecretKey();
-    if (!baseUrl || !secretKey) {
-      console.error('Failed to get goosed host/port or secret key');
-      return null;
-    }
-
-    const params = new URLSearchParams();
-    params.set('secret', secretKey);
-
-    if (csp?.connectDomains?.length) {
-      params.set('connect_domains', csp.connectDomains.join(','));
-    }
-    if (csp?.resourceDomains?.length) {
-      params.set('resource_domains', csp.resourceDomains.join(','));
-    }
-    if (csp?.frameDomains?.length) {
-      params.set('frame_domains', csp.frameDomains.join(','));
-    }
-    if (csp?.baseUriDomains?.length) {
-      params.set('base_uri_domains', csp.baseUriDomains.join(','));
-    }
-
-    return `${baseUrl}/mcp-app-proxy?${params.toString()}`;
-  } catch (error) {
-    console.error('Error fetching MCP App Proxy URL:', error);
-    return null;
-  }
-}
-
 // Extended CSP metadata type that includes all fields (some may not be in generated types yet)
 interface ExtendedCspMetadata {
   connectDomains?: string[] | null;
@@ -58,7 +12,7 @@ interface ExtendedCspMetadata {
 
 /**
  * Create a secure MCP App View URL.
- * 
+ *
  * This approach serves the MCP App HTML from a real URL endpoint instead of
  * using srcdoc iframes. This gives the MCP App a proper origin and secure
  * context, which is required for:
@@ -66,7 +20,7 @@ interface ExtendedCspMetadata {
  * - WebAuthn / Passkeys
  * - Certain OAuth flows
  * - Any API that checks window.isSecureContext
- * 
+ *
  * Flow:
  * 1. POST HTML + metadata to /mcp-app-view
  * 2. Backend stores it temporarily and returns a token
