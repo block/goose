@@ -131,6 +131,7 @@ pub struct Agent {
     pub(super) retry_manager: RetryManager,
     pub(super) tool_inspection_manager: ToolInspectionManager,
     container: Mutex<Option<Container>>,
+    pub(super) response_schema: Mutex<Option<serde_json::Value>>,
 }
 
 #[derive(Clone, Debug)]
@@ -216,6 +217,7 @@ impl Agent {
             retry_manager: RetryManager::new(),
             tool_inspection_manager: Self::create_tool_inspection_manager(permission_manager),
             container: Mutex::new(None),
+            response_schema: Mutex::new(None),
         }
     }
 
@@ -458,14 +460,22 @@ impl Agent {
         sub_recipes: Option<Vec<SubRecipe>>,
         response: Option<Response>,
         include_final_output: bool,
+        provider_supports_structured_output: bool,
     ) {
         if let Some(sub_recipes) = sub_recipes {
             self.add_sub_recipes(sub_recipes).await;
         }
 
-        if include_final_output {
-            if let Some(response) = response {
-                self.add_final_output_tool(response).await;
+        if let Some(ref response) = response {
+            if let Some(schema) = &response.json_schema {
+                if provider_supports_structured_output {
+                    *self.response_schema.lock().await = Some(schema.clone());
+                    return;
+                }
+            }
+
+            if include_final_output {
+                self.add_final_output_tool(response.clone()).await;
             }
         }
     }
@@ -1168,6 +1178,8 @@ impl Agent {
                     &working_dir,
                 ).await;
 
+                let response_schema = self.response_schema.lock().await.clone();
+
                 let mut stream = Self::stream_response_from_provider(
                     self.provider().await?,
                     &session_config.id,
@@ -1175,6 +1187,7 @@ impl Agent {
                     conversation_with_moim.messages(),
                     &tools,
                     &toolshim_tools,
+                    response_schema,
                 ).await?;
 
                 let mut no_tools_called = true;
@@ -1522,7 +1535,9 @@ impl Agent {
                 }
                 let mut exit_chat = false;
                 if no_tools_called {
-                    if let Some(final_output_tool) = self.final_output_tool.lock().await.as_ref() {
+                    if self.response_schema.lock().await.is_some() {
+                        exit_chat = true;
+                    } else if let Some(final_output_tool) = self.final_output_tool.lock().await.as_ref() {
                         if final_output_tool.final_output.is_none() {
                             warn!("Final output tool has not been called yet. Continuing agent loop.");
                             let message = Message::user().with_text(FINAL_OUTPUT_CONTINUATION_MESSAGE);

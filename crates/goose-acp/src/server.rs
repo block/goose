@@ -297,6 +297,7 @@ impl GooseAcpAgent {
             toolshim_model: None,
             fast_model: None,
             request_params: None,
+            response_schema: None,
         };
         let provider = create(&provider_name, model_config).await?;
         let goose_mode = config

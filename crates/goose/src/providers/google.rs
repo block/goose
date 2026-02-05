@@ -166,7 +166,13 @@ impl Provider for GoogleProvider {
         messages: &[Message],
         tools: &[Tool],
     ) -> Result<(Message, ProviderUsage), ProviderError> {
-        let payload = create_request(model_config, system, messages, tools)?;
+        let payload = create_request(
+            model_config,
+            system,
+            messages,
+            tools,
+            model_config.response_schema.as_ref(),
+        )?;
         let mut log = RequestLog::start(model_config, &payload)?;
 
         let response = self
@@ -211,6 +217,11 @@ impl Provider for GoogleProvider {
         true
     }
 
+    fn supports_structured_output(&self) -> bool {
+        // Gemini 2.x doesn't support both tools and structured output simultaneously
+        self.model.model_name.starts_with("gemini-3")
+    }
+
     async fn stream(
         &self,
         session_id: &str,
@@ -218,12 +229,34 @@ impl Provider for GoogleProvider {
         messages: &[Message],
         tools: &[Tool],
     ) -> Result<MessageStream, ProviderError> {
-        let payload = create_request(&self.model, system, messages, tools)?;
-        let mut log = RequestLog::start(&self.model, &payload)?;
+        self.stream_with_response_schema(session_id, system, messages, tools, None)
+            .await
+    }
+
+    async fn stream_with_response_schema(
+        &self,
+        _session_id: &str,
+        system: &str,
+        messages: &[Message],
+        tools: &[Tool],
+        response_schema: Option<serde_json::Value>,
+    ) -> Result<MessageStream, ProviderError> {
+        let mut model_config = self.model.clone();
+        if response_schema.is_some() {
+            model_config.response_schema = response_schema;
+        }
+        let payload = create_request(
+            &model_config,
+            system,
+            messages,
+            tools,
+            model_config.response_schema.as_ref(),
+        )?;
+        let mut log = RequestLog::start(&model_config, &payload)?;
 
         let response = self
             .with_retry(|| async {
-                self.post_stream(Some(session_id), &self.model.model_name, &payload)
+                self.post_stream(None, &model_config.model_name, &payload)
                     .await
             })
             .await

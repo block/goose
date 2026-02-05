@@ -183,6 +183,7 @@ impl Agent {
         messages: &[Message],
         tools: &[Tool],
         toolshim_tools: &[Tool],
+        response_schema: Option<serde_json::Value>,
     ) -> Result<MessageStream, ProviderError> {
         let config = provider.get_model_config();
 
@@ -207,7 +208,20 @@ impl Agent {
 
         // Capture errors during stream creation and return them as part of the stream
         // so they can be handled by the existing error handling logic in the agent
-        let stream_result = if provider.supports_streaming() {
+        let stream_result = if response_schema.is_some() {
+            debug!("WAITING_LLM_STRUCTURED_START");
+            let result = provider
+                .stream_with_response_schema(
+                    session_id,
+                    system_prompt.as_str(),
+                    messages_for_provider.messages(),
+                    &tools,
+                    response_schema,
+                )
+                .await;
+            debug!("WAITING_LLM_STRUCTURED_END");
+            result
+        } else if provider.supports_streaming() {
             debug!("WAITING_LLM_STREAM_START");
             let result = provider
                 .stream(

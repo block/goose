@@ -91,6 +91,7 @@ pub struct UpdateCustomProviderRequest {
     pub api_key: String,
     pub models: Vec<String>,
     pub supports_streaming: Option<bool>,
+    pub supports_structured_output: Option<bool>,
     pub headers: Option<std::collections::HashMap<String, String>>,
     #[serde(default = "default_requires_auth")]
     pub requires_auth: bool,
@@ -673,6 +674,7 @@ pub async fn create_custom_provider(
             api_key: request.api_key,
             models: request.models,
             supports_streaming: request.supports_streaming,
+            supports_structured_output: request.supports_structured_output,
             headers: request.headers,
             requires_auth: request.requires_auth,
         },
@@ -743,6 +745,7 @@ pub async fn update_custom_provider(
             api_key: request.api_key,
             models: request.models,
             supports_streaming: request.supports_streaming,
+            supports_structured_output: request.supports_structured_output,
             headers: request.headers,
             requires_auth: request.requires_auth,
         },

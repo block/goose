@@ -533,6 +533,10 @@ struct GenerationConfig {
     temperature: Option<f64>,
     #[serde(skip_serializing_if = "Option::is_none")]
     max_output_tokens: Option<i32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    response_mime_type: Option<&'static str>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    response_schema: Option<Value>,
 }
 
 #[derive(Serialize)]
@@ -551,6 +555,7 @@ pub fn create_request(
     system: &str,
     messages: &[Message],
     tools: &[Tool],
+    response_schema: Option<&Value>,
 ) -> Result<Value> {
     let tools_wrapper = if tools.is_empty() {
         None
@@ -560,15 +565,19 @@ pub fn create_request(
         })
     };
 
-    let generation_config =
-        if model_config.temperature.is_some() || model_config.max_tokens.is_some() {
-            Some(GenerationConfig {
-                temperature: model_config.temperature.map(|t| t as f64),
-                max_output_tokens: model_config.max_tokens,
-            })
-        } else {
-            None
-        };
+    let generation_config = if model_config.temperature.is_some()
+        || model_config.max_tokens.is_some()
+        || response_schema.is_some()
+    {
+        Some(GenerationConfig {
+            temperature: model_config.temperature.map(|t| t as f64),
+            max_output_tokens: model_config.max_tokens,
+            response_mime_type: response_schema.map(|_| "application/json"),
+            response_schema: response_schema.cloned(),
+        })
+    } else {
+        None
+    };
 
     let request = GoogleRequest {
         system_instruction: SystemInstruction {

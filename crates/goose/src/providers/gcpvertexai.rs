@@ -648,6 +648,13 @@ impl Provider for GcpVertexAIProvider {
         true
     }
 
+    fn supports_structured_output(&self) -> bool {
+        let model = &self.model.model_name;
+        // Only Gemini 3+ tested - Gemini 2.x can't use tools + structured output together
+        // Open models (DeepSeek, Llama) via Vertex AI not tested yet
+        model.starts_with("gemini-3")
+    }
+
     async fn stream(
         &self,
         session_id: &str,

@@ -54,6 +54,7 @@ pub struct AnthropicProvider {
     api_client: ApiClient,
     model: ModelConfig,
     supports_streaming: bool,
+    supports_structured_output: bool,
     name: String,
 }
 
@@ -75,10 +76,12 @@ impl AnthropicProvider {
         let api_client =
             ApiClient::new(host, auth)?.with_header("anthropic-version", ANTHROPIC_API_VERSION)?;
 
+        let supports_structured_output = Self::model_supports_structured_output(&model.model_name);
         Ok(Self {
             api_client,
             model,
             supports_streaming: true,
+            supports_structured_output,
             name: ANTHROPIC_PROVIDER_NAME.to_string(),
         })
     }
@@ -114,11 +117,19 @@ impl AnthropicProvider {
             api_client,
             model,
             supports_streaming: config.supports_streaming.unwrap_or(true),
+            supports_structured_output: config.supports_structured_output.unwrap_or(false),
             name: config.name.clone(),
         })
     }
 
-    fn get_conditional_headers(&self) -> Vec<(&str, &str)> {
+    fn model_supports_structured_output(model_name: &str) -> bool {
+        model_name.contains("sonnet-4-5")
+            || model_name.contains("opus-4-1")
+            || model_name.contains("opus-4-5")
+            || model_name.contains("haiku-4-5")
+    }
+
+    fn get_conditional_headers(&self, has_response_schema: bool) -> Vec<(&str, &str)> {
         let mut headers = Vec::new();
 
         let is_thinking_enabled = std::env::var("CLAUDE_THINKING_ENABLED").is_ok();
@@ -129,6 +140,11 @@ impl AnthropicProvider {
             headers.push(("anthropic-beta", "token-efficient-tools-2025-02-19"));
         }
 
+        // Anthropic requires beta header for structured output
+        if has_response_schema {
+            headers.push(("anthropic-beta", "structured-outputs-2025-11-13"));
+        }
+
         headers
     }
 
@@ -136,10 +152,11 @@ impl AnthropicProvider {
         &self,
         session_id: Option<&str>,
         payload: &Value,
+        has_response_schema: bool,
     ) -> Result<ApiResponse, ProviderError> {
         let mut request = self.api_client.request(session_id, "v1/messages");
 
-        for (key, value) in self.get_conditional_headers() {
+        for (key, value) in self.get_conditional_headers(has_response_schema) {
             request = request.header(key, value)?;
         }
 
@@ -232,10 +249,17 @@ impl Provider for AnthropicProvider {
         messages: &[Message],
         tools: &[Tool],
     ) -> Result<(Message, ProviderUsage), ProviderError> {
-        let payload = create_request(model_config, system, messages, tools)?;
+        let has_response_schema = model_config.response_schema.is_some();
+        let payload = create_request(
+            model_config,
+            system,
+            messages,
+            tools,
+            model_config.response_schema.as_ref(),
+        )?;
 
         let response = self
-            .with_retry(|| async { self.post(session_id, &payload).await })
+            .with_retry(|| async { self.post(session_id, &payload, has_response_schema).await })
             .await?;
 
         let json_response = Self::anthropic_api_call_result(response)?;
@@ -287,16 +311,40 @@ impl Provider for AnthropicProvider {
         messages: &[Message],
         tools: &[Tool],
     ) -> Result<MessageStream, ProviderError> {
-        let mut payload = create_request(&self.model, system, messages, tools)?;
+        self.stream_with_response_schema(session_id, system, messages, tools, None)
+            .await
+    }
+
+    async fn stream_with_response_schema(
+        &self,
+        _session_id: &str,
+        system: &str,
+        messages: &[Message],
+        tools: &[Tool],
+        response_schema: Option<serde_json::Value>,
+    ) -> Result<MessageStream, ProviderError> {
+        let mut model_config = self.model.clone();
+        let has_response_schema = response_schema.is_some();
+        if response_schema.is_some() {
+            model_config.response_schema = response_schema;
+        }
+
+        let mut payload = create_request(
+            &model_config,
+            system,
+            messages,
+            tools,
+            model_config.response_schema.as_ref(),
+        )?;
         payload
             .as_object_mut()
             .unwrap()
             .insert("stream".to_string(), Value::Bool(true));
 
-        let mut request = self.api_client.request(Some(session_id), "v1/messages");
-        let mut log = RequestLog::start(&self.model, &payload)?;
+        let mut request = self.api_client.request(None, "v1/messages");
+        let mut log = RequestLog::start(&model_config, &payload)?;
 
-        for (key, value) in self.get_conditional_headers() {
+        for (key, value) in self.get_conditional_headers(has_response_schema) {
             request = request.header(key, value)?;
         }
 
@@ -325,5 +373,9 @@ impl Provider for AnthropicProvider {
 
     fn supports_streaming(&self) -> bool {
         self.supports_streaming
+    }
+
+    fn supports_structured_output(&self) -> bool {
+        self.supports_structured_output
     }
 }

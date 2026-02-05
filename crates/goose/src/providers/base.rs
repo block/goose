@@ -396,7 +396,22 @@ pub trait Provider: Send + Sync {
         messages: &[Message],
         tools: &[Tool],
     ) -> Result<(Message, ProviderUsage), ProviderError> {
-        let model_config = self.get_model_config();
+        self.complete_with_response_schema(session_id, system, messages, tools, None)
+            .await
+    }
+
+    async fn complete_with_response_schema(
+        &self,
+        session_id: &str,
+        system: &str,
+        messages: &[Message],
+        tools: &[Tool],
+        response_schema: Option<serde_json::Value>,
+    ) -> Result<(Message, ProviderUsage), ProviderError> {
+        let mut model_config = self.get_model_config();
+        if response_schema.is_some() {
+            model_config.response_schema = response_schema;
+        }
         self.complete_with_model(Some(session_id), &model_config, system, messages, tools)
             .await
     }
@@ -559,7 +574,31 @@ pub trait Provider: Send + Sync {
         ))
     }
 
+    async fn stream_with_response_schema(
+        &self,
+        session_id: &str,
+        system: &str,
+        messages: &[Message],
+        tools: &[Tool],
+        response_schema: Option<serde_json::Value>,
+    ) -> Result<MessageStream, ProviderError> {
+        // If response_schema is provided, fall back to non-streaming for now
+        // (streaming + structured output requires provider-specific implementation)
+        if response_schema.is_some() {
+            let result = self
+                .complete_with_response_schema(session_id, system, messages, tools, response_schema)
+                .await?;
+            Ok(stream_from_single_message(result.0, result.1))
+        } else {
+            self.stream(session_id, system, messages, tools).await
+        }
+    }
+
     fn supports_streaming(&self) -> bool {
+        false
+    }
+
+    fn supports_structured_output(&self) -> bool {
         false
     }
 
