@@ -8,7 +8,6 @@ use serde_json::Value;
 use serde_yaml::Mapping;
 use std::collections::HashMap;
 use std::env;
-use std::ffi::OsString;
 use std::fs::OpenOptions;
 use std::io::Write;
 use std::path::{Path, PathBuf};
@@ -954,10 +953,10 @@ impl Config {
     }
 }
 
-config_value!(CLAUDE_CODE_COMMAND, OsString, "claude");
-config_value!(GEMINI_CLI_COMMAND, OsString, "gemini");
-config_value!(CURSOR_AGENT_COMMAND, OsString, "cursor-agent");
-config_value!(CODEX_COMMAND, OsString, "codex");
+config_value!(CLAUDE_CODE_COMMAND, String, "claude");
+config_value!(GEMINI_CLI_COMMAND, String, "gemini");
+config_value!(CURSOR_AGENT_COMMAND, String, "cursor-agent");
+config_value!(CODEX_COMMAND, String, "codex");
 config_value!(CODEX_REASONING_EFFORT, String, "high");
 config_value!(CODEX_ENABLE_SKILLS, String, "true");
 config_value!(CODEX_SKIP_GIT_CHECK, String, "false");
@@ -968,6 +967,7 @@ config_value!(GOOSE_PROVIDER, String);
 config_value!(GOOSE_MODEL, String);
 config_value!(GOOSE_PROMPT_EDITOR, Option<String>);
 config_value!(GOOSE_MAX_ACTIVE_AGENTS, usize);
+config_value!(GEMINI3_THINKING_LEVEL, String);
 
 /// Load init-config.yaml from workspace root if it exists.
 /// This function is shared between the config recovery and the init_config endpoint.

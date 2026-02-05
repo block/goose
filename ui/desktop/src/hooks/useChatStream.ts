@@ -705,6 +705,8 @@ export function useChatStream({
     async (messageId: string, newContent: string, editType: 'fork' | 'edit' = 'fork') => {
       const currentState = stateRef.current;
 
+      dispatch({ type: 'SET_CHAT_STATE', payload: ChatState.Thinking });
+
       try {
         const { forkSession } = await import('../api');
         const message = currentState.messages.find((m) => m.id === messageId);
@@ -731,6 +733,7 @@ export function useChatStream({
         }
 
         if (editType === 'fork') {
+          dispatch({ type: 'SET_CHAT_STATE', payload: ChatState.Idle });
           const event = new CustomEvent(AppEvents.SESSION_FORKED, {
             detail: {
               newSessionId: targetSessionId,
@@ -748,11 +751,61 @@ export function useChatStream({
           });
 
           if (sessionResponse.data?.conversation) {
+            const updatedMessages = [...sessionResponse.data.conversation];
+
+            if (updatedMessages.length > 0) {
+              const lastMessage = updatedMessages[updatedMessages.length - 1];
+              if (lastMessage.role === 'user') {
+                lastMessage.content = [{ type: 'text', text: newContent }];
+
+                for (const content of message.content) {
+                  if (content.type === 'image') {
+                    lastMessage.content.push(content);
+                  }
+                }
+
+                dispatch({ type: 'SET_MESSAGES', payload: updatedMessages });
+                dispatch({ type: 'START_STREAMING' });
+                abortControllerRef.current = new AbortController();
+
+                try {
+                  const placeholderMessage = createUserMessage(newContent);
+
+                  const { stream } = await reply({
+                    body: {
+                      session_id: targetSessionId,
+                      user_message: placeholderMessage,
+                    },
+                    throwOnError: true,
+                    signal: abortControllerRef.current.signal,
+                  });
+
+                  await streamFromResponse(
+                    stream,
+                    updatedMessages,
+                    dispatch,
+                    onFinish,
+                    targetSessionId
+                  );
+                } catch (error) {
+                  if (error instanceof Error && error.name === 'AbortError') {
+                    dispatch({ type: 'SET_CHAT_STATE', payload: ChatState.Idle });
+                  } else {
+                    throw error;
+                  }
+                }
+                return;
+              }
+            }
+
             dispatch({ type: 'SET_MESSAGES', payload: sessionResponse.data.conversation });
+            await handleSubmit({ msg: newContent, images: [] });
+          } else {
+            await handleSubmit({ msg: newContent, images: [] });
           }
-          await handleSubmit({ msg: newContent, images: [] });
         }
       } catch (error) {
+        dispatch({ type: 'SET_CHAT_STATE', payload: ChatState.Idle });
         const errorMsg = errorMessage(error);
         console.error('Failed to edit message:', error);
         const { toastError } = await import('../toasts');
@@ -762,7 +815,7 @@ export function useChatStream({
         });
       }
     },
-    [sessionId, handleSubmit]
+    [sessionId, handleSubmit, onFinish]
   );
 
   const setChatState = useCallback((newState: ChatState) => {

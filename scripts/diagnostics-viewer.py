@@ -1,6 +1,6 @@
 #!/usr/bin/env -S uv run --quiet --script
 # /// script
-# dependencies = ["textual>=0.87.0"]
+# dependencies = ["textual>=0.87.0", "pyperclip"]
 # ///
 """
 WARNING: entirely vibe coded. use as a throwaway tool
@@ -16,6 +16,8 @@ import sys
 import zipfile
 from pathlib import Path
 from typing import Optional, Any
+
+import pyperclip
 
 from textual.app import App, ComposeResult
 from textual.widgets import Header, Footer, Static, Tree, ListView, ListItem, Label, Input
@@ -145,6 +147,7 @@ class TextViewerModal(ModalScreen):
 
     BINDINGS = [
         Binding("escape,q,enter", "dismiss", "Close", show=True),
+        Binding("c", "copy", "Copy", show=True),
     ]
 
     def __init__(self, title: str, text: str):
@@ -158,11 +161,16 @@ class TextViewerModal(ModalScreen):
             yield Static(f"[bold]{self.title}[/bold]", id="modal-title")
             with VerticalScroll(id="modal-scroll"):
                 yield Static(self.text, id="modal-text")
-            yield Static("[dim]Press Escape, Q, or Enter to close[/dim]", id="modal-footer")
+            yield Static("[dim]Press C to copy, Escape/Q/Enter to close[/dim]", id="modal-footer")
 
     def action_dismiss(self):
         """Dismiss the modal."""
         self.app.pop_screen()
+
+    def action_copy(self):
+        """Copy the text to clipboard."""
+        pyperclip.copy(self.text)
+        self.notify("Copied to clipboard")
 
 
 class SearchOverlay(Container):
