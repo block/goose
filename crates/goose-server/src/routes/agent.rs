@@ -419,7 +419,6 @@ async fn update_from_session(
             message: format!("Failed to get session: {}", err),
             status: StatusCode::INTERNAL_SERVER_ERROR,
         })?;
-    // Only add recipe instructions if a recipe is configured
     if let Some(recipe) = session.recipe {
         match build_recipe_with_parameter_values(
             &recipe,
@@ -435,7 +434,7 @@ async fn update_from_session(
                 }
             }
             Ok(None) => {
-                // Recipe has missing parameters - no prompt to add
+                // Recipe has missing parameters
             }
             Err(e) => {
                 return Err(ErrorResponse {
@@ -704,7 +703,6 @@ async fn restart_agent_internal(
         status: StatusCode::INTERNAL_SERVER_ERROR,
     })?;
 
-    // Only add recipe instructions if a recipe is configured
     if let Some(ref recipe) = session.recipe {
         match build_recipe_with_parameter_values(
             recipe,
@@ -720,7 +718,7 @@ async fn restart_agent_internal(
                 }
             }
             Ok(None) => {
-                // Recipe has missing parameters - no prompt to add
+                // Recipe has missing parameters
             }
             Err(e) => {
                 return Err(ErrorResponse {
