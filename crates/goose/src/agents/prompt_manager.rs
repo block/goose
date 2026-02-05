@@ -291,9 +291,14 @@ mod tests {
     #[test]
     fn test_build_system_prompt_sanitizes_multiple_extras() {
         let mut manager = PromptManager::new();
-        manager.add_system_prompt_extra("test1".to_string(), "First\u{E0041}instruction".to_string());
-        manager.add_system_prompt_extra("test2".to_string(), "Second\u{E0042}instruction".to_string());
-        manager.add_system_prompt_extra("test3".to_string(), "Third\u{E0043}instruction".to_string());
+        manager
+            .add_system_prompt_extra("test1".to_string(), "First\u{E0041}instruction".to_string());
+        manager.add_system_prompt_extra(
+            "test2".to_string(),
+            "Second\u{E0042}instruction".to_string(),
+        );
+        manager
+            .add_system_prompt_extra("test3".to_string(), "Third\u{E0043}instruction".to_string());
 
         let result = manager.builder().build();
 
