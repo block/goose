@@ -19,7 +19,7 @@ The **[Container Use MCP](https://github.com/dagger/container-use)** server prov
 - Work on things in parallel
 
 :::info Already Using Devcontainers?
-If you develop inside Docker containers (like VS Code Remote-Containers), see how you can [run extensions in your existing containers](/docs/tutorials/goose-in-docker#running-extensions-in-docker-containers) .
+If you develop inside Docker containers (like VS Code Remote-Containers), see how you can [run extensions in your existing containers](/docs/tutorials/goose-in-docker#running-extensions-in-docker-containers).
 :::
 
 ## Prerequisites
