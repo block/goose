@@ -75,7 +75,12 @@ impl LmStudioProvider {
         // Get optional API token for authentication
         let api_token = config.get_param::<String>("LMSTUDIO_API_TOKEN").ok();
 
-        let api_client = ApiClient::new(&base_url, api_token)?;
+        let auth = match api_token {
+            Some(token) => super::api_client::AuthMethod::BearerToken(token),
+            None => super::api_client::AuthMethod::NoAuth,
+        };
+
+        let api_client = ApiClient::new(base_url, auth)?;
 
         Ok(Arc::new(OpenAiCompatibleProvider::new(
             "lmstudio".to_string(),
@@ -102,7 +107,12 @@ impl ProviderDef for LmStudioProvider {
 
             let api_token = config.get_param::<String>("LMSTUDIO_API_TOKEN").ok();
 
-            let api_client = ApiClient::new(&base_url, api_token)?;
+            let auth = match api_token {
+                Some(token) => super::api_client::AuthMethod::BearerToken(token),
+                None => super::api_client::AuthMethod::NoAuth,
+            };
+
+            let api_client = ApiClient::new(base_url, auth)?;
 
             Ok(OpenAiCompatibleProvider::new(
                 "lmstudio".to_string(),
