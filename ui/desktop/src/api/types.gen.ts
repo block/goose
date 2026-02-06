@@ -3571,12 +3571,12 @@ export type SearchSessionsErrors = {
 
 export type SearchSessionsResponses = {
     /**
-     * Search results
+     * Matching sessions
      */
     200: Array<Session>;
 };
 
-export type SearchSessionsResponse2 = SearchSessionsResponses[keyof SearchSessionsResponses];
+export type SearchSessionsResponse = SearchSessionsResponses[keyof SearchSessionsResponses];
 
 export type DeleteSessionData = {
     body?: never;
