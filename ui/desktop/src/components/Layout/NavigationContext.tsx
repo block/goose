@@ -20,7 +20,6 @@ export interface NavigationPreferences {
 export const DEFAULT_ITEM_ORDER = [
   'home',
   'chat',
-  'history',
   'recipes',
   'apps',
   'scheduler',

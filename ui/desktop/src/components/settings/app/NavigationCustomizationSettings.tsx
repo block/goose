@@ -1,12 +1,15 @@
 import React, { useState } from 'react';
 import { GripVertical, Eye, EyeOff } from 'lucide-react';
-import { useNavigationContext, DEFAULT_ITEM_ORDER, DEFAULT_ENABLED_ITEMS } from '../../Layout/NavigationContext';
+import {
+  useNavigationContext,
+  DEFAULT_ITEM_ORDER,
+  DEFAULT_ENABLED_ITEMS,
+} from '../../Layout/NavigationContext';
 import { cn } from '../../../utils';
 
 const ITEM_LABELS: Record<string, string> = {
   home: 'Home',
   chat: 'Chat',
-  history: 'History',
   recipes: 'Recipes',
   apps: 'Apps',
   scheduler: 'Scheduler',
