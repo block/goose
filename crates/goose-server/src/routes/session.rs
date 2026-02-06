@@ -511,7 +511,6 @@ pub fn routes(state: Arc<AppState>) -> Router {
         )
         .with_state(state)
 }
-
 #[derive(Deserialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct SearchSessionsQuery {
@@ -530,43 +529,6 @@ fn default_limit() -> usize {
     10
 }
 
-#[derive(Serialize, ToSchema)]
-#[serde(rename_all = "camelCase")]
-pub struct SearchSessionsResponse {
-    /// Search results grouped by session
-    results: Vec<SearchSessionResult>,
-    /// Total number of matching messages
-    total_matches: usize,
-}
-
-#[derive(Serialize, ToSchema)]
-#[serde(rename_all = "camelCase")]
-pub struct SearchSessionResult {
-    /// Session ID
-    session_id: String,
-    /// Session name/description
-    session_name: String,
-    /// Session working directory
-    working_dir: String,
-    /// Last activity timestamp
-    last_activity: chrono::DateTime<chrono::Utc>,
-    /// Total messages in this session
-    total_messages: usize,
-    /// Matching messages with context
-    matches: Vec<SearchMatch>,
-}
-
-#[derive(Serialize, ToSchema)]
-#[serde(rename_all = "camelCase")]
-pub struct SearchMatch {
-    /// Message role (user/assistant)
-    role: String,
-    /// Message content (may be truncated)
-    content: String,
-    /// Message timestamp
-    timestamp: chrono::DateTime<chrono::Utc>,
-}
-
 #[utoipa::path(
     get,
     path = "/sessions/search",
@@ -577,7 +539,7 @@ pub struct SearchMatch {
         ("before_date" = Option<String>, Query, description = "Filter before date (ISO 8601)")
     ),
     responses(
-        (status = 200, description = "Search results", body = SearchSessionsResponse),
+        (status = 200, description = "Matching sessions", body = Vec<Session>),
         (status = 400, description = "Bad request - Invalid query"),
         (status = 401, description = "Unauthorized"),
         (status = 500, description = "Internal server error")
@@ -590,7 +552,7 @@ pub struct SearchMatch {
 async fn search_sessions(
     State(state): State<Arc<AppState>>,
     axum::extract::Query(params): axum::extract::Query<SearchSessionsQuery>,
-) -> Result<Json<SearchSessionsResponse>, StatusCode> {
+) -> Result<Json<Vec<Session>>, StatusCode> {
     let query = params.query.trim();
     if query.is_empty() {
         return Err(StatusCode::BAD_REQUEST);
@@ -614,33 +576,23 @@ async fn search_sessions(
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
-    let results: Vec<SearchSessionResult> = search_results
+    // Get full Session objects for matching session IDs
+    let session_ids: Vec<String> = search_results
         .results
         .into_iter()
-        .map(|r| SearchSessionResult {
-            session_id: r.session_id,
-            session_name: r.session_description,
-            working_dir: r.session_working_dir,
-            last_activity: r.last_activity,
-            total_messages: r.total_messages_in_session,
-            matches: r
-                .messages
-                .into_iter()
-                .map(|m| SearchMatch {
-                    role: m.role,
-                    content: if m.content.len() > 500 {
-                        format!("{}...", m.content.chars().take(500).collect::<String>())
-                    } else {
-                        m.content
-                    },
-                    timestamp: m.timestamp,
-                })
-                .collect(),
-        })
+        .map(|r| r.session_id)
         .collect();
 
-    Ok(Json(SearchSessionsResponse {
-        total_matches: search_results.total_matches,
-        results,
-    }))
+    let all_sessions = state
+        .session_manager()
+        .list_sessions()
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    let matching_sessions: Vec<Session> = all_sessions
+        .into_iter()
+        .filter(|s| session_ids.contains(&s.id))
+        .collect();
+
+    Ok(Json(matching_sessions))
 }

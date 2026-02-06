@@ -355,44 +355,16 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
 
       // Call the backend search API for content search
       const performSearch = async () => {
-        try {
-          const resp = await searchSessions({
-            query: { query: debouncedSearchTerm },
-            throwOnError: true,
-          });
-          
-          const matchedSessionIds = new Set(resp.data.results.map((r: { sessionId: string }) => r.sessionId));
+        const resp = await searchSessions({
+          query: { query: debouncedSearchTerm },
+        });
+        
+        if (resp.data) {
+          // Response is Vec<Session> - sessions that match the search
+          const matchedSessionIds = new Set(resp.data.map((s: { id: string }) => s.id));
           const filtered = sessions.filter((session) => matchedSessionIds.has(session.id));
           
           startTransition(() => {
-            setFilteredSessions(filtered);
-            setSearchResults(filtered.length > 0 ? { count: filtered.length, currentIndex: 1 } : null);
-          });
-        } catch (error) {
-          console.error('Search failed, falling back to client-side:', error);
-          // Fallback to client-side search on error
-          startTransition(() => {
-            const searchTerm = caseSensitive ? debouncedSearchTerm : debouncedSearchTerm.toLowerCase();
-            const filtered = sessions.filter((session) => {
-              const description = session.name;
-              const workingDir = session.working_dir;
-              const sessionId = session.id;
-
-              if (caseSensitive) {
-                return (
-                  description.includes(searchTerm) ||
-                  sessionId.includes(searchTerm) ||
-                  workingDir.includes(searchTerm)
-                );
-              } else {
-                return (
-                  description.toLowerCase().includes(searchTerm) ||
-                  sessionId.toLowerCase().includes(searchTerm) ||
-                  workingDir.toLowerCase().includes(searchTerm)
-                );
-              }
-            });
-
             setFilteredSessions(filtered);
             setSearchResults(filtered.length > 0 ? { count: filtered.length, currentIndex: 1 } : null);
           });

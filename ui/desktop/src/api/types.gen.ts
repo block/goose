@@ -1002,59 +1002,6 @@ export type ScheduledJob = {
     source: string;
 };
 
-export type SearchMatch = {
-    /**
-     * Message content (may be truncated)
-     */
-    content: string;
-    /**
-     * Message role (user/assistant)
-     */
-    role: string;
-    /**
-     * Message timestamp
-     */
-    timestamp: string;
-};
-
-export type SearchSessionResult = {
-    /**
-     * Last activity timestamp
-     */
-    lastActivity: string;
-    /**
-     * Matching messages with context
-     */
-    matches: Array<SearchMatch>;
-    /**
-     * Session ID
-     */
-    sessionId: string;
-    /**
-     * Session name/description
-     */
-    sessionName: string;
-    /**
-     * Total messages in this session
-     */
-    totalMessages: number;
-    /**
-     * Session working directory
-     */
-    workingDir: string;
-};
-
-export type SearchSessionsResponse = {
-    /**
-     * Search results grouped by session
-     */
-    results: Array<SearchSessionResult>;
-    /**
-     * Total number of matching messages
-     */
-    totalMatches: number;
-};
-
 export type Session = {
     accumulated_input_tokens?: number | null;
     accumulated_output_tokens?: number | null;
@@ -3626,7 +3573,7 @@ export type SearchSessionsResponses = {
     /**
      * Search results
      */
-    200: SearchSessionsResponse;
+    200: Array<Session>;
 };
 
 export type SearchSessionsResponse2 = SearchSessionsResponses[keyof SearchSessionsResponses];
