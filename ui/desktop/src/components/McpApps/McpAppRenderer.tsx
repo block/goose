@@ -371,8 +371,8 @@ export default function McpAppRenderer({
 
   // Context passed to the MCP app describing the host environment.
   // Apps can use this to adapt their UI (e.g., theme, display mode).
-  const hostContext = useMemo(
-    (): McpUiHostContext => ({
+  const hostContext = useMemo((): McpUiHostContext => {
+    const context: McpUiHostContext = {
       theme: resolvedTheme,
       displayMode: displayMode === 'standalone' ? 'fullscreen' : displayMode,
       availableDisplayModes: AVAILABLE_DISPLAY_MODES,
@@ -384,9 +384,19 @@ export default function McpAppRenderer({
         touch: false,
         hover: true,
       },
-    }),
-    [resolvedTheme, displayMode]
-  );
+    };
+
+    // For inline mode, provide current dimensions so apps can adapt their layout.
+    // For fullscreen/standalone, the app fills the container so dimensions aren't needed.
+    if (displayMode === 'inline') {
+      context.containerDimensions = {
+        maxWidth: iframeWidth ?? undefined,
+        maxHeight: iframeHeight,
+      };
+    }
+
+    return context;
+  }, [resolvedTheme, displayMode, iframeWidth, iframeHeight]);
 
   // Transform our API's CallToolResponse to the SDK's CallToolResult format.
   // Maps content items to the expected shape with proper type literals.
