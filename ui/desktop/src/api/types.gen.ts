@@ -3925,9 +3925,17 @@ export type SessionSearchMatch = {
 };
 
 export type SessionSearchResponse = {
+    results: Array<SessionSearchResult>;
+    totalMatches: number;
+};
+
+export type SessionSearchResult = {
+    sessionId: string;
+    sessionName: string;
+    workingDir: string;
+    lastActivity: string;
+    totalMessages: number;
     matches: Array<SessionSearchMatch>;
-    query: string;
-    total_matches: number;
 };
 
 export type SearchSessionsResponses = {

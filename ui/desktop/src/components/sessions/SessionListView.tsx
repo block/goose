@@ -361,7 +361,7 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
             throwOnError: true,
           });
           
-          const matchedSessionIds = new Set(resp.data.results.map((r: { session_id: string }) => r.session_id));
+          const matchedSessionIds = new Set(resp.data.results.map((r: { sessionId: string }) => r.sessionId));
           const filtered = sessions.filter((session) => matchedSessionIds.has(session.id));
           
           startTransition(() => {
