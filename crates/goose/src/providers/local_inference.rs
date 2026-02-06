@@ -29,7 +29,6 @@ pub const LOCAL_LLM_MODEL_CONFIG_KEY: &str = "LOCAL_LLM_MODEL";
 
 // Load tiny model system prompt with environment context
 fn load_tiny_model_prompt() -> String {
-    use serde_json::json;
     use std::env;
 
     let os = if cfg!(target_os = "macos") {
@@ -54,12 +53,12 @@ fn load_tiny_model_prompt() -> String {
         "shell": shell,
     });
 
-    crate::prompt_template::render_template("tiny_model_system.md", &context)
-        .unwrap_or_else(|e| {
-            // Fallback if template fails to load
-            eprintln!("WARNING: Failed to load tiny_model_system.md: {:?}", e);
-            "You are Goose, an AI assistant. You can execute shell commands by starting lines with $.".to_string()
-        })
+    crate::prompt_template::render_template("tiny_model_system.md", &context).unwrap_or_else(|e| {
+        // Fallback if template fails to load
+        eprintln!("WARNING: Failed to load tiny_model_system.md: {:?}", e);
+        "You are Goose, an AI assistant. You can execute shell commands by starting lines with $."
+            .to_string()
+    })
 }
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, ToSchema, PartialEq, Eq)]
@@ -220,7 +219,7 @@ struct LoadedModel {
     model: ModelWeights,
     tokenizer: Tokenizer,
     device: Device,
-    eos_token_id: u32,
+    eos_token_ids: Vec<u32>,
 }
 
 /// Streaming parser for emulator commands
@@ -354,20 +353,20 @@ impl LocalInferenceProvider {
 
     async fn load_model(model_id: &str) -> Result<LoadedModel, ProviderError> {
         // Get model definition
-        let model = get_local_model(model_id)
+        let model_info = get_local_model(model_id)
             .ok_or_else(|| ProviderError::ExecutionError(format!("Unknown model: {}", model_id)))?;
 
-        let model_path = model.local_path();
-        let tokenizer_path = model.tokenizer_path();
+        let model_path = model_info.local_path();
+        let tokenizer_path = model_info.tokenizer_path();
 
         if !model_path.exists() {
             return Err(ProviderError::ExecutionError(format!(
                 "Model not downloaded: {}. Please download it from Settings > Local Inference.",
-                model.name
+                model_info.name
             )));
         }
 
-        tracing::info!("Loading {} from: {}", model.name, model_path.display());
+        tracing::info!("Loading {} from: {}", model_info.name, model_path.display());
 
         // Device selection (from whisper.rs pattern)
         let device = if let Ok(device) = Device::new_metal(0) {
@@ -485,17 +484,37 @@ impl LocalInferenceProvider {
             )));
         };
 
+        // Build list of EOS token IDs: start with architecture default, then add template-specific ones
+        let mut eos_token_ids = vec![eos_token_id];
+
+        // Look up token IDs for the chat template's EOS strings from tokenizer
+        for eos_str in model_info.chat_template.eos_strings() {
+            if let Some(token_id) = tokenizer.token_to_id(eos_str) {
+                if !eos_token_ids.contains(&token_id) {
+                    eos_token_ids.push(token_id);
+                }
+            } else {
+                tracing::warn!("EOS string '{}' not found in tokenizer vocabulary", eos_str);
+            }
+        }
+
         tracing::info!("Model loaded successfully");
 
         Ok(LoadedModel {
             model,
             tokenizer,
             device,
-            eos_token_id,
+            eos_token_ids,
         })
     }
 
-    fn build_prompt(&self, system: &str, messages: &[Message], template: ChatTemplate, tools: &[Tool]) -> String {
+    fn build_prompt(
+        &self,
+        system: &str,
+        messages: &[Message],
+        template: ChatTemplate,
+        tools: &[Tool],
+    ) -> String {
         match template {
             ChatTemplate::Llama3 => Self::format_llama3(system, messages, tools),
             ChatTemplate::ChatML => Self::format_chatml(system, messages, tools),
@@ -552,7 +571,11 @@ impl LocalInferenceProvider {
                 }
                 prompt.push_str("# Tools\n\nYou have access to the following tools:\n\n");
                 for tool in tools {
-                    let desc = tool.description.as_ref().map(|d| d.as_ref()).unwrap_or("No description");
+                    let desc = tool
+                        .description
+                        .as_ref()
+                        .map(|d| d.as_ref())
+                        .unwrap_or("No description");
                     prompt.push_str(&format!("- {}: {}\n", tool.name, desc));
                 }
             }
@@ -655,7 +678,6 @@ impl LocalInferenceProvider {
 
         prompt
     }
-
 }
 
 impl ProviderDef for LocalInferenceProvider {
@@ -729,7 +751,9 @@ impl Provider for LocalInferenceProvider {
         use futures::StreamExt;
 
         // Just call stream and accumulate results
-        let mut stream = self.stream(session_id.unwrap_or(""), system, messages, tools).await?;
+        let mut stream = self
+            .stream(session_id.unwrap_or(""), system, messages, tools)
+            .await?;
 
         let mut accumulated_message = Message::assistant();
         let mut final_usage = None;
@@ -832,22 +856,23 @@ impl Provider for LocalInferenceProvider {
                 .decode(&[next_token], false)
                 .map_err(|e| ProviderError::ExecutionError(format!("Failed to decode token: {}", e)))?;
 
-            // Process first token through parser
+            // Process first token through parser (skip if EOS)
             let mut tool_call_emitted = false;
-            let parse_results = parser.process_chunk(&decoded);
-            for (text, command) in parse_results {
-                if let Some(text) = text {
-                    let mut message = Message::assistant().with_text(&text);
-                    message.id = Some(message_id.clone());
-                    yield (Some(message), None);
-                }
-                if let Some(command) = command {
-                    // Create tool request
-                    let tool_id = Uuid::new_v4().to_string();
-                    let mut args = serde_json::Map::new();
-                    args.insert("command".to_string(), json!(command));
+            if !loaded.eos_token_ids.contains(&next_token) {
+                let parse_results = parser.process_chunk(&decoded);
+                for (text, command) in parse_results {
+                    if let Some(text) = text {
+                        let mut message = Message::assistant().with_text(&text);
+                        message.id = Some(message_id.clone());
+                        yield (Some(message), None);
+                    }
+                    if let Some(command) = command {
+                        // Create tool request
+                        let tool_id = Uuid::new_v4().to_string();
+                        let mut args = serde_json::Map::new();
+                        args.insert("command".to_string(), json!(command));
 
-                    let tool_call = CallToolRequestParams {
+                        let tool_call = CallToolRequestParams {
                         meta: None,
                         task: None,
                         name: Cow::Borrowed("developer__shell"),
@@ -862,6 +887,7 @@ impl Provider for LocalInferenceProvider {
                     // Stop after first tool call
                     tool_call_emitted = true;
                 }
+                }
             }
 
             // GENERATION LOOP: Generate remaining tokens (only if no tool call yet)
@@ -871,7 +897,7 @@ impl Provider for LocalInferenceProvider {
             if !tool_call_emitted {
                 for index in 0..max_output.saturating_sub(1) {
                 // Check for EOS tokens
-                if next_token == loaded.eos_token_id || next_token == 128009 {
+                if loaded.eos_token_ids.contains(&next_token) {
                     break;
                 }
 
@@ -896,6 +922,11 @@ impl Provider for LocalInferenceProvider {
                     .map_err(|e| ProviderError::ExecutionError(format!("Failed to sample token: {}", e)))?
                     .to_scalar::<u32>()
                     .map_err(|e| ProviderError::ExecutionError(format!("Failed to convert token: {}", e)))?;
+
+                // Check for EOS before decoding/yielding
+                if loaded.eos_token_ids.contains(&next_token) {
+                    break;
+                }
 
                 // Count the generated token
                 output_token_count += 1;
