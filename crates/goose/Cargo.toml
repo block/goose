@@ -128,6 +128,7 @@ ignore = { workspace = true }
 which = { workspace = true }
 pctx_code_mode = "^0.2.3"
 unbinder = "0.1.7"
+goose-decentralized-models = { version = "1.23.0", path = "../goose-decentralized-models" }
 
 [target.'cfg(target_os = "windows")'.dependencies]
 winapi = { version = "0.3", features = ["wincred"] }
