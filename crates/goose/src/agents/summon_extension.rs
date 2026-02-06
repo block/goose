@@ -361,13 +361,14 @@ impl SummonClient {
              Modes:\n\
              1. Ad-hoc: Provide `instructions` for a custom task\n\
              2. Source-based: Provide `source` name to run a subrecipe, recipe, skill, or agent\n\
-             3. Combined: Provide both `source` and `instructions` for additional context\n\n\
-             Options:\n\
-             - `extensions`: Limit which extensions the subagent can use\n\
-             - `provider`, `model`, `temperature`: Override model/provider settings\n\
-             - `async`: Run in background (default: false)\n\n\
-             Parallel execution requires `async: true`.\n\
-             Background tasks report status automatically in context."
+             3. Combined: Pair a source with a task (e.g., source: \"rust-patterns\", instructions: \"review auth.rs\")\n\n\
+             Effective Delegation:\n\
+             - Delegates know only instructions + source content\n\
+             - Delegates cannot coordinate. Same-file work = conflicts.\n\
+             - Parallel: async: true, sleep to poll. Single: sync.\n\n\
+             Research (read-only): parallelize freely - delegates explore and report back.\n\
+             Work (writes): partition files strictly - no two delegates touch the same file.\n\n\
+             Decompose → async delegates → sleep → synthesize."
                 .to_string(),
             schema.as_object().unwrap().clone(),
         )
