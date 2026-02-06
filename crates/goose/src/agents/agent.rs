@@ -1417,36 +1417,56 @@ impl Agent {
                                     }
                                 }
 
-                                // Preserve thinking content from the original response
-                                // Gemini (and other thinking models) require thinking to be echoed back
-                                let thinking_content: Vec<MessageContent> = response.content.iter()
-                                    .filter(|c| matches!(c, MessageContent::Thinking(_)))
-                                    .cloned()
-                                    .collect();
-                                if !thinking_content.is_empty() {
-                                    let thinking_msg = Message::new(
-                                        response.role.clone(),
-                                        response.created,
-                                        thinking_content,
-                                    ).with_id(format!("msg_{}", Uuid::new_v4()));
-                                    messages_to_add.push(thinking_msg);
-                                }
+                                let should_split = self.provider().await
+                                    .map(|p| p.should_split_tool_messages())
+                                    .unwrap_or(false);
 
-                                for (idx, request) in frontend_requests.iter().chain(remaining_requests.iter()).enumerate() {
-                                    if request.tool_call.is_ok() {
-                                        let request_msg = Message::assistant()
-                                            .with_id(format!("msg_{}", Uuid::new_v4()))
-                                            .with_tool_request_with_metadata(
-                                                request.id.clone(),
-                                                request.tool_call.clone(),
-                                                request.metadata.as_ref(),
-                                                request.tool_meta.clone(),
-                                            );
-                                        messages_to_add.push(request_msg);
-                                        let final_response = tool_response_messages[idx]
-                                                                .lock().await.clone();
-                                        yield AgentEvent::Message(final_response.clone());
-                                        messages_to_add.push(final_response);
+                                if should_split {
+                                    // Split mode (Google/Gemini): separate thinking and individual
+                                    // tool call messages. Gemini requires thinking to be echoed back
+                                    // as a separate message, and each tool call in its own message.
+                                    let thinking_content: Vec<MessageContent> = response.content.iter()
+                                        .filter(|c| matches!(c, MessageContent::Thinking(_)))
+                                        .cloned()
+                                        .collect();
+                                    if !thinking_content.is_empty() {
+                                        let thinking_msg = Message::new(
+                                            response.role.clone(),
+                                            response.created,
+                                            thinking_content,
+                                        ).with_id(format!("msg_{}", Uuid::new_v4()));
+                                        messages_to_add.push(thinking_msg);
+                                    }
+
+                                    for (idx, request) in frontend_requests.iter().chain(remaining_requests.iter()).enumerate() {
+                                        if request.tool_call.is_ok() {
+                                            let request_msg = Message::assistant()
+                                                .with_id(format!("msg_{}", Uuid::new_v4()))
+                                                .with_tool_request_with_metadata(
+                                                    request.id.clone(),
+                                                    request.tool_call.clone(),
+                                                    request.metadata.as_ref(),
+                                                    request.tool_meta.clone(),
+                                                );
+                                            messages_to_add.push(request_msg);
+                                            let final_response = tool_response_messages[idx]
+                                                                    .lock().await.clone();
+                                            yield AgentEvent::Message(final_response.clone());
+                                            messages_to_add.push(final_response);
+                                        }
+                                    }
+                                } else {
+                                    // Non-split mode (OpenAI-compatible providers including Moonshot):
+                                    // Keep the original response message intact with all tool_calls
+                                    // and reasoning_content together, then append tool responses.
+                                    messages_to_add.push(response.clone());
+                                    for (idx, request) in frontend_requests.iter().chain(remaining_requests.iter()).enumerate() {
+                                        if request.tool_call.is_ok() {
+                                            let final_response = tool_response_messages[idx]
+                                                                    .lock().await.clone();
+                                            yield AgentEvent::Message(final_response.clone());
+                                            messages_to_add.push(final_response);
+                                        }
                                     }
                                 }
 

@@ -648,6 +648,10 @@ impl Provider for GcpVertexAIProvider {
         true
     }
 
+    fn should_split_tool_messages(&self) -> bool {
+        true
+    }
+
     async fn stream(
         &self,
         session_id: &str,
