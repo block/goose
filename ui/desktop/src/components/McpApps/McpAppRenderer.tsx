@@ -376,7 +376,14 @@ export default function McpAppRenderer({
       theme: resolvedTheme,
       displayMode: displayMode === 'standalone' ? 'fullscreen' : displayMode,
       availableDisplayModes: AVAILABLE_DISPLAY_MODES,
-      // TODO: add remaining properties (aharvard)
+      locale: navigator.language,
+      timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+      userAgent: 'Goose',
+      platform: 'desktop',
+      deviceCapabilities: {
+        touch: false,
+        hover: true,
+      },
     }),
     [resolvedTheme, displayMode]
   );
