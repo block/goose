@@ -16,7 +16,7 @@ interface SessionsListProps {
   getSessionStatus: (sessionId: string) => SessionStatus | undefined;
   clearUnread: (sessionId: string) => void;
   onSessionClick: (sessionId: string) => void;
-  onSessionRenamed?: (sessionId: string, newName: string) => void;
+  onSessionRenamed?: () => void;
 }
 
 export const SessionsList: React.FC<SessionsListProps> = ({
@@ -36,7 +36,7 @@ export const SessionsList: React.FC<SessionsListProps> = ({
         path: { session_id: sessionId },
         body: { name: newName },
       });
-      onSessionRenamed?.(sessionId, newName);
+      onSessionRenamed?.();
     },
     [onSessionRenamed]
   );

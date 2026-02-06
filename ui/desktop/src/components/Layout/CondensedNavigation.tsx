@@ -328,6 +328,7 @@ export const CondensedNavigation: React.FC<CondensedNavigationProps> = ({ classN
                       getSessionStatus={getSessionStatus}
                       clearUnread={clearUnread}
                       onSessionClick={handleSessionClick}
+                      onSessionRenamed={fetchSessions}
                     />
                   )}
                 </div>
