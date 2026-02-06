@@ -1112,15 +1112,20 @@ impl Agent {
         let provider = self.provider().await?;
         let session_manager = self.config.session_manager.clone();
         let session_id = session_config.id.clone();
-        let manager_for_spawn = session_manager.clone();
-        tokio::spawn(async move {
-            if let Err(e) = manager_for_spawn
-                .maybe_update_name(&session_id, provider)
-                .await
-            {
-                warn!("Failed to generate session description: {}", e);
-            }
-        });
+        let naming_disabled = Config::global()
+            .get_goose_disable_session_naming()
+            .unwrap_or(false);
+        if !naming_disabled {
+            let manager_for_spawn = session_manager.clone();
+            tokio::spawn(async move {
+                if let Err(e) = manager_for_spawn
+                    .maybe_update_name(&session_id, provider)
+                    .await
+                {
+                    warn!("Failed to generate session description: {}", e);
+                }
+            });
+        }
 
         let working_dir = session.working_dir.clone();
         Ok(Box::pin(async_stream::try_stream! {
