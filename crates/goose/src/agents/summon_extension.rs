@@ -469,33 +469,28 @@ impl SummonClient {
         let home = dirs::home_dir();
         let config = Paths::config_dir();
 
-        // Recipes: local → GOOSE_RECIPE_PATH → global
-        let recipe_dirs: Vec<PathBuf> = [
-            Some(working_dir.to_path_buf()),
-            Some(working_dir.join(".goose/recipes")),
-        ]
-        .into_iter()
-        .flatten()
-        .chain(
-            std::env::var("GOOSE_RECIPE_PATH")
-                .ok()
-                .into_iter()
-                .flat_map(|p| {
-                    let sep = if cfg!(windows) { ';' } else { ':' };
-                    p.split(sep).map(PathBuf::from).collect::<Vec<_>>()
-                }),
-        )
-        .chain([config.join("recipes")])
-        .collect();
+        let local_recipe_dirs: Vec<PathBuf> = vec![
+            working_dir.to_path_buf(),
+            working_dir.join(".goose/recipes"),
+        ];
 
-        for dir in recipe_dirs {
-            self.scan_recipes_dir(&dir, SourceKind::Recipe, &mut sources, &mut seen);
-        }
+        let global_recipe_dirs: Vec<PathBuf> = std::env::var("GOOSE_RECIPE_PATH")
+            .ok()
+            .into_iter()
+            .flat_map(|p| {
+                let sep = if cfg!(windows) { ';' } else { ':' };
+                p.split(sep).map(PathBuf::from).collect::<Vec<_>>()
+            })
+            .chain([config.join("recipes")])
+            .collect();
 
-        let skill_dirs: Vec<PathBuf> = [
-            Some(working_dir.join(".goose/skills")),
-            Some(working_dir.join(".claude/skills")),
-            Some(working_dir.join(".agents/skills")),
+        let local_skill_dirs: Vec<PathBuf> = vec![
+            working_dir.join(".goose/skills"),
+            working_dir.join(".claude/skills"),
+            working_dir.join(".agents/skills"),
+        ];
+
+        let global_skill_dirs: Vec<PathBuf> = [
             Some(config.join("skills")),
             home.as_ref().map(|h| h.join(".claude/skills")),
             home.as_ref().map(|h| h.join(".config/agents/skills")),
@@ -504,8 +499,41 @@ impl SummonClient {
         .flatten()
         .collect();
 
-        for dir in skill_dirs {
+        let local_agent_dirs: Vec<PathBuf> = vec![
+            working_dir.join(".goose/agents"),
+            working_dir.join(".claude/agents"),
+        ];
+
+        let global_agent_dirs: Vec<PathBuf> = [
+            Some(config.join("agents")),
+            home.as_ref().map(|h| h.join(".claude/agents")),
+        ]
+        .into_iter()
+        .flatten()
+        .collect();
+
+        for dir in local_recipe_dirs {
+            self.scan_recipes_dir(&dir, SourceKind::Recipe, &mut sources, &mut seen);
+        }
+
+        for dir in local_skill_dirs {
             self.scan_skills_dir(&dir, &mut sources, &mut seen);
+        }
+
+        for dir in local_agent_dirs {
+            self.scan_agents_dir(&dir, &mut sources, &mut seen);
+        }
+
+        for dir in global_recipe_dirs {
+            self.scan_recipes_dir(&dir, SourceKind::Recipe, &mut sources, &mut seen);
+        }
+
+        for dir in global_skill_dirs {
+            self.scan_skills_dir(&dir, &mut sources, &mut seen);
+        }
+
+        for dir in global_agent_dirs {
+            self.scan_agents_dir(&dir, &mut sources, &mut seen);
         }
 
         for content in builtin_skills::get_all() {
@@ -518,20 +546,6 @@ impl SummonClient {
                     });
                 }
             }
-        }
-
-        let agent_dirs: Vec<PathBuf> = [
-            Some(working_dir.join(".goose/agents")),
-            Some(working_dir.join(".claude/agents")),
-            Some(config.join("agents")),
-            home.as_ref().map(|h| h.join(".claude/agents")),
-        ]
-        .into_iter()
-        .flatten()
-        .collect();
-
-        for dir in agent_dirs {
-            self.scan_agents_dir(&dir, &mut sources, &mut seen);
         }
 
         sources
