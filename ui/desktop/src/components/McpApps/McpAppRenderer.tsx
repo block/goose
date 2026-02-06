@@ -347,8 +347,9 @@ export default function McpAppRenderer({
     setError(errorMessage(err));
   }, []);
 
-  // TODO: Add onRequest handler when SDK supports it
-  // const handleRequest = useCallback(async (method: string, params: unknown) => {
+  // TODO: Add onFallbackRequest handler when SDK supports it
+  //  https://github.com/MCP-UI-Org/mcp-ui/pull/176
+  // const handleFallbackRequest = useCallback(async (method: string, params: unknown) => {
   //   switch (method) {
   //     case 'sampling/createMessage':
   //       // TODO: Call goosed sampling endpoint
@@ -462,9 +463,9 @@ export default function McpAppRenderer({
         onSizeChanged={handleSizeChanged}
         onError={handleError}
         // todo: add expected props from client SDK when available
-        // onRequest={}
-        // hostInfo={}
-        // hostCapabilities={}
+        // onFallbackRequest={handleFallbackRequest}
+        // hostInfo={hostInfo}
+        // hostCapabilities={hostCapabilities}
       />
     );
   };
