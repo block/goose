@@ -373,6 +373,11 @@
   [class*='animate-[wind'] {
     animation: none !important;
   }
+
+  /* Elements that use opacity-0 with appear animation need to be visible when animations are disabled */
+  .opacity-0[class*='animate-'] {
+    opacity: 1 !important;
+  }
 }
 
 /* Toast close button styling */
