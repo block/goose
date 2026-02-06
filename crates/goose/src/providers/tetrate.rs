@@ -254,8 +254,10 @@ impl Provider for TetrateProvider {
         {
             Ok(response) => response,
             Err(e) => {
-                tracing::warn!("Failed to fetch models from Tetrate Agent Router Service API: {}, falling back to manual model entry", e);
-                return Ok(None);
+                return Err(ProviderError::ExecutionError(format!(
+                    "Failed to fetch models from Tetrate API: {}. Please check your API key and account at {}",
+                    e, TETRATE_DOC_URL
+                )));
             }
         };
 
@@ -278,7 +280,10 @@ impl Provider for TetrateProvider {
                 "Tetrate Agent Router Service API returned an error: {}",
                 msg
             );
-            return Ok(None);
+            return Err(ProviderError::ExecutionError(format!(
+                "Tetrate API error: {}. Please check your API key and account at {}",
+                msg, TETRATE_DOC_URL
+            )));
         }
 
         // The response format from /v1/models is expected to be OpenAI-compatible
