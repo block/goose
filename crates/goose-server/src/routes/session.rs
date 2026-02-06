@@ -629,7 +629,7 @@ async fn search_sessions(
                 .map(|m| SearchMatch {
                     role: m.role,
                     content: if m.content.len() > 500 {
-                        format!("{}...", &m.content[..500])
+                        format!("{}...", m.content.chars().take(500).collect::<String>())
                     } else {
                         m.content
                     },
