@@ -4,10 +4,13 @@ import { Select } from '../../../../../ui/Select';
 import { Button } from '../../../../../ui/button';
 import { SecureStorageNotice } from '../SecureStorageNotice';
 import { UpdateCustomProviderRequest } from '../../../../../../api';
+import { Trash2, AlertTriangle } from 'lucide-react';
 
 interface CustomProviderFormProps {
   onSubmit: (data: UpdateCustomProviderRequest) => void;
   onCancel: () => void;
+  onDelete?: () => Promise<void>;
+  isActiveProvider?: boolean;
   initialData: UpdateCustomProviderRequest | null;
   isEditable?: boolean;
 }
@@ -15,6 +18,8 @@ interface CustomProviderFormProps {
 export default function CustomProviderForm({
   onSubmit,
   onCancel,
+  onDelete,
+  isActiveProvider = false,
   initialData,
   isEditable,
 }: CustomProviderFormProps) {
@@ -26,6 +31,7 @@ export default function CustomProviderForm({
   const [requiresApiKey, setRequiresApiKey] = useState(false);
   const [supportsStreaming, setSupportsStreaming] = useState(true);
   const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
+  const [showDeleteConfirmation, setShowDeleteConfirmation] = useState(false);
 
   useEffect(() => {
     if (initialData) {
@@ -257,12 +263,62 @@ export default function CustomProviderForm({
         </>
       )}
       <SecureStorageNotice />
-      <div className="flex justify-end space-x-2 pt-4">
-        <Button type="button" variant="outline" onClick={onCancel}>
-          Cancel
-        </Button>
-        <Button type="submit">{initialData ? 'Update Provider' : 'Create Provider'}</Button>
-      </div>
+
+      {showDeleteConfirmation ? (
+        <div className="pt-4 space-y-3">
+          {isActiveProvider ? (
+            <div className="px-4 py-3 bg-yellow-600/20 border border-yellow-500/30 rounded">
+              <p className="text-yellow-500 text-sm flex items-start">
+                <AlertTriangle className="h-4 w-4 mr-2 mt-0.5 flex-shrink-0" />
+                <span>
+                  You cannot delete this provider while it's currently in use. Please switch to a
+                  different model first.
+                </span>
+              </p>
+            </div>
+          ) : (
+            <div className="px-4 py-3 bg-red-900/20 border border-red-500/30 rounded">
+              <p className="text-red-400 text-sm">
+                Are you sure you want to delete this custom provider? This will permanently remove
+                the provider and its stored API key. This action cannot be undone.
+              </p>
+            </div>
+          )}
+          <div className="flex justify-end space-x-2">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setShowDeleteConfirmation(false)}
+            >
+              Cancel
+            </Button>
+            {!isActiveProvider && (
+              <Button type="button" variant="destructive" onClick={onDelete}>
+                <Trash2 className="h-4 w-4 mr-2" />
+                Confirm Delete
+              </Button>
+            )}
+          </div>
+        </div>
+      ) : (
+        <div className="flex justify-end space-x-2 pt-4">
+          {initialData && onDelete && (
+            <Button
+              type="button"
+              variant="outline"
+              className="text-red-500 hover:text-red-600 mr-auto"
+              onClick={() => setShowDeleteConfirmation(true)}
+            >
+              <Trash2 className="h-4 w-4 mr-2" />
+              Delete Provider
+            </Button>
+          )}
+          <Button type="button" variant="outline" onClick={onCancel}>
+            Cancel
+          </Button>
+          <Button type="submit">{initialData ? 'Update Provider' : 'Create Provider'}</Button>
+        </div>
+      )}
     </form>
   );
 }
