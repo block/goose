@@ -1,4 +1,5 @@
 use anyhow::Result;
+use regex::Regex;
 use std::sync::Arc;
 
 use async_stream::try_stream;
@@ -8,6 +9,7 @@ use tracing::debug;
 
 use super::super::agents::Agent;
 use crate::agents::code_execution_extension::EXTENSION_NAME as CODE_EXECUTION_EXTENSION;
+use crate::agents::skills_extension::EXTENSION_NAME as SKILLS_EXTENSION;
 use crate::agents::subagent_tool::SUBAGENT_TOOL_NAME;
 use crate::conversation::message::{Message, MessageContent, ToolRequest};
 use crate::conversation::Conversation;
@@ -18,6 +20,27 @@ use crate::providers::toolshim::{
     modify_system_prompt_for_tool_json, OllamaInterpreter,
 };
 use rmcp::model::Tool;
+
+async fn enhance_model_error(error: ProviderError, provider: &Arc<dyn Provider>) -> ProviderError {
+    let ProviderError::RequestFailed(ref msg) = error else {
+        return error;
+    };
+
+    let re = Regex::new(r"(?i)\b4\d{2}\b.*model|model.*\b4\d{2}\b").unwrap();
+    if !re.is_match(msg) {
+        return error;
+    }
+
+    let Ok(Some(models)) = provider.fetch_recommended_models().await else {
+        return error;
+    };
+
+    ProviderError::RequestFailed(format!(
+        "{}. Available models for this provider: {}",
+        msg,
+        models.join(", ")
+    ))
+}
 
 fn coerce_value(s: &str, schema: &Value) -> Value {
     let type_str = schema.get("type");
@@ -126,8 +149,11 @@ impl Agent {
             .await;
         if code_execution_active {
             let code_exec_prefix = format!("{CODE_EXECUTION_EXTENSION}__");
+            let skills_prefix = format!("{SKILLS_EXTENSION}__");
             tools.retain(|tool| {
-                tool.name.starts_with(&code_exec_prefix) || tool.name == SUBAGENT_TOOL_NAME
+                tool.name.starts_with(&code_exec_prefix)
+                    || tool.name.starts_with(&skills_prefix)
+                    || tool.name == SUBAGENT_TOOL_NAME
             });
         }
 
@@ -182,11 +208,17 @@ impl Agent {
     ) -> Result<MessageStream, ProviderError> {
         let config = provider.get_model_config();
 
+        let filtered_messages: Vec<Message> = messages
+            .iter()
+            .filter(|m| m.is_agent_visible())
+            .map(|m| m.agent_visible_content())
+            .collect();
+
         // Convert tool messages to text if toolshim is enabled
         let messages_for_provider = if config.toolshim {
-            convert_tool_messages_to_text(messages)
+            convert_tool_messages_to_text(&filtered_messages)
         } else {
-            Conversation::new_unvalidated(messages.to_vec())
+            Conversation::new_unvalidated(filtered_messages)
         };
 
         // Clone owned data to move into the async stream
@@ -231,10 +263,11 @@ impl Agent {
         let mut stream = match stream_result {
             Ok(s) => s,
             Err(e) => {
+                let enhanced_error = enhance_model_error(e, &provider).await;
                 // Return a stream that immediately yields the error
                 // This allows the error to be caught by existing error handling in agent.rs
                 return Ok(Box::pin(try_stream! {
-                    yield Err(e)?;
+                    yield Err(enhanced_error)?;
                 }));
             }
         };
@@ -421,10 +454,6 @@ mod tests {
 
     #[async_trait]
     impl Provider for MockProvider {
-        fn metadata() -> crate::providers::base::ProviderMetadata {
-            crate::providers::base::ProviderMetadata::empty()
-        }
-
         fn get_name(&self) -> &str {
             "mock"
         }
@@ -481,14 +510,17 @@ mod tests {
         ];
 
         agent
-            .add_extension(crate::agents::extension::ExtensionConfig::Frontend {
-                name: "frontend".to_string(),
-                description: "desc".to_string(),
-                tools: frontend_tools,
-                instructions: None,
-                bundled: None,
-                available_tools: vec![],
-            })
+            .add_extension(
+                crate::agents::extension::ExtensionConfig::Frontend {
+                    name: "frontend".to_string(),
+                    description: "desc".to_string(),
+                    tools: frontend_tools,
+                    instructions: None,
+                    bundled: None,
+                    available_tools: vec![],
+                },
+                &session.id,
+            )
             .await
             .unwrap();
 

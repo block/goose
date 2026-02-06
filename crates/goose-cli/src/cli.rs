@@ -1,6 +1,7 @@
 use anyhow::Result;
 use clap::{Args, CommandFactory, Parser, Subcommand};
 use clap_complete::{generate, Shell as ClapShell};
+use goose::builtin_extension::register_builtin_extensions;
 use goose::config::Config;
 use goose::posthog::get_telemetry_choice;
 use goose::recipe::Recipe;
@@ -174,6 +175,12 @@ pub struct ExtensionOptions {
         value_delimiter = ','
     )]
     pub builtins: Vec<String>,
+
+    #[arg(
+        long = "no-profile",
+        help = "Don't load your default extensions, only use CLI-specified extensions"
+    )]
+    pub no_profile: bool,
 }
 
 /// Input source and recipe options for the run command
@@ -1156,6 +1163,7 @@ async fn handle_interactive_session(
         extensions: extension_opts.extensions,
         streamable_http_extensions: extension_opts.streamable_http_extensions,
         builtins: extension_opts.builtins,
+        no_profile: extension_opts.no_profile,
         recipe: None,
         additional_system_prompt: None,
         provider: None,
@@ -1360,6 +1368,7 @@ async fn handle_run_command(
         extensions: extension_opts.extensions,
         streamable_http_extensions: extension_opts.streamable_http_extensions,
         builtins: extension_opts.builtins,
+        no_profile: extension_opts.no_profile,
         recipe: recipe.clone(),
         additional_system_prompt: input_config.additional_system_prompt,
         provider: model_opts.provider,
@@ -1486,6 +1495,7 @@ async fn handle_default_session() -> Result<()> {
         extensions: Vec::new(),
         streamable_http_extensions: Vec::new(),
         builtins: Vec::new(),
+        no_profile: false,
         recipe: None,
         additional_system_prompt: None,
         provider: None,
@@ -1504,6 +1514,8 @@ async fn handle_default_session() -> Result<()> {
 }
 
 pub async fn cli() -> anyhow::Result<()> {
+    register_builtin_extensions(goose_mcp::BUILTIN_EXTENSIONS.clone());
+
     let cli = Cli::parse();
 
     if let Err(e) = crate::project_tracker::update_project_tracker(None, None) {

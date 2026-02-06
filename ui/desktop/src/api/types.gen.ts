@@ -112,7 +112,7 @@ export type ConfigResponse = {
 };
 
 export type ConfirmToolActionRequest = {
-    action: string;
+    action: Permission;
     id: string;
     principalType?: PrincipalType;
     sessionId: string;
@@ -135,7 +135,7 @@ export type CreateRecipeResponse = {
 export type CreateScheduleRequest = {
     cron: string;
     id: string;
-    recipe_source: string;
+    recipe: Recipe;
 };
 
 /**
@@ -189,6 +189,69 @@ export type DetectProviderResponse = {
     models: Array<string>;
     provider_name: string;
 };
+
+export type DictationProvider = 'openai' | 'elevenlabs' | 'groq' | 'local';
+
+export type DictationProviderStatus = {
+    /**
+     * Config key name if uses_provider_config is false
+     */
+    config_key?: string | null;
+    /**
+     * Whether the provider is fully configured and ready to use
+     */
+    configured: boolean;
+    /**
+     * Description of what this provider does
+     */
+    description: string;
+    /**
+     * Custom host URL if configured (only for providers that support it)
+     */
+    host?: string | null;
+    /**
+     * Path to settings if uses_provider_config is true
+     */
+    settings_path?: string | null;
+    /**
+     * Whether this provider uses the main provider config (true) or has its own key (false)
+     */
+    uses_provider_config: boolean;
+};
+
+export type DownloadProgress = {
+    /**
+     * Bytes downloaded so far
+     */
+    bytes_downloaded: number;
+    /**
+     * Error message if failed
+     */
+    error?: string | null;
+    /**
+     * Estimated time remaining in seconds
+     */
+    eta_seconds?: number | null;
+    /**
+     * Model ID being downloaded
+     */
+    model_id: string;
+    /**
+     * Download progress percentage (0-100)
+     */
+    progress_percent: number;
+    /**
+     * Download speed in bytes per second
+     */
+    speed_bps?: number | null;
+    status: DownloadStatus;
+    /**
+     * Total bytes to download
+     */
+    total_bytes: number;
+};
+
+export type DownloadStatus = 'downloading' | 'completed' | 'failed' | 'cancelled';
 
 export type EmbeddedResource = {
     _meta?: {
@@ -253,6 +316,7 @@ export type ExtensionConfig = {
     available_tools?: Array<string>;
     bundled?: boolean | null;
     description: string;
+    display_name?: string | null;
     /**
      * The name used to identify this extension
      */
@@ -573,7 +637,7 @@ export type ModelInfo = {
      */
     currency?: string | null;
     /**
-     * Cost per token for input (optional)
+     * Cost per token for input in USD (optional)
      */
     input_token_cost?: number | null;
     /**
@@ -581,7 +645,7 @@ export type ModelInfo = {
      */
     name: string;
     /**
-     * Cost per token for output (optional)
+     * Cost per token for output in USD (optional)
      */
     output_token_cost?: number | null;
     /**
@@ -598,10 +662,36 @@ export type ParseRecipeResponse = {
     recipe: Recipe;
 };
 
+export type Permission = 'always_allow' | 'allow_once' | 'cancel' | 'deny_once' | 'always_deny';
+
 /**
  * Enum representing the possible permission levels for a tool.
  */
 export type PermissionLevel = 'always_allow' | 'ask_before' | 'never_allow';
+
+/**
+ * Sandbox permissions for MCP Apps
+ * Specifies which browser capabilities the UI needs access to.
+ * Maps to the iframe Permission Policy `allow` attribute.
+ */
+export type PermissionsMetadata = {
+    /**
+     * Request camera access (maps to Permission Policy `camera` feature)
+     */
+    camera?: boolean;
+    /**
+     * Request clipboard write access (maps to Permission Policy `clipboard-write` feature)
+     */
+    clipboardWrite?: boolean;
+    /**
+     * Request geolocation access (maps to Permission Policy `geolocation` feature)
+     */
+    geolocation?: boolean;
+    /**
+     * Request microphone access (maps to Permission Policy `microphone` feature)
+     */
+    microphone?: boolean;
+};
 
 export type PricingData = {
     context_length?: number | null;
@@ -1172,6 +1262,25 @@ export type ToolResponse = {
     };
 };
 
+export type TranscribeRequest = {
+    /**
+     * Base64 encoded audio data
+     */
+    audio: string;
+    /**
+     * MIME type of the audio (e.g., "audio/webm", "audio/wav")
+     */
+    mime_type: string;
+    provider: DictationProvider;
+};
+
+export type TranscribeResponse = {
+    /**
+     * Transcribed text from the audio
+     */
+    text: string;
+};
+
 export type TunnelInfo = {
     hostname: string;
     secret: string;
@@ -1190,6 +1299,7 @@ export type UiMetadata = {
      * Preferred domain for the app (used for CORS)
      */
     domain?: string | null;
+    permissions?: PermissionsMetadata;
     /**
      * Whether the app prefers to have a border around it
      */
@@ -1260,6 +1370,28 @@ export type UpsertConfigQuery = {
 
 export type UpsertPermissionsQuery = {
     tool_permissions: Array<ToolPermission>;
+};
+
+export type WhisperModelResponse = {
+    /**
+     * Description
+     */
+    description: string;
+    /**
+     * Model identifier (e.g., "tiny", "base", "small")
+     */
+    id: string;
+    /**
+     * Model file size in MB
+     */
+    size_mb: number;
+    /**
+     * Download URL from HuggingFace
+     */
+    url: string;
+} & {
+    downloaded: boolean;
+    recommended: boolean;
 };
 
 export type WindowProps = {
@@ -2455,6 +2587,197 @@ export type DiagnosticsResponses = {
 
 export type DiagnosticsResponse = DiagnosticsResponses[keyof DiagnosticsResponses];
 
+export type GetDictationConfigData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/dictation/config';
+};
+
+export type GetDictationConfigResponses = {
+    /**
+     * Audio transcription provider configurations
+     */
+    200: {
+        [key: string]: DictationProviderStatus;
+    };
+};
+
+export type GetDictationConfigResponse = GetDictationConfigResponses[keyof GetDictationConfigResponses];
+
+export type ListModelsData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/dictation/models';
+};
+
+export type ListModelsResponses = {
+    /**
+     * List of available Whisper models
+     */
+    200: Array<WhisperModelResponse>;
+};
+
+export type ListModelsResponse = ListModelsResponses[keyof ListModelsResponses];
+
+export type DeleteModelData = {
+    body?: never;
+    path: {
+        model_id: string;
+    };
+    query?: never;
+    url: '/dictation/models/{model_id}';
+};
+
+export type DeleteModelErrors = {
+    /**
+     * Model not found or not downloaded
+     */
+    404: unknown;
+    /**
+     * Failed to delete model
+     */
+    500: unknown;
+};
+
+export type DeleteModelResponses = {
+    /**
+     * Model deleted
+     */
+    200: unknown;
+};
+
+export type CancelDownloadData = {
+    body?: never;
+    path: {
+        model_id: string;
+    };
+    query?: never;
+    url: '/dictation/models/{model_id}/download';
+};
+
+export type CancelDownloadErrors = {
+    /**
+     * Download not found
+     */
+    404: unknown;
+};
+
+export type CancelDownloadResponses = {
+    /**
+     * Download cancelled
+     */
+    200: unknown;
+};
+
+export type GetDownloadProgressData = {
+    body?: never;
+    path: {
+        model_id: string;
+    };
+    query?: never;
+    url: '/dictation/models/{model_id}/download';
+};
+
+export type GetDownloadProgressErrors = {
+    /**
+     * Download not found
+     */
+    404: unknown;
+};
+
+export type GetDownloadProgressResponses = {
+    /**
+     * Download progress
+     */
+    200: DownloadProgress;
+};
+
+export type GetDownloadProgressResponse = GetDownloadProgressResponses[keyof GetDownloadProgressResponses];
+
+export type DownloadModelData = {
+    body?: never;
+    path: {
+        model_id: string;
+    };
+    query?: never;
+    url: '/dictation/models/{model_id}/download';
+};
+
+export type DownloadModelErrors = {
+    /**
+     * Download already in progress
+     */
+    400: unknown;
+    /**
+     * Internal server error
+     */
+    500: unknown;
+};
+
+export type DownloadModelResponses = {
+    /**
+     * Download started
+     */
+    202: unknown;
+};
+
+export type TranscribeDictationData = {
+    body: TranscribeRequest;
+    path?: never;
+    query?: never;
+    url: '/dictation/transcribe';
+};
+
+export type TranscribeDictationErrors = {
+    /**
+     * Invalid request (bad base64 or unsupported format)
+     */
+    400: unknown;
+    /**
+     * Invalid API key
+     */
+    401: unknown;
+    /**
+     * Provider not configured
+     */
+    412: unknown;
+    /**
+     * Audio file too large (max 25MB)
+     */
+    413: unknown;
+    /**
+     * Rate limit exceeded
+     */
+    429: unknown;
+    /**
+     * Internal server error
+     */
+    500: unknown;
+    /**
+     * Provider API error
+     */
+    502: unknown;
+    /**
+     * Service unavailable
+     */
+    503: unknown;
+    /**
+     * Request timeout
+     */
+    504: unknown;
+};
+
+export type TranscribeDictationResponses = {
+    /**
+     * Audio transcribed successfully
+     */
+    200: TranscribeResponse;
+};
+
+export type TranscribeDictationResponse = TranscribeDictationResponses[keyof TranscribeDictationResponses];
+
 export type StartOpenrouterSetupData = {
     body?: never;
     path?: never;
@@ -3206,6 +3529,54 @@ export type GetSessionInsightsResponses = {
 };
 
 export type GetSessionInsightsResponse = GetSessionInsightsResponses[keyof GetSessionInsightsResponses];
+
+export type SearchSessionsData = {
+    body?: never;
+    path?: never;
+    query: {
+        /**
+         * Search query string
+         */
+        query: string;
+        /**
+         * Maximum results (default: 10, max: 50)
+         */
+        limit?: number | null;
+        /**
+         * Filter after date (ISO 8601)
+         */
+        after_date?: string | null;
+        /**
+         * Filter before date (ISO 8601)
+         */
+        before_date?: string | null;
+    };
+    url: '/sessions/search';
+};
+
+export type SearchSessionsErrors = {
+    /**
+     * Bad request - Invalid query
+     */
+    400: unknown;
+    /**
+     * Unauthorized
+     */
+    401: unknown;
+    /**
+     * Internal server error
+     */
+    500: unknown;
+};
+
+export type SearchSessionsResponses = {
+    /**
+     * Matching sessions
+     */
+    200: Array<Session>;
+};
+
+export type SearchSessionsResponse = SearchSessionsResponses[keyof SearchSessionsResponses];
 
 export type DeleteSessionData = {
     body?: never;

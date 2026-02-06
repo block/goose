@@ -1,3 +1,4 @@
 export const getInitialWorkingDir = (): string => {
-  return (window.appConfig?.get('GOOSE_WORKING_DIR') as string) || '';
+  // Fall back to initial config from app startup
+  return (window.appConfig?.get('GOOSE_WORKING_DIR') as string) ?? '';
 };

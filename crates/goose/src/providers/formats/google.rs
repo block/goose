@@ -105,104 +105,75 @@ pub fn format_messages(messages: &[Message]) -> Vec<Value> {
                             parts.push(json!({"text":format!("Error: {}", e)}));
                         }
                     },
-                    MessageContent::ToolResponse(response) => {
-                        match &response.tool_result {
-                            Ok(result) => {
-                                // Send only contents with no audience or with Assistant in the audience
-                                let abridged: Vec<_> = result
-                                    .content
-                                    .iter()
-                                    .filter(|content| {
-                                        content.audience().is_none_or(|audience| {
-                                            audience.contains(&Role::Assistant)
-                                        })
-                                    })
-                                    .map(|content| content.raw.clone())
-                                    .collect();
-
-                                let mut tool_content = Vec::new();
-                                for content in abridged {
-                                    match content {
-                                        RawContent::Image(image) => {
-                                            parts.push(json!({
-                                                "inline_data": {
-                                                    "mime_type": image.mime_type,
-                                                    "data": image.data,
-                                                }
-                                            }));
-                                        }
-                                        _ => {
-                                            tool_content.push(content.no_annotation());
-                                        }
+                    MessageContent::ToolResponse(response) => match &response.tool_result {
+                        Ok(result) => {
+                            let mut tool_content = Vec::new();
+                            for content in result.content.iter().map(|c| c.raw.clone()) {
+                                match content {
+                                    RawContent::Image(image) => {
+                                        parts.push(json!({
+                                            "inline_data": {
+                                                "mime_type": image.mime_type,
+                                                "data": image.data,
+                                            }
+                                        }));
+                                    }
+                                    _ => {
+                                        tool_content.push(content.no_annotation());
                                     }
                                 }
-                                let mut text = tool_content
-                                    .iter()
-                                    .filter_map(|c| match c.deref() {
-                                        RawContent::Text(t) => Some(t.text.clone()),
-                                        RawContent::Resource(raw_embedded_resource) => Some(
-                                            raw_embedded_resource
-                                                .clone()
-                                                .no_annotation()
-                                                .get_text(),
-                                        ),
-                                        _ => None,
-                                    })
-                                    .collect::<Vec<_>>()
-                                    .join("\n");
-
-                                if text.is_empty() {
-                                    text = "Tool call is done.".to_string();
-                                }
-                                let mut part = Map::new();
-                                let mut function_response = Map::new();
-                                function_response.insert("name".to_string(), json!(response.id));
-                                function_response.insert(
-                                    "response".to_string(),
-                                    json!({"content": {"text": text}}),
-                                );
-                                part.insert(
-                                    "functionResponse".to_string(),
-                                    json!(function_response),
-                                );
-                                if include_signature {
-                                    if let Some(signature) =
-                                        get_thought_signature(&response.metadata)
-                                    {
-                                        part.insert(
-                                            THOUGHT_SIGNATURE_KEY.to_string(),
-                                            json!(signature),
-                                        );
-                                    }
-                                }
-                                parts.push(json!(part));
                             }
-                            Err(e) => {
-                                let mut part = Map::new();
-                                let mut function_response = Map::new();
-                                function_response.insert("name".to_string(), json!(response.id));
-                                function_response.insert(
-                                    "response".to_string(),
-                                    json!({"content": {"text": format!("Error: {}", e)}}),
-                                );
-                                part.insert(
-                                    "functionResponse".to_string(),
-                                    json!(function_response),
-                                );
-                                if include_signature {
-                                    if let Some(signature) =
-                                        get_thought_signature(&response.metadata)
-                                    {
-                                        part.insert(
-                                            THOUGHT_SIGNATURE_KEY.to_string(),
-                                            json!(signature),
-                                        );
-                                    }
-                                }
-                                parts.push(json!(part));
+                            let mut text = tool_content
+                                .iter()
+                                .filter_map(|c| match c.deref() {
+                                    RawContent::Text(t) => Some(t.text.clone()),
+                                    RawContent::Resource(raw_embedded_resource) => Some(
+                                        raw_embedded_resource.clone().no_annotation().get_text(),
+                                    ),
+                                    _ => None,
+                                })
+                                .collect::<Vec<_>>()
+                                .join("\n");
+
+                            if text.is_empty() {
+                                text = "Tool call is done.".to_string();
                             }
+                            let mut part = Map::new();
+                            let mut function_response = Map::new();
+                            function_response.insert("name".to_string(), json!(response.id));
+                            function_response
+                                .insert("response".to_string(), json!({"content": {"text": text}}));
+                            part.insert("functionResponse".to_string(), json!(function_response));
+                            if include_signature {
+                                if let Some(signature) = get_thought_signature(&response.metadata) {
+                                    part.insert(
+                                        THOUGHT_SIGNATURE_KEY.to_string(),
+                                        json!(signature),
+                                    );
+                                }
+                            }
+                            parts.push(json!(part));
                         }
-                    }
+                        Err(e) => {
+                            let mut part = Map::new();
+                            let mut function_response = Map::new();
+                            function_response.insert("name".to_string(), json!(response.id));
+                            function_response.insert(
+                                "response".to_string(),
+                                json!({"content": {"text": format!("Error: {}", e)}}),
+                            );
+                            part.insert("functionResponse".to_string(), json!(function_response));
+                            if include_signature {
+                                if let Some(signature) = get_thought_signature(&response.metadata) {
+                                    part.insert(
+                                        THOUGHT_SIGNATURE_KEY.to_string(),
+                                        json!(signature),
+                                    );
+                                }
+                            }
+                            parts.push(json!(part));
+                        }
+                    },
                     MessageContent::Thinking(thinking) => {
                         let mut part = Map::new();
                         part.insert("text".to_string(), json!(thinking.thinking));
@@ -210,6 +181,14 @@ pub fn format_messages(messages: &[Message]) -> Vec<Value> {
                             part.insert("thoughtSignature".to_string(), json!(thinking.signature));
                         }
                         parts.push(json!(part));
+                    }
+                    MessageContent::Image(image) => {
+                        parts.push(json!({
+                            "inline_data": {
+                                "mime_type": image.mime_type,
+                                "data": image.data,
+                            }
+                        }));
                     }
 
                     _ => {}
@@ -254,6 +233,25 @@ pub fn process_response_part(
 ) -> Option<MessageContent> {
     let has_signature = part.get(THOUGHT_SIGNATURE_KEY).is_some();
     let handling = if has_signature {
+        SignedTextHandling::SignedTextAsThinking
+    } else {
+        SignedTextHandling::SignedTextAsRegularText
+    };
+    process_response_part_impl(part, last_signature, handling)
+}
+
+/// Gemini 2.x includes thoughtSignature on first chunk as metadata, not actual thinking.
+fn process_response_part_for_model(
+    part: &Value,
+    last_signature: &mut Option<String>,
+    model_version: Option<&str>,
+) -> Option<MessageContent> {
+    let is_gemini_2 = model_version
+        .map(|m| m.starts_with("gemini-2"))
+        .unwrap_or(false);
+
+    let has_signature = part.get(THOUGHT_SIGNATURE_KEY).is_some();
+    let handling = if has_signature && !is_gemini_2 {
         SignedTextHandling::SignedTextAsThinking
     } else {
         SignedTextHandling::SignedTextAsRegularText
@@ -490,6 +488,8 @@ where
                 }
             }
 
+            let model_version = chunk.get("modelVersion").and_then(|v| v.as_str());
+
             let parts = chunk
                 .get("candidates")
                 .and_then(|v| v.as_array())
@@ -500,7 +500,7 @@ where
 
             if let Some(parts) = parts {
                 for part in parts {
-                    if let Some(content) = process_response_part(part, &mut last_signature) {
+                    if let Some(content) = process_response_part_for_model(part, &mut last_signature, model_version) {
                         let message = Message::new(
                             Role::Assistant,
                             chrono::Utc::now().timestamp(),
@@ -541,6 +541,21 @@ struct GenerationConfig {
     temperature: Option<f64>,
     #[serde(skip_serializing_if = "Option::is_none")]
     max_output_tokens: Option<i32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    thinking_config: Option<ThinkingConfig>,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "lowercase")]
+enum ThinkingLevel {
+    Low,
+    High,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct ThinkingConfig {
+    thinking_level: ThinkingLevel,
 }
 
 #[derive(Serialize)]
@@ -552,6 +567,45 @@ struct GoogleRequest<'a> {
     tools: Option<ToolsWrapper>,
     #[serde(skip_serializing_if = "Option::is_none")]
     generation_config: Option<GenerationConfig>,
+}
+
+fn get_thinking_config(model_config: &ModelConfig) -> Option<ThinkingConfig> {
+    if !model_config
+        .model_name
+        .to_lowercase()
+        .starts_with("gemini-3")
+    {
+        return None;
+    }
+
+    let thinking_level_str = model_config
+        .request_params
+        .as_ref()
+        .and_then(|params| params.get("thinking_level"))
+        .and_then(|v| v.as_str())
+        .map(|s| s.to_lowercase())
+        .or_else(|| {
+            crate::config::Config::global()
+                .get_param::<String>("gemini3_thinking_level")
+                .ok()
+                .map(|s| s.to_lowercase())
+        })
+        .unwrap_or_else(|| "low".to_string());
+
+    let thinking_level = match thinking_level_str.as_str() {
+        "high" => ThinkingLevel::High,
+        "low" => ThinkingLevel::Low,
+        invalid => {
+            tracing::warn!(
+                "Invalid thinking level '{}' for model '{}'. Valid levels: low, high. Using 'low'.",
+                invalid,
+                model_config.model_name,
+            );
+            ThinkingLevel::Low
+        }
+    };
+
+    Some(ThinkingConfig { thinking_level })
 }
 
 pub fn create_request(
@@ -568,15 +622,20 @@ pub fn create_request(
         })
     };
 
-    let generation_config =
-        if model_config.temperature.is_some() || model_config.max_tokens.is_some() {
-            Some(GenerationConfig {
-                temperature: model_config.temperature.map(|t| t as f64),
-                max_output_tokens: model_config.max_tokens,
-            })
-        } else {
-            None
-        };
+    let thinking_config = get_thinking_config(model_config);
+
+    let generation_config = if model_config.temperature.is_some()
+        || model_config.max_tokens.is_some()
+        || thinking_config.is_some()
+    {
+        Some(GenerationConfig {
+            temperature: model_config.temperature.map(|t| t as f64),
+            max_output_tokens: model_config.max_tokens,
+            thinking_config,
+        })
+    } else {
+        None
+    };
 
     let request = GoogleRequest {
         system_instruction: SystemInstruction {
@@ -666,6 +725,38 @@ mod tests {
         assert_eq!(payload[0]["parts"][0]["text"], "Hello");
         assert_eq!(payload[1]["role"], "model");
         assert_eq!(payload[1]["parts"][0]["text"], "World");
+    }
+
+    #[test]
+    fn test_message_to_google_spec_image_message() {
+        use rmcp::model::{AnnotateAble, RawImageContent};
+
+        let image = RawImageContent {
+            mime_type: "image/png".to_string(),
+            data: "base64encodeddata".to_string(),
+            meta: None,
+        };
+        let messages = vec![Message::new(
+            Role::User,
+            0,
+            vec![
+                MessageContent::text("What is in this image?".to_string()),
+                MessageContent::Image(image.no_annotation()),
+            ],
+        )];
+        let payload = format_messages(&messages);
+
+        assert_eq!(payload.len(), 1);
+        assert_eq!(payload[0]["role"], "user");
+        assert_eq!(payload[0]["parts"][0]["text"], "What is in this image?");
+        assert_eq!(
+            payload[0]["parts"][1]["inline_data"]["mime_type"],
+            "image/png"
+        );
+        assert_eq!(
+            payload[0]["parts"][1]["inline_data"]["data"],
+            "base64encodeddata"
+        );
     }
 
     #[test]
@@ -1101,18 +1192,16 @@ mod tests {
     async fn test_streaming_with_thought_signature() {
         use futures::StreamExt;
 
-        let signed_stream = concat!(
+        let gemini3_stream = concat!(
             r#"data: {"candidates": [{"content": {"role": "model", "#,
-            r#""parts": [{"text": "Begin", "thoughtSignature": "sig123"}]}}]}"#,
+            r#""parts": [{"text": "Begin", "thoughtSignature": "sig123"}]}}], "#,
+            r#""modelVersion": "gemini-3-pro"}"#,
             "\n",
             r#"data: {"candidates": [{"content": {"role": "model", "#,
-            r#""parts": [{"text": " middle"}]}}]}"#,
-            "\n",
-            r#"data: {"candidates": [{"content": {"role": "model", "#,
-            r#""parts": [{"text": " end"}]}}]}"#
+            r#""parts": [{"text": " end"}]}}], "modelVersion": "gemini-3-pro"}"#
         );
         let lines: Vec<Result<String, anyhow::Error>> =
-            signed_stream.lines().map(|l| Ok(l.to_string())).collect();
+            gemini3_stream.lines().map(|l| Ok(l.to_string())).collect();
         let stream = Box::pin(futures::stream::iter(lines));
         let mut message_stream = std::pin::pin!(response_to_streaming_message(stream));
 
@@ -1123,20 +1212,70 @@ mod tests {
             let (message, _usage) = result.unwrap();
             if let Some(msg) = message {
                 match msg.content.first() {
-                    Some(MessageContent::Text(text)) => {
-                        text_parts.push(text.text.clone());
-                    }
-                    Some(MessageContent::Thinking(thinking)) => {
-                        thinking_parts.push(thinking.thinking.clone());
-                        assert_eq!(thinking.signature, "sig123");
-                    }
+                    Some(MessageContent::Text(text)) => text_parts.push(text.text.clone()),
+                    Some(MessageContent::Thinking(t)) => thinking_parts.push(t.thinking.clone()),
                     _ => {}
                 }
             }
         }
 
         assert_eq!(thinking_parts, vec!["Begin"]);
-        assert_eq!(text_parts, vec![" middle", " end"]);
+        assert_eq!(text_parts, vec![" end"]);
+
+        let gemini25_stream = concat!(
+            r#"data: {"candidates": [{"content": {"role": "model", "#,
+            r#""parts": [{"text": "Begin", "thoughtSignature": "sig123"}]}}], "#,
+            r#""modelVersion": "gemini-2.5-pro"}"#,
+            "\n",
+            r#"data: {"candidates": [{"content": {"role": "model", "#,
+            r#""parts": [{"text": " end"}]}}], "modelVersion": "gemini-2.5-pro"}"#
+        );
+        let lines: Vec<Result<String, anyhow::Error>> =
+            gemini25_stream.lines().map(|l| Ok(l.to_string())).collect();
+        let stream = Box::pin(futures::stream::iter(lines));
+        let mut message_stream = std::pin::pin!(response_to_streaming_message(stream));
+
+        let mut text_parts = Vec::new();
+
+        while let Some(result) = message_stream.next().await {
+            let (message, _usage) = result.unwrap();
+            if let Some(msg) = message {
+                if let Some(MessageContent::Text(text)) = msg.content.first() {
+                    text_parts.push(text.text.clone());
+                }
+            }
+        }
+
+        assert_eq!(text_parts, vec!["Begin", " end"]);
+
+        let unknown_stream = concat!(
+            r#"data: {"candidates": [{"content": {"role": "model", "#,
+            r#""parts": [{"text": "Begin", "thoughtSignature": "sig123"}]}}]}"#,
+            "\n",
+            r#"data: {"candidates": [{"content": {"role": "model", "#,
+            r#""parts": [{"text": " end"}]}}]}"#
+        );
+        let lines: Vec<Result<String, anyhow::Error>> =
+            unknown_stream.lines().map(|l| Ok(l.to_string())).collect();
+        let stream = Box::pin(futures::stream::iter(lines));
+        let mut message_stream = std::pin::pin!(response_to_streaming_message(stream));
+
+        let mut text_parts = Vec::new();
+        let mut thinking_parts = Vec::new();
+
+        while let Some(result) = message_stream.next().await {
+            let (message, _usage) = result.unwrap();
+            if let Some(msg) = message {
+                match msg.content.first() {
+                    Some(MessageContent::Text(text)) => text_parts.push(text.text.clone()),
+                    Some(MessageContent::Thinking(t)) => thinking_parts.push(t.thinking.clone()),
+                    _ => {}
+                }
+            }
+        }
+
+        assert_eq!(thinking_parts, vec!["Begin"]);
+        assert_eq!(text_parts, vec![" end"]);
     }
 
     #[tokio::test]
@@ -1252,5 +1391,27 @@ data: [DONE]"#;
         let schema = &result[0]["parametersJsonSchema"];
         assert_eq!(schema["properties"]["field"]["$ref"], "#/$defs/MyType");
         assert!(schema.get("$defs").is_some());
+    }
+
+    #[test]
+    fn test_get_thinking_config() {
+        use crate::model::ModelConfig;
+
+        // Test 1: Gemini 3 model defaults to low thinking level
+        let config = ModelConfig::new("gemini-3-pro").unwrap();
+        let result = get_thinking_config(&config);
+        assert!(result.is_some());
+        let thinking_config = result.unwrap();
+        assert!(matches!(thinking_config.thinking_level, ThinkingLevel::Low));
+
+        // Test 2: Case-insensitive model detection
+        let config = ModelConfig::new("Gemini-3-Flash").unwrap();
+        let result = get_thinking_config(&config);
+        assert!(result.is_some());
+
+        // Test 3: Non-Gemini 3 model returns None
+        let config = ModelConfig::new("gpt-4o").unwrap();
+        let result = get_thinking_config(&config);
+        assert!(result.is_none());
     }
 }

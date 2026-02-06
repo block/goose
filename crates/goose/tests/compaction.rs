@@ -5,7 +5,7 @@ use goose::agents::{Agent, AgentEvent, SessionConfig};
 use goose::conversation::message::{Message, MessageContent};
 use goose::conversation::Conversation;
 use goose::model::ModelConfig;
-use goose::providers::base::{Provider, ProviderMetadata, ProviderUsage, Usage};
+use goose::providers::base::{Provider, ProviderDef, ProviderMetadata, ProviderUsage, Usage};
 use goose::providers::errors::ProviderError;
 use goose::session::session_manager::SessionType;
 use goose::session::Session;
@@ -170,6 +170,14 @@ impl Provider for MockCompactionProvider {
         ModelConfig::new("mock-model").unwrap()
     }
 
+    fn get_name(&self) -> &str {
+        "mock-compaction"
+    }
+}
+
+impl ProviderDef for MockCompactionProvider {
+    type Provider = Self;
+
     fn metadata() -> ProviderMetadata {
         ProviderMetadata {
             name: "mock".to_string(),
@@ -183,8 +191,8 @@ impl Provider for MockCompactionProvider {
         }
     }
 
-    fn get_name(&self) -> &str {
-        "mock-compaction"
+    fn from_env(_model: ModelConfig) -> futures::future::BoxFuture<'static, anyhow::Result<Self>> {
+        Box::pin(async { Ok(Self::new()) })
     }
 }
 
@@ -684,26 +692,26 @@ async fn test_context_limit_recovery_compaction() -> Result<()> {
     );
 
     // Check the final token state after recovery
-    // Note: The current session state reflects the compaction operation,
-    // as the agent records compaction metrics before retrying
+    // Note: The session state reflects the RETRY call (after compaction),
+    // which only sees agent-visible messages (summary + continuation + user message)
     let final_input = updated_session.input_tokens.unwrap();
     let final_output = updated_session.output_tokens;
     let final_total = updated_session.total_tokens.unwrap();
 
-    // After compaction during recovery, the session shows the compaction tokens
-    // Input: system (6000) + long_tool_call messages (~15,400) + new message (100) = ~21,500
-    // Output: 200 (compaction summary)
-    // Total: ~21,700
+    // After compaction, the retry only sees agent-visible messages:
+    // Input: system (6000) + summary (~100) + continuation (~100) + user message (~100) = ~6300
+    // Output: 200 (mock detects "summarized" in continuation as compaction)
+    // Total: ~6500
     assert!(
-        (21000..=22000).contains(&final_input),
-        "Final input should reflect compaction input (~21,500). Got: {}",
+        (6000..=6600).contains(&final_input),
+        "Final input should reflect retry with agent-visible messages (~6300). Got: {}",
         final_input
     );
 
     assert_eq!(
         final_output,
         Some(200),
-        "Final output should be compaction output (200). Got: {:?}",
+        "Final output should be 200 (mock detects continuation as compaction). Got: {:?}",
         final_output
     );
 
@@ -715,13 +723,13 @@ async fn test_context_limit_recovery_compaction() -> Result<()> {
 
     // Accumulated tokens should include all operations:
     // - Initial: 1000
-    // - Compaction: ~21,600 input (system + long messages) + 200 output = 21,800
-    // - Reply: ~6,300 input + 100 output = 6,400
-    // Total: 1000 + 21,800 + 6,400 = 29,200
+    // - Compaction: ~6400 input (mock uses system_prompt.len()/4) + 200 output = ~6600
+    // - Reply: ~6500 input + 200 output = ~6700
+    // Total: 1000 + 6600 + 6700 = ~14300
     let accumulated = updated_session.accumulated_total_tokens.unwrap();
     assert!(
-        (28000..=30000).contains(&accumulated),
-        "Accumulated should be ~29,200 (initial + compaction + reply). Got: {}",
+        (13000..=16000).contains(&accumulated),
+        "Accumulated should be ~14300 (initial + compaction + reply). Got: {}",
         accumulated
     );
 

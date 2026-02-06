@@ -55,6 +55,71 @@ export GOOSE_PROVIDER__HOST="https://api.anthropic.com"
 export GOOSE_PROVIDER__API_KEY="your-api-key-here"
 ```
 
+### Custom Model Definitions
+
+Define custom model configurations with provider-specific parameters and context limits. This is useful for enabling provider beta features (like extended context windows) or configuring models with specific settings.
+
+| Variable | Purpose | Values | Default |
+|----------|---------|---------|---------|
+| `GOOSE_PREDEFINED_MODELS` | Define custom model configurations | JSON array of model objects | None |
+
+**Model Configuration Fields:**
+
+| Field | Required | Type | Description |
+|-------|----------|------|-------------|
+| `id` | No | number | Optional numeric identifier |
+| `name` | Yes | string | Model name used to reference this configuration |
+| `provider` | Yes | string | Provider name (e.g., "databricks", "openai", "anthropic") |
+| `alias` | No | string | Display name for the model |
+| `subtext` | No | string | Additional descriptive text |
+| `context_limit` | No | number | Override the default context window size in tokens |
+| `request_params` | No | object | Provider-specific parameters included in API requests |
+
+:::info
+The `id`, `alias`, and `subtext` fields are currently not used.
+:::
+
+When a custom model's `context_limit` is specified, it takes precedence over pattern-matching but can still be overridden by explicit environment variables like [`GOOSE_CONTEXT_LIMIT`](#model-context-limit-overrides).
+
+**Examples**
+
+```bash
+# Enable Anthropic's 1M context window with beta header
+export GOOSE_PREDEFINED_MODELS='[
+  {
+    "id": 1,
+    "name": "claude-sonnet-4-1m",
+    "provider": "anthropic",
+    "alias": "Claude Sonnet 4 (1M context)",
+    "subtext": "Anthropic",
+    "context_limit": 1000000,
+    "request_params": {
+      "anthropic_beta": ["context-1m-2025-08-07"]
+    }
+  }
+]'
+
+# Define multiple custom models
+export GOOSE_PREDEFINED_MODELS='[
+  {
+    "id": 1,
+    "name": "gpt-4-custom",
+    "provider": "openai",
+    "alias": "GPT-4 (200k)",
+    "context_limit": 200000
+  },
+  {
+    "id": 2,
+    "name": "internal-model",
+    "provider": "databricks",
+    "alias": "Internal Model (500k)",
+    "context_limit": 500000
+  }
+]'
+```
+
+Custom context limits and request parameters are applied when the model is used. Custom context limits are displayed in goose CLI's [token usage indicator](/docs/guides/sessions/smart-context-management#token-usage).
+
 ### Lead/Worker Model Configuration
 
 These variables configure a [lead/worker model pattern](/docs/tutorials/lead-worker) where a powerful lead model handles initial planning and complex reasoning, then switches to a faster/cheaper worker model for execution. The switch happens automatically based on your settings.
@@ -155,9 +220,11 @@ These variables control how goose manages conversation sessions and context.
 |----------|---------|---------|---------|
 | `GOOSE_CONTEXT_STRATEGY` | Controls how goose handles context limit exceeded situations | "summarize", "truncate", "clear", "prompt" | "prompt" (interactive), "summarize" (headless) |
 | `GOOSE_MAX_TURNS` | [Maximum number of turns](/docs/guides/sessions/smart-context-management#maximum-turns) allowed without user input | Integer (e.g., 10, 50, 100) | 1000 |
-| `GOOSE_SUBAGENT_MAX_TURNS` | Sets the maximum turns allowed for a [subagent](/docs/guides/subagents) to complete before timeout | Integer (e.g., 25) | 25 |
+| `GOOSE_SUBAGENT_MAX_TURNS` | Sets the maximum turns allowed for a [subagent](/docs/guides/subagents) to complete before timeout. Can be overridden by [`settings.max_turns`](/docs/guides/recipes/recipe-reference#settings) in recipes or subagent tool calls. | Integer (e.g., 25) | 25 |
 | `CONTEXT_FILE_NAMES` | Specifies custom filenames for [hint/context files](/docs/guides/context-engineering/using-goosehints#custom-context-files) | JSON array of strings (e.g., `["CLAUDE.md", ".goosehints"]`) | `[".goosehints"]` |
+| `GOOSE_PROMPT_EDITOR` | [External editor](/docs/guides/goose-cli-commands#external-editor-mode) to use for composing prompts instead of CLI input | Editor command (e.g., "vim", "code --wait") | Unset (uses CLI input) |
 | `GOOSE_CLI_THEME` | [Theme](/docs/guides/goose-cli-commands#themes) for CLI response  markdown | "light", "dark", "ansi" | "dark" |
+| `GOOSE_CLI_NEWLINE_KEY` | Customize the keyboard shortcut for [inserting newlines in CLI input](/docs/guides/goose-cli-commands#keyboard-shortcuts) | Single character (e.g., "n", "m") | "j" (Ctrl+J) |
 | `GOOSE_RANDOM_THINKING_MESSAGES` | Controls whether to show amusing random messages during processing | "true", "false" | "true" |
 | `GOOSE_CLI_SHOW_COST` | Toggles display of model cost estimates in CLI output | "true", "1" (case insensitive) to enable | false |
 | `GOOSE_AUTO_COMPACT_THRESHOLD` | Set the percentage threshold at which goose [automatically summarizes your session](/docs/guides/sessions/smart-context-management#automatic-compaction). | Float between 0.0 and 1.0 (disabled at 0.0) | 0.8 |
@@ -180,14 +247,21 @@ export GOOSE_MAX_TURNS=25
 # Set a reasonable limit for production
 export GOOSE_MAX_TURNS=100
 
-# Customize subagent turn limit
+# Customize the default subagent turn limit
+# Note: This can be overridden per-recipe or per-subagent using the max_turns setting
 export GOOSE_SUBAGENT_MAX_TURNS=50
 
 # Use multiple context files
 export CONTEXT_FILE_NAMES='["CLAUDE.md", ".goosehints", ".cursorrules", "project_rules.txt"]'
 
+# Use vim for composing prompts
+export GOOSE_PROMPT_EDITOR=vim
+
 # Set the ANSI theme for the session
 export GOOSE_CLI_THEME=ansi
+
+# Use Ctrl+N instead of Ctrl+J for newline
+export GOOSE_CLI_NEWLINE_KEY=n
 
 # Disable random thinking messages for less distraction
 export GOOSE_RANDOM_THINKING_MESSAGES=false
@@ -287,9 +361,9 @@ export GOOSE_EDITOR_HOST="http://localhost:8000/v1"
 export GOOSE_EDITOR_MODEL="your-model"
 ```
 
-## Security Configuration
+## Security and Privacy
 
-These variables control security related features.
+These variables control security features, credential storage, and anonymous usage data collection.
 
 | Variable | Purpose | Values | Default |
 |----------|---------|---------|---------|
@@ -300,6 +374,7 @@ These variables control security related features.
 | `SECURITY_PROMPT_CLASSIFIER_ENABLED` | Enable ML-based prompt injection detection for advanced threat identification | true/false | false |
 | `SECURITY_PROMPT_CLASSIFIER_ENDPOINT` | Classification endpoint URL for ML-based prompt injection detection | URL (e.g., "https://api.example.com/classify") | Unset |
 | `SECURITY_PROMPT_CLASSIFIER_TOKEN` | Authentication token for `SECURITY_PROMPT_CLASSIFIER_ENDPOINT` | String | Unset |
+| `GOOSE_TELEMETRY_ENABLED` | Enable or disable [anonymous usage data collection](/docs/guides/usage-data) | true/false | false |
 
 **Examples**
 
@@ -316,6 +391,10 @@ export SECURITY_PROMPT_ENABLED=true
 export SECURITY_PROMPT_CLASSIFIER_ENABLED=true
 export SECURITY_PROMPT_CLASSIFIER_ENDPOINT="https://your-endpoint.com/classify"
 export SECURITY_PROMPT_CLASSIFIER_TOKEN="your-auth-token"
+
+# Control anonymous usage data collection
+export GOOSE_TELEMETRY_ENABLED=false  # Disable telemetry
+export GOOSE_TELEMETRY_ENABLED=true   # Enable telemetry
 ```
 
 :::tip
@@ -513,9 +592,8 @@ When deploying goose in enterprise environments, administrators might need to co
 - [Advanced Provider Configuration](#advanced-provider-configuration) - Point to internal LLM endpoints (e.g., Databricks, custom deployments)
 - [Model Context Limit Overrides](#model-context-limit-overrides) - Configure context limits for LiteLLM proxies and custom models
 
-**Security and Access Control** - Manage which extensions can run and how secrets are stored:
-
-- [Security Configuration](#security-configuration) - Control extension loading (`GOOSE_ALLOWLIST`) and secrets management (`GOOSE_DISABLE_KEYRING`)
+**Security and Privacy** - Control security and privacy features:
+- [Security and Privacy](#security-and-privacy) - Manage security and privacy settings such as extension loading, secrets storage, and usage data collection
 
 **Compliance and Monitoring** - Track usage and export telemetry for auditing:
 

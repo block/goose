@@ -586,23 +586,15 @@ async fn agent_add_extension(
     let extension_name = request.config.name();
     let agent = state.get_agent(request.session_id.clone()).await?;
 
-    agent.add_extension(request.config).await.map_err(|e| {
-        goose::posthog::emit_error(
-            "extension_add_failed",
-            &format!("{}: {}", extension_name, e),
-        );
-        ErrorResponse::internal(format!("Failed to add extension: {}", e))
-    })?;
-
-    // Persist here rather than in add_extension to ensure we only save state
-    // after the extension successfully loads. This prevents failed extensions
-    // from being persisted as enabled in the session.
     agent
-        .persist_extension_state(&request.session_id)
+        .add_extension(request.config, &request.session_id)
         .await
         .map_err(|e| {
-            error!("Failed to persist extension state: {}", e);
-            ErrorResponse::internal(format!("Failed to persist extension state: {}", e))
+            goose::posthog::emit_error(
+                "extension_add_failed",
+                &format!("{}: {}", extension_name, e),
+            );
+            ErrorResponse::internal(format!("Failed to add extension: {}", e))
         })?;
 
     Ok(StatusCode::OK)
@@ -624,15 +616,14 @@ async fn agent_remove_extension(
     Json(request): Json<RemoveExtensionRequest>,
 ) -> Result<StatusCode, ErrorResponse> {
     let agent = state.get_agent(request.session_id.clone()).await?;
-    agent.remove_extension(&request.name).await?;
 
     agent
-        .persist_extension_state(&request.session_id)
+        .remove_extension(&request.name, &request.session_id)
         .await
         .map_err(|e| {
-            error!("Failed to persist extension state: {}", e);
+            error!("Failed to remove extension: {}", e);
             ErrorResponse {
-                message: format!("Failed to persist extension state: {}", e),
+                message: format!("Failed to remove extension: {}", e),
                 status: StatusCode::INTERNAL_SERVER_ERROR,
             }
         })?;
@@ -956,7 +947,12 @@ async fn call_tool(
 
     let tool_result = agent
         .extension_manager
-        .dispatch_tool_call(&payload.session_id, tool_call, CancellationToken::default())
+        .dispatch_tool_call(
+            &payload.session_id,
+            tool_call,
+            None,
+            CancellationToken::default(),
+        )
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 

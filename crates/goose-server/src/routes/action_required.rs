@@ -1,5 +1,6 @@
+use crate::routes::errors::ErrorResponse;
 use crate::state::AppState;
-use axum::{extract::State, http::StatusCode, routing::post, Json, Router};
+use axum::{extract::State, routing::post, Json, Router};
 use goose::permission::permission_confirmation::PrincipalType;
 use goose::permission::{Permission, PermissionConfirmation};
 use serde::{Deserialize, Serialize};
@@ -13,7 +14,7 @@ pub struct ConfirmToolActionRequest {
     id: String,
     #[serde(default = "default_principal_type")]
     principal_type: PrincipalType,
-    action: String,
+    action: Permission,
     session_id: String,
 }
 
@@ -34,21 +35,15 @@ fn default_principal_type() -> PrincipalType {
 pub async fn confirm_tool_action(
     State(state): State<Arc<AppState>>,
     Json(request): Json<ConfirmToolActionRequest>,
-) -> Result<Json<Value>, StatusCode> {
+) -> Result<Json<Value>, ErrorResponse> {
     let agent = state.get_agent_for_route(request.session_id).await?;
-    let permission = match request.action.as_str() {
-        "always_allow" => Permission::AlwaysAllow,
-        "allow_once" => Permission::AllowOnce,
-        "deny" => Permission::DenyOnce,
-        _ => Permission::DenyOnce,
-    };
 
     agent
         .handle_confirmation(
             request.id.clone(),
             PermissionConfirmation {
                 principal_type: request.principal_type,
-                permission,
+                permission: request.action,
             },
         )
         .await;
@@ -72,6 +67,7 @@ mod tests {
     mod integration_tests {
         use super::*;
         use axum::{body::Body, http::Request};
+        use http::StatusCode;
         use tower::ServiceExt;
 
         #[tokio::test(flavor = "multi_thread")]
@@ -89,7 +85,7 @@ mod tests {
                     serde_json::to_string(&ConfirmToolActionRequest {
                         id: "test-id".to_string(),
                         principal_type: PrincipalType::Tool,
-                        action: "allow_once".to_string(),
+                        action: Permission::AllowOnce,
                         session_id: "test-session".to_string(),
                     })
                     .unwrap(),

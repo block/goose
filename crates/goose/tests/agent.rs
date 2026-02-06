@@ -336,7 +336,9 @@ mod tests {
         use goose::agents::SessionConfig;
         use goose::conversation::message::{Message, MessageContent};
         use goose::model::ModelConfig;
-        use goose::providers::base::{Provider, ProviderMetadata, ProviderUsage, Usage};
+        use goose::providers::base::{
+            Provider, ProviderDef, ProviderMetadata, ProviderUsage, Usage,
+        };
         use goose::providers::errors::ProviderError;
         use goose::session::session_manager::SessionType;
         use rmcp::model::{CallToolRequestParams, Tool};
@@ -348,6 +350,29 @@ mod tests {
         impl MockToolProvider {
             fn new() -> Self {
                 Self {}
+            }
+        }
+
+        impl ProviderDef for MockToolProvider {
+            type Provider = Self;
+
+            fn metadata() -> ProviderMetadata {
+                ProviderMetadata {
+                    name: "mock".to_string(),
+                    display_name: "Mock Provider".to_string(),
+                    description: "Mock provider for testing".to_string(),
+                    default_model: "mock-model".to_string(),
+                    known_models: vec![],
+                    model_doc_link: "".to_string(),
+                    config_keys: vec![],
+                    allows_unlisted_models: false,
+                }
+            }
+
+            fn from_env(
+                _model: ModelConfig,
+            ) -> futures::future::BoxFuture<'static, anyhow::Result<Self>> {
+                Box::pin(async { Ok(Self::new()) })
             }
         }
 
@@ -392,19 +417,6 @@ mod tests {
 
             fn get_model_config(&self) -> ModelConfig {
                 ModelConfig::new("mock-model").unwrap()
-            }
-
-            fn metadata() -> ProviderMetadata {
-                ProviderMetadata {
-                    name: "mock".to_string(),
-                    display_name: "Mock Provider".to_string(),
-                    description: "Mock provider for testing".to_string(),
-                    default_model: "mock-model".to_string(),
-                    known_models: vec![],
-                    model_doc_link: "".to_string(),
-                    config_keys: vec![],
-                    allows_unlisted_models: false,
-                }
             }
 
             fn get_name(&self) -> &str {
@@ -503,6 +515,8 @@ mod tests {
         use goose::session::SessionManager;
 
         async fn setup_agent_with_extension_manager() -> (Agent, String) {
+            use goose::session::session_manager::SessionType;
+
             // Add the TODO extension to the config so it can be discovered by search_available_extensions
             // Set it as disabled initially so tests can enable it
             let todo_extension_entry = ExtensionEntry {
@@ -512,6 +526,7 @@ mod tests {
                     description:
                         "Enable a todo list for goose so it can keep track of what it is doing"
                             .to_string(),
+                    display_name: Some("Todo".to_string()),
                     bundled: Some(true),
                     available_tools: vec![],
                 },
@@ -521,9 +536,8 @@ mod tests {
             // Create agent with session_id from the start
             let temp_dir = tempfile::tempdir().unwrap();
             let session_manager = Arc::new(SessionManager::new(temp_dir.path().to_path_buf()));
-            let session_id = "test-session-id".to_string();
             let config = AgentConfig::new(
-                session_manager,
+                session_manager.clone(),
                 PermissionManager::instance(),
                 None,
                 GooseMode::Auto,
@@ -531,16 +545,27 @@ mod tests {
 
             let agent = Agent::with_config(config);
 
+            let session = session_manager
+                .create_session(
+                    std::path::PathBuf::from("."),
+                    "Test Session".to_string(),
+                    SessionType::Hidden,
+                )
+                .await
+                .expect("Failed to create session");
+            let session_id = session.id;
+
             // Now add the extension manager platform extension
             let ext_config = ExtensionConfig::Platform {
                 name: "extensionmanager".to_string(),
                 description: "Extension Manager".to_string(),
+                display_name: Some("Extension Manager".to_string()),
                 bundled: Some(true),
                 available_tools: vec![],
             };
 
             agent
-                .add_extension(ext_config)
+                .add_extension(ext_config, &session_id)
                 .await
                 .expect("Failed to add extension manager");
             (agent, session_id)

@@ -44,12 +44,7 @@ fn format_tool_response(
 
     match &response.tool_result {
         Ok(call_result) => {
-            let abridged: Vec<_> = call_result
-                .content
-                .iter()
-                .filter(|c| c.audience().is_none_or(|a| a.contains(&Role::Assistant)))
-                .map(|c| c.raw.clone())
-                .collect();
+            let abridged: Vec<_> = call_result.content.iter().map(|c| c.raw.clone()).collect();
 
             let mut tool_content = Vec::new();
             let mut image_messages = Vec::new();
@@ -111,7 +106,7 @@ fn format_tool_response(
 ///   even though the message structure is otherwise following openai, the enum switches this
 fn format_messages(messages: &[Message], image_format: &ImageFormat) -> Vec<DatabricksMessage> {
     let mut result = Vec::new();
-    for message in messages.iter().filter(|m| m.is_agent_visible()) {
+    for message in messages {
         let mut converted = DatabricksMessage {
             content: Value::Null,
             role: match message.role {

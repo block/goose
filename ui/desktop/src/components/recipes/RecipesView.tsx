@@ -32,7 +32,7 @@ import {
 } from '../../api';
 import ImportRecipeForm, { ImportRecipeButton } from './ImportRecipeForm';
 import CreateEditRecipeModal from './CreateEditRecipeModal';
-import { generateDeepLink, Recipe } from '../../recipe';
+import { generateDeepLink, Recipe, stripEmptyExtensions } from '../../recipe';
 import { useNavigation } from '../../hooks/useNavigation';
 import { CronPicker } from '../schedule/CronPicker';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../ui/dialog';
@@ -58,6 +58,7 @@ import {
 } from '../ui/dropdown-menu';
 import { getSearchShortcutText } from '../../utils/keyboardShortcuts';
 import { errorMessage } from '../../utils/conversionUtils';
+import { AppEvents } from '../../constants/events';
 
 export default function RecipesView() {
   const setView = useNavigation();
@@ -138,17 +139,20 @@ export default function RecipesView() {
     }
   };
 
-  const handleStartRecipeChat = async (recipe: Recipe, _recipeId: string) => {
+  const handleStartRecipeChat = async (recipe: Recipe) => {
     try {
       const newAgent = await startAgent({
         body: {
           working_dir: getInitialWorkingDir(),
-          recipe,
+          recipe: stripEmptyExtensions(recipe) as Recipe,
         },
         throwOnError: true,
       });
       const session = newAgent.data;
       trackRecipeStarted(true, undefined, false);
+
+      window.dispatchEvent(new CustomEvent(AppEvents.SESSION_CREATED, { detail: { session } }));
+
       setView('pair', {
         disableAnimation: true,
         resumeSessionId: session.id,
@@ -506,7 +510,7 @@ export default function RecipesView() {
           <Button
             onClick={(e) => {
               e.stopPropagation();
-              handleStartRecipeChat(recipe, recipeManifestResponse.id);
+              handleStartRecipeChat(recipe);
             }}
             size="sm"
             className="h-8 w-8 p-0"

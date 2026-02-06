@@ -21,6 +21,7 @@ use tokio_util::task::AbortOnDropHandle;
 pub use self::export::message_to_markdown;
 pub use builder::{build_session, SessionBuilderConfig};
 use console::Color;
+use goose::agents::subagent_handler::SUBAGENT_TOOL_REQUEST_TYPE;
 use goose::agents::AgentEvent;
 use goose::permission::permission_confirmation::PrincipalType;
 use goose::permission::Permission;
@@ -166,11 +167,19 @@ pub struct CliSession {
     output_format: String,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum HintStatus {
+    Default,
+    Interrupted,
+    MaybeExit,
+}
+
 // Cache structure for completion data
-struct CompletionCache {
-    prompts: HashMap<String, Vec<String>>,
-    prompt_info: HashMap<String, output::PromptInfo>,
-    last_updated: Instant,
+pub struct CompletionCache {
+    pub prompts: HashMap<String, Vec<String>>,
+    pub prompt_info: HashMap<String, output::PromptInfo>,
+    pub last_updated: Instant,
+    pub hint_status: HintStatus,
 }
 
 impl CompletionCache {
@@ -179,6 +188,7 @@ impl CompletionCache {
             prompts: HashMap::new(),
             prompt_info: HashMap::new(),
             last_updated: Instant::now(),
+            hint_status: HintStatus::Default,
         }
     }
 }
@@ -314,8 +324,9 @@ impl CliSession {
                 if PLATFORM_EXTENSIONS.contains_key(extension_name) {
                     ExtensionConfig::Platform {
                         name: extension_name.to_string(),
-                        bundled: None,
                         description: extension_name.to_string(),
+                        display_name: None,
+                        bundled: None,
                         available_tools: Vec::new(),
                     }
                 } else {
@@ -335,15 +346,10 @@ impl CliSession {
     async fn add_and_persist_extensions(&mut self, configs: Vec<ExtensionConfig>) -> Result<()> {
         for config in configs {
             self.agent
-                .add_extension(config)
+                .add_extension(config, &self.session_id)
                 .await
                 .map_err(|e| anyhow::anyhow!("Failed to start extension: {}", e))?;
         }
-
-        self.agent
-            .persist_extension_state(&self.session_id)
-            .await
-            .map_err(|e| anyhow::anyhow!("Failed to save extension state: {}", e))?;
 
         self.invalidate_completion_cache().await;
 
@@ -461,6 +467,7 @@ impl CliSession {
                 })
                 .collect();
 
+            output::run_status_hook("waiting");
             let input = input::get_input(&mut editor, Some(&conversation_strings))?;
             if matches!(input, InputResult::Exit) {
                 break;
@@ -595,6 +602,7 @@ impl CliSession {
 
                 let _provider = self.agent.provider().await?;
 
+                output::run_status_hook("thinking");
                 output::show_thinking();
                 let start_time = Instant::now();
                 self.process_agent_response(true, CancellationToken::default())
@@ -1097,7 +1105,11 @@ impl CliSession {
     }
 
     async fn handle_interrupted_messages(&mut self, interrupt: bool) -> Result<()> {
-        // First, get any tool requests from the last message if it exists
+        if interrupt {
+            let mut cache = self.completion_cache.write().unwrap();
+            cache.hint_status = HintStatus::Interrupted;
+        }
+
         let tool_requests = self
             .messages
             .last()
@@ -1118,6 +1130,7 @@ impl CliSession {
         if !tool_requests.is_empty() {
             // Interrupted during a tool request
             // Create tool responses for all interrupted tool requests
+            // TODO(Douwe): if we need this, it should happen in agent reply
             let mut response_message = Message::user();
             let last_tool_name = tool_requests
                 .last()
@@ -1144,7 +1157,6 @@ impl CliSession {
                     }),
                 ));
             }
-            // TODO(Douwe): update also db
             self.push_message(response_message);
             let prompt = format!(
                 "The existing call to {} was interrupted. How would you like to proceed?",
@@ -1526,6 +1538,49 @@ fn handle_mcp_notification(
 ) {
     match notification {
         ServerNotification::LoggingMessageNotification(log_notif) => {
+            if let Some(obj) = log_notif.params.data.as_object() {
+                if obj.get("type").and_then(|v| v.as_str()) == Some(SUBAGENT_TOOL_REQUEST_TYPE) {
+                    if let (Some(subagent_id), Some(tool_call)) = (
+                        obj.get("subagent_id").and_then(|v| v.as_str()),
+                        obj.get("tool_call").and_then(|v| v.as_object()),
+                    ) {
+                        let tool_name = tool_call
+                            .get("name")
+                            .and_then(|v| v.as_str())
+                            .unwrap_or("unknown");
+                        let arguments = tool_call
+                            .get("arguments")
+                            .and_then(|v| v.as_object())
+                            .cloned();
+
+                        if interactive {
+                            let _ = progress_bars.hide();
+                        }
+                        if is_stream_json_mode {
+                            emit_stream_event(&StreamEvent::Notification {
+                                extension_id: extension_id.to_string(),
+                                data: NotificationData::Log {
+                                    message: output::format_subagent_tool_call_message(
+                                        subagent_id,
+                                        tool_name,
+                                    ),
+                                },
+                            });
+                            return;
+                        }
+                        if !is_json_mode {
+                            output::render_subagent_tool_call(
+                                subagent_id,
+                                tool_name,
+                                arguments.as_ref(),
+                                debug,
+                            );
+                            return;
+                        }
+                    }
+                }
+            }
+
             let (formatted, subagent_id, notif_type) =
                 format_logging_notification(&log_notif.params.data, debug);
 

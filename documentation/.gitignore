@@ -8,6 +8,8 @@
 .docusaurus
 .cache-loader
 static/goose-docs-map.md
+static/skills-manifest.json
+static/skills-data-zips/
 
 # Misc
 .DS_Store
@@ -17,3 +19,4 @@ static/goose-docs-map.md
 .env.production.local
 
 npm-debug.log*
+.tmp/

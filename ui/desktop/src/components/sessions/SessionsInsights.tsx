@@ -171,7 +171,7 @@ export function SessionInsights() {
                   See all
                 </Button>
               </div>
-              <div className="space-y-3 min-h-[96px]">
+              <div className="space-y-3 min-h-[96px] max-h-[140px] overflow-hidden">
                 {/* Skeleton chat items */}
                 <div className="flex items-center justify-between py-1 px-2">
                   <div className="flex items-center space-x-2">
@@ -295,9 +295,8 @@ export function SessionInsights() {
                   See all
                 </Button>
               </div>
-              <div className="space-y-1 min-h-[96px] transition-all duration-300 ease-in-out">
+              <div className="space-y-1 min-h-[96px] max-h-[140px] overflow-hidden transition-all duration-300 ease-in-out">
                 {isLoadingSessions ? (
-                  // Show skeleton while sessions are loading
                   <>
                     <div className="flex items-center justify-between py-1 px-2">
                       <div className="flex items-center space-x-2">
@@ -325,7 +324,7 @@ export function SessionInsights() {
                   recentSessions.map((session, index) => (
                     <div
                       key={session.id}
-                      className="flex items-center justify-between text-sm py-1 px-2 rounded-md hover:bg-background-muted cursor-pointer transition-colors session-item"
+                      className="flex items-center justify-between text-sm py-1 px-2 rounded-md hover:bg-background-muted cursor-pointer transition-colors"
                       onClick={() => handleSessionClick(session)}
                       role="button"
                       tabIndex={0}

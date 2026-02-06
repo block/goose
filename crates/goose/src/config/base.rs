@@ -8,7 +8,6 @@ use serde_json::Value;
 use serde_yaml::Mapping;
 use std::collections::HashMap;
 use std::env;
-use std::ffi::OsString;
 use std::fs::OpenOptions;
 use std::io::Write;
 use std::path::{Path, PathBuf};
@@ -273,25 +272,34 @@ impl Config {
     }
 
     fn load(&self) -> Result<Mapping, ConfigError> {
-        if self.config_path.exists() {
-            self.load_values_with_recovery()
+        let mut values = if self.config_path.exists() {
+            self.load_values_with_recovery()?
         } else {
             // Config file doesn't exist, try to recover from backup first
             tracing::info!("Config file doesn't exist, attempting recovery from backup");
 
             if let Ok(backup_values) = self.try_restore_from_backup() {
                 tracing::info!("Successfully restored config from backup");
-                return Ok(backup_values);
+                backup_values
+            } else {
+                // No backup available, create a default config
+                tracing::info!("No backup found, creating default configuration");
+
+                // Try to load from init-config.yaml if it exists, otherwise use empty config
+                let default_config = self.load_init_config_if_exists().unwrap_or_default();
+
+                self.create_and_save_default_config(default_config)?
             }
+        };
 
-            // No backup available, create a default config
-            tracing::info!("No backup found, creating default configuration");
-
-            // Try to load from init-config.yaml if it exists, otherwise use empty config
-            let default_config = self.load_init_config_if_exists().unwrap_or_default();
-
-            self.create_and_save_default_config(default_config)
+        // Run migrations on the loaded config
+        if crate::config::migrations::run_migrations(&mut values) {
+            if let Err(e) = self.save_values(values.clone()) {
+                tracing::warn!("Failed to save migrated config: {}", e);
+            }
         }
+
+        Ok(values)
     }
 
     pub fn all_values(&self) -> Result<HashMap<String, Value>, ConfigError> {
@@ -945,10 +953,10 @@ impl Config {
     }
 }
 
-config_value!(CLAUDE_CODE_COMMAND, OsString, "claude");
-config_value!(GEMINI_CLI_COMMAND, OsString, "gemini");
-config_value!(CURSOR_AGENT_COMMAND, OsString, "cursor-agent");
-config_value!(CODEX_COMMAND, OsString, "codex");
+config_value!(CLAUDE_CODE_COMMAND, String, "claude");
+config_value!(GEMINI_CLI_COMMAND, String, "gemini");
+config_value!(CURSOR_AGENT_COMMAND, String, "cursor-agent");
+config_value!(CODEX_COMMAND, String, "codex");
 config_value!(CODEX_REASONING_EFFORT, String, "high");
 config_value!(CODEX_ENABLE_SKILLS, String, "true");
 config_value!(CODEX_SKIP_GIT_CHECK, String, "false");
@@ -959,6 +967,8 @@ config_value!(GOOSE_PROVIDER, String);
 config_value!(GOOSE_MODEL, String);
 config_value!(GOOSE_PROMPT_EDITOR, Option<String>);
 config_value!(GOOSE_MAX_ACTIVE_AGENTS, usize);
+config_value!(GOOSE_DISABLE_SESSION_NAMING, bool);
+config_value!(GEMINI3_THINKING_LEVEL, String);
 
 /// Load init-config.yaml from workspace root if it exists.
 /// This function is shared between the config recovery and the init_config endpoint.
@@ -1203,13 +1213,7 @@ mod tests {
         // Print the final values for debugging
         println!("Final values: {:?}", final_values);
 
-        assert_eq!(
-            final_values.len(),
-            3,
-            "Expected 3 values, got {}",
-            final_values.len()
-        );
-
+        // Check that our 3 keys are present (migrations may add additional keys like "extensions")
         for i in 0..3 {
             let key = format!("key{}", i);
             let value = format!("value{}", i);
@@ -1285,19 +1289,22 @@ mod tests {
         // Try to load values - should create a fresh default config
         let recovered_values = config.all_values()?;
 
-        // Should return empty config
-        assert_eq!(recovered_values.len(), 0);
+        // Note: migrations may add keys like "extensions", so we just verify
+        // that no user-defined keys exist (the config was reset)
+        assert!(
+            !recovered_values.contains_key("key1"),
+            "Should not have user keys after recovery"
+        );
 
         // Verify that a clean config file was written to disk
         let file_content = std::fs::read_to_string(config_file.path())?;
 
-        // Should be valid YAML (empty object)
+        // Should be valid YAML
         let parsed: serde_yaml::Value = serde_yaml::from_str(&file_content)?;
         assert!(parsed.is_mapping());
 
         // Should be able to load it again without issues
-        let reloaded_values = config.all_values()?;
-        assert_eq!(reloaded_values.len(), 0);
+        let _reloaded_values = config.all_values()?;
 
         Ok(())
     }
@@ -1316,8 +1323,12 @@ mod tests {
         // Try to load values - should create a fresh default config file
         let values = config.all_values()?;
 
-        // Should return empty config
-        assert_eq!(values.len(), 0);
+        // Note: migrations may add keys like "extensions", so we just verify
+        // that no user-defined keys exist (the config was freshly created)
+        assert!(
+            !values.contains_key("key1"),
+            "Should not have user keys in fresh config"
+        );
 
         // Verify that the config file was created
         assert!(config_path.exists());
@@ -1328,8 +1339,7 @@ mod tests {
         assert!(parsed.is_mapping());
 
         // Should be able to load it again without issues
-        let reloaded_values = config.all_values()?;
-        assert_eq!(reloaded_values.len(), 0);
+        let _reloaded_values = config.all_values()?;
 
         Ok(())
     }

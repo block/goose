@@ -19,6 +19,11 @@ The configuration files allow you to set default behaviors, configure language m
 - **permission.yaml** - Tool permission levels configured via `goose configure`
 - **secrets.yaml** - API keys and secrets (only when keyring is disabled)
 - **permissions/tool_permissions.json** - Runtime permission decisions (auto-managed)
+- **prompts/** - Customized [prompt templates](/docs/guides/prompt-templates)
+
+In addition to editing configuration files directly, many settings can be managed from goose Desktop and goose CLI:
+- **goose Desktop**: From the `Settings` page and the bottom toolbar
+- **goose CLI**: Run the `goose configure` command
 
 ## Global Settings
 
@@ -51,6 +56,7 @@ The following settings can be configured at the root level of your config.yaml f
 | `SECURITY_PROMPT_CLASSIFIER_ENABLED` | Enable ML-based prompt injection detection for advanced threat identification | true/false | false | No |
 | `SECURITY_PROMPT_CLASSIFIER_ENDPOINT` | Classification endpoint URL for ML-based prompt injection detection | URL (e.g., "https://api.example.com/classify") | None | No |
 | `SECURITY_PROMPT_CLASSIFIER_TOKEN` | Authentication token for `SECURITY_PROMPT_CLASSIFIER_ENDPOINT` | String | None | No |
+| `GOOSE_TELEMETRY_ENABLED` | Enable [anonymous usage data](/docs/guides/usage-data) collection | true/false | false | No |
 
 ## Experimental Features
 
