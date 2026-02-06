@@ -27,8 +27,8 @@ fn main() -> Result<()> {
     // Load tokenizer
     let tokenizer = Tokenizer::from_file(tokenizer_path).map_err(anyhow::Error::msg)?;
 
-    // Tokenize - THIS IS THE KEY: use add_special_tokens=true like candle example
-    let tokens = tokenizer.encode(prompt.as_str(), true).map_err(anyhow::Error::msg)?;
+    // Tokenize - use false since prompt already has <|begin_of_text|>
+    let tokens = tokenizer.encode(prompt.as_str(), false).map_err(anyhow::Error::msg)?;
     let prompt_tokens = tokens.get_ids().to_vec();
 
     println!("Prompt tokens: {}", prompt_tokens.len());

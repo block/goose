@@ -152,7 +152,6 @@ pub struct PlatformExtensionContext {
 }
 
 impl PlatformExtensionContext {
-    /// Get the context limit from the provider, if available
     pub fn get_context_limit(&self) -> Option<usize> {
         if let Ok(provider_guard) = self.provider.try_lock() {
             if let Some(provider) = provider_guard.as_ref() {
@@ -162,8 +161,6 @@ impl PlatformExtensionContext {
         None
     }
 
-    /// Check if the model has sufficient context for this extension
-    /// Returns Err if context_limit < min_context
     pub fn require_min_context(
         &self,
         min_context: usize,

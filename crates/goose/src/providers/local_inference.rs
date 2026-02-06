@@ -11,9 +11,10 @@ use async_trait::async_trait;
 use candle_core::{Device, Tensor};
 use candle_transformers::models::{quantized_llama, quantized_phi, quantized_phi3};
 use futures::future::BoxFuture;
-use rmcp::model::Role;
-use rmcp::model::Tool;
+use rmcp::model::{CallToolRequestParams, Role, Tool};
 use serde::{Deserialize, Serialize};
+use serde_json::json;
+use std::borrow::Cow;
 use std::path::PathBuf;
 use std::sync::Arc;
 use tokenizers::Tokenizer;
@@ -26,17 +27,40 @@ const DEFAULT_MODEL: &str = "llama-3.2-1b";
 
 pub const LOCAL_LLM_MODEL_CONFIG_KEY: &str = "LOCAL_LLM_MODEL";
 
-const LOCAL_SYSTEM_PROMPT: &str = "You are Goose, an AI assistant running locally on the user's machine using a quantized language model. \
+// Load tiny model system prompt with environment context
+fn load_tiny_model_prompt() -> String {
+    use serde_json::json;
+    use std::env;
 
-IMPORTANT: You do not have access to tools, file system operations, web browsing, or code execution. You can only provide text responses and guidance.
+    let os = if cfg!(target_os = "macos") {
+        "macos"
+    } else if cfg!(target_os = "linux") {
+        "linux"
+    } else if cfg!(target_os = "windows") {
+        "windows"
+    } else {
+        "unknown"
+    };
 
-If the user asks you to:
-- Run commands or execute code
-- Read or write files
-- Browse the web or search for information
-- Use any external tools
+    let working_directory = env::current_dir()
+        .map(|p| p.display().to_string())
+        .unwrap_or_else(|_| "unknown".to_string());
 
-Politely inform them that local models don't support these features yet, and suggest they switch to a cloud provider (like Anthropic, OpenAI, or Google) in the model settings for full Goose functionality.";
+    let shell = env::var("SHELL").unwrap_or_else(|_| "/bin/sh".to_string());
+
+    let context = json!({
+        "os": os,
+        "working_directory": working_directory,
+        "shell": shell,
+    });
+
+    crate::prompt_template::render_template("tiny_model_system.md", &context)
+        .unwrap_or_else(|e| {
+            // Fallback if template fails to load
+            eprintln!("WARNING: Failed to load tiny_model_system.md: {:?}", e);
+            "You are Goose, an AI assistant. You can execute shell commands by starting lines with $.".to_string()
+        })
+}
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, ToSchema, PartialEq, Eq)]
 #[serde(rename_all = "lowercase")]
@@ -199,6 +223,103 @@ struct LoadedModel {
     eos_token_id: u32,
 }
 
+/// Streaming parser for emulator commands
+/// Accumulates chunks and emits complete text or commands
+struct StreamingEmulatorParser {
+    buffer: String,
+    in_command: bool,
+    command_start_pos: usize,
+}
+
+impl StreamingEmulatorParser {
+    fn new() -> Self {
+        Self {
+            buffer: String::new(),
+            in_command: false,
+            command_start_pos: 0,
+        }
+    }
+
+    /// Process a chunk and return any complete items (text or commands)
+    /// Returns (optional_text, optional_command)
+    fn process_chunk(&mut self, chunk: &str) -> Vec<(Option<String>, Option<String>)> {
+        self.buffer.push_str(chunk);
+        let mut results = Vec::new();
+
+        loop {
+            if self.in_command {
+                // Look for newline to end the command
+                if let Some(newline_pos) = self.buffer[self.command_start_pos..].find('\n') {
+                    let absolute_pos = self.command_start_pos + newline_pos;
+                    // Extract command from "$ command"
+                    let command_line = &self.buffer[self.command_start_pos..absolute_pos];
+                    if let Some(command) = command_line.strip_prefix('$') {
+                        let command = command.trim();
+                        if !command.is_empty() {
+                            results.push((None, Some(command.to_string())));
+                        }
+                    }
+                    // Remove processed part from buffer
+                    self.buffer = self.buffer[absolute_pos + 1..].to_string();
+                    self.in_command = false;
+                    self.command_start_pos = 0;
+                } else {
+                    // Command not complete yet, wait for more chunks
+                    break;
+                }
+            } else {
+                // Look for command start: "\n$" or "$" at beginning
+                if let Some(pos) = self.buffer.find("\n$") {
+                    // Emit text before the command
+                    let text = self.buffer[..pos + 1].to_string(); // Include the \n
+                    if !text.trim().is_empty() {
+                        results.push((Some(text), None));
+                    }
+                    // Remove text from buffer, start command parsing
+                    self.buffer = self.buffer[pos + 1..].to_string(); // Buffer now starts with "$"
+                    self.in_command = true;
+                    self.command_start_pos = 0;
+                } else if self.buffer.starts_with('$') && self.buffer.len() == chunk.len() {
+                    // Command at very start of response (first chunk)
+                    self.in_command = true;
+                    self.command_start_pos = 0;
+                } else {
+                    // No command found, but keep last few chars in case of split pattern
+                    // E.g., chunk ends with "\n" and next starts with "$"
+                    if self.buffer.chars().count() > 2 && !self.buffer.ends_with('\n') {
+                        // Emit all but last 2 characters as safe text (use char boundaries)
+                        let mut chars = self.buffer.chars();
+                        let keep_count = 2;
+                        let emit_count = self.buffer.chars().count() - keep_count;
+
+                        let emit_text: String = chars.by_ref().take(emit_count).collect();
+                        let keep_text: String = chars.collect();
+
+                        if !emit_text.is_empty() {
+                            results.push((Some(emit_text), None));
+                        }
+                        self.buffer = keep_text;
+                    }
+                    break;
+                }
+            }
+        }
+
+        results
+    }
+
+    /// Flush any remaining buffer content
+    fn flush(&mut self) -> Option<String> {
+        if !self.buffer.is_empty() {
+            let remaining = self.buffer.clone();
+            self.buffer.clear();
+            Some(remaining)
+        } else {
+            None
+        }
+    }
+}
+
 pub struct LocalInferenceProvider {
     model: Arc<Mutex<Option<LoadedModel>>>,
     model_config: ModelConfig,
@@ -357,120 +478,46 @@ impl LocalInferenceProvider {
         })
     }
 
-    async fn generate(
-        &self,
-        loaded: &mut LoadedModel,
-        prompt: &str,
-        max_tokens: usize,
-        template: ChatTemplate,
-    ) -> Result<String, ProviderError> {
-        // Encode prompt
-        let prompt_tokens = loaded
-            .tokenizer
-            .encode(prompt, false)
-            .map_err(|e| ProviderError::ExecutionError(format!("Failed to encode prompt: {}", e)))?
-            .get_ids()
-            .to_vec();
-
-        // PREFILL: Process prompt tokens one-by-one for stability
-        let mut next_token = 0u32;
-        for (pos, &token) in prompt_tokens.iter().enumerate() {
-            let input = Tensor::new(&[token], &loaded.device)
-                .map_err(|e| ProviderError::ExecutionError(format!("Failed to create tensor at pos {}: {}", pos, e)))?
-                .unsqueeze(0)
-                .map_err(|e| {
-                    ProviderError::ExecutionError(format!("Failed to unsqueeze tensor at pos {}: {}", pos, e))
-                })?;
-
-            let logits = loaded.model.forward(&input, pos).map_err(|e| {
-                ProviderError::ExecutionError(format!("Prefill forward pass failed at pos {}: {}", pos, e))
-            })?;
-
-            let logits = logits.squeeze(0).map_err(|e| {
-                ProviderError::ExecutionError(format!("Failed to squeeze logits at pos {}: {}", pos, e))
-            })?;
-
-            next_token = logits
-                .argmax(0)
-                .map_err(|e| ProviderError::ExecutionError(format!("Failed to sample token at pos {}: {}", pos, e)))?
-                .to_scalar::<u32>()
-                .map_err(|e| {
-                    ProviderError::ExecutionError(format!("Failed to convert token at pos {}: {}", pos, e))
-                })?;
-        }
-
-        let mut generated_text = loaded
-            .tokenizer
-            .decode(&[next_token], false)
-            .map_err(|e| ProviderError::ExecutionError(format!("Failed to decode token: {}", e)))?;
-
-        // GENERATION LOOP: Now generate remaining tokens using KV-cache
-        for index in 0..max_tokens.saturating_sub(1) {
-            // Check for EOS tokens (both variants for Llama 3/3.1/3.2)
-            if next_token == loaded.eos_token_id || next_token == 128009 {
-                break;
-            }
-
-            // Single token input for generation
-            let input = Tensor::new(&[next_token], &loaded.device)
-                .map_err(|e| {
-                    ProviderError::ExecutionError(format!("Failed to create tensor: {}", e))
-                })?
-                .unsqueeze(0)
-                .map_err(|e| {
-                    ProviderError::ExecutionError(format!("Failed to unsqueeze tensor: {}", e))
-                })?;
-
-            // Forward pass with correct position
-            // After prefill of N tokens at position 0, first generated token is at position N
-            // We already generated that token, so loop generates tokens at positions N+1, N+2, ...
-            let pos = prompt_tokens.len() + index + 1;
-            let logits = loaded.model.forward(&input, pos).map_err(|e| {
-                ProviderError::ExecutionError(format!(
-                    "Generation forward pass failed at pos {}: {}",
-                    pos, e
-                ))
-            })?;
-
-            // Squeeze to get [vocab_size]
-            let logits = logits.squeeze(0).map_err(|e| {
-                ProviderError::ExecutionError(format!("Failed to squeeze logits: {}", e))
-            })?;
-
-            // Sample next token
-            next_token = logits
-                .argmax(0)
-                .map_err(|e| {
-                    ProviderError::ExecutionError(format!("Failed to sample token: {}", e))
-                })?
-                .to_scalar::<u32>()
-                .map_err(|e| {
-                    ProviderError::ExecutionError(format!("Failed to convert token: {}", e))
-                })?;
-
-            // Decode and append
-            let decoded = loaded.tokenizer.decode(&[next_token], false).map_err(|e| {
-                ProviderError::ExecutionError(format!("Failed to decode token: {}", e))
-            })?;
-
-            generated_text.push_str(&decoded);
-        }
-
-        // Strip EOS tokens from output
-        let mut clean_text = generated_text;
-        for eos_str in template.eos_strings() {
-            clean_text = clean_text.replace(eos_str, "");
-        }
-
-        Ok(clean_text)
-    }
-
     fn build_prompt(&self, system: &str, messages: &[Message], template: ChatTemplate, tools: &[Tool]) -> String {
         match template {
             ChatTemplate::Llama3 => Self::format_llama3(system, messages, tools),
             ChatTemplate::ChatML => Self::format_chatml(system, messages, tools),
             ChatTemplate::Mistral => Self::format_mistral(system, messages, tools),
         }
+    }
+
+    /// Format message content for emulator, including text and tool responses
+    fn format_message_content_for_emulator(msg: &Message) -> String {
+        let mut parts = Vec::new();
+
+        for content in &msg.content {
+            match content {
+                MessageContent::Text(text) => {
+                    parts.push(text.text.clone());
+                }
+                MessageContent::ToolResponse(response) => {
+                    // Include tool results in the prompt so model sees the output
+                    match &response.tool_result {
+                        Ok(result) => {
+                            for content_item in &result.content {
+                                if let Some(text_content) = content_item.as_text() {
+                                    parts.push(text_content.text.to_string());
+                                }
+                                // Skip images and resources for now
+                            }
+                        }
+                        Err(e) => {
+                            parts.push(format!("Error: {}", e));
+                        }
+                    }
+                }
+                _ => {
+                    // Skip tool requests, images, etc.
+                }
+            }
+        }
+
+        parts.join("\n")
     }
 
     fn format_llama3(system: &str, messages: &[Message], tools: &[Tool]) -> String {
@@ -503,9 +550,12 @@ impl LocalInferenceProvider {
                 Role::Assistant => "assistant",
             };
 
-            prompt.push_str(&format!("<|start_header_id|>{}<|end_header_id|>\n\n", role));
-            prompt.push_str(&msg.as_concat_text());
-            prompt.push_str("<|eot_id|>");
+            let content = Self::format_message_content_for_emulator(msg);
+            if !content.trim().is_empty() {
+                prompt.push_str(&format!("<|start_header_id|>{}<|end_header_id|>\n\n", role));
+                prompt.push_str(&content);
+                prompt.push_str("<|eot_id|>");
+            }
         }
 
         // Add assistant prefix to prompt completion
@@ -513,7 +563,7 @@ impl LocalInferenceProvider {
         prompt
     }
 
-    fn format_chatml(system: &str, messages: &[Message], tools: &[Tool]) -> String {
+    fn format_chatml(system: &str, messages: &[Message], _tools: &[Tool]) -> String {
         let mut prompt = String::new();
 
         // Add system message
@@ -530,9 +580,12 @@ impl LocalInferenceProvider {
                 Role::Assistant => "assistant",
             };
 
-            prompt.push_str(&format!("<|im_start|>{}\n", role));
-            prompt.push_str(&msg.as_concat_text());
-            prompt.push_str("<|im_end|>\n");
+            let content = Self::format_message_content_for_emulator(msg);
+            if !content.trim().is_empty() {
+                prompt.push_str(&format!("<|im_start|>{}\n", role));
+                prompt.push_str(&content);
+                prompt.push_str("<|im_end|>\n");
+            }
         }
 
         // Add assistant prefix
@@ -540,7 +593,7 @@ impl LocalInferenceProvider {
         prompt
     }
 
-    fn format_mistral(system: &str, messages: &[Message], tools: &[Tool]) -> String {
+    fn format_mistral(system: &str, messages: &[Message], _tools: &[Tool]) -> String {
         let mut prompt = String::new();
 
         // Mistral doesn't have a separate system role, prepend to first user message
@@ -553,6 +606,11 @@ impl LocalInferenceProvider {
         // Add conversation messages
         let mut first_user = true;
         for msg in messages {
+            let content = Self::format_message_content_for_emulator(msg);
+            if content.trim().is_empty() {
+                continue;
+            }
+
             match msg.role {
                 Role::User => {
                     prompt.push_str("[INST] ");
@@ -560,12 +618,12 @@ impl LocalInferenceProvider {
                         prompt.push_str(&system_prefix);
                         first_user = false;
                     }
-                    prompt.push_str(&msg.as_concat_text());
+                    prompt.push_str(&content);
                     prompt.push_str(" [/INST]");
                 }
                 Role::Assistant => {
                     prompt.push(' ');
-                    prompt.push_str(&msg.as_concat_text());
+                    prompt.push_str(&content);
                     prompt.push_str("</s>");
                 }
             }
@@ -580,6 +638,7 @@ impl LocalInferenceProvider {
 
         prompt
     }
+
 }
 
 impl ProviderDef for LocalInferenceProvider {
@@ -628,7 +687,7 @@ impl Provider for LocalInferenceProvider {
         _session_id: &str,
         _messages: &crate::conversation::Conversation,
     ) -> Result<String, ProviderError> {
-        // Skip expensive inference for session naming
+        // Disable session naming for performance
         Ok("Local conversation".to_string())
     }
 
@@ -644,94 +703,47 @@ impl Provider for LocalInferenceProvider {
 
     async fn complete_with_model(
         &self,
-        _session_id: Option<&str>,
-        model_config: &ModelConfig,
+        session_id: Option<&str>,
+        _model_config: &ModelConfig,
         system: &str,
         messages: &[Message],
         tools: &[Tool],
     ) -> Result<(Message, ProviderUsage), ProviderError> {
-        // Get model metadata to determine chat template
-        let model_info = get_local_model(&model_config.model_name).ok_or_else(|| {
-            ProviderError::ExecutionError(format!("Model not found: {}", model_config.model_name))
-        })?;
+        use futures::StreamExt;
 
-        // Check first character of last user message for test mode
-        let mut test_mode = None;
-        let mut modified_messages = messages.to_vec();
-        if let Some(last_msg) = modified_messages.last_mut() {
-            // Find the text content item (skip info-msg blocks)
-            for (idx, content) in last_msg.content.iter().enumerate() {
-                if let MessageContent::Text(text) = content {
-                    // Skip info-msg blocks
-                    if text.text.starts_with("<info-msg>") {
-                        continue;
-                    }
+        // Just call stream and accumulate results
+        let mut stream = self.stream(session_id.unwrap_or(""), system, messages, tools).await?;
 
-                    // Check first character for test mode
-                    if let Some(first_char) = text.text.chars().next() {
-                        if first_char == '1' || first_char == '2' || first_char == '3' {
-                            test_mode = Some(first_char);
-                            eprintln!("TEST MODE {}: Detected from message", first_char);
-                            // Strip the first character from this content item
-                            let stripped = text.text.chars().skip(1).collect::<String>();
-                            last_msg.content[idx] = MessageContent::text(stripped);
-                            break;
-                        }
-                    }
-                    break; // Only check first non-info-msg text content
+        let mut accumulated_message = Message::assistant();
+        let mut final_usage = None;
+
+        while let Some(result) = stream.next().await {
+            let (message_opt, usage_opt) = result?;
+
+            if let Some(msg) = message_opt {
+                // Accumulate message content
+                accumulated_message.id = msg.id.or(accumulated_message.id);
+                for content in msg.content {
+                    accumulated_message.content.push(content);
                 }
             }
+
+            if let Some(usage) = usage_opt {
+                final_usage = Some(usage);
+            }
         }
 
-        // Build prompt based on test mode
-        let (system_to_use, tools_to_use) = match test_mode {
-            Some('1') => {
-                eprintln!("TEST MODE 1: Local system prompt, no tools");
-                (LOCAL_SYSTEM_PROMPT, &[] as &[Tool])
-            }
-            Some('2') => {
-                eprintln!("TEST MODE 2: Provided system prompt, no tools");
-                (system, &[] as &[Tool])
-            }
-            Some('3') => {
-                eprintln!("TEST MODE 3: Provided system prompt with tools");
-                (system, tools)
-            }
-            _ => {
-                // Default: use local system prompt
-                (LOCAL_SYSTEM_PROMPT, &[] as &[Tool])
-            }
-        };
+        let usage = final_usage.ok_or_else(|| {
+            ProviderError::ExecutionError("Stream ended without usage information".to_string())
+        })?;
 
-        let prompt = self.build_prompt(system_to_use, &modified_messages, model_info.chat_template, tools_to_use);
-
-        // Load model if needed
-        let mut model_lock = self.model.lock().await;
-        if model_lock.is_none() {
-            *model_lock = Some(Self::load_model(&model_config.model_name).await?);
-        }
-        let loaded = model_lock.as_mut().unwrap();
-
-        // Generate response
-        let response = self
-            .generate(loaded, &prompt, 100, model_info.chat_template)
-            .await?;
-        tracing::info!("Generation complete: {} chars", response.len());
-
-        // Return message
-        let message = Message::assistant().with_text(&response);
-        let usage = Usage::new(None, None, None); // Will estimate later
-
-        Ok((
-            message,
-            ProviderUsage::new(model_config.model_name.clone(), usage),
-        ))
+        Ok((accumulated_message, usage))
     }
 
     async fn stream(
         &self,
         _session_id: &str,
-        system: &str,
+        _system: &str,
         messages: &[Message],
         tools: &[Tool],
     ) -> Result<MessageStream, ProviderError> {
@@ -742,62 +754,10 @@ impl Provider for LocalInferenceProvider {
         })?;
         let template = model_info.chat_template;
 
-        // Check first character of last user message for test mode
-        let mut test_mode = None;
-        let mut modified_messages = messages.to_vec();
-        if let Some(last_msg) = modified_messages.last_mut() {
-            // Find the text content item (skip info-msg blocks)
-            for (idx, content) in last_msg.content.iter().enumerate() {
-                if let MessageContent::Text(text) = content {
-                    // Skip info-msg blocks
-                    if text.text.starts_with("<info-msg>") {
-                        continue;
-                    }
+        let tiny_prompt = load_tiny_model_prompt();
 
-                    // Check first character for test mode
-                    if let Some(first_char) = text.text.chars().next() {
-                        if first_char == '1' || first_char == '2' || first_char == '3' {
-                            test_mode = Some(first_char);
-                            eprintln!("TEST MODE {}: Detected from message", first_char);
-                            // Strip the first character from this content item
-                            let stripped = text.text.chars().skip(1).collect::<String>();
-                            last_msg.content[idx] = MessageContent::text(stripped);
-                            break;
-                        }
-                    }
-                    break; // Only check first non-info-msg text content
-                }
-            }
-        }
+        let prompt = self.build_prompt(&tiny_prompt, &messages, template, tools);
 
-        // Build prompt based on test mode
-        let (system_to_use, tools_to_use) = match test_mode {
-            Some('1') => {
-                eprintln!("TEST MODE 1: Local system prompt, no tools");
-                (LOCAL_SYSTEM_PROMPT, &[] as &[Tool])
-            }
-            Some('2') => {
-                eprintln!("TEST MODE 2: Provided system prompt, no tools");
-                (system, &[] as &[Tool])
-            }
-            Some('3') => {
-                eprintln!("TEST MODE 3: Provided system prompt with tools");
-                (system, tools)
-            }
-            _ => {
-                // Default: use local system prompt
-                (LOCAL_SYSTEM_PROMPT, &[] as &[Tool])
-            }
-        };
-
-        let prompt = self.build_prompt(system_to_use, &modified_messages, template, tools_to_use);
-
-        // Debug: Save prompt to file for testing
-        if let Ok(_) = std::fs::write("/tmp/goose_prompt_stream.txt", &prompt) {
-            eprintln!("DEBUG: Saved prompt to /tmp/goose_prompt_stream.txt ({} bytes)", prompt.len());
-        }
-
-        // Lazy load model if needed
         let mut model_lock = self.model.lock().await;
         if model_lock.is_none() {
             *model_lock = Some(Self::load_model(&model_config.model_name).await?);
@@ -810,6 +770,9 @@ impl Provider for LocalInferenceProvider {
         Ok(Box::pin(try_stream! {
             // Generate a consistent message ID for all chunks
             let message_id = Uuid::new_v4().to_string();
+
+            // Create streaming parser for emulator commands
+            let mut parser = StreamingEmulatorParser::new();
 
             // Get mutable access to model
             let mut model_lock = model_arc.lock().await;
@@ -825,65 +788,71 @@ impl Provider for LocalInferenceProvider {
                 .get_ids()
                 .to_vec();
 
-            // PREFILL: Process prompt tokens one-by-one for stability
-            let mut next_token = 0u32;
-            for (pos, &token) in prompt_tokens.iter().enumerate() {
-                let input = Tensor::new(&[token], &loaded.device)
-                    .map_err(|e| ProviderError::ExecutionError(format!("Failed to create tensor at pos {}: {}", pos, e)))?
-                    .unsqueeze(0)
-                    .map_err(|e| ProviderError::ExecutionError(format!("Failed to unsqueeze tensor at pos {}: {}", pos, e)))?;
+            // PREFILL: Process entire prompt at once for speed
+            let input = Tensor::new(prompt_tokens.as_slice(), &loaded.device)
+                .map_err(|e| ProviderError::ExecutionError(format!("Failed to create input tensor: {}", e)))?
+                .unsqueeze(0)
+                .map_err(|e| ProviderError::ExecutionError(format!("Failed to unsqueeze input tensor: {}", e)))?;
 
-                let logits = loaded
-                    .model
-                    .forward(&input, pos)
-                    .map_err(|e| ProviderError::ExecutionError(format!("Prefill forward pass failed at pos {}: {}", pos, e)))?;
+            let logits = loaded.model.forward(&input, 0).map_err(|e| {
+                ProviderError::ExecutionError(format!("Prefill forward pass failed: {}", e))
+            })?;
 
-                let logits = logits.squeeze(0)
-                    .map_err(|e| ProviderError::ExecutionError(format!("Failed to squeeze logits at pos {}: {}", pos, e)))?;
+            // Quantized model returns [batch_size, vocab_size] directly for the last position
+            // Just squeeze to get [vocab_size] and sample
+            let logits = logits
+                .squeeze(0)
+                .map_err(|e| ProviderError::ExecutionError(format!("Failed to squeeze batch dim: {}", e)))?;
 
-                next_token = logits.argmax(0)
-                    .map_err(|e| ProviderError::ExecutionError(format!("Failed to sample token at pos {}: {}", pos, e)))?
-                    .to_scalar::<u32>()
-                    .map_err(|e| ProviderError::ExecutionError(format!("Failed to convert token at pos {}: {}", pos, e)))?;
-
-                // Debug last few positions
-                if pos >= prompt_tokens.len().saturating_sub(5) {
-                    eprintln!("DEBUG: pos={}, input_token={}, next_token={}, logits_shape={:?}", pos, token, next_token, logits.shape());
-
-                    // At the very last position, check if logits are valid
-                    if pos == prompt_tokens.len() - 1 {
-                        // Get top 5 token IDs and their logit values
-                        if let Ok(flat_logits) = logits.to_vec1::<f32>() {
-                            let mut indexed: Vec<(usize, f32)> = flat_logits.iter().copied().enumerate().collect();
-                            indexed.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
-                            eprintln!("DEBUG: Top 5 tokens at last position:");
-                            for (i, (idx, val)) in indexed.iter().take(5).enumerate() {
-                                eprintln!("  {}. token_id={}, logit={:.4}", i+1, idx, val);
-                            }
-                            eprintln!("DEBUG: Token 791 ('The') logit: {:.4}", flat_logits.get(791).unwrap_or(&-999.0));
-                            eprintln!("DEBUG: Token 127999 (garbage) logit: {:.4}", flat_logits.get(127999).unwrap_or(&-999.0));
-                        }
-                    }
-                }
-            }
-
-            eprintln!("DEBUG: First token after prefill: ID={}, prompt_len={}", next_token, prompt_tokens.len());
+            let mut next_token = logits
+                .argmax(0)
+                .map_err(|e| ProviderError::ExecutionError(format!("Failed to sample token: {}", e)))?
+                .to_scalar::<u32>()
+                .map_err(|e| ProviderError::ExecutionError(format!("Failed to convert token: {}", e)))?;
 
             let decoded = loaded
                 .tokenizer
                 .decode(&[next_token], false)
                 .map_err(|e| ProviderError::ExecutionError(format!("Failed to decode token: {}", e)))?;
 
-            eprintln!("DEBUG: First decoded token: '{}'", decoded);
+            // Process first token through parser
+            let mut tool_call_emitted = false;
+            let parse_results = parser.process_chunk(&decoded);
+            for (text, command) in parse_results {
+                if let Some(text) = text {
+                    let mut message = Message::assistant().with_text(&text);
+                    message.id = Some(message_id.clone());
+                    yield (Some(message), None);
+                }
+                if let Some(command) = command {
+                    // Create tool request
+                    let tool_id = Uuid::new_v4().to_string();
+                    let mut args = serde_json::Map::new();
+                    args.insert("command".to_string(), json!(command));
 
-            // Yield first token
-            let mut message = Message::assistant().with_text(&decoded);
-            message.id = Some(message_id.clone());
-            yield (Some(message), None);
+                    let tool_call = CallToolRequestParams {
+                        meta: None,
+                        task: None,
+                        name: Cow::Borrowed("developer__shell"),
+                        arguments: Some(args),
+                    };
 
-            // GENERATION LOOP: Generate remaining tokens
-            let max_tokens: usize = 100;
-            for index in 0..max_tokens.saturating_sub(1) {
+                    let mut message = Message::assistant();
+                    message.content.push(MessageContent::tool_request(tool_id, Ok(tool_call)));
+                    message.id = Some(message_id.clone());
+                    yield (Some(message), None);
+
+                    // Stop after first tool call
+                    tool_call_emitted = true;
+                }
+            }
+
+            // GENERATION LOOP: Generate remaining tokens (only if no tool call yet)
+            // Use model's context limit, cap output at 2K tokens to leave room for prompt
+            let max_output = model_info.context_limit.saturating_sub(prompt_tokens.len()).min(2048);
+            let mut output_token_count: i32 = 1; // Count the first token from prefill
+            if !tool_call_emitted {
+                for index in 0..max_output.saturating_sub(1) {
                 // Check for EOS tokens
                 if next_token == loaded.eos_token_id || next_token == 128009 {
                     break;
@@ -911,7 +880,10 @@ impl Provider for LocalInferenceProvider {
                     .to_scalar::<u32>()
                     .map_err(|e| ProviderError::ExecutionError(format!("Failed to convert token: {}", e)))?;
 
-                // Decode and yield token
+                // Count the generated token
+                output_token_count += 1;
+
+                // Decode token
                 let mut decoded = loaded
                     .tokenizer
                     .decode(&[next_token], false)
@@ -923,14 +895,56 @@ impl Provider for LocalInferenceProvider {
                 }
 
                 if !decoded.is_empty() {
-                    let mut message = Message::assistant().with_text(&decoded);
-                    message.id = Some(message_id.clone());
-                    yield (Some(message), None);
+                    // Process through parser
+                    let parse_results = parser.process_chunk(&decoded);
+                    for (text, command) in parse_results {
+                        if let Some(text) = text {
+                            let mut message = Message::assistant().with_text(&text);
+                            message.id = Some(message_id.clone());
+                            yield (Some(message), None);
+                        }
+                        if let Some(command) = command {
+                            // Create tool request
+                            let tool_id = Uuid::new_v4().to_string();
+                            let mut args = serde_json::Map::new();
+                            args.insert("command".to_string(), json!(command));
+
+                            let tool_call = CallToolRequestParams {
+                                meta: None,
+                                task: None,
+                                name: Cow::Borrowed("developer__shell"),
+                                arguments: Some(args),
+                            };
+
+                            let mut message = Message::assistant();
+                            message.content.push(MessageContent::tool_request(tool_id, Ok(tool_call)));
+                            message.id = Some(message_id.clone());
+                            yield (Some(message), None);
+
+                            // Stop generation after first tool call
+                            tool_call_emitted = true;
+                        }
+                    }
+                }
+
+                // Break out of generation loop after tool call
+                if tool_call_emitted {
+                    break;
+                }
                 }
             }
 
+            // Flush any remaining parser buffer (only if no tool call, to avoid hallucinations)
+            if let Some(remaining) = parser.flush() {
+                let mut message = Message::assistant().with_text(&remaining);
+                message.id = Some(message_id.clone());
+                yield (Some(message), None);
+            }
+
             // Final yield with usage
-            let usage = Usage::new(None, None, None);
+            let input_tokens = prompt_tokens.len() as i32;
+            let total_tokens = input_tokens + output_token_count;
+            let usage = Usage::new(Some(input_tokens), Some(output_token_count), Some(total_tokens));
             let provider_usage = ProviderUsage::new(model_name.clone(), usage);
             yield (None, Some(provider_usage));
         }))
