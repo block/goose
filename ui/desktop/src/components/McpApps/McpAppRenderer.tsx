@@ -6,15 +6,7 @@ import type {
   McpUiSizeChangedNotification,
   McpUiResourceCsp,
 } from '@modelcontextprotocol/ext-apps/app-bridge';
-import {
-  ToolInput,
-  ToolInputPartial,
-  ToolCancelled,
-  SandboxPermissions,
-  GooseDisplayMode,
-  // Uncomment when SDK adds onRequest prop:
-  // McpRequestHandler,
-} from './types';
+import { ToolInput, ToolInputPartial, ToolCancelled, SandboxPermissions, GooseDisplayMode } from './types';
 import type { CspMetadata, CallToolResponse } from '../../api/types.gen';
 import { cn } from '../../utils';
 import { readResource, callTool } from '../../api';
@@ -336,21 +328,7 @@ export default function McpAppRenderer({
     setError(errorMessage(err));
   }, []);
 
-  // ==========================================================================
-  // Generic MCP Request Handler (commented out until SDK adds onRequest prop)
-  // ==========================================================================
-  // Enables Goose to handle MCP methods not natively supported by AppRenderer.
-  // Uncomment when SDK adds onRequest prop. See types.ts for McpRequestParams.
-  //
-  // const handleRequest: McpRequestHandler = useCallback(async (method, params) => {
-  //   switch (method) {
-  //     case 'sampling/createMessage':
-  //       // TODO: Call goosed sampling endpoint
-  //       break;
-  //     default:
-  //       throw new Error(`Unhandled MCP method: ${method}`);
-  //   }
-  // }, [sessionId]);
+  // TODO: Add onRequest handler when SDK supports it for methods like sampling/createMessage
 
   // Convert our API's CspMetadata to the SDK's McpUiResourceCsp format.
   // Uses sandboxCsp (captured at fetch time) to keep config stable.
