@@ -1168,11 +1168,11 @@ impl Agent {
                     &working_dir,
                 ).await;
 
-                let mut stream = Self::stream_response_from_provider(
+                let mut stream = Self::reply_fast_and_slow(
                     self.provider().await?,
                     &session_config.id,
                     &system_prompt,
-                    conversation_with_moim.messages(),
+                    &conversation_with_moim,
                     &tools,
                     &toolshim_tools,
                 ).await?;
