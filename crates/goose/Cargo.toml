@@ -82,11 +82,13 @@ utoipa = { version = "4.1", features = ["chrono"] }
 tokio-cron-scheduler = "0.14.0"
 urlencoding = "2.1"
 v_htmlescape = "0.15"
-sqlx = { version = "0.8", features = [
+sqlx = { version = "0.8", default-features = false, features = [
     "runtime-tokio-rustls",
     "sqlite",
     "chrono",
     "json",
+    "macros",
+    "migrate",
 ] }
 
 # For Bedrock provider

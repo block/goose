@@ -26,7 +26,7 @@ interface ScheduleModalProps {
 
 type SourceType = 'file' | 'deeplink';
 
-const modalLabelClassName = 'block text-sm font-medium text-text-prominent mb-1';
+const modalLabelClassName = 'block text-sm font-medium text-text-default mb-1';
 
 export const ScheduleModal: React.FC<ScheduleModalProps> = ({
   isOpen,
@@ -168,10 +168,10 @@ export const ScheduleModal: React.FC<ScheduleModalProps> = ({
           <div className="flex items-center gap-3">
             <img src={ClockIcon} alt="Clock" className="w-8 h-8" />
             <div className="flex-1">
-              <h2 className="text-base font-semibold text-text-prominent">
+              <h2 className="text-base font-semibold text-text-default">
                 {isEditMode ? 'Edit Schedule' : 'Create New Schedule'}
               </h2>
-              {isEditMode && <p className="text-sm text-text-subtle">{schedule.id}</p>}
+              {isEditMode && <p className="text-sm text-text-muted">{schedule.id}</p>}
             </div>
           </div>
         </div>
@@ -182,12 +182,12 @@ export const ScheduleModal: React.FC<ScheduleModalProps> = ({
           className="px-8 py-4 space-y-4 flex-grow overflow-y-auto"
         >
           {apiErrorExternally && (
-            <p className="text-text-error text-sm mb-3 p-2 bg-background-error border border-border-error rounded-md">
+            <p className="text-text-danger text-sm mb-3 p-2 bg-background-danger border border-border-danger rounded-md">
               {apiErrorExternally}
             </p>
           )}
           {internalValidationError && (
-            <p className="text-text-error text-sm mb-3 p-2 bg-background-error border border-border-error rounded-md">
+            <p className="text-text-danger text-sm mb-3 p-2 bg-background-danger border border-border-danger rounded-md">
               {internalValidationError}
             </p>
           )}
@@ -289,7 +289,7 @@ export const ScheduleModal: React.FC<ScheduleModalProps> = ({
           </div>
         </form>
 
-        <div className="flex gap-2 px-8 py-4 border-t border-border-subtle">
+        <div className="flex gap-2 px-8 py-4 border-t border-border-default">
           <Button
             type="button"
             variant="ghost"

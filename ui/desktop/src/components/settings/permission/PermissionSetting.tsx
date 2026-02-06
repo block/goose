@@ -22,8 +22,8 @@ function RuleItem({ title, description }: { title: string; description: string }
         size="lg"
       >
         <div>
-          <h3 className="font-semibold text-textStandard">{title}</h3>
-          <p className="text-xs text-textSubtle mt-1">{description}</p>
+          <h3 className="font-semibold text-text-default">{title}</h3>
+          <p className="text-xs text-text-muted mt-1">{description}</p>
         </div>
         <ChevronRight className="w-4 h-4 text-iconStandard" />
         {/* Modal for updating tool permission */}
@@ -36,7 +36,7 @@ function RuleItem({ title, description }: { title: string; description: string }
 function RulesSection({ title, rules }: { title: string; rules: React.ReactNode }) {
   return (
     <div className="space-y-4">
-      <h2 className="text-xl font-medium text-textStandard">{title}</h2>
+      <h2 className="text-xl font-medium text-text-default">{title}</h2>
       {rules}
     </div>
   );
@@ -102,8 +102,8 @@ export default function PermissionSettingsView({ onClose }: { onClose: () => voi
                 <circle cx="7.5" cy="15.5" r="5.5" />
               </svg>
             </div>
-            <h1 className="text-3xl font-medium text-textStandard mt-4">Permission Rules</h1>
-            <p className="text-textSubtle">
+            <h1 className="text-3xl font-medium text-text-default mt-4">Permission Rules</h1>
+            <p className="text-text-muted">
               Hidden instructions that will be passed to the provider to help direct and add context
               to your responses.
             </p>
