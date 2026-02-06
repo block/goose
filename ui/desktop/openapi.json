@@ -6243,6 +6243,92 @@
           }
         }
       },
+      "SearchMatch": {
+        "type": "object",
+        "required": [
+          "role",
+          "content",
+          "timestamp"
+        ],
+        "properties": {
+          "content": {
+            "type": "string",
+            "description": "Message content (may be truncated)"
+          },
+          "role": {
+            "type": "string",
+            "description": "Message role (user/assistant)"
+          },
+          "timestamp": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Message timestamp"
+          }
+        }
+      },
+      "SearchSessionResult": {
+        "type": "object",
+        "required": [
+          "sessionId",
+          "sessionName",
+          "workingDir",
+          "lastActivity",
+          "totalMessages",
+          "matches"
+        ],
+        "properties": {
+          "lastActivity": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Last activity timestamp"
+          },
+          "matches": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SearchMatch"
+            },
+            "description": "Matching messages with context"
+          },
+          "sessionId": {
+            "type": "string",
+            "description": "Session ID"
+          },
+          "sessionName": {
+            "type": "string",
+            "description": "Session name/description"
+          },
+          "totalMessages": {
+            "type": "integer",
+            "description": "Total messages in this session",
+            "minimum": 0
+          },
+          "workingDir": {
+            "type": "string",
+            "description": "Session working directory"
+          }
+        }
+      },
+      "SearchSessionsResponse": {
+        "type": "object",
+        "required": [
+          "results",
+          "totalMatches"
+        ],
+        "properties": {
+          "results": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SearchSessionResult"
+            },
+            "description": "Search results grouped by session"
+          },
+          "totalMatches": {
+            "type": "integer",
+            "description": "Total number of matching messages",
+            "minimum": 0
+          }
+        }
+      },
       "Session": {
         "type": "object",
         "required": [
