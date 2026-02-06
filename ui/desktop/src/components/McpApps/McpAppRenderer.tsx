@@ -409,9 +409,11 @@ export default function McpAppRenderer({
 
   // Transform our API's CallToolResponse to the SDK's CallToolResult format.
   // Maps content items to the expected shape with proper type literals.
-  const appToolResult = useMemo((): CallToolResult | undefined => {
+  // Also passes structuredContent per the MCP Apps spec.
+  const appToolResult = useMemo((): (CallToolResult & { structuredContent?: unknown }) | undefined => {
     if (!toolResult) return undefined;
     const content = toolResult.content || [];
+    console.log('🍊 appToolResult', { toolResult });
     return {
       content: content.map((item) => {
         if ('text' in item && item.text !== undefined) {
@@ -427,6 +429,8 @@ export default function McpAppRenderer({
         return { type: 'text' as const, text: JSON.stringify(item) };
       }),
       isError: toolResult.is_error || false,
+      // Pass structured content per MCP Apps spec (snake_case from API -> camelCase for SDK)
+      structuredContent: toolResult.structured_content as Record<string, unknown> | undefined,
     };
   }, [toolResult]);
 
