@@ -22,7 +22,7 @@ import {
 } from './types';
 
 /** Minimum height for the MCP app iframe in pixels */
-const DEFAULT_IFRAME_HEIGHT = 200;
+const DEFAULT_IFRAME_HEIGHT = 100;
 
 /** Display modes the host supports - apps can request to switch between these */
 const AVAILABLE_DISPLAY_MODES: string[] = ['inline'];
