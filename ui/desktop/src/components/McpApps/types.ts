@@ -2,16 +2,11 @@
  * Types for MCP Apps integration.
  *
  * Types are sourced from:
- * - `@mcp-ui/client` - AppRenderer component types
- * - `../../api/types.gen` - Auto-generated from Rust backend
- * - Manual definitions - For MCP protocol types not exported by SDK
+ * - `@mcp-ui/client` - AppRenderer component types (McpUiHostContext)
+ * - `@modelcontextprotocol/sdk/types.js` - MCP SDK types (CallToolResult)
+ * - `../../api/types.gen` - Auto-generated from Rust backend (CspMetadata, CallToolResponse)
+ * - Below - MCP protocol types not exported by SDK
  */
-
-// Re-export types from generated API (Rust backend)
-export type { CspMetadata, CallToolResponse as ToolResult } from '../../api/types.gen';
-
-// Re-export types from @mcp-ui/client SDK
-export type { McpUiHostContext as HostContext } from '@mcp-ui/client';
 
 /**
  * Valid iframe sandbox attribute tokens.

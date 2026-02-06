@@ -6,14 +6,8 @@ import type {
   McpUiSizeChangedNotification,
   McpUiResourceCsp,
 } from '@modelcontextprotocol/ext-apps/app-bridge';
-import {
-  ToolInput,
-  ToolInputPartial,
-  ToolResult,
-  ToolCancelled,
-  CspMetadata,
-  SandboxPermissions,
-} from './types';
+import { ToolInput, ToolInputPartial, ToolCancelled, SandboxPermissions } from './types';
+import type { CspMetadata, CallToolResponse } from '../../api/types.gen';
 import { cn } from '../../utils';
 import { readResource, callTool } from '../../api';
 import { errorMessage } from '../../utils/conversionUtils';
@@ -56,7 +50,7 @@ interface McpAppRendererProps {
   sessionId?: string | null;
   toolInput?: ToolInput;
   toolInputPartial?: ToolInputPartial;
-  toolResult?: ToolResult;
+  toolResult?: CallToolResponse;
   toolCancelled?: ToolCancelled;
   append?: (text: string) => void;
   fullscreen?: boolean;
