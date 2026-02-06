@@ -146,7 +146,7 @@ async fn execute_summarize(
     let user_message = Message::user().with_text(&prompt);
 
     let (response, _usage) = provider
-        .complete(system, &[user_message], &[])
+        .complete("summarize-tool", system, &[user_message], &[])
         .await
         .map_err(|e| ErrorData {
             code: ErrorCode::INTERNAL_ERROR,
@@ -219,7 +219,7 @@ async fn create_provider(
             .map(|(k, v)| (k.clone(), v.clone()))
             .collect();
         if !filtered.is_empty() {
-            model_config = model_config.with_extra_params(filtered);
+            model_config = model_config.with_request_params(Some(filtered));
         }
     }
 
