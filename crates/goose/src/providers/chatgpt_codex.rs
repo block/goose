@@ -111,6 +111,12 @@ fn build_input_items(messages: &[Message]) -> Result<Vec<Value>> {
                         content_items.push(json!({ "type": content_type, "text": text.text }));
                     }
                 }
+                MessageContent::Image(img) => {
+                    content_items.push(json!({
+                        "type": "input_image",
+                        "image_url": format!("data:{};base64,{}", img.mime_type, img.data),
+                    }));
+                }
                 MessageContent::ToolRequest(request) => {
                     flush_text(&mut items, role, &mut content_items);
                     if let Ok(tool_call) = &request.tool_call {
@@ -1000,6 +1006,9 @@ mod tests {
     use wiremock::matchers::{body_string_contains, method, path};
     use wiremock::{Mock, MockServer, ResponseTemplate};
 
+    /// 1x1 transparent PNG, base64-encoded.
+    const TINY_PNG_B64: &str = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR4nGNgYAAAAAMAASsJTYQAAAAASUVORK5CYII=";
+
     fn input_kinds(payload: &Value) -> Vec<String> {
         payload["input"]
             .as_array()
@@ -1095,11 +1104,38 @@ mod tests {
         ];
         "includes tool error output"
     )]
+    #[test_case(
+        vec![
+            Message::user()
+                .with_text("describe this")
+                .with_image(TINY_PNG_B64, "image/png"),
+        ],
+        vec![
+            "message:user".to_string(),
+        ];
+        "image content included in user message"
+    )]
     fn test_codex_input_order(messages: Vec<Message>, expected: Vec<String>) {
         let items = build_input_items(&messages).unwrap();
         let payload = json!({ "input": items });
         let kinds = input_kinds(&payload);
         assert_eq!(kinds, expected);
+    }
+
+    #[test]
+    fn test_image_url_format() {
+        let messages = vec![Message::user().with_image(TINY_PNG_B64, "image/png")];
+        let items = build_input_items(&messages).unwrap();
+        // The image is inside the content array of the user message
+        let content = items[0]["content"].as_array().unwrap();
+        let image_item = &content[0];
+        assert_eq!(image_item["type"], "input_image");
+        let url = image_item["image_url"].as_str().unwrap();
+        assert!(
+            url.starts_with("data:image/png;base64,"),
+            "image_url should start with data:image/png;base64, but was: {}",
+            url
+        );
     }
 
     #[test_case(
