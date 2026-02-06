@@ -25,7 +25,7 @@ import {
 const DEFAULT_IFRAME_HEIGHT = 200;
 
 /** Display modes the host supports - apps can request to switch between these */
-const AVAILABLE_DISPLAY_MODES = ['inline' as const, 'fullscreen' as const];
+const AVAILABLE_DISPLAY_MODES = ['inline'] as const;
 
 /**
  * Builds the URL for the MCP app sandbox proxy.
@@ -108,10 +108,7 @@ export default function McpAppRenderer({
   displayMode = 'inline',
   cachedHtml,
 }: McpAppRendererProps) {
-  // For SDK communication, map Goose display modes to SDK display modes.
-  // 'standalone' maps to 'fullscreen' since the app fills its container.
-  const isExpandedMode = displayMode === 'fullscreen' || displayMode === 'standalone';
-  const sdkDisplayMode = displayMode === 'standalone' ? 'fullscreen' : displayMode;
+
   const { resolvedTheme } = useTheme();
   const [resource, setResource] = useState<ResourceData>({
     html: cachedHtml || null,
@@ -363,11 +360,11 @@ export default function McpAppRenderer({
   const hostContext = useMemo(
     (): McpUiHostContext => ({
       theme: resolvedTheme,
-      displayMode: sdkDisplayMode,
+      displayMode: displayMode === 'standalone' ? 'fullscreen' : displayMode,
       availableDisplayModes: AVAILABLE_DISPLAY_MODES,
       // TODO: add remaining properties (aharvard)
     }),
-    [resolvedTheme, sdkDisplayMode]
+    [resolvedTheme, displayMode]
   );
 
   // Transform our API's CallToolResponse to the SDK's CallToolResult format.
@@ -408,29 +405,35 @@ export default function McpAppRenderer({
       <div
         className={cn(
           'flex items-center justify-center p-4',
-          isExpandedMode ? 'w-full h-full' : ''
+          (displayMode === 'fullscreen' || displayMode === 'standalone') && 'w-full h-full'
         )}
-        style={{ minHeight: isExpandedMode ? '100%' : '200px' }}
+        style={{
+          minHeight: displayMode === 'fullscreen' || displayMode === 'standalone' ? '100%' : '200px',
+        }}
       >
         Loading MCP app...
       </div>
     );
   }
 
-  const containerStyle = isExpandedMode
-    ? { width: '100%', height: '100%' }
-    : {
-        width: iframeWidth ? `${iframeWidth}px` : '100%',
-        maxWidth: '100%',
-        height: `${iframeHeight}px`,
-      };
+  const containerStyle =
+    displayMode === 'fullscreen' || displayMode === 'standalone'
+      ? { width: '100%', height: '100%' }
+      : {
+          width: iframeWidth ? `${iframeWidth}px` : '100%',
+          maxWidth: '100%',
+          height: `${iframeHeight}px`,
+        };
 
   return (
     <div
       className={cn(
         'bg-background-default overflow-hidden',
-        !isExpandedMode && resource.prefersBorder ? 'border border-border-default rounded-lg' : '',
-        isExpandedMode ? 'w-full h-full' : 'my-6'
+        displayMode !== 'fullscreen' &&
+          displayMode !== 'standalone' &&
+          resource.prefersBorder &&
+          'border border-border-default rounded-lg',
+        displayMode === 'fullscreen' || displayMode === 'standalone' ? 'w-full h-full' : 'my-6'
       )}
       style={containerStyle}
     >
