@@ -112,7 +112,7 @@ export default function McpAppRenderer({
       return;
     }
 
-    const fetchResourceData = async () => {
+    const fetchResource = async () => {
       try {
         const response = await readResource({
           body: {
@@ -153,7 +153,7 @@ export default function McpAppRenderer({
       }
     };
 
-    fetchResourceData();
+    fetchResource();
   }, [resourceUri, extensionName, sessionId, cachedHtml]);
 
   const handleOpenLink = useCallback(async ({ url }: { url: string }) => {
