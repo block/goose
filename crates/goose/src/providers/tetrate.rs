@@ -291,32 +291,28 @@ impl Provider for TetrateProvider {
             }
         };
 
+        // The Tetrate API returns boolean capability flags on each model:
+        // supports_computer_use, supports_vision, supports_caching, supports_reasoning.
+        // Filter to models with supports_computer_use=true as a proxy for tool/function support,
+        // which excludes embedding models, OCR models, and other non-chat models.
         let mut models: Vec<String> = data
             .iter()
             .filter_map(|model| {
-                // Get the model ID
                 let id = model.get("id").and_then(|v| v.as_str())?;
-
-                // If supported_parameters is available, check for tool support.
-                let dominated = model
-                    .get("supported_parameters")
-                    .and_then(|v| v.as_array())
-                    .is_some_and(|params| {
-                        !params.iter().any(|param| param.as_str() == Some("tools"))
-                    });
-
-                if dominated {
-                    tracing::debug!("Model '{}' does not support tools, skipping", id);
-                    None
-                } else {
+                let supports_computer_use = model
+                    .get("supports_computer_use")
+                    .and_then(|v| v.as_bool())
+                    .unwrap_or(false);
+                if supports_computer_use {
                     Some(id.to_string())
+                } else {
+                    None
                 }
             })
             .collect();
 
-        // If no models with tool support were found, fall back to manual entry
         if models.is_empty() {
-            tracing::warn!("No models with tool support found in Tetrate Agent Router Service API response, falling back to manual model entry");
+            tracing::warn!("No models found in Tetrate Agent Router Service API response, falling back to manual model entry");
             return Ok(None);
         }
 
