@@ -120,8 +120,8 @@ export default function McpAppRenderer({
   });
   const [error, setError] = useState<string | null>(null);
   const [iframeHeight, setIframeHeight] = useState(DEFAULT_IFRAME_HEIGHT);
-  // Note: We intentionally don't track iframe width. The SDK sets width on the iframe
-  // based on ui/size-changed, but we let the container be 100% width for responsiveness.
+  // null = fluid (100% width), number = explicit width from app
+  const [iframeWidth, setIframeWidth] = useState<number | null>(null);
   const [sandboxUrl, setSandboxUrl] = useState<URL | null>(null);
   const [sandboxCsp, setSandboxCsp] = useState<CspMetadata | null>(null);
   const [sandboxUrlFetched, setSandboxUrlFetched] = useState(false);
@@ -325,13 +325,17 @@ export default function McpAppRenderer({
     []
   );
 
-  /** Handles `ui/size-changed` - updates iframe height when the MCP app resizes.
-   * Note: We ignore width changes - the SDK handles iframe width internally,
-   * and our container stays at 100% width for responsiveness. */
+  /** Handles `ui/size-changed` - updates container dimensions when the MCP app resizes.
+   * - Height: always respected (with minimum of 0)
+   * - Width: if provided, container uses that width (capped at 100%); if not provided, container is fluid (100%) */
   const handleSizeChanged = useCallback(
-    ({ height }: McpUiSizeChangedNotification['params']) => {
+    ({ height, width }: McpUiSizeChangedNotification['params']) => {
       if (height !== undefined && height > 0) {
         setIframeHeight(height);
+      }
+      // Only update width if explicitly provided. null = fluid (100% width)
+      if (width !== undefined) {
+        setIframeWidth(width > 0 ? width : null);
       }
     },
     []
@@ -466,24 +470,25 @@ export default function McpAppRenderer({
   };
 
   // Compute container classes based on state.
-  // The [&_iframe]:!w-full overrides the SDK's fixed pixel width on the iframe,
-  // making it always fill the container width. This ensures the iframe is responsive
-  // to window resize in both directions (shrinking and expanding).
+  // When app declares explicit width (iframeWidth !== null), let SDK control iframe width.
+  // When app is fluid (iframeWidth === null), force iframe to fill container with [&_iframe]:!w-full.
   const containerClasses = cn(
-    'bg-background-default overflow-hidden [&_iframe]:!w-full',
+    'bg-background-default overflow-hidden',
+    iframeWidth === null && '[&_iframe]:!w-full',
     error && 'border border-red-500 rounded-lg bg-red-50 dark:bg-red-900/20',
     !error && !isExpandedView && 'my-2',
     !error && !isExpandedView && resource.prefersBorder && 'border border-border-default rounded-lg'
   );
 
   // Compute container dimensions based on display mode.
-  // For expanded views, fill the container. For inline, always use full width
-  // (ignoring app-declared width) so the iframe is responsive to window resize.
-  // Height is controlled by the app via ui/size-changed notifications.
+  // - Expanded views: fill the container (100% width and height)
+  // - Inline views with explicit width: use app-declared width (capped at 100% to prevent overflow)
+  // - Inline views without width (fluid): use 100% width
   const containerStyle = isExpandedView
     ? { width: '100%', height: '100%' }
     : {
-        width: '100%',
+        width: iframeWidth !== null ? `${iframeWidth}px` : '100%',
+        maxWidth: '100%',
         height: `${iframeHeight || DEFAULT_IFRAME_HEIGHT}px`,
       };
 
