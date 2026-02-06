@@ -3901,3 +3901,37 @@ export type StopTunnelResponses = {
      */
     200: unknown;
 };
+
+// Manually added for session content search
+export type SearchSessionsData = {
+    body?: never;
+    path?: never;
+    query?: {
+        query: string;
+    };
+    url: '/sessions/search';
+};
+
+export type SearchSessionsErrors = {
+    401: unknown;
+    500: unknown;
+};
+
+export type SessionSearchMatch = {
+    session_id: string;
+    session_name: string;
+    matched_content: string;
+    timestamp: string;
+};
+
+export type SessionSearchResponse = {
+    matches: Array<SessionSearchMatch>;
+    query: string;
+    total_matches: number;
+};
+
+export type SearchSessionsResponses = {
+    200: SessionSearchResponse;
+};
+
+export type SearchSessionsResponse = SearchSessionsResponses[keyof SearchSessionsResponses];

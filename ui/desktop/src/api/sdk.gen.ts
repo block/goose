@@ -520,3 +520,8 @@ export const getTunnelStatus = <ThrowOnError extends boolean = false>(options?: 
  * Stop the tunnel
  */
 export const stopTunnel = <ThrowOnError extends boolean = false>(options?: Options<StopTunnelData, ThrowOnError>) => (options?.client ?? client).post<StopTunnelResponses, StopTunnelErrors, ThrowOnError>({ url: '/tunnel/stop', ...options });
+
+// Manually added for session content search
+import type { SearchSessionsData, SearchSessionsErrors, SearchSessionsResponses } from './types.gen';
+
+export const searchSessions = <ThrowOnError extends boolean = false>(options: Options<SearchSessionsData, ThrowOnError>) => (options.client ?? client).get<SearchSessionsResponses, SearchSessionsErrors, ThrowOnError>({ url: '/sessions/search', ...options });

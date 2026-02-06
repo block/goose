@@ -490,6 +490,7 @@ async fn get_session_extensions(
 pub fn routes(state: Arc<AppState>) -> Router {
     Router::new()
         .route("/sessions", get(list_sessions))
+        .route("/sessions/search", get(search_sessions))
         .route("/sessions/{session_id}", get(get_session))
         .route("/sessions/{session_id}", delete(delete_session))
         .route("/sessions/{session_id}/export", get(export_session))
@@ -509,4 +510,137 @@ pub fn routes(state: Arc<AppState>) -> Router {
             get(get_session_extensions),
         )
         .with_state(state)
+}
+
+#[derive(Deserialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct SearchSessionsQuery {
+    /// Search query string (keywords separated by spaces)
+    query: String,
+    /// Maximum number of results to return (default: 10, max: 50)
+    #[serde(default = "default_limit")]
+    limit: usize,
+    /// Filter results to sessions after this date (ISO 8601 format)
+    after_date: Option<String>,
+    /// Filter results to sessions before this date (ISO 8601 format)
+    before_date: Option<String>,
+}
+
+fn default_limit() -> usize {
+    10
+}
+
+#[derive(Serialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct SearchSessionsResponse {
+    /// Search results grouped by session
+    results: Vec<SearchSessionResult>,
+    /// Total number of matching messages
+    total_matches: usize,
+}
+
+#[derive(Serialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct SearchSessionResult {
+    /// Session ID
+    session_id: String,
+    /// Session name/description
+    session_name: String,
+    /// Session working directory
+    working_dir: String,
+    /// Last activity timestamp
+    last_activity: chrono::DateTime<chrono::Utc>,
+    /// Total messages in this session
+    total_messages: usize,
+    /// Matching messages with context
+    matches: Vec<SearchMatch>,
+}
+
+#[derive(Serialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct SearchMatch {
+    /// Message role (user/assistant)
+    role: String,
+    /// Message content (may be truncated)
+    content: String,
+    /// Message timestamp
+    timestamp: chrono::DateTime<chrono::Utc>,
+}
+
+#[utoipa::path(
+    get,
+    path = "/sessions/search",
+    params(
+        ("query" = String, Query, description = "Search query string"),
+        ("limit" = Option<usize>, Query, description = "Maximum results (default: 10, max: 50)"),
+        ("after_date" = Option<String>, Query, description = "Filter after date (ISO 8601)"),
+        ("before_date" = Option<String>, Query, description = "Filter before date (ISO 8601)")
+    ),
+    responses(
+        (status = 200, description = "Search results", body = SearchSessionsResponse),
+        (status = 400, description = "Bad request - Invalid query"),
+        (status = 401, description = "Unauthorized"),
+        (status = 500, description = "Internal server error")
+    ),
+    security(
+        ("api_key" = [])
+    ),
+    tag = "Session Management"
+)]
+async fn search_sessions(
+    State(state): State<Arc<AppState>>,
+    axum::extract::Query(params): axum::extract::Query<SearchSessionsQuery>,
+) -> Result<Json<SearchSessionsResponse>, StatusCode> {
+    let query = params.query.trim();
+    if query.is_empty() {
+        return Err(StatusCode::BAD_REQUEST);
+    }
+
+    let limit = params.limit.min(50);
+
+    let after_date = params
+        .after_date
+        .and_then(|s| chrono::DateTime::parse_from_rfc3339(&s).ok())
+        .map(|dt| dt.with_timezone(&chrono::Utc));
+
+    let before_date = params
+        .before_date
+        .and_then(|s| chrono::DateTime::parse_from_rfc3339(&s).ok())
+        .map(|dt| dt.with_timezone(&chrono::Utc));
+
+    let search_results = state
+        .session_manager()
+        .search_chat_history(query, Some(limit), after_date, before_date, None)
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    let results: Vec<SearchSessionResult> = search_results
+        .results
+        .into_iter()
+        .map(|r| SearchSessionResult {
+            session_id: r.session_id,
+            session_name: r.session_description,
+            working_dir: r.session_working_dir,
+            last_activity: r.last_activity,
+            total_messages: r.total_messages_in_session,
+            matches: r
+                .messages
+                .into_iter()
+                .map(|m| SearchMatch {
+                    role: m.role,
+                    content: if m.content.len() > 500 {
+                        format!("{}...", &m.content[..500])
+                    } else {
+                        m.content
+                    },
+                    timestamp: m.timestamp,
+                })
+                .collect(),
+        })
+        .collect();
+
+    Ok(Json(SearchSessionsResponse {
+        total_matches: search_results.total_matches,
+        results,
+    }))
 }
