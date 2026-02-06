@@ -436,33 +436,36 @@ export default function McpAppRenderer({
   if (!sandboxConfig || !resource.html) {
     return (
       <div
-        className={cn(
-          'flex items-center justify-center p-4',
-          isExpandedView && 'w-full h-full'
-        )}
-        style={{ minHeight: isExpandedView ? '100%' : '200px' }}
+        className="flex items-center justify-center p-4"
+        style={
+          isExpandedView
+            ? { width: '100%', height: '100%' }
+            : { minHeight: `${DEFAULT_IFRAME_HEIGHT}px` }
+        }
       >
         Loading MCP app...
       </div>
     );
   }
 
-  const containerStyle = isExpandedView
-    ? { width: '100%', height: '100%' }
-    : {
-        width: iframeWidth ? `${iframeWidth}px` : '100%',
-        maxWidth: '100%',
-        height: `${iframeHeight}px`,
-      };
-
+  // For expanded views (fullscreen/standalone), fill the container.
+  // For inline, use dynamic dimensions from the MCP app's size-changed notifications.
   return (
     <div
       className={cn(
         'bg-background-default overflow-hidden',
-        !isExpandedView && resource.prefersBorder && 'border border-border-default rounded-lg',
-        isExpandedView ? 'w-full h-full' : 'my-6'
+        !isExpandedView && 'my-6',
+        !isExpandedView && resource.prefersBorder && 'border border-border-default rounded-lg'
       )}
-      style={containerStyle}
+      style={
+        isExpandedView
+          ? { width: '100%', height: '100%' }
+          : {
+              width: iframeWidth ? `${iframeWidth}px` : '100%',
+              maxWidth: '100%',
+              height: `${iframeHeight}px`,
+            }
+      }
     >
       <AppRenderer
         sandbox={sandboxConfig}
