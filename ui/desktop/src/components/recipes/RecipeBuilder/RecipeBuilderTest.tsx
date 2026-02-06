@@ -165,13 +165,16 @@ export default function RecipeBuilderTest({
     chatState === ChatState.Thinking ||
     chatState === ChatState.Compacting;
 
+  // Session must be fully loaded before we can submit messages
+  const isSessionReady = !!session && chatState !== ChatState.LoadingConversation;
+
   const handleSubmit = useCallback(() => {
-    if (!inputValue.trim() || isStreaming) return;
+    if (!inputValue.trim() || isStreaming || !isSessionReady) return;
 
     const input: UserInput = { msg: inputValue, images: [] };
     submitToChat(input);
     setInputValue('');
-  }, [inputValue, isStreaming, submitToChat]);
+  }, [inputValue, isStreaming, isSessionReady, submitToChat]);
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
@@ -271,7 +274,7 @@ export default function RecipeBuilderTest({
               placeholder="Test your recipe..."
               className="w-full outline-none border-none focus:ring-0 bg-transparent px-3 pt-3 pb-1.5 text-sm resize-none text-textStandard placeholder:text-textPlaceholder"
               rows={2}
-              disabled={isStarting || isStreaming}
+              disabled={isStarting || !isSessionReady || isStreaming}
               style={{ paddingRight: '120px' }}
             />
             <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1">
@@ -292,9 +295,9 @@ export default function RecipeBuilderTest({
                   size="sm"
                   shape="round"
                   variant="outline"
-                  disabled={isStarting || !inputValue.trim()}
+                  disabled={isStarting || !isSessionReady || !inputValue.trim()}
                   className={`rounded-full px-10 py-2 flex items-center gap-2 ${
-                    isStarting || !inputValue.trim()
+                    isStarting || !isSessionReady || !inputValue.trim()
                       ? 'bg-slate-600 text-white cursor-not-allowed opacity-50 border-slate-600'
                       : 'bg-slate-600 text-white hover:bg-slate-700 border-slate-600 hover:cursor-pointer'
                   }`}
