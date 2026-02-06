@@ -25,7 +25,7 @@ import {
 const DEFAULT_IFRAME_HEIGHT = 200;
 
 /** Display modes the host supports - apps can request to switch between these */
-const AVAILABLE_DISPLAY_MODES = ['inline'] as const;
+const AVAILABLE_DISPLAY_MODES: string[] = ['inline'];
 
 /**
  * Builds the URL for the MCP app sandbox proxy.
@@ -195,6 +195,7 @@ export default function McpAppRenderer({
     fetchResource();
   }, [resourceUri, extensionName, sessionId, cachedHtml]);
 
+  /** Handles `ui/open-link` - opens external URLs with user confirmation for non-standard protocols */
   const handleOpenLink = useCallback(async ({ url }: { url: string }) => {
     if (isProtocolSafe(url)) {
       await window.electron.openExternal(url);
@@ -223,6 +224,7 @@ export default function McpAppRenderer({
     return { status: 'success' as const };
   }, []);
 
+  /** Handles `ui/message` - appends text content from the MCP app to the chat */
   const handleMessage = useCallback(
     async ({ content }: { content: Array<{ type: string; text?: string }> }) => {
       if (!append) {
@@ -242,6 +244,7 @@ export default function McpAppRenderer({
     [append]
   );
 
+  /** Handles `tools/call` - invokes an MCP tool and returns the result */
   const handleCallTool = useCallback(
     async ({
       name,
@@ -284,6 +287,7 @@ export default function McpAppRenderer({
     [sessionId, extensionName]
   );
 
+  /** Handles `resources/read` - reads content from an MCP resource URI */
   const handleReadResource = useCallback(
     async ({ uri }: { uri: string }) => {
       if (!sessionId) {
@@ -307,6 +311,7 @@ export default function McpAppRenderer({
     [sessionId, extensionName]
   );
 
+  /** Handles `notifications/message` - logs messages from the MCP app */
   const handleLoggingMessage = useCallback(
     ({ level, logger, data }: { level?: string; logger?: string; data?: unknown }) => {
       console.log(
@@ -317,6 +322,7 @@ export default function McpAppRenderer({
     []
   );
 
+  /** Handles `ui/size-changed` - updates iframe dimensions when the MCP app resizes */
   const handleSizeChanged = useCallback(
     ({ height, width }: McpUiSizeChangedNotification['params']) => {
       if (height !== undefined) {
@@ -327,6 +333,7 @@ export default function McpAppRenderer({
     []
   );
 
+  /** Handles errors from the MCP app iframe */
   const handleError = useCallback((err: Error) => {
     console.error('[MCP App Error]:', err);
     setError(errorMessage(err));
