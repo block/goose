@@ -339,7 +339,14 @@ export default function McpAppRenderer({
     setError(errorMessage(err));
   }, []);
 
-  // TODO: Add onRequest handler when SDK supports it for methods like sampling/createMessage
+  // TODO: Add onRequest handler when SDK supports it
+  // const handleRequest = useCallback(async (method: string, params: unknown) => {
+  //   switch (method) {
+  //     case 'sampling/createMessage':
+  //       // TODO: Call goosed sampling endpoint
+  //       break;
+  //   }
+  // }, []);
 
   // Convert our API's CspMetadata to the SDK's McpUiResourceCsp format.
   // Uses sandboxCsp (captured at fetch time) to keep config stable.
