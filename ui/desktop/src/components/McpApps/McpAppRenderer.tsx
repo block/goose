@@ -14,9 +14,17 @@ import { errorMessage } from '../../utils/conversionUtils';
 import { isProtocolSafe, getProtocol } from '../../utils/urlSecurity';
 import { useTheme } from '../../contexts/ThemeContext';
 
+/** Minimum height for the MCP app iframe in pixels */
 const DEFAULT_IFRAME_HEIGHT = 200;
+
+/** Display modes the host supports - apps can request to switch between these */
 const AVAILABLE_DISPLAY_MODES = ['inline' as const, 'fullscreen' as const];
 
+/**
+ * Builds the URL for the MCP app sandbox proxy.
+ * The proxy handles CSP (Content Security Policy) enforcement for network requests
+ * made by the sandboxed iframe, allowing controlled access to external domains.
+ */
 async function fetchMcpAppProxyUrl(csp: CspMetadata | null): Promise<string | null> {
   try {
     const baseUrl = await window.electron.getGoosedHostPort();
@@ -45,18 +53,29 @@ async function fetchMcpAppProxyUrl(csp: CspMetadata | null): Promise<string | nu
 }
 
 interface McpAppRendererProps {
+  /** MCP resource URI that identifies the app (e.g., "ui://my-extension/app") */
   resourceUri: string;
+  /** Name of the MCP extension providing this app */
   extensionName: string;
+  /** Active session ID for MCP communication */
   sessionId?: string | null;
+  /** Complete tool arguments when tool execution starts */
   toolInput?: ToolInput;
+  /** Streaming partial arguments while user is still typing */
   toolInputPartial?: ToolInputPartial;
+  /** Result after tool execution completes */
   toolResult?: CallToolResponse;
+  /** Set when tool execution is cancelled */
   toolCancelled?: ToolCancelled;
+  /** Callback to append text to the chat (for onMessage handler) */
   append?: (text: string) => void;
+  /** Whether to render in fullscreen mode */
   fullscreen?: boolean;
+  /** Pre-cached HTML to show immediately while fetching fresh content */
   cachedHtml?: string;
 }
 
+/** Data fetched from the MCP resource endpoint */
 interface ResourceData {
   html: string | null;
   csp: CspMetadata | null;
@@ -90,13 +109,15 @@ export default function McpAppRenderer({
   const [sandboxCsp, setSandboxCsp] = useState<CspMetadata | null>(null);
   const [sandboxUrlFetched, setSandboxUrlFetched] = useState(false);
 
-  // Fetch sandbox URL once after HTML loads to prevent iframe recreation
+  // Initialize sandbox URL once after HTML loads.
+  // We only fetch once (tracked by sandboxUrlFetched) to prevent iframe recreation
+  // which would cause the app to lose state. CSP is captured at fetch time to keep
+  // sandboxConfig stable across re-renders.
   useEffect(() => {
     if (!resource.html || sandboxUrlFetched) {
       return;
     }
     setSandboxUrlFetched(true);
-    // Capture the CSP at fetch time to keep sandboxConfig stable
     const cspAtFetchTime = resource.csp;
     setSandboxCsp(cspAtFetchTime);
     fetchMcpAppProxyUrl(cspAtFetchTime).then((url) => {
@@ -108,6 +129,9 @@ export default function McpAppRenderer({
     });
   }, [resource.html, resource.csp, sandboxUrlFetched]);
 
+  // Fetch the MCP resource (HTML + metadata) from the extension.
+  // If cachedHtml is provided, we show it immediately and only update if the
+  // fetched content differs. This enables instant rendering for tool results.
   useEffect(() => {
     if (!sessionId) {
       return;
@@ -294,7 +318,8 @@ export default function McpAppRenderer({
     setError(errorMessage(err));
   }, []);
 
-  // Use sandboxCsp (captured at fetch time) to keep sandboxConfig stable
+  // Convert our API's CspMetadata to the SDK's McpUiResourceCsp format.
+  // Uses sandboxCsp (captured at fetch time) to keep config stable.
   const mcpUiCsp = useMemo((): McpUiResourceCsp | undefined => {
     if (!sandboxCsp) return undefined;
     return {
@@ -303,6 +328,8 @@ export default function McpAppRenderer({
     };
   }, [sandboxCsp]);
 
+  // Configuration for the sandboxed iframe that runs the MCP app.
+  // Includes the proxy URL, sandbox permissions, and CSP settings.
   const sandboxConfig = useMemo(() => {
     if (!sandboxUrl) return null;
     return {
@@ -312,25 +339,20 @@ export default function McpAppRenderer({
     };
   }, [sandboxUrl, resource.permissions, mcpUiCsp]);
 
+  // Context passed to the MCP app describing the host environment.
+  // Apps can use this to adapt their UI (e.g., theme, display mode).
   const hostContext = useMemo(
     (): McpUiHostContext => ({
       theme: resolvedTheme,
       displayMode: fullscreen ? 'fullscreen' : 'inline',
       availableDisplayModes: AVAILABLE_DISPLAY_MODES,
-      // todo: add all the other properties... (aharvard)
-      // toolInfo: {}
-      // styles: {}
-      // containerDimensions: {}
-      // locale: ""
-      // timeZone: ""
-      // userAgent: ""
-      // platform: ""
-      // deviceCapabilities: {}
-      // safeAreaInsets: {}
+      // TODO: add remaining properties (aharvard)
     }),
     [resolvedTheme, fullscreen]
   );
 
+  // Transform our API's CallToolResponse to the SDK's CallToolResult format.
+  // Maps content items to the expected shape with proper type literals.
   const appToolResult = useMemo((): CallToolResult | undefined => {
     if (!toolResult) return undefined;
     const content = toolResult.content || [];
