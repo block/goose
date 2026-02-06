@@ -516,7 +516,18 @@ fn prepare_input(
                     let decoded = BASE64.decode(&img.data).map_err(|e| {
                         ProviderError::RequestFailed(format!("Failed to decode image: {}", e))
                     })?;
-                    let ext = img.mime_type.split('/').next_back().unwrap_or("png");
+                    // Codex only supports png and jpeg:
+                    // https://github.com/openai/codex/blob/aea7610c/codex-rs/utils/image/src/lib.rs#L162-L167
+                    let ext = match img.mime_type.as_str() {
+                        "image/png" => "png",
+                        "image/jpeg" => "jpg",
+                        _ => {
+                            return Err(ProviderError::RequestFailed(format!(
+                                "Unsupported image MIME type for Codex: {}",
+                                img.mime_type
+                            )));
+                        }
+                    };
                     let mut tmp = tempfile::Builder::new()
                         .suffix(&format!(".{}", ext))
                         .tempfile_in(image_dir)
@@ -672,15 +683,36 @@ mod tests {
             .any(|m| m.name == CODEX_DEFAULT_MODEL));
     }
 
-    #[test]
-    fn test_prepare_input_decodes_png() {
+    #[test_case("image/png", ".png" ; "png image")]
+    #[test_case("image/jpeg", ".jpg" ; "jpeg image")]
+    fn test_prepare_input_image(mime: &str, expected_ext: &str) {
         let dir = tempfile::tempdir().unwrap();
         let messages = vec![Message::user()
             .with_text("Describe")
-            .with_image(TINY_PNG_B64, "image/png")];
+            .with_image(TINY_PNG_B64, mime)];
         let (_prompt, temp_files) = prepare_input("", &messages, dir.path()).unwrap();
-        let content = std::fs::read(temp_files[0].path()).unwrap();
-        assert_eq!(&content[..4], b"\x89PNG");
+        assert_eq!(temp_files.len(), 1);
+        let path = temp_files[0].path();
+        assert!(
+            path.to_str().unwrap().ends_with(expected_ext),
+            "expected extension {expected_ext}, got {:?}",
+            path
+        );
+    }
+
+    #[test_case("image/gif" ; "gif")]
+    #[test_case("image/webp" ; "webp")]
+    #[test_case("image/svg+xml" ; "svg")]
+    fn test_prepare_input_image_unsupported(mime: &str) {
+        let dir = tempfile::tempdir().unwrap();
+        let messages = vec![Message::user()
+            .with_text("Describe")
+            .with_image(TINY_PNG_B64, mime)];
+        let err = prepare_input("", &messages, dir.path()).unwrap_err();
+        assert!(
+            err.to_string().contains("Unsupported image MIME type"),
+            "expected unsupported MIME error, got: {err}"
+        );
     }
 
     #[test]
