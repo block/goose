@@ -1,8 +1,31 @@
-export type {
-  CspMetadata,
-  PermissionsMetadata,
-  CallToolResponse as ToolResult,
-} from '../../api/types.gen';
+export type { CspMetadata, CallToolResponse as ToolResult } from '../../api/types.gen';
+
+/**
+ * Valid iframe sandbox attribute tokens.
+ * @see https://developer.mozilla.org/en-US/docs/Web/HTML/Element/iframe#sandbox
+ */
+export type SandboxToken =
+  | 'allow-downloads'
+  | 'allow-forms'
+  | 'allow-modals'
+  | 'allow-orientation-lock'
+  | 'allow-pointer-lock'
+  | 'allow-popups'
+  | 'allow-popups-to-escape-sandbox'
+  | 'allow-presentation'
+  | 'allow-same-origin'
+  | 'allow-scripts'
+  | 'allow-storage-access-by-user-activation'
+  | 'allow-top-navigation'
+  | 'allow-top-navigation-by-user-activation'
+  | 'allow-top-navigation-to-custom-protocols';
+
+/**
+ * Space-separated string of sandbox tokens for iframe sandbox attribute.
+ * While typed as string for flexibility, valid values are space-separated SandboxToken values.
+ * @example "allow-scripts allow-same-origin allow-forms"
+ */
+export type SandboxPermissions = string;
 
 export type ContentBlock =
   | { type: 'text'; text: string }
