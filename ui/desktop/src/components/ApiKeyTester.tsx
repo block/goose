@@ -73,11 +73,11 @@ export default function ApiKeyTester({ onSuccess, onStartTesting }: ApiKeyTester
         </span>
       </div>
 
-      <div className="w-full p-3 sm:p-4 bg-background-muted border border-background-hover rounded-xl">
+      <div className="w-full p-3 sm:p-4 bg-background-muted border rounded-xl">
         <div className="flex items-center gap-3 mb-3">
-          <Key className="w-4 h-4 text-text-standard flex-shrink-0" />
+          <Key className="w-4 h-4 text-text-default flex-shrink-0" />
           <div className="flex flex-col sm:flex-row sm:items-center sm:gap-2">
-            <h3 className="font-medium text-text-standard text-sm sm:text-base">
+            <h3 className="font-medium text-text-default text-sm sm:text-base">
               Quick Setup with API Key
             </h3>
             <span className="text-text-muted text-xs sm:text-sm">Auto-detect your provider</span>
@@ -92,7 +92,7 @@ export default function ApiKeyTester({ onSuccess, onStartTesting }: ApiKeyTester
               value={apiKey}
               onChange={(e) => setApiKey(e.target.value)}
               placeholder="Enter your API key (OpenAI, Anthropic, Google, etc.)"
-              className="flex-1 px-3 py-2 border border-background-hover rounded-lg bg-background-default text-text-standard placeholder-text-muted focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className="flex-1 px-3 py-2 border rounded-lg bg-background-default text-text-default placeholder-text-muted focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               disabled={isLoading}
               onKeyDown={(e) => {
                 if (e.key === 'Enter' && canSubmit) {

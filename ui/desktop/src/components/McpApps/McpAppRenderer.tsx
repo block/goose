@@ -383,8 +383,8 @@ export default function McpAppRenderer({
   return (
     <div
       className={cn(
-        'bg-bgApp overflow-hidden',
-        !fullscreen && resource.prefersBorder ? 'border border-borderSubtle rounded-lg' : '',
+        'bg-background-default overflow-hidden',
+        !fullscreen && resource.prefersBorder ? 'border border-border-default rounded-lg' : '',
         fullscreen ? 'w-full h-full' : 'my-6'
       )}
       style={containerStyle}
