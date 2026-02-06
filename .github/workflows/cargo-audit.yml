@@ -8,7 +8,7 @@ on:
       - '**/Cargo.toml'
       - '**/Cargo.lock'
       # Run if the configuration file changes
-      - '**/audit.toml'
+      - 'deny.toml'
   # Rerun periodically to pick up new advisories
   schedule:
     - cron: '0 0 * * *'
@@ -20,13 +20,9 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      issues: write
     steps:
       - uses: actions/checkout@v4
-        # https://github.com/marketplace/actions/cargo-audit-your-rust-dependencies
-      - uses: actions-rust-lang/audit@72c09e02f132669d52284a3323acdb503cfc1a24
-        name: Audit Rust Dependencies
+        # https://github.com/EmbarkStudios/cargo-deny-action v2.0.15
+      - uses: EmbarkStudios/cargo-deny-action@3fd3802e88374d3fe9159b834c7714ec57d6c979
         with:
-          # sqlx-mysql pulls in rsa, but goose only uses sqlite. cargo-audit
-          # can't distinguish used from unused deps (rustsec/rustsec#1119).
-          ignore: RUSTSEC-2023-0071
+          command: check advisories
