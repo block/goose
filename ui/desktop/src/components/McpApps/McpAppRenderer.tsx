@@ -1,18 +1,25 @@
-import { AppEvents } from '../../constants/events';
-import { useState, useCallback, useEffect, useMemo } from 'react';
-import { AppRenderer, type McpUiHostContext } from '@mcp-ui/client';
-import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
+import { AppRenderer } from '@mcp-ui/client';
 import type {
-  McpUiSizeChangedNotification,
+  McpUiHostContext,
   McpUiResourceCsp,
+  McpUiSizeChangedNotification,
 } from '@modelcontextprotocol/ext-apps/app-bridge';
-import { ToolInput, ToolInputPartial, ToolCancelled, SandboxPermissions, GooseDisplayMode } from './types';
-import type { CspMetadata, CallToolResponse } from '../../api/types.gen';
-import { cn } from '../../utils';
-import { readResource, callTool } from '../../api';
-import { errorMessage } from '../../utils/conversionUtils';
-import { isProtocolSafe, getProtocol } from '../../utils/urlSecurity';
+import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { callTool, readResource } from '../../api';
+import type { CallToolResponse, CspMetadata } from '../../api/types.gen';
+import { AppEvents } from '../../constants/events';
 import { useTheme } from '../../contexts/ThemeContext';
+import { cn } from '../../utils';
+import { errorMessage } from '../../utils/conversionUtils';
+import { getProtocol, isProtocolSafe } from '../../utils/urlSecurity';
+import {
+  GooseDisplayMode,
+  SandboxPermissions,
+  ToolCancelled,
+  ToolInput,
+  ToolInputPartial,
+} from './types';
 
 /** Minimum height for the MCP app iframe in pixels */
 const DEFAULT_IFRAME_HEIGHT = 200;
