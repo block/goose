@@ -26,11 +26,18 @@ pub const CLAUDE_CODE_DOC_URL: &str = "https://code.claude.com/docs/en/setup";
 
 #[derive(Debug)]
 struct CliProcess {
+    child: tokio::process::Child,
     stdin: tokio::process::ChildStdin,
     reader: BufReader<tokio::process::ChildStdout>,
     #[allow(dead_code)]
     stderr_handle: tokio::task::JoinHandle<String>,
     messages_sent: usize,
+}
+
+impl Drop for CliProcess {
+    fn drop(&mut self) {
+        let _ = self.child.start_kill();
+    }
 }
 
 /// Spawns the Claude Code CLI (`claude`) as a persistent child process using
@@ -277,6 +284,8 @@ impl ClaudeCodeProvider {
                     .arg("--output-format")
                     .arg("stream-json")
                     .arg("--verbose")
+                    // System prompt is set once at process start. The provider
+                    // instance is not reused across sessions with different prompts.
                     .arg("--system-prompt")
                     .arg(&filtered_system);
 
@@ -293,21 +302,18 @@ impl ClaudeCodeProvider {
                     .stderr(Stdio::piped());
 
                 let mut child = cmd.spawn().map_err(|e| {
-                    if e.raw_os_error() == Some(7) {
-                        ProviderError::ContextLengthExceeded(format!(
-                            "Message payload too large for CLI argument: {}",
-                            e
-                        ))
-                    } else {
-                        ProviderError::RequestFailed(format!(
-                            "Failed to spawn Claude CLI command '{:?}': {}.",
-                            self.command, e
-                        ))
-                    }
+                    ProviderError::RequestFailed(format!(
+                        "Failed to spawn Claude CLI command '{:?}': {}.",
+                        self.command, e
+                    ))
                 })?;
 
-                let stdin = child.stdin.take().unwrap();
-                let stdout = child.stdout.take().unwrap();
+                let stdin = child.stdin.take().ok_or_else(|| {
+                    ProviderError::RequestFailed("Failed to capture stdin".to_string())
+                })?;
+                let stdout = child.stdout.take().ok_or_else(|| {
+                    ProviderError::RequestFailed("Failed to capture stdout".to_string())
+                })?;
 
                 // Drain stderr concurrently to prevent pipe buffer deadlock
                 let stderr = child.stderr.take();
@@ -321,6 +327,7 @@ impl ClaudeCodeProvider {
                 });
 
                 Ok::<_, ProviderError>(tokio::sync::Mutex::new(CliProcess {
+                    child,
                     stdin,
                     reader: BufReader::new(stdout),
                     stderr_handle,
@@ -350,7 +357,9 @@ impl ClaudeCodeProvider {
             .map_err(|e| {
                 ProviderError::RequestFailed(format!("Failed to write to stdin: {}", e))
             })?;
-        process.stdin.write_all(b"\n").await.ok();
+        process.stdin.write_all(b"\n").await.map_err(|e| {
+            ProviderError::RequestFailed(format!("Failed to write newline to stdin: {}", e))
+        })?;
 
         // Read lines until we see a "result" event
         let mut lines = Vec::new();
@@ -449,7 +458,7 @@ impl ClaudeCodeProvider {
 
 fn build_stream_json_input(content_blocks: &[Value]) -> String {
     let msg = json!({"type":"user","message":{"role":"user","content":content_blocks}});
-    serde_json::to_string(&msg).unwrap()
+    serde_json::to_string(&msg).expect("serializing JSON content blocks cannot fail")
 }
 
 #[async_trait]
@@ -722,32 +731,6 @@ mod tests {
         assert_eq!(
             provider.parse_claude_response(&lines).unwrap_err(),
             expected
-        );
-    }
-
-    #[test_case(
-        7,  // E2BIG
-        true
-        ; "e2big_maps_to_context_length_exceeded"
-    )]
-    #[test_case(
-        2,  // ENOENT
-        false
-        ; "enoent_maps_to_request_failed"
-    )]
-    fn test_spawn_os_error_mapping(raw_os_error: i32, expect_context_length: bool) {
-        let err = std::io::Error::from_raw_os_error(raw_os_error);
-        let provider_err = if err.raw_os_error() == Some(7) {
-            ProviderError::ContextLengthExceeded(format!(
-                "Message payload too large for CLI argument: {}",
-                err
-            ))
-        } else {
-            ProviderError::RequestFailed(format!("Failed to spawn: {}", err))
-        };
-        assert_eq!(
-            matches!(provider_err, ProviderError::ContextLengthExceeded(_)),
-            expect_context_length
         );
     }
 
