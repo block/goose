@@ -1,9 +1,11 @@
-import React from 'react';
+import React, { useState, useCallback } from 'react';
 import { MessageSquare, ChefHat } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { SessionIndicators } from '../../SessionIndicators';
+import { InlineEditText } from '../../common/InlineEditText';
 import { cn } from '../../../utils';
-import { getSessionDisplayName, truncateMessage } from '../../../hooks/useNavigationSessions';
+import { getSessionDisplayName } from '../../../hooks/useNavigationSessions';
+import { updateSessionName } from '../../../api';
 import type { Session } from '../../../api';
 import type { SessionStatus } from '../../../hooks/useSidebarSessionStatus';
 
@@ -14,6 +16,7 @@ interface SessionsListProps {
   getSessionStatus: (sessionId: string) => SessionStatus | undefined;
   clearUnread: (sessionId: string) => void;
   onSessionClick: (sessionId: string) => void;
+  onSessionRenamed?: (sessionId: string, newName: string) => void;
 }
 
 export const SessionsList: React.FC<SessionsListProps> = ({
@@ -23,7 +26,21 @@ export const SessionsList: React.FC<SessionsListProps> = ({
   getSessionStatus,
   clearUnread,
   onSessionClick,
+  onSessionRenamed,
 }) => {
+  const [editingSessionId, setEditingSessionId] = useState<string | null>(null);
+
+  const handleSaveSessionName = useCallback(
+    async (sessionId: string, newName: string) => {
+      await updateSessionName({
+        path: { session_id: sessionId },
+        body: { name: newName },
+      });
+      onSessionRenamed?.(sessionId, newName);
+    },
+    [onSessionRenamed]
+  );
+
   return (
     <AnimatePresence>
       {isExpanded && (
@@ -41,18 +58,21 @@ export const SessionsList: React.FC<SessionsListProps> = ({
               const hasError = status?.streamState === 'error';
               const hasUnread = status?.hasUnreadActivity ?? false;
               const isActiveSession = session.id === activeSessionId;
+              const isEditing = editingSessionId === session.id;
 
               return (
-                <button
+                <div
                   key={session.id}
                   onClick={() => {
-                    clearUnread(session.id);
-                    onSessionClick(session.id);
+                    if (!isEditing) {
+                      clearUnread(session.id);
+                      onSessionClick(session.id);
+                    }
                   }}
                   className={cn(
                     'w-full text-left py-1.5 px-2 text-xs rounded-md',
                     'hover:bg-background-medium transition-colors',
-                    'flex items-center gap-2',
+                    'flex items-center gap-2 cursor-pointer',
                     isActiveSession && 'bg-background-medium'
                   )}
                 >
@@ -62,15 +82,23 @@ export const SessionsList: React.FC<SessionsListProps> = ({
                   ) : (
                     <MessageSquare className="w-4 h-4 flex-shrink-0 text-text-muted" />
                   )}
-                  <span className="truncate text-text-default flex-1">
-                    {truncateMessage(getSessionDisplayName(session))}
-                  </span>
+                  <InlineEditText
+                    value={getSessionDisplayName(session)}
+                    onSave={(newName) => handleSaveSessionName(session.id, newName)}
+                    placeholder="Untitled session"
+                    disabled={isStreaming}
+                    singleClickEdit={false}
+                    className="truncate text-text-default flex-1 !px-0 !py-0 hover:bg-transparent"
+                    editClassName="!text-xs"
+                    onEditStart={() => setEditingSessionId(session.id)}
+                    onEditEnd={() => setEditingSessionId(null)}
+                  />
                   <SessionIndicators
                     isStreaming={isStreaming}
                     hasUnread={hasUnread}
                     hasError={hasError}
                   />
-                </button>
+                </div>
               );
             })}
           </div>
