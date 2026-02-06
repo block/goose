@@ -430,18 +430,12 @@ export default function McpAppRenderer({
   const renderContent = () => {
     if (error) {
       return (
-        <div className="p-4 text-red-700 dark:text-red-300">
-          Failed to load MCP app: {error}
-        </div>
+        <div className="p-4 text-red-700 dark:text-red-300">Failed to load MCP app: {error}</div>
       );
     }
 
     if (isLoading) {
-      return (
-        <div className="flex items-center justify-center p-4">
-          Loading MCP app...
-        </div>
-      );
+      return <div className="flex items-center justify-center p-4">Loading MCP app...</div>;
     }
 
     return (
@@ -465,28 +459,26 @@ export default function McpAppRenderer({
     );
   };
 
-  // Single outer container for all states.
-  // For expanded views (fullscreen/standalone), fill the container.
-  // For inline, use dynamic dimensions from the MCP app's size-changed notifications.
+  // Compute container classes based on state
+  const containerClasses = cn(
+    'bg-background-default overflow-hidden',
+    error && 'border border-red-500 rounded-lg bg-red-50 dark:bg-red-900/20',
+    !error && !isExpandedView && 'my-2',
+    !error && !isExpandedView && resource.prefersBorder && 'border border-border-default rounded-lg'
+  );
+
+  // Compute container dimensions based on display mode.
+  // For inline: use app-declared dimensions, with DEFAULT_IFRAME_HEIGHT only during loading.
+  const containerStyle = isExpandedView
+    ? { width: '100%', height: '100%' }
+    : {
+        width: iframeWidth ? `${iframeWidth}px` : '100%',
+        maxWidth: '100%',
+        height: isLoading ? `${DEFAULT_IFRAME_HEIGHT}px` : `${iframeHeight}px`,
+      };
+
   return (
-    <div
-      className={cn(
-        'bg-background-default overflow-hidden',
-        error && 'border border-red-500 rounded-lg bg-red-50 dark:bg-red-900/20',
-        !error && !isExpandedView && 'my-6',
-        !error && !isExpandedView && resource.prefersBorder && 'border border-border-default rounded-lg'
-      )}
-      style={
-        isExpandedView
-          ? { width: '100%', height: '100%' }
-          : {
-              width: iframeWidth ? `${iframeWidth}px` : '100%',
-              maxWidth: '100%',
-              minHeight: `${DEFAULT_IFRAME_HEIGHT}px`,
-              height: isLoading ? undefined : `${iframeHeight}px`,
-            }
-      }
-    >
+    <div className={containerClasses} style={containerStyle}>
       {renderContent()}
     </div>
   );
