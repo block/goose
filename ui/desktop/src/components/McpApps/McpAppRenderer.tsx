@@ -39,6 +39,8 @@ import {
   McpAppToolInput,
   McpAppToolInputPartial,
   McpAppToolResult,
+  SamplingCreateMessageParams,
+  SamplingCreateMessageResponse,
 } from './types';
 
 const DEFAULT_IFRAME_HEIGHT = 200;
@@ -197,6 +199,13 @@ export default function McpAppRenderer({
   const [iframeHeight, setIframeHeight] = useState(DEFAULT_IFRAME_HEIGHT);
   // null = fluid (100% width), number = explicit width from app
   const [iframeWidth, setIframeWidth] = useState<number | null>(null);
+  const [apiHost, setApiHost] = useState<string | null>(null);
+  const [secretKey, setSecretKey] = useState<string | null>(null);
+
+  useEffect(() => {
+    window.electron.getGoosedHostPort().then(setApiHost);
+    window.electron.getSecretKey().then(setSecretKey);
+  }, []);
 
   // Fetch the resource from the extension to get HTML and metadata (CSP, permissions, etc.).
   // If cachedHtml is provided we show it immediately; the fetch updates metadata and
@@ -402,16 +411,38 @@ export default function McpAppRenderer({
 
   const handleFallbackRequest = useCallback(
     async (request: JSONRPCRequest, _extra: RequestHandlerExtra) => {
-      // todo: handle `sampling/createMessage` per https://github.com/block/goose/pull/7039
       if (request.method === 'sampling/createMessage') {
-        return { status: 'success' as const };
+        if (!sessionId || !apiHost || !secretKey) {
+          throw new Error('Session not initialized for sampling request');
+        }
+        const { messages, systemPrompt, maxTokens } =
+          request.params as unknown as SamplingCreateMessageParams;
+        const response = await fetch(`${apiHost}/sessions/${sessionId}/sampling/message`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Secret-Key': secretKey,
+          },
+          body: JSON.stringify({
+            messages: messages.map((m) => ({
+              role: m.role,
+              content: m.content,
+            })),
+            systemPrompt,
+            maxTokens,
+          }),
+        });
+        if (!response.ok) {
+          throw new Error(`Sampling request failed: ${response.statusText}`);
+        }
+        return (await response.json()) as SamplingCreateMessageResponse;
       }
       return {
         status: 'error' as const,
         message: `Unhandled JSON-RPC method: ${request.method ?? '<unknown>'}`,
       };
     },
-    []
+    [sessionId, apiHost, secretKey]
   );
 
   const handleError = useCallback((err: Error) => {

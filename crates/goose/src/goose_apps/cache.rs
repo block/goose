@@ -23,10 +23,12 @@ impl McpAppCache {
     }
 
     fn ensure_default_apps(&self) {
-        if self.get_app(APPS_EXTENSION_NAME, "apps://clock").is_none() {
-            if let Ok(mut clock_app) = GooseApp::from_html(CLOCK_HTML) {
-                clock_app.mcp_servers = vec![APPS_EXTENSION_NAME.to_string()];
-                let _ = self.store_app(&clock_app);
+        for (uri, html) in [("apps://clock", CLOCK_HTML)] {
+            if self.get_app(APPS_EXTENSION_NAME, uri).is_none() {
+                if let Ok(mut app) = GooseApp::from_html(html) {
+                    app.mcp_servers = vec![APPS_EXTENSION_NAME.to_string()];
+                    let _ = self.store_app(&app);
+                }
             }
         }
     }
