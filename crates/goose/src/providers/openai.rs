@@ -277,6 +277,12 @@ impl Provider for OpenAiProvider {
         self.model.clone()
     }
 
+    fn should_split_tool_messages(&self) -> bool {
+        // Moonshot thinking models require a single assistant message with all tool_calls
+        // and reasoning_content together. Don't split for Moonshot.
+        self.name != "moonshot"
+    }
+
     #[tracing::instrument(
         skip(self, model_config, system, messages, tools),
         fields(model_config, input, output, input_tokens, output_tokens, total_tokens)
