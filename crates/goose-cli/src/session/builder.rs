@@ -407,32 +407,6 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> CliSession {
         )
         .await;
 
-    let new_provider = match create(&provider_name, model_config).await {
-        Ok(provider) => provider,
-        Err(e) => {
-            output::render_error(&format!(
-                "Error {}.\n\
-                Please check your system keychain and run 'goose configure' again.\n\
-                If your system is unable to use the keyring, please try setting secret key(s) via environment variables.\n\
-                For more info, see: https://block.github.io/goose/docs/troubleshooting/#keychainkeyring-errors",
-                e
-            ));
-            process::exit(1);
-        }
-    };
-    let provider_for_display = Arc::clone(&new_provider);
-
-    if let Some(lead_worker) = new_provider.as_lead_worker() {
-        let (lead_model, worker_model) = lead_worker.get_model_info();
-        tracing::info!(
-            "🤖 Lead/Worker Mode Enabled: Lead model (first 3 turns): {}, Worker model (turn 4+): {}, Auto-fallback on failures: Enabled",
-            lead_model,
-            worker_model
-        );
-    } else {
-        tracing::info!("🤖 Using model: {}", model_name);
-    }
-
     let session_id: String = if session_config.no_session {
         let working_dir = std::env::current_dir().expect("Could not get working directory");
         let session = session_manager
@@ -464,14 +438,6 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> CliSession {
     } else {
         session_config.session_id.unwrap()
     };
-
-    agent
-        .update_provider(new_provider, &session_id)
-        .await
-        .unwrap_or_else(|e| {
-            output::render_error(&format!("Failed to initialize agent: {}", e));
-            process::exit(1);
-        });
 
     if session_config.resume {
         let session = agent
@@ -553,6 +519,45 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> CliSession {
         .map(|cfg| (cfg.name(), cfg.clone()))
         .collect();
     extensions_to_load.extend(cli_flag_extensions_to_load);
+
+    let extensions: Vec<ExtensionConfig> = extensions_to_load
+        .iter()
+        .map(|(_, cfg)| cfg.clone())
+        .collect();
+
+    let new_provider = match create(&provider_name, model_config, extensions).await {
+        Ok(provider) => provider,
+        Err(e) => {
+            output::render_error(&format!(
+                "Error {}.\n\
+                Please check your system keychain and run 'goose configure' again.\n\
+                If your system is unable to use the keyring, please try setting secret key(s) via environment variables.\n\
+                For more info, see: https://block.github.io/goose/docs/troubleshooting/#keychainkeyring-errors",
+                e
+            ));
+            process::exit(1);
+        }
+    };
+    let provider_for_display = Arc::clone(&new_provider);
+
+    if let Some(lead_worker) = new_provider.as_lead_worker() {
+        let (lead_model, worker_model) = lead_worker.get_model_info();
+        tracing::info!(
+            "🤖 Lead/Worker Mode Enabled: Lead model (first 3 turns): {}, Worker model (turn 4+): {}, Auto-fallback on failures: Enabled",
+            lead_model,
+            worker_model
+        );
+    } else {
+        tracing::info!("🤖 Using model: {}", model_name);
+    }
+
+    agent
+        .update_provider(new_provider, &session_id)
+        .await
+        .unwrap_or_else(|e| {
+            output::render_error(&format!("Failed to initialize agent: {}", e));
+            process::exit(1);
+        });
 
     let agent_ptr = load_extensions(
         agent,

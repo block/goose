@@ -54,6 +54,7 @@ indicatif = "0.18.1"
 tokio-util = { version = "0.7.15", features = ["compat", "rt"] }
 anstream = "0.6.18"
 open = "5.3.2"
+url = { workspace = true }
 urlencoding = "2.1"
 clap_complete = "4.5.62"
 

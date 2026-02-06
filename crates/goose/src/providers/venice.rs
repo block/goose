@@ -13,7 +13,6 @@ use crate::conversation::message::{Message, MessageContent};
 
 use crate::mcp_utils::ToolResult;
 use crate::model::ModelConfig;
-use futures::future::BoxFuture;
 use rmcp::model::{object, CallToolRequestParams, Role, Tool};
 
 // ---------- Capability Flags ----------
@@ -85,36 +84,6 @@ pub struct VeniceProvider {
 }
 
 impl VeniceProvider {
-    pub async fn from_env(mut model: ModelConfig) -> Result<Self> {
-        let config = crate::config::Config::global();
-        let api_key: String = config.get_secret("VENICE_API_KEY")?;
-        let host: String = config
-            .get_param("VENICE_HOST")
-            .unwrap_or_else(|_| VENICE_DEFAULT_HOST.to_string());
-        let base_path: String = config
-            .get_param("VENICE_BASE_PATH")
-            .unwrap_or_else(|_| VENICE_DEFAULT_BASE_PATH.to_string());
-        let models_path: String = config
-            .get_param("VENICE_MODELS_PATH")
-            .unwrap_or_else(|_| VENICE_DEFAULT_MODELS_PATH.to_string());
-
-        // Ensure we only keep the bare model id internally
-        model.model_name = strip_flags(&model.model_name).to_string();
-
-        let auth = AuthMethod::BearerToken(api_key);
-        let api_client = ApiClient::new(host, auth)?;
-
-        let instance = Self {
-            api_client,
-            base_path,
-            models_path,
-            model,
-            name: VENICE_PROVIDER_NAME.to_string(),
-        };
-
-        Ok(instance)
-    }
-
     async fn post(
         &self,
         session_id: Option<&str>,
@@ -194,6 +163,7 @@ impl VeniceProvider {
     }
 }
 
+#[async_trait]
 impl ProviderDef for VeniceProvider {
     type Provider = Self;
 
@@ -224,8 +194,37 @@ impl ProviderDef for VeniceProvider {
         )
     }
 
-    fn from_env(model: ModelConfig) -> BoxFuture<'static, Result<Self::Provider>> {
-        Box::pin(Self::from_env(model))
+    async fn from_env(
+        mut model: ModelConfig,
+        _extensions: Vec<crate::config::ExtensionConfig>,
+    ) -> Result<Self::Provider> {
+        let config = crate::config::Config::global();
+        let api_key: String = config.get_secret("VENICE_API_KEY")?;
+        let host: String = config
+            .get_param("VENICE_HOST")
+            .unwrap_or_else(|_| VENICE_DEFAULT_HOST.to_string());
+        let base_path: String = config
+            .get_param("VENICE_BASE_PATH")
+            .unwrap_or_else(|_| VENICE_DEFAULT_BASE_PATH.to_string());
+        let models_path: String = config
+            .get_param("VENICE_MODELS_PATH")
+            .unwrap_or_else(|_| VENICE_DEFAULT_MODELS_PATH.to_string());
+
+        // Ensure we only keep the bare model id internally
+        model.model_name = strip_flags(&model.model_name).to_string();
+
+        let auth = AuthMethod::BearerToken(api_key);
+        let api_client = ApiClient::new(host, auth)?;
+
+        let instance = Self {
+            api_client,
+            base_path,
+            models_path,
+            model,
+            name: VENICE_PROVIDER_NAME.to_string(),
+        };
+
+        Ok(instance)
     }
 }
 

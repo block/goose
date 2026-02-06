@@ -10,7 +10,6 @@ use super::base::{
 use super::errors::ProviderError;
 use crate::conversation::message::{Message, MessageContent};
 use crate::model::ModelConfig;
-use futures::future::BoxFuture;
 use rmcp::model::Tool;
 use rmcp::model::{Content, RawContent};
 
@@ -319,6 +318,7 @@ impl LeadWorkerProviderTrait for LeadWorkerProvider {
     }
 }
 
+#[async_trait]
 impl ProviderDef for LeadWorkerProvider {
     type Provider = Self;
 
@@ -335,8 +335,11 @@ impl ProviderDef for LeadWorkerProvider {
         )
     }
 
-    fn from_env(_model: ModelConfig) -> BoxFuture<'static, Result<Self::Provider>> {
-        Box::pin(async { Err(anyhow!("LeadWorkerProvider must be constructed explicitly")) })
+    async fn from_env(
+        _model: ModelConfig,
+        _extensions: Vec<crate::config::ExtensionConfig>,
+    ) -> Result<Self::Provider> {
+        Err(anyhow!("LeadWorkerProvider must be constructed explicitly"))
     }
 }
 

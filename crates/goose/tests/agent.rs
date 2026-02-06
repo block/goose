@@ -353,6 +353,7 @@ mod tests {
             }
         }
 
+        #[async_trait]
         impl ProviderDef for MockToolProvider {
             type Provider = Self;
 
@@ -369,10 +370,11 @@ mod tests {
                 }
             }
 
-            fn from_env(
+            async fn from_env(
                 _model: ModelConfig,
-            ) -> futures::future::BoxFuture<'static, anyhow::Result<Self>> {
-                Box::pin(async { Ok(Self::new()) })
+                _extensions: Vec<goose::config::ExtensionConfig>,
+            ) -> anyhow::Result<Self> {
+                Ok(Self::new())
             }
         }
 

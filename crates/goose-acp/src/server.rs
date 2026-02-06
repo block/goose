@@ -298,7 +298,8 @@ impl GooseAcpAgent {
             fast_model: None,
             request_params: None,
         };
-        let provider = create(&provider_name, model_config).await?;
+        let extensions = get_enabled_extensions_with_config(config);
+        let provider = create(&provider_name, model_config, extensions).await?;
         let goose_mode = config
             .get_goose_mode()
             .unwrap_or(goose::config::GooseMode::Auto);

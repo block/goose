@@ -25,7 +25,6 @@ use crate::conversation::message::Message;
 
 use crate::model::ModelConfig;
 use crate::providers::base::{ConfigKey, MessageStream};
-use futures::future::BoxFuture;
 use rmcp::model::Tool;
 
 const GITHUB_COPILOT_PROVIDER_NAME: &str = "github_copilot";
@@ -155,21 +154,6 @@ impl GithubCopilotProvider {
                     })
                 })
             })
-    }
-
-    pub async fn from_env(model: ModelConfig) -> Result<Self> {
-        let client = Client::builder()
-            .timeout(Duration::from_secs(600))
-            .build()?;
-        let cache = DiskCache::new();
-        let mu = tokio::sync::Mutex::new(RefCell::new(None));
-        Ok(Self {
-            client,
-            cache,
-            mu,
-            model,
-            name: GITHUB_COPILOT_PROVIDER_NAME.to_string(),
-        })
     }
 
     async fn post(
@@ -379,6 +363,7 @@ impl GithubCopilotProvider {
     }
 }
 
+#[async_trait]
 impl ProviderDef for GithubCopilotProvider {
     type Provider = Self;
 
@@ -399,8 +384,22 @@ impl ProviderDef for GithubCopilotProvider {
         )
     }
 
-    fn from_env(model: ModelConfig) -> BoxFuture<'static, Result<Self::Provider>> {
-        Box::pin(Self::from_env(model))
+    async fn from_env(
+        model: ModelConfig,
+        _extensions: Vec<crate::config::ExtensionConfig>,
+    ) -> Result<Self::Provider> {
+        let client = Client::builder()
+            .timeout(Duration::from_secs(600))
+            .build()?;
+        let cache = DiskCache::new();
+        let mu = tokio::sync::Mutex::new(RefCell::new(None));
+        Ok(Self {
+            client,
+            cache,
+            mu,
+            model,
+            name: GITHUB_COPILOT_PROVIDER_NAME.to_string(),
+        })
     }
 }
 

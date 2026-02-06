@@ -17,7 +17,6 @@ use crate::providers::formats::openai::{create_request, get_usage, response_to_m
 use crate::utils::safe_truncate;
 use anyhow::Result;
 use async_trait::async_trait;
-use futures::future::BoxFuture;
 use regex::Regex;
 use rmcp::model::Tool;
 use serde_json::Value;
@@ -46,45 +45,6 @@ pub struct OllamaProvider {
 }
 
 impl OllamaProvider {
-    pub async fn from_env(model: ModelConfig) -> Result<Self> {
-        let config = crate::config::Config::global();
-        let host: String = config
-            .get_param("OLLAMA_HOST")
-            .unwrap_or_else(|_| OLLAMA_HOST.to_string());
-
-        let timeout: Duration =
-            Duration::from_secs(config.get_param("OLLAMA_TIMEOUT").unwrap_or(OLLAMA_TIMEOUT));
-
-        let base = if host.starts_with("http://") || host.starts_with("https://") {
-            host.clone()
-        } else {
-            format!("http://{}", host)
-        };
-
-        let mut base_url =
-            Url::parse(&base).map_err(|e| anyhow::anyhow!("Invalid base URL: {e}"))?;
-
-        let explicit_port = host.contains(':');
-        let is_localhost = host == "localhost" || host == "127.0.0.1" || host == "::1";
-
-        if base_url.port().is_none() && !explicit_port && !host.starts_with("http") && is_localhost
-        {
-            base_url
-                .set_port(Some(OLLAMA_DEFAULT_PORT))
-                .map_err(|_| anyhow::anyhow!("Failed to set default port"))?;
-        }
-
-        let api_client =
-            ApiClient::with_timeout(base_url.to_string(), AuthMethod::NoAuth, timeout)?;
-
-        Ok(Self {
-            api_client,
-            model,
-            supports_streaming: true,
-            name: OLLAMA_PROVIDER_NAME.to_string(),
-        })
-    }
-
     pub fn from_custom_config(
         model: ModelConfig,
         config: DeclarativeProviderConfig,
@@ -145,6 +105,7 @@ impl OllamaProvider {
     }
 }
 
+#[async_trait]
 impl ProviderDef for OllamaProvider {
     type Provider = Self;
 
@@ -168,8 +129,46 @@ impl ProviderDef for OllamaProvider {
         )
     }
 
-    fn from_env(model: ModelConfig) -> BoxFuture<'static, Result<Self::Provider>> {
-        Box::pin(Self::from_env(model))
+    async fn from_env(
+        model: ModelConfig,
+        _extensions: Vec<crate::config::ExtensionConfig>,
+    ) -> Result<Self::Provider> {
+        let config = crate::config::Config::global();
+        let host: String = config
+            .get_param("OLLAMA_HOST")
+            .unwrap_or_else(|_| OLLAMA_HOST.to_string());
+
+        let timeout: Duration =
+            Duration::from_secs(config.get_param("OLLAMA_TIMEOUT").unwrap_or(OLLAMA_TIMEOUT));
+
+        let base = if host.starts_with("http://") || host.starts_with("https://") {
+            host.clone()
+        } else {
+            format!("http://{}", host)
+        };
+
+        let mut base_url =
+            Url::parse(&base).map_err(|e| anyhow::anyhow!("Invalid base URL: {e}"))?;
+
+        let explicit_port = host.contains(':');
+        let is_localhost = host == "localhost" || host == "127.0.0.1" || host == "::1";
+
+        if base_url.port().is_none() && !explicit_port && !host.starts_with("http") && is_localhost
+        {
+            base_url
+                .set_port(Some(OLLAMA_DEFAULT_PORT))
+                .map_err(|_| anyhow::anyhow!("Failed to set default port"))?;
+        }
+
+        let api_client =
+            ApiClient::with_timeout(base_url.to_string(), AuthMethod::NoAuth, timeout)?;
+
+        Ok(Self {
+            api_client,
+            model,
+            supports_streaming: true,
+            name: OLLAMA_PROVIDER_NAME.to_string(),
+        })
     }
 }
 

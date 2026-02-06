@@ -18,7 +18,6 @@ use crate::session_context::SESSION_ID_HEADER;
 
 use crate::model::ModelConfig;
 use chrono::Utc;
-use futures::future::BoxFuture;
 use rmcp::model::Role;
 
 const SAGEMAKER_TGI_PROVIDER_NAME: &str = "sagemaker_tgi";
@@ -38,56 +37,6 @@ pub struct SageMakerTgiProvider {
 }
 
 impl SageMakerTgiProvider {
-    pub async fn from_env(model: ModelConfig) -> Result<Self> {
-        let config = crate::config::Config::global();
-
-        // Get SageMaker endpoint name (just the name, not full URL)
-        let endpoint_name: String = config.get_param("SAGEMAKER_ENDPOINT_NAME").map_err(|_| {
-            anyhow::anyhow!("SAGEMAKER_ENDPOINT_NAME is required for SageMaker TGI provider")
-        })?;
-
-        // Attempt to load config and secrets to get AWS_ prefixed keys
-        let set_aws_env_vars = |res: Result<HashMap<String, Value>, _>| {
-            if let Ok(map) = res {
-                map.into_iter()
-                    .filter(|(key, _)| key.starts_with("AWS_"))
-                    .filter_map(|(key, value)| value.as_str().map(|s| (key, s.to_string())))
-                    .for_each(|(key, s)| std::env::set_var(key, s));
-            }
-        };
-
-        set_aws_env_vars(config.all_values());
-        set_aws_env_vars(config.all_secrets());
-
-        let aws_config = aws_config::load_from_env().await;
-
-        // Validate credentials
-        aws_config
-            .credentials_provider()
-            .unwrap()
-            .provide_credentials()
-            .await?;
-
-        // Create client with longer timeout for model initialization
-        let timeout_config = aws_config::timeout::TimeoutConfig::builder()
-            .operation_timeout(Duration::from_secs(300)) // 5 minutes for cold starts
-            .build();
-
-        let config_with_timeout = aws_config
-            .into_builder()
-            .timeout_config(timeout_config)
-            .build();
-
-        let sagemaker_client = SageMakerClient::new(&config_with_timeout);
-
-        Ok(Self {
-            sagemaker_client,
-            endpoint_name,
-            model,
-            name: SAGEMAKER_TGI_PROVIDER_NAME.to_string(),
-        })
-    }
-
     fn create_tgi_request(&self, system: &str, messages: &[Message]) -> Result<Value> {
         // Create a simplified prompt for TGI models using recent user and assistant messages.
         // Uses a minimal system prompt and avoids HTML or tool-related formatting.
@@ -270,6 +219,7 @@ impl SageMakerTgiProvider {
     }
 }
 
+#[async_trait]
 impl ProviderDef for SageMakerTgiProvider {
     type Provider = Self;
 
@@ -289,8 +239,57 @@ impl ProviderDef for SageMakerTgiProvider {
         )
     }
 
-    fn from_env(model: ModelConfig) -> BoxFuture<'static, Result<Self::Provider>> {
-        Box::pin(Self::from_env(model))
+    async fn from_env(
+        model: ModelConfig,
+        _extensions: Vec<crate::config::ExtensionConfig>,
+    ) -> Result<Self::Provider> {
+        let config = crate::config::Config::global();
+
+        // Get SageMaker endpoint name (just the name, not full URL)
+        let endpoint_name: String = config.get_param("SAGEMAKER_ENDPOINT_NAME").map_err(|_| {
+            anyhow::anyhow!("SAGEMAKER_ENDPOINT_NAME is required for SageMaker TGI provider")
+        })?;
+
+        // Attempt to load config and secrets to get AWS_ prefixed keys
+        let set_aws_env_vars = |res: Result<HashMap<String, Value>, _>| {
+            if let Ok(map) = res {
+                map.into_iter()
+                    .filter(|(key, _)| key.starts_with("AWS_"))
+                    .filter_map(|(key, value)| value.as_str().map(|s| (key, s.to_string())))
+                    .for_each(|(key, s)| std::env::set_var(key, s));
+            }
+        };
+
+        set_aws_env_vars(config.all_values());
+        set_aws_env_vars(config.all_secrets());
+
+        let aws_config = aws_config::load_from_env().await;
+
+        // Validate credentials
+        aws_config
+            .credentials_provider()
+            .unwrap()
+            .provide_credentials()
+            .await?;
+
+        // Create client with longer timeout for model initialization
+        let timeout_config = aws_config::timeout::TimeoutConfig::builder()
+            .operation_timeout(Duration::from_secs(300)) // 5 minutes for cold starts
+            .build();
+
+        let config_with_timeout = aws_config
+            .into_builder()
+            .timeout_config(timeout_config)
+            .build();
+
+        let sagemaker_client = SageMakerClient::new(&config_with_timeout);
+
+        Ok(Self {
+            sagemaker_client,
+            endpoint_name,
+            model,
+            name: SAGEMAKER_TGI_PROVIDER_NAME.to_string(),
+        })
     }
 }
 

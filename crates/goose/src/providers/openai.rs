@@ -19,7 +19,6 @@ use crate::conversation::message::Message;
 use anyhow::Result;
 use async_stream::try_stream;
 use async_trait::async_trait;
-use futures::future::BoxFuture;
 use futures::{StreamExt, TryStreamExt};
 use reqwest::StatusCode;
 use serde_json::Value;
@@ -67,67 +66,6 @@ pub struct OpenAiProvider {
 }
 
 impl OpenAiProvider {
-    pub async fn from_env(model: ModelConfig) -> Result<Self> {
-        let model = model.with_fast(OPEN_AI_DEFAULT_FAST_MODEL.to_string());
-
-        let config = crate::config::Config::global();
-        let host: String = config
-            .get_param("OPENAI_HOST")
-            .unwrap_or_else(|_| "https://api.openai.com".to_string());
-
-        let secrets = config
-            .get_secrets("OPENAI_API_KEY", &["OPENAI_CUSTOM_HEADERS"])
-            .unwrap_or_default();
-        let api_key: Option<String> = secrets.get("OPENAI_API_KEY").cloned();
-        let custom_headers: Option<HashMap<String, String>> = secrets
-            .get("OPENAI_CUSTOM_HEADERS")
-            .cloned()
-            .map(parse_custom_headers);
-
-        let base_path: String = config
-            .get_param("OPENAI_BASE_PATH")
-            .unwrap_or_else(|_| "v1/chat/completions".to_string());
-        let organization: Option<String> = config.get_param("OPENAI_ORGANIZATION").ok();
-        let project: Option<String> = config.get_param("OPENAI_PROJECT").ok();
-        let timeout_secs: u64 = config.get_param("OPENAI_TIMEOUT").unwrap_or(600);
-
-        let auth = match api_key {
-            Some(key) if !key.is_empty() => AuthMethod::BearerToken(key),
-            _ => AuthMethod::NoAuth,
-        };
-        let mut api_client =
-            ApiClient::with_timeout(host, auth, std::time::Duration::from_secs(timeout_secs))?;
-
-        if let Some(org) = &organization {
-            api_client = api_client.with_header("OpenAI-Organization", org)?;
-        }
-
-        if let Some(project) = &project {
-            api_client = api_client.with_header("OpenAI-Project", project)?;
-        }
-
-        if let Some(headers) = &custom_headers {
-            let mut header_map = reqwest::header::HeaderMap::new();
-            for (key, value) in headers {
-                let header_name = reqwest::header::HeaderName::from_bytes(key.as_bytes())?;
-                let header_value = reqwest::header::HeaderValue::from_str(value)?;
-                header_map.insert(header_name, header_value);
-            }
-            api_client = api_client.with_headers(header_map)?;
-        }
-
-        Ok(Self {
-            api_client,
-            base_path,
-            organization,
-            project,
-            model,
-            custom_headers,
-            supports_streaming: true,
-            name: OPEN_AI_PROVIDER_NAME.to_string(),
-        })
-    }
-
     #[doc(hidden)]
     pub fn new(api_client: ApiClient, model: ModelConfig) -> Self {
         Self {
@@ -235,6 +173,7 @@ impl OpenAiProvider {
     }
 }
 
+#[async_trait]
 impl ProviderDef for OpenAiProvider {
     type Provider = Self;
 
@@ -262,8 +201,68 @@ impl ProviderDef for OpenAiProvider {
         )
     }
 
-    fn from_env(model: ModelConfig) -> BoxFuture<'static, Result<Self::Provider>> {
-        Box::pin(Self::from_env(model))
+    async fn from_env(
+        model: ModelConfig,
+        _extensions: Vec<crate::config::ExtensionConfig>,
+    ) -> Result<Self::Provider> {
+        let model = model.with_fast(OPEN_AI_DEFAULT_FAST_MODEL.to_string());
+
+        let config = crate::config::Config::global();
+        let host: String = config
+            .get_param("OPENAI_HOST")
+            .unwrap_or_else(|_| "https://api.openai.com".to_string());
+
+        let secrets = config
+            .get_secrets("OPENAI_API_KEY", &["OPENAI_CUSTOM_HEADERS"])
+            .unwrap_or_default();
+        let api_key: Option<String> = secrets.get("OPENAI_API_KEY").cloned();
+        let custom_headers: Option<HashMap<String, String>> = secrets
+            .get("OPENAI_CUSTOM_HEADERS")
+            .cloned()
+            .map(parse_custom_headers);
+
+        let base_path: String = config
+            .get_param("OPENAI_BASE_PATH")
+            .unwrap_or_else(|_| "v1/chat/completions".to_string());
+        let organization: Option<String> = config.get_param("OPENAI_ORGANIZATION").ok();
+        let project: Option<String> = config.get_param("OPENAI_PROJECT").ok();
+        let timeout_secs: u64 = config.get_param("OPENAI_TIMEOUT").unwrap_or(600);
+
+        let auth = match api_key {
+            Some(key) if !key.is_empty() => AuthMethod::BearerToken(key),
+            _ => AuthMethod::NoAuth,
+        };
+        let mut api_client =
+            ApiClient::with_timeout(host, auth, std::time::Duration::from_secs(timeout_secs))?;
+
+        if let Some(org) = &organization {
+            api_client = api_client.with_header("OpenAI-Organization", org)?;
+        }
+
+        if let Some(project) = &project {
+            api_client = api_client.with_header("OpenAI-Project", project)?;
+        }
+
+        if let Some(headers) = &custom_headers {
+            let mut header_map = reqwest::header::HeaderMap::new();
+            for (key, value) in headers {
+                let header_name = reqwest::header::HeaderName::from_bytes(key.as_bytes())?;
+                let header_value = reqwest::header::HeaderValue::from_str(value)?;
+                header_map.insert(header_name, header_value);
+            }
+            api_client = api_client.with_headers(header_map)?;
+        }
+
+        Ok(Self {
+            api_client,
+            base_path,
+            organization,
+            project,
+            model,
+            custom_headers,
+            supports_streaming: true,
+            name: OPEN_AI_PROVIDER_NAME.to_string(),
+        })
     }
 }
 

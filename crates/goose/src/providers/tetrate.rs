@@ -12,7 +12,6 @@ use crate::config::signup_tetrate::TETRATE_DEFAULT_MODEL;
 use crate::conversation::message::Message;
 use anyhow::Result;
 use async_trait::async_trait;
-use futures::future::BoxFuture;
 use serde_json::Value;
 
 use crate::model::ModelConfig;
@@ -46,27 +45,6 @@ pub struct TetrateProvider {
 }
 
 impl TetrateProvider {
-    pub async fn from_env(model: ModelConfig) -> Result<Self> {
-        let config = crate::config::Config::global();
-        let api_key: String = config.get_secret("TETRATE_API_KEY")?;
-        // API host for LLM endpoints (/v1/chat/completions, /v1/models)
-        let host: String = config
-            .get_param("TETRATE_HOST")
-            .unwrap_or_else(|_| "https://api.router.tetrate.ai".to_string());
-
-        let auth = AuthMethod::BearerToken(api_key);
-        let api_client = ApiClient::new(host, auth)?
-            .with_header("HTTP-Referer", "https://block.github.io/goose")?
-            .with_header("X-Title", "goose")?;
-
-        Ok(Self {
-            api_client,
-            model,
-            supports_streaming: true,
-            name: TETRATE_PROVIDER_NAME.to_string(),
-        })
-    }
-
     async fn post(
         &self,
         session_id: Option<&str>,
@@ -130,6 +108,7 @@ impl TetrateProvider {
     }
 }
 
+#[async_trait]
 impl ProviderDef for TetrateProvider {
     type Provider = Self;
 
@@ -153,8 +132,28 @@ impl ProviderDef for TetrateProvider {
         )
     }
 
-    fn from_env(model: ModelConfig) -> BoxFuture<'static, Result<Self::Provider>> {
-        Box::pin(Self::from_env(model))
+    async fn from_env(
+        model: ModelConfig,
+        _extensions: Vec<crate::config::ExtensionConfig>,
+    ) -> Result<Self::Provider> {
+        let config = crate::config::Config::global();
+        let api_key: String = config.get_secret("TETRATE_API_KEY")?;
+        // API host for LLM endpoints (/v1/chat/completions, /v1/models)
+        let host: String = config
+            .get_param("TETRATE_HOST")
+            .unwrap_or_else(|_| "https://api.router.tetrate.ai".to_string());
+
+        let auth = AuthMethod::BearerToken(api_key);
+        let api_client = ApiClient::new(host, auth)?
+            .with_header("HTTP-Referer", "https://block.github.io/goose")?
+            .with_header("X-Title", "goose")?;
+
+        Ok(Self {
+            api_client,
+            model,
+            supports_streaming: true,
+            name: TETRATE_PROVIDER_NAME.to_string(),
+        })
     }
 }
 

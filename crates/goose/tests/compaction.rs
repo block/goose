@@ -175,6 +175,7 @@ impl Provider for MockCompactionProvider {
     }
 }
 
+#[async_trait]
 impl ProviderDef for MockCompactionProvider {
     type Provider = Self;
 
@@ -191,8 +192,11 @@ impl ProviderDef for MockCompactionProvider {
         }
     }
 
-    fn from_env(_model: ModelConfig) -> futures::future::BoxFuture<'static, anyhow::Result<Self>> {
-        Box::pin(async { Ok(Self::new()) })
+    async fn from_env(
+        _model: ModelConfig,
+        _extensions: Vec<goose::config::ExtensionConfig>,
+    ) -> anyhow::Result<Self> {
+        Ok(Self::new())
     }
 }
 

@@ -24,7 +24,6 @@ use crate::conversation::message::Message;
 use crate::model::ModelConfig;
 use crate::providers::retry::ProviderRetry;
 use crate::providers::utils::RequestLog;
-use futures::future::BoxFuture;
 use rmcp::model::Tool;
 
 const ANTHROPIC_PROVIDER_NAME: &str = "anthropic";
@@ -58,31 +57,6 @@ pub struct AnthropicProvider {
 }
 
 impl AnthropicProvider {
-    pub async fn from_env(model: ModelConfig) -> Result<Self> {
-        let model = model.with_fast(ANTHROPIC_DEFAULT_FAST_MODEL.to_string());
-
-        let config = crate::config::Config::global();
-        let api_key: String = config.get_secret("ANTHROPIC_API_KEY")?;
-        let host: String = config
-            .get_param("ANTHROPIC_HOST")
-            .unwrap_or_else(|_| "https://api.anthropic.com".to_string());
-
-        let auth = AuthMethod::ApiKey {
-            header_name: "x-api-key".to_string(),
-            key: api_key,
-        };
-
-        let api_client =
-            ApiClient::new(host, auth)?.with_header("anthropic-version", ANTHROPIC_API_VERSION)?;
-
-        Ok(Self {
-            api_client,
-            model,
-            supports_streaming: true,
-            name: ANTHROPIC_PROVIDER_NAME.to_string(),
-        })
-    }
-
     pub fn from_custom_config(
         model: ModelConfig,
         config: DeclarativeProviderConfig,
@@ -177,6 +151,7 @@ impl AnthropicProvider {
     }
 }
 
+#[async_trait]
 impl ProviderDef for AnthropicProvider {
     type Provider = Self;
 
@@ -205,8 +180,32 @@ impl ProviderDef for AnthropicProvider {
         )
     }
 
-    fn from_env(model: ModelConfig) -> BoxFuture<'static, Result<Self::Provider>> {
-        Box::pin(Self::from_env(model))
+    async fn from_env(
+        model: ModelConfig,
+        _extensions: Vec<crate::config::ExtensionConfig>,
+    ) -> Result<Self::Provider> {
+        let model = model.with_fast(ANTHROPIC_DEFAULT_FAST_MODEL.to_string());
+
+        let config = crate::config::Config::global();
+        let api_key: String = config.get_secret("ANTHROPIC_API_KEY")?;
+        let host: String = config
+            .get_param("ANTHROPIC_HOST")
+            .unwrap_or_else(|_| "https://api.anthropic.com".to_string());
+
+        let auth = AuthMethod::ApiKey {
+            header_name: "x-api-key".to_string(),
+            key: api_key,
+        };
+
+        let api_client =
+            ApiClient::new(host, auth)?.with_header("anthropic-version", ANTHROPIC_API_VERSION)?;
+
+        Ok(Self {
+            api_client,
+            model,
+            supports_streaming: true,
+            name: ANTHROPIC_PROVIDER_NAME.to_string(),
+        })
     }
 }
 

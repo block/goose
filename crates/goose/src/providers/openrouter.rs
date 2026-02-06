@@ -1,6 +1,5 @@
 use anyhow::Result;
 use async_trait::async_trait;
-use futures::future::BoxFuture;
 use serde_json::{json, Value};
 
 use super::api_client::{ApiClient, AuthMethod};
@@ -50,28 +49,6 @@ pub struct OpenRouterProvider {
 }
 
 impl OpenRouterProvider {
-    pub async fn from_env(model: ModelConfig) -> Result<Self> {
-        let model = model.with_fast(OPENROUTER_DEFAULT_FAST_MODEL.to_string());
-
-        let config = crate::config::Config::global();
-        let api_key: String = config.get_secret("OPENROUTER_API_KEY")?;
-        let host: String = config
-            .get_param("OPENROUTER_HOST")
-            .unwrap_or_else(|_| "https://openrouter.ai".to_string());
-
-        let auth = AuthMethod::BearerToken(api_key);
-        let api_client = ApiClient::new(host, auth)?
-            .with_header("HTTP-Referer", "https://block.github.io/goose")?
-            .with_header("X-Title", "goose")?;
-
-        Ok(Self {
-            api_client,
-            model,
-            supports_streaming: true,
-            name: OPENROUTER_PROVIDER_NAME.to_string(),
-        })
-    }
-
     async fn post(
         &self,
         session_id: Option<&str>,
@@ -231,6 +208,7 @@ async fn create_request_based_on_model(
     Ok(payload)
 }
 
+#[async_trait]
 impl ProviderDef for OpenRouterProvider {
     type Provider = Self;
 
@@ -255,8 +233,29 @@ impl ProviderDef for OpenRouterProvider {
         .with_unlisted_models()
     }
 
-    fn from_env(model: ModelConfig) -> BoxFuture<'static, Result<Self::Provider>> {
-        Box::pin(Self::from_env(model))
+    async fn from_env(
+        model: ModelConfig,
+        _extensions: Vec<crate::config::ExtensionConfig>,
+    ) -> Result<Self::Provider> {
+        let model = model.with_fast(OPENROUTER_DEFAULT_FAST_MODEL.to_string());
+
+        let config = crate::config::Config::global();
+        let api_key: String = config.get_secret("OPENROUTER_API_KEY")?;
+        let host: String = config
+            .get_param("OPENROUTER_HOST")
+            .unwrap_or_else(|_| "https://openrouter.ai".to_string());
+
+        let auth = AuthMethod::BearerToken(api_key);
+        let api_client = ApiClient::new(host, auth)?
+            .with_header("HTTP-Referer", "https://block.github.io/goose")?
+            .with_header("X-Title", "goose")?;
+
+        Ok(Self {
+            api_client,
+            model,
+            supports_streaming: true,
+            name: OPENROUTER_PROVIDER_NAME.to_string(),
+        })
     }
 }
 

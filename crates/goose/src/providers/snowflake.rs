@@ -14,7 +14,6 @@ use crate::config::ConfigError;
 use crate::conversation::message::Message;
 
 use crate::model::ModelConfig;
-use futures::future::BoxFuture;
 use rmcp::model::Tool;
 
 const SNOWFLAKE_PROVIDER_NAME: &str = "snowflake";
@@ -56,60 +55,6 @@ pub struct SnowflakeProvider {
 }
 
 impl SnowflakeProvider {
-    pub async fn from_env(model: ModelConfig) -> Result<Self> {
-        let config = crate::config::Config::global();
-        let mut host: Result<String, ConfigError> = config.get_param("SNOWFLAKE_HOST");
-        if host.is_err() {
-            host = config.get_secret("SNOWFLAKE_HOST")
-        }
-        if host.is_err() {
-            return Err(ConfigError::NotFound(
-                "Did not find SNOWFLAKE_HOST in either config file or keyring".to_string(),
-            )
-            .into());
-        }
-
-        let mut host = host?;
-
-        // Convert host to lowercase
-        host = host.to_lowercase();
-
-        // Ensure host ends with snowflakecomputing.com
-        if !host.ends_with("snowflakecomputing.com") {
-            host = format!("{}.snowflakecomputing.com", host);
-        }
-
-        let mut token: Result<String, ConfigError> = config.get_param("SNOWFLAKE_TOKEN");
-
-        if token.is_err() {
-            token = config.get_secret("SNOWFLAKE_TOKEN")
-        }
-
-        if token.is_err() {
-            return Err(ConfigError::NotFound(
-                "Did not find SNOWFLAKE_TOKEN in either config file or keyring".to_string(),
-            )
-            .into());
-        }
-
-        // Ensure host has https:// prefix
-        let base_url = if !host.starts_with("https://") && !host.starts_with("http://") {
-            format!("https://{}", host)
-        } else {
-            host
-        };
-
-        let auth = AuthMethod::BearerToken(token?);
-        let api_client = ApiClient::new(base_url, auth)?.with_header("User-Agent", "goose")?;
-
-        Ok(Self {
-            api_client,
-            model,
-            image_format: ImageFormat::OpenAi,
-            name: SNOWFLAKE_PROVIDER_NAME.to_string(),
-        })
-    }
-
     async fn post(
         &self,
         session_id: Option<&str>,
@@ -295,6 +240,7 @@ impl SnowflakeProvider {
     }
 }
 
+#[async_trait]
 impl ProviderDef for SnowflakeProvider {
     type Provider = Self;
 
@@ -313,8 +259,61 @@ impl ProviderDef for SnowflakeProvider {
         )
     }
 
-    fn from_env(model: ModelConfig) -> BoxFuture<'static, Result<Self::Provider>> {
-        Box::pin(Self::from_env(model))
+    async fn from_env(
+        model: ModelConfig,
+        _extensions: Vec<crate::config::ExtensionConfig>,
+    ) -> Result<Self::Provider> {
+        let config = crate::config::Config::global();
+        let mut host: Result<String, ConfigError> = config.get_param("SNOWFLAKE_HOST");
+        if host.is_err() {
+            host = config.get_secret("SNOWFLAKE_HOST")
+        }
+        if host.is_err() {
+            return Err(ConfigError::NotFound(
+                "Did not find SNOWFLAKE_HOST in either config file or keyring".to_string(),
+            )
+            .into());
+        }
+
+        let mut host = host?;
+
+        // Convert host to lowercase
+        host = host.to_lowercase();
+
+        // Ensure host ends with snowflakecomputing.com
+        if !host.ends_with("snowflakecomputing.com") {
+            host = format!("{}.snowflakecomputing.com", host);
+        }
+
+        let mut token: Result<String, ConfigError> = config.get_param("SNOWFLAKE_TOKEN");
+
+        if token.is_err() {
+            token = config.get_secret("SNOWFLAKE_TOKEN")
+        }
+
+        if token.is_err() {
+            return Err(ConfigError::NotFound(
+                "Did not find SNOWFLAKE_TOKEN in either config file or keyring".to_string(),
+            )
+            .into());
+        }
+
+        // Ensure host has https:// prefix
+        let base_url = if !host.starts_with("https://") && !host.starts_with("http://") {
+            format!("https://{}", host)
+        } else {
+            host
+        };
+
+        let auth = AuthMethod::BearerToken(token?);
+        let api_client = ApiClient::new(base_url, auth)?.with_header("User-Agent", "goose")?;
+
+        Ok(Self {
+            api_client,
+            model,
+            image_format: ImageFormat::OpenAi,
+            name: SNOWFLAKE_PROVIDER_NAME.to_string(),
+        })
     }
 }
 

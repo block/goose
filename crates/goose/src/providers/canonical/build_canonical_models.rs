@@ -483,7 +483,7 @@ async fn check_provider(
 ) -> Result<(Vec<String>, Vec<ModelMapping>, Vec<String>)> {
     println!("Checking provider: {}", provider_name);
 
-    let provider = match create_with_named_model(provider_name, model_for_init).await {
+    let provider = match create_with_named_model(provider_name, model_for_init, Vec::new()).await {
         Ok(p) => p,
         Err(e) => {
             println!("  ⚠ Failed to create provider: {}", e);

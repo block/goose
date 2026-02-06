@@ -1,4 +1,5 @@
 use anyhow::Result;
+use goose::config::extensions::get_enabled_extensions_with_config;
 use goose::config::paths::Paths;
 use goose::config::Config;
 use goose::model::ModelConfig;
@@ -55,7 +56,8 @@ impl AcpServer {
             fast_model: None,
         };
 
-        let provider = create(&provider_name, model_config).await?;
+        let extensions = get_enabled_extensions_with_config(global_config);
+        let provider = create(&provider_name, model_config, extensions).await?;
         let goose_mode = global_config
             .get_goose_mode()
             .unwrap_or(goose::config::GooseMode::Auto);

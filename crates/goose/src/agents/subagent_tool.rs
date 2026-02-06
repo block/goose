@@ -422,9 +422,10 @@ async fn apply_settings_overrides(
                 model_config = model_config.with_temperature(Some(temp));
             }
 
-            task_config.provider = providers::create(&provider_name, model_config)
-                .await
-                .map_err(|e| anyhow!("Failed to create provider '{}': {}", provider_name, e))?;
+            task_config.provider =
+                providers::create(&provider_name, model_config, task_config.extensions.clone())
+                    .await
+                    .map_err(|e| anyhow!("Failed to create provider '{}': {}", provider_name, e))?;
         }
     }
 

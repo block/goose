@@ -2,7 +2,7 @@ use anyhow::Result;
 use futures::StreamExt;
 use goose::conversation::message::{Message, MessageContent};
 use goose::model::ModelConfig;
-use goose::providers::base::Provider;
+use goose::providers::base::{Provider, ProviderDef};
 use goose::providers::tetrate::TetrateProvider;
 use rmcp::model::Tool;
 use rmcp::object;
@@ -16,7 +16,7 @@ mod tetrate_streaming_tests {
     async fn create_test_provider() -> Result<TetrateProvider> {
         // Create a test provider with the default model
         let model_config = ModelConfig::new("claude-3-5-sonnet-latest")?;
-        TetrateProvider::from_env(model_config).await
+        TetrateProvider::from_env(model_config, Vec::new()).await
     }
 
     #[tokio::test]
@@ -238,7 +238,7 @@ mod tetrate_streaming_tests {
         std::env::set_var("TETRATE_API_KEY", "invalid-key-for-testing");
 
         let model_config = ModelConfig::new("claude-3-5-sonnet-latest")?;
-        let provider = TetrateProvider::from_env(model_config).await?;
+        let provider = TetrateProvider::from_env(model_config, Vec::new()).await?;
 
         let messages = vec![Message::user().with_text("Hello")];
 

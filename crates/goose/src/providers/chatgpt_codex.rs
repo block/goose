@@ -16,7 +16,6 @@ use async_trait::async_trait;
 use axum::{extract::Query, response::Html, routing::get, Router};
 use base64::Engine;
 use chrono::{DateTime, Utc};
-use futures::future::BoxFuture;
 use futures::{StreamExt, TryStreamExt};
 use jsonwebtoken::jwk::JwkSet;
 use jsonwebtoken::{decode, decode_header, DecodingKey, Validation};
@@ -783,18 +782,6 @@ pub struct ChatGptCodexProvider {
 }
 
 impl ChatGptCodexProvider {
-    pub async fn from_env(model: ModelConfig) -> Result<Self> {
-        let auth_provider = Arc::new(ChatGptCodexAuthProvider::new(
-            ChatGptCodexAuthState::instance(),
-        ));
-
-        Ok(Self {
-            auth_provider,
-            model,
-            name: CHATGPT_CODEX_PROVIDER_NAME.to_string(),
-        })
-    }
-
     async fn post_streaming(
         &self,
         session_id: Option<&str>,
@@ -841,6 +828,7 @@ impl ChatGptCodexProvider {
     }
 }
 
+#[async_trait]
 impl ProviderDef for ChatGptCodexProvider {
     type Provider = Self;
 
@@ -861,8 +849,19 @@ impl ProviderDef for ChatGptCodexProvider {
         )
     }
 
-    fn from_env(model: ModelConfig) -> BoxFuture<'static, Result<Self::Provider>> {
-        Box::pin(Self::from_env(model))
+    async fn from_env(
+        model: ModelConfig,
+        _extensions: Vec<crate::config::ExtensionConfig>,
+    ) -> Result<Self::Provider> {
+        let auth_provider = Arc::new(ChatGptCodexAuthProvider::new(
+            ChatGptCodexAuthState::instance(),
+        ));
+
+        Ok(Self {
+            auth_provider,
+            model,
+            name: CHATGPT_CODEX_PROVIDER_NAME.to_string(),
+        })
     }
 }
 

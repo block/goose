@@ -513,6 +513,28 @@ impl ExtensionConfig {
         name_to_key(&name)
     }
 
+    /// Returns a non-empty key for this extension.  Prefers `key()` (i.e.
+    /// `name_to_key(name)`), but when the name is empty falls back to the URI
+    /// host (StreamableHttp) or command basename (Stdio).
+    pub fn derived_key(&self) -> String {
+        let key = self.key();
+        if !key.is_empty() {
+            return key;
+        }
+        match self {
+            Self::StreamableHttp { uri, .. } => url::Url::parse(uri)
+                .ok()
+                .and_then(|u| u.host_str().map(name_to_key))
+                .unwrap_or_else(|| "unnamed".to_string()),
+            Self::Stdio { cmd, .. } => std::path::Path::new(cmd)
+                .file_name()
+                .and_then(|f| f.to_str())
+                .map(name_to_key)
+                .unwrap_or_else(|| "unnamed".to_string()),
+            _ => "unnamed".to_string(),
+        }
+    }
+
     /// Get the extension name regardless of variant
     pub fn name(&self) -> String {
         match self {
@@ -638,6 +660,68 @@ impl ToolInfo {
 #[cfg(test)]
 mod tests {
     use crate::agents::*;
+    use test_case::test_case;
+
+    #[test_case(
+        ExtensionConfig::StreamableHttp {
+            name: "kiwi".into(),
+            description: String::new(),
+            uri: "https://mcp.kiwi.com".into(),
+            envs: extension::Envs::default(),
+            env_keys: vec![],
+            headers: std::collections::HashMap::new(),
+            timeout: None,
+            bundled: None,
+            available_tools: vec![],
+        },
+        "kiwi"
+        ; "named_streamable_http"
+    )]
+    #[test_case(
+        ExtensionConfig::StreamableHttp {
+            name: String::new(),
+            description: String::new(),
+            uri: "https://mcp.kiwi.com".into(),
+            envs: extension::Envs::default(),
+            env_keys: vec![],
+            headers: std::collections::HashMap::new(),
+            timeout: None,
+            bundled: None,
+            available_tools: vec![],
+        },
+        "mcp_kiwi_com"
+        ; "empty_name_derives_from_host"
+    )]
+    #[test_case(
+        ExtensionConfig::Stdio {
+            name: String::new(),
+            description: String::new(),
+            cmd: "/usr/bin/my-server".into(),
+            args: vec![],
+            envs: extension::Envs::default(),
+            env_keys: vec![],
+            timeout: None,
+            bundled: None,
+            available_tools: vec![],
+        },
+        "my-server"
+        ; "empty_name_derives_from_cmd"
+    )]
+    #[test_case(
+        ExtensionConfig::Builtin {
+            name: String::new(),
+            description: String::new(),
+            display_name: None,
+            timeout: None,
+            bundled: None,
+            available_tools: vec![],
+        },
+        "unnamed"
+        ; "empty_builtin_gives_unnamed"
+    )]
+    fn test_derived_key(config: ExtensionConfig, expected: &str) {
+        assert_eq!(config.derived_key(), expected);
+    }
 
     #[test]
     fn test_deserialize_missing_description() {

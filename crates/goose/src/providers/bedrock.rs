@@ -11,7 +11,6 @@ use async_trait::async_trait;
 use aws_sdk_bedrockruntime::config::ProvideCredentials;
 use aws_sdk_bedrockruntime::operation::converse::ConverseError;
 use aws_sdk_bedrockruntime::{types as bedrock, Client};
-use futures::future::BoxFuture;
 use reqwest::header::HeaderValue;
 use rmcp::model::Tool;
 use serde_json::Value;
@@ -52,100 +51,6 @@ pub struct BedrockProvider {
 }
 
 impl BedrockProvider {
-    pub async fn from_env(model: ModelConfig) -> Result<Self> {
-        let config = crate::config::Config::global();
-
-        // Attempt to load config and secrets to get AWS_ prefixed keys
-        // to re-export them into the environment for aws_config to use as fallback
-        let set_aws_env_vars = |res: Result<HashMap<String, Value>, _>| {
-            if let Ok(map) = res {
-                map.into_iter()
-                    .filter(|(key, _)| key.starts_with("AWS_"))
-                    .filter_map(|(key, value)| value.as_str().map(|s| (key, s.to_string())))
-                    .for_each(|(key, s)| std::env::set_var(key, s));
-            }
-        };
-
-        let filtered_secrets = config.all_secrets().map(|map| {
-            map.into_iter()
-                .filter(|(key, _)| key != "AWS_BEARER_TOKEN_BEDROCK")
-                .collect()
-        });
-
-        set_aws_env_vars(config.all_values());
-        set_aws_env_vars(filtered_secrets);
-
-        // Check for bearer token first to determine if region is required
-        let bearer_token = match config.get_secret::<String>("AWS_BEARER_TOKEN_BEDROCK") {
-            Ok(token) => {
-                let token = token.trim().to_string();
-                if token.is_empty() {
-                    None
-                } else {
-                    Some(token)
-                }
-            }
-            Err(_) => None,
-        };
-
-        // Get AWS_REGION from config if explicitly set (optional - SDK can resolve from other sources)
-        let region = match config.get_param::<String>("AWS_REGION") {
-            Ok(r) if !r.is_empty() => Some(r),
-            Ok(_) => None,
-            Err(_) => None,
-        };
-
-        // Use load_defaults() which supports AWS SSO, profiles, and environment variables
-        let mut loader = aws_config::defaults(aws_config::BehaviorVersion::latest());
-
-        if let Ok(profile_name) = config.get_param::<String>("AWS_PROFILE") {
-            if !profile_name.is_empty() {
-                loader = loader.profile_name(&profile_name);
-            }
-        }
-
-        // Apply region to loader if explicitly configured
-        if let Some(ref region) = region {
-            loader = loader.region(aws_config::Region::new(region.clone()));
-        }
-
-        let sdk_config = loader.load().await;
-
-        // Validate region requirement for bearer token auth after SDK config is loaded
-        // This allows region to be resolved from ~/.aws/config, AWS_DEFAULT_REGION, etc.
-        if bearer_token.is_some() && sdk_config.region().is_none() {
-            return Err(anyhow::anyhow!(
-                "AWS region is required when using AWS_BEARER_TOKEN_BEDROCK authentication. \
-                Set AWS_REGION, AWS_DEFAULT_REGION, or configure region in your AWS profile."
-            ));
-        }
-
-        let client = if let Some(bearer_token) = bearer_token {
-            // Build from sdk_config to inherit all settings (endpoint overrides, timeouts, etc.)
-            // then override authentication with bearer token
-            let bedrock_config = aws_sdk_bedrockruntime::Config::new(&sdk_config)
-                .to_builder()
-                .bearer_token(aws_sdk_bedrockruntime::config::Token::new(
-                    bearer_token,
-                    None,
-                ))
-                .build();
-
-            Client::from_conf(bedrock_config)
-        } else {
-            Self::create_client_with_credentials(&sdk_config).await?
-        };
-
-        let retry_config = Self::load_retry_config(config);
-
-        Ok(Self {
-            client,
-            model,
-            retry_config,
-            name: BEDROCK_PROVIDER_NAME.to_string(),
-        })
-    }
-
     async fn create_client_with_credentials(sdk_config: &aws_config::SdkConfig) -> Result<Client> {
         sdk_config
             .credentials_provider()
@@ -263,6 +168,7 @@ impl BedrockProvider {
     }
 }
 
+#[async_trait]
 impl ProviderDef for BedrockProvider {
     type Provider = Self;
 
@@ -282,8 +188,101 @@ impl ProviderDef for BedrockProvider {
         )
     }
 
-    fn from_env(model: ModelConfig) -> BoxFuture<'static, Result<Self::Provider>> {
-        Box::pin(Self::from_env(model))
+    async fn from_env(
+        model: ModelConfig,
+        _extensions: Vec<crate::config::ExtensionConfig>,
+    ) -> Result<Self::Provider> {
+        let config = crate::config::Config::global();
+
+        // Attempt to load config and secrets to get AWS_ prefixed keys
+        // to re-export them into the environment for aws_config to use as fallback
+        let set_aws_env_vars = |res: Result<HashMap<String, Value>, _>| {
+            if let Ok(map) = res {
+                map.into_iter()
+                    .filter(|(key, _)| key.starts_with("AWS_"))
+                    .filter_map(|(key, value)| value.as_str().map(|s| (key, s.to_string())))
+                    .for_each(|(key, s)| std::env::set_var(key, s));
+            }
+        };
+
+        let filtered_secrets = config.all_secrets().map(|map| {
+            map.into_iter()
+                .filter(|(key, _)| key != "AWS_BEARER_TOKEN_BEDROCK")
+                .collect()
+        });
+
+        set_aws_env_vars(config.all_values());
+        set_aws_env_vars(filtered_secrets);
+
+        // Check for bearer token first to determine if region is required
+        let bearer_token = match config.get_secret::<String>("AWS_BEARER_TOKEN_BEDROCK") {
+            Ok(token) => {
+                let token = token.trim().to_string();
+                if token.is_empty() {
+                    None
+                } else {
+                    Some(token)
+                }
+            }
+            Err(_) => None,
+        };
+
+        // Get AWS_REGION from config if explicitly set (optional - SDK can resolve from other sources)
+        let region = match config.get_param::<String>("AWS_REGION") {
+            Ok(r) if !r.is_empty() => Some(r),
+            Ok(_) => None,
+            Err(_) => None,
+        };
+
+        // Use load_defaults() which supports AWS SSO, profiles, and environment variables
+        let mut loader = aws_config::defaults(aws_config::BehaviorVersion::latest());
+
+        if let Ok(profile_name) = config.get_param::<String>("AWS_PROFILE") {
+            if !profile_name.is_empty() {
+                loader = loader.profile_name(&profile_name);
+            }
+        }
+
+        // Apply region to loader if explicitly configured
+        if let Some(ref region) = region {
+            loader = loader.region(aws_config::Region::new(region.clone()));
+        }
+
+        let sdk_config = loader.load().await;
+
+        // Validate region requirement for bearer token auth after SDK config is loaded
+        // This allows region to be resolved from ~/.aws/config, AWS_DEFAULT_REGION, etc.
+        if bearer_token.is_some() && sdk_config.region().is_none() {
+            return Err(anyhow::anyhow!(
+                "AWS region is required when using AWS_BEARER_TOKEN_BEDROCK authentication. \
+                Set AWS_REGION, AWS_DEFAULT_REGION, or configure region in your AWS profile."
+            ));
+        }
+
+        let client = if let Some(bearer_token) = bearer_token {
+            // Build from sdk_config to inherit all settings (endpoint overrides, timeouts, etc.)
+            // then override authentication with bearer token
+            let bedrock_config = aws_sdk_bedrockruntime::Config::new(&sdk_config)
+                .to_builder()
+                .bearer_token(aws_sdk_bedrockruntime::config::Token::new(
+                    bearer_token,
+                    None,
+                ))
+                .build();
+
+            Client::from_conf(bedrock_config)
+        } else {
+            Self::create_client_with_credentials(&sdk_config).await?
+        };
+
+        let retry_config = Self::load_retry_config(config);
+
+        Ok(Self {
+            client,
+            model,
+            retry_config,
+            name: BEDROCK_PROVIDER_NAME.to_string(),
+        })
     }
 }
 

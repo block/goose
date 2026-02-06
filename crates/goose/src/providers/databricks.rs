@@ -1,6 +1,5 @@
 use anyhow::Result;
 use async_trait::async_trait;
-use futures::future::BoxFuture;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::time::Duration;
@@ -110,50 +109,6 @@ pub struct DatabricksProvider {
 }
 
 impl DatabricksProvider {
-    pub async fn from_env(model: ModelConfig) -> Result<Self> {
-        let config = crate::config::Config::global();
-
-        let mut host: Result<String, ConfigError> = config.get_param("DATABRICKS_HOST");
-        if host.is_err() {
-            host = config.get_secret("DATABRICKS_HOST")
-        }
-
-        if host.is_err() {
-            return Err(ConfigError::NotFound(
-                "Did not find DATABRICKS_HOST in either config file or keyring".to_string(),
-            )
-            .into());
-        }
-
-        let host = host?;
-        let retry_config = Self::load_retry_config(config);
-        let fast_retry_config = Self::load_fast_retry_config(config);
-
-        let auth = if let Ok(api_key) = config.get_secret("DATABRICKS_TOKEN") {
-            DatabricksAuth::token(api_key)
-        } else {
-            DatabricksAuth::oauth(host.clone())
-        };
-
-        let auth_method =
-            AuthMethod::Custom(Box::new(DatabricksAuthProvider { auth: auth.clone() }));
-
-        let api_client =
-            ApiClient::with_timeout(host, auth_method, Duration::from_secs(DEFAULT_TIMEOUT_SECS))?;
-
-        let mut provider = Self {
-            api_client,
-            auth,
-            model: model.clone(),
-            image_format: ImageFormat::OpenAi,
-            retry_config,
-            fast_retry_config,
-            name: DATABRICKS_PROVIDER_NAME.to_string(),
-        };
-        provider.model = model.with_fast(DATABRICKS_DEFAULT_FAST_MODEL.to_string());
-        Ok(provider)
-    }
-
     fn load_retry_config(config: &crate::config::Config) -> RetryConfig {
         let max_retries = config
             .get_param("DATABRICKS_MAX_RETRIES")
@@ -236,6 +191,7 @@ impl DatabricksProvider {
     }
 }
 
+#[async_trait]
 impl ProviderDef for DatabricksProvider {
     type Provider = Self;
 
@@ -254,8 +210,51 @@ impl ProviderDef for DatabricksProvider {
         )
     }
 
-    fn from_env(model: ModelConfig) -> BoxFuture<'static, Result<Self::Provider>> {
-        Box::pin(Self::from_env(model))
+    async fn from_env(
+        model: ModelConfig,
+        _extensions: Vec<crate::config::ExtensionConfig>,
+    ) -> Result<Self::Provider> {
+        let config = crate::config::Config::global();
+
+        let mut host: Result<String, ConfigError> = config.get_param("DATABRICKS_HOST");
+        if host.is_err() {
+            host = config.get_secret("DATABRICKS_HOST")
+        }
+
+        if host.is_err() {
+            return Err(ConfigError::NotFound(
+                "Did not find DATABRICKS_HOST in either config file or keyring".to_string(),
+            )
+            .into());
+        }
+
+        let host = host?;
+        let retry_config = Self::load_retry_config(config);
+        let fast_retry_config = Self::load_fast_retry_config(config);
+
+        let auth = if let Ok(api_key) = config.get_secret("DATABRICKS_TOKEN") {
+            DatabricksAuth::token(api_key)
+        } else {
+            DatabricksAuth::oauth(host.clone())
+        };
+
+        let auth_method =
+            AuthMethod::Custom(Box::new(DatabricksAuthProvider { auth: auth.clone() }));
+
+        let api_client =
+            ApiClient::with_timeout(host, auth_method, Duration::from_secs(DEFAULT_TIMEOUT_SECS))?;
+
+        let mut provider = Self {
+            api_client,
+            auth,
+            model: model.clone(),
+            image_format: ImageFormat::OpenAi,
+            retry_config,
+            fast_retry_config,
+            name: DATABRICKS_PROVIDER_NAME.to_string(),
+        };
+        provider.model = model.with_fast(DATABRICKS_DEFAULT_FAST_MODEL.to_string());
+        Ok(provider)
     }
 }
 

@@ -14,7 +14,6 @@ use crate::providers::formats::google::{
 use anyhow::Result;
 use async_stream::try_stream;
 use async_trait::async_trait;
-use futures::future::BoxFuture;
 use futures::TryStreamExt;
 use rmcp::model::Tool;
 use serde_json::Value;
@@ -68,30 +67,6 @@ pub struct GoogleProvider {
 }
 
 impl GoogleProvider {
-    pub async fn from_env(model: ModelConfig) -> Result<Self> {
-        let model = model.with_fast(GOOGLE_DEFAULT_FAST_MODEL.to_string());
-
-        let config = crate::config::Config::global();
-        let api_key: String = config.get_secret("GOOGLE_API_KEY")?;
-        let host: String = config
-            .get_param("GOOGLE_HOST")
-            .unwrap_or_else(|_| GOOGLE_API_HOST.to_string());
-
-        let auth = AuthMethod::ApiKey {
-            header_name: "x-goog-api-key".to_string(),
-            key: api_key,
-        };
-
-        let api_client =
-            ApiClient::new(host, auth)?.with_header("Content-Type", "application/json")?;
-
-        Ok(Self {
-            api_client,
-            model,
-            name: GOOGLE_PROVIDER_NAME.to_string(),
-        })
-    }
-
     async fn post(
         &self,
         session_id: Option<&str>,
@@ -121,6 +96,7 @@ impl GoogleProvider {
     }
 }
 
+#[async_trait]
 impl ProviderDef for GoogleProvider {
     type Provider = Self;
 
@@ -139,8 +115,31 @@ impl ProviderDef for GoogleProvider {
         )
     }
 
-    fn from_env(model: ModelConfig) -> BoxFuture<'static, Result<Self::Provider>> {
-        Box::pin(Self::from_env(model))
+    async fn from_env(
+        model: ModelConfig,
+        _extensions: Vec<crate::config::ExtensionConfig>,
+    ) -> Result<Self::Provider> {
+        let model = model.with_fast(GOOGLE_DEFAULT_FAST_MODEL.to_string());
+
+        let config = crate::config::Config::global();
+        let api_key: String = config.get_secret("GOOGLE_API_KEY")?;
+        let host: String = config
+            .get_param("GOOGLE_HOST")
+            .unwrap_or_else(|_| GOOGLE_API_HOST.to_string());
+
+        let auth = AuthMethod::ApiKey {
+            header_name: "x-goog-api-key".to_string(),
+            key: api_key,
+        };
+
+        let api_client =
+            ApiClient::new(host, auth)?.with_header("Content-Type", "application/json")?;
+
+        Ok(Self {
+            api_client,
+            model,
+            name: GOOGLE_PROVIDER_NAME.to_string(),
+        })
     }
 }
 

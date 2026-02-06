@@ -12,7 +12,8 @@ async fn main() -> Result<()> {
     std::env::remove_var("DATABRICKS_TOKEN");
 
     // Create the provider
-    let provider = create_with_named_model("databricks", DATABRICKS_DEFAULT_MODEL).await?;
+    let provider =
+        create_with_named_model("databricks", DATABRICKS_DEFAULT_MODEL, Vec::new()).await?;
 
     // Create a simple message
     let message = Message::user().with_text("Tell me a short joke about programming.");
