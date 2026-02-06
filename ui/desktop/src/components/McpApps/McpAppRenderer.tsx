@@ -327,8 +327,8 @@ export default function McpAppRenderer({
   /** Handles `ui/size-changed` - updates iframe dimensions when the MCP app resizes */
   const handleSizeChanged = useCallback(
     ({ height, width }: McpUiSizeChangedNotification['params']) => {
-      if (height !== undefined) {
-        setIframeHeight(Math.max(DEFAULT_IFRAME_HEIGHT, height));
+      if (height !== undefined && height > 0) {
+        setIframeHeight(height);
       }
       setIframeWidth(width ?? null);
     },
@@ -468,13 +468,13 @@ export default function McpAppRenderer({
   );
 
   // Compute container dimensions based on display mode.
-  // For inline: use app-declared dimensions, with DEFAULT_IFRAME_HEIGHT only during loading.
+  // For inline: use app-declared dimensions, with DEFAULT_IFRAME_HEIGHT as fallback.
   const containerStyle = isExpandedView
     ? { width: '100%', height: '100%' }
     : {
         width: iframeWidth ? `${iframeWidth}px` : '100%',
         maxWidth: '100%',
-        height: isLoading ? `${DEFAULT_IFRAME_HEIGHT}px` : `${iframeHeight}px`,
+        height: `${iframeHeight || DEFAULT_IFRAME_HEIGHT}px`,
       };
 
   return (
