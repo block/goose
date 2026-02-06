@@ -4,6 +4,7 @@ import type {
   McpUiToolCancelledNotification,
   McpUiDisplayMode,
 } from '@modelcontextprotocol/ext-apps/app-bridge';
+import { Content } from '../../api';
 
 /**
  * Space-separated sandbox tokens for iframe permissions.
@@ -31,3 +32,8 @@ export type ToolInput = McpUiToolInputNotification['params'];
 export type ToolInputPartial = McpUiToolInputPartialNotification['params'];
 
 export type ToolCancelled = McpUiToolCancelledNotification['params'];
+
+export type ToolResult = {
+  content: Content[];
+  structuredContent?: unknown;
+};
