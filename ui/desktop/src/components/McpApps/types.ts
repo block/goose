@@ -41,3 +41,21 @@ export type McpAppToolResult = {
   content: Content[];
   structuredContent?: unknown;
 };
+
+export type SamplingMessage = {
+  role: 'user' | 'assistant';
+  content: { type: 'text'; text: string } | { type: 'image'; data: string; mimeType: string };
+};
+
+export type SamplingCreateMessageParams = {
+  messages: SamplingMessage[];
+  systemPrompt?: string;
+  maxTokens?: number;
+};
+
+export type SamplingCreateMessageResponse = {
+  model: string;
+  stopReason: string;
+  role: 'assistant';
+  content: { type: 'text'; text: string };
+};
