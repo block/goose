@@ -68,11 +68,11 @@ interface McpAppRendererProps {
   sessionId?: string | null;
   /** Complete tool arguments when tool execution starts */
   toolInput?: ToolInput;
-  /** Streaming partial arguments while user is still typing */
+  /** Partial/streaming tool input to send to the guest UI */
   toolInputPartial?: ToolInputPartial;
-  /** Result after tool execution completes */
+  /** Complete tool result to send to the guest UI */
   toolResult?: CallToolResponse;
-  /** Set when tool execution is cancelled */
+  /** Set to true to notify the guest UI that the tool execution was cancelled */
   toolCancelled?: ToolCancelled;
   /** Callback to append text to the chat (for onMessage handler) */
   append?: (text: string) => void;
