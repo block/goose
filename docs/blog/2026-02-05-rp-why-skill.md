@@ -32,7 +32,7 @@ Install the skill:
 npx skills add https://github.com/block/agent-skills --skill rp-why
 ```
 
-Make sure you have the built-in skills extension enabled in Goose.
+Make sure you have the built-in [Skills extension](/docs/mcp/skills-mcp/) enabled in Goose.
 
 ### Verify Installation
 
