@@ -120,7 +120,8 @@ export default function McpAppRenderer({
   });
   const [error, setError] = useState<string | null>(null);
   const [iframeHeight, setIframeHeight] = useState(DEFAULT_IFRAME_HEIGHT);
-  const [iframeWidth, setIframeWidth] = useState<number | null>(null);
+  // Note: We intentionally don't track iframe width. The SDK sets width on the iframe
+  // based on ui/size-changed, but we let the container be 100% width for responsiveness.
   const [sandboxUrl, setSandboxUrl] = useState<URL | null>(null);
   const [sandboxCsp, setSandboxCsp] = useState<CspMetadata | null>(null);
   const [sandboxUrlFetched, setSandboxUrlFetched] = useState(false);
@@ -324,13 +325,14 @@ export default function McpAppRenderer({
     []
   );
 
-  /** Handles `ui/size-changed` - updates iframe dimensions when the MCP app resizes */
+  /** Handles `ui/size-changed` - updates iframe height when the MCP app resizes.
+   * Note: We ignore width changes - the SDK handles iframe width internally,
+   * and our container stays at 100% width for responsiveness. */
   const handleSizeChanged = useCallback(
-    ({ height, width }: McpUiSizeChangedNotification['params']) => {
+    ({ height }: McpUiSizeChangedNotification['params']) => {
       if (height !== undefined && height > 0) {
         setIframeHeight(height);
       }
-      setIframeWidth(width ?? null);
     },
     []
   );
@@ -383,8 +385,8 @@ export default function McpAppRenderer({
       // todo:  containerDimensions: {} (depends on displayMode)
       locale: navigator.language,
       timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-      userAgent: 'Goose',
-      platform: 'desktop',
+      userAgent: navigator.userAgent,
+      platform: 'web',
       deviceCapabilities: {
         touch: false,
         hover: true,
@@ -455,25 +457,33 @@ export default function McpAppRenderer({
         onLoggingMessage={handleLoggingMessage}
         onSizeChanged={handleSizeChanged}
         onError={handleError}
+        // todo: add expected props from client SDK when available
+        // onRequest={}
+        // hostInfo={}
+        // hostCapabilities={}
       />
     );
   };
 
-  // Compute container classes based on state
+  // Compute container classes based on state.
+  // The [&_iframe]:!w-full overrides the SDK's fixed pixel width on the iframe,
+  // making it always fill the container width. This ensures the iframe is responsive
+  // to window resize in both directions (shrinking and expanding).
   const containerClasses = cn(
-    'bg-background-default overflow-hidden',
+    'bg-background-default overflow-hidden [&_iframe]:!w-full',
     error && 'border border-red-500 rounded-lg bg-red-50 dark:bg-red-900/20',
     !error && !isExpandedView && 'my-2',
     !error && !isExpandedView && resource.prefersBorder && 'border border-border-default rounded-lg'
   );
 
   // Compute container dimensions based on display mode.
-  // For inline: use app-declared dimensions, with DEFAULT_IFRAME_HEIGHT as fallback.
+  // For expanded views, fill the container. For inline, always use full width
+  // (ignoring app-declared width) so the iframe is responsive to window resize.
+  // Height is controlled by the app via ui/size-changed notifications.
   const containerStyle = isExpandedView
     ? { width: '100%', height: '100%' }
     : {
-        width: iframeWidth ? `${iframeWidth}px` : '100%',
-        maxWidth: '100%',
+        width: '100%',
         height: `${iframeHeight || DEFAULT_IFRAME_HEIGHT}px`,
       };
 
