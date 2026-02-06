@@ -8,4 +8,5 @@ pub mod session;
 pub mod signal;
 
 // Re-export commonly used types
+pub use cli::Cli;
 pub use session::CliSession;
