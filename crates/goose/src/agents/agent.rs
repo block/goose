@@ -88,12 +88,19 @@ pub struct ExtensionLoadResult {
     pub error: Option<String>,
 }
 
+#[derive(Clone, Debug)]
+pub enum GoosePlatform {
+    GooseDesktop,
+    GooseCli,
+}
+
 #[derive(Clone)]
 pub struct AgentConfig {
     pub session_manager: Arc<SessionManager>,
     pub permission_manager: Arc<PermissionManager>,
     pub scheduler_service: Option<Arc<dyn SchedulerTrait>>,
     pub goose_mode: GooseMode,
+    pub goose_platform: GoosePlatform,
 }
 
 impl AgentConfig {
@@ -102,12 +109,14 @@ impl AgentConfig {
         permission_manager: Arc<PermissionManager>,
         scheduler_service: Option<Arc<dyn SchedulerTrait>>,
         goose_mode: GooseMode,
+        goose_platform: GoosePlatform,
     ) -> Self {
         Self {
             session_manager,
             permission_manager,
             scheduler_service,
             goose_mode,
+            goose_platform,
         }
     }
 }
@@ -189,6 +198,7 @@ impl Agent {
             PermissionManager::instance(),
             None,
             Config::global().get_goose_mode().unwrap_or(GooseMode::Auto),
+            GoosePlatform::GooseCli,
         ))
     }
 
@@ -198,12 +208,17 @@ impl Agent {
         let (tool_tx, tool_rx) = mpsc::channel(32);
         let provider = Arc::new(Mutex::new(None));
 
+        let goose_platform = config.goose_platform.clone();
         let session_manager = Arc::clone(&config.session_manager);
         let permission_manager = Arc::clone(&config.permission_manager);
         Self {
             provider: provider.clone(),
             config,
-            extension_manager: Arc::new(ExtensionManager::new(provider.clone(), session_manager)),
+            extension_manager: Arc::new(ExtensionManager::new(
+                provider.clone(),
+                session_manager,
+                goose_platform,
+            )),
             sub_recipes: Mutex::new(HashMap::new()),
             final_output_tool: Arc::new(Mutex::new(None)),
             frontend_tools: Mutex::new(HashMap::new()),

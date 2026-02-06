@@ -1,7 +1,7 @@
 use anyhow::Result;
 use fs_err as fs;
 use goose::agents::extension::{Envs, PLATFORM_EXTENSIONS};
-use goose::agents::{Agent, AgentConfig, ExtensionConfig, SessionConfig};
+use goose::agents::{Agent, AgentConfig, ExtensionConfig, GoosePlatform, SessionConfig};
 use goose::builtin_extension::register_builtin_extensions;
 use goose::config::base::CONFIG_YAML_NAME;
 use goose::config::extensions::get_enabled_extensions_with_config;
@@ -323,6 +323,7 @@ impl GooseAcpAgent {
             permission_manager,
             None,
             config.goose_mode,
+            GoosePlatform::GooseCli,
         ));
 
         let agent_ptr = Arc::new(agent);
