@@ -1,4 +1,17 @@
+/**
+ * Types for MCP Apps integration.
+ *
+ * Types are sourced from:
+ * - `@mcp-ui/client` - AppRenderer component types
+ * - `../../api/types.gen` - Auto-generated from Rust backend
+ * - Manual definitions - For MCP protocol types not exported by SDK
+ */
+
+// Re-export types from generated API (Rust backend)
 export type { CspMetadata, CallToolResponse as ToolResult } from '../../api/types.gen';
+
+// Re-export types from @mcp-ui/client SDK
+export type { McpUiHostContext as HostContext } from '@mcp-ui/client';
 
 /**
  * Valid iframe sandbox attribute tokens.
@@ -26,6 +39,37 @@ export type SandboxToken =
  * @example "allow-scripts allow-same-origin allow-forms"
  */
 export type SandboxPermissions = string;
+
+/**
+ * Tool input arguments passed to MCP apps.
+ * This wraps the arguments to match our message stream format.
+ * McpAppRenderer extracts `.arguments` when passing to AppRenderer.
+ */
+export interface ToolInput {
+  arguments: Record<string, unknown>;
+}
+
+/**
+ * Partial tool input for streaming updates.
+ * Same structure as ToolInput - represents incremental argument updates.
+ */
+export interface ToolInputPartial {
+  arguments: Record<string, unknown>;
+}
+
+/**
+ * Tool cancellation state from the message stream.
+ * McpAppRenderer converts this to a boolean for AppRenderer.
+ */
+export interface ToolCancelled {
+  reason?: string;
+}
+
+// ============================================================================
+// MCP Protocol Types
+// These types represent the JSON-RPC protocol used by MCP apps.
+// They are manually defined as they're not exported by the SDK.
+// ============================================================================
 
 export type ContentBlock =
   | { type: 'text'; text: string }
@@ -82,49 +126,3 @@ export interface JsonRpcResponse {
 }
 
 export type JsonRpcMessage = JsonRpcRequest | JsonRpcNotification | JsonRpcResponse;
-
-export interface HostContext {
-  toolInfo?: {
-    id?: string | number;
-    tool: {
-      name: string;
-      description?: string;
-      inputSchema?: Record<string, unknown>;
-    };
-  };
-  theme: 'light' | 'dark';
-  displayMode: 'inline' | 'fullscreen' | 'standalone';
-  availableDisplayModes: ('inline' | 'fullscreen' | 'standalone')[];
-  viewport: {
-    width: number;
-    height: number;
-    maxHeight: number;
-    maxWidth: number;
-  };
-  locale: string;
-  timeZone: string;
-  userAgent: string;
-  platform: 'web' | 'desktop' | 'mobile';
-  deviceCapabilities: {
-    touch: boolean;
-    hover: boolean;
-  };
-  safeAreaInsets: {
-    top: number;
-    right: number;
-    bottom: number;
-    left: number;
-  };
-}
-
-export interface ToolInput {
-  arguments: Record<string, unknown>;
-}
-
-export interface ToolInputPartial {
-  arguments: Record<string, unknown>;
-}
-
-export interface ToolCancelled {
-  reason?: string;
-}
