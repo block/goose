@@ -264,7 +264,7 @@ fn to_bedrock_document(
 
     // Since we can't use the full path (due to character limit and also Bedrock does not accept `/` etc.),
     // and Bedrock wants document names to be unique, we're adding `tool_use_id` as a prefix to make
-    // document names unique.
+    // document names unique
     let name = format!("{tool_use_id}-{name}");
 
     Ok(Some(
