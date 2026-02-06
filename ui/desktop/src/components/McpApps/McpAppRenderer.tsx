@@ -108,6 +108,8 @@ export default function McpAppRenderer({
   displayMode = 'inline',
   cachedHtml,
 }: McpAppRendererProps) {
+  // Helper: true when app should fill its container (fullscreen or standalone window)
+  const isExpandedView = displayMode === 'fullscreen' || displayMode === 'standalone';
 
   const { resolvedTheme } = useTheme();
   const [resource, setResource] = useState<ResourceData>({
@@ -373,9 +375,12 @@ export default function McpAppRenderer({
   // Apps can use this to adapt their UI (e.g., theme, display mode).
   const hostContext = useMemo((): McpUiHostContext => {
     const context: McpUiHostContext = {
+      // todo: toolInfo: {}
       theme: resolvedTheme,
-      displayMode: displayMode === 'standalone' ? 'fullscreen' : displayMode,
+      // todo:  styles: { variables: {}, styles: {}}
+      displayMode: displayMode === 'standalone' ? 'fullscreen' : displayMode, // should this be a currentDisplayMode?
       availableDisplayModes: AVAILABLE_DISPLAY_MODES,
+      // todo:  containerDimensions: {} (depends on displayMode)
       locale: navigator.language,
       timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
       userAgent: 'Goose',
@@ -384,19 +389,16 @@ export default function McpAppRenderer({
         touch: false,
         hover: true,
       },
+      safeAreaInsets: {
+        top: 0,
+        right: 0,
+        bottom: 0,
+        left: 0,
+      },
     };
 
-    // For inline mode, provide current dimensions so apps can adapt their layout.
-    // For fullscreen/standalone, the app fills the container so dimensions aren't needed.
-    if (displayMode === 'inline') {
-      context.containerDimensions = {
-        maxWidth: iframeWidth ?? undefined,
-        maxHeight: iframeHeight,
-      };
-    }
-
     return context;
-  }, [resolvedTheme, displayMode, iframeWidth, iframeHeight]);
+  }, [resolvedTheme, displayMode]);
 
   // Transform our API's CallToolResponse to the SDK's CallToolResult format.
   // Maps content items to the expected shape with proper type literals.
@@ -436,35 +438,29 @@ export default function McpAppRenderer({
       <div
         className={cn(
           'flex items-center justify-center p-4',
-          (displayMode === 'fullscreen' || displayMode === 'standalone') && 'w-full h-full'
+          isExpandedView && 'w-full h-full'
         )}
-        style={{
-          minHeight: displayMode === 'fullscreen' || displayMode === 'standalone' ? '100%' : '200px',
-        }}
+        style={{ minHeight: isExpandedView ? '100%' : '200px' }}
       >
         Loading MCP app...
       </div>
     );
   }
 
-  const containerStyle =
-    displayMode === 'fullscreen' || displayMode === 'standalone'
-      ? { width: '100%', height: '100%' }
-      : {
-          width: iframeWidth ? `${iframeWidth}px` : '100%',
-          maxWidth: '100%',
-          height: `${iframeHeight}px`,
-        };
+  const containerStyle = isExpandedView
+    ? { width: '100%', height: '100%' }
+    : {
+        width: iframeWidth ? `${iframeWidth}px` : '100%',
+        maxWidth: '100%',
+        height: `${iframeHeight}px`,
+      };
 
   return (
     <div
       className={cn(
         'bg-background-default overflow-hidden',
-        displayMode !== 'fullscreen' &&
-          displayMode !== 'standalone' &&
-          resource.prefersBorder &&
-          'border border-border-default rounded-lg',
-        displayMode === 'fullscreen' || displayMode === 'standalone' ? 'w-full h-full' : 'my-6'
+        !isExpandedView && resource.prefersBorder && 'border border-border-default rounded-lg',
+        isExpandedView ? 'w-full h-full' : 'my-6'
       )}
       style={containerStyle}
     >
