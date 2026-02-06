@@ -1,7 +1,17 @@
-import { Message, MessageEvent, ActionRequired, ToolRequest, ToolResponse } from '../api';
+import {
+  Message,
+  MessageEvent,
+  ActionRequired,
+  ToolRequest,
+  ToolResponse,
+  ToolConfirmationRequest,
+} from '../api';
 
 export type ToolRequestMessageContent = ToolRequest & { type: 'toolRequest' };
 export type ToolResponseMessageContent = ToolResponse & { type: 'toolResponse' };
+export type ToolConfirmationRequestContent = ToolConfirmationRequest & {
+  type: 'toolConfirmationRequest';
+};
 export type NotificationEvent = Extract<MessageEvent, { type: 'Notification' }>;
 
 // Compaction response message - must match backend constant
@@ -34,26 +44,13 @@ export function createUserMessage(text: string, images?: ImageData[]): Message {
     });
   }
 
-  const message: Message = {
+  return {
     id: generateMessageId(),
     role: 'user',
     created: Math.floor(Date.now() / 1000),
     content,
     metadata: { userVisible: true, agentVisible: true },
   };
-
-  // DEBUG: Log user message creation
-  console.log('[DEBUG createUserMessage] Created user message:', JSON.stringify({
-    id: message.id,
-    text: text.substring(0, 100),
-    textLength: text.length,
-    textTrimmedLength: text.trim().length,
-    imageCount: images?.length ?? 0,
-    contentTypes: content.map((c) => c.type),
-    metadata: message.metadata,
-  }, null, 2));
-
-  return message;
 }
 
 export function createElicitationResponseMessage(
@@ -97,17 +94,6 @@ export function getTextAndImageContent(message: Message): {
     }
   }
 
-  // DEBUG: Log text/image extraction
-  console.log('[DEBUG getTextAndImageContent] Extracted content:', JSON.stringify({
-    messageId: message.id,
-    messageRole: message.role,
-    inputContentTypes: message.content.map((c) => c.type),
-    extractedTextLength: textContent.length,
-    extractedTextTrimmedLength: textContent.trim().length,
-    extractedTextPreview: textContent.substring(0, 100),
-    extractedImageCount: imagePaths.length,
-  }, null, 2));
-
   return { textContent, imagePaths };
 }
 
@@ -132,6 +118,46 @@ export function getToolConfirmationContent(
   );
 }
 
+export function getToolConfirmationRequestContent(
+  message: Message
+): ToolConfirmationRequestContent | undefined {
+  return message.content.find(
+    (content): content is ToolConfirmationRequestContent =>
+      content.type === 'toolConfirmationRequest'
+  );
+}
+
+export interface ToolConfirmationData {
+  id: string;
+  toolName: string;
+  arguments: Record<string, unknown>;
+  prompt?: string | null;
+}
+
+export function getAnyToolConfirmationData(message: Message): ToolConfirmationData | undefined {
+  const confirmationRequest = getToolConfirmationRequestContent(message);
+  if (confirmationRequest) {
+    return {
+      id: confirmationRequest.id,
+      toolName: confirmationRequest.toolName,
+      arguments: confirmationRequest.arguments,
+      prompt: confirmationRequest.prompt,
+    };
+  }
+
+  const actionRequired = getToolConfirmationContent(message);
+  if (actionRequired && actionRequired.data.actionType === 'toolConfirmation') {
+    return {
+      id: actionRequired.data.id,
+      toolName: actionRequired.data.toolName,
+      arguments: actionRequired.data.arguments,
+      prompt: actionRequired.data.prompt,
+    };
+  }
+
+  return undefined;
+}
+
 export function getToolConfirmationId(
   content: ActionRequired & { type: 'actionRequired' }
 ): string | undefined {
@@ -153,12 +179,9 @@ export function getPendingToolConfirmationIds(messages: Message[]): Set<string> 
   }
 
   for (const message of messages) {
-    const confirmation = getToolConfirmationContent(message);
-    if (confirmation) {
-      const confirmationId = getToolConfirmationId(confirmation);
-      if (confirmationId && !respondedIds.has(confirmationId)) {
-        pendingIds.add(confirmationId);
-      }
+    const confirmationData = getAnyToolConfirmationData(message);
+    if (confirmationData && !respondedIds.has(confirmationData.id)) {
+      pendingIds.add(confirmationData.id);
     }
   }
 

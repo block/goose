@@ -354,7 +354,7 @@ export default function BaseChat({
                   onClick={() => {
                     setView('chat');
                   }}
-                  className="px-4 py-2 text-center cursor-pointer text-textStandard border border-borderSubtle hover:bg-bgSubtle rounded-lg transition-all duration-150"
+                  className="px-4 py-2 text-center cursor-pointer text-text-default border border-border-default hover:bg-background-muted rounded-lg transition-all duration-150"
                 >
                   Go home
                 </button>
@@ -426,17 +426,7 @@ export default function BaseChat({
                     chat={{ sessionId }}
                     toolCallNotifications={toolCallNotifications}
                     append={(text: string) => handleSubmit({ msg: text, images: [] })}
-                    isUserMessage={(m: Message) => {
-                      const isUser = m.role === 'user';
-                      // DEBUG: Log isUserMessage check
-                      console.log('[DEBUG BaseChat] isUserMessage check:', JSON.stringify({
-                        messageId: m.id,
-                        role: m.role,
-                        isUser,
-                        contentTypes: m.content.map((c) => c.type),
-                      }, null, 2));
-                      return isUser;
-                    }}
+                    isUserMessage={(m: Message) => m.role === 'user'}
                     isStreamingMessage={chatState !== ChatState.Idle}
                     onRenderingComplete={handleRenderingComplete}
                     onMessageUpdate={onMessageUpdate}

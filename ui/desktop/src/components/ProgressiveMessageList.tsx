@@ -171,37 +171,9 @@ export default function ProgressiveMessageList({
   // Render messages up to the current rendered count
   const renderMessages = useCallback(() => {
     const messagesToRender = messages.slice(0, renderedCount);
-
-    // DEBUG: Log all messages being processed
-    console.log('[DEBUG ProgressiveMessageList] Processing messages:', JSON.stringify({
-      totalMessages: messages.length,
-      renderingCount: renderedCount,
-      messages: messagesToRender.map((m, i) => ({
-        index: i,
-        id: m.id,
-        role: m.role,
-        userVisible: m.metadata?.userVisible,
-        agentVisible: m.metadata?.agentVisible,
-        contentTypes: m.content.map((c) => c.type),
-        contentSummary: m.content.map((c) => {
-          if (c.type === 'text') return `text: "${(c as { text: string }).text?.substring(0, 50)}..."`;
-          if (c.type === 'toolResponse') return 'toolResponse';
-          if (c.type === 'toolRequest') return 'toolRequest';
-          return c.type;
-        }),
-      })),
-    }, null, 2));
-
     return messagesToRender
       .map((message, index) => {
         if (!message.metadata.userVisible) {
-          // DEBUG: Log when message is hidden due to userVisible
-          console.log('[DEBUG ProgressiveMessageList] HIDDEN - userVisible=false:', JSON.stringify({
-            index,
-            id: message.id,
-            role: message.role,
-            metadata: message.metadata,
-          }, null, 2));
           return null;
         }
         if (renderMessage) {
@@ -231,19 +203,6 @@ export default function ProgressiveMessageList({
 
         const isUser = isUserMessage(message);
         const messageIsInChain = isInChain(index, toolCallChains);
-
-        // DEBUG: Log user message rendering decisions
-        if (isUser) {
-          const onlyToolResponses = hasOnlyToolResponses(message);
-          console.log('[DEBUG ProgressiveMessageList] User message rendering decision:', JSON.stringify({
-            index,
-            id: message.id,
-            isUser,
-            hasOnlyToolResponses: onlyToolResponses,
-            willRender: !onlyToolResponses,
-            contentTypes: message.content.map((c) => c.type),
-          }, null, 2));
-        }
 
         return (
           <div

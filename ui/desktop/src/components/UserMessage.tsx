@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState, useLayoutEffect } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import ImagePreview from './ImagePreview';
 import MarkdownContent from './MarkdownContent';
 import { getTextAndImageContent } from '../types/message';
@@ -16,86 +16,11 @@ interface UserMessageProps {
 export default function UserMessage({ message, onMessageUpdate }: UserMessageProps) {
   const contentRef = useRef<HTMLDivElement | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
-  const outerRef = useRef<HTMLDivElement | null>(null);
   const [isEditing, setIsEditing] = useState(false);
   const [editContent, setEditContent] = useState('');
   const [error, setError] = useState<string | null>(null);
 
   const { textContent, imagePaths } = getTextAndImageContent(message);
-
-  // DEBUG: Log UserMessage render with all relevant data
-  console.log('[DEBUG UserMessage] Rendering:', JSON.stringify({
-    messageId: message.id,
-    role: message.role,
-    created: message.created,
-    metadata: message.metadata,
-    contentTypes: message.content.map((c) => c.type),
-    rawContent: message.content,
-    extractedTextContent: textContent,
-    textContentLength: textContent.length,
-    textContentTrimmedLength: textContent.trim().length,
-    hasTextContent: !!textContent.trim(),
-    imagePaths: imagePaths,
-    imageCount: imagePaths.length,
-    willRenderTextBubble: !!textContent.trim(),
-    willRenderImages: imagePaths.length > 0,
-  }, null, 2));
-
-  // DEBUG: Check DOM state after render to detect CSS/visibility issues
-  useLayoutEffect(() => {
-    if (outerRef.current) {
-      const el = outerRef.current;
-      const styles = window.getComputedStyle(el);
-      const rect = el.getBoundingClientRect();
-      
-      // Check parent chain for visibility issues
-      let parent = el.parentElement;
-      let parentChain: Array<{tag: string, className: string, display: string, visibility: string, overflow: string, height: string}> = [];
-      while (parent && parentChain.length < 5) {
-        const parentStyles = window.getComputedStyle(parent);
-        parentChain.push({
-          tag: parent.tagName,
-          className: parent.className.slice(0, 50),
-          display: parentStyles.display,
-          visibility: parentStyles.visibility,
-          overflow: parentStyles.overflow,
-          height: parentStyles.height,
-        });
-        parent = parent.parentElement;
-      }
-
-      console.log('[DEBUG UserMessage] DOM State after render:', JSON.stringify({
-        messageId: message.id,
-        elementExists: true,
-        computedStyles: {
-          display: styles.display,
-          visibility: styles.visibility,
-          opacity: styles.opacity,
-          height: styles.height,
-          width: styles.width,
-          position: styles.position,
-          zIndex: styles.zIndex,
-          overflow: styles.overflow,
-          animation: styles.animation,
-          animationName: styles.animationName,
-          animationPlayState: styles.animationPlayState,
-        },
-        boundingRect: {
-          width: rect.width,
-          height: rect.height,
-          top: rect.top,
-          left: rect.left,
-          bottom: rect.bottom,
-          right: rect.right,
-        },
-        isInViewport: rect.top < window.innerHeight && rect.bottom > 0,
-        parentChain,
-      }, null, 2));
-    } else {
-      console.log('[DEBUG UserMessage] DOM State: outerRef is null for message:', message.id);
-    }
-  }, [message.id, textContent]);
-
   const timestamp = formatMessageTimestamp(message.created);
 
   // Effect to handle message content changes and ensure persistence
@@ -202,17 +127,17 @@ export default function UserMessage({ message, onMessageUpdate }: UserMessagePro
   }, [editContent, isEditing]);
 
   return (
-    <div ref={outerRef} className="w-full mt-[16px] opacity-0 animate-[appear_150ms_ease-in_forwards]">
+    <div className="w-full mt-[16px] opacity-0 animate-[appear_150ms_ease-in_forwards]">
       <div className="flex flex-col group">
         {isEditing ? (
           // Truly wide, centered, in-place edit box replacing the bubble
-          <div className="w-full max-w-4xl mx-auto bg-background-light dark:bg-background-dark text-text-prominent rounded-xl border border-border-subtle shadow-lg py-4 px-4 my-2 transition-all duration-200 ease-in-out">
+          <div className="w-full max-w-4xl mx-auto text-text-default rounded-xl border border-border-default shadow-lg py-4 px-4 my-2 transition-all duration-200 ease-in-out">
             <textarea
               ref={textareaRef}
               value={editContent}
               onChange={handleContentChange}
               onKeyDown={handleKeyDown}
-              className="w-full resize-none bg-transparent text-text-prominent placeholder:text-text-subtle border border-border-subtle rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-blue-400 transition-all duration-200 text-base leading-relaxed"
+              className="w-full resize-none bg-transparent text-text-default placeholder:text-text-muted border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-blue-400 transition-all duration-200 text-base leading-relaxed"
               style={{
                 minHeight: '120px',
                 maxHeight: '300px',
@@ -238,7 +163,7 @@ export default function UserMessage({ message, onMessageUpdate }: UserMessagePro
               </div>
             )}
             <div className="flex justify-between items-center mt-4">
-              <div className="text-xs text-text-subtle">
+              <div className="text-xs text-text-muted">
                 <span className="font-semibold">Edit in Place</span> updates this session •{' '}
                 <span className="font-semibold">Fork Session</span> creates a new session
               </div>
@@ -301,7 +226,7 @@ export default function UserMessage({ message, onMessageUpdate }: UserMessagePro
                           handleEditClick();
                         }
                       }}
-                      className="flex items-center gap-1 text-xs text-text-subtle hover:cursor-pointer hover:text-text-prominent transition-all duration-200 opacity-0 group-hover:opacity-100 -translate-y-4 group-hover:translate-y-0 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:ring-opacity-50 rounded"
+                      className="flex items-center gap-1 text-xs text-text-muted hover:cursor-pointer hover:text-text-default transition-all duration-200 opacity-0 group-hover:opacity-100 -translate-y-4 group-hover:translate-y-0 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:ring-opacity-50 rounded"
                       aria-label={`Edit message: ${textContent.substring(0, 50)}${textContent.length > 50 ? '...' : ''}`}
                       aria-expanded={isEditing}
                       title="Edit message"
