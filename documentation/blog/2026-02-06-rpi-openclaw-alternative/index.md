@@ -34,7 +34,7 @@ an agent that uses goose as a backend. learn if there will be any
 auth issues"
 ```
 
-goose spawned multiple parallel subagents to investigate. This was the turning point for me. Seeing it map out the territory in real time was fascinating.
+goose spawned multiple parallel subagents to investigate.
 
 **Key findings from the research:**
 
