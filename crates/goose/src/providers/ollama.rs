@@ -38,6 +38,7 @@ pub const OLLAMA_DEFAULT_PORT: u16 = 11434;
 pub const OLLAMA_DEFAULT_MODEL: &str = "qwen3";
 pub const OLLAMA_KNOWN_MODELS: &[&str] = &[
     OLLAMA_DEFAULT_MODEL,
+    "qwen3-vl",
     "qwen3-coder:30b",
     "qwen3-coder:480b-cloud",
 ];
