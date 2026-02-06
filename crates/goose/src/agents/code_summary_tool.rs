@@ -83,6 +83,7 @@ pub fn create_summarize_tool() -> Tool {
 
 pub fn handle_summarize_tool(
     provider: Arc<dyn Provider>,
+    session_id: String,
     params: Value,
     working_dir: PathBuf,
 ) -> ToolCallResult {
@@ -107,12 +108,15 @@ pub fn handle_summarize_tool(
 
     ToolCallResult {
         notification_stream: None,
-        result: Box::new(execute_summarize(provider, parsed_params, working_dir).boxed()),
+        result: Box::new(
+            execute_summarize(provider, session_id, parsed_params, working_dir).boxed(),
+        ),
     }
 }
 
 async fn execute_summarize(
     base_provider: Arc<dyn Provider>,
+    session_id: String,
     params: SummarizeParams,
     working_dir: PathBuf,
 ) -> Result<rmcp::model::CallToolResult, ErrorData> {
@@ -146,7 +150,7 @@ async fn execute_summarize(
     let user_message = Message::user().with_text(&prompt);
 
     let (response, _usage) = provider
-        .complete("summarize-tool", system, &[user_message], &[])
+        .complete(&session_id, system, &[user_message], &[])
         .await
         .map_err(|e| ErrorData {
             code: ErrorCode::INTERNAL_ERROR,

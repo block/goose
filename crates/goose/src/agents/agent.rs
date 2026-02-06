@@ -532,7 +532,12 @@ impl Agent {
                 .map(Value::Object)
                 .unwrap_or(Value::Object(serde_json::Map::new()));
 
-            handle_summarize_tool(provider, arguments, session.working_dir.clone())
+            handle_summarize_tool(
+                provider,
+                session.id.clone(),
+                arguments,
+                session.working_dir.clone(),
+            )
         } else if self.is_frontend_tool(&tool_call.name).await {
             // For frontend tools, return an error indicating we need frontend execution
             ToolCallResult::from(Err(ErrorData::new(
