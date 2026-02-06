@@ -123,6 +123,7 @@ pub fn configure_shell_command(
         .stdin(Stdio::null())
         .kill_on_drop(true)
         .env("GOOSE_TERMINAL", "1")
+        .env("AGENT", "goose")
         .env("GIT_EDITOR", "sh -c 'echo \"Interactive Git commands are not supported in this environment.\" >&2; exit 1'")
         .env("GIT_SEQUENCE_EDITOR", "sh -c 'echo \"Interactive Git commands are not supported in this environment.\" >&2; exit 1'")
         .env("VISUAL", "sh -c 'echo \"Interactive editor not available in this environment.\" >&2; exit 1'")

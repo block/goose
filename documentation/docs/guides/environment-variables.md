@@ -480,6 +480,12 @@ These variables are automatically set by goose during command execution.
 | Variable | Purpose | Values | Default |
 |----------|---------|---------|---------|
 | `GOOSE_TERMINAL` | Indicates that a command is being executed by goose, enables customizing shell behavior | "1" when set | Unset |
+| `AGENT` | Generic agent identifier for cross-tool compatibility | "goose" when set | Unset |
+
+The `AGENT` variable follows a generic naming convention that enables scripts and tools to detect AI agent execution without hardcoding specific agent names. This is particularly useful when:
+- Writing scripts that work across multiple AI agents
+- Integrating with MCP servers and LLM gateways
+- Building tools that need agent-agnostic detection
 
 ### Customizing Shell Behavior
 
@@ -510,6 +516,17 @@ fi
 # Guide goose toward better tool choices
 if [[ -n "$GOOSE_TERMINAL" ]]; then
   alias find="echo 'Use rg instead: rg --files | rg <pattern> for filenames, or rg <pattern> for content search'"
+fi
+```
+
+```bash
+# Detect AI agent execution
+if [[ -n "$AGENT" ]]; then
+  echo "Running under AI agent: $AGENT"
+  # Apply agent-specific behavior if needed
+  if [[ "$AGENT" == "goose" ]]; then
+    echo "Detected goose - applying goose-specific settings"
+  fi
 fi
 ```
 

@@ -12,6 +12,7 @@ impl SystemAutomation for WindowsAutomation {
             .arg("-Command")
             .arg(script)
             .env("GOOSE_TERMINAL", "1")
+            .env("AGENT", "goose")
             .output()?;
 
         Ok(String::from_utf8_lossy(&output.stdout).into_owned())
