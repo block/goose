@@ -209,8 +209,10 @@ function ProviderCards({
   const providerCards = useMemo(() => {
     // providers needs to be an array
     const providersArray = Array.isArray(providers) ? providers : [];
-    // Sort providers alphabetically by name
-    const sortedProviders = [...providersArray].sort((a, b) => a.name.localeCompare(b.name));
+    // Sort providers alphabetically by display name
+    const sortedProviders = [...providersArray].sort((a, b) =>
+      a.metadata.display_name.localeCompare(b.metadata.display_name)
+    );
     const cards = sortedProviders.map((provider) => (
       <ProviderCard
         key={provider.name}
