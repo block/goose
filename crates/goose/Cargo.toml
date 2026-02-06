@@ -17,8 +17,6 @@ workspace = true
 [build-dependencies]
 tokio = { workspace = true }
 reqwest = { workspace = true, features = [
-    "json",
-    "rustls-tls-native-roots",
     "system-proxy",
 ], default-features = false }
 
