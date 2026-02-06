@@ -6,7 +6,13 @@ import type {
   McpUiSizeChangedNotification,
   McpUiResourceCsp,
 } from '@modelcontextprotocol/ext-apps/app-bridge';
-import { ToolInput, ToolInputPartial, ToolCancelled, SandboxPermissions } from './types';
+import {
+  ToolInput,
+  ToolInputPartial,
+  ToolCancelled,
+  SandboxPermissions,
+  GooseDisplayMode,
+} from './types';
 import type { CspMetadata, CallToolResponse } from '../../api/types.gen';
 import { cn } from '../../utils';
 import { readResource, callTool } from '../../api';
@@ -69,8 +75,14 @@ interface McpAppRendererProps {
   toolCancelled?: ToolCancelled;
   /** Callback to append text to the chat (for onMessage handler) */
   append?: (text: string) => void;
-  /** Whether to render in fullscreen mode */
-  fullscreen?: boolean;
+  /**
+   * Display mode for the MCP app.
+   * - `inline`: Embedded in chat flow (default)
+   * - `fullscreen`: Takes over the current Goose window
+   * - `pip`: Picture-in-picture floating window
+   * - `standalone`: Rendered in a separate Electron window
+   */
+  displayMode?: GooseDisplayMode;
   /** Pre-cached HTML to show immediately while fetching fresh content */
   cachedHtml?: string;
 }
@@ -92,9 +104,13 @@ export default function McpAppRenderer({
   toolResult,
   toolCancelled,
   append,
-  fullscreen = false,
+  displayMode = 'inline',
   cachedHtml,
 }: McpAppRendererProps) {
+  // For SDK communication, map Goose display modes to SDK display modes.
+  // 'standalone' maps to 'fullscreen' since the app fills its container.
+  const isExpandedMode = displayMode === 'fullscreen' || displayMode === 'standalone';
+  const sdkDisplayMode = displayMode === 'standalone' ? 'fullscreen' : displayMode;
   const { resolvedTheme } = useTheme();
   const [resource, setResource] = useState<ResourceData>({
     html: cachedHtml || null,
@@ -344,11 +360,11 @@ export default function McpAppRenderer({
   const hostContext = useMemo(
     (): McpUiHostContext => ({
       theme: resolvedTheme,
-      displayMode: fullscreen ? 'fullscreen' : 'inline',
+      displayMode: sdkDisplayMode,
       availableDisplayModes: AVAILABLE_DISPLAY_MODES,
       // TODO: add remaining properties (aharvard)
     }),
-    [resolvedTheme, fullscreen]
+    [resolvedTheme, sdkDisplayMode]
   );
 
   // Transform our API's CallToolResponse to the SDK's CallToolResult format.
@@ -387,15 +403,18 @@ export default function McpAppRenderer({
   if (!sandboxConfig || !resource.html) {
     return (
       <div
-        className={cn('flex items-center justify-center p-4', fullscreen ? 'w-full h-full' : '')}
-        style={{ minHeight: fullscreen ? '100%' : '200px' }}
+        className={cn(
+          'flex items-center justify-center p-4',
+          isExpandedMode ? 'w-full h-full' : ''
+        )}
+        style={{ minHeight: isExpandedMode ? '100%' : '200px' }}
       >
         Loading MCP app...
       </div>
     );
   }
 
-  const containerStyle = fullscreen
+  const containerStyle = isExpandedMode
     ? { width: '100%', height: '100%' }
     : {
         width: iframeWidth ? `${iframeWidth}px` : '100%',
@@ -407,8 +426,8 @@ export default function McpAppRenderer({
     <div
       className={cn(
         'bg-background-default overflow-hidden',
-        !fullscreen && resource.prefersBorder ? 'border border-border-default rounded-lg' : '',
-        fullscreen ? 'w-full h-full' : 'my-6'
+        !isExpandedMode && resource.prefersBorder ? 'border border-border-default rounded-lg' : '',
+        isExpandedMode ? 'w-full h-full' : 'my-6'
       )}
       style={containerStyle}
     >

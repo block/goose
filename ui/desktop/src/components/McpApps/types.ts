@@ -2,6 +2,7 @@ import type {
   McpUiToolInputNotification,
   McpUiToolInputPartialNotification,
   McpUiToolCancelledNotification,
+  McpUiDisplayMode,
 } from '@modelcontextprotocol/ext-apps/app-bridge';
 
 /**
@@ -9,6 +10,17 @@ import type {
  * @see https://developer.mozilla.org/en-US/docs/Web/HTML/Element/iframe#sandbox
  */
 export type SandboxPermissions = string;
+
+/**
+ * Display modes for MCP apps in Goose.
+ *
+ * Extends the SDK's McpUiDisplayMode with Goose-specific modes:
+ * - `inline`: Embedded in chat flow (default)
+ * - `fullscreen`: Takes over the current Goose window with close button
+ * - `pip`: Picture-in-picture floating window
+ * - `standalone`: Rendered in a separate Electron window
+ */
+export type GooseDisplayMode = McpUiDisplayMode | 'standalone';
 
 /**
  * Tool input from the message stream.
