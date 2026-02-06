@@ -713,61 +713,6 @@ export type PricingResponse = {
 };
 
 
-export type SearchMatch = {
-    /**
-     * Message content (may be truncated)
-     */
-    content: string;
-    /**
-     * Message role (user/assistant)
-     */
-    role: string;
-    /**
-     * Message timestamp
-     */
-    timestamp: string;
-};
-
-export type SearchSessionResult = {
-    /**
-     * Last activity timestamp
-     */
-    lastActivity: string;
-    /**
-     * Matching messages with context
-     */
-    matches: Array<SearchMatch>;
-    /**
-     * Session ID
-     */
-    sessionId: string;
-    /**
-     * Session name/description
-     */
-    sessionName: string;
-    /**
-     * Total messages in this session
-     */
-    totalMessages: number;
-    /**
-     * Session working directory
-     */
-    workingDir: string;
-};
-
-export type SearchSessionsResponse = {
-    /**
-     * Search results grouped by session
-     */
-    results: Array<SearchSessionResult>;
-    /**
-     * Total number of matching messages
-     */
-    totalMatches: number;
-};
-
-export type PrincipalType = 'Extension' | 'Tool';
-
 export type PromptContentResponse = {
     content: string;
     default_content: string;
@@ -1054,6 +999,59 @@ export type ScheduledJob = {
     paused?: boolean;
     process_start_time?: string | null;
     source: string;
+};
+
+export type SearchMatch = {
+    /**
+     * Message content (may be truncated)
+     */
+    content: string;
+    /**
+     * Message role (user/assistant)
+     */
+    role: string;
+    /**
+     * Message timestamp
+     */
+    timestamp: string;
+};
+
+export type SearchSessionResult = {
+    /**
+     * Last activity timestamp
+     */
+    lastActivity: string;
+    /**
+     * Matching messages with context
+     */
+    matches: Array<SearchMatch>;
+    /**
+     * Session ID
+     */
+    sessionId: string;
+    /**
+     * Session name/description
+     */
+    sessionName: string;
+    /**
+     * Total messages in this session
+     */
+    totalMessages: number;
+    /**
+     * Session working directory
+     */
+    workingDir: string;
+};
+
+export type SearchSessionsResponse = {
+    /**
+     * Search results grouped by session
+     */
+    results: Array<SearchSessionResult>;
+    /**
+     * Total number of matching messages
+     */
+    totalMatches: number;
 };
 
 export type Session = {

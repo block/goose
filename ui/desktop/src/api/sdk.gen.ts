@@ -522,4 +522,3 @@ export const getTunnelStatus = <ThrowOnError extends boolean = false>(options?: 
  * Stop the tunnel
  */
 export const stopTunnel = <ThrowOnError extends boolean = false>(options?: Options<StopTunnelData, ThrowOnError>) => (options?.client ?? client).post<StopTunnelResponses, StopTunnelErrors, ThrowOnError>({ url: '/tunnel/stop', ...options });
-
