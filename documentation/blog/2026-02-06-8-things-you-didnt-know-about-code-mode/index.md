@@ -136,7 +136,7 @@ By explicitly importing developer, Code Mode ensured the tests ran in my actual 
 
 ## 6. Code Mode Is Portable Across Editors
 
-goose is more than an agent; it's also an ACP (Agent Client Protocol) server. This means you can connect it to any editor that supports ACP, like Zed or Neovim. Plus, any MCP server you use in goose will work there, too.
+goose is more than an agent; it's also an [ACP (Agent Client Protocol)](/docs/guides/acp-clients) server. This means you can connect it to any editor that supports ACP, like Zed or Neovim. Plus, any MCP server you use in goose will work there, too.
 
 I wanted to try this myself, so I set up Neovim to connect to goose **with Code Mode enabled**. Here's the configuration I used:
 
