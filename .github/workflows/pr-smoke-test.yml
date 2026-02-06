@@ -226,4 +226,6 @@ jobs:
           GOOSE_DISABLE_KEYRING: 1
           SKIP_BUILD: 1
         run: |
+          mkdir -p $HOME/.local/share/goose/sessions
+          mkdir -p $HOME/.config/goose
           bash scripts/test_compaction.sh
