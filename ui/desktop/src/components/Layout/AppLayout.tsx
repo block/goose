@@ -74,7 +74,7 @@ const AppLayoutContent: React.FC<AppLayoutContentProps> = ({ activeSessions }) =
 
   // Main content area
   const mainContent = (
-    <div className="flex-1 overflow-hidden">
+    <div className="flex-1 overflow-hidden min-h-0">
       <div className="h-full w-full bg-background-default rounded-lg overflow-hidden">
         <Outlet />
         {/* Always render ChatSessionsContainer to keep SSE connections alive.

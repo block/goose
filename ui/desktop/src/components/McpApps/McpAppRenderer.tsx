@@ -15,6 +15,7 @@ import {
   ToolResult,
   ToolCancelled,
   CspMetadata,
+  PermissionsMetadata,
   McpMethodParams,
   McpMethodResponse,
 } from './types';
@@ -40,6 +41,7 @@ interface McpAppRendererProps {
 interface ResourceData {
   html: string | null;
   csp: CspMetadata | null;
+  permissions: PermissionsMetadata | null;
   prefersBorder: boolean;
 }
 
@@ -58,6 +60,7 @@ export default function McpAppRenderer({
   const [resource, setResource] = useState<ResourceData>({
     html: cachedHtml || null,
     csp: null,
+    permissions: null,
     prefersBorder: true,
   });
   const [error, setError] = useState<string | null>(null);
@@ -82,13 +85,20 @@ export default function McpAppRenderer({
         if (response.data) {
           const content = response.data;
           const meta = content._meta as
-            | { ui?: { csp?: CspMetadata; prefersBorder?: boolean } }
+            | {
+                ui?: {
+                  csp?: CspMetadata;
+                  permissions?: PermissionsMetadata;
+                  prefersBorder?: boolean;
+                };
+              }
             | undefined;
 
           if (content.text !== cachedHtml) {
             setResource({
               html: content.text,
               csp: meta?.ui?.csp || null,
+              permissions: meta?.ui?.permissions || null,
               prefersBorder: meta?.ui?.prefersBorder ?? true,
             });
           }
@@ -241,6 +251,7 @@ export default function McpAppRenderer({
   const { iframeRef, proxyUrl } = useSandboxBridge({
     resourceHtml: resource.html || '',
     resourceCsp: resource.csp,
+    resourcePermissions: resource.permissions,
     resourceUri,
     toolInput,
     toolInputPartial,
@@ -288,8 +299,8 @@ export default function McpAppRenderer({
   return (
     <div
       className={cn(
-        'bg-bgApp overflow-hidden',
-        resource.prefersBorder ? 'border border-borderSubtle rounded-lg' : 'my-6'
+        'bg-background-default overflow-hidden',
+        resource.prefersBorder ? 'border border-border-default rounded-lg' : 'my-6'
       )}
     >
       {resource.html && proxyUrl ? (

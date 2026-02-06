@@ -134,8 +134,8 @@ const EditSessionModal = React.memo<EditSessionModalProps>(
 
     return (
       <div className="fixed inset-0 z-[300] flex items-center justify-center bg-black/50">
-        <div className="bg-background-default border border-border-subtle rounded-lg p-6 w-[500px] max-w-[90vw]">
-          <h3 className="text-lg font-medium text-text-standard mb-4">Edit Session Description</h3>
+        <div className="bg-background-default border border-border-default rounded-lg p-6 w-[500px] max-w-[90vw]">
+          <h3 className="text-lg font-medium text-text-default mb-4">Edit Session Description</h3>
 
           <div className="space-y-4">
             <div>
@@ -144,7 +144,7 @@ const EditSessionModal = React.memo<EditSessionModalProps>(
                 type="text"
                 value={description}
                 onChange={handleInputChange}
-                className="w-full p-3 border border-border-subtle rounded-lg bg-background-default text-text-standard focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full p-3 border border-border-default rounded-lg bg-background-default text-text-default focus:outline-none focus:ring-2 focus:ring-blue-500"
                 placeholder="Enter session description"
                 autoFocus
                 maxLength={200}
@@ -675,21 +675,21 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
               className="p-2 rounded hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer"
               title="Open in new window"
             >
-              <ExternalLink className="w-3 h-3 text-textSubtle hover:text-textStandard" />
+              <ExternalLink className="w-3 h-3 text-text-muted hover:text-text-default" />
             </button>
             <button
               onClick={handleEditClick}
               className="p-2 rounded hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer"
               title="Edit session name"
             >
-              <Edit2 className="w-3 h-3 text-textSubtle hover:text-textStandard" />
+              <Edit2 className="w-3 h-3 text-text-muted hover:text-text-default" />
             </button>
             <button
               onClick={handleDuplicateClick}
               className="p-2 rounded hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer"
               title="Duplicate session"
             >
-              <Copy className="w-3 h-3 text-textSubtle hover:text-textStandard" />
+              <Copy className="w-3 h-3 text-text-muted hover:text-text-default" />
             </button>
             <button
               onClick={handleDeleteClick}
@@ -703,7 +703,7 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
               className="p-2 rounded hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer"
               title="Export session"
             >
-              <Download className="w-3 h-3 text-textSubtle hover:text-textStandard" />
+              <Download className="w-3 h-3 text-text-muted hover:text-text-default" />
             </button>
           </div>
         </Card>
@@ -807,7 +807,7 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
           {visibleGroupsCount < dateGroups.length && (
             <div className="flex justify-center py-8">
               <div className="flex items-center space-x-2 text-text-muted">
-                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-text-muted"></div>
+                <div className="animate-spin rounded-full h-4 w-4 border-b-2"></div>
                 <span>Loading more sessions...</span>
               </div>
             </div>

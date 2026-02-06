@@ -3,7 +3,6 @@ import { Input } from '../../../../../ui/input';
 import { Select } from '../../../../../ui/Select';
 import { Button } from '../../../../../ui/button';
 import { SecureStorageNotice } from '../SecureStorageNotice';
-import { Checkbox } from '@radix-ui/themes';
 import { UpdateCustomProviderRequest } from '../../../../../../api';
 
 interface CustomProviderFormProps {
@@ -24,7 +23,7 @@ export default function CustomProviderForm({
   const [apiUrl, setApiUrl] = useState('');
   const [apiKey, setApiKey] = useState('');
   const [models, setModels] = useState('');
-  const [noAuthRequired, setNoAuthRequired] = useState(false);
+  const [requiresApiKey, setRequiresApiKey] = useState(false);
   const [supportsStreaming, setSupportsStreaming] = useState(true);
   const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
 
@@ -40,13 +39,13 @@ export default function CustomProviderForm({
       setApiUrl(initialData.api_url);
       setModels(initialData.models.join(', '));
       setSupportsStreaming(initialData.supports_streaming ?? true);
-      setNoAuthRequired(!(initialData.requires_auth ?? true));
+      setRequiresApiKey(initialData.requires_auth ?? true);
     }
   }, [initialData]);
 
-  const handleNoAuthChange = (checked: boolean) => {
-    setNoAuthRequired(!!checked);
-    if (checked) {
+  const handleRequiresApiKeyChange = (checked: boolean) => {
+    setRequiresApiKey(checked);
+    if (!checked) {
       setApiKey('');
     }
   };
@@ -58,7 +57,7 @@ export default function CustomProviderForm({
     if (!displayName) errors.displayName = 'Display name is required';
     if (!apiUrl) errors.apiUrl = 'API URL is required';
     const existingHadAuth = initialData && (initialData.requires_auth ?? true);
-    if (!noAuthRequired && !apiKey && !existingHadAuth) errors.apiKey = 'API key is required';
+    if (requiresApiKey && !apiKey && !existingHadAuth) errors.apiKey = 'API key is required';
     if (!models) errors.models = 'At least one model is required';
 
     if (Object.keys(errors).length > 0) {
@@ -78,7 +77,7 @@ export default function CustomProviderForm({
       api_key: apiKey,
       models: modelList,
       supports_streaming: supportsStreaming,
-      requires_auth: !noAuthRequired,
+      requires_auth: requiresApiKey,
     });
   };
 
@@ -89,7 +88,7 @@ export default function CustomProviderForm({
           <div>
             <label
               htmlFor="provider-select"
-              className="flex items-center text-sm font-medium text-textStandard mb-2"
+              className="flex items-center text-sm font-medium text-text-default mb-2"
             >
               Provider Type
               <span className="text-red-500 ml-1">*</span>
@@ -127,7 +126,7 @@ export default function CustomProviderForm({
           <div>
             <label
               htmlFor="display-name"
-              className="flex items-center text-sm font-medium text-textStandard mb-2"
+              className="flex items-center text-sm font-medium text-text-default mb-2"
             >
               Display Name
               <span className="text-red-500 ml-1">*</span>
@@ -150,7 +149,7 @@ export default function CustomProviderForm({
           <div>
             <label
               htmlFor="api-url"
-              className="flex items-center text-sm font-medium text-textStandard mb-2"
+              className="flex items-center text-sm font-medium text-text-default mb-2"
             >
               API URL
               <span className="text-red-500 ml-1">*</span>
@@ -174,25 +173,28 @@ export default function CustomProviderForm({
       )}
 
       <div>
-        <div className="flex items-center space-x-2 mb-2">
-          <Checkbox
-            id="no-auth-required"
-            checked={noAuthRequired}
-            onCheckedChange={handleNoAuthChange}
+        <label className="block text-sm font-medium text-text-default mb-2">Authentication</label>
+        <p className="text-sm text-text-muted mb-3">
+          Local LLMs like Ollama typically don't require an API key.
+        </p>
+        <div className="flex items-center space-x-2">
+          <input
+            type="checkbox"
+            id="requires-api-key"
+            checked={requiresApiKey}
+            onChange={(e) => handleRequiresApiKeyChange(e.target.checked)}
+            className="rounded border-border-default"
           />
-          <label
-            htmlFor="no-auth-required"
-            className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 text-textSubtle"
-          >
-            No authentication required
+          <label htmlFor="requires-api-key" className="text-sm text-text-muted">
+            This provider requires an API key
           </label>
         </div>
 
-        {!noAuthRequired && (
-          <>
+        {requiresApiKey && (
+          <div className="mt-3">
             <label
               htmlFor="api-key"
-              className="flex items-center text-sm font-medium text-textStandard mb-2"
+              className="flex items-center text-sm font-medium text-text-default mb-2"
             >
               API Key
               {!initialData && <span className="text-red-500 ml-1">*</span>}
@@ -212,7 +214,7 @@ export default function CustomProviderForm({
                 {validationErrors.apiKey}
               </p>
             )}
-          </>
+          </div>
         )}
       </div>
       {isEditable && (
@@ -220,7 +222,7 @@ export default function CustomProviderForm({
           <div>
             <label
               htmlFor="available-models"
-              className="flex items-center text-sm font-medium text-textStandard mb-2"
+              className="flex items-center text-sm font-medium text-text-default mb-2"
             >
               Available Models (comma-separated)
               <span className="text-red-500 ml-1">*</span>
@@ -241,15 +243,14 @@ export default function CustomProviderForm({
             )}
           </div>
           <div className="flex items-center space-x-2 mb-10">
-            <Checkbox
+            <input
+              type="checkbox"
               id="supports-streaming"
               checked={supportsStreaming}
-              onCheckedChange={(checked) => setSupportsStreaming(checked as boolean)}
+              onChange={(e) => setSupportsStreaming(e.target.checked)}
+              className="rounded border-border-default"
             />
-            <label
-              htmlFor="supports-streaming"
-              className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 text-textSubtle"
-            >
+            <label htmlFor="supports-streaming" className="text-sm text-text-muted">
               Provider supports streaming responses
             </label>
           </div>

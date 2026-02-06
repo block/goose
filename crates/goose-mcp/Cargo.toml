@@ -26,7 +26,7 @@ schemars = "1.0"
 shellexpand = "3.1.0"
 indoc = "2.0.5"
 xcap = "=0.4.0"
-reqwest = { workspace = true, features = ["json", "rustls-tls-native-roots"], default-features = false }
+reqwest = { workspace = true, features = ["json", "rustls-tls-native-roots", "system-proxy"], default-features = false }
 chrono = { version = "0.4.38", features = ["serde"] }
 etcetera = { workspace = true }
 tempfile = "3.8"

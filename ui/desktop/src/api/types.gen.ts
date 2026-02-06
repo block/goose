@@ -112,7 +112,7 @@ export type ConfigResponse = {
 };
 
 export type ConfirmToolActionRequest = {
-    action: string;
+    action: Permission;
     id: string;
     principalType?: PrincipalType;
     sessionId: string;
@@ -662,10 +662,36 @@ export type ParseRecipeResponse = {
     recipe: Recipe;
 };
 
+export type Permission = 'always_allow' | 'allow_once' | 'cancel' | 'deny_once' | 'always_deny';
+
 /**
  * Enum representing the possible permission levels for a tool.
  */
 export type PermissionLevel = 'always_allow' | 'ask_before' | 'never_allow';
+
+/**
+ * Sandbox permissions for MCP Apps
+ * Specifies which browser capabilities the UI needs access to.
+ * Maps to the iframe Permission Policy `allow` attribute.
+ */
+export type PermissionsMetadata = {
+    /**
+     * Request camera access (maps to Permission Policy `camera` feature)
+     */
+    camera?: boolean;
+    /**
+     * Request clipboard write access (maps to Permission Policy `clipboard-write` feature)
+     */
+    clipboardWrite?: boolean;
+    /**
+     * Request geolocation access (maps to Permission Policy `geolocation` feature)
+     */
+    geolocation?: boolean;
+    /**
+     * Request microphone access (maps to Permission Policy `microphone` feature)
+     */
+    microphone?: boolean;
+};
 
 export type PricingData = {
     context_length?: number | null;
@@ -1273,6 +1299,7 @@ export type UiMetadata = {
      * Preferred domain for the app (used for CORS)
      */
     domain?: string | null;
+    permissions?: PermissionsMetadata;
     /**
      * Whether the app prefers to have a border around it
      */

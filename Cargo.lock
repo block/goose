@@ -6951,9 +6951,9 @@ dependencies = [
 
 [[package]]
 name = "pctx_code_mode"
-version = "0.2.2"
+version = "0.2.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5788a3f1aaa7bc0fdcbae6d9ff24a080a6cc0d202d8affa8f1c29097e40a504a"
+checksum = "1006bf745381b3726592032cbee129f27873296810be199e04dfe759820e96f8"
 dependencies = [
  "futures",
  "pctx_code_execution_runtime",
@@ -6971,9 +6971,9 @@ dependencies = [
 
 [[package]]
 name = "pctx_codegen"
-version = "0.1.1"
+version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "aebab01af80ced5df67e44d85c6caa9ccc5d0c6e07e0881e7d573447f1ee0f13"
+checksum = "fe8bc4029f5177e4c7a3fd03f702832fe56ef77c34bb165990875fba25980f95"
 dependencies = [
  "biome_formatter",
  "biome_js_formatter",
@@ -7029,9 +7029,9 @@ dependencies = [
 
 [[package]]
 name = "pctx_executor"
-version = "0.1.2"
+version = "0.1.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ba5377dedd1b2f8dd5eed9baed09ae8efe46d131ed4eb1669a579e2588e91386"
+checksum = "1d0d78d239a4840d4452bafa4fde7c5ad1f128af85f14c2e3d4c72360551183f"
 dependencies = [
  "deno_core",
  "deno_resolver",
@@ -7053,9 +7053,9 @@ dependencies = [
 
 [[package]]
 name = "pctx_type_check_runtime"
-version = "0.1.1"
+version = "0.1.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "71b3e2fa9831b26e71f86d714c08a4b2cb052b594bfae8528efbc6ccd3b0b1ce"
+checksum = "46d99b3ee5c8b345ba4038552ed4f6776a7a702e9739d35b99ffcc4eb7647e9b"
 dependencies = [
  "deno_ast",
  "deno_core",
@@ -10350,9 +10350,9 @@ dependencies = [
 
 [[package]]
 name = "time"
-version = "0.3.46"
+version = "0.3.47"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9da98b7d9b7dad93488a84b8248efc35352b0b2657397d4167e7ad67e5d535e5"
+checksum = "743bd48c283afc0388f9b8827b976905fb217ad9e647fae3a379a9283c4def2c"
 dependencies = [
  "deranged",
  "itoa",
@@ -10371,9 +10371,9 @@ checksum = "7694e1cfe791f8d31026952abf09c69ca6f6fa4e1a1229e18988f06a04a12dca"
 
 [[package]]
 name = "time-macros"
-version = "0.2.26"
+version = "0.2.27"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "78cc610bac2dcee56805c99642447d4c5dbde4d01f752ffea0199aee1f601dc4"
+checksum = "2e70e4c5a0e0a8a4823ad65dfe1a6930e4f4d756dcd9dd7939022b5e8c501215"
 dependencies = [
  "num-conv",
  "time-core",

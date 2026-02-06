@@ -565,6 +565,7 @@ pub async fn configure_provider_dialog() -> anyhow::Result<bool> {
     let provider_name = cliclack::select("Which model provider should we use?")
         .initial_value(&default_provider)
         .items(&provider_items)
+        .filter_mode()
         .interact()?;
 
     // Get the selected provider's metadata
@@ -707,6 +708,14 @@ pub async fn configure_provider_dialog() -> anyhow::Result<bool> {
         }
     };
 
+    if model.to_lowercase().starts_with("gemini-3") {
+        let thinking_level: &str = cliclack::select("Select thinking level for Gemini 3:")
+            .item("low", "Low - Better latency, lighter reasoning", "")
+            .item("high", "High - Deeper reasoning, higher latency", "")
+            .interact()?;
+        config.set_gemini3_thinking_level(thinking_level)?;
+    }
+
     // Test the configuration
     let spin = spinner();
     spin.start("Checking your configuration...");
@@ -776,6 +785,7 @@ pub fn toggle_extensions_dialog() -> anyhow::Result<()> {
             .collect::<Vec<_>>(),
     )
     .initial_values(enabled_extensions)
+    .filter_mode()
     .interact()?;
 
     // Update enabled status for each extension
@@ -1114,6 +1124,7 @@ pub fn remove_extension_dialog() -> anyhow::Result<()> {
                 .map(|(name, _)| (name, name.as_str(), MULTISELECT_VISIBILITY_HINT))
                 .collect::<Vec<_>>(),
         )
+        .filter_mode()
         .interact()?;
 
     for name in selected {
@@ -1419,6 +1430,7 @@ pub async fn configure_tool_permissions_dialog() -> anyhow::Result<()> {
                 .map(|ext| (ext.clone(), ext.clone(), ""))
                 .collect::<Vec<_>>(),
         )
+        .filter_mode()
         .interact()?;
 
     let config = Config::global();
@@ -1499,6 +1511,7 @@ pub async fn configure_tool_permissions_dialog() -> anyhow::Result<()> {
                 })
                 .collect::<Vec<_>>(),
         )
+        .filter_mode()
         .interact()?;
 
     // Find the selected tool
@@ -1939,6 +1952,7 @@ fn remove_provider() -> anyhow::Result<()> {
 
     let selected_id = cliclack::select("Which custom provider would you like to remove?")
         .items(&provider_items)
+        .filter_mode()
         .interact()?;
 
     remove_custom_provider(selected_id)?;
