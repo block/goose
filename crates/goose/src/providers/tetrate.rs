@@ -291,10 +291,6 @@ impl Provider for TetrateProvider {
             }
         };
 
-        // The Tetrate API returns boolean capability flags on each model:
-        // supports_computer_use, supports_vision, supports_caching, supports_reasoning.
-        // Filter to models with supports_computer_use=true as a proxy for tool/function support,
-        // which excludes embedding models, OCR models, and other non-chat models.
         let mut models: Vec<String> = data
             .iter()
             .filter_map(|model| {
