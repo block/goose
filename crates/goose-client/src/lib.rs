@@ -280,14 +280,20 @@ impl Client {
     }
 
     pub async fn resume_agent(&self, session_id: &str) -> Result<Session> {
-        self.post("/agent/resume")
+        #[derive(serde::Deserialize)]
+        struct ResumeAgentResponse {
+            session: Session,
+        }
+        let resp: ResumeAgentResponse = self
+            .post("/agent/resume")
             .json(&ResumeAgentRequest {
                 session_id: session_id.to_string(),
                 load_model_and_extensions: true,
             })
             .send()
             .await
-            .context("Failed to resume agent")
+            .context("Failed to resume agent")?;
+        Ok(resp.session)
     }
 
     pub async fn update_provider(
