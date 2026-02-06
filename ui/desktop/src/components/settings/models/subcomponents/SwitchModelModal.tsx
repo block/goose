@@ -493,8 +493,11 @@ export const SwitchModelModal = ({
 
               {provider && (
                 <>
-                  {provider === 'local' ? (
-                    /* Show special UI for local provider that links to local model settings */
+                  {provider === 'local' &&
+                  !loadingModels &&
+                  filteredModelOptions.flatMap((g) => g.options).filter((o) => o.value !== 'custom')
+                    .length === 0 ? (
+                    /* Show special UI for local provider when no models are downloaded */
                     <div className="rounded-md bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 p-4">
                       <div className="flex flex-col gap-3">
                         <div>
@@ -502,8 +505,8 @@ export const SwitchModelModal = ({
                             Local models need to be downloaded first
                           </h3>
                           <div className="mt-1 text-sm text-blue-700 dark:text-blue-300">
-                            To use local inference, you need to download a model to your computer first.
-                            Go to Settings → Models to manage local models.
+                            To use local inference, you need to download a model to your computer
+                            first. Go to Settings → Models to manage local models.
                           </div>
                         </div>
                         <Button
