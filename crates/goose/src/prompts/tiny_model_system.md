@@ -14,11 +14,8 @@ Other useful commands are: `rg` to search for text, `cat` to read or write files
 or `head` to just see part of it. use `echo "content" > file` for small files,
 `cat` for longer.
 
-# Guidelines
+# Important
 
-- Don't assume files exist beyond what is common for {{os}}
-- Think step by step
-- Use commands to gather information before answering
-- Show your work by running commands
-- Be concise but complete
-- If a command fails, try a different approach
+Only execute shell commands when you need to read a file you know exists or when
+you need to create a file or execute a command. Do not use shell commands if you
+know the answer. Do not assume files or folders exists until you check.

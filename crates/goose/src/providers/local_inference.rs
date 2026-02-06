@@ -308,15 +308,32 @@ impl StreamingEmulatorParser {
         results
     }
 
-    /// Flush any remaining buffer content
-    fn flush(&mut self) -> Option<String> {
+    /// Flush any remaining buffer content, handling incomplete commands
+    fn flush(&mut self) -> Vec<(Option<String>, Option<String>)> {
+        let mut results = Vec::new();
+
         if !self.buffer.is_empty() {
-            let remaining = self.buffer.clone();
+            if self.in_command {
+                // We're in the middle of parsing a command - complete it
+                let command_line = self.buffer.trim();
+                if let Some(command) = command_line.strip_prefix('$') {
+                    let command = command.trim();
+                    if !command.is_empty() {
+                        results.push((None, Some(command.to_string())));
+                    }
+                } else if !command_line.is_empty() {
+                    // Malformed command, just emit as text
+                    results.push((Some(self.buffer.clone()), None));
+                }
+            } else {
+                // Just regular text remaining
+                results.push((Some(self.buffer.clone()), None));
+            }
             self.buffer.clear();
-            Some(remaining)
-        } else {
-            None
+            self.in_command = false;
         }
+
+        results
     }
 }
 
@@ -934,11 +951,32 @@ impl Provider for LocalInferenceProvider {
                 }
             }
 
-            // Flush any remaining parser buffer (only if no tool call, to avoid hallucinations)
-            if let Some(remaining) = parser.flush() {
-                let mut message = Message::assistant().with_text(&remaining);
-                message.id = Some(message_id.clone());
-                yield (Some(message), None);
+            // Flush any remaining parser buffer (handles incomplete commands at end of stream)
+            let flush_results = parser.flush();
+            for (text, command) in flush_results {
+                if let Some(text) = text {
+                    let mut message = Message::assistant().with_text(&text);
+                    message.id = Some(message_id.clone());
+                    yield (Some(message), None);
+                }
+                if let Some(command) = command {
+                    // Create tool request for the final command
+                    let tool_id = Uuid::new_v4().to_string();
+                    let mut args = serde_json::Map::new();
+                    args.insert("command".to_string(), json!(command));
+
+                    let tool_call = CallToolRequestParams {
+                        meta: None,
+                        task: None,
+                        name: Cow::Borrowed("developer__shell"),
+                        arguments: Some(args),
+                    };
+
+                    let mut message = Message::assistant();
+                    message.content.push(MessageContent::tool_request(tool_id, Ok(tool_call)));
+                    message.id = Some(message_id.clone());
+                    yield (Some(message), None);
+                }
             }
 
             // Final yield with usage
