@@ -1,5 +1,5 @@
 {
-  "timestamp": "2026-02-04T17:11:39.018061820+00:00",
+  "timestamp": "2026-02-06T06:20:30.272556267+00:00",
   "unmapped_models": [
     {
       "provider": "anthropic",
@@ -7,11 +7,7 @@
     },
     {
       "provider": "anthropic",
-      "model": "claude-fudge-eap"
-    },
-    {
-      "provider": "anthropic",
-      "model": "claude-fudge-eap-cc"
+      "model": "claude-opus-4-6"
     },
     {
       "provider": "google",
@@ -20,10 +16,6 @@
     {
       "provider": "google",
       "model": "deep-research-pro-preview-12-2025"
-    },
-    {
-      "provider": "google",
-      "model": "embedding-001"
     },
     {
       "provider": "google",
@@ -116,10 +108,6 @@
     {
       "provider": "google",
       "model": "nano-banana-pro-preview"
-    },
-    {
-      "provider": "google",
-      "model": "text-embedding-004"
     },
     {
       "provider": "google",
@@ -2555,6 +2543,10 @@
     },
     {
       "provider": "openrouter",
+      "model": "anthropic/claude-opus-4.6"
+    },
+    {
+      "provider": "openrouter",
       "model": "arcee-ai/trinity-mini"
     },
     {
@@ -2584,18 +2576,6 @@
     {
       "provider": "openrouter",
       "model": "cohere/command-r-plus-08-2024"
-    },
-    {
-      "provider": "openrouter",
-      "model": "deepcogito/cogito-v2-preview-llama-109b-moe"
-    },
-    {
-      "provider": "openrouter",
-      "model": "deepcogito/cogito-v2-preview-llama-405b"
-    },
-    {
-      "provider": "openrouter",
-      "model": "deepcogito/cogito-v2-preview-llama-70b"
     },
     {
       "provider": "openrouter",
@@ -5037,14 +5017,14 @@
     }
   ],
   "model_counts": {
-    "anthropic": 12,
+    "anthropic": 11,
     "aws_bedrock": 0,
     "azure_openai": 0,
     "databricks": 0,
     "gcp_vertex_ai": 0,
-    "google": 47,
+    "google": 45,
     "openai": 653,
-    "openrouter": 231,
+    "openrouter": 229,
     "tetrate": 0,
     "venice": 0,
     "xai": 12
