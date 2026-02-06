@@ -1,3 +1,9 @@
+import type {
+  McpUiToolInputNotification,
+  McpUiToolInputPartialNotification,
+  McpUiToolCancelledNotification,
+} from '@modelcontextprotocol/ext-apps/app-bridge';
+
 /**
  * Space-separated sandbox tokens for iframe permissions.
  * @see https://developer.mozilla.org/en-US/docs/Web/HTML/Element/iframe#sandbox
@@ -5,17 +11,11 @@
 export type SandboxPermissions = string;
 
 /**
- * Wrapper for tool arguments from the message stream.
+ * Tool input from the message stream.
  * McpAppRenderer extracts `.arguments` when passing to the SDK's AppRenderer.
  */
-export interface ToolInput {
-  arguments: Record<string, unknown>;
-}
+export type ToolInput = McpUiToolInputNotification['params'];
 
-export interface ToolInputPartial {
-  arguments: Record<string, unknown>;
-}
+export type ToolInputPartial = McpUiToolInputPartialNotification['params'];
 
-export interface ToolCancelled {
-  reason?: string;
-}
+export type ToolCancelled = McpUiToolCancelledNotification['params'];
