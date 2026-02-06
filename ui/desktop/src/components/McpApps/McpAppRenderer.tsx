@@ -13,8 +13,7 @@ import {
   SandboxPermissions,
   GooseDisplayMode,
   // Uncomment when SDK adds onRequest prop:
-  // McpRequestParams,
-  // McpRequestResult,
+  // McpRequestHandler,
 } from './types';
 import type { CspMetadata, CallToolResponse } from '../../api/types.gen';
 import { cn } from '../../utils';
@@ -340,44 +339,18 @@ export default function McpAppRenderer({
   // ==========================================================================
   // Generic MCP Request Handler (commented out until SDK adds onRequest prop)
   // ==========================================================================
-  // This handler enables Goose to respond to any MCP JSON-RPC method that the
-  // SDK's AppRenderer doesn't handle natively (e.g., sampling/createMessage).
-  // Once the SDK adds an `onRequest` prop, uncomment and wire this up.
+  // Enables Goose to handle MCP methods not natively supported by AppRenderer.
+  // Uncomment when SDK adds onRequest prop. See types.ts for McpRequestParams.
   //
-  // const handleRequest = useCallback(
-  //   async <M extends keyof McpRequestParams>(
-  //     method: M,
-  //     params: McpRequestParams[M]
-  //   ): Promise<McpRequestResult[M]> => {
-  //     switch (method) {
-  //       case 'sampling/createMessage': {
-  //         if (!sessionId) {
-  //           throw new Error('Session not initialized for sampling request');
-  //         }
-  //         const baseUrl = await window.electron.getGoosedHostPort();
-  //         const secretKey = await window.electron.getSecretKey();
-  //         const response = await fetch(
-  //           `${baseUrl}/sessions/${sessionId}/sampling/message`,
-  //           {
-  //             method: 'POST',
-  //             headers: {
-  //               'Content-Type': 'application/json',
-  //               'X-Secret-Key': secretKey || '',
-  //             },
-  //             body: JSON.stringify(params),
-  //           }
-  //         );
-  //         if (!response.ok) {
-  //           throw new Error(`Sampling request failed: ${response.statusText}`);
-  //         }
-  //         return (await response.json()) as McpRequestResult[M];
-  //       }
-  //       default:
-  //         throw new Error(`Unhandled MCP method: ${method}`);
-  //     }
-  //   },
-  //   [sessionId]
-  // );
+  // const handleRequest: McpRequestHandler = useCallback(async (method, params) => {
+  //   switch (method) {
+  //     case 'sampling/createMessage':
+  //       // TODO: Call goosed sampling endpoint
+  //       break;
+  //     default:
+  //       throw new Error(`Unhandled MCP method: ${method}`);
+  //   }
+  // }, [sessionId]);
 
   // Convert our API's CspMetadata to the SDK's McpUiResourceCsp format.
   // Uses sandboxCsp (captured at fetch time) to keep config stable.
