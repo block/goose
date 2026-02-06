@@ -297,29 +297,19 @@ impl Provider for TetrateProvider {
                 // Get the model ID
                 let id = model.get("id").and_then(|v| v.as_str())?;
 
-                // Check if the model supports computer_use (which indicates tool/function support)
-                // The Tetrate API uses "supports_computer_use" instead of "supported_parameters"
-                let supported_params =
-                    match model.get("supported_parameters").and_then(|v| v.as_array()) {
-                        Some(params) => params,
-                        None => {
-                            tracing::debug!(
-                                "Model '{}' missing supported_parameters field, skipping",
-                                id
-                            );
-                            return None;
-                        }
-                    };
+                // If supported_parameters is available, check for tool support.
+                let dominated = model
+                    .get("supported_parameters")
+                    .and_then(|v| v.as_array())
+                    .is_some_and(|params| {
+                        !params.iter().any(|param| param.as_str() == Some("tools"))
+                    });
 
-                let has_tool_support = supported_params
-                    .iter()
-                    .any(|param| param.as_str() == Some("tools"));
-
-                if has_tool_support {
-                    Some(id.to_string())
-                } else {
+                if dominated {
                     tracing::debug!("Model '{}' does not support tools, skipping", id);
                     None
+                } else {
+                    Some(id.to_string())
                 }
             })
             .collect();
