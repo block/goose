@@ -26,7 +26,7 @@ Think of it as a fitness tracker for your AI practice—it shows you where you a
 
 ## Installation
 
-Install the skill using the skills CLI:
+Install the skill:
 
 ```bash
 npx skills add https://github.com/block/agent-skills --skill rp-why
