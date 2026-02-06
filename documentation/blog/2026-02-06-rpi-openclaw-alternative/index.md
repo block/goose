@@ -108,7 +108,7 @@ Instead, RPI helped us clear the conceptual fog so we could focus on real implem
 
 By forcing the agent to research first, it built up the context it was missing. It is a bit slower at the start (which I barely have patience for), but it turns the agent into a much more capable partner for that back and forth learning process I enjoy.
 
-I even had AltOpenClaw [push its own repository to GitHub](https://github.com/blackgirlbytes/discord-goose-bot).
+I even had AltOpenClaw push its own [repository](https://github.com/blackgirlbytes/discord-goose-bot) to GitHub.
 
 ![AltOpenClaw in action, completing a task](altopenclaw-action.png)
 
