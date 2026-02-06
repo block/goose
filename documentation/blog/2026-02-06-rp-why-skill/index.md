@@ -1,13 +1,12 @@
 ---
-draft: false
 title: "Level Up Your AI Game with rp-why"
-description: "A Goose skill that measures the cognitive complexity of your AI collaboration using the Gas Town × DOK framework."
-date: 2026-02-05
+description: "A goose skill that measures the cognitive complexity of your AI collaboration using the Gas Town × DOK framework."
+date: 2026-02-06
 authors:
   - dakota
 ---
 
-![rp-why skill banner](../images/rp-why-blog/rp-why-banner.png)
+![rp-why skill banner](rp-why-banner.png)
 
 ## What is rp-why?
 
@@ -18,79 +17,27 @@ rp-why is your personal AI collaboration coach. It answers two critical question
 
 Think of it as a fitness tracker for your AI practice—it shows you where you are, where you could be, and how to get there.
 
-**Want the theory?** Check out [Measuring the Cognitive Complexity of Human-AI Collaboration](#) on the Block Engineering Blog.
+**Want the theory?** Check out [Measuring the Cognitive Complexity of Human-AI Collaboration](https://engineering.block.xyz/blog/-gas-town-x-webbs-dok).
 
 **Want to use it?** Keep reading.
 
----
-
-## Installation
-
-Install the skill:
-
-```bash
-npx skills add https://github.com/block/agent-skills --skill rp-why
-```
-
-Make sure you have the built-in [Skills extension](/docs/mcp/skills-mcp/) enabled in Goose.
-
-### Verify Installation
-
-Once installed, test it with:
-
-```
-/rp-why current
-```
-
-You should see your session analysis with DOK distribution and growth nudges.
-
----
+<!-- truncate -->
 
 ## The Problem
 
-| Without rp-why | Impact |
-|----------------|--------|
-| Using powerful AI agents to ask "what time is it in Tokyo?" | Wasted resources |
-| No visibility into your AI usage patterns | Blind spots |
-| Stuck at the same level without knowing it | Stagnation |
-| Wasting sophisticated tools on simple tasks | Unrealized ROI |
+**Without rp-why**
 
-| With rp-why | Outcome |
-|-------------|---------| 
-| Match your tools to your task complexity | Efficiency |
-| See your patterns clearly with data | Awareness |
-| Get actionable nudges to level up | Growth |
-| Track your growth over time | Progress |
+* Teams use powerful AI agents for simple tasks, wasting resources.
+* Lack of usage visibility creates blind spots.
+* No feedback loop keeps people stuck and stagnant.
+* Sophisticated tools get burned on trivial work, killing ROI.
 
----
+**With rp-why**
 
-## Get Started in 3 Commands
-
-### Step 1: Initialize Your Baseline
-
-```
-/rp-why init
-```
-
-This analyzes your conversation history and creates your personal baseline. Takes ~30 seconds.
-
-### Step 2: Check Your Current Session
-
-```
-/rp-why current
-```
-
-See how this session compares to your typical patterns. Are you stretching or coasting?
-
-### Step 3: Track Your Progress
-
-```
-/rp-why compare
-```
-
-Compare today against your baseline. Celebrate wins. Identify opportunities.
-
----
+* Teams match tools to task complexity, driving real efficiency.
+* Usage data makes patterns visible and actionable.
+* Smart nudges help people level up continuously.
+* Progress is tracked over time, turning effort into measurable growth.
 
 ## The Two Dimensions
 
@@ -102,7 +49,7 @@ Where are you on the AI adoption ladder?
 |-------|-------|-------------|
 | 1-2 | Chatbot Curious | Basic web chatbots, occasional use |
 | 3-4 | IDE Integrated | Copilot, chat in your editor |
-| 5 | Agent Autonomous | CLI tools like Goose running independently |
+| 5 | Agent Autonomous | CLI tools like goose running independently |
 | 6-8 | Multi-Agent Master | Orchestrating multiple AI agents, agentic workflows |
 
 ### Dimension 2: DOK Level (Question Depth)
@@ -205,7 +152,7 @@ What's the most strategic question you could ask right now?
 |--------|-------|
 | "Design a caching strategy" | "Over the next few sessions, help me research, prototype, and document a caching architecture. Start by analyzing our current bottlenecks." |
 
----
+
 
 ## Weekly Workflow Integration
 
@@ -221,7 +168,6 @@ What's the most strategic question you could ask right now?
 - Run `/rp-why compare`
 - Celebrate progress, identify next week's focus
 
----
 
 ## Gamify Your Growth
 
@@ -242,7 +188,47 @@ What's the most strategic question you could ask right now?
 | "Strategic Session" | Aim for 50%+ DOK 3 prompts |
 | "Deep Dive Week" | One DOK 4 project across 5 sessions |
 
----
+
+## Start Now
+
+### Installation
+
+Install the skill:
+
+```bash
+npx skills add https://github.com/block/agent-skills --skill rp-why
+```
+
+Make sure you have the built-in [Skills extension](/docs/mcp/skills-mcp/) enabled in goose.
+
+### Step 1: Initialize Your Baseline
+
+```
+/rp-why init
+```
+
+This analyzes your conversation history and creates your personal baseline. Takes ~30 seconds.
+
+### Step 2: Check Your Current Session
+
+```
+/rp-why current
+```
+
+See how this session compares to your typical patterns. Are you stretching or coasting?
+
+### Step 3: Track Your Progress
+
+```
+/rp-why compare
+```
+
+Compare today against your baseline. And ask yourself:
+
+> "What's the most strategic question I could ask right now?"
+
+That's the rp-why mindset.
+
 
 ## FAQ
 
@@ -253,35 +239,13 @@ A: About 30 seconds. It analyzes your available conversation history.
 A: No! The commands take seconds. Think of it as a quick glance at your fitness tracker.
 
 **Q: What if I'm in the "Underutilizing" quadrant?**
-A: That's the most common position for Goose users! It means you have powerful tools—now it's time to ask bigger questions.
+A: That's the most common position for goose users! It means you have powerful tools—now it's time to ask bigger questions.
 
 **Q: How often should I check?**
 A: Daily `/rp-why current`, weekly `/rp-why compare`. Takes under a minute total.
 
 **Q: Can I share my progress with my team?**
 A: Yes! The output is designed to be shareable. Screenshot or copy the quadrant visualization.
-
----
-
-## Start Now
-
-Install the skill:
-
-```bash
-npx skills add https://github.com/block/agent-skills --skill rp-why
-```
-
-Then run your first command:
-
-```
-/rp-why init
-```
-
-And ask yourself:
-
-> "What's the most strategic question I could ask right now?"
-
-That's the rp-why mindset.
 
 ---
 
@@ -294,12 +258,12 @@ That's the rp-why mindset.
 <head>
   <meta property="og:title" content="Level Up Your AI Game with rp-why" />
   <meta property="og:type" content="article" />
-  <meta property="og:url" content="https://block.github.io/goose/blog/2026/02/05/rp-why-skill.html" />
-  <meta property="og:description" content="A Goose skill that measures the cognitive complexity of your AI collaboration using the Gas Town × DOK framework." />
-  <meta property="og:image" content="https://block.github.io/goose/blog/images/rp-why-blog/rp-why-banner.png" />
+  <meta property="og:url" content="https://block.github.io/goose/blog/2026/02/06/rp-why-skill" />
+  <meta property="og:description" content="A goose skill that measures the cognitive complexity of your AI collaboration using the Gas Town × DOK framework." />
+  <meta property="og:image" content="https://block.github.io/goose/blog/rp-why-skill/rp-why-banner-d3fdd6f674e8e308169e30efe6379735.png" />
   <meta name="twitter:card" content="summary_large_image" />
   <meta property="twitter:domain" content="block.github.io" />
   <meta name="twitter:title" content="Level Up Your AI Game with rp-why" />
-  <meta name="twitter:description" content="A Goose skill that measures the cognitive complexity of your AI collaboration using the Gas Town × DOK framework." />
-  <meta name="twitter:image" content="https://block.github.io/goose/blog/images/rp-why-blog/rp-why-banner.png" />
+  <meta name="twitter:description" content="A goose skill that measures the cognitive complexity of your AI collaboration using the Gas Town × DOK framework." />
+  <meta name="twitter:image" content="https://block.github.io/goose/blog/rp-why-skill/rp-why-banner-d3fdd6f674e8e308169e30efe6379735.png" />
 </head>
