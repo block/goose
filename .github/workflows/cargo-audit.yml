@@ -26,6 +26,7 @@ jobs:
         # https://github.com/marketplace/actions/cargo-audit-your-rust-dependencies
       - uses: actions-rust-lang/audit@72c09e02f132669d52284a3323acdb503cfc1a24
         name: Audit Rust Dependencies
-        # with:
-          # Comma separated list of issues to ignore
-          # ignore: RUSTSEC-2020-0036
+        with:
+          # sqlx-mysql pulls in rsa, but goose only uses sqlite. cargo-audit
+          # can't distinguish used from unused deps (rustsec/rustsec#1119).
+          ignore: RUSTSEC-2023-0071

@@ -367,7 +367,31 @@ impl ProviderTester {
         Ok(())
     }
 
+    async fn test_model_listing(&self) -> Result<()> {
+        let models = self.provider.fetch_supported_models().await?;
+
+        println!("=== {}::model_listing ===", self.name);
+        dbg!(&models);
+        println!("===================");
+
+        if let Some(models) = models {
+            assert!(!models.is_empty(), "Expected non-empty model list");
+            let model_name = &self.provider.get_model_config().model_name;
+            // Some providers (e.g. Ollama) return names with tags like "qwen3:latest"
+            // while the configured model name may be just "qwen3".
+            assert!(
+                models
+                    .iter()
+                    .any(|m| m == model_name || m.starts_with(&format!("{}:", model_name))),
+                "Expected model '{}' in supported models",
+                model_name
+            );
+        }
+        Ok(())
+    }
+
     async fn run_test_suite(&self) -> Result<()> {
+        self.test_model_listing().await?;
         self.test_basic_response().await?;
         self.test_tool_usage().await?;
         self.test_context_length_exceeded_error().await?;
