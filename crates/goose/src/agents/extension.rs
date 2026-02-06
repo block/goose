@@ -3,6 +3,7 @@ use crate::agents::chatrecall_extension;
 use crate::agents::code_execution_extension;
 use crate::agents::extension_manager_extension;
 use crate::agents::skills_extension;
+use crate::agents::text_editor_extension;
 use crate::agents::todo_extension;
 use std::collections::HashMap;
 
@@ -102,6 +103,19 @@ pub static PLATFORM_EXTENSIONS: Lazy<HashMap<&'static str, PlatformExtensionDef>
                 description: "Load and use skills from relevant directories",
                 default_enabled: true,
                 client_factory: |ctx| Box::new(skills_extension::SkillsClient::new(ctx).unwrap()),
+            },
+        );
+
+        map.insert(
+            text_editor_extension::EXTENSION_NAME,
+            PlatformExtensionDef {
+                name: text_editor_extension::EXTENSION_NAME,
+                display_name: "Text Editor",
+                description: "View, create, and edit text files with undo support",
+                default_enabled: true,
+                client_factory: |ctx| {
+                    Box::new(text_editor_extension::TextEditorClient::new(ctx).unwrap())
+                },
             },
         );
 
