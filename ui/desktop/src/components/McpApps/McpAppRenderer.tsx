@@ -485,7 +485,7 @@ export default function McpAppRenderer({
     'bg-background-default overflow-hidden',
     iframeWidth === null && '[&_iframe]:!w-full',
     error && 'border border-red-500 rounded-lg bg-red-50 dark:bg-red-900/20',
-    !error && !isExpandedView && 'my-2',
+    !error && !isExpandedView && 'mt-6 mb-2',
     !error && !isExpandedView && resource.prefersBorder && 'border border-border-default rounded-lg'
   );
 
