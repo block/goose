@@ -14,7 +14,7 @@ export default function RecipeBuilderHeader({
   onClose,
 }: RecipeBuilderHeaderProps) {
   return (
-    <div className="flex items-center justify-between px-4 py-3 border-b border-borderSubtle bg-background-default">
+    <div className="flex items-center justify-between px-4 pt-[36px] pb-3 border-b border-borderSubtle bg-background-default">
       <div className="flex items-center gap-1">
         <Button
           variant={currentView === 'chat' ? 'default' : 'ghost'}

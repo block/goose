@@ -10,7 +10,8 @@ import { recipeBuilderRecipe } from './recipeBuilderRecipe';
 import { extractYamlFromMessage, parseYamlToRecipe } from './recipeExtractor';
 import { getInitialWorkingDir } from '../../../utils/workingDir';
 import { UserInput } from '../../../types/message';
-import { Send } from 'lucide-react';
+import { Send } from '../../icons';
+import Stop from '../../ui/Stop';
 import { Button } from '../../ui/button';
 import { RecipeBuilderChatProps } from './types';
 
@@ -156,69 +157,89 @@ export default function RecipeBuilderChat({ recipe, onRecipeChange }: RecipeBuil
     );
   }
 
-  if (isLoading) {
-    return (
-      <div className="flex-1 flex items-center justify-center">
-        <LoadingGoose />
-      </div>
-    );
-  }
+  const showLoadingIndicator = isLoading || isStreaming;
 
   return (
     <div className="flex flex-col flex-1 min-h-0 bg-background-default">
-      <ScrollArea ref={scrollRef} className="flex-1 min-h-0 px-4" autoScroll>
-        <div className="py-6">
-          {messages.length === 0 ? (
-            <div className="text-center text-textSubtle py-8">
-              <p className="text-lg mb-2">Recipe Builder</p>
-              <p className="text-sm">
-                Tell me what kind of recipe you'd like to create, and I'll help you build it.
-              </p>
-            </div>
-          ) : (
-            <ProgressiveMessageList
-              messages={messages}
-              chat={{ sessionId: sessionId! }}
-              isUserMessage={isUserMessage}
-            />
-          )}
-          {isStreaming && (
-            <div className="flex justify-center py-4">
-              <LoadingGoose chatState={chatState} />
-            </div>
-          )}
-        </div>
-      </ScrollArea>
-
-      <div className="p-4 border-t border-borderSubtle">
-        <div className="flex gap-2">
-          <textarea
-            ref={inputRef}
-            value={inputValue}
-            onChange={(e) => setInputValue(e.target.value)}
-            onKeyDown={handleKeyDown}
-            placeholder="Describe the recipe you want to create..."
-            className="flex-1 p-3 border border-borderSubtle rounded-lg bg-background-default text-textStandard resize-none focus:outline-none focus:ring-2 focus:ring-blue-500"
-            rows={2}
-            disabled={isStreaming}
-          />
-          <div className="flex flex-col gap-2">
-            {isStreaming ? (
-              <Button onClick={stopStreaming} variant="outline" size="sm" className="h-full">
-                Stop
-              </Button>
+      <div className="relative flex-1 min-h-0">
+        <ScrollArea ref={scrollRef} className="h-full px-4" autoScroll>
+          <div className="py-6">
+            {messages.length === 0 ? (
+              <div className="text-center text-textSubtle py-8">
+                <p className="text-lg mb-2">Recipe Builder</p>
+                <p className="text-sm">
+                  Tell me what kind of recipe you'd like to create, and I'll help you build it.
+                </p>
+              </div>
             ) : (
-              <Button
-                onClick={handleSubmit}
-                disabled={!inputValue.trim()}
-                size="sm"
-                className="h-full"
-              >
-                <Send className="w-4 h-4" />
-              </Button>
+              <ProgressiveMessageList
+                messages={messages}
+                chat={{ sessionId: sessionId! }}
+                isUserMessage={isUserMessage}
+              />
             )}
           </div>
-        </div>
+        </ScrollArea>
+
+        {showLoadingIndicator && (
+          <div className="absolute bottom-1 left-4 z-20 pointer-events-none">
+            <LoadingGoose chatState={isLoading ? ChatState.LoadingConversation : chatState} />
+          </div>
+        )}
+      </div>
+
+      <div className="flex flex-col relative h-auto p-4 bg-background-default z-10 rounded-t-2xl border-t border-borderSubtle">
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            handleSubmit();
+          }}
+          className="relative"
+        >
+          <div className="relative">
+            <textarea
+              ref={inputRef}
+              value={inputValue}
+              onChange={(e) => setInputValue(e.target.value)}
+              onKeyDown={handleKeyDown}
+              placeholder="Describe the recipe you want to create..."
+              className="w-full outline-none border-none focus:ring-0 bg-transparent px-3 pt-3 pb-1.5 text-sm resize-none text-textStandard placeholder:text-textPlaceholder"
+              rows={2}
+              disabled={isLoading || isStreaming}
+              style={{ paddingRight: '120px' }}
+            />
+            <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1">
+              {isStreaming ? (
+                <Button
+                  type="button"
+                  onClick={stopStreaming}
+                  size="sm"
+                  shape="round"
+                  variant="outline"
+                  className="bg-slate-600 text-white hover:bg-slate-700 border-slate-600 rounded-full px-6 py-2"
+                >
+                  <Stop />
+                </Button>
+              ) : (
+                <Button
+                  type="submit"
+                  size="sm"
+                  shape="round"
+                  variant="outline"
+                  disabled={isLoading || !inputValue.trim()}
+                  className={`rounded-full px-10 py-2 flex items-center gap-2 ${
+                    isLoading || !inputValue.trim()
+                      ? 'bg-slate-600 text-white cursor-not-allowed opacity-50 border-slate-600'
+                      : 'bg-slate-600 text-white hover:bg-slate-700 border-slate-600 hover:cursor-pointer'
+                  }`}
+                >
+                  <Send />
+                  <span className="text-sm">Send</span>
+                </Button>
+              )}
+            </div>
+          </div>
+        </form>
       </div>
     </div>
   );
