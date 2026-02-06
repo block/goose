@@ -1,6 +1,7 @@
 #[cfg(test)]
 use chrono::DateTime;
 use chrono::Utc;
+use indexmap::IndexMap;
 use serde::Serialize;
 use serde_json::Value;
 use std::collections::HashMap;
@@ -19,7 +20,7 @@ const MAX_TOOLS: usize = 50;
 
 pub struct PromptManager {
     system_prompt_override: Option<String>,
-    system_prompt_extras: HashMap<String, String>,
+    system_prompt_extras: IndexMap<String, String>,
     current_date_timestamp: String,
 }
 
@@ -205,7 +206,7 @@ impl PromptManager {
     pub fn new() -> Self {
         PromptManager {
             system_prompt_override: None,
-            system_prompt_extras: HashMap::new(),
+            system_prompt_extras: IndexMap::new(),
             // Use the fixed current date time so that prompt cache can be used.
             // Filtering to an hour to balance user time accuracy and multi session prompt cache hits.
             current_date_timestamp: Utc::now().format("%Y-%m-%d %H:00").to_string(),
@@ -216,7 +217,7 @@ impl PromptManager {
     pub fn with_timestamp(dt: DateTime<Utc>) -> Self {
         PromptManager {
             system_prompt_override: None,
-            system_prompt_extras: HashMap::new(),
+            system_prompt_extras: IndexMap::new(),
             current_date_timestamp: dt.format("%Y-%m-%d %H:%M:%S").to_string(),
         }
     }
