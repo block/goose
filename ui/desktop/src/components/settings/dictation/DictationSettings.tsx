@@ -122,7 +122,7 @@ export const DictationSettings = () => {
         <div className="relative">
           <button
             onClick={handleDropdownToggle}
-            className="flex items-center gap-2 px-3 py-1.5 text-sm border border-border-subtle rounded-md hover:border-border-default transition-colors text-text-default bg-background-default"
+            className="flex items-center gap-2 px-3 py-1.5 text-sm border border-border-default rounded-md hover:border-border-default transition-colors text-text-default bg-background-default"
           >
             {getProviderLabel(provider)}
             <ChevronDown className="w-4 h-4" />
@@ -132,7 +132,7 @@ export const DictationSettings = () => {
             <div className="absolute right-0 mt-1 w-max min-w-[250px] max-w-[350px] bg-background-default border border-border-default rounded-md shadow-lg z-50">
               <button
                 onClick={() => handleProviderChange(null)}
-                className="w-full px-3 py-2 text-left text-sm transition-colors hover:bg-background-subtle text-text-default whitespace-nowrap first:rounded-t-md"
+                className="w-full px-3 py-2 text-left text-sm transition-colors hover:bg-background-muted text-text-default whitespace-nowrap first:rounded-t-md"
               >
                 <span className="flex items-center justify-between gap-2">
                   <span>Disabled</span>
@@ -144,7 +144,7 @@ export const DictationSettings = () => {
                 <button
                   key={p}
                   onClick={() => handleProviderChange(p)}
-                  className="w-full px-3 py-2 text-left text-sm transition-colors hover:bg-background-subtle text-text-default whitespace-nowrap last:rounded-b-md"
+                  className="w-full px-3 py-2 text-left text-sm transition-colors hover:bg-background-muted text-text-default whitespace-nowrap last:rounded-b-md"
                 >
                   <span className="flex items-center justify-between gap-2">
                     <span>
@@ -169,7 +169,7 @@ export const DictationSettings = () => {
               <LocalModelManager />
             </div>
           ) : providerStatuses[provider].uses_provider_config ? (
-            <div className="py-2 px-2 bg-background-subtle rounded-lg">
+            <div className="py-2 px-2 bg-background-muted rounded-lg">
               {!providerStatuses[provider].configured ? (
                 <p className="text-xs text-text-muted">
                   Configure the API key in <b>{providerStatuses[provider].settings_path}</b>
@@ -181,7 +181,7 @@ export const DictationSettings = () => {
               )}
             </div>
           ) : (
-            <div className="py-2 px-2 bg-background-subtle rounded-lg">
+            <div className="py-2 px-2 bg-background-muted rounded-lg">
               <div className="mb-2">
                 <h4 className="text-text-default text-sm">API Key</h4>
                 <p className="text-xs text-text-muted mt-[2px]">

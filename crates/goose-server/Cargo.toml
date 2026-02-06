@@ -10,6 +10,10 @@ description.workspace = true
 [lints]
 workspace = true
 
+[features]
+default = []
+cuda = ["goose/cuda"]
+
 [dependencies]
 goose = { path = "../goose" }
 goose-mcp = { path = "../goose-mcp" }
@@ -34,7 +38,7 @@ thiserror = "1.0"
 clap = { version = "4.4", features = ["derive"] }
 serde_yaml = "0.9.34"
 utoipa = { version = "4.1", features = ["axum_extras", "chrono"] }
-reqwest = { workspace = true, features = ["json", "rustls-tls", "blocking", "multipart"], default-features = false }
+reqwest = { workspace = true, features = ["json", "rustls-tls", "blocking", "multipart", "system-proxy"], default-features = false }
 tokio-util = "0.7.15"
 serde_path_to_error = "0.1.20"
 tokio-tungstenite = { version = "0.28.0", features = ["rustls-tls-native-roots"] }
