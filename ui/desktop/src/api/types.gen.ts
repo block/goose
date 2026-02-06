@@ -712,6 +712,7 @@ export type PricingResponse = {
     source: string;
 };
 
+export type PrincipalType = 'Extension' | 'Tool';
 
 export type PromptContentResponse = {
     content: string;
