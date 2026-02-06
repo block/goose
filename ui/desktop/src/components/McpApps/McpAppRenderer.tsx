@@ -7,7 +7,7 @@ import type {
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { callTool, readResource } from '../../api';
-import type { CallToolResponse, CspMetadata } from '../../api/types.gen';
+import type { CspMetadata } from '../../api/types.gen';
 import { AppEvents } from '../../constants/events';
 import { useTheme } from '../../contexts/ThemeContext';
 import { cn } from '../../utils';
@@ -19,6 +19,7 @@ import {
   ToolCancelled,
   ToolInput,
   ToolInputPartial,
+  ToolResult,
 } from './types';
 
 /** Minimum height for the MCP app iframe in pixels */
@@ -71,7 +72,7 @@ interface McpAppRendererProps {
   /** Partial/streaming tool input to send to the guest UI */
   toolInputPartial?: ToolInputPartial;
   /** Complete tool result to send to the guest UI */
-  toolResult?: CallToolResponse;
+  toolResult?: ToolResult;
   /** Set to true to notify the guest UI that the tool execution was cancelled */
   toolCancelled?: ToolCancelled;
   /** Callback to append text to the chat (for onMessage handler) */
@@ -407,34 +408,18 @@ export default function McpAppRenderer({
     return context;
   }, [resolvedTheme, displayMode]);
 
-  // Transform our API's CallToolResponse to the SDK's CallToolResult format.
-  // Maps content items to the expected shape with proper type literals.
-  // Also passes structuredContent per the MCP Apps spec.
-  const appToolResult = useMemo(():
-    | (CallToolResult & { structuredContent?: unknown })
-    | undefined => {
+  // Transform our ToolResult to the SDK's CallToolResult format.
+  // Our API types (RawTextContent, RawImageContent) lack the `type` discriminator
+  // that CallToolResult requires, so we map them to the expected shape.
+  const appToolResult = useMemo((): CallToolResult | undefined => {
     if (!toolResult) return undefined;
-    const content = toolResult.content || [];
     return {
-      content: content.map((item) => {
-        if ('text' in item && item.text !== undefined) {
-          return { type: 'text' as const, text: item.text };
-        }
-        if ('data' in item && item.data !== undefined) {
-          return {
-            type: 'image' as const,
-            data: item.data,
-            mimeType: item.mimeType || 'image/png',
-          };
-        }
+      content: toolResult.content.map((item) => {
+        if ('text' in item) return { type: 'text' as const, text: item.text };
+        if ('data' in item) return { type: 'image' as const, data: item.data, mimeType: item.mimeType };
         return { type: 'text' as const, text: JSON.stringify(item) };
       }),
-      isError: toolResult.is_error || false,
-      // Pass structured content per MCP Apps spec
-      // Note: API types say structured_content but runtime data is camelCase (structuredContent)
-      structuredContent: (toolResult as Record<string, unknown>).structuredContent as
-        | Record<string, unknown>
-        | undefined,
+      structuredContent: toolResult.structuredContent as { [key: string]: unknown } | undefined,
     };
   }, [toolResult]);
 
@@ -460,9 +445,9 @@ export default function McpAppRenderer({
         html={resource.html ?? undefined}
         toolInput={toolInput?.arguments}
         toolInputPartial={toolInputPartial ? { arguments: toolInputPartial.arguments } : undefined}
-        toolResult={appToolResult}
         toolCancelled={isToolCancelled}
         hostContext={hostContext}
+        toolResult={appToolResult}
         onOpenLink={handleOpenLink}
         onMessage={handleMessage}
         onCallTool={handleCallTool}
