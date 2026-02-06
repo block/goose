@@ -89,12 +89,12 @@ export default function RecipeBuilder({ onClose, onRecipeSaved }: RecipeBuilderP
             }`}
           >
             <div
-              className={`absolute inset-0 flex flex-col ${currentView === 'chat' ? 'block' : 'hidden'}`}
+              className={`absolute inset-0 flex flex-col ${currentView !== 'chat' ? 'hidden' : ''}`}
             >
               <RecipeBuilderChat recipe={recipe} onRecipeChange={setRecipe} />
             </div>
             <div
-              className={`absolute inset-0 flex flex-col ${currentView === 'edit' ? 'block' : 'hidden'}`}
+              className={`absolute inset-0 flex flex-col ${currentView !== 'edit' ? 'hidden' : ''}`}
             >
               <RecipeBuilderEdit recipe={recipe} onRecipeChange={setRecipe} />
             </div>

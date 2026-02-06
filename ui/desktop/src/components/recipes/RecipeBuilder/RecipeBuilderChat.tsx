@@ -160,25 +160,32 @@ export default function RecipeBuilderChat({ recipe, onRecipeChange }: RecipeBuil
   const showLoadingIndicator = isLoading || isStreaming;
 
   return (
-    <div className="flex flex-col flex-1 min-h-0 bg-background-default">
-      <div className="relative flex-1 min-h-0">
-        <ScrollArea ref={scrollRef} className="h-full px-4" autoScroll>
-          <div className="py-6">
-            {messages.length === 0 ? (
-              <div className="text-center text-textSubtle py-8">
-                <p className="text-lg mb-2">Recipe Builder</p>
-                <p className="text-sm">
-                  Tell me what kind of recipe you'd like to create, and I'll help you build it.
-                </p>
-              </div>
-            ) : (
+    <>
+      <div className="flex flex-col flex-1 mb-0.5 min-h-0 relative">
+        <ScrollArea
+          ref={scrollRef}
+          className="flex-1 bg-background-default min-h-0 relative"
+          autoScroll
+          paddingX={4}
+          paddingY={0}
+        >
+          {messages.length === 0 ? (
+            <div className="text-center text-textSubtle py-8">
+              <p className="text-lg mb-2">Recipe Builder</p>
+              <p className="text-sm">
+                Tell me what kind of recipe you'd like to create, and I'll help you build it.
+              </p>
+            </div>
+          ) : (
+            <>
               <ProgressiveMessageList
                 messages={messages}
                 chat={{ sessionId: sessionId! }}
                 isUserMessage={isUserMessage}
               />
-            )}
-          </div>
+              <div className="block h-8" />
+            </>
+          )}
         </ScrollArea>
 
         {showLoadingIndicator && (
@@ -188,7 +195,7 @@ export default function RecipeBuilderChat({ recipe, onRecipeChange }: RecipeBuil
         )}
       </div>
 
-      <div className="flex flex-col relative h-auto p-4 bg-background-default z-10 rounded-t-2xl border-t border-borderSubtle">
+      <div className="relative z-10 p-4 bg-background-default border-t border-borderSubtle">
         <form
           onSubmit={(e) => {
             e.preventDefault();
@@ -241,6 +248,6 @@ export default function RecipeBuilderChat({ recipe, onRecipeChange }: RecipeBuil
           </div>
         </form>
       </div>
-    </div>
+    </>
   );
 }

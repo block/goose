@@ -29,6 +29,7 @@ export default function RecipeBuilderTest({
   const [inputValue, setInputValue] = useState('');
   const scrollRef = useRef<ScrollAreaHandle>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  const hasPopulatedPromptRef = useRef(false);
 
   // Detect if recipe has changed since test started
   const recipeChanged =
@@ -87,6 +88,7 @@ export default function RecipeBuilderTest({
     setSessionId(null);
     setSessionError(null);
     setInputValue('');
+    hasPopulatedPromptRef.current = false;
 
     setIsStarting(true);
     try {
@@ -132,20 +134,23 @@ export default function RecipeBuilderTest({
       await setRecipeUserParams(values);
       if (recipe.prompt) {
         setInputValue(substituteParameters(recipe.prompt, values));
+        hasPopulatedPromptRef.current = true;
       }
     },
     [recipe.prompt, setRecipeUserParams]
   );
 
   useEffect(() => {
-    if (!sessionId || !recipe.prompt || inputValue) return;
+    if (!sessionId || !recipe.prompt) return;
+    if (hasPopulatedPromptRef.current) return;
     if (hasParameters && !session?.user_recipe_values) return;
 
     const prompt = session?.user_recipe_values
       ? substituteParameters(recipe.prompt, session.user_recipe_values)
       : recipe.prompt;
     setInputValue(prompt);
-  }, [sessionId, recipe.prompt, hasParameters, session?.user_recipe_values, inputValue]);
+    hasPopulatedPromptRef.current = true;
+  }, [sessionId, recipe.prompt, hasParameters, session?.user_recipe_values]);
 
   const isUserMessage = useCallback((message: Message) => message.role === 'user', []);
 
@@ -204,7 +209,7 @@ export default function RecipeBuilderTest({
   }
 
   return (
-    <div className="flex flex-col h-full">
+    <>
       {recipeChanged && (
         <div className="flex items-center justify-between gap-2 px-4 py-2 bg-yellow-100 dark:bg-yellow-900/30 border-b border-yellow-300 dark:border-yellow-700">
           <div className="flex items-center gap-2 text-yellow-800 dark:text-yellow-200 text-sm">
@@ -218,21 +223,28 @@ export default function RecipeBuilderTest({
         </div>
       )}
 
-      <div className="relative flex-1 min-h-0">
-        <ScrollArea ref={scrollRef} className="h-full px-4" autoScroll>
-          <div className="py-6">
-            {messages.length === 0 ? (
-              <div className="text-center text-textSubtle py-8">
-                <p className="text-sm">Send a message to test your recipe.</p>
-              </div>
-            ) : (
+      <div className="flex flex-col flex-1 mb-0.5 min-h-0 relative">
+        <ScrollArea
+          ref={scrollRef}
+          className="flex-1 bg-background-default min-h-0 relative"
+          autoScroll
+          paddingX={4}
+          paddingY={0}
+        >
+          {messages.length === 0 ? (
+            <div className="text-center text-textSubtle py-8">
+              <p className="text-sm">Send a message to test your recipe.</p>
+            </div>
+          ) : (
+            <>
               <ProgressiveMessageList
                 messages={messages}
                 chat={{ sessionId: sessionId! }}
                 isUserMessage={isUserMessage}
               />
-            )}
-          </div>
+              <div className="block h-12" />
+            </>
+          )}
         </ScrollArea>
 
         {(isStarting || isStreaming) && (
@@ -242,7 +254,7 @@ export default function RecipeBuilderTest({
         )}
       </div>
 
-      <div className="flex flex-col relative h-auto p-4 bg-background-default z-10 rounded-t-2xl border-t border-borderSubtle">
+      <div className="relative z-10 p-4 bg-background-default border-t border-borderSubtle">
         <form
           onSubmit={(e) => {
             e.preventDefault();
@@ -295,6 +307,6 @@ export default function RecipeBuilderTest({
           </div>
         </form>
       </div>
-    </div>
+    </>
   );
 }
