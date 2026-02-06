@@ -712,6 +712,60 @@ export type PricingResponse = {
     source: string;
 };
 
+
+export type SearchMatch = {
+    /**
+     * Message content (may be truncated)
+     */
+    content: string;
+    /**
+     * Message role (user/assistant)
+     */
+    role: string;
+    /**
+     * Message timestamp
+     */
+    timestamp: string;
+};
+
+export type SearchSessionResult = {
+    /**
+     * Last activity timestamp
+     */
+    lastActivity: string;
+    /**
+     * Matching messages with context
+     */
+    matches: Array<SearchMatch>;
+    /**
+     * Session ID
+     */
+    sessionId: string;
+    /**
+     * Session name/description
+     */
+    sessionName: string;
+    /**
+     * Total messages in this session
+     */
+    totalMessages: number;
+    /**
+     * Session working directory
+     */
+    workingDir: string;
+};
+
+export type SearchSessionsResponse = {
+    /**
+     * Search results grouped by session
+     */
+    results: Array<SearchSessionResult>;
+    /**
+     * Total number of matching messages
+     */
+    totalMatches: number;
+};
+
 export type PrincipalType = 'Extension' | 'Tool';
 
 export type PromptContentResponse = {
@@ -3530,6 +3584,55 @@ export type GetSessionInsightsResponses = {
 
 export type GetSessionInsightsResponse = GetSessionInsightsResponses[keyof GetSessionInsightsResponses];
 
+export type SearchSessionsData = {
+    body?: never;
+    path?: never;
+    query: {
+        /**
+         * Search query string
+         */
+        query: string;
+        /**
+         * Maximum results (default: 10, max: 50)
+         */
+        limit?: number | null;
+        /**
+         * Filter after date (ISO 8601)
+         */
+        after_date?: string | null;
+        /**
+         * Filter before date (ISO 8601)
+         */
+        before_date?: string | null;
+    };
+    url: '/sessions/search';
+};
+
+export type SearchSessionsErrors = {
+    /**
+     * Bad request - Invalid query
+     */
+    400: unknown;
+    /**
+     * Unauthorized
+     */
+    401: unknown;
+    /**
+     * Internal server error
+     */
+    500: unknown;
+};
+
+export type SearchSessionsResponses = {
+    /**
+     * Search results
+     */
+    200: SearchSessionsResponse;
+};
+
+export type SearchSessionsResponse2 = SearchSessionsResponses[keyof SearchSessionsResponses];
+
+
 export type DeleteSessionData = {
     body?: never;
     path: {
@@ -3902,44 +4005,3 @@ export type StopTunnelResponses = {
     200: unknown;
 };
 
-// Manually added for session content search
-export type SearchSessionsData = {
-    body?: never;
-    path?: never;
-    query?: {
-        query: string;
-    };
-    url: '/sessions/search';
-};
-
-export type SearchSessionsErrors = {
-    401: unknown;
-    500: unknown;
-};
-
-export type SessionSearchMatch = {
-    session_id: string;
-    session_name: string;
-    matched_content: string;
-    timestamp: string;
-};
-
-export type SessionSearchResponse = {
-    results: Array<SessionSearchResult>;
-    totalMatches: number;
-};
-
-export type SessionSearchResult = {
-    sessionId: string;
-    sessionName: string;
-    workingDir: string;
-    lastActivity: string;
-    totalMessages: number;
-    matches: Array<SessionSearchMatch>;
-};
-
-export type SearchSessionsResponses = {
-    200: SessionSearchResponse;
-};
-
-export type SearchSessionsResponse = SearchSessionsResponses[keyof SearchSessionsResponses];
