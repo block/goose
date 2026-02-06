@@ -3631,7 +3631,6 @@ export type SearchSessionsResponses = {
 
 export type SearchSessionsResponse2 = SearchSessionsResponses[keyof SearchSessionsResponses];
 
-
 export type DeleteSessionData = {
     body?: never;
     path: {
@@ -4003,4 +4002,3 @@ export type StopTunnelResponses = {
      */
     200: unknown;
 };
-
