@@ -1,15 +1,6 @@
 import { useMemo, useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
-import {
-  Home,
-  MessageSquare,
-  History,
-  FileText,
-  AppWindow,
-  Clock,
-  Puzzle,
-  Settings,
-} from 'lucide-react';
+import { Home, MessageSquare, FileText, AppWindow, Clock, Puzzle, Settings } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { useConfig } from '../components/ConfigContext';
 import type { NavigationPreferences } from '../components/Layout/NavigationContext';
@@ -27,7 +18,6 @@ export interface NavItem {
 export const NAV_ITEMS: NavItem[] = [
   { id: 'home', path: '/', label: 'Home', icon: Home },
   { id: 'chat', path: '/pair', label: 'Chat', icon: MessageSquare, hasSubItems: true },
-  { id: 'history', path: '/sessions', label: 'History', icon: History },
   { id: 'recipes', path: '/recipes', label: 'Recipes', icon: FileText },
   { id: 'apps', path: '/apps', label: 'Apps', icon: AppWindow },
   { id: 'scheduler', path: '/schedules', label: 'Scheduler', icon: Clock },

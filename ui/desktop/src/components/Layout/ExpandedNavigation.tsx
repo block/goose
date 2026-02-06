@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { GripVertical, Plus } from 'lucide-react';
+import { GripVertical } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigationContext } from './NavigationContext';
 import { Z_INDEX } from './constants';
@@ -259,28 +259,6 @@ export const ExpandedNavigation: React.FC<ExpandedNavigationProps> = ({ classNam
                           </div>
                         </motion.div>
                       </DropdownMenuTrigger>
-
-                      {/* New Chat button - bottom right corner, outside DropdownMenuTrigger */}
-                      <motion.button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          e.preventDefault();
-                          handleNewChat();
-                        }}
-                        whileHover={{ scale: 1.1 }}
-                        whileTap={{ scale: 0.95 }}
-                        className={cn(
-                          'absolute bottom-3 right-3 p-2 rounded-md z-10',
-                          'opacity-0 group-hover:opacity-100 transition-opacity',
-                          active
-                            ? 'bg-background-default/20 hover:bg-background-default/30 text-text-on-accent'
-                            : 'bg-background-medium hover:bg-background-accent hover:text-text-on-accent',
-                          'flex items-center justify-center'
-                        )}
-                        title="New Chat"
-                      >
-                        <Plus className="w-4 h-4" />
-                      </motion.button>
                     </div>
                     <ChatSessionsDropdown
                       sessions={recentSessions}

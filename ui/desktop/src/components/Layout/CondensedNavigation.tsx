@@ -1,15 +1,13 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { GripVertical, Menu, ChevronDown, ChevronRight, Plus } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { useNavigationContext } from './NavigationContext';
-import { Z_INDEX } from './constants';
 import { cn } from '../../utils';
 import { useSidebarSessionStatus } from '../../hooks/useSidebarSessionStatus';
 import { useNavigationSessions } from '../../hooks/useNavigationSessions';
 import { useNavigationDragDrop } from '../../hooks/useNavigationDragDrop';
 import { useNavigationItems, useEscapeToClose } from '../../hooks/useNavigationItems';
 import { DropdownMenu, DropdownMenuTrigger } from '../ui/dropdown-menu';
-import * as PopoverPrimitive from '@radix-ui/react-popover';
 import { ChatSessionsDropdown, NavigationOverlay, SessionsList } from './navigation';
 
 interface CondensedNavigationProps {
@@ -31,11 +29,11 @@ export const CondensedNavigation: React.FC<CondensedNavigationProps> = ({ classN
 
   const { visibleItems, isActive } = useNavigationItems({ preferences });
 
-  const handleOverlayClose = useCallback(() => {
+  const handleOverlayClose = () => {
     if (effectiveNavigationMode === 'overlay') {
       setIsNavExpanded(false);
     }
-  }, [effectiveNavigationMode, setIsNavExpanded]);
+  };
 
   const {
     recentSessions,
@@ -56,35 +54,10 @@ export const CondensedNavigation: React.FC<CondensedNavigationProps> = ({ classN
   });
 
   const [chatPopoverOpen, setChatPopoverOpen] = useState(false);
-  const [newChatHoverOpen, setNewChatHoverOpen] = useState(false);
-  const hoverTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const navFocusRef = useRef<HTMLDivElement>(null);
 
   const { getSessionStatus, clearUnread } = useSidebarSessionStatus();
-
-  // Hover handlers with delay to allow mouse to travel between trigger and popover
-  const handleHoverOpen = useCallback(() => {
-    if (hoverTimeoutRef.current) {
-      clearTimeout(hoverTimeoutRef.current);
-      hoverTimeoutRef.current = null;
-    }
-    setNewChatHoverOpen(true);
-  }, []);
-
-  const handleHoverClose = useCallback(() => {
-    hoverTimeoutRef.current = setTimeout(() => {
-      setNewChatHoverOpen(false);
-    }, 300);
-  }, []);
-
-  useEffect(() => {
-    return () => {
-      if (hoverTimeoutRef.current) {
-        clearTimeout(hoverTimeoutRef.current);
-      }
-    };
-  }, []);
 
   useEffect(() => {
     if (isNavExpanded) {
@@ -210,71 +183,58 @@ export const CondensedNavigation: React.FC<CondensedNavigationProps> = ({ classN
                     </DropdownMenu>
                   ) : (
                     <>
-                      {/* Chat row with hover popover for new chat button */}
+                      {/* Chat row - clicking expands/collapses the sessions list */}
                       {isChatItem && !isCondensedIconOnly ? (
-                        <PopoverPrimitive.Root open={newChatHoverOpen}>
-                          <PopoverPrimitive.Trigger asChild>
-                            <motion.button
-                              onClick={toggleChatExpanded}
-                              onMouseEnter={handleHoverOpen}
-                              onMouseLeave={handleHoverClose}
-                              whileHover={{ scale: 1.02 }}
-                              whileTap={{ scale: 0.98 }}
-                              className={cn(
-                                'flex flex-row items-center gap-2 outline-none',
-                                'relative rounded-lg transition-colors duration-200 no-drag',
-                                'w-full pl-2 pr-4 py-2.5',
-                                active
-                                  ? 'bg-background-accent text-text-on-accent'
-                                  : 'bg-background-default hover:bg-background-medium'
+                        <div className="relative">
+                          <motion.button
+                            onClick={toggleChatExpanded}
+                            whileHover={{ scale: 1.02 }}
+                            whileTap={{ scale: 0.98 }}
+                            className={cn(
+                              'flex flex-row items-center gap-2 outline-none',
+                              'relative rounded-lg transition-colors duration-200 no-drag',
+                              'w-full pl-2 pr-4 py-2.5',
+                              active
+                                ? 'bg-background-accent text-text-on-accent'
+                                : 'bg-background-default hover:bg-background-medium'
+                            )}
+                          >
+                            <div className="opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0">
+                              <GripVertical className="w-4 h-4 text-text-muted" />
+                            </div>
+                            <Icon className="w-5 h-5 flex-shrink-0" />
+                            <span className="text-sm font-medium text-left flex-1">
+                              {item.label}
+                            </span>
+                            <div className="flex-shrink-0">
+                              {isChatExpanded ? (
+                                <ChevronDown className="w-3 h-3 text-text-muted" />
+                              ) : (
+                                <ChevronRight className="w-3 h-3 text-text-muted" />
                               )}
+                            </div>
+                          </motion.button>
+                          {/* Hover new chat button - only show when collapsed */}
+                          {!isChatExpanded && (
+                            <motion.button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleNewChat();
+                              }}
+                              whileHover={{ scale: 1.1 }}
+                              whileTap={{ scale: 0.95 }}
+                              className={cn(
+                                'absolute -right-9 top-1/2 -translate-y-1/2 p-1.5 rounded-md z-10',
+                                'opacity-0 group-hover:opacity-100 transition-opacity',
+                                'bg-background-medium hover:bg-background-accent hover:text-text-on-accent',
+                                'flex items-center justify-center'
+                              )}
+                              title="New Chat"
                             >
-                              <div className="opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0">
-                                <GripVertical className="w-4 h-4 text-text-muted" />
-                              </div>
-                              <Icon className="w-5 h-5 flex-shrink-0" />
-                              <span className="text-sm font-medium text-left flex-1">
-                                {item.label}
-                              </span>
-                              <div className="flex-shrink-0">
-                                {isChatExpanded ? (
-                                  <ChevronDown className="w-3 h-3 text-text-muted" />
-                                ) : (
-                                  <ChevronRight className="w-3 h-3 text-text-muted" />
-                                )}
-                              </div>
+                              <Plus className="w-4 h-4" />
                             </motion.button>
-                          </PopoverPrimitive.Trigger>
-                          <PopoverPrimitive.Portal>
-                            <PopoverPrimitive.Content
-                              side={navigationPosition === 'left' ? 'right' : 'left'}
-                              align="center"
-                              sideOffset={4}
-                              onMouseEnter={handleHoverOpen}
-                              onMouseLeave={handleHoverClose}
-                              style={{ zIndex: Z_INDEX.POPOVER }}
-                              className="outline-none"
-                            >
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  handleNewChat();
-                                  setNewChatHoverOpen(false);
-                                }}
-                                className={cn(
-                                  'p-1.5 rounded-md outline-none',
-                                  'bg-background-medium hover:bg-background-accent hover:text-text-on-accent',
-                                  'flex items-center justify-center',
-                                  'shadow-sm transition-all duration-150',
-                                  'hover:scale-110 active:scale-95'
-                                )}
-                                title="New Chat"
-                              >
-                                <Plus className="w-4 h-4" />
-                              </button>
-                            </PopoverPrimitive.Content>
-                          </PopoverPrimitive.Portal>
-                        </PopoverPrimitive.Root>
+                          )}
+                        </div>
                       ) : (
                         <motion.button
                           onClick={() => handleNavClick(item.path)}
@@ -329,6 +289,8 @@ export const CondensedNavigation: React.FC<CondensedNavigationProps> = ({ classN
                       clearUnread={clearUnread}
                       onSessionClick={handleSessionClick}
                       onSessionRenamed={fetchSessions}
+                      onNewChat={handleNewChat}
+                      onShowAll={() => handleNavClick('/sessions')}
                     />
                   )}
                 </div>
@@ -378,59 +340,37 @@ export const CondensedNavigation: React.FC<CondensedNavigationProps> = ({ classN
               <div className="flex flex-col">
                 {/* Chat item with dropdown in horizontal mode */}
                 {isChatItem ? (
-                  <>
-                    <DropdownMenu open={chatPopoverOpen} onOpenChange={setChatPopoverOpen}>
-                      <DropdownMenuTrigger asChild>
-                        <motion.button
-                          whileHover={{ scale: 1.02 }}
-                          whileTap={{ scale: 0.98 }}
-                          className={cn(
-                            'flex flex-row items-center justify-center gap-2',
-                            'relative rounded-lg transition-colors duration-200 no-drag',
-                            'px-3 py-2.5',
-                            active
-                              ? 'bg-background-accent text-text-on-accent'
-                              : 'bg-background-default hover:bg-background-medium'
-                          )}
-                        >
-                          <Icon className="w-5 h-5 flex-shrink-0" />
-                          <span className="text-sm font-medium text-left hidden min-[1200px]:block">
-                            {item.label}
-                          </span>
-                        </motion.button>
-                      </DropdownMenuTrigger>
-                      <ChatSessionsDropdown
-                        sessions={recentSessions}
-                        activeSessionId={activeSessionId}
-                        side={isTopPosition ? 'bottom' : 'top'}
-                        getSessionStatus={getSessionStatus}
-                        clearUnread={clearUnread}
-                        onNewChat={handleNewChat}
-                        onSessionClick={handleSessionClick}
-                        onShowAll={() => handleNavClick('/sessions')}
-                      />
-                    </DropdownMenu>
-                    {!chatPopoverOpen && (
+                  <DropdownMenu open={chatPopoverOpen} onOpenChange={setChatPopoverOpen}>
+                    <DropdownMenuTrigger asChild>
                       <motion.button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleNewChat();
-                        }}
-                        whileHover={{ scale: 1.1 }}
-                        whileTap={{ scale: 0.95 }}
+                        whileHover={{ scale: 1.02 }}
+                        whileTap={{ scale: 0.98 }}
                         className={cn(
-                          'absolute left-1/2 -translate-x-1/2 p-1.5 rounded-md z-10',
-                          'opacity-0 group-hover:opacity-100 transition-opacity',
-                          'bg-background-medium hover:bg-background-accent hover:text-text-on-accent',
-                          'flex items-center justify-center',
-                          isTopPosition ? '-bottom-9' : '-top-9'
+                          'flex flex-row items-center justify-center gap-2',
+                          'relative rounded-lg transition-colors duration-200 no-drag',
+                          'px-3 py-2.5',
+                          active
+                            ? 'bg-background-accent text-text-on-accent'
+                            : 'bg-background-default hover:bg-background-medium'
                         )}
-                        title="New Chat"
                       >
-                        <Plus className="w-4 h-4" />
+                        <Icon className="w-5 h-5 flex-shrink-0" />
+                        <span className="text-sm font-medium text-left hidden min-[1200px]:block">
+                          {item.label}
+                        </span>
                       </motion.button>
-                    )}
-                  </>
+                    </DropdownMenuTrigger>
+                    <ChatSessionsDropdown
+                      sessions={recentSessions}
+                      activeSessionId={activeSessionId}
+                      side={isTopPosition ? 'bottom' : 'top'}
+                      getSessionStatus={getSessionStatus}
+                      clearUnread={clearUnread}
+                      onNewChat={handleNewChat}
+                      onSessionClick={handleSessionClick}
+                      onShowAll={() => handleNavClick('/sessions')}
+                    />
+                  </DropdownMenu>
                 ) : (
                   <motion.button
                     onClick={() => handleNavClick(item.path)}

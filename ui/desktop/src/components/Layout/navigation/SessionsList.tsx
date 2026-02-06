@@ -1,5 +1,5 @@
 import React, { useState, useCallback } from 'react';
-import { MessageSquare, ChefHat } from 'lucide-react';
+import { MessageSquare, ChefHat, Plus, History } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { SessionIndicators } from '../../SessionIndicators';
 import { InlineEditText } from '../../common/InlineEditText';
@@ -17,6 +17,8 @@ interface SessionsListProps {
   clearUnread: (sessionId: string) => void;
   onSessionClick: (sessionId: string) => void;
   onSessionRenamed?: () => void;
+  onNewChat?: () => void;
+  onShowAll?: () => void;
 }
 
 export const SessionsList: React.FC<SessionsListProps> = ({
@@ -27,6 +29,8 @@ export const SessionsList: React.FC<SessionsListProps> = ({
   clearUnread,
   onSessionClick,
   onSessionRenamed,
+  onNewChat,
+  onShowAll,
 }) => {
   const [editingSessionId, setEditingSessionId] = useState<string | null>(null);
 
@@ -52,6 +56,22 @@ export const SessionsList: React.FC<SessionsListProps> = ({
           className="overflow-hidden mt-[2px]"
         >
           <div className="bg-background-default rounded-lg py-1 flex flex-col gap-[2px]">
+            {/* New Chat button as first item */}
+            {onNewChat && (
+              <div
+                onClick={onNewChat}
+                className={cn(
+                  'w-full text-left py-1.5 px-2 text-xs rounded-md',
+                  'hover:bg-background-medium transition-colors',
+                  'flex items-center gap-2 cursor-pointer'
+                )}
+              >
+                <div className="w-4 flex-shrink-0" />
+                <Plus className="w-4 h-4 flex-shrink-0 text-text-muted" />
+                <span className="text-text-default">Start New Chat</span>
+              </div>
+            )}
+
             {sessions.map((session) => {
               const status = getSessionStatus(session.id);
               const isStreaming = status?.streamState === 'streaming';
@@ -101,6 +121,22 @@ export const SessionsList: React.FC<SessionsListProps> = ({
                 </div>
               );
             })}
+
+            {/* Show All button at bottom */}
+            {onShowAll && sessions.length > 0 && (
+              <div
+                onClick={onShowAll}
+                className={cn(
+                  'w-full text-left py-1.5 px-2 text-xs rounded-md',
+                  'hover:bg-background-medium transition-colors',
+                  'flex items-center gap-2 cursor-pointer text-text-muted'
+                )}
+              >
+                <div className="w-4 flex-shrink-0" />
+                <History className="w-4 h-4 flex-shrink-0" />
+                <span>Show All</span>
+              </div>
+            )}
           </div>
         </motion.div>
       )}
