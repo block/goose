@@ -1,4 +1,5 @@
 use anyhow::Result;
+use regex::Regex;
 use std::sync::Arc;
 
 use async_stream::try_stream;
@@ -25,8 +26,8 @@ async fn enhance_model_error(error: ProviderError, provider: &Arc<dyn Provider>)
         return error;
     };
 
-    let msg_lower = msg.to_lowercase();
-    if !msg_lower.contains("404") || !msg_lower.contains("model") {
+    let re = Regex::new(r"(?i)\b4\d{2}\b.*model|model.*\b4\d{2}\b").unwrap();
+    if !re.is_match(msg) {
         return error;
     }
 
