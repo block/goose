@@ -2,13 +2,12 @@ use anyhow::Result;
 use async_trait::async_trait;
 use rmcp::model::Role;
 use serde_json::{json, Value};
-use std::ffi::OsString;
 use std::path::PathBuf;
 use std::process::Stdio;
 use tokio::io::{AsyncBufReadExt, BufReader};
 use tokio::process::Command;
 
-use super::base::{ConfigKey, Provider, ProviderMetadata, ProviderUsage, Usage};
+use super::base::{ConfigKey, Provider, ProviderDef, ProviderMetadata, ProviderUsage, Usage};
 use super::errors::ProviderError;
 use super::utils::{filter_extensions_from_system_prompt, RequestLog};
 use crate::config::base::CursorAgentCommand;
@@ -16,8 +15,10 @@ use crate::config::search_path::SearchPaths;
 use crate::conversation::message::{Message, MessageContent};
 use crate::model::ModelConfig;
 use crate::subprocess::configure_command_no_window;
+use futures::future::BoxFuture;
 use rmcp::model::Tool;
 
+const CURSOR_AGENT_PROVIDER_NAME: &str = "cursor-agent";
 pub const CURSOR_AGENT_DEFAULT_MODEL: &str = "auto";
 pub const CURSOR_AGENT_KNOWN_MODELS: &[&str] = &["auto", "gpt-5", "opus-4.1", "sonnet-4"];
 
@@ -34,13 +35,13 @@ pub struct CursorAgentProvider {
 impl CursorAgentProvider {
     pub async fn from_env(model: ModelConfig) -> Result<Self> {
         let config = crate::config::Config::global();
-        let command: OsString = config.get_cursor_agent_command().unwrap_or_default().into();
-        let resolved_command = SearchPaths::builder().with_npm().resolve(command)?;
+        let command: String = config.get_cursor_agent_command().unwrap_or_default().into();
+        let resolved_command = SearchPaths::builder().with_npm().resolve(&command)?;
 
         Ok(Self {
             command: resolved_command,
             model,
-            name: Self::metadata().name,
+            name: CURSOR_AGENT_PROVIDER_NAME.to_string(),
         })
     }
 
@@ -321,11 +322,12 @@ impl CursorAgentProvider {
     }
 }
 
-#[async_trait]
-impl Provider for CursorAgentProvider {
+impl ProviderDef for CursorAgentProvider {
+    type Provider = Self;
+
     fn metadata() -> ProviderMetadata {
         ProviderMetadata::new(
-            "cursor-agent",
+            CURSOR_AGENT_PROVIDER_NAME,
             "Cursor Agent",
             "Execute AI models via cursor-agent CLI tool",
             CURSOR_AGENT_DEFAULT_MODEL,
@@ -337,6 +339,13 @@ impl Provider for CursorAgentProvider {
         )
     }
 
+    fn from_env(model: ModelConfig) -> BoxFuture<'static, Result<Self::Provider>> {
+        Box::pin(Self::from_env(model))
+    }
+}
+
+#[async_trait]
+impl Provider for CursorAgentProvider {
     fn get_name(&self) -> &str {
         &self.name
     }

@@ -409,5 +409,19 @@ In this example:
 - **Pre-set fixed values**: Use `values` for parameters that don't change
 - **Test independently**: Verify subrecipes work alone before combining
 
+:::tip Controlling Subrecipe Execution
+Each subrecipe can specify its own `settings.max_turns` value to control execution limits. If not specified, the subrecipe inherits the parent recipe's `max_turns` setting. See [Recipe Settings](/docs/guides/recipes/recipe-reference#settings) for details.
+
+```yaml
+# subrecipes/quick-scan.yaml
+version: "1.0.0"
+title: "Quick Security Scan"
+settings:
+  max_turns: 10  # Limit this subrecipe to 10 turns
+instructions: "Perform a quick security scan"
+prompt: "Scan for common vulnerabilities"
+```
+:::
+
 ## Learn More
 Check out the [Recipes](/docs/guides/recipes) guide for more docs, tools, and resources to help you master goose recipes.

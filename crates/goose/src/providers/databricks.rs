@@ -1,20 +1,23 @@
 use anyhow::Result;
 use async_trait::async_trait;
+use futures::future::BoxFuture;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::time::Duration;
 
 use super::api_client::{ApiClient, AuthMethod, AuthProvider};
-use super::base::{ConfigKey, MessageStream, Provider, ProviderMetadata, ProviderUsage, Usage};
+use super::base::{
+    ConfigKey, MessageStream, Provider, ProviderDef, ProviderMetadata, ProviderUsage, Usage,
+};
 use super::embedding::EmbeddingCapable;
 use super::errors::ProviderError;
 use super::formats::databricks::{create_request, response_to_message};
 use super::oauth;
-use super::retry::ProviderRetry;
-use super::utils::{
-    get_model, handle_response_openai_compat, map_http_error_to_provider_error,
-    stream_openai_compat, ImageFormat, RequestLog,
+use super::openai_compatible::{
+    handle_response_openai_compat, map_http_error_to_provider_error, stream_openai_compat,
 };
+use super::retry::ProviderRetry;
+use super::utils::{get_model, ImageFormat, RequestLog};
 use crate::config::ConfigError;
 use crate::conversation::message::Message;
 use crate::model::ModelConfig;
@@ -31,8 +34,9 @@ const DEFAULT_REDIRECT_URL: &str = "http://localhost";
 const DEFAULT_SCOPES: &[&str] = &["all-apis", "offline_access"];
 const DEFAULT_TIMEOUT_SECS: u64 = 600;
 
+const DATABRICKS_PROVIDER_NAME: &str = "databricks";
 pub const DATABRICKS_DEFAULT_MODEL: &str = "databricks-claude-sonnet-4";
-const DATABRICKS_DEFAULT_FAST_MODEL: &str = "gemini-2-5-flash";
+const DATABRICKS_DEFAULT_FAST_MODEL: &str = "databricks-claude-haiku-4-5";
 pub const DATABRICKS_KNOWN_MODELS: &[&str] = &[
     "databricks-claude-sonnet-4-5",
     "databricks-claude-3-7-sonnet",
@@ -100,6 +104,8 @@ pub struct DatabricksProvider {
     #[serde(skip)]
     retry_config: RetryConfig,
     #[serde(skip)]
+    fast_retry_config: RetryConfig,
+    #[serde(skip)]
     name: String,
 }
 
@@ -121,6 +127,7 @@ impl DatabricksProvider {
 
         let host = host?;
         let retry_config = Self::load_retry_config(config);
+        let fast_retry_config = Self::load_fast_retry_config(config);
 
         let auth = if let Ok(api_key) = config.get_secret("DATABRICKS_TOKEN") {
             DatabricksAuth::token(api_key)
@@ -140,7 +147,8 @@ impl DatabricksProvider {
             model: model.clone(),
             image_format: ImageFormat::OpenAi,
             retry_config,
-            name: Self::metadata().name,
+            fast_retry_config,
+            name: DATABRICKS_PROVIDER_NAME.to_string(),
         };
         provider.model = model.with_fast(DATABRICKS_DEFAULT_FAST_MODEL.to_string());
         Ok(provider)
@@ -179,6 +187,11 @@ impl DatabricksProvider {
         }
     }
 
+    fn load_fast_retry_config(_config: &crate::config::Config) -> RetryConfig {
+        // Fast models are hardcoded to 0 retries for quick failure on Databricks
+        RetryConfig::new(0, 0, 1.0, 0)
+    }
+
     pub fn from_params(host: String, api_key: String, model: ModelConfig) -> Result<Self> {
         let auth = DatabricksAuth::token(api_key);
         let auth_method =
@@ -192,7 +205,8 @@ impl DatabricksProvider {
             model,
             image_format: ImageFormat::OpenAi,
             retry_config: RetryConfig::default(),
-            name: Self::metadata().name,
+            fast_retry_config: RetryConfig::new(0, 0, 1.0, 0),
+            name: DATABRICKS_PROVIDER_NAME.to_string(),
         })
     }
 
@@ -222,11 +236,12 @@ impl DatabricksProvider {
     }
 }
 
-#[async_trait]
-impl Provider for DatabricksProvider {
+impl ProviderDef for DatabricksProvider {
+    type Provider = Self;
+
     fn metadata() -> ProviderMetadata {
         ProviderMetadata::new(
-            "databricks",
+            DATABRICKS_PROVIDER_NAME,
             "Databricks",
             "Models on Databricks AI Gateway",
             DATABRICKS_DEFAULT_MODEL,
@@ -239,6 +254,13 @@ impl Provider for DatabricksProvider {
         )
     }
 
+    fn from_env(model: ModelConfig) -> BoxFuture<'static, Result<Self::Provider>> {
+        Box::pin(Self::from_env(model))
+    }
+}
+
+#[async_trait]
+impl Provider for DatabricksProvider {
     fn get_name(&self) -> &str {
         &self.name
     }
@@ -272,8 +294,25 @@ impl Provider for DatabricksProvider {
 
         let mut log = RequestLog::start(&self.model, &payload)?;
 
+        // Use fast retry config if this is the fast model
+        let is_fast_model = self
+            .model
+            .fast_model
+            .as_ref()
+            .map(|fast| fast == &model_config.model_name)
+            .unwrap_or(false);
+
+        let retry_config = if is_fast_model {
+            self.fast_retry_config.clone()
+        } else {
+            self.retry_config.clone()
+        };
+
         let response = self
-            .with_retry(|| self.post(session_id, payload.clone(), Some(&model_config.model_name)))
+            .with_retry_config(
+                || self.post(session_id, payload.clone(), Some(&model_config.model_name)),
+                retry_config,
+            )
             .await?;
 
         let message = response_to_message(&response)?;
@@ -432,7 +471,10 @@ impl EmbeddingCapable for DatabricksProvider {
         });
 
         let response = self
-            .with_retry(|| self.post(Some(session_id), request.clone(), None))
+            .with_retry_config(
+                || self.post(Some(session_id), request.clone(), None),
+                self.fast_retry_config.clone(),
+            )
             .await?;
 
         let embeddings = response["data"]

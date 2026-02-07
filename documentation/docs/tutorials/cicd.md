@@ -230,6 +230,14 @@ This is just one example of what's possible. Feel free to modify your GitHub Act
 
 ---
 
+## Running Multiple goose Instances in Parallel
+
+goose supports running multiple concurrent sessions with isolated state, making it safe to run parallel jobs in your CI/CD pipeline. Each goose instance maintains its own conversation history, agent context, and extension configurations without interference.
+
+This enables use cases like matrix builds across different environments or processing multiple components simultaneously.
+
+---
+
 ## Security Considerations
 
 When running goose in a CI/CD environment, keep these security practices in mind:

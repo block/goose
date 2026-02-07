@@ -13,6 +13,7 @@ import { toast } from 'react-toastify';
 import { EmbeddedResource } from '../api';
 import { useTheme } from '../contexts/ThemeContext';
 import { errorMessage } from '../utils/conversionUtils';
+import { isProtocolSafe, getProtocol } from '../utils/urlSecurity';
 
 interface MCPUIResourceRendererProps {
   content: EmbeddedResource & { type: 'resource' };
@@ -177,14 +178,45 @@ export default function MCPUIResourceRenderer({
       const { url } = actionEvent.payload;
 
       try {
-        const urlObj = new URL(url);
-        if (!['http:', 'https:'].includes(urlObj.protocol)) {
+        // Safe protocols open directly, unknown protocols require user confirmation
+        // Dangerous protocols are blocked by main.ts in the open-external handler
+        if (isProtocolSafe(url)) {
+          await window.electron.openExternal(url);
+          return {
+            status: 'success' as const,
+            message: `Opened ${url} in default application`,
+          };
+        }
+
+        // Unknown protocols require user confirmation
+        const protocol = getProtocol(url);
+        if (!protocol) {
+          return {
+            status: 'error' as const,
+            error: {
+              code: UIActionErrorCode.INVALID_PARAMS,
+              message: `Invalid URL format: ${url}`,
+              details: { url },
+            },
+          };
+        }
+
+        const result = await window.electron.showMessageBox({
+          type: 'question',
+          buttons: ['Cancel', 'Open'],
+          defaultId: 0,
+          title: 'Open External Link',
+          message: `Open ${protocol} link?`,
+          detail: `This will open: ${url}`,
+        });
+
+        if (result.response !== 1) {
           return {
             status: 'error' as const,
             error: {
               code: UIActionErrorCode.NAVIGATION_FAILED,
-              message: `Blocked potentially unsafe URL protocol: ${urlObj.protocol}`,
-              details: { url, protocol: urlObj.protocol },
+              message: 'User cancelled',
+              details: { url },
             },
           };
         }
@@ -192,37 +224,17 @@ export default function MCPUIResourceRenderer({
         await window.electron.openExternal(url);
         return {
           status: 'success' as const,
-          message: `Opened ${url} in default browser`,
+          message: `Opened ${url} in default application`,
         };
       } catch (error) {
-        if (error instanceof TypeError && error.message.includes('Invalid URL')) {
-          return {
-            status: 'error' as const,
-            error: {
-              code: UIActionErrorCode.INVALID_PARAMS,
-              message: `Invalid URL format: ${url}`,
-              details: { url, error: error.message },
-            },
-          };
-        } else if (error instanceof Error && error.message.includes('Failed to open')) {
-          return {
-            status: 'error' as const,
-            error: {
-              code: UIActionErrorCode.NAVIGATION_FAILED,
-              message: `Failed to open URL in default browser`,
-              details: { url, error: error.message },
-            },
-          };
-        } else {
-          return {
-            status: 'error' as const,
-            error: {
-              code: UIActionErrorCode.NAVIGATION_FAILED,
-              message: `Unexpected error opening URL: ${url}`,
-              details: errorMessage(error),
-            },
-          };
-        }
+        return {
+          status: 'error' as const,
+          error: {
+            code: UIActionErrorCode.NAVIGATION_FAILED,
+            message: `Failed to open URL: ${url}`,
+            details: errorMessage(error),
+          },
+        };
       }
     };
 
@@ -318,7 +330,7 @@ export default function MCPUIResourceRenderer({
   };
 
   return (
-    <div className="mt-3 p-4 border border-borderSubtle rounded-lg bg-background-muted">
+    <div className="mt-3 p-4 border border-border-default rounded-lg bg-background-muted">
       <div className="overflow-hidden rounded-sm">
         <UIResourceRenderer
           resource={content.resource}

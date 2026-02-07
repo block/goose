@@ -16,6 +16,7 @@ pub struct ApiClient {
     host: String,
     auth: AuthMethod,
     default_headers: HeaderMap,
+    default_query: Vec<(String, String)>,
     timeout: Duration,
     tls_config: Option<TlsConfig>,
 }
@@ -222,6 +223,7 @@ impl ApiClient {
             host,
             auth,
             default_headers: HeaderMap::new(),
+            default_query: Vec::new(),
             timeout,
             tls_config,
         })
@@ -265,6 +267,11 @@ impl ApiClient {
         self.default_headers = headers;
         self.rebuild_client()?;
         Ok(self)
+    }
+
+    pub fn with_query(mut self, params: Vec<(String, String)>) -> Self {
+        self.default_query = params;
+        self
     }
 
     pub fn with_header(mut self, key: &str, value: &str) -> Result<Self> {
@@ -325,9 +332,15 @@ impl ApiClient {
             base_url.set_path(&format!("{}/", base_path));
         }
 
-        base_url
+        let mut url = base_url
             .join(path)
-            .map_err(|e| anyhow::anyhow!("Failed to construct URL: {}", e))
+            .map_err(|e| anyhow::anyhow!("Failed to construct URL: {}", e))?;
+
+        for (key, value) in &self.default_query {
+            url.query_pairs_mut().append_pair(key, value);
+        }
+
+        Ok(url)
     }
 
     async fn get_oauth_token(&self, config: &OAuthConfig) -> Result<String> {
@@ -363,6 +376,11 @@ impl<'a> ApiRequestBuilder<'a> {
     pub async fn response_post(self, payload: &Value) -> Result<Response> {
         let request = self.send_request(|url, client| client.post(url)).await?;
         Ok(request.json(payload).send().await?)
+    }
+
+    pub async fn multipart_post(self, form: reqwest::multipart::Form) -> Result<Response> {
+        let request = self.send_request(|url, client| client.post(url)).await?;
+        Ok(request.multipart(form).send().await?)
     }
 
     pub async fn api_get(self) -> Result<ApiResponse> {
