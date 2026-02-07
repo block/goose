@@ -77,7 +77,8 @@ export default function CustomProviderForm({
     const keyEmpty = !newHeaderKey.trim();
     const valueEmpty = !newHeaderValue.trim();
     const keyHasSpaces = newHeaderKey.includes(' ');
-    const isDuplicate = headers.some(h => h.key.trim() === newHeaderKey.trim());
+    const normalizedNewKey = newHeaderKey.trim().toLowerCase();
+    const isDuplicate = headers.some(h => h.key.trim().toLowerCase() === normalizedNewKey);
 
     if (keyEmpty || valueEmpty) {
       setInvalidHeaderFields({

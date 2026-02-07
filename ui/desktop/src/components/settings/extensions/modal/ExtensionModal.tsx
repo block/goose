@@ -160,8 +160,12 @@ export default function ExtensionModal({
       if (value.includes(' ')) {
         return;
       }
-      const isDuplicate = formData.headers.some((h, i) => i !== index && h.key.trim() === value.trim());
-      if (isDuplicate && value.trim() !== '') {
+      const trimmedNewKey = value.trim();
+      const normalizedNewKey = trimmedNewKey.toLowerCase();
+      const isDuplicate = formData.headers.some(
+        (h, i) => i !== index && h.key.trim().toLowerCase() === normalizedNewKey,
+      );
+      if (isDuplicate && trimmedNewKey !== '') {
         return;
       }
     }
