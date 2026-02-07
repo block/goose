@@ -121,7 +121,7 @@ const AppLayoutContent: React.FC<AppLayoutContentProps> = ({ activeSessions }) =
             ? 'bottom-4 right-6'
             : cn(
                 headerPadding,
-                'top-3 mt-[2px]',
+                'top-[11px]',
                 navigationPosition === 'right' ? 'right-6 left-auto' : 'ml-1.5'
               )
         )}
