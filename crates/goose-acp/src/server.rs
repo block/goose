@@ -251,7 +251,7 @@ async fn add_builtins(agent: &Agent, builtins: Vec<String>) {
 
         match agent
             .extension_manager
-            .add_extension(config, None, None)
+            .add_extension(config, None, None, None)
             .await
         {
             Ok(_) => info!(extension = %builtin, "extension loaded"),
@@ -264,7 +264,7 @@ async fn add_extensions(agent: &Agent, extensions: Vec<ExtensionConfig>) {
         let name = extension.name().to_string();
         match agent
             .extension_manager
-            .add_extension(extension, None, None)
+            .add_extension(extension, None, None, None)
             .await
         {
             Ok(_) => info!(extension = %name, "extension loaded"),
