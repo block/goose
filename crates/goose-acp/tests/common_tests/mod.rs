@@ -17,7 +17,7 @@ pub async fn run_basic_completion<S: Session>() {
     let expected_session_id = ExpectedSessionId::default();
     let openai = OpenAiFixture::new(
         vec![(
-            r#"</info-msg>\nwhat is 1+1""#.into(),
+            r#"what is 1+1\n<info-msg>"#.into(),
             include_str!("../test_data/openai_basic_response.txt"),
         )],
         expected_session_id.clone(),
@@ -40,7 +40,7 @@ pub async fn run_mcp_http_server<S: Session>() {
     let openai = OpenAiFixture::new(
         vec![
             (
-                r#"</info-msg>\nUse the get_code tool and output only its result.""#.into(),
+                r#"Use the get_code tool and output only its result.\n<info-msg>"#.into(),
                 include_str!("../test_data/openai_tool_call_response.txt"),
             ),
             (
@@ -77,7 +77,7 @@ pub async fn run_builtin_and_mcp<S: Session>() {
     let openai = OpenAiFixture::new(
         vec![
             (
-                format!(r#"</info-msg>\n{prompt}""#),
+                format!(r#"{prompt}\n<info-msg>"#),
                 include_str!("../test_data/openai_builtin_search.txt"),
             ),
             (
