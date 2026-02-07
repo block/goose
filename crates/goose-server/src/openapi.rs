@@ -377,6 +377,7 @@ derive_utoipa!(Icon as IconSchema);
         super::routes::action_required::confirm_tool_action,
         super::routes::reply::reply,
         super::routes::session::list_sessions,
+        super::routes::session::search_sessions,
         super::routes::session::get_session,
         super::routes::session::get_session_insights,
         super::routes::session::update_session_name,

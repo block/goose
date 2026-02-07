@@ -1,4 +1,5 @@
 use anyhow::Result;
+use regex::Regex;
 use std::sync::Arc;
 
 use async_stream::try_stream;
@@ -19,6 +20,27 @@ use crate::providers::toolshim::{
     modify_system_prompt_for_tool_json, OllamaInterpreter,
 };
 use rmcp::model::Tool;
+
+async fn enhance_model_error(error: ProviderError, provider: &Arc<dyn Provider>) -> ProviderError {
+    let ProviderError::RequestFailed(ref msg) = error else {
+        return error;
+    };
+
+    let re = Regex::new(r"(?i)\b4\d{2}\b.*model|model.*\b4\d{2}\b").unwrap();
+    if !re.is_match(msg) {
+        return error;
+    }
+
+    let Ok(Some(models)) = provider.fetch_recommended_models().await else {
+        return error;
+    };
+
+    ProviderError::RequestFailed(format!(
+        "{}. Available models for this provider: {}",
+        msg,
+        models.join(", ")
+    ))
+}
 
 fn coerce_value(s: &str, schema: &Value) -> Value {
     let type_str = schema.get("type");
@@ -241,10 +263,11 @@ impl Agent {
         let mut stream = match stream_result {
             Ok(s) => s,
             Err(e) => {
+                let enhanced_error = enhance_model_error(e, &provider).await;
                 // Return a stream that immediately yields the error
                 // This allows the error to be caught by existing error handling in agent.rs
                 return Ok(Box::pin(try_stream! {
-                    yield Err(e)?;
+                    yield Err(enhanced_error)?;
                 }));
             }
         };

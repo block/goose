@@ -66,6 +66,9 @@ impl AcpServer {
             data_dir: self.config.data_dir.clone(),
             config_dir: self.config.config_dir.clone(),
             goose_mode,
+            disable_session_naming: global_config
+                .get_goose_disable_session_naming()
+                .unwrap_or(false),
         };
 
         let agent = GooseAcpAgent::with_config(acp_config).await?;

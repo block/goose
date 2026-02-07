@@ -33,6 +33,7 @@ import {
   forkSession,
   importSession,
   listSessions,
+  searchSessions,
   Session,
   updateSessionName,
   ExtensionConfig,
@@ -342,7 +343,7 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
       }
     }, [selectedSessionId, sessions]);
 
-    // Debounced search effect - performs actual filtering
+    // Debounced search effect - performs content search via API
     useEffect(() => {
       if (!debouncedSearchTerm) {
         startTransition(() => {
@@ -352,32 +353,25 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
         return;
       }
 
-      // Use startTransition to make search non-blocking
-      startTransition(() => {
-        const searchTerm = caseSensitive ? debouncedSearchTerm : debouncedSearchTerm.toLowerCase();
-        const filtered = sessions.filter((session) => {
-          const description = session.name;
-          const workingDir = session.working_dir;
-          const sessionId = session.id;
-
-          if (caseSensitive) {
-            return (
-              description.includes(searchTerm) ||
-              sessionId.includes(searchTerm) ||
-              workingDir.includes(searchTerm)
-            );
-          } else {
-            return (
-              description.toLowerCase().includes(searchTerm) ||
-              sessionId.toLowerCase().includes(searchTerm) ||
-              workingDir.toLowerCase().includes(searchTerm)
-            );
-          }
+      // Call the backend search API for content search
+      const performSearch = async () => {
+        const resp = await searchSessions({
+          query: { query: debouncedSearchTerm },
         });
+        
+        if (resp.data) {
+          // Response is Vec<Session> - sessions that match the search
+          const matchedSessionIds = new Set(resp.data.map((s: { id: string }) => s.id));
+          const filtered = sessions.filter((session) => matchedSessionIds.has(session.id));
+          
+          startTransition(() => {
+            setFilteredSessions(filtered);
+            setSearchResults(filtered.length > 0 ? { count: filtered.length, currentIndex: 1 } : null);
+          });
+        }
+      };
 
-        setFilteredSessions(filtered);
-        setSearchResults(filtered.length > 0 ? { count: filtered.length, currentIndex: 1 } : null);
-      });
+      performSearch();
     }, [debouncedSearchTerm, caseSensitive, sessions]);
 
     // Handle immediate search input (updates search term for debouncing)

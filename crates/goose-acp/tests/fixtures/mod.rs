@@ -119,8 +119,7 @@ impl ExpectedSessionId {
         }
     }
 
-    /// Calling this ensures incidental requests that might error asynchronously, such as
-    /// session rename have coherent session IDs.
+    /// Calling this ensures requests have coherent session IDs.
     pub fn assert_matches(&self, actual: &str) {
         let result = self.validate(Some(actual));
         assert!(result.is_ok(), "{}", result.unwrap_err());
@@ -163,15 +162,6 @@ impl OpenAiFixture {
                         return ResponseTemplate::new(417)
                             .insert_header("content-type", "application/json")
                             .set_body_json(serde_json::json!({"error": {"message": e}}));
-                    }
-
-                    // Session rename (async, unpredictable order) - canned response
-                    if body.contains("Reply with only a description in four words or less") {
-                        return ResponseTemplate::new(200)
-                            .insert_header("content-type", "application/json")
-                            .set_body_string(include_str!(
-                                "../test_data/openai_session_description.json"
-                            ));
                     }
 
                     // See if the actual request matches the expected pattern
@@ -396,6 +386,7 @@ pub async fn spawn_acp_server_in_process(
         data_dir: data_root.to_path_buf(),
         config_dir: data_root.to_path_buf(),
         goose_mode,
+        disable_session_naming: true,
     };
 
     let (client_read, server_write) = tokio::io::duplex(64 * 1024);

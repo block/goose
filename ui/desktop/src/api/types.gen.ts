@@ -3530,6 +3530,54 @@ export type GetSessionInsightsResponses = {
 
 export type GetSessionInsightsResponse = GetSessionInsightsResponses[keyof GetSessionInsightsResponses];
 
+export type SearchSessionsData = {
+    body?: never;
+    path?: never;
+    query: {
+        /**
+         * Search query string
+         */
+        query: string;
+        /**
+         * Maximum results (default: 10, max: 50)
+         */
+        limit?: number | null;
+        /**
+         * Filter after date (ISO 8601)
+         */
+        after_date?: string | null;
+        /**
+         * Filter before date (ISO 8601)
+         */
+        before_date?: string | null;
+    };
+    url: '/sessions/search';
+};
+
+export type SearchSessionsErrors = {
+    /**
+     * Bad request - Invalid query
+     */
+    400: unknown;
+    /**
+     * Unauthorized
+     */
+    401: unknown;
+    /**
+     * Internal server error
+     */
+    500: unknown;
+};
+
+export type SearchSessionsResponses = {
+    /**
+     * Matching sessions
+     */
+    200: Array<Session>;
+};
+
+export type SearchSessionsResponse = SearchSessionsResponses[keyof SearchSessionsResponses];
+
 export type DeleteSessionData = {
     body?: never;
     path: {
