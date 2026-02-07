@@ -238,6 +238,7 @@ function ProviderCards({
     models: editingProvider.config.models.map((m) => m.name),
     supports_streaming: editingProvider.config.supports_streaming ?? true,
     requires_auth: editingProvider.config.requires_auth ?? true,
+    headers: editingProvider.config.headers ?? undefined,
   };
 
   const editable = editingProvider ? editingProvider.isEditable : true;
@@ -246,7 +247,7 @@ function ProviderCards({
     <>
       {providerCards}
       <Dialog open={showCustomProviderModal} onOpenChange={handleCloseModal}>
-        <DialogContent className="sm:max-w-[600px]">
+        <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{title}</DialogTitle>
           </DialogHeader>
