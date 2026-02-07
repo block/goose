@@ -5,9 +5,9 @@ use super::{
 use async_trait::async_trait;
 use goose::config::PermissionManager;
 use sacp::schema::{
-    ContentBlock, InitializeRequest, NewSessionRequest, PromptRequest, ProtocolVersion,
-    RequestPermissionRequest, SessionNotification, SessionUpdate, StopReason, TextContent,
-    ToolCallStatus,
+    ClientCapabilities, ContentBlock, FileSystemCapability, InitializeRequest, NewSessionRequest,
+    PromptRequest, ProtocolVersion, RequestPermissionRequest, SessionNotification, SessionUpdate,
+    StopReason, TextContent, ToolCallStatus, WriteTextFileRequest, WriteTextFileResponse,
 };
 use sacp::{ClientToAgent, JrConnectionCx};
 use std::sync::{Arc, Mutex};
@@ -22,6 +22,7 @@ pub struct ClientToAgentSession {
     permission: Arc<Mutex<PermissionDecision>>,
     notify: Arc<Notify>,
     permission_manager: Arc<PermissionManager>,
+    write_requests: Arc<Mutex<Vec<std::path::PathBuf>>>,
     // Keep the OpenAI mock server alive for the lifetime of the session.
     _openai: super::OpenAiFixture,
     // Keep the temp dir alive so test data/permissions persist during the session.
@@ -53,11 +54,14 @@ impl Session for ClientToAgentSession {
 
         let transport = sacp::ByteStreams::new(client_write.compat_write(), client_read.compat());
 
+        let write_requests = Arc::new(Mutex::new(Vec::new()));
+
         let (cx, session_id) = {
             let updates_clone = updates.clone();
             let notify_clone = notify.clone();
             let permission_clone = permission.clone();
             let mcp_servers_clone = config.mcp_servers.clone();
+            let write_requests_clone = write_requests.clone();
 
             let cx_holder: Arc<Mutex<Option<JrConnectionCx<ClientToAgent>>>> =
                 Arc::new(Mutex::new(None));
@@ -87,6 +91,16 @@ impl Session for ClientToAgentSession {
                     )
                     .on_receive_request(
                         {
+                            let write_requests = write_requests_clone.clone();
+                            async move |req: WriteTextFileRequest, request_cx, _connection_cx| {
+                                write_requests.lock().unwrap().push(req.path.clone());
+                                request_cx.respond(WriteTextFileResponse::new())
+                            }
+                        },
+                        sacp::on_receive_request!(),
+                    )
+                    .on_receive_request(
+                        {
                             let permission = permission_clone.clone();
                             async move |req: RequestPermissionRequest,
                                         request_cx,
@@ -106,10 +120,16 @@ impl Session for ClientToAgentSession {
                         let cx_holder = cx_holder_clone;
                         let session_id_holder = session_id_holder_clone;
                         move |cx: JrConnectionCx<ClientToAgent>| async move {
-                            cx.send_request(InitializeRequest::new(ProtocolVersion::LATEST))
-                                .block_task()
-                                .await
-                                .unwrap();
+                            let caps = ClientCapabilities::new().fs(FileSystemCapability::new()
+                                .read_text_file(true)
+                                .write_text_file(true));
+                            cx.send_request(
+                                InitializeRequest::new(ProtocolVersion::LATEST)
+                                    .client_capabilities(caps),
+                            )
+                            .block_task()
+                            .await
+                            .unwrap();
 
                             let work_dir = tempfile::tempdir().unwrap();
                             let session = cx
@@ -149,6 +169,7 @@ impl Session for ClientToAgentSession {
             permission,
             notify,
             permission_manager,
+            write_requests,
             _openai: openai,
             _temp_dir: temp_dir,
         }
@@ -169,6 +190,7 @@ impl Session for ClientToAgentSession {
     async fn prompt(&mut self, text: &str, decision: PermissionDecision) -> TestOutput {
         *self.permission.lock().unwrap() = decision;
         self.updates.lock().unwrap().clear();
+        self.write_requests.lock().unwrap().clear();
 
         let response = self
             .cx
@@ -196,7 +218,13 @@ impl Session for ClientToAgentSession {
             tool_status = extract_tool_status(&self.updates);
         }
 
-        TestOutput { text, tool_status }
+        let write_requests = std::mem::take(&mut *self.write_requests.lock().unwrap());
+
+        TestOutput {
+            text,
+            tool_status,
+            write_requests,
+        }
     }
 }
 

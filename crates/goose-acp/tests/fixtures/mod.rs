@@ -406,6 +406,8 @@ pub async fn spawn_acp_server_in_process(
 pub struct TestOutput {
     pub text: String,
     pub tool_status: Option<ToolCallStatus>,
+    #[allow(dead_code)]
+    pub write_requests: Vec<std::path::PathBuf>,
 }
 
 pub struct TestSessionConfig {
