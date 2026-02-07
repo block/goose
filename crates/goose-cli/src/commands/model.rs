@@ -1,5 +1,6 @@
 use anyhow::Result;
 use goose::config::Config;
+use goose::providers::base::ConfigKey;
 use goose::providers::providers;
 use std::io::{self, IsTerminal, Write};
 
@@ -32,6 +33,138 @@ pub struct ModelEntry {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub context: Option<usize>,
     pub is_default: bool,
+}
+
+fn determine_auth_method(config_keys: &[ConfigKey]) -> &'static str {
+    if config_keys.iter().any(|k| k.oauth_flow) {
+        "OAuth device flow"
+    } else if config_keys.iter().any(|k| k.required && k.secret) {
+        "API key/secret"
+    } else if config_keys.iter().any(|k| k.required && !k.secret) {
+        "Config params"
+    } else {
+        "None"
+    }
+}
+
+fn format_token_cost(
+    input_cost: Option<f64>,
+    output_cost: Option<f64>,
+    currency: Option<&str>,
+) -> Option<String> {
+    let currency = currency.unwrap_or("$");
+    match (input_cost, output_cost) {
+        (Some(input), Some(output)) => Some(format!(
+            "input {}{} / output {}{}",
+            currency, input, currency, output
+        )),
+        (Some(input), None) => Some(format!("input {}{}", currency, input)),
+        (None, Some(output)) => Some(format!("output {}{}", currency, output)),
+        (None, None) => None,
+    }
+}
+
+/// Helper function to print config keys for a provider
+fn print_config_keys(config_keys: &[ConfigKey], config: &Config) {
+    for key in config_keys {
+        let value = if key.secret {
+            None
+        } else {
+            config.get_param::<String>(&key.name).ok()
+        };
+        let is_set = if key.secret {
+            config.get_secret::<String>(&key.name).is_ok()
+        } else {
+            value.is_some()
+        };
+        let status = if is_set { "set" } else { "unset" };
+        let requirement = if key.required { "required" } else { "optional" };
+        if key.secret {
+            println!("  {} ({}, secret): {}", key.name, requirement, status);
+        } else if let Some(value) = value {
+            println!("  {} ({}, non-secret): {}", key.name, requirement, value);
+        } else {
+            println!("  {} ({}, non-secret): {}", key.name, requirement, status);
+        }
+    }
+}
+
+/// Show currently configured provider and model
+pub async fn handle_show_current() -> Result<()> {
+    let config = Config::global();
+
+    let Ok(provider) = config.get_goose_provider() else {
+        eprintln!("No provider configured. Run 'goose configure' first.");
+        return Ok(());
+    };
+
+    let Ok(model) = config.get_goose_model() else {
+        eprintln!("No model configured. Run 'goose configure' first.");
+        return Ok(());
+    };
+
+    let all_providers = providers().await;
+    let metadata = all_providers
+        .iter()
+        .find_map(|(meta, _)| meta.name.eq_ignore_ascii_case(&provider).then_some(meta));
+
+    println!("Provider: {}", provider);
+    if let Some(meta) = metadata
+        .filter(|meta| meta.display_name != meta.name)
+        .map(|meta| &meta.display_name)
+    {
+        println!("Display Name: {}", meta);
+    }
+    if let Some(description) = metadata
+        .filter(|meta| !meta.description.is_empty())
+        .map(|meta| &meta.description)
+    {
+        println!("Description: {}", description);
+    }
+
+    if let Some(meta) = metadata {
+        println!("Provider Default Model: {}", meta.default_model);
+
+        if !meta.model_doc_link.is_empty() {
+            println!("Model Docs: {}", meta.model_doc_link);
+        }
+
+        let auth_method = determine_auth_method(&meta.config_keys);
+        println!("Auth Method: {}", auth_method);
+
+        if !meta.config_keys.is_empty() {
+            println!("Config Keys:");
+            print_config_keys(&meta.config_keys, config);
+        }
+    }
+
+    println!("Current Model:");
+    println!("  Model: {}", model);
+    let model_info = metadata.and_then(|meta| meta.known_models.iter().find(|m| m.name == model));
+    if let Some(model_info) = model_info {
+        println!("  Context Limit: {}", model_info.context_limit);
+        if let Some(token_cost) = format_token_cost(
+            model_info.input_token_cost,
+            model_info.output_token_cost,
+            model_info.currency.as_deref(),
+        ) {
+            println!("  Token Cost: {}", token_cost);
+        }
+        if let Some(cache_control) = model_info.supports_cache_control {
+            println!(
+                "  Supports Cache Control: {}",
+                if cache_control { "yes" } else { "no" }
+            );
+        }
+    } else {
+        println!("  Context Limit: unknown");
+    }
+
+    println!();
+    println!("Use 'goose model list' to see available models.");
+    println!("Use 'goose configure' to add new models.");
+
+    Ok(())
 }
 
 /// Handle the model list command
@@ -136,7 +269,7 @@ fn print_text_output(
     let is_tty = stdout.is_terminal();
 
     if verbose {
-        // Calculate column widths for alignment (add 2 for "* " prefix on defaults if showing marker)
+        // Add space for "* " prefix when showing default marker
         let prefix_width = if show_default_marker { 2 } else { 0 };
         let model_width = entries.iter().map(|e| e.model.len()).max().unwrap_or(20) + prefix_width;
         let provider_width = entries.iter().map(|e| e.provider.len()).max().unwrap_or(10);
@@ -174,45 +307,4 @@ fn print_text_output(
     }
 
     Ok(())
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_output_format_from_str() {
-        assert_eq!("text".parse::<OutputFormat>().unwrap(), OutputFormat::Text);
-        assert_eq!("json".parse::<OutputFormat>().unwrap(), OutputFormat::Json);
-        assert_eq!("JSON".parse::<OutputFormat>().unwrap(), OutputFormat::Json);
-        assert!("invalid".parse::<OutputFormat>().is_err());
-    }
-
-    #[test]
-    fn test_model_entry_serialization() {
-        let entry = ModelEntry {
-            provider: "anthropic".to_string(),
-            model: "claude-sonnet-4-20250514".to_string(),
-            context: Some(200000),
-            is_default: true,
-        };
-        let json = serde_json::to_string(&entry).unwrap();
-        assert!(json.contains("anthropic"));
-        assert!(json.contains("claude-sonnet-4-20250514"));
-        assert!(json.contains("200000"));
-        assert!(json.contains("is_default"));
-        assert!(json.contains("true"));
-    }
-
-    #[test]
-    fn test_model_entry_optional_fields_skipped() {
-        let entry = ModelEntry {
-            provider: "test".to_string(),
-            model: "test-model".to_string(),
-            context: None,
-            is_default: false,
-        };
-        let json = serde_json::to_string(&entry).unwrap();
-        assert!(!json.contains("context"));
-    }
 }

@@ -779,7 +779,7 @@ enum Command {
     #[command(about = "List and manage models")]
     Model {
         #[command(subcommand)]
-        command: ModelCommand,
+        command: Option<ModelCommand>,
     },
 
     /// Run goose as an ACP (Agent Client Protocol) agent
@@ -1084,17 +1084,17 @@ async fn handle_mcp_command(server: McpCommand) -> Result<()> {
     Ok(())
 }
 
-async fn handle_model_subcommand(command: ModelCommand) -> Result<()> {
-    use crate::commands::model::{handle_list, OutputFormat};
+async fn handle_model_subcommand(command: Option<ModelCommand>) -> Result<()> {
+    use crate::commands::model::{handle_list, handle_show_current, OutputFormat};
 
     match command {
-        ModelCommand::List {
+        Some(ModelCommand::List {
             filter,
             provider,
             all,
             verbose,
             format,
-        } => {
+        }) => {
             let output_format: OutputFormat =
                 format.parse().map_err(|e: String| anyhow::anyhow!(e))?;
             handle_list(
@@ -1106,6 +1106,7 @@ async fn handle_model_subcommand(command: ModelCommand) -> Result<()> {
             )
             .await
         }
+        None => handle_show_current().await,
     }
 }
 
