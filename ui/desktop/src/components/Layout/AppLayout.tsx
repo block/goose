@@ -41,6 +41,23 @@ const AppLayoutContent: React.FC<AppLayoutContentProps> = ({ activeSessions }) =
 
   const { setChat } = chatContext;
 
+  // Hide the titlebar drag region when nav is at the top in push mode,
+  // since the nav occupies that space and the drag region blocks interactions
+  const isPushTopNav =
+    effectiveNavigationMode === 'push' && navigationPosition === 'top' && isNavExpanded;
+  React.useEffect(() => {
+    const dragRegion = document.querySelector('.titlebar-drag-region') as HTMLElement | null;
+    if (!dragRegion) return;
+    if (isPushTopNav) {
+      dragRegion.style.display = 'none';
+    } else {
+      dragRegion.style.display = '';
+    }
+    return () => {
+      dragRegion.style.display = '';
+    };
+  }, [isPushTopNav]);
+
   // Calculate padding based on macOS traffic lights
   const headerPadding = safeIsMacOS ? 'pl-21' : 'pl-4';
 

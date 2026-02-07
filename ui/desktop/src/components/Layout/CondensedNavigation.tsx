@@ -398,7 +398,14 @@ export const CondensedNavigation: React.FC<CondensedNavigationProps> = ({ classN
 
       {/* Right spacer (horizontal only) */}
       {!isVertical && (
-        <div className="bg-background-default rounded-lg self-stretch flex-1 min-w-[40px]" />
+        <div
+          className="bg-background-default rounded-lg self-stretch flex-1 min-w-[40px]"
+          style={
+            !isOverlayMode && isTopPosition
+              ? ({ WebkitAppRegion: 'drag' } as React.CSSProperties)
+              : undefined
+          }
+        />
       )}
     </motion.div>
   );

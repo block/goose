@@ -104,39 +104,54 @@ export const ExpandedNavigation: React.FC<ExpandedNavigationProps> = ({ classNam
       return;
     }
 
+    setGridMeasured(false);
+    let rafId: number;
+
     const updateGridColumns = () => {
-      if (gridRef.current) {
-        const gridStyle = window.getComputedStyle(gridRef.current);
-        const columns = gridStyle.gridTemplateColumns
-          .split(' ')
-          .filter((col) => col.trim() !== '').length;
-        if (columns > 0) {
-          setGridColumns(columns);
-          setGridMeasured(true);
-        }
-      }
+      if (!gridRef.current) return;
+
+      const parent = gridRef.current.parentElement;
+      if (!parent) return;
+
+      const parentStyle = window.getComputedStyle(parent);
+      const availableWidth =
+        parent.clientWidth -
+        parseFloat(parentStyle.paddingLeft) -
+        parseFloat(parentStyle.paddingRight);
+
+      const minSize = navigationPosition === 'left' || navigationPosition === 'right' ? 140 : 160;
+      const isOverlay = effectiveNavigationMode === 'overlay';
+      const gap = isOverlay ? 12 : 2; // gap-3 = 12px for overlay, gap-[2px] for push
+      const cols = Math.max(1, Math.floor((availableWidth + gap) / (minSize + gap)));
+
+      setGridColumns(cols);
+      setGridMeasured(true);
     };
 
-    const timeoutId = setTimeout(updateGridColumns, 100);
+    const timeoutId = setTimeout(() => {
+      rafId = requestAnimationFrame(updateGridColumns);
+    }, 100);
 
     const resizeObserver = new ResizeObserver(() => {
-      updateGridColumns();
+      cancelAnimationFrame(rafId);
+      rafId = requestAnimationFrame(updateGridColumns);
     });
 
-    if (gridRef.current) {
-      resizeObserver.observe(gridRef.current);
+    const parent = gridRef.current?.parentElement;
+    if (parent) {
+      resizeObserver.observe(parent);
     }
-
-    window.addEventListener('resize', updateGridColumns);
 
     return () => {
       clearTimeout(timeoutId);
+      cancelAnimationFrame(rafId);
       resizeObserver.disconnect();
-      window.removeEventListener('resize', updateGridColumns);
     };
-  }, [isNavExpanded, navigationPosition]);
+  }, [isNavExpanded, navigationPosition, effectiveNavigationMode]);
 
   const isOverlayMode = effectiveNavigationMode === 'overlay';
+  const isPushTopNav = !isOverlayMode && navigationPosition === 'top';
+  const dragStyle = isPushTopNav ? ({ WebkitAppRegion: 'drag' } as React.CSSProperties) : undefined;
 
   // Determine if content should be visible (not during close animation for push mode)
   const showContent = !isClosing || isOverlayMode;
@@ -170,13 +185,16 @@ export const ExpandedNavigation: React.FC<ExpandedNavigationProps> = ({ classNam
             isOverlayMode && 'gap-3'
           )}
           style={{
-            // Use CSS grid with auto-fill for responsive tiles based on container width
+            // When nav is at top in push mode, the global drag region is hidden.
+            // Apply drag to the grid so empty space is draggable but the hamburger button area isn't.
+            ...(dragStyle || {}),
+            // Use CSS grid with auto-fit for responsive tiles based on container width
             gridTemplateColumns: isOverlayMode
               ? // For overlay mode: responsive - single row on larger screens, wraps to 2 rows on smaller
                 'repeat(auto-fit, minmax(120px, 1fr))'
               : navigationPosition === 'left' || navigationPosition === 'right'
-                ? // For left/right: larger min size (140px) to trigger single column sooner
-                  'repeat(auto-fill, minmax(140px, 1fr))'
+                ? // For left/right: auto-fit collapses empty tracks so items fill the container
+                  'repeat(auto-fit, minmax(140px, 1fr))'
                 : // For top/bottom: auto-fit with larger min size to fit all in 1 row on large screens, wrap to 2 rows on smaller
                   'repeat(auto-fit, minmax(160px, 1fr))',
             // Align items to start so they don't stretch vertically
