@@ -123,10 +123,17 @@ export default function CustomProviderForm({
       if (value.includes(' ')) {
         return;
       }
-      const isDuplicate = headers.some((h, i) => i !== index && h.key.trim() === value.trim());
-      if (isDuplicate && value.trim() !== '') {
+            const normalizedValue = value.trim().toLowerCase();
+      const isDuplicate = headers.some(
+        (h, i) => i !== index && h.key.trim().toLowerCase() === normalizedValue,
+      );
+      if (isDuplicate && normalizedValue !== '') {
         return;
       }
+      const updatedHeaders = [...headers];
+      updatedHeaders[index].key = normalizedValue;
+      setHeaders(updatedHeaders);
+      return;
     }
     const updatedHeaders = [...headers];
     updatedHeaders[index][field] = value;
@@ -196,7 +203,7 @@ export default function CustomProviderForm({
       models: modelList,
       supports_streaming: supportsStreaming,
       requires_auth: requiresApiKey,
-      headers: Object.keys(headersObject).length > 0 ? headersObject : {},
+      headers: Object.keys(headersObject).length > 0 ? headersObject : undefined,
     });
   };
 
