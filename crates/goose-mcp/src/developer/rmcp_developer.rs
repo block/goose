@@ -26,6 +26,7 @@ fn extract_working_dir_from_meta(meta: &Meta) -> Option<PathBuf> {
         .get(WORKING_DIR_HEADER)
         .and_then(|v| v.as_str())
         .filter(|s| !s.is_empty())
+        .filter(|s| !s.contains('\0'))
         .map(PathBuf::from)
 }
 
