@@ -7,9 +7,11 @@ use goose::builtin_extension::register_builtin_extensions;
 use goose::config::{GooseMode, PermissionManager};
 use goose::model::ModelConfig;
 use goose::providers::api_client::{ApiClient, AuthMethod};
+use goose::providers::base::Provider;
 use goose::providers::openai::OpenAiProvider;
+use goose::providers::provider_registry::ProviderConstructor;
 use goose::session_context::SESSION_ID_HEADER;
-use goose_acp::server::{serve, AcpServerConfig, GooseAcpAgent};
+use goose_acp::server::{serve, GooseAcpAgent};
 use rmcp::model::{ClientNotification, ClientRequest, Meta, ServerResult};
 use rmcp::service::{NotificationContext, RequestContext, ServiceRole};
 use rmcp::transport::streamable_http_server::{
@@ -359,48 +361,72 @@ impl McpFixture {
     }
 }
 
+pub type DuplexTransport = sacp::ByteStreams<
+    tokio_util::compat::Compat<tokio::io::DuplexStream>,
+    tokio_util::compat::Compat<tokio::io::DuplexStream>,
+>;
+
+/// Wires up duplex streams, spawns `serve` for the given agent, and returns
+/// a ready-to-use sacp transport plus the server handle.
 #[allow(dead_code)]
-pub async fn spawn_acp_server_in_process(
-    openai_base_url: &str,
-    builtins: &[String],
-    data_root: &Path,
-    goose_mode: GooseMode,
-) -> (
-    tokio::io::DuplexStream,
-    tokio::io::DuplexStream,
-    JoinHandle<()>,
-    Arc<PermissionManager>,
-) {
-    fs::create_dir_all(data_root).unwrap();
-    let api_client = ApiClient::new(
-        openai_base_url.to_string(),
-        AuthMethod::BearerToken("test-key".to_string()),
-    )
-    .unwrap();
-    let model_config = ModelConfig::new("gpt-5-nano").unwrap();
-    let provider = OpenAiProvider::new(api_client, model_config);
-
-    let config = AcpServerConfig {
-        provider: Arc::new(provider),
-        builtins: builtins.to_vec(),
-        data_dir: data_root.to_path_buf(),
-        config_dir: data_root.to_path_buf(),
-        goose_mode,
-        disable_session_naming: true,
-    };
-
+pub async fn serve_agent_in_process(
+    agent: Arc<GooseAcpAgent>,
+) -> (DuplexTransport, JoinHandle<()>) {
     let (client_read, server_write) = tokio::io::duplex(64 * 1024);
     let (server_read, client_write) = tokio::io::duplex(64 * 1024);
 
-    let agent = Arc::new(GooseAcpAgent::with_config(config).await.unwrap());
-    let permission_manager = agent.permission_manager();
     let handle = tokio::spawn(async move {
         if let Err(e) = serve(agent, server_read.compat(), server_write.compat_write()).await {
             tracing::error!("ACP server error: {e}");
         }
     });
 
-    (client_read, client_write, handle, permission_manager)
+    let transport = sacp::ByteStreams::new(client_write.compat_write(), client_read.compat());
+    (transport, handle)
+}
+
+#[allow(dead_code)]
+pub async fn spawn_acp_server_in_process(
+    openai_base_url: &str,
+    builtins: &[String],
+    data_root: &Path,
+    goose_mode: GooseMode,
+) -> (DuplexTransport, JoinHandle<()>, Arc<PermissionManager>) {
+    fs::create_dir_all(data_root).unwrap();
+    // ensure_provider reads the model from config lazily, so tests need a
+    // config.yaml even though the factory ignores the model_config value.
+    let config_path = data_root.join("config.yaml");
+    if !config_path.exists() {
+        fs::write(&config_path, "GOOSE_MODEL: gpt-5-nano\n").unwrap();
+    }
+    let api_client = ApiClient::new(
+        openai_base_url.to_string(),
+        AuthMethod::BearerToken("test-key".to_string()),
+    )
+    .unwrap();
+    let model_config = ModelConfig::new("gpt-5-nano").unwrap();
+    let provider: Arc<dyn Provider> = Arc::new(OpenAiProvider::new(api_client, model_config));
+    let provider_factory: ProviderConstructor = Arc::new(move |_model_config| {
+        let provider = Arc::clone(&provider);
+        Box::pin(async move { Ok(provider) })
+    });
+
+    let agent = Arc::new(
+        GooseAcpAgent::new(
+            provider_factory,
+            builtins.to_vec(),
+            data_root.to_path_buf(),
+            data_root.to_path_buf(),
+            goose_mode,
+            true,
+        )
+        .await
+        .unwrap(),
+    );
+    let permission_manager = agent.permission_manager();
+    let (transport, handle) = serve_agent_in_process(agent).await;
+
+    (transport, handle, permission_manager)
 }
 
 pub struct TestOutput {
@@ -461,6 +487,28 @@ where
         // Re-raise the original panic so the test shows the real failure message.
         std::panic::resume_unwind(err);
     }
+}
+
+/// Connects to the given agent via in-process duplex streams, sends an
+/// `InitializeRequest`, and returns the response.
+#[allow(dead_code)]
+pub async fn initialize_agent(agent: Arc<GooseAcpAgent>) -> sacp::schema::InitializeResponse {
+    let (transport, _handle) = serve_agent_in_process(agent).await;
+    sacp::ClientToAgent::builder()
+        .connect_to(transport)
+        .unwrap()
+        .run_until(|cx: sacp::JrConnectionCx<sacp::ClientToAgent>| async move {
+            let resp = cx
+                .send_request(sacp::schema::InitializeRequest::new(
+                    sacp::schema::ProtocolVersion::LATEST,
+                ))
+                .block_task()
+                .await
+                .unwrap();
+            Ok::<_, sacp::Error>(resp)
+        })
+        .await
+        .unwrap()
 }
 
 pub mod server;

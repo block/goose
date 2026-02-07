@@ -189,7 +189,7 @@ pub async fn run_configured_extension<S: Session>() {
     let mcp = McpFixture::new(expected_session_id.clone()).await;
 
     let config_yaml = format!(
-        "extensions:\n  lookup:\n    enabled: true\n    type: streamable_http\n    name: lookup\n    description: Lookup server\n    uri: \"{}\"\n",
+        "GOOSE_MODEL: gpt-5-nano\nextensions:\n  lookup:\n    enabled: true\n    type: streamable_http\n    name: lookup\n    description: Lookup server\n    uri: \"{}\"\n",
         mcp.url
     );
     fs::write(temp_dir.path().join(CONFIG_YAML_NAME), config_yaml).unwrap();

@@ -13,12 +13,12 @@ use goose::conversation::Conversation;
 use goose::mcp_utils::ToolResult;
 use goose::permission::permission_confirmation::PrincipalType;
 use goose::permission::{Permission, PermissionConfirmation};
-use goose::providers::create;
+use goose::providers::provider_registry::ProviderConstructor;
 use goose::session::session_manager::SessionType;
 use goose::session::{Session, SessionManager};
 use rmcp::model::{CallToolResult, RawContent, ResourceContents, Role};
 use sacp::schema::{
-    AgentCapabilities, AuthenticateRequest, AuthenticateResponse, BlobResourceContents,
+    AgentCapabilities, AuthMethod, AuthenticateRequest, AuthenticateResponse, BlobResourceContents,
     CancelNotification, Content, ContentBlock, ContentChunk, EmbeddedResource,
     EmbeddedResourceResource, ImageContent, InitializeRequest, InitializeResponse,
     LoadSessionRequest, LoadSessionResponse, McpCapabilities, McpServer, NewSessionRequest,
@@ -46,16 +46,8 @@ struct GooseAcpSession {
 pub struct GooseAcpAgent {
     sessions: Arc<Mutex<HashMap<String, GooseAcpSession>>>,
     agent: Arc<Agent>,
-    provider: Arc<dyn goose::providers::base::Provider>,
-}
-
-pub struct AcpServerConfig {
-    pub provider: Arc<dyn goose::providers::base::Provider>,
-    pub builtins: Vec<String>,
-    pub data_dir: std::path::PathBuf,
-    pub config_dir: std::path::PathBuf,
-    pub goose_mode: goose::config::GooseMode,
-    pub disable_session_naming: bool,
+    provider_factory: ProviderConstructor,
+    config_dir: std::path::PathBuf,
 }
 
 fn mcp_server_to_extension_config(mcp_server: McpServer) -> Result<ExtensionConfig, String> {
@@ -278,54 +270,23 @@ impl GooseAcpAgent {
         Arc::clone(&self.agent.config.permission_manager)
     }
 
-    pub async fn new(builtins: Vec<String>) -> Result<Self> {
-        let config = Config::global();
-
-        let provider_name: String = config
-            .get_goose_provider()
-            .map_err(|e| anyhow::anyhow!("No provider configured: {}", e))?;
-
-        let model_name: String = config
-            .get_goose_model()
-            .map_err(|e| anyhow::anyhow!("No model configured: {}", e))?;
-
-        let model_config = goose::model::ModelConfig {
-            model_name: model_name.clone(),
-            context_limit: None,
-            temperature: None,
-            max_tokens: None,
-            toolshim: false,
-            toolshim_model: None,
-            fast_model: None,
-            request_params: None,
-        };
-        let provider = create(&provider_name, model_config).await?;
-        let goose_mode = config
-            .get_goose_mode()
-            .unwrap_or(goose::config::GooseMode::Auto);
-
-        Self::with_config(AcpServerConfig {
-            provider,
-            builtins,
-            data_dir: Paths::data_dir(),
-            config_dir: Paths::config_dir(),
-            goose_mode,
-            disable_session_naming: config.get_goose_disable_session_naming().unwrap_or(false),
-        })
-        .await
-    }
-
-    pub async fn with_config(config: AcpServerConfig) -> Result<Self> {
-        let session_manager = Arc::new(SessionManager::new(config.data_dir));
-        let config_dir = config.config_dir.clone();
-        let permission_manager = Arc::new(PermissionManager::new(config.config_dir));
+    pub async fn new(
+        provider_factory: ProviderConstructor,
+        builtins: Vec<String>,
+        data_dir: std::path::PathBuf,
+        config_dir: std::path::PathBuf,
+        goose_mode: goose::config::GooseMode,
+        disable_session_naming: bool,
+    ) -> Result<Self> {
+        let session_manager = Arc::new(SessionManager::new(data_dir));
+        let permission_manager = Arc::new(PermissionManager::new(config_dir.clone()));
 
         let agent = Agent::with_config(AgentConfig::new(
             Arc::clone(&session_manager),
             permission_manager,
             None,
-            config.goose_mode,
-            config.disable_session_naming,
+            goose_mode,
+            disable_session_naming,
         ));
 
         let agent_ptr = Arc::new(agent);
@@ -334,13 +295,14 @@ impl GooseAcpAgent {
         let config_file = Config::new(&config_path, "goose")?;
         let extensions = get_enabled_extensions_with_config(&config_file);
 
-        add_builtins(&agent_ptr, config.builtins).await;
+        add_builtins(&agent_ptr, builtins).await;
         add_extensions(&agent_ptr, extensions).await;
 
         Ok(Self {
-            provider: config.provider.clone(),
             sessions: Arc::new(Mutex::new(HashMap::new())),
             agent: agent_ptr,
+            provider_factory,
+            config_dir,
         })
     }
 
@@ -354,9 +316,7 @@ impl GooseAcpAgent {
             )
             .await?;
 
-        self.agent
-            .update_provider(self.provider.clone(), &goose_session.id)
-            .await?;
+        self.ensure_provider(&goose_session).await?;
 
         let session = GooseAcpSession {
             messages: Conversation::new_unvalidated(Vec::new()),
@@ -692,7 +652,15 @@ impl GooseAcpAgent {
                     .embedded_context(true),
             )
             .mcp_capabilities(McpCapabilities::new().http(true));
-        Ok(InitializeResponse::new(args.protocol_version).agent_capabilities(capabilities))
+        Ok(InitializeResponse::new(args.protocol_version)
+            .agent_capabilities(capabilities)
+            .auth_methods(vec![AuthMethod::new(
+                "goose-provider",
+                "Configure Provider",
+            )
+            .description(
+                "Run `goose configure` to set up your AI provider and API key",
+            )]))
     }
 
     async fn on_new_session(
@@ -712,7 +680,9 @@ impl GooseAcpAgent {
             .map_err(|e| {
                 sacp::Error::internal_error().data(format!("Failed to create session: {}", e))
             })?;
-        self.update_session_with_provider(&goose_session).await?;
+        self.ensure_provider(&goose_session).await.map_err(|e| {
+            sacp::Error::internal_error().data(format!("Failed to set provider: {}", e))
+        })?;
 
         for mcp_server in args.mcp_servers {
             let config = match mcp_server_to_extension_config(mcp_server) {
@@ -746,17 +716,19 @@ impl GooseAcpAgent {
         Ok(NewSessionResponse::new(SessionId::new(goose_session.id)))
     }
 
-    async fn update_session_with_provider(
-        &self,
-        goose_session: &Session,
-    ) -> Result<(), sacp::Error> {
-        self.agent
-            .update_provider(self.provider.clone(), &goose_session.id)
-            .await
-            .map_err(|e| {
-                sacp::Error::internal_error().data(format!("Failed to set provider: {}", e))
-            })?;
-        Ok(())
+    async fn ensure_provider(&self, session: &Session) -> Result<()> {
+        let provider = match self.agent.provider().await {
+            Ok(p) => p,
+            Err(_) => {
+                // TODO: when session/set_model lands, use the client-provided
+                // modelId instead of the default read from config.
+                let config_path = self.config_dir.join(CONFIG_YAML_NAME);
+                let config = Config::new(&config_path, "goose")?;
+                let model_config = goose::model::ModelConfig::new(&config.get_goose_model()?)?;
+                (self.provider_factory)(model_config).await?
+            }
+        };
+        self.agent.update_provider(provider, &session.id).await
     }
 
     async fn on_load_session(
@@ -773,7 +745,9 @@ impl GooseAcpAgent {
             sacp::Error::invalid_params()
                 .data(format!("Failed to load session {}: {}", session_id, e))
         })?;
-        self.update_session_with_provider(&goose_session).await?;
+        self.ensure_provider(&goose_session).await.map_err(|e| {
+            sacp::Error::internal_error().data(format!("Failed to set provider: {}", e))
+        })?;
 
         let conversation = goose_session.conversation.ok_or_else(|| {
             sacp::Error::internal_error()
@@ -1045,7 +1019,13 @@ pub async fn run(builtins: Vec<String>) -> Result<()> {
     let outgoing = tokio::io::stdout().compat_write();
     let incoming = tokio::io::stdin().compat();
 
-    let agent = Arc::new(GooseAcpAgent::new(builtins).await?);
+    let server =
+        crate::server_factory::AcpServer::new(crate::server_factory::AcpServerFactoryConfig {
+            builtins,
+            data_dir: Paths::data_dir(),
+            config_dir: Paths::config_dir(),
+        });
+    let agent = server.create_agent().await?;
     serve(agent, incoming, outgoing).await
 }
 
