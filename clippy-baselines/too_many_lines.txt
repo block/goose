@@ -10,13 +10,12 @@ crates/goose-mcp/src/computercontroller/pdf_tool.rs::pdf_tool
 crates/goose-mcp/src/memory/mod.rs::new
 crates/goose-server/src/openapi.rs::convert_typed_schema
 crates/goose-server/src/openapi.rs::convert_typed_schema
-crates/goose-server/src/routes/audio.rs::transcribe_elevenlabs_handler
-crates/goose-server/src/routes/audio.rs::transcribe_elevenlabs_handler
 crates/goose/src/agents/agent.rs::create_recipe
 crates/goose/src/agents/agent.rs::dispatch_tool_call
 crates/goose/src/agents/agent.rs::reply
 crates/goose/src/agents/agent.rs::reply_internal
-crates/goose/src/providers/canonical/build_canonical_models.rs::build_canonical_models
+crates/goose/src/providers/claude_code.rs::execute_command
+crates/goose/src/providers/codex.rs::execute_command
 crates/goose/src/providers/formats/anthropic.rs::format_messages
 crates/goose/src/providers/formats/anthropic.rs::response_to_streaming_message
 crates/goose/src/providers/formats/databricks.rs::format_messages

@@ -55,6 +55,7 @@ pub struct AcpServerConfig {
     pub data_dir: std::path::PathBuf,
     pub config_dir: std::path::PathBuf,
     pub goose_mode: goose::config::GooseMode,
+    pub disable_session_naming: bool,
 }
 
 fn mcp_server_to_extension_config(mcp_server: McpServer) -> Result<ExtensionConfig, String> {
@@ -309,6 +310,7 @@ impl GooseAcpAgent {
             data_dir: Paths::data_dir(),
             config_dir: Paths::config_dir(),
             goose_mode,
+            disable_session_naming: config.get_goose_disable_session_naming().unwrap_or(false),
         })
         .await
     }
@@ -323,6 +325,7 @@ impl GooseAcpAgent {
             permission_manager,
             None,
             config.goose_mode,
+            config.disable_session_naming,
         ));
 
         let agent_ptr = Arc::new(agent);
