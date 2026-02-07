@@ -18,7 +18,6 @@ use goose::agents::ExtensionConfig;
 use goose::config::resolve_extensions_for_new_session;
 use goose::config::{Config, GooseMode};
 use goose::model::ModelConfig;
-use goose::prompt_template::render_template;
 use goose::providers::create;
 use goose::recipe::Recipe;
 use goose::recipe_deeplink;
@@ -32,7 +31,7 @@ use goose::{
 use rmcp::model::{CallToolRequestParams, Content};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use std::collections::{HashMap, HashSet};
+use std::collections::HashSet;
 use std::path::PathBuf;
 use std::sync::Arc;
 use tokio_util::sync::CancellationToken;
@@ -420,10 +419,6 @@ async fn update_from_session(
             message: format!("Failed to get session: {}", err),
             status: StatusCode::INTERNAL_SERVER_ERROR,
         })?;
-    let context: HashMap<&str, Value> = HashMap::new();
-    let desktop_prompt =
-        render_template("desktop_prompt.md", &context).expect("Prompt should render");
-    let mut update_prompt = desktop_prompt;
     if let Some(recipe) = session.recipe {
         match build_recipe_with_parameter_values(
             &recipe,
@@ -433,11 +428,13 @@ async fn update_from_session(
         {
             Ok(Some(recipe)) => {
                 if let Some(prompt) = apply_recipe_to_agent(&agent, &recipe, true).await {
-                    update_prompt = prompt;
+                    agent
+                        .extend_system_prompt("recipe".to_string(), prompt)
+                        .await;
                 }
             }
             Ok(None) => {
-                // Recipe has missing parameters - use default prompt
+                // Recipe has missing parameters
             }
             Err(e) => {
                 return Err(ErrorResponse {
@@ -447,7 +444,6 @@ async fn update_from_session(
             }
         }
     }
-    agent.extend_system_prompt(update_prompt).await;
 
     Ok(StatusCode::OK)
 }
@@ -707,11 +703,6 @@ async fn restart_agent_internal(
         status: StatusCode::INTERNAL_SERVER_ERROR,
     })?;
 
-    let context: HashMap<&str, Value> = HashMap::new();
-    let desktop_prompt =
-        render_template("desktop_prompt.md", &context).expect("Prompt should render");
-    let mut update_prompt = desktop_prompt;
-
     if let Some(ref recipe) = session.recipe {
         match build_recipe_with_parameter_values(
             recipe,
@@ -721,11 +712,13 @@ async fn restart_agent_internal(
         {
             Ok(Some(recipe)) => {
                 if let Some(prompt) = apply_recipe_to_agent(&agent, &recipe, true).await {
-                    update_prompt = prompt;
+                    agent
+                        .extend_system_prompt("recipe".to_string(), prompt)
+                        .await;
                 }
             }
             Ok(None) => {
-                // Recipe has missing parameters - use default prompt
+                // Recipe has missing parameters
             }
             Err(e) => {
                 return Err(ErrorResponse {
@@ -735,7 +728,6 @@ async fn restart_agent_internal(
             }
         }
     }
-    agent.extend_system_prompt(update_prompt).await;
 
     Ok(extension_results)
 }

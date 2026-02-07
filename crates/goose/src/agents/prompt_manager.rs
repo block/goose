@@ -1,6 +1,7 @@
 #[cfg(test)]
 use chrono::DateTime;
 use chrono::Utc;
+use indexmap::IndexMap;
 use serde::Serialize;
 use serde_json::Value;
 use std::collections::HashMap;
@@ -19,7 +20,7 @@ const MAX_TOOLS: usize = 50;
 
 pub struct PromptManager {
     system_prompt_override: Option<String>,
-    system_prompt_extras: Vec<String>,
+    system_prompt_extras: IndexMap<String, String>,
     current_date_timestamp: String,
 }
 
@@ -173,24 +174,25 @@ impl<'a> SystemPromptBuilder<'a, PromptManager> {
 
         // Add hints if provided
         if let Some(hints) = self.hints {
-            system_prompt_extras.push(hints);
+            system_prompt_extras.insert("hints".to_string(), hints);
         }
 
         if goose_mode == GooseMode::Chat {
-            system_prompt_extras.push(
+            system_prompt_extras.insert(
+                "chat_mode".to_string(),
                 "Right now you are in the chat only mode, no access to any tool use and system."
                     .to_string(),
             );
         }
 
-        let sanitized_system_prompt_extras: Vec<String> = system_prompt_extras
-            .into_iter()
-            .map(|extra| sanitize_unicode_tags(&extra))
-            .collect();
-
-        if sanitized_system_prompt_extras.is_empty() {
+        if system_prompt_extras.is_empty() {
             base_prompt
         } else {
+            let sanitized_system_prompt_extras: Vec<String> = system_prompt_extras
+                .into_values()
+                .map(|extra| sanitize_unicode_tags(&extra))
+                .collect();
+
             format!(
                 "{}\n\n# Additional Instructions:\n\n{}",
                 base_prompt,
@@ -204,7 +206,7 @@ impl PromptManager {
     pub fn new() -> Self {
         PromptManager {
             system_prompt_override: None,
-            system_prompt_extras: Vec::new(),
+            system_prompt_extras: IndexMap::new(),
             // Use the fixed current date time so that prompt cache can be used.
             // Filtering to an hour to balance user time accuracy and multi session prompt cache hits.
             current_date_timestamp: Utc::now().format("%Y-%m-%d %H:00").to_string(),
@@ -215,14 +217,15 @@ impl PromptManager {
     pub fn with_timestamp(dt: DateTime<Utc>) -> Self {
         PromptManager {
             system_prompt_override: None,
-            system_prompt_extras: Vec::new(),
+            system_prompt_extras: IndexMap::new(),
             current_date_timestamp: dt.format("%Y-%m-%d %H:%M:%S").to_string(),
         }
     }
 
-    /// Add an additional instruction to the system prompt
-    pub fn add_system_prompt_extra(&mut self, instruction: String) {
-        self.system_prompt_extras.push(instruction);
+    /// Add an additional instruction to the system prompt with a key
+    /// Using the same key will replace the previous instruction
+    pub fn add_system_prompt_extra(&mut self, key: String, instruction: String) {
+        self.system_prompt_extras.insert(key, instruction);
     }
 
     /// Override the system prompt with custom text
@@ -275,7 +278,7 @@ mod tests {
     fn test_build_system_prompt_sanitizes_extras() {
         let mut manager = PromptManager::new();
         let malicious_extra = "Extra instruction\u{E0041}\u{E0042}\u{E0043}hidden";
-        manager.add_system_prompt_extra(malicious_extra.to_string());
+        manager.add_system_prompt_extra("test".to_string(), malicious_extra.to_string());
 
         let result = manager.builder().build();
 
@@ -289,9 +292,14 @@ mod tests {
     #[test]
     fn test_build_system_prompt_sanitizes_multiple_extras() {
         let mut manager = PromptManager::new();
-        manager.add_system_prompt_extra("First\u{E0041}instruction".to_string());
-        manager.add_system_prompt_extra("Second\u{E0042}instruction".to_string());
-        manager.add_system_prompt_extra("Third\u{E0043}instruction".to_string());
+        manager
+            .add_system_prompt_extra("test1".to_string(), "First\u{E0041}instruction".to_string());
+        manager.add_system_prompt_extra(
+            "test2".to_string(),
+            "Second\u{E0042}instruction".to_string(),
+        );
+        manager
+            .add_system_prompt_extra("test3".to_string(), "Third\u{E0043}instruction".to_string());
 
         let result = manager.builder().build();
 
@@ -307,7 +315,7 @@ mod tests {
     fn test_build_system_prompt_preserves_legitimate_unicode_in_extras() {
         let mut manager = PromptManager::new();
         let legitimate_unicode = "Instruction with 世界 and 🌍 emojis";
-        manager.add_system_prompt_extra(legitimate_unicode.to_string());
+        manager.add_system_prompt_extra("test".to_string(), legitimate_unicode.to_string());
 
         let result = manager.builder().build();
 

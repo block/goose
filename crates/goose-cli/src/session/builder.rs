@@ -598,14 +598,11 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> CliSession {
         tracing::warn!("Failed to save extension state: {}", e);
     }
 
-    // Add CLI-specific system prompt extension
-    session
-        .agent
-        .extend_system_prompt(super::prompt::get_cli_prompt())
-        .await;
-
     if let Some(additional_prompt) = session_config.additional_system_prompt {
-        session.agent.extend_system_prompt(additional_prompt).await;
+        session
+            .agent
+            .extend_system_prompt("additional".to_string(), additional_prompt)
+            .await;
     }
 
     // Only override system prompt if a system override exists
