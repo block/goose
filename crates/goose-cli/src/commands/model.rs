@@ -1,6 +1,7 @@
 use anyhow::Result;
 use goose::config::Config;
 use goose::providers::base::ConfigKey;
+use goose::providers::canonical::{maybe_get_canonical_model, CanonicalModel, Modality};
 use goose::providers::providers;
 use std::io::{self, IsTerminal, Write};
 
@@ -64,6 +65,96 @@ fn format_token_cost(
     }
 }
 
+fn format_modality(modality: Modality) -> &'static str {
+    match modality {
+        Modality::Text => "text",
+        Modality::Image => "image",
+        Modality::Audio => "audio",
+        Modality::Video => "video",
+        Modality::Pdf => "pdf",
+    }
+}
+
+fn format_modalities(modalities: &[Modality]) -> String {
+    if modalities.is_empty() {
+        "-".to_string()
+    } else {
+        modalities
+            .iter()
+            .copied()
+            .map(format_modality)
+            .collect::<Vec<_>>()
+            .join(", ")
+    }
+}
+
+fn print_canonical_model(canonical: &CanonicalModel) {
+    println!("Canonical:");
+    println!("  ID: {}", canonical.id);
+    println!("  Name: {}", canonical.name);
+    if let Some(family) = canonical.family.as_deref() {
+        println!("  Family: {}", family);
+    }
+    if let Some(attachment) = canonical.attachment {
+        println!(
+            "  Supports Attachments: {}",
+            if attachment { "yes" } else { "no" }
+        );
+    }
+    if let Some(reasoning) = canonical.reasoning {
+        println!(
+            "  Supports Reasoning: {}",
+            if reasoning { "yes" } else { "no" }
+        );
+    }
+    println!(
+        "  Tool Call: {}",
+        if canonical.tool_call { "yes" } else { "no" }
+    );
+    if let Some(temperature) = canonical.temperature {
+        println!(
+            "  Supports Temperature: {}",
+            if temperature { "yes" } else { "no" }
+        );
+    }
+    if let Some(knowledge) = canonical.knowledge.as_deref() {
+        println!("  Knowledge Cutoff: {}", knowledge);
+    }
+    if let Some(release_date) = canonical.release_date.as_deref() {
+        println!("  Release Date: {}", release_date);
+    }
+    if let Some(last_updated) = canonical.last_updated.as_deref() {
+        println!("  Last Updated: {}", last_updated);
+    }
+    println!(
+        "  Modalities: input [{}], output [{}]",
+        format_modalities(&canonical.modalities.input),
+        format_modalities(&canonical.modalities.output)
+    );
+    if let Some(open_weights) = canonical.open_weights {
+        println!(
+            "  Open Weights: {}",
+            if open_weights { "yes" } else { "no" }
+        );
+    }
+    println!("  Limits: context {}", canonical.limit.context);
+    if let Some(output) = canonical.limit.output {
+        println!("  Limits: output {}", output);
+    }
+    if let Some(input) = canonical.cost.input {
+        println!("  Cost: input ${}/1M tokens", input);
+    }
+    if let Some(output) = canonical.cost.output {
+        println!("  Cost: output ${}/1M tokens", output);
+    }
+    if let Some(cache_read) = canonical.cost.cache_read {
+        println!("  Cost: cache read ${}/1M tokens", cache_read);
+    }
+    if let Some(cache_write) = canonical.cost.cache_write {
+        println!("  Cost: cache write ${}/1M tokens", cache_write);
+    }
+}
+
 /// Helper function to print config keys for a provider
 fn print_config_keys(config_keys: &[ConfigKey], config: &Config) {
     for key in config_keys {
@@ -90,7 +181,7 @@ fn print_config_keys(config_keys: &[ConfigKey], config: &Config) {
 }
 
 /// Show currently configured provider and model
-pub async fn handle_show_current() -> Result<()> {
+pub async fn handle_show_current(verbose: bool) -> Result<()> {
     let config = Config::global();
 
     let Ok(provider) = config.get_goose_provider() else {
@@ -158,6 +249,16 @@ pub async fn handle_show_current() -> Result<()> {
         }
     } else {
         println!("  Context Limit: unknown");
+    }
+
+    if verbose {
+        if let Some(canonical) = maybe_get_canonical_model(&provider, &model) {
+            println!();
+            print_canonical_model(&canonical);
+        } else {
+            println!();
+            println!("Canonical: not found");
+        }
     }
 
     println!();

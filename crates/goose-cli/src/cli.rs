@@ -778,6 +778,10 @@ enum Command {
     /// List and manage models
     #[command(about = "List and manage models")]
     Model {
+        /// Show additional canonical model details
+        #[arg(short, long, help = "Show canonical model details")]
+        verbose: bool,
+
         #[command(subcommand)]
         command: Option<ModelCommand>,
     },
@@ -1084,7 +1088,7 @@ async fn handle_mcp_command(server: McpCommand) -> Result<()> {
     Ok(())
 }
 
-async fn handle_model_subcommand(command: Option<ModelCommand>) -> Result<()> {
+async fn handle_model_subcommand(command: Option<ModelCommand>, verbose: bool) -> Result<()> {
     use crate::commands::model::{handle_list, handle_show_current, OutputFormat};
 
     match command {
@@ -1106,7 +1110,7 @@ async fn handle_model_subcommand(command: Option<ModelCommand>) -> Result<()> {
             )
             .await
         }
-        None => handle_show_current().await,
+        None => handle_show_current(verbose).await,
     }
 }
 
@@ -1608,7 +1612,9 @@ pub async fn cli() -> anyhow::Result<()> {
         Some(Command::Configure {}) => handle_configure().await,
         Some(Command::Info { verbose }) => handle_info(verbose),
         Some(Command::Mcp { server }) => handle_mcp_command(server).await,
-        Some(Command::Model { command }) => handle_model_subcommand(command).await,
+        Some(Command::Model { command, verbose }) => {
+            handle_model_subcommand(command, verbose).await
+        }
         Some(Command::Acp { builtins }) => goose_acp::server::run(builtins).await,
         Some(Command::Session {
             command: Some(cmd), ..
