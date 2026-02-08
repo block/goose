@@ -11,6 +11,7 @@ pub mod claude_code;
 pub mod codex;
 pub mod cursor_agent;
 pub mod databricks;
+pub mod dynamic_auth;
 pub mod embedding;
 pub mod errors;
 pub mod formats;
