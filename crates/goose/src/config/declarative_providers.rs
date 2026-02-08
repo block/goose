@@ -272,7 +272,9 @@ pub fn update_custom_provider(params: UpdateCustomProviderParams) -> Result<()> 
             requires_auth: params.requires_auth,
             api_key_command: params.api_key_command.or(existing_config.api_key_command),
             api_key_file: params.api_key_file.or(existing_config.api_key_file),
-            api_key_file_field: params.api_key_file_field.or(existing_config.api_key_file_field),
+            api_key_file_field: params
+                .api_key_file_field
+                .or(existing_config.api_key_file_field),
         };
 
         let file_path = custom_providers_dir().join(format!("{}.json", updated_config.name));

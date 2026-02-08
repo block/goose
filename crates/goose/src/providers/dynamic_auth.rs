@@ -145,12 +145,8 @@ impl AuthProvider for FileAuthProvider {
 
 fn header_pair(style: &AuthHeaderStyle, token: &str) -> (String, String) {
     match style {
-        AuthHeaderStyle::BearerToken => {
-            ("Authorization".to_string(), format!("Bearer {}", token))
-        }
-        AuthHeaderStyle::CustomHeader { header_name } => {
-            (header_name.clone(), token.to_string())
-        }
+        AuthHeaderStyle::BearerToken => ("Authorization".to_string(), format!("Bearer {}", token)),
+        AuthHeaderStyle::CustomHeader { header_name } => (header_name.clone(), token.to_string()),
     }
 }
 
@@ -182,13 +178,13 @@ mod tests {
 
     #[tokio::test]
     async fn test_command_auth_provider_failure() {
-        let provider = CommandAuthProvider::new(
-            "exit 1".to_string(),
-            AuthHeaderStyle::BearerToken,
-        );
+        let provider = CommandAuthProvider::new("exit 1".to_string(), AuthHeaderStyle::BearerToken);
         let result = provider.get_auth_header().await;
         assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("exited with status"));
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("exited with status"));
     }
 
     #[tokio::test]
