@@ -985,13 +985,11 @@ impl Provider for ChatGptCodexProvider {
         Ok(())
     }
 
-    async fn fetch_supported_models(&self) -> Result<Option<Vec<String>>, ProviderError> {
-        Ok(Some(
-            CHATGPT_CODEX_KNOWN_MODELS
-                .iter()
-                .map(|s| s.to_string())
-                .collect(),
-        ))
+    async fn fetch_supported_models(&self) -> Result<Vec<String>, ProviderError> {
+        Ok(CHATGPT_CODEX_KNOWN_MODELS
+            .iter()
+            .map(|s| s.to_string())
+            .collect())
     }
 }
 

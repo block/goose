@@ -374,19 +374,17 @@ impl ProviderTester {
         dbg!(&models);
         println!("===================");
 
-        if let Some(models) = models {
-            assert!(!models.is_empty(), "Expected non-empty model list");
-            let model_name = &self.provider.get_model_config().model_name;
-            // Some providers (e.g. Ollama) return names with tags like "qwen3:latest"
-            // while the configured model name may be just "qwen3".
-            assert!(
-                models
-                    .iter()
-                    .any(|m| m == model_name || m.starts_with(&format!("{}:", model_name))),
-                "Expected model '{}' in supported models",
-                model_name
-            );
-        }
+        assert!(!models.is_empty(), "Expected non-empty model list");
+        let model_name = &self.provider.get_model_config().model_name;
+        // Some providers (e.g. Ollama) return names with tags like "qwen3:latest"
+        // while the configured model name may be just "qwen3".
+        assert!(
+            models
+                .iter()
+                .any(|m| m == model_name || m.starts_with(&format!("{}:", model_name))),
+            "Expected model '{}' in supported models",
+            model_name
+        );
         Ok(())
     }
 

@@ -662,10 +662,8 @@ impl Provider for CodexProvider {
         ))
     }
 
-    async fn fetch_supported_models(&self) -> Result<Option<Vec<String>>, ProviderError> {
-        Ok(Some(
-            CODEX_KNOWN_MODELS.iter().map(|s| s.to_string()).collect(),
-        ))
+    async fn fetch_supported_models(&self) -> Result<Vec<String>, ProviderError> {
+        Ok(CODEX_KNOWN_MODELS.iter().map(|s| s.to_string()).collect())
     }
 }
 
