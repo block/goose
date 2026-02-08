@@ -495,7 +495,7 @@ impl Provider for GithubCopilotProvider {
         stream_openai_compat(response, log)
     }
 
-    async fn fetch_supported_models(&self) -> Result<Option<Vec<String>>, ProviderError> {
+    async fn fetch_supported_models(&self) -> Result<Vec<String>, ProviderError> {
         let (endpoint, token) = self.get_api_info().await?;
         let url = format!("{}/models", endpoint);
 
@@ -515,10 +515,11 @@ impl Provider for GithubCopilotProvider {
 
         let json: serde_json::Value = response.json().await?;
 
-        let arr = match json.get("data").and_then(|v| v.as_array()) {
-            Some(arr) => arr,
-            None => return Ok(None),
-        };
+        let arr = json.get("data").and_then(|v| v.as_array()).ok_or_else(|| {
+            ProviderError::RequestFailed(
+                "Missing 'data' array in GitHub Copilot models response".to_string(),
+            )
+        })?;
         let mut models: Vec<String> = arr
             .iter()
             .filter_map(|m| {
@@ -532,7 +533,7 @@ impl Provider for GithubCopilotProvider {
             })
             .collect();
         models.sort();
-        Ok(Some(models))
+        Ok(models)
     }
 
     async fn configure_oauth(&self) -> Result<(), ProviderError> {

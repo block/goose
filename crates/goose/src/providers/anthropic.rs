@@ -256,7 +256,7 @@ impl Provider for AnthropicProvider {
         Ok((message, provider_usage))
     }
 
-    async fn fetch_supported_models(&self) -> Result<Option<Vec<String>>, ProviderError> {
+    async fn fetch_supported_models(&self) -> Result<Vec<String>, ProviderError> {
         let response = self.api_client.request(None, "v1/models").api_get().await?;
 
         if response.status != StatusCode::OK {
@@ -267,17 +267,18 @@ impl Provider for AnthropicProvider {
         }
 
         let json = response.payload.unwrap_or_default();
-        let arr = match json.get("data").and_then(|v| v.as_array()) {
-            Some(arr) => arr,
-            None => return Ok(None),
-        };
+        let arr = json.get("data").and_then(|v| v.as_array()).ok_or_else(|| {
+            ProviderError::RequestFailed(
+                "Missing 'data' array in Anthropic models response".to_string(),
+            )
+        })?;
 
         let mut models: Vec<String> = arr
             .iter()
             .filter_map(|m| m.get("id").and_then(|v| v.as_str()).map(str::to_string))
             .collect();
         models.sort();
-        Ok(Some(models))
+        Ok(models)
     }
 
     async fn stream(

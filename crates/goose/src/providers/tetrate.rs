@@ -244,7 +244,7 @@ impl Provider for TetrateProvider {
     }
 
     /// Fetch supported models from Tetrate Agent Router Service API (only models with tool support)
-    async fn fetch_supported_models(&self) -> Result<Option<Vec<String>>, ProviderError> {
+    async fn fetch_supported_models(&self) -> Result<Vec<String>, ProviderError> {
         // Use the existing api_client which already has authentication configured
         let response = match self
             .api_client
@@ -261,14 +261,12 @@ impl Provider for TetrateProvider {
             }
         };
 
-        // Handle JSON parsing failures gracefully
-        let json: serde_json::Value = match response.json().await {
-            Ok(json) => json,
-            Err(e) => {
-                tracing::warn!("Failed to parse Tetrate Agent Router Service API response as JSON: {}, falling back to manual model entry", e);
-                return Ok(None);
-            }
-        };
+        let json: serde_json::Value = response.json().await.map_err(|e| {
+            ProviderError::ExecutionError(format!(
+                "Failed to parse Tetrate API response: {}. Please check your API key and account at {}",
+                e, TETRATE_DOC_URL
+            ))
+        })?;
 
         // Check for error in response
         if let Some(err_obj) = json.get("error") {
@@ -276,10 +274,6 @@ impl Provider for TetrateProvider {
                 .get("message")
                 .and_then(|v| v.as_str())
                 .unwrap_or("unknown error");
-            tracing::warn!(
-                "Tetrate Agent Router Service API returned an error: {}",
-                msg
-            );
             return Err(ProviderError::ExecutionError(format!(
                 "Tetrate API error: {}. Please check your API key and account at {}",
                 msg, TETRATE_DOC_URL
@@ -288,13 +282,12 @@ impl Provider for TetrateProvider {
 
         // The response format from /v1/models is expected to be OpenAI-compatible
         // It should have a "data" field with an array of model objects
-        let data = match json.get("data").and_then(|v| v.as_array()) {
-            Some(data) => data,
-            None => {
-                tracing::warn!("Tetrate Agent Router Service API response missing 'data' field, falling back to manual model entry");
-                return Ok(None);
-            }
-        };
+        let data = json.get("data").and_then(|v| v.as_array()).ok_or_else(|| {
+            ProviderError::ExecutionError(format!(
+                "Tetrate API response missing 'data' field. Please check your API key and account at {}",
+                TETRATE_DOC_URL
+            ))
+        })?;
 
         let mut models: Vec<String> = data
             .iter()
@@ -312,13 +305,8 @@ impl Provider for TetrateProvider {
             })
             .collect();
 
-        if models.is_empty() {
-            tracing::warn!("No models found in Tetrate Agent Router Service API response, falling back to manual model entry");
-            return Ok(None);
-        }
-
         models.sort();
-        Ok(Some(models))
+        Ok(models)
     }
 
     fn supports_streaming(&self) -> bool {

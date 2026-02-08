@@ -447,16 +447,13 @@ pub trait Provider: Send + Sync {
         RetryConfig::default()
     }
 
-    async fn fetch_supported_models(&self) -> Result<Option<Vec<String>>, ProviderError> {
-        Ok(None)
+    async fn fetch_supported_models(&self) -> Result<Vec<String>, ProviderError> {
+        Ok(vec![])
     }
 
     /// Fetch models filtered by canonical registry and usability
-    async fn fetch_recommended_models(&self) -> Result<Option<Vec<String>>, ProviderError> {
-        let all_models = match self.fetch_supported_models().await? {
-            Some(models) => models,
-            None => return Ok(None),
-        };
+    async fn fetch_recommended_models(&self) -> Result<Vec<String>, ProviderError> {
+        let all_models = self.fetch_supported_models().await?;
 
         let registry = CanonicalModelRegistry::bundled().map_err(|e| {
             ProviderError::ExecutionError(format!("Failed to load canonical registry: {}", e))
@@ -501,9 +498,9 @@ pub trait Provider: Send + Sync {
             .collect();
 
         if recommended_models.is_empty() {
-            Ok(Some(all_models))
+            Ok(all_models)
         } else {
-            Ok(Some(recommended_models))
+            Ok(recommended_models)
         }
     }
 

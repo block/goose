@@ -31,9 +31,12 @@ async fn enhance_model_error(error: ProviderError, provider: &Arc<dyn Provider>)
         return error;
     }
 
-    let Ok(Some(models)) = provider.fetch_recommended_models().await else {
+    let Ok(models) = provider.fetch_recommended_models().await else {
         return error;
     };
+    if models.is_empty() {
+        return error;
+    }
 
     ProviderError::RequestFailed(format!(
         "{}. Available models for this provider: {}",

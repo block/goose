@@ -31,7 +31,9 @@ pub async fn detect_provider_from_api_key(api_key: &str) -> Option<(String, Vec<
                         })
                         .await
                         {
-                            Ok(Some(models)) => Some((provider_name.to_string(), models)),
+                            Ok(models) if !models.is_empty() => {
+                                Some((provider_name.to_string(), models))
+                            }
                             _ => None,
                         }
                     }

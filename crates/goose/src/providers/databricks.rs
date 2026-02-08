@@ -391,51 +391,38 @@ impl Provider for DatabricksProvider {
             .map_err(|e| ProviderError::ExecutionError(e.to_string()))
     }
 
-    async fn fetch_supported_models(&self) -> Result<Option<Vec<String>>, ProviderError> {
-        let response = match self
+    async fn fetch_supported_models(&self) -> Result<Vec<String>, ProviderError> {
+        let response = self
             .api_client
             .request(None, "api/2.0/serving-endpoints")
             .response_get()
             .await
-        {
-            Ok(resp) => resp,
-            Err(e) => {
-                tracing::warn!("Failed to fetch Databricks models: {}", e);
-                return Ok(None);
-            }
-        };
+            .map_err(|e| {
+                ProviderError::RequestFailed(format!("Failed to fetch Databricks models: {}", e))
+            })?;
 
         if !response.status().is_success() {
             let status = response.status();
-            if let Ok(error_text) = response.text().await {
-                tracing::warn!(
-                    "Failed to fetch Databricks models: {} - {}",
-                    status,
-                    error_text
-                );
-            } else {
-                tracing::warn!("Failed to fetch Databricks models: {}", status);
-            }
-            return Ok(None);
+            let detail = response.text().await.unwrap_or_default();
+            return Err(ProviderError::RequestFailed(format!(
+                "Failed to fetch Databricks models: {} {}",
+                status, detail
+            )));
         }
 
-        let json: Value = match response.json().await {
-            Ok(json) => json,
-            Err(e) => {
-                tracing::warn!("Failed to parse Databricks API response: {}", e);
-                return Ok(None);
-            }
-        };
+        let json: Value = response.json().await.map_err(|e| {
+            ProviderError::RequestFailed(format!("Failed to parse Databricks API response: {}", e))
+        })?;
 
-        let endpoints = match json.get("endpoints").and_then(|v| v.as_array()) {
-            Some(endpoints) => endpoints,
-            None => {
-                tracing::warn!(
+        let endpoints = json
+            .get("endpoints")
+            .and_then(|v| v.as_array())
+            .ok_or_else(|| {
+                ProviderError::RequestFailed(
                     "Unexpected response format from Databricks API: missing 'endpoints' array"
-                );
-                return Ok(None);
-            }
-        };
+                        .to_string(),
+                )
+            })?;
 
         let models: Vec<String> = endpoints
             .iter()
@@ -447,11 +434,7 @@ impl Provider for DatabricksProvider {
             })
             .collect();
 
-        if models.is_empty() {
-            Ok(None)
-        } else {
-            Ok(Some(models))
-        }
+        Ok(models)
     }
 }
 

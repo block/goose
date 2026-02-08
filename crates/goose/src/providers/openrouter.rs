@@ -309,39 +309,35 @@ impl Provider for OpenRouterProvider {
     }
 
     /// Fetch supported models from OpenRouter API (only models with tool support)
-    async fn fetch_supported_models(&self) -> Result<Option<Vec<String>>, ProviderError> {
-        // Handle request failures gracefully
-        // If the request fails, fall back to manual entry
-        let response = match self
+    async fn fetch_supported_models(&self) -> Result<Vec<String>, ProviderError> {
+        let response = self
             .api_client
             .request(None, "api/v1/models")
             .response_get()
             .await
-        {
-            Ok(response) => response,
-            Err(e) => {
-                tracing::warn!("Failed to fetch models from OpenRouter API: {}, falling back to manual model entry", e);
-                return Ok(None);
-            }
-        };
+            .map_err(|e| {
+                ProviderError::RequestFailed(format!(
+                    "Failed to fetch models from OpenRouter API: {}",
+                    e
+                ))
+            })?;
 
-        // Handle JSON parsing failures gracefully
-        let json: serde_json::Value = match response.json().await {
-            Ok(json) => json,
-            Err(e) => {
-                tracing::warn!("Failed to parse OpenRouter API response as JSON: {}, falling back to manual model entry", e);
-                return Ok(None);
-            }
-        };
+        let json: serde_json::Value = response.json().await.map_err(|e| {
+            ProviderError::RequestFailed(format!(
+                "Failed to parse OpenRouter API response as JSON: {}",
+                e
+            ))
+        })?;
 
-        // Check for error in response
         if let Some(err_obj) = json.get("error") {
             let msg = err_obj
                 .get("message")
                 .and_then(|v| v.as_str())
                 .unwrap_or("unknown error");
-            tracing::warn!("OpenRouter API returned an error: {}", msg);
-            return Ok(None);
+            return Err(ProviderError::RequestFailed(format!(
+                "OpenRouter API returned an error: {}",
+                msg
+            )));
         }
 
         let data = json.get("data").and_then(|v| v.as_array()).ok_or_else(|| {
@@ -380,14 +376,8 @@ impl Provider for OpenRouterProvider {
             })
             .collect();
 
-        // If no models with tool support were found, fall back to manual entry
-        if models.is_empty() {
-            tracing::warn!("No models with tool support found in OpenRouter API response, falling back to manual model entry");
-            return Ok(None);
-        }
-
         models.sort();
-        Ok(Some(models))
+        Ok(models)
     }
 
     async fn supports_cache_control(&self) -> bool {

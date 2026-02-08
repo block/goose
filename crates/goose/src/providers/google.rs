@@ -187,24 +187,28 @@ impl Provider for GoogleProvider {
         Ok((message, provider_usage))
     }
 
-    async fn fetch_supported_models(&self) -> Result<Option<Vec<String>>, ProviderError> {
+    async fn fetch_supported_models(&self) -> Result<Vec<String>, ProviderError> {
         let response = self
             .api_client
             .request(None, "v1beta/models")
             .response_get()
             .await?;
         let json: serde_json::Value = response.json().await?;
-        let arr = match json.get("models").and_then(|v| v.as_array()) {
-            Some(arr) => arr,
-            None => return Ok(None),
-        };
+        let arr = json
+            .get("models")
+            .and_then(|v| v.as_array())
+            .ok_or_else(|| {
+                ProviderError::RequestFailed(
+                    "Missing 'models' array in Google models response".to_string(),
+                )
+            })?;
         let mut models: Vec<String> = arr
             .iter()
             .filter_map(|m| m.get("name").and_then(|v| v.as_str()))
             .map(|name| name.split('/').next_back().unwrap_or(name).to_string())
             .collect();
         models.sort();
-        Ok(Some(models))
+        Ok(models)
     }
 
     fn supports_streaming(&self) -> bool {
