@@ -94,6 +94,9 @@ pub struct UpdateCustomProviderRequest {
     pub headers: Option<std::collections::HashMap<String, String>>,
     #[serde(default = "default_requires_auth")]
     pub requires_auth: bool,
+    pub api_key_command: Option<String>,
+    pub api_key_file: Option<String>,
+    pub api_key_file_field: Option<String>,
 }
 
 fn default_requires_auth() -> bool {
@@ -675,6 +678,9 @@ pub async fn create_custom_provider(
             supports_streaming: request.supports_streaming,
             headers: request.headers,
             requires_auth: request.requires_auth,
+            api_key_command: request.api_key_command,
+            api_key_file: request.api_key_file,
+            api_key_file_field: request.api_key_file_field,
         },
     )?;
 
@@ -745,6 +751,9 @@ pub async fn update_custom_provider(
             supports_streaming: request.supports_streaming,
             headers: request.headers,
             requires_auth: request.requires_auth,
+            api_key_command: request.api_key_command,
+            api_key_file: request.api_key_file,
+            api_key_file_field: request.api_key_file_field,
         },
     )?;
 
