@@ -3779,8 +3779,20 @@
           "models"
         ],
         "properties": {
+          "api_key_command": {
+            "type": "string",
+            "nullable": true
+          },
           "api_key_env": {
             "type": "string"
+          },
+          "api_key_file": {
+            "type": "string",
+            "nullable": true
+          },
+          "api_key_file_field": {
+            "type": "string",
+            "nullable": true
           },
           "base_url": {
             "type": "string"
@@ -7154,6 +7166,18 @@
         "properties": {
           "api_key": {
             "type": "string"
+          },
+          "api_key_command": {
+            "type": "string",
+            "nullable": true
+          },
+          "api_key_file": {
+            "type": "string",
+            "nullable": true
+          },
+          "api_key_file_field": {
+            "type": "string",
+            "nullable": true
           },
           "api_url": {
             "type": "string"
