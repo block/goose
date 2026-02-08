@@ -95,7 +95,7 @@ impl DeclarativeProviderConfig {
 
         if self.requires_auth && !self.api_key_env.is_empty() {
             let global_config = Config::global();
-            if let Ok(key) = global_config.get_secret(&self.api_key_env) {
+            if let Ok(key) = global_config.get_secret::<String>(&self.api_key_env) {
                 if !key.is_empty() {
                     return Ok(match engine {
                         ProviderEngine::Anthropic => AuthMethod::ApiKey {

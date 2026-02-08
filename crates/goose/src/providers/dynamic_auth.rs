@@ -112,8 +112,8 @@ impl FileAuthProvider {
 #[async_trait]
 impl AuthProvider for FileAuthProvider {
     async fn get_auth_header(&self) -> Result<(String, String)> {
-        let expanded = shellexpand::tilde(&self.path);
-        let content = tokio::fs::read_to_string(expanded.as_ref())
+        let expanded = shellexpand::tilde(&self.path).into_owned();
+        let content = tokio::fs::read_to_string(&expanded)
             .await
             .with_context(|| format!("Failed to read api_key_file: {}", self.path))?;
 

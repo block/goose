@@ -1926,6 +1926,9 @@ fn add_provider() -> anyhow::Result<()> {
         supports_streaming: Some(supports_streaming),
         headers,
         requires_auth,
+        api_key_command: None,
+        api_key_file: None,
+        api_key_file_field: None,
     })?;
 
     cliclack::outro(format!("Custom provider added: {}", display_name))?;
