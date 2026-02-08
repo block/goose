@@ -163,11 +163,7 @@ pub async fn apply_recipe_to_agent(
     include_final_output_tool: bool,
 ) -> Option<String> {
     agent
-        .apply_recipe_components(
-            recipe.sub_recipes.clone(),
-            recipe.response.clone(),
-            include_final_output_tool,
-        )
+        .apply_recipe_components(recipe.response.clone(), include_final_output_tool)
         .await;
 
     recipe.instructions.as_ref().map(|instructions| {

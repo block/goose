@@ -17,6 +17,7 @@ prompt: |
   Run two subrecipes in parallel:
     - use file_stats subrecipe to gather file statistics for {{ target_directory }}
     - use code_patterns subrecipe to analyze code patterns in {{ target_directory }}
+  Iteratively `sleep 10` until the delegates complete, then load their output and confirm success
 extensions:
   - type: builtin
     name: developer
