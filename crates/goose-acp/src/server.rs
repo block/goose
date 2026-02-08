@@ -48,6 +48,7 @@ pub struct GooseAcpAgent {
     agent: Arc<Agent>,
     provider_factory: ProviderConstructor,
     config_dir: std::path::PathBuf,
+    provider_initialized: tokio::sync::OnceCell<String>,
 }
 
 fn mcp_server_to_extension_config(mcp_server: McpServer) -> Result<ExtensionConfig, String> {
@@ -303,6 +304,7 @@ impl GooseAcpAgent {
             agent: agent_ptr,
             provider_factory,
             config_dir,
+            provider_initialized: tokio::sync::OnceCell::new(),
         })
     }
 
@@ -716,19 +718,22 @@ impl GooseAcpAgent {
         Ok(NewSessionResponse::new(SessionId::new(goose_session.id)))
     }
 
+    // Called at most once via OnceCell; returns the model_id used.
+    async fn create_provider(&self, session: &Session) -> Result<String> {
+        let config_path = self.config_dir.join(CONFIG_YAML_NAME);
+        let config = Config::new(&config_path, "goose")?;
+        let model_id = config.get_goose_model()?;
+        let model_config = goose::model::ModelConfig::new(&model_id)?;
+        let provider = (self.provider_factory)(model_config).await?;
+        self.agent.update_provider(provider, &session.id).await?;
+        Ok(model_id)
+    }
+
     async fn ensure_provider(&self, session: &Session) -> Result<()> {
-        let provider = match self.agent.provider().await {
-            Ok(p) => p,
-            Err(_) => {
-                // TODO: when session/set_model lands, use the client-provided
-                // modelId instead of the default read from config.
-                let config_path = self.config_dir.join(CONFIG_YAML_NAME);
-                let config = Config::new(&config_path, "goose")?;
-                let model_config = goose::model::ModelConfig::new(&config.get_goose_model()?)?;
-                (self.provider_factory)(model_config).await?
-            }
-        };
-        self.agent.update_provider(provider, &session.id).await
+        self.provider_initialized
+            .get_or_try_init(|| self.create_provider(session))
+            .await?;
+        Ok(())
     }
 
     async fn on_load_session(

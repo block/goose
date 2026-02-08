@@ -5,7 +5,6 @@ use async_trait::async_trait;
 use fs_err as fs;
 use goose::builtin_extension::register_builtin_extensions;
 use goose::config::{GooseMode, PermissionManager};
-use goose::model::ModelConfig;
 use goose::providers::api_client::{ApiClient, AuthMethod};
 use goose::providers::base::Provider;
 use goose::providers::openai::OpenAiProvider;
@@ -393,22 +392,21 @@ pub async fn spawn_acp_server_in_process(
     goose_mode: GooseMode,
 ) -> (DuplexTransport, JoinHandle<()>, Arc<PermissionManager>) {
     fs::create_dir_all(data_root).unwrap();
-    // ensure_provider reads the model from config lazily, so tests need a
-    // config.yaml even though the factory ignores the model_config value.
-    let config_path = data_root.join("config.yaml");
+    // ensure_provider reads the model from config lazily, so tests need a config.yaml.
+    let config_path = data_root.join(goose::config::base::CONFIG_YAML_NAME);
     if !config_path.exists() {
         fs::write(&config_path, "GOOSE_MODEL: gpt-5-nano\n").unwrap();
     }
-    let api_client = ApiClient::new(
-        openai_base_url.to_string(),
-        AuthMethod::BearerToken("test-key".to_string()),
-    )
-    .unwrap();
-    let model_config = ModelConfig::new("gpt-5-nano").unwrap();
-    let provider: Arc<dyn Provider> = Arc::new(OpenAiProvider::new(api_client, model_config));
-    let provider_factory: ProviderConstructor = Arc::new(move |_model_config| {
-        let provider = Arc::clone(&provider);
-        Box::pin(async move { Ok(provider) })
+    let base_url = openai_base_url.to_string();
+    let provider_factory: ProviderConstructor = Arc::new(move |model_config| {
+        let base_url = base_url.clone();
+        Box::pin(async move {
+            let api_client =
+                ApiClient::new(base_url, AuthMethod::BearerToken("test-key".to_string())).unwrap();
+            let provider: Arc<dyn Provider> =
+                Arc::new(OpenAiProvider::new(api_client, model_config));
+            Ok(provider)
+        })
     });
 
     let agent = Arc::new(
