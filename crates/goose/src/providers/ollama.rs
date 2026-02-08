@@ -118,8 +118,9 @@ impl OllamaProvider {
                 .map_err(|_| anyhow::anyhow!("Failed to set default port"))?;
         }
 
+        let auth = config.resolve_auth_method(&config.engine)?;
         let mut api_client =
-            ApiClient::with_timeout(base_url.to_string(), AuthMethod::NoAuth, timeout)?;
+            ApiClient::with_timeout(base_url.to_string(), auth, timeout)?;
 
         if let Some(headers) = &config.headers {
             let mut header_map = reqwest::header::HeaderMap::new();

@@ -146,14 +146,6 @@ impl OpenAiProvider {
         model: ModelConfig,
         config: DeclarativeProviderConfig,
     ) -> Result<Self> {
-        let global_config = crate::config::Config::global();
-
-        let api_key: Option<String> = if config.requires_auth && !config.api_key_env.is_empty() {
-            global_config.get_secret(&config.api_key_env).ok()
-        } else {
-            None
-        };
-
         let url = url::Url::parse(&config.base_url)
             .map_err(|e| anyhow::anyhow!("Invalid base URL '{}': {}", config.base_url, e))?;
 
@@ -176,10 +168,7 @@ impl OpenAiProvider {
 
         let timeout_secs = config.timeout_seconds.unwrap_or(600);
 
-        let auth = match api_key {
-            Some(key) if !key.is_empty() => AuthMethod::BearerToken(key),
-            _ => AuthMethod::NoAuth,
-        };
+        let auth = config.resolve_auth_method(&config.engine)?;
         let mut api_client =
             ApiClient::with_timeout(host, auth, std::time::Duration::from_secs(timeout_secs))?;
 

@@ -87,15 +87,7 @@ impl AnthropicProvider {
         model: ModelConfig,
         config: DeclarativeProviderConfig,
     ) -> Result<Self> {
-        let global_config = crate::config::Config::global();
-        let api_key: String = global_config
-            .get_secret(&config.api_key_env)
-            .map_err(|_| anyhow::anyhow!("Missing API key: {}", config.api_key_env))?;
-
-        let auth = AuthMethod::ApiKey {
-            header_name: "x-api-key".to_string(),
-            key: api_key,
-        };
+        let auth = config.resolve_auth_method(&config.engine)?;
 
         let mut api_client = ApiClient::new(config.base_url, auth)?
             .with_header("anthropic-version", ANTHROPIC_API_VERSION)?;
