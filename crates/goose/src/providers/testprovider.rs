@@ -1,4 +1,4 @@
-use anyhow::Result;
+use anyhow::{anyhow, Result};
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
@@ -7,10 +7,11 @@ use std::fs;
 use std::path::Path;
 use std::sync::{Arc, Mutex};
 
-use super::base::{Provider, ProviderMetadata, ProviderUsage};
+use super::base::{Provider, ProviderDef, ProviderMetadata, ProviderUsage};
 use super::errors::ProviderError;
 use crate::conversation::message::Message;
 use crate::model::ModelConfig;
+use futures::future::BoxFuture;
 use rmcp::model::Tool;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -40,12 +41,14 @@ pub struct TestProvider {
 }
 
 impl TestProvider {
+    const PROVIDER_NAME: &str = "test";
+
     pub fn new_recording(inner: Arc<dyn Provider>, file_path: impl Into<String>) -> Self {
         Self {
             inner: Some(inner),
             records: Arc::new(Mutex::new(HashMap::new())),
             file_path: file_path.into(),
-            name: Self::metadata().name,
+            name: Self::PROVIDER_NAME.to_string(),
         }
     }
 
@@ -57,7 +60,7 @@ impl TestProvider {
             inner: None,
             records: Arc::new(Mutex::new(records)),
             file_path,
-            name: Self::metadata().name,
+            name: Self::PROVIDER_NAME.to_string(),
         })
     }
 
@@ -101,11 +104,12 @@ impl TestProvider {
     }
 }
 
-#[async_trait]
-impl Provider for TestProvider {
+impl ProviderDef for TestProvider {
+    type Provider = Self;
+
     fn metadata() -> ProviderMetadata {
         ProviderMetadata::new(
-            "test",
+            Self::PROVIDER_NAME,
             "Test Provider",
             "Provider for testing that can record/replay interactions",
             "test-model",
@@ -115,6 +119,13 @@ impl Provider for TestProvider {
         )
     }
 
+    fn from_env(_model: ModelConfig) -> BoxFuture<'static, Result<Self::Provider>> {
+        Box::pin(async { Err(anyhow!("TestProvider must be constructed explicitly")) })
+    }
+}
+
+#[async_trait]
+impl Provider for TestProvider {
     fn get_name(&self) -> &str {
         &self.name
     }
@@ -188,18 +199,6 @@ mod tests {
 
     #[async_trait]
     impl Provider for MockProvider {
-        fn metadata() -> ProviderMetadata {
-            ProviderMetadata::new(
-                "mock",
-                "Mock Provider",
-                "Mock provider for testing",
-                "mock-model",
-                vec!["mock-model"],
-                "",
-                vec![],
-            )
-        }
-
         fn get_name(&self) -> &str {
             "mock-testprovider"
         }

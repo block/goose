@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Button } from '../../ui/button';
-import { ChevronDownIcon, SlidersHorizontal } from 'lucide-react';
+import { ChevronDownIcon, SlidersHorizontal, AlertCircle } from 'lucide-react';
 import { getTools, PermissionLevel, ToolInfo, upsertPermissions } from '../../../api';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '../../ui/dialog';
 import {
@@ -33,6 +33,8 @@ export default function PermissionModal({ extensionName, onClose }: PermissionMo
 
   const [tools, setTools] = useState<ToolInfo[]>([]);
   const [updatedPermissions, setUpdatedPermissions] = useState<Record<string, string>>({});
+  const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   const hasChanges = useMemo(() => {
     return Object.keys(updatedPermissions).some(
@@ -43,12 +45,22 @@ export default function PermissionModal({ extensionName, onClose }: PermissionMo
 
   useEffect(() => {
     const fetchTools = async () => {
+      if (!sessionId) {
+        setIsLoading(false);
+        setLoadError('no_session');
+        return;
+      }
+
+      setIsLoading(true);
+      setLoadError(null);
+
       try {
         const response = await getTools({
           query: { extension_name: extensionName, session_id: sessionId },
         });
         if (response.error) {
-          console.error('Failed to get tools');
+          console.error('Failed to get tools:', response.error);
+          setLoadError('fetch_failed');
         } else {
           const filteredTools = (response.data || []).filter(
             (tool: ToolInfo) =>
@@ -58,6 +70,9 @@ export default function PermissionModal({ extensionName, onClose }: PermissionMo
         }
       } catch (err) {
         console.error('Error fetching tools:', err);
+        setLoadError('fetch_failed');
+      } finally {
+        setIsLoading(false);
       }
     };
 
@@ -121,9 +136,8 @@ export default function PermissionModal({ extensionName, onClose }: PermissionMo
         </DialogHeader>
 
         <div className="py-4">
-          {tools.length === 0 ? (
-            <div className="flex items-center justify-center">
-              {/* Loading spinner */}
+          {isLoading ? (
+            <div className="flex items-center justify-center py-8">
               <svg
                 className="animate-spin h-8 w-8 text-grey-50 dark:text-white"
                 xmlns="http://www.w3.org/2000/svg"
@@ -141,6 +155,28 @@ export default function PermissionModal({ extensionName, onClose }: PermissionMo
                 <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path>
               </svg>
             </div>
+          ) : loadError === 'no_session' ? (
+            <div className="flex flex-col items-center justify-center py-8 text-center">
+              <AlertCircle className="h-12 w-12 text-text-muted mb-4" />
+              <p className="text-text-default font-medium mb-2">No active session</p>
+              <p className="text-sm text-text-muted max-w-sm">
+                Start a chat session first to configure tool permissions for this extension. Tool
+                permissions are loaded from the active session's extensions.
+              </p>
+            </div>
+          ) : loadError === 'fetch_failed' ? (
+            <div className="flex flex-col items-center justify-center py-8 text-center">
+              <AlertCircle className="h-12 w-12 text-text-muted mb-4" />
+              <p className="text-text-default font-medium mb-2">Failed to load tools</p>
+              <p className="text-sm text-text-muted max-w-sm">
+                Could not load tools for this extension. The extension may not be loaded in the
+                current session.
+              </p>
+            </div>
+          ) : tools.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-8 text-center">
+              <p className="text-text-muted">No tools available for this extension.</p>
+            </div>
           ) : (
             <div className="space-y-4">
               {tools.map((tool) => (
@@ -149,10 +185,10 @@ export default function PermissionModal({ extensionName, onClose }: PermissionMo
                   className="flex items-center justify-between grid grid-cols-12"
                 >
                   <div className="flex flex-col col-span-8">
-                    <label className="block text-sm font-medium text-textStandard">
+                    <label className="block text-sm font-medium text-text-default">
                       {tool.name}
                     </label>
-                    <p className="text-sm text-textSubtle mb-2">
+                    <p className="text-sm text-text-muted mb-2">
                       {getFirstSentence(tool.description)}
                     </p>
                   </div>
@@ -187,11 +223,13 @@ export default function PermissionModal({ extensionName, onClose }: PermissionMo
 
         <DialogFooter>
           <Button variant="outline" onClick={handleClose}>
-            Cancel
+            {loadError ? 'Close' : 'Cancel'}
           </Button>
-          <Button disabled={!hasChanges} onClick={handleSave}>
-            Save Changes
-          </Button>
+          {!loadError && (
+            <Button disabled={!hasChanges} onClick={handleSave}>
+              Save Changes
+            </Button>
+          )}
         </DialogFooter>
       </DialogContent>
     </Dialog>

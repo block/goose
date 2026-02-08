@@ -1,12 +1,16 @@
-use assert_json_diff::{assert_json_matches_no_panic, CompareMode, Config};
+#![recursion_limit = "256"]
+#![allow(unused_attributes)]
+
 use async_trait::async_trait;
 use fs_err as fs;
+use goose::builtin_extension::register_builtin_extensions;
 use goose::config::{GooseMode, PermissionManager};
-use goose::model::ModelConfig;
 use goose::providers::api_client::{ApiClient, AuthMethod};
+use goose::providers::base::Provider;
 use goose::providers::openai::OpenAiProvider;
+use goose::providers::provider_registry::ProviderConstructor;
 use goose::session_context::SESSION_ID_HEADER;
-use goose_acp::server::{serve, AcpServerConfig, GooseAcpAgent};
+use goose_acp::server::{serve, GooseAcpAgent};
 use rmcp::model::{ClientNotification, ClientRequest, Meta, ServerResult};
 use rmcp::service::{NotificationContext, RequestContext, ServiceRole};
 use rmcp::transport::streamable_http_server::{
@@ -116,8 +120,7 @@ impl ExpectedSessionId {
         }
     }
 
-    /// Calling this ensures incidental requests that might error asynchronously, such as
-    /// session rename have coherent session IDs.
+    /// Calling this ensures requests have coherent session IDs.
     pub fn assert_matches(&self, actual: &str) {
         let result = self.validate(Some(actual));
         assert!(result.is_ok(), "{}", result.unwrap_err());
@@ -149,8 +152,9 @@ impl OpenAiFixture {
                 let queue = queue.clone();
                 let expected_session_id = expected_session_id.clone();
                 move |req: &wiremock::Request| {
-                    let body = String::from_utf8_lossy(&req.body);
+                    let body = std::str::from_utf8(&req.body).unwrap_or("");
 
+                    // Validate session ID header
                     let actual = req
                         .headers
                         .get(SESSION_ID_HEADER)
@@ -161,37 +165,30 @@ impl OpenAiFixture {
                             .set_body_json(serde_json::json!({"error": {"message": e}}));
                     }
 
-                    // Session rename (async, unpredictable order) - canned response
-                    if body.contains("Reply with only a description in four words or less") {
-                        return ResponseTemplate::new(200)
-                            .insert_header("content-type", "application/json")
-                            .set_body_string(include_str!(
-                                "../test_data/openai_session_description.json"
-                            ));
-                    }
-
-                    let (expected_body, response) = {
-                        let mut q = queue.lock().unwrap();
-                        q.pop_front().unwrap_or_default()
-                    };
-
-                    if body.contains(&expected_body) && !expected_body.is_empty() {
+                    // See if the actual request matches the expected pattern
+                    let mut q = queue.lock().unwrap();
+                    let (expected_body, response) = q.front().cloned().unwrap_or_default();
+                    if !expected_body.is_empty() && body.contains(&expected_body) {
+                        q.pop_front();
                         return ResponseTemplate::new(200)
                             .insert_header("content-type", "text/event-stream")
                             .set_body_string(response);
                     }
+                    drop(q);
 
-                    // Coerce non-json to allow a uniform JSON diff error response.
-                    let exp = serde_json::from_str(&expected_body)
-                        .unwrap_or(serde_json::Value::String(expected_body.clone()));
-                    let act = serde_json::from_str(&body)
-                        .unwrap_or(serde_json::Value::String(body.to_string()));
-                    let diff =
-                        assert_json_matches_no_panic(&exp, &act, Config::new(CompareMode::Strict))
-                            .unwrap_err();
+                    // If there was no body, the request was unexpected. Otherwise, it is a mismatch.
+                    let message = if expected_body.is_empty() {
+                        format!("Unexpected request:\n  {}", body)
+                    } else {
+                        format!(
+                            "Expected body to contain:\n  {}\n\nActual body:\n  {}",
+                            expected_body, body
+                        )
+                    };
+                    // Use OpenAI's error response schema so the provider will pass the error through.
                     ResponseTemplate::new(417)
                         .insert_header("content-type", "application/json")
-                        .set_body_json(serde_json::json!({"error": {"message": diff}}))
+                        .set_body_json(serde_json::json!({"error": {"message": message}}))
                 }
             })
             .mount(&mock_server)
@@ -363,47 +360,71 @@ impl McpFixture {
     }
 }
 
+pub type DuplexTransport = sacp::ByteStreams<
+    tokio_util::compat::Compat<tokio::io::DuplexStream>,
+    tokio_util::compat::Compat<tokio::io::DuplexStream>,
+>;
+
+/// Wires up duplex streams, spawns `serve` for the given agent, and returns
+/// a ready-to-use sacp transport plus the server handle.
 #[allow(dead_code)]
-pub async fn spawn_acp_server_in_process(
-    openai_base_url: &str,
-    builtins: &[String],
-    data_root: &Path,
-    goose_mode: GooseMode,
-) -> (
-    tokio::io::DuplexStream,
-    tokio::io::DuplexStream,
-    JoinHandle<()>,
-    Arc<PermissionManager>,
-) {
-    fs::create_dir_all(data_root).unwrap();
-    let api_client = ApiClient::new(
-        openai_base_url.to_string(),
-        AuthMethod::BearerToken("test-key".to_string()),
-    )
-    .unwrap();
-    let model_config = ModelConfig::new("gpt-5-nano").unwrap();
-    let provider = OpenAiProvider::new(api_client, model_config);
-
-    let config = AcpServerConfig {
-        provider: Arc::new(provider),
-        builtins: builtins.to_vec(),
-        data_dir: data_root.to_path_buf(),
-        config_dir: data_root.to_path_buf(),
-        goose_mode,
-    };
-
+pub async fn serve_agent_in_process(
+    agent: Arc<GooseAcpAgent>,
+) -> (DuplexTransport, JoinHandle<()>) {
     let (client_read, server_write) = tokio::io::duplex(64 * 1024);
     let (server_read, client_write) = tokio::io::duplex(64 * 1024);
 
-    let agent = Arc::new(GooseAcpAgent::with_config(config).await.unwrap());
-    let permission_manager = agent.permission_manager();
     let handle = tokio::spawn(async move {
         if let Err(e) = serve(agent, server_read.compat(), server_write.compat_write()).await {
             tracing::error!("ACP server error: {e}");
         }
     });
 
-    (client_read, client_write, handle, permission_manager)
+    let transport = sacp::ByteStreams::new(client_write.compat_write(), client_read.compat());
+    (transport, handle)
+}
+
+#[allow(dead_code)]
+pub async fn spawn_acp_server_in_process(
+    openai_base_url: &str,
+    builtins: &[String],
+    data_root: &Path,
+    goose_mode: GooseMode,
+) -> (DuplexTransport, JoinHandle<()>, Arc<PermissionManager>) {
+    fs::create_dir_all(data_root).unwrap();
+    // ensure_provider reads the model from config lazily, so tests need a config.yaml.
+    let config_path = data_root.join(goose::config::base::CONFIG_YAML_NAME);
+    if !config_path.exists() {
+        fs::write(&config_path, "GOOSE_MODEL: gpt-5-nano\n").unwrap();
+    }
+    let base_url = openai_base_url.to_string();
+    let provider_factory: ProviderConstructor = Arc::new(move |model_config| {
+        let base_url = base_url.clone();
+        Box::pin(async move {
+            let api_client =
+                ApiClient::new(base_url, AuthMethod::BearerToken("test-key".to_string())).unwrap();
+            let provider: Arc<dyn Provider> =
+                Arc::new(OpenAiProvider::new(api_client, model_config));
+            Ok(provider)
+        })
+    });
+
+    let agent = Arc::new(
+        GooseAcpAgent::new(
+            provider_factory,
+            builtins.to_vec(),
+            data_root.to_path_buf(),
+            data_root.to_path_buf(),
+            goose_mode,
+            true,
+        )
+        .await
+        .unwrap(),
+    );
+    let permission_manager = agent.permission_manager();
+    let (transport, handle) = serve_agent_in_process(agent).await;
+
+    (transport, handle, permission_manager)
 }
 
 pub struct TestOutput {
@@ -445,6 +466,8 @@ pub fn run_test<F>(fut: F)
 where
     F: Future<Output = ()> + Send + 'static,
 {
+    register_builtin_extensions(goose_mcp::BUILTIN_EXTENSIONS.clone());
+
     let handle = std::thread::Builder::new()
         .name("acp-test".to_string())
         .stack_size(8 * 1024 * 1024)
@@ -458,7 +481,32 @@ where
             runtime.block_on(fut);
         })
         .unwrap();
-    handle.join().unwrap();
+    if let Err(err) = handle.join() {
+        // Re-raise the original panic so the test shows the real failure message.
+        std::panic::resume_unwind(err);
+    }
+}
+
+/// Connects to the given agent via in-process duplex streams, sends an
+/// `InitializeRequest`, and returns the response.
+#[allow(dead_code)]
+pub async fn initialize_agent(agent: Arc<GooseAcpAgent>) -> sacp::schema::InitializeResponse {
+    let (transport, _handle) = serve_agent_in_process(agent).await;
+    sacp::ClientToAgent::builder()
+        .connect_to(transport)
+        .unwrap()
+        .run_until(|cx: sacp::JrConnectionCx<sacp::ClientToAgent>| async move {
+            let resp = cx
+                .send_request(sacp::schema::InitializeRequest::new(
+                    sacp::schema::ProtocolVersion::LATEST,
+                ))
+                .block_task()
+                .await
+                .unwrap();
+            Ok::<_, sacp::Error>(resp)
+        })
+        .await
+        .unwrap()
 }
 
 pub mod server;

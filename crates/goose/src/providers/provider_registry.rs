@@ -1,4 +1,4 @@
-use super::base::{ModelInfo, Provider, ProviderMetadata, ProviderType};
+use super::base::{ModelInfo, Provider, ProviderDef, ProviderMetadata, ProviderType};
 use crate::config::DeclarativeProviderConfig;
 use crate::model::ModelConfig;
 use anyhow::Result;
@@ -6,7 +6,7 @@ use futures::future::BoxFuture;
 use std::collections::HashMap;
 use std::sync::Arc;
 
-type ProviderConstructor =
+pub type ProviderConstructor =
     Arc<dyn Fn(ModelConfig) -> BoxFuture<'static, Result<Arc<dyn Provider>>> + Send + Sync>;
 
 #[derive(Clone)]
@@ -36,22 +36,20 @@ impl ProviderRegistry {
         }
     }
 
-    pub fn register<P, F>(&mut self, constructor: F, preferred: bool)
+    pub fn register<F>(&mut self, preferred: bool)
     where
-        P: Provider + 'static,
-        F: Fn(ModelConfig) -> BoxFuture<'static, Result<P>> + Send + Sync + 'static,
+        F: ProviderDef + 'static,
     {
-        let metadata = P::metadata();
+        let metadata = F::metadata();
         let name = metadata.name.clone();
 
         self.entries.insert(
             name,
             ProviderEntry {
                 metadata,
-                constructor: Arc::new(move |model| {
-                    let fut = constructor(model);
+                constructor: Arc::new(|model| {
                     Box::pin(async move {
-                        let provider = fut.await?;
+                        let provider = F::from_env(model).await?;
                         Ok(Arc::new(provider) as Arc<dyn Provider>)
                     })
                 }),
@@ -70,8 +68,8 @@ impl ProviderRegistry {
         provider_type: ProviderType,
         constructor: F,
     ) where
-        P: Provider + 'static,
-        F: Fn(ModelConfig) -> Result<P> + Send + Sync + 'static,
+        P: ProviderDef + 'static,
+        F: Fn(ModelConfig) -> Result<P::Provider> + Send + Sync + 'static,
     {
         let base_metadata = P::metadata();
         let description = config

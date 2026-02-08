@@ -84,8 +84,8 @@ export default function HeadersSection({
   return (
     <div>
       <div className="relative mb-2">
-        <label className="text-sm font-medium text-textStandard mb-2 block">Request Headers</label>
-        <p className="text-xs text-textSubtle mb-4">
+        <label className="text-sm font-medium text-text-default mb-2 block">Request Headers</label>
+        <p className="text-xs text-text-muted mb-4">
           Add custom HTTP headers to include in requests to the MCP server. Click the "+" button to
           add after filling both fields.
         </p>
@@ -100,7 +100,7 @@ export default function HeadersSection({
                 onChange={(e) => onChange(index, 'key', e.target.value)}
                 placeholder="Header name"
                 className={cn(
-                  'w-full text-textStandard border-borderSubtle hover:border-borderStandard',
+                  'w-full text-text-default border-border-default hover:border-border-default',
                   isFieldInvalid(index, 'key') && 'border-red-500 focus:border-red-500'
                 )}
               />
@@ -111,7 +111,7 @@ export default function HeadersSection({
                 onChange={(e) => onChange(index, 'value', e.target.value)}
                 placeholder="Value"
                 className={cn(
-                  'w-full text-textStandard border-borderSubtle hover:border-borderStandard',
+                  'w-full text-text-default border-border-default hover:border-border-default',
                   isFieldInvalid(index, 'value') && 'border-red-500 focus:border-red-500'
                 )}
               />
@@ -135,7 +135,7 @@ export default function HeadersSection({
           }}
           placeholder="Header name"
           className={cn(
-            'w-full text-textStandard border-borderSubtle hover:border-borderStandard',
+            'w-full text-text-default border-border-default hover:border-border-default',
             invalidFields.key && 'border-red-500 focus:border-red-500'
           )}
         />
@@ -147,14 +147,14 @@ export default function HeadersSection({
           }}
           placeholder="Value"
           className={cn(
-            'w-full text-textStandard border-borderSubtle hover:border-borderStandard',
+            'w-full text-text-default border-border-default hover:border-border-default',
             invalidFields.value && 'border-red-500 focus:border-red-500'
           )}
         />
         <Button
           onClick={handleAdd}
           variant="ghost"
-          className="flex items-center justify-start gap-1 px-2 pr-4 text-sm rounded-full text-textStandard bg-background-default border border-borderSubtle hover:border-borderStandard transition-colors min-w-[60px] h-9 [&>svg]:!size-4"
+          className="flex items-center justify-start gap-1 px-2 pr-4 text-sm rounded-full text-text-default bg-background-default border border-border-default hover:border-border-default transition-colors min-w-[60px] h-9 [&>svg]:!size-4"
         >
           <Plus /> Add
         </Button>

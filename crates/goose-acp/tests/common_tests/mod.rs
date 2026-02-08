@@ -30,7 +30,7 @@ pub async fn run_basic_completion<S: Session>() {
     let output = session
         .prompt("what is 1+1", PermissionDecision::Cancel)
         .await;
-    assert!(output.text.contains("2"));
+    assert_eq!(output.text, "2");
     expected_session_id.assert_matches(&session.id().0);
 }
 
@@ -65,14 +65,14 @@ pub async fn run_mcp_http_server<S: Session>() {
             PermissionDecision::Cancel,
         )
         .await;
-    assert!(output.text.contains(FAKE_CODE));
+    assert_eq!(output.text, FAKE_CODE);
     expected_session_id.assert_matches(&session.id().0);
 }
 
 pub async fn run_builtin_and_mcp<S: Session>() {
     let expected_session_id = ExpectedSessionId::default();
     let prompt =
-        "Search for get_code and text_editor tools. Use them to save the code to /tmp/result.txt.";
+        "Search for getCode and textEditor tools. Use them to save the code to /tmp/result.txt.";
     let mcp = McpFixture::new(expected_session_id.clone()).await;
     let openai = OpenAiFixture::new(
         vec![
@@ -81,15 +81,11 @@ pub async fn run_builtin_and_mcp<S: Session>() {
                 include_str!("../test_data/openai_builtin_search.txt"),
             ),
             (
-                r#"lookup/get_code: Get the code"#.into(),
-                include_str!("../test_data/openai_builtin_read_modules.txt"),
-            ),
-            (
-                r#"lookup[\"get_code\"]({}): string - Get the code"#.into(),
+                r#"export async function getCode"#.into(),
                 include_str!("../test_data/openai_builtin_execute.txt"),
             ),
             (
-                r#"Successfully wrote to /tmp/result.txt"#.into(),
+                r#"\"writeResult\": \"Successfully wrote to /tmp/result.txt"#.into(),
                 include_str!("../test_data/openai_builtin_final.txt"),
             ),
         ],
@@ -108,10 +104,13 @@ pub async fn run_builtin_and_mcp<S: Session>() {
     let mut session = S::new(config, openai).await;
     expected_session_id.set(session.id());
 
-    let _ = session.prompt(prompt, PermissionDecision::Cancel).await;
+    let output = session.prompt(prompt, PermissionDecision::Cancel).await;
+    if matches!(output.tool_status, Some(ToolCallStatus::Failed)) || output.text.contains("error") {
+        panic!("{}", output.text);
+    }
 
     let result = fs::read_to_string("/tmp/result.txt").unwrap_or_default();
-    assert!(result.contains(FAKE_CODE));
+    assert_eq!(result, format!("{FAKE_CODE}\n"));
     expected_session_id.assert_matches(&session.id().0);
 }
 
@@ -190,7 +189,7 @@ pub async fn run_configured_extension<S: Session>() {
     let mcp = McpFixture::new(expected_session_id.clone()).await;
 
     let config_yaml = format!(
-        "extensions:\n  lookup:\n    enabled: true\n    type: streamable_http\n    name: lookup\n    description: Lookup server\n    uri: \"{}\"\n",
+        "GOOSE_MODEL: gpt-5-nano\nextensions:\n  lookup:\n    enabled: true\n    type: streamable_http\n    name: lookup\n    description: Lookup server\n    uri: \"{}\"\n",
         mcp.url
     );
     fs::write(temp_dir.path().join(CONFIG_YAML_NAME), config_yaml).unwrap();
@@ -219,6 +218,6 @@ pub async fn run_configured_extension<S: Session>() {
     expected_session_id.set(session.id());
 
     let output = session.prompt(prompt, PermissionDecision::Cancel).await;
-    assert!(output.text.contains(FAKE_CODE));
+    assert_eq!(output.text, FAKE_CODE);
     expected_session_id.assert_matches(&session.id().0);
 }
