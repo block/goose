@@ -69,16 +69,28 @@ export function useAutoSubmit({
     // Hub always creates new sessions, so message_count will be 0
     if (initialMessage && session.message_count === 0 && messages.length === 0) {
       hasAutoSubmittedRef.current = true;
-      handleSubmit(initialMessage);
+      // Ensure initialMessage is in UserInput format
+      const input =
+        typeof initialMessage === 'string' ? { msg: initialMessage, images: [] } : initialMessage;
+      handleSubmit(input);
       clearInitialMessage();
       return;
     }
 
     // Scenario 2: Forked session with edited message
+    // Wait for messages to load before auto-submitting to ensure user sees history
     if (shouldStartAgent && initialMessage) {
-      hasAutoSubmittedRef.current = true;
-      handleSubmit(initialMessage);
-      clearInitialMessage();
+      // Only submit if the forked conversation has loaded (messages.length > 0)
+      if (messages.length > 0) {
+        // Ensure initialMessage is in UserInput format
+        const input =
+          typeof initialMessage === 'string' ? { msg: initialMessage, images: [] } : initialMessage;
+        hasAutoSubmittedRef.current = true;
+        handleSubmit(input);
+        clearInitialMessage();
+        return;
+      }
+      // If messages haven't loaded yet, wait for next render
       return;
     }
 
