@@ -12,12 +12,22 @@ export type ContentBlock =
       resource: { uri: string; mimeType?: string; text?: string; blob?: string };
     };
 
+export type SamplingMessage = {
+  role: 'user' | 'assistant';
+  content: { type: 'text'; text: string } | { type: 'image'; data: string; mimeType: string };
+};
+
 export type McpMethodParams = {
   'ui/open-link': { url: string };
   'ui/message': { role: 'user'; content: ContentBlock[] };
   'tools/call': { name: string; arguments?: Record<string, unknown> };
   'resources/read': { uri: string };
   'notifications/message': { level?: string; logger?: string; data: unknown };
+  'sampling/createMessage': {
+    messages: SamplingMessage[];
+    systemPrompt?: string;
+    maxTokens?: number;
+  };
   ping: Record<string, never>;
 };
 
@@ -31,6 +41,12 @@ export type McpMethodResponse = {
   };
   'resources/read': { contents: unknown[] };
   'notifications/message': Record<string, never>;
+  'sampling/createMessage': {
+    model: string;
+    stopReason: string;
+    role: 'assistant';
+    content: { type: 'text'; text: string };
+  };
   ping: Record<string, never>;
 };
 

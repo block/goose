@@ -66,6 +66,13 @@ export default function McpAppRenderer({
   const [error, setError] = useState<string | null>(null);
   const [iframeHeight, setIframeHeight] = useState(DEFAULT_IFRAME_HEIGHT);
   const [iframeWidth, setIframeWidth] = useState<number | null>(null);
+  const [apiHost, setApiHost] = useState<string | null>(null);
+  const [secretKey, setSecretKey] = useState<string | null>(null);
+
+  useEffect(() => {
+    window.electron.getGoosedHostPort().then(setApiHost);
+    window.electron.getSecretKey().then(setSecretKey);
+  }, []);
 
   useEffect(() => {
     if (!sessionId) {
@@ -232,6 +239,33 @@ export default function McpAppRenderer({
           return {} satisfies McpMethodResponse['notifications/message'];
         }
 
+        case 'sampling/createMessage': {
+          if (!sessionId || !apiHost || !secretKey) {
+            throw new Error('Session not initialized for sampling request');
+          }
+          const { messages, systemPrompt, maxTokens } =
+            params as McpMethodParams['sampling/createMessage'];
+          const response = await fetch(`${apiHost}/sessions/${sessionId}/sampling/message`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'X-Secret-Key': secretKey,
+            },
+            body: JSON.stringify({
+              messages: messages.map((m) => ({
+                role: m.role,
+                content: m.content,
+              })),
+              systemPrompt,
+              maxTokens,
+            }),
+          });
+          if (!response.ok) {
+            throw new Error(`Sampling request failed: ${response.statusText}`);
+          }
+          return (await response.json()) as McpMethodResponse['sampling/createMessage'];
+        }
+
         case 'ping':
           return {} satisfies McpMethodResponse['ping'];
 
@@ -239,7 +273,7 @@ export default function McpAppRenderer({
           throw new Error(`Unknown method: ${method}`);
       }
     },
-    [append, sessionId, extensionName]
+    [append, sessionId, extensionName, apiHost, secretKey]
   );
 
   const handleSizeChanged = useCallback((height: number, width?: number) => {
