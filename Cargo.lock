@@ -727,6 +727,8 @@ dependencies = [
  "http 1.4.0",
  "http-body 1.0.1",
  "http-body-util",
+ "hyper 1.8.1",
+ "hyper-util",
  "itoa",
  "matchit 0.7.3",
  "memchr",
@@ -735,10 +737,15 @@ dependencies = [
  "pin-project-lite",
  "rustversion",
  "serde",
+ "serde_json",
+ "serde_path_to_error",
+ "serde_urlencoded",
  "sync_wrapper 1.0.2",
+ "tokio",
  "tower 0.5.3",
  "tower-layer",
  "tower-service",
+ "tracing",
 ]
 
 [[package]]
@@ -796,6 +803,7 @@ dependencies = [
  "sync_wrapper 1.0.2",
  "tower-layer",
  "tower-service",
+ "tracing",
 ]
 
 [[package]]
@@ -4180,6 +4188,7 @@ dependencies = [
  "fs2",
  "futures",
  "goose-mcp",
+ "goose-test-support",
  "hf-hub",
  "ignore",
  "include_dir",
@@ -4259,6 +4268,7 @@ dependencies = [
  "futures",
  "goose",
  "goose-mcp",
+ "goose-test-support",
  "http-body-util",
  "regex",
  "rmcp 0.14.0",
@@ -4448,6 +4458,16 @@ version = "1.23.0"
 dependencies = [
  "clap",
  "serde_json",
+]
+
+[[package]]
+name = "goose-test-support"
+version = "1.23.0"
+dependencies = [
+ "axum 0.7.9",
+ "rmcp 0.14.0",
+ "serde_json",
+ "tokio",
 ]
 
 [[package]]

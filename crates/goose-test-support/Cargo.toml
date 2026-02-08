@@ -1,0 +1,21 @@
+[package]
+name = "goose-test-support"
+edition.workspace = true
+version.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+description.workspace = true
+
+[dependencies]
+axum = "0.7"
+rmcp = { workspace = true, features = ["server", "macros", "transport-streamable-http-server"] }
+serde_json.workspace = true
+tokio.workspace = true
+
+[[example]]
+name = "mcp_fixture_server"
+path = "examples/mcp_fixture_server.rs"
+
+[lints]
+workspace = true
