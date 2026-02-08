@@ -233,11 +233,13 @@ pub async fn execute_shell_command(
             let mut cmd = Command::new("cmd");
             cmd.args(["/C", command]);
             cmd.env("GOOSE_TERMINAL", "1");
+            cmd.env("AGENT", "goose");
             cmd
         } else {
             let mut cmd = Command::new("sh");
             cmd.args(["-c", command]);
             cmd.env("GOOSE_TERMINAL", "1");
+            cmd.env("AGENT", "goose");
             cmd
         };
 
