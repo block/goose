@@ -372,19 +372,6 @@ pub async fn providers() -> Result<Json<Vec<ProviderDetails>>, ErrorResponse> {
 pub async fn get_provider_models(
     Path(name): Path<String>,
 ) -> Result<Json<Vec<String>>, ErrorResponse> {
-    let loaded_provider = goose::config::declarative_providers::load_provider(name.as_str()).ok();
-    // TODO(Douwe): support a get models url for custom providers
-    if let Some(loaded_provider) = loaded_provider {
-        return Ok(Json(
-            loaded_provider
-                .config
-                .models
-                .into_iter()
-                .map(|m| m.name)
-                .collect::<Vec<_>>(),
-        ));
-    }
-
     let all = get_providers().await.into_iter().collect::<Vec<_>>();
     let Some((metadata, provider_type)) = all.into_iter().find(|(m, _)| m.name == name) else {
         return Err(ErrorResponse::bad_request(format!(
@@ -403,10 +390,11 @@ pub async fn get_provider_models(
     let provider = goose::providers::create(&name, model_config).await?;
 
     let models_result = provider.fetch_recommended_models().await;
-
-    match models_result {
-        Ok(Some(models)) => Ok(Json(models)),
-        Ok(None) => Ok(Json(Vec::new())),
+    if let Err(ref e) = models_result {
+        tracing::warn!("Model fetch failed for provider '{}': {e}", name);
+    }
+    match metadata.resolve_models_with_fallback(models_result) {
+        Ok(models) => Ok(Json(models)),
         Err(provider_error) => Err(provider_error.into()),
     }
 }

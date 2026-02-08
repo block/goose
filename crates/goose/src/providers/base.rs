@@ -185,6 +185,34 @@ impl ProviderMetadata {
         self.allows_unlisted_models = true;
         self
     }
+
+    pub fn resolve_models_with_fallback(
+        &self,
+        fetch_result: Result<Option<Vec<String>>, ProviderError>,
+    ) -> Result<Vec<String>, ProviderError> {
+        if let Ok(Some(ref models)) = fetch_result {
+            if !models.is_empty() {
+                return Ok(models.clone());
+            }
+        }
+
+        let known: Vec<String> = self.known_models.iter().map(|m| m.name.clone()).collect();
+        if !known.is_empty() {
+            return Ok(known);
+        }
+
+        if self.allows_unlisted_models {
+            return Ok(Vec::new());
+        }
+
+        match fetch_result {
+            Err(e) => Err(e),
+            _ => Err(ProviderError::ExecutionError(format!(
+                "No models available for provider '{}'",
+                self.name
+            ))),
+        }
+    }
 }
 
 /// Configuration key metadata for provider setup
@@ -785,5 +813,57 @@ mod tests {
         assert_eq!(info.input_token_cost, Some(0.0000025));
         assert_eq!(info.output_token_cost, Some(0.00001));
         assert_eq!(info.currency, Some("$".to_string()));
+    }
+
+    fn metadata_with_known_models(models: Vec<&str>, allows_unlisted: bool) -> ProviderMetadata {
+        let mut meta = ProviderMetadata::empty();
+        meta.name = "test-provider".to_string();
+        meta.known_models = models
+            .into_iter()
+            .map(|n| ModelInfo::new(n, 4096))
+            .collect();
+        meta.allows_unlisted_models = allows_unlisted;
+        meta
+    }
+
+    #[test]
+    fn resolve_models_uses_fetched_models() {
+        let meta = metadata_with_known_models(vec!["known-1"], false);
+        let result = meta
+            .resolve_models_with_fallback(Ok(Some(vec!["fetched-1".into()])))
+            .unwrap();
+        assert_eq!(result, vec!["fetched-1"]);
+    }
+
+    #[test]
+    fn resolve_models_falls_back_to_known_models() {
+        let meta = metadata_with_known_models(vec!["known-1"], false);
+        // Empty fetch, None, and error all fall back to known models
+        for fetch in [
+            Ok(Some(Vec::new())),
+            Ok(None),
+            Err(ProviderError::RequestFailed("fail".into())),
+        ] {
+            let result = meta.resolve_models_with_fallback(fetch).unwrap();
+            assert_eq!(result, vec!["known-1"]);
+        }
+    }
+
+    #[test]
+    fn resolve_models_allows_empty_when_unlisted() {
+        let meta = metadata_with_known_models(vec![], true);
+        assert!(meta
+            .resolve_models_with_fallback(Ok(None))
+            .unwrap()
+            .is_empty());
+    }
+
+    #[test]
+    fn resolve_models_errors_when_no_fallback() {
+        let meta = metadata_with_known_models(vec![], false);
+        assert!(meta
+            .resolve_models_with_fallback(Err(ProviderError::RequestFailed("fail".into())))
+            .is_err());
+        assert!(meta.resolve_models_with_fallback(Ok(None)).is_err());
     }
 }

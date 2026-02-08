@@ -691,20 +691,21 @@ pub async fn configure_provider_dialog() -> anyhow::Result<bool> {
     };
     spin.stop(style("Model fetch complete").green());
 
-    // Select a model: on fetch error show styled error and abort; if Some(models), show list; if None, free-text input
-    let model: String = match models_res {
-        Err(e) => {
-            // Provider hook error
-            cliclack::outro(style(e.to_string()).on_red().white())?;
-            return Ok(false);
-        }
-        Ok(Some(models)) => select_model_from_list(&models, provider_meta)?,
-        Ok(None) => {
-            let default_model =
-                std::env::var("GOOSE_MODEL").unwrap_or(provider_meta.default_model.clone());
+    if let Err(ref e) = models_res {
+        let _ = cliclack::log::warning(format!("Could not fetch models: {e}"));
+    }
+    let model: String = match provider_meta.resolve_models_with_fallback(models_res) {
+        Ok(models) if !models.is_empty() => select_model_from_list(&models, provider_meta)?,
+        Ok(_) => {
+            let default_model = std::env::var("GOOSE_MODEL")
+                .unwrap_or_else(|_| provider_meta.default_model.clone());
             cliclack::input("Enter a model from that provider:")
                 .default_input(&default_model)
                 .interact()?
+        }
+        Err(e) => {
+            cliclack::outro(style(e.to_string()).on_red().white())?;
+            return Ok(false);
         }
     };
 
