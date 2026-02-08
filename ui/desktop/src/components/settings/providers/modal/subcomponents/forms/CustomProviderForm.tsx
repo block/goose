@@ -4,7 +4,7 @@ import { Select } from '../../../../../ui/Select';
 import { Button } from '../../../../../ui/button';
 import { SecureStorageNotice } from '../SecureStorageNotice';
 import { UpdateCustomProviderRequest } from '../../../../../../api';
-import { Trash2, AlertTriangle } from 'lucide-react';
+import { Trash2, AlertTriangle, ChevronDown, ChevronRight } from 'lucide-react';
 
 interface CustomProviderFormProps {
   onSubmit: (data: UpdateCustomProviderRequest) => void;
@@ -30,6 +30,10 @@ export default function CustomProviderForm({
   const [models, setModels] = useState('');
   const [requiresApiKey, setRequiresApiKey] = useState(false);
   const [supportsStreaming, setSupportsStreaming] = useState(true);
+  const [apiKeyCommand, setApiKeyCommand] = useState('');
+  const [apiKeyFile, setApiKeyFile] = useState('');
+  const [apiKeyFileField, setApiKeyFileField] = useState('');
+  const [showAdvancedAuth, setShowAdvancedAuth] = useState(false);
   const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
   const [showDeleteConfirmation, setShowDeleteConfirmation] = useState(false);
 
@@ -46,6 +50,12 @@ export default function CustomProviderForm({
       setModels(initialData.models.join(', '));
       setSupportsStreaming(initialData.supports_streaming ?? true);
       setRequiresApiKey(initialData.requires_auth ?? true);
+      setApiKeyCommand(initialData.api_key_command ?? '');
+      setApiKeyFile(initialData.api_key_file ?? '');
+      setApiKeyFileField(initialData.api_key_file_field ?? '');
+      if (initialData.api_key_command || initialData.api_key_file) {
+        setShowAdvancedAuth(true);
+      }
     }
   }, [initialData]);
 
@@ -84,6 +94,9 @@ export default function CustomProviderForm({
       models: modelList,
       supports_streaming: supportsStreaming,
       requires_auth: requiresApiKey,
+      api_key_command: apiKeyCommand || null,
+      api_key_file: apiKeyFile || null,
+      api_key_file_field: apiKeyFileField || null,
     });
   };
 
@@ -222,6 +235,81 @@ export default function CustomProviderForm({
             )}
           </div>
         )}
+
+        <div className="mt-3">
+          <button
+            type="button"
+            className="flex items-center text-sm text-text-muted hover:text-text-default"
+            onClick={() => setShowAdvancedAuth(!showAdvancedAuth)}
+          >
+            {showAdvancedAuth ? (
+              <ChevronDown className="h-4 w-4 mr-1" />
+            ) : (
+              <ChevronRight className="h-4 w-4 mr-1" />
+            )}
+            Dynamic Authentication
+          </button>
+
+          {showAdvancedAuth && (
+            <div className="mt-3 space-y-3 pl-2 border-l-2 border-border-default">
+              <p className="text-xs text-text-muted">
+                For JWT refresh, credential files, or external auth tools. These take priority over a static API key.
+              </p>
+              <div>
+                <label
+                  htmlFor="api-key-command"
+                  className="block text-sm font-medium text-text-default mb-1"
+                >
+                  Auth Command
+                </label>
+                <Input
+                  id="api-key-command"
+                  value={apiKeyCommand}
+                  onChange={(e) => setApiKeyCommand(e.target.value)}
+                  placeholder="e.g. gcloud auth print-access-token"
+                />
+                <p className="text-xs text-text-muted mt-1">
+                  Shell command whose stdout is used as the bearer token (cached 5 min).
+                </p>
+              </div>
+              <div>
+                <label
+                  htmlFor="api-key-file"
+                  className="block text-sm font-medium text-text-default mb-1"
+                >
+                  Auth File Path
+                </label>
+                <Input
+                  id="api-key-file"
+                  value={apiKeyFile}
+                  onChange={(e) => setApiKeyFile(e.target.value)}
+                  placeholder="e.g. ~/.config/my-tool/credentials.json"
+                />
+                <p className="text-xs text-text-muted mt-1">
+                  File to read the token from. Supports ~ expansion.
+                </p>
+              </div>
+              <div>
+                <label
+                  htmlFor="api-key-file-field"
+                  className="block text-sm font-medium text-text-default mb-1"
+                >
+                  JSON Field Name
+                </label>
+                <Input
+                  id="api-key-file-field"
+                  value={apiKeyFileField}
+                  onChange={(e) => setApiKeyFileField(e.target.value)}
+                  placeholder="e.g. access_token"
+                  disabled={!apiKeyFile}
+                />
+                <p className="text-xs text-text-muted mt-1">
+                  If the file is JSON, extract this field as the token.
+                </p>
+              </div>
+            </div>
+          )}
+        </div>
       </div>
       {isEditable && (
         <>

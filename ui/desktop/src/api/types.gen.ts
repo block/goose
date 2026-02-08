@@ -154,7 +154,10 @@ export type CspMetadata = {
 };
 
 export type DeclarativeProviderConfig = {
+    api_key_command?: string | null;
     api_key_env?: string;
+    api_key_file?: string | null;
+    api_key_file_field?: string | null;
     base_url: string;
     description?: string | null;
     display_name: string;
@@ -1308,6 +1311,9 @@ export type UiMetadata = {
 
 export type UpdateCustomProviderRequest = {
     api_key: string;
+    api_key_command?: string | null;
+    api_key_file?: string | null;
+    api_key_file_field?: string | null;
     api_url: string;
     display_name: string;
     engine: string;
