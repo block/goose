@@ -142,7 +142,10 @@ pub struct ActionRequired {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ToSchema)]
 pub struct ThinkingContent {
     pub thinking: String,
-    pub signature: String,
+    /// Signature for thinking content. Required for Anthropic (encrypted thinking),
+    /// None for OpenAI-compatible providers (Moonshot, DeepSeek) using reasoning_content.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub signature: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ToSchema)]
@@ -399,10 +402,10 @@ impl MessageContent {
         })
     }
 
-    pub fn thinking<S1: Into<String>, S2: Into<String>>(thinking: S1, signature: S2) -> Self {
+    pub fn thinking<S: Into<String>>(thinking: S, signature: Option<String>) -> Self {
         MessageContent::Thinking(ThinkingContent {
             thinking: thinking.into(),
-            signature: signature.into(),
+            signature,
         })
     }
 
@@ -812,11 +815,7 @@ impl Message {
     }
 
     /// Add thinking content to the message
-    pub fn with_thinking<S1: Into<String>, S2: Into<String>>(
-        self,
-        thinking: S1,
-        signature: S2,
-    ) -> Self {
+    pub fn with_thinking<S: Into<String>>(self, thinking: S, signature: Option<String>) -> Self {
         self.with_content(MessageContent::thinking(thinking, signature))
     }
 

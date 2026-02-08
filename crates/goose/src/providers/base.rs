@@ -563,6 +563,19 @@ pub trait Provider: Send + Sync {
         false
     }
 
+    /// Whether tool call messages should be split into individual messages.
+    ///
+    /// When true (default), the agent splits a response with thinking + multiple tool calls
+    /// into separate messages: one thinking message and one message per tool call.
+    /// This is the legacy behavior used by most providers.
+    ///
+    /// When false, the original response message is kept intact with all tool calls and
+    /// reasoning content together. This is required by providers like Moonshot that expect
+    /// a single assistant message with all tool_calls and reasoning_content.
+    fn should_split_tool_messages(&self) -> bool {
+        true
+    }
+
     /// Get the currently active model name
     /// For regular providers, this returns the configured model
     /// For LeadWorkerProvider, this returns the currently active model (lead or worker)

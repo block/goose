@@ -611,7 +611,7 @@ mod tests {
                         meta: None,
                     }),
                 ), // Wrong role
-            Message::assistant().with_thinking("Let me think", "sig"),
+            Message::assistant().with_thinking("Let me think", Some("sig".to_string())),
             Message::user()
                 .with_tool_request(
                     "bad_req",

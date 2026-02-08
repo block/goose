@@ -270,7 +270,7 @@ pub fn response_to_message(response: &Value) -> Result<Message> {
                 let signature = content
                     .get("signature")
                     .and_then(|s| s.as_str())
-                    .ok_or_else(|| anyhow!("Missing thinking signature"))?;
+                    .map(|s| s.to_string());
                 message = message.with_thinking(thinking, signature);
             }
             Some("redacted_thinking") => {

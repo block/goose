@@ -1177,7 +1177,11 @@ export type TextContent = {
 };
 
 export type ThinkingContent = {
-    signature: string;
+    /**
+     * Signature for thinking content. Required for Anthropic (encrypted thinking),
+     * None for OpenAI-compatible providers (Moonshot, DeepSeek) using reasoning_content.
+     */
+    signature?: string | null;
     thinking: string;
 };
 

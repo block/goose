@@ -132,13 +132,16 @@ fn format_messages(messages: &[Message], image_format: &ImageFormat) -> Vec<Data
                 }
                 MessageContent::Thinking(content) => {
                     has_multiple_content = true;
+                    let mut summary_item = json!({
+                        "type": "summary_text",
+                        "text": content.thinking
+                    });
+                    if let Some(sig) = &content.signature {
+                        summary_item["signature"] = json!(sig);
+                    }
                     content_array.push(json!({
                         "type": "reasoning",
-                        "summary": [{
-                            "type": "summary_text",
-                            "text": content.thinking,
-                            "signature": content.signature
-                        }]
+                        "summary": [summary_item]
                     }));
                 }
                 MessageContent::RedactedThinking(content) => {
@@ -290,7 +293,7 @@ pub fn response_to_message(response: &Value) -> anyhow::Result<Message> {
                                     let signature = summary
                                         .get("signature")
                                         .and_then(|s| s.as_str())
-                                        .unwrap_or_default();
+                                        .map(|s| s.to_string());
                                     content.push(MessageContent::thinking(text, signature));
                                 }
                                 Some("summary_encrypted_text") => {
@@ -1114,7 +1117,7 @@ mod tests {
 
         if let MessageContent::Thinking(thinking) = &message.content[0] {
             assert_eq!(thinking.thinking, "Test thinking content");
-            assert_eq!(thinking.signature, "test-signature");
+            assert_eq!(thinking.signature.as_deref(), Some("test-signature"));
         } else {
             panic!("Expected Thinking content");
         }

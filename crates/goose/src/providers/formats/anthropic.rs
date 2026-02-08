@@ -99,11 +99,14 @@ pub fn format_messages(messages: &[Message]) -> Vec<Value> {
                     // Skip
                 }
                 MessageContent::Thinking(thinking) => {
-                    content.push(json!({
+                    let mut block = json!({
                         TYPE_FIELD: THINKING_TYPE,
-                        THINKING_TYPE: thinking.thinking,
-                        SIGNATURE_FIELD: thinking.signature
-                    }));
+                        THINKING_TYPE: thinking.thinking
+                    });
+                    if let Some(sig) = &thinking.signature {
+                        block[SIGNATURE_FIELD] = json!(sig);
+                    }
+                    content.push(block);
                 }
                 MessageContent::RedactedThinking(redacted) => {
                     content.push(json!({
@@ -266,7 +269,7 @@ pub fn response_to_message(response: &Value) -> Result<Message> {
                 let signature = block
                     .get(SIGNATURE_FIELD)
                     .and_then(|s| s.as_str())
-                    .ok_or_else(|| anyhow!("Missing thinking signature"))?;
+                    .map(|s| s.to_string());
                 message = message.with_thinking(thinking, signature);
             }
             Some(REDACTED_THINKING_TYPE) => {
@@ -836,6 +839,8 @@ mod tests {
             );
             assert!(thinking
                 .signature
+                .as_ref()
+                .unwrap()
                 .starts_with("EuYBCkQYAiJAVbJNBoH7HQiDcMwwAMhWqNyoe4G2xHRprK8ICM8g"));
         } else {
             panic!("Expected Thinking content at index 0");
