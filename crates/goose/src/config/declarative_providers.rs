@@ -1,7 +1,9 @@
 use crate::config::paths::Paths;
 use crate::config::Config;
 use crate::providers::anthropic::AnthropicProvider;
+use crate::providers::api_client::AuthMethod;
 use crate::providers::base::{ModelInfo, ProviderType};
+use crate::providers::dynamic_auth::{AuthHeaderStyle, CommandAuthProvider, FileAuthProvider};
 use crate::providers::ollama::OllamaProvider;
 use crate::providers::openai::OpenAiProvider;
 use anyhow::Result;
@@ -42,6 +44,12 @@ pub struct DeclarativeProviderConfig {
     pub supports_streaming: Option<bool>,
     #[serde(default = "default_requires_auth")]
     pub requires_auth: bool,
+    #[serde(default)]
+    pub api_key_command: Option<String>,
+    #[serde(default)]
+    pub api_key_file: Option<String>,
+    #[serde(default)]
+    pub api_key_file_field: Option<String>,
 }
 
 fn default_requires_auth() -> bool {
@@ -59,6 +67,48 @@ impl DeclarativeProviderConfig {
 
     pub fn models(&self) -> &[ModelInfo] {
         &self.models
+    }
+
+    /// Resolve authentication method using priority:
+    /// `api_key_command` > `api_key_file` > `api_key_env` > `NoAuth`
+    pub fn resolve_auth_method(&self, engine: &ProviderEngine) -> Result<AuthMethod> {
+        let header_style = match engine {
+            ProviderEngine::Anthropic => AuthHeaderStyle::CustomHeader {
+                header_name: "x-api-key".to_string(),
+            },
+            _ => AuthHeaderStyle::BearerToken,
+        };
+
+        if let Some(ref command) = self.api_key_command {
+            let provider = CommandAuthProvider::new(command.clone(), header_style);
+            return Ok(AuthMethod::Custom(Box::new(provider)));
+        }
+
+        if let Some(ref file_path) = self.api_key_file {
+            let provider = FileAuthProvider::new(
+                file_path.clone(),
+                self.api_key_file_field.clone(),
+                header_style,
+            );
+            return Ok(AuthMethod::Custom(Box::new(provider)));
+        }
+
+        if self.requires_auth && !self.api_key_env.is_empty() {
+            let global_config = Config::global();
+            if let Ok(key) = global_config.get_secret(&self.api_key_env) {
+                if !key.is_empty() {
+                    return Ok(match engine {
+                        ProviderEngine::Anthropic => AuthMethod::ApiKey {
+                            header_name: "x-api-key".to_string(),
+                            key,
+                        },
+                        _ => AuthMethod::BearerToken(key),
+                    });
+                }
+            }
+        }
+
+        Ok(AuthMethod::NoAuth)
     }
 }
 
@@ -102,6 +152,9 @@ pub struct CreateCustomProviderParams {
     pub supports_streaming: Option<bool>,
     pub headers: Option<HashMap<String, String>>,
     pub requires_auth: bool,
+    pub api_key_command: Option<String>,
+    pub api_key_file: Option<String>,
+    pub api_key_file_field: Option<String>,
 }
 
 #[derive(Debug, Clone)]
@@ -115,6 +168,9 @@ pub struct UpdateCustomProviderParams {
     pub supports_streaming: Option<bool>,
     pub headers: Option<HashMap<String, String>>,
     pub requires_auth: bool,
+    pub api_key_command: Option<String>,
+    pub api_key_file: Option<String>,
+    pub api_key_file_field: Option<String>,
 }
 
 pub fn create_custom_provider(
@@ -154,6 +210,9 @@ pub fn create_custom_provider(
         timeout_seconds: None,
         supports_streaming: params.supports_streaming,
         requires_auth: params.requires_auth,
+        api_key_command: params.api_key_command,
+        api_key_file: params.api_key_file,
+        api_key_file_field: params.api_key_file_field,
     };
 
     let custom_providers_dir = custom_providers_dir();
@@ -211,6 +270,9 @@ pub fn update_custom_provider(params: UpdateCustomProviderParams) -> Result<()> 
             timeout_seconds: existing_config.timeout_seconds,
             supports_streaming: params.supports_streaming,
             requires_auth: params.requires_auth,
+            api_key_command: params.api_key_command.or(existing_config.api_key_command),
+            api_key_file: params.api_key_file.or(existing_config.api_key_file),
+            api_key_file_field: params.api_key_file_field.or(existing_config.api_key_file_field),
         };
 
         let file_path = custom_providers_dir().join(format!("{}.json", updated_config.name));
