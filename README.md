@@ -43,6 +43,10 @@ Designed for maximum flexibility, goose works with any LLM and supports multi-mo
 > 
 > Because it always helps them "migrate" their code to production! 🚀
 
+> What did goose say when it finished debugging the code?
+> 
+> "That bug didn't stand a *gander*!" 🐛
+
 # goose around with us  
 - [Discord](https://discord.gg/goose-oss)
 - [YouTube](https://www.youtube.com/@goose-oss)

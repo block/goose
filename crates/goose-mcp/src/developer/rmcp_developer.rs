@@ -3,7 +3,7 @@ use base64::Engine;
 use etcetera::AppStrategy;
 use ignore::gitignore::{Gitignore, GitignoreBuilder};
 use include_dir::{include_dir, Dir};
-use indoc::{formatdoc, indoc};
+use indoc::formatdoc;
 use once_cell::sync::Lazy;
 use rmcp::{
     handler::server::{router::tool::ToolRouter, wrapper::Parameters},
@@ -63,9 +63,7 @@ use crate::developer::{paths::get_shell_path_dirs, shell::ShellConfig};
 use super::analyze::{types::AnalyzeParams, CodeAnalyzer};
 use super::editor_models::{create_editor_model, EditorModel};
 use super::shell::{configure_shell_command, expand_path, is_absolute_path, kill_process_group};
-use super::text_editor::{
-    text_editor_insert, text_editor_replace, text_editor_undo, text_editor_view, text_editor_write,
-};
+use super::text_editor::{text_editor_replace, text_editor_view, text_editor_write};
 
 /// Parameters for the screen_capture tool
 #[derive(Debug, Serialize, Deserialize, JsonSchema)]
@@ -79,37 +77,40 @@ pub struct ScreenCaptureParams {
     pub window_title: Option<String>,
 }
 
-/// Parameters for the text_editor tool
+/// Parameters for the read tool
 #[derive(Debug, Serialize, Deserialize, JsonSchema)]
-pub struct TextEditorParams {
-    /// Absolute path to file or directory, e.g. `/repo/file.py` or `/repo`.
+pub struct ReadParams {
+    /// Path to file or directory (relative or absolute)
     pub path: String,
 
-    /// The operation to perform. Allowed options are: `view`, `write`, `str_replace`, `insert`, `undo_edit`.
-    pub command: String,
-
-    /// Unified diff to apply. Supports editing multiple files simultaneously. Cannot create or delete files
-    /// Example: "--- a/file\n+++ b/file\n@@ -1,3 +1,3 @@\n context\n-old\n+new\n context"
-    /// Preferred edit method.
-    pub diff: Option<String>,
-
-    /// Optional array of two integers specifying the start and end line numbers to view.
-    /// Line numbers are 1-indexed, and -1 for the end line means read to the end of the file.
-    /// This parameter only applies when viewing files, not directories.
+    /// Optional line range [start, end] to view. 1-indexed, -1 for end of file.
     pub view_range: Option<Vec<i64>>,
-
-    /// The content to write to the file. Required for `write` command.
-    pub file_text: Option<String>,
-
-    /// The old string to replace.
-    pub old_str: Option<String>,
-
-    /// The new string to replace with. Required for `insert` command.
-    pub new_str: Option<String>,
-
-    /// The line number after which to insert text (0 for beginning). Required for `insert` command.
-    pub insert_line: Option<i64>,
 }
+
+/// Parameters for the edit tool
+#[derive(Debug, Serialize, Deserialize, JsonSchema)]
+pub struct EditParams {
+    /// Path to the file to edit (relative or absolute)
+    pub path: String,
+
+    /// Exact text to find and replace (must match exactly including whitespace)
+    pub old_str: String,
+
+    /// New text to replace with
+    pub new_str: String,
+}
+
+/// Parameters for the write tool
+#[derive(Debug, Serialize, Deserialize, JsonSchema)]
+pub struct WriteParams {
+    /// Path to the file to create or overwrite (relative or absolute)
+    pub path: String,
+
+    /// Content to write to the file
+    pub content: String,
+}
+
+
 
 /// Parameters for the shell tool
 #[derive(Debug, Serialize, Deserialize, JsonSchema)]
@@ -247,180 +248,26 @@ impl ServerHandler for DeveloperServer {
         let os = std::env::consts::OS;
         let in_container = Self::is_definitely_container();
 
-        let base_instructions = match os {
-            "windows" => formatdoc! {r#"
-                The developer extension gives you the capabilities to edit code files and run shell commands,
-                and can be used to solve a wide range of problems.
+        let shell_info = std::env::var("SHELL").unwrap_or_else(|_| "/bin/sh".to_string());
 
-                You can use the shell tool to run Windows commands (PowerShell or CMD).
-                When using paths, you can use either backslashes or forward slashes.
+        let instructions = formatdoc! {r#"
+            Tools: read, edit, write, shell
 
-                Use the shell tool as needed to locate files or interact with the project.
+            - read: View file contents (use view_range for partial reads)
+            - edit: Replace exact text (old_str must match exactly)
+            - write: Create or overwrite files
+            - shell: Run commands (prefer rg over grep/find)
 
-                Leverage `analyze` through `return_last_only=true` subagents for deep codebase understanding with lean context
-                - delegate analysis, retain summaries
-
-                Your windows/screen tools can be used for visual debugging. You should not use these tools unless
-                prompted to, but you can mention they are available if they are relevant.
-
-                operating system: {os}
-                current directory: {cwd}
-                {container_info}
-                "#,
-                os=os,
-                cwd=cwd.to_string_lossy(),
-                container_info=if in_container { "container: true" } else { "" },
-            },
-            _ => {
-                let shell_info = std::env::var("SHELL").unwrap_or_else(|_| "/bin/sh".to_string());
-
-                formatdoc! {r#"
-                The developer extension gives you the capabilities to edit code files and run shell commands,
-                and can be used to solve a wide range of problems.
-
-            You can use the shell tool to run any command that would work on the relevant operating system.
-            Use the shell tool as needed to locate files or interact with the project.
-
-            Leverage `analyze` through `return_last_only=true` subagents for deep codebase understanding with lean context
-            - delegate analysis, retain summaries
-
-            Your windows/screen tools can be used for visual debugging. You should not use these tools unless
-            prompted to, but you can mention they are available if they are relevant.
-
-            Always prefer ripgrep (rg -C 3) to grep.
-
-            operating system: {os}
-            current directory: {cwd}
+            os: {os}
+            cwd: {cwd}
             shell: {shell}
             {container_info}
-                "#,
-                os=os,
-                cwd=cwd.to_string_lossy(),
-                shell=shell_info,
-                container_info=if in_container { "container: true" } else { "" },
-                }
-            }
+            "#,
+            os=os,
+            cwd=cwd.to_string_lossy(),
+            shell=shell_info,
+            container_info=if in_container { "container: true" } else { "" },
         };
-
-        // Check if editor model exists and augment with custom llm editor tool description
-        let editor_description = if let Some(ref editor) = self.editor_model {
-            formatdoc! {r#"
-
-                Additional Text Editor Tool Instructions:
-
-                Perform text editing operations on files.
-                The `command` parameter specifies the operation to perform. Allowed options are:
-                - `view`: View the content of a file.
-                - `write`: Create or overwrite a file with the given content
-                - `str_replace`: Replace text in one or more files.
-                - `insert`: Insert text at a specific line location in the file.
-                - `undo_edit`: Undo the last edit made to a file.
-
-                To use the write command, you must specify `file_text` which will become the new content of the file. Be careful with
-                existing files! This is a full overwrite, so you must include everything - not just sections you are modifying.
-
-                To use the insert command, you must specify both `insert_line` (the line number after which to insert, 0 for beginning, -1 for end)
-                and `new_str` (the text to insert).
-
-                To use the str_replace command to edit multiple files, use the `diff` parameter with a unified diff.
-                To use the str_replace command to edit one file, you must specify both `old_str` and `new_str` - the `old_str` needs to exactly match one
-                unique section of the original file, including any whitespace. Make sure to include enough context that the match is not
-                ambiguous. The entire original string will be replaced with `new_str`
-
-                When possible, batch file edits together by using a multi-file unified `diff` within a single str_replace tool call.
-
-                {}
-
-            "#, editor.get_str_replace_description()}
-        } else {
-            formatdoc! {r#"
-
-                Additional Text Editor Tool Instructions:
-
-                Perform text editing operations on files.
-
-                The `command` parameter specifies the operation to perform. Allowed options are:
-                - `view`: View the content of a file.
-                - `write`: Create or overwrite a file with the given content
-                - `str_replace`: Replace text in one or more files.
-                - `insert`: Insert text at a specific line location in the file.
-                - `undo_edit`: Undo the last edit made to a file.
-
-                To use the write command, you must specify `file_text` which will become the new content of the file. Be careful with
-                existing files! This is a full overwrite, so you must include everything - not just sections you are modifying.
-
-                To use the str_replace command to edit multiple files, use the `diff` parameter with a unified diff.
-                To use the str_replace command to edit one file, you must specify both `old_str` and `new_str` - the `old_str` needs to exactly match one
-                unique section of the original file, including any whitespace. Make sure to include enough context that the match is not
-                ambiguous. The entire original string will be replaced with `new_str`
-
-                When possible, batch file edits together by using a multi-file unified `diff` within a single str_replace tool call.
-
-                To use the insert command, you must specify both `insert_line` (the line number after which to insert, 0 for beginning, -1 for end)
-                and `new_str` (the text to insert).
-
-
-            "#}
-        };
-
-        // Create comprehensive shell tool instructions
-        let common_shell_instructions = indoc! {r#"
-            Additional Shell Tool Instructions:
-            Execute a command in the shell.
-
-            This will return the output and error concatenated into a single string, as
-            you would see from running on the command line. There will also be an indication
-            of if the command succeeded or failed.
-
-            Avoid commands that produce a large amount of output, and consider piping those outputs to files.
-
-            **Important**: Each shell command runs in its own process. Things like directory changes or
-            sourcing files do not persist between tool calls. So you may need to repeat them each time by
-            stringing together commands.
-
-            If fetching web content, consider adding Accept: text/markdown header
-        "#};
-
-        let windows_specific = indoc! {r#"
-            **Important**: For searching files and code:
-
-            Preferred: Use ripgrep (`rg`) when available - it respects .gitignore and is fast:
-              - To locate a file by name: `rg --files | rg example.py`
-              - To locate content inside files: `rg 'class Example'`
-
-            Alternative Windows commands (if ripgrep is not installed):
-              - To locate a file by name: `dir /s /b example.py`
-              - To locate content inside files: `findstr /s /i "class Example" *.py`
-
-            Note: Alternative commands may show ignored/hidden files that should be excluded.
-
-              - Multiple commands: Use && to chain commands, avoid newlines
-              - Example: `cd example && dir` or `activate.bat && pip install numpy`
-
-             **Important**: Use forward slashes in paths (e.g., `C:/Users/name`) to avoid
-                 escape character issues with backslashes, i.e. \n in a path could be
-                 mistaken for a newline.
-        "#};
-
-        let unix_specific = indoc! {r#"
-            If you need to run a long lived command, background it - e.g. `uvicorn main:app &` so that
-            this tool does not run indefinitely.
-
-            **Important**: Use ripgrep - `rg` - exclusively when you need to locate a file or a code reference,
-            other solutions may produce too large output because of hidden files! For example *do not* use `find` or `ls -r`
-              - List files by name: `rg --files | rg <filename>`
-              - List files that contain a regex: `rg '<regex>' -l`
-
-              - Multiple commands: Use && to chain commands, avoid newlines
-              - Example: `cd example && ls` or `source env/bin/activate && pip install numpy`
-        "#};
-
-        let shell_tool_desc = match os {
-            "windows" => format!("{}{}", common_shell_instructions, windows_specific),
-            _ => format!("{}{}", common_shell_instructions, unix_specific),
-        };
-
-        let instructions = format!("{base_instructions}{editor_description}\n{shell_tool_desc}");
 
         ServerInfo {
             server_info: Implementation {
@@ -744,132 +591,91 @@ impl DeveloperServer {
         ]))
     }
 
-    /// Perform text editing operations on files.
-    ///
-    /// The `command` parameter specifies the operation to perform. Allowed options are:
-    /// - `view`: View the content of a file.
-    /// - `write`: Create or overwrite a file with the given content
-    /// - `str_replace`: Replace old_str with new_str in the file.
-    /// - `insert`: Insert text at a specific line location in the file.
-    /// - `undo_edit`: Undo the last edit made to a file.
+    /// Read file contents or list directory.
     #[tool(
-        name = "text_editor",
-        description = "Perform text editing operations on files. Commands: view (show file content), write (create/overwrite file), str_replace (edit file), insert (insert at line), undo_edit (undo last change)."
+        name = "read",
+        description = "Read file contents. Use view_range [start, end] for partial reads."
     )]
-    pub async fn text_editor(
+    pub async fn read(
         &self,
-        params: Parameters<TextEditorParams>,
+        params: Parameters<ReadParams>,
     ) -> Result<CallToolResult, ErrorData> {
         let params = params.0;
         let path = self.resolve_path(&params.path)?;
 
-        // Check if file is ignored before proceeding with any text editor operation
         if self.is_ignored(&path) {
             return Err(ErrorData::new(
                 ErrorCode::INTERNAL_ERROR,
-                format!(
-                    "Access to '{}' is restricted by .gooseignore",
-                    path.display()
-                ),
+                format!("Access to '{}' is restricted by .gooseignore", path.display()),
                 None,
             ));
         }
 
-        match params.command.as_str() {
-            "view" => {
-                let view_range = params.view_range.as_ref().and_then(|vr| {
-                    if vr.len() == 2 {
-                        Some((vr[0] as usize, vr[1]))
-                    } else {
-                        None
-                    }
-                });
-                let content = text_editor_view(&path, view_range).await?;
-                Ok(CallToolResult::success(content))
+        let view_range = params.view_range.as_ref().and_then(|vr| {
+            if vr.len() == 2 {
+                Some((vr[0] as usize, vr[1]))
+            } else {
+                None
             }
-            "write" => {
-                let file_text = params.file_text.ok_or_else(|| {
-                    ErrorData::new(
-                        ErrorCode::INVALID_PARAMS,
-                        "Missing 'file_text' parameter for write command".to_string(),
-                        None,
-                    )
-                })?;
-                let content = text_editor_write(&path, &file_text).await?;
-                Ok(CallToolResult::success(content))
-            }
-            "str_replace" => {
-                // Check if diff parameter is provided
-                if let Some(ref diff) = params.diff {
-                    // When diff is provided, old_str and new_str are not required
-                    let content = text_editor_replace(
-                        &path,
-                        "", // old_str not used with diff
-                        "", // new_str not used with diff
-                        Some(diff),
-                        &self.editor_model,
-                        &self.file_history,
-                    )
-                    .await?;
-                    Ok(CallToolResult::success(content))
-                } else {
-                    // Traditional str_replace with old_str and new_str
-                    let old_str = params.old_str.ok_or_else(|| {
-                        ErrorData::new(
-                            ErrorCode::INVALID_PARAMS,
-                            "Missing 'old_str' parameter for str_replace command".to_string(),
-                            None,
-                        )
-                    })?;
-                    let new_str = params.new_str.ok_or_else(|| {
-                        ErrorData::new(
-                            ErrorCode::INVALID_PARAMS,
-                            "Missing 'new_str' parameter for str_replace command".to_string(),
-                            None,
-                        )
-                    })?;
-                    let content = text_editor_replace(
-                        &path,
-                        &old_str,
-                        &new_str,
-                        None,
-                        &self.editor_model,
-                        &self.file_history,
-                    )
-                    .await?;
-                    Ok(CallToolResult::success(content))
-                }
-            }
-            "insert" => {
-                let insert_line = params.insert_line.ok_or_else(|| {
-                    ErrorData::new(
-                        ErrorCode::INVALID_PARAMS,
-                        "Missing 'insert_line' parameter for insert command".to_string(),
-                        None,
-                    )
-                })? as usize;
-                let new_str = params.new_str.ok_or_else(|| {
-                    ErrorData::new(
-                        ErrorCode::INVALID_PARAMS,
-                        "Missing 'new_str' parameter for insert command".to_string(),
-                        None,
-                    )
-                })?;
-                let content =
-                    text_editor_insert(&path, insert_line as i64, &new_str, &self.file_history)
-                        .await?;
-                Ok(CallToolResult::success(content))
-            }
-            "undo_edit" => {
-                let content = text_editor_undo(&path, &self.file_history).await?;
-                Ok(CallToolResult::success(content))
-            }
-            _ => Err(ErrorData::new(
-                ErrorCode::INVALID_PARAMS,
-                format!("Unknown command '{}'", params.command),
+        });
+        let content = text_editor_view(&path, view_range).await?;
+        Ok(CallToolResult::success(content))
+    }
+
+    /// Edit a file by replacing exact text.
+    #[tool(
+        name = "edit",
+        description = "Edit a file by replacing exact text. old_str must match exactly including whitespace."
+    )]
+    pub async fn edit(
+        &self,
+        params: Parameters<EditParams>,
+    ) -> Result<CallToolResult, ErrorData> {
+        let params = params.0;
+        let path = self.resolve_path(&params.path)?;
+
+        if self.is_ignored(&path) {
+            return Err(ErrorData::new(
+                ErrorCode::INTERNAL_ERROR,
+                format!("Access to '{}' is restricted by .gooseignore", path.display()),
                 None,
-            )),
+            ));
         }
+
+        let content = text_editor_replace(
+            &path,
+            &params.old_str,
+            &params.new_str,
+            None,
+            &self.editor_model,
+            &self.file_history,
+        )
+        .await?;
+        Ok(CallToolResult::success(content))
+    }
+
+    /// Create or overwrite a file.
+    #[tool(
+        name = "write",
+        description = "Create or overwrite a file with the given content."
+    )]
+    pub async fn write(
+        &self,
+        params: Parameters<WriteParams>,
+    ) -> Result<CallToolResult, ErrorData> {
+        let params = params.0;
+        let path = self.resolve_path(&params.path)?;
+
+        if self.is_ignored(&path) {
+            return Err(ErrorData::new(
+                ErrorCode::INTERNAL_ERROR,
+                format!("Access to '{}' is restricted by .gooseignore", path.display()),
+                None,
+            ));
+        }
+
+        let content = text_editor_write(&path, &params.content).await?;
+        Ok(CallToolResult::success(content))
     }
 
     /// Execute a command in the shell.
