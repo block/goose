@@ -23,7 +23,7 @@ jobs:
         env:
           DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_GOOSE_STATUS }}
         run: |
-          curl -H "Content-Type: application/json" \
+          curl -sS --fail-with-body -H "Content-Type: application/json" \
             -d '{
               "embeds": [{
                 "title": "❌ Build Failed",
