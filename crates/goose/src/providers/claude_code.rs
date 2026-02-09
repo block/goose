@@ -3,8 +3,10 @@ use async_trait::async_trait;
 use futures::future::BoxFuture;
 use rmcp::model::Role;
 use serde_json::{json, Value};
+use std::io::Write;
 use std::path::PathBuf;
 use std::process::Stdio;
+use tempfile::NamedTempFile;
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 use tokio::process::Command;
 
@@ -12,8 +14,9 @@ use super::base::{ConfigKey, Provider, ProviderDef, ProviderMetadata, ProviderUs
 use super::errors::ProviderError;
 use super::utils::{filter_extensions_from_system_prompt, RequestLog};
 use crate::config::base::ClaudeCodeCommand;
+use crate::config::paths::Paths;
 use crate::config::search_path::SearchPaths;
-use crate::config::{Config, GooseMode};
+use crate::config::{Config, ExtensionConfig, GooseMode};
 use crate::conversation::message::{Message, MessageContent};
 use crate::model::ModelConfig;
 use crate::subprocess::configure_subprocess;
@@ -145,6 +148,9 @@ pub struct ClaudeCodeProvider {
     model: ModelConfig,
     #[serde(skip)]
     name: String,
+    /// Temp file holding MCP config JSON (auto-deleted on drop).
+    #[serde(skip)]
+    mcp_config_file: Option<NamedTempFile>,
     #[serde(skip)]
     cli_process: tokio::sync::OnceCell<tokio::sync::Mutex<CliProcess>>,
 }
@@ -374,6 +380,10 @@ impl ClaudeCodeProvider {
             .cli_process
             .get_or_try_init(|| async {
                 let mut cmd = self.build_stream_json_command();
+                if let Some(f) = &self.mcp_config_file {
+                    cmd.arg("--mcp-config").arg(f.path());
+                    cmd.arg("--strict-mcp-config");
+                }
                 // System prompt is set once at process start and cannot be updated at runtime.
                 cmd.arg("--system-prompt").arg(&filtered_system);
 
@@ -577,7 +587,75 @@ fn build_stream_json_input(content_blocks: &[Value], session_id: &str) -> String
     serde_json::to_string(&msg).expect("serializing JSON content blocks cannot fail")
 }
 
-#[async_trait]
+fn claude_mcp_config_json(extensions: &[ExtensionConfig]) -> Option<String> {
+    let mut mcp_servers = serde_json::Map::new();
+
+    for extension in extensions {
+        match extension {
+            ExtensionConfig::StreamableHttp { uri, headers, .. } => {
+                let key = extension.key();
+                let mut config = serde_json::Map::new();
+                config.insert("type".to_string(), json!("http"));
+                config.insert("url".to_string(), json!(uri));
+                if !headers.is_empty() {
+                    config.insert("headers".to_string(), json!(headers));
+                }
+                mcp_servers.insert(key, Value::Object(config));
+            }
+            ExtensionConfig::Stdio {
+                cmd, args, envs, ..
+            } => {
+                let key = extension.key();
+                let mut config = serde_json::Map::new();
+                config.insert("type".to_string(), json!("stdio"));
+                config.insert("command".to_string(), json!(cmd));
+                if !args.is_empty() {
+                    config.insert("args".to_string(), json!(args));
+                }
+                let env_map = envs.get_env();
+                if !env_map.is_empty() {
+                    config.insert("env".to_string(), json!(env_map));
+                }
+                mcp_servers.insert(key, Value::Object(config));
+            }
+            ExtensionConfig::Sse { name, .. } => {
+                tracing::debug!(name, "skipping SSE extension, migrate to streamable_http");
+            }
+            _ => {}
+        }
+    }
+
+    if mcp_servers.is_empty() {
+        return None;
+    }
+
+    serde_json::to_string(&json!({ "mcpServers": mcp_servers })).ok()
+}
+
+/// Write the MCP config JSON to a temp file with restricted permissions
+/// so secrets (headers, env vars) are not leaked via process argv.
+/// The file is auto-deleted when the returned `NamedTempFile` is dropped.
+fn write_mcp_config_file(
+    extensions: &[ExtensionConfig],
+) -> Result<Option<NamedTempFile>, anyhow::Error> {
+    let json = match claude_mcp_config_json(extensions) {
+        Some(j) => j,
+        None => return Ok(None),
+    };
+    let dir = Paths::state_dir().join("claude-code/mcp");
+    std::fs::create_dir_all(&dir)?;
+    let mut tmp = tempfile::Builder::new().suffix(".json").tempfile_in(&dir)?;
+    tmp.write_all(json.as_bytes())?;
+    // Restrict to owner-only on unix
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        tmp.as_file()
+            .set_permissions(std::fs::Permissions::from_mode(0o600))?;
+    }
+    Ok(Some(tmp))
+}
+
 impl ProviderDef for ClaudeCodeProvider {
     type Provider = Self;
 
@@ -598,16 +676,22 @@ impl ProviderDef for ClaudeCodeProvider {
         .with_unlisted_models()
     }
 
-    fn from_env(model: ModelConfig) -> BoxFuture<'static, Result<Self::Provider>> {
+    fn from_env(
+        model: ModelConfig,
+        extensions: Vec<ExtensionConfig>,
+    ) -> BoxFuture<'static, Result<Self::Provider>> {
         Box::pin(async move {
             let config = crate::config::Config::global();
             let command: String = config.get_claude_code_command().unwrap_or_default().into();
             let resolved_command = SearchPaths::builder().with_npm().resolve(command)?;
 
+            let mcp_config_file = write_mcp_config_file(&extensions)?;
+
             Ok(Self {
                 command: resolved_command,
                 model,
                 name: CLAUDE_CODE_PROVIDER_NAME.to_string(),
+                mcp_config_file,
                 cli_process: tokio::sync::OnceCell::new(),
             })
         })
@@ -737,8 +821,10 @@ impl Provider for ClaudeCodeProvider {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::agents::extension::Envs;
     use goose_test_support::session::TEST_SESSION_ID;
     use serde_json::json;
+    use std::collections::HashMap;
     use test_case::test_case;
 
     /// (role, text, optional (image_data, mime_type))
@@ -940,11 +1026,78 @@ mod tests {
         assert_eq!(result, expected);
     }
 
+    #[test_case(
+        ExtensionConfig::Stdio {
+            name: "lookup".into(),
+            description: String::new(),
+            cmd: "node".into(),
+            args: vec!["server.js".into()],
+            envs: Envs::new([("API_KEY".into(), "secret".into())].into()),
+            env_keys: vec![],
+            timeout: None,
+            bundled: Some(false),
+            available_tools: vec![],
+        },
+        json!({
+            "type": "stdio",
+            "command": "node",
+            "args": ["server.js"],
+            "env": { "API_KEY": "secret" }
+        })
+        ; "stdio_converts_to_mcp_config_json"
+    )]
+    #[test_case(
+        ExtensionConfig::StreamableHttp {
+            name: "lookup".into(),
+            description: String::new(),
+            uri: "http://localhost/mcp".into(),
+            envs: Envs::default(),
+            env_keys: vec![],
+            headers: HashMap::from([("Authorization".into(), "Bearer token".into())]),
+            timeout: None,
+            bundled: Some(false),
+            available_tools: vec![],
+        },
+        json!({
+            "type": "http",
+            "url": "http://localhost/mcp",
+            "headers": { "Authorization": "Bearer token" }
+        })
+        ; "streamable_http_converts_to_mcp_config_json"
+    )]
+    fn test_claude_mcp_config_json(config: ExtensionConfig, expected: Value) {
+        let json = claude_mcp_config_json(&[config]).unwrap();
+        let parsed: Value = serde_json::from_str(&json).unwrap();
+        assert_eq!(parsed["mcpServers"]["lookup"], expected);
+    }
+
+    #[test]
+    fn test_claude_mcp_config_json_empty_name_derives_key() {
+        let config = ExtensionConfig::StreamableHttp {
+            name: String::new(),
+            description: String::new(),
+            uri: "https://mcp.kiwi.com".into(),
+            envs: Envs::default(),
+            env_keys: vec![],
+            headers: HashMap::new(),
+            timeout: None,
+            bundled: None,
+            available_tools: vec![],
+        };
+        let json = claude_mcp_config_json(&[config]).unwrap();
+        let parsed: Value = serde_json::from_str(&json).unwrap();
+        assert_eq!(
+            parsed["mcpServers"]["mcp_kiwi_com"],
+            json!({"type": "http", "url": "https://mcp.kiwi.com"})
+        );
+    }
+
     fn make_provider() -> ClaudeCodeProvider {
         ClaudeCodeProvider {
             command: PathBuf::from("claude"),
             model: ModelConfig::new(CLAUDE_CODE_DEFAULT_MODEL).unwrap(),
             name: "claude-code".to_string(),
+            mcp_config_file: None,
             cli_process: tokio::sync::OnceCell::new(),
         }
     }

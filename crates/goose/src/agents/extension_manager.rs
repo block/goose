@@ -137,6 +137,7 @@ impl ResourceItem {
 
 /// Generates extension name from server info; adds random suffix on collision.
 fn generate_extension_name(
+    config: &ExtensionConfig,
     server_info: Option<&ServerInfo>,
     name_exists: impl Fn(&str) -> bool,
 ) -> String {
@@ -145,7 +146,7 @@ fn generate_extension_name(
             let name = info.server_info.name.as_str();
             (!name.is_empty()).then(|| name_to_key(name))
         })
-        .unwrap_or_else(|| "unnamed".to_string());
+        .unwrap_or_else(|| config.key());
 
     if !name_exists(&base) {
         return base;
@@ -709,7 +710,9 @@ impl ExtensionManager {
         // Only generate name from server info when config has no name (e.g., CLI --with-*-extension args)
         let mut extensions = self.extensions.lock().await;
         let final_name = if sanitized_name.is_empty() {
-            generate_extension_name(server_info.as_ref(), |n| extensions.contains_key(n))
+            generate_extension_name(&config, server_info.as_ref(), |n| {
+                extensions.contains_key(n)
+            })
         } else {
             sanitized_name
         };
@@ -2035,6 +2038,17 @@ mod tests {
             }
         }
 
+        fn empty_name_config() -> ExtensionConfig {
+            ExtensionConfig::Builtin {
+                name: String::new(),
+                description: String::new(),
+                display_name: None,
+                timeout: None,
+                bundled: None,
+                available_tools: vec![],
+            }
+        }
+
         #[test_case(Some("kiwi-mcp-server"), None, "^kiwi-mcp-server$" ; "already normalized server name")]
         #[test_case(Some("Context7"), None, "^context7$" ; "mixed case normalized")]
         #[test_case(Some("@huggingface/mcp-services"), None, "^_huggingface_mcp-services$" ; "special chars normalized")]
@@ -2042,10 +2056,28 @@ mod tests {
         #[test_case(Some(""), None, "^unnamed$" ; "empty server name falls back")]
         #[test_case(Some("github-mcp-server"), Some("github-mcp-server"), r"^github-mcp-server_[A-Za-z0-9]{6}$" ; "duplicate adds suffix")]
         fn test_generate_name(server_name: Option<&str>, collision: Option<&str>, expected: &str) {
+            let config = empty_name_config();
             let info = server_name.map(make_info);
-            let result = generate_extension_name(info.as_ref(), |n| collision == Some(n));
+            let result = generate_extension_name(&config, info.as_ref(), |n| collision == Some(n));
             let re = regex::Regex::new(expected).unwrap();
             assert!(re.is_match(&result));
+        }
+
+        #[test]
+        fn test_generate_name_uses_key_when_no_server_info() {
+            let config = ExtensionConfig::StreamableHttp {
+                name: String::new(),
+                description: String::new(),
+                uri: "https://mcp.kiwi.com".into(),
+                envs: crate::agents::extension::Envs::default(),
+                env_keys: vec![],
+                headers: std::collections::HashMap::new(),
+                timeout: None,
+                bundled: None,
+                available_tools: vec![],
+            };
+            let result = generate_extension_name(&config, None, |_| false);
+            assert_eq!(result, "mcp_kiwi_com");
         }
     }
 

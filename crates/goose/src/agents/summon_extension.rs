@@ -1349,7 +1349,7 @@ impl SummonClient {
             model_config = model_config.with_temperature(Some(temp));
         }
 
-        providers::create(&provider_name, model_config).await
+        providers::create(&provider_name, model_config, Vec::new()).await
     }
 
     fn resolve_extensions(

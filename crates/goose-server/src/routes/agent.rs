@@ -15,6 +15,7 @@ use goose::goose_apps::{fetch_mcp_apps, GooseApp, McpAppCache};
 
 use base64::Engine;
 use goose::agents::ExtensionConfig;
+use goose::config::extensions::get_enabled_extensions_with_config;
 use goose::config::resolve_extensions_for_new_session;
 use goose::config::{Config, GooseMode};
 use goose::model::ModelConfig;
@@ -553,12 +554,23 @@ async fn update_agent_provider(
         .with_context_limit(payload.context_limit)
         .with_request_params(payload.request_params);
 
-    let new_provider = create(&payload.provider, model_config).await.map_err(|e| {
-        (
-            StatusCode::BAD_REQUEST,
-            format!("Failed to create {} provider: {}", &payload.provider, e),
-        )
-    })?;
+    let extensions = state
+        .session_manager()
+        .get_session(&payload.session_id, false)
+        .await
+        .ok()
+        .and_then(|session| EnabledExtensionsState::from_extension_data(&session.extension_data))
+        .map(|state| state.extensions)
+        .unwrap_or_else(|| get_enabled_extensions_with_config(Config::global()));
+
+    let new_provider = create(&payload.provider, model_config, extensions)
+        .await
+        .map_err(|e| {
+            (
+                StatusCode::BAD_REQUEST,
+                format!("Failed to create {} provider: {}", &payload.provider, e),
+            )
+        })?;
 
     agent
         .update_provider(new_provider, &payload.session_id)

@@ -490,17 +490,12 @@ async fn handle_resumed_session_workdir(agent: &Agent, session_id: &str, interac
     }
 }
 
-async fn resolve_and_load_extensions(
-    agent: Agent,
+async fn resolve_extension_configs(
+    agent: &Agent,
     session_config: &SessionBuilderConfig,
     recipe: Option<&Recipe>,
     session_id: &str,
-    provider_for_debug: Arc<dyn goose::providers::base::Provider>,
-) -> Arc<Agent> {
-    for warning in goose::config::get_warnings() {
-        eprintln!("{}", style(format!("Warning: {}", warning)).yellow());
-    }
-
+) -> Vec<ExtensionConfig> {
     let configured_extensions: Vec<ExtensionConfig> = if session_config.resume {
         agent
             .config
@@ -523,11 +518,27 @@ async fn resolve_and_load_extensions(
         &session_config.builtins,
     );
 
-    let mut extensions_to_load: Vec<(String, ExtensionConfig)> = configured_extensions
-        .iter()
-        .map(|cfg| (cfg.name(), cfg.clone()))
+    let mut all: Vec<ExtensionConfig> = configured_extensions;
+    all.extend(cli_flag_extensions.into_iter().map(|(_, cfg)| cfg));
+    all
+}
+
+async fn resolve_and_load_extensions(
+    agent: Agent,
+    session_config: &SessionBuilderConfig,
+    recipe: Option<&Recipe>,
+    session_id: &str,
+    provider_for_debug: Arc<dyn goose::providers::base::Provider>,
+) -> Arc<Agent> {
+    for warning in goose::config::get_warnings() {
+        eprintln!("{}", style(format!("Warning: {}", warning)).yellow());
+    }
+
+    let extensions = resolve_extension_configs(&agent, session_config, recipe, session_id).await;
+    let extensions_to_load: Vec<(String, ExtensionConfig)> = extensions
+        .into_iter()
+        .map(|cfg| (cfg.name(), cfg))
         .collect();
-    extensions_to_load.extend(cli_flag_extensions);
 
     load_extensions(
         agent,
@@ -598,7 +609,22 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> CliSession {
         .apply_recipe_components(recipe.and_then(|r| r.response.clone()), true)
         .await;
 
-    let new_provider = match create(&resolved.provider_name, resolved.model_config).await {
+    let session_id = resolve_session_id(&session_config, &session_manager).await;
+
+    if session_config.resume {
+        handle_resumed_session_workdir(&agent, &session_id, session_config.interactive).await;
+    }
+
+    let extensions_for_provider =
+        resolve_extension_configs(&agent, &session_config, recipe, &session_id).await;
+
+    let new_provider = match create(
+        &resolved.provider_name,
+        resolved.model_config,
+        extensions_for_provider,
+    )
+    .await
+    {
         Ok(provider) => provider,
         Err(e) => {
             output::render_error(&format!(
@@ -624,8 +650,6 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> CliSession {
         tracing::info!("🤖 Using model: {}", resolved.model_name);
     }
 
-    let session_id = resolve_session_id(&session_config, &session_manager).await;
-
     agent
         .update_provider(new_provider, &session_id)
         .await
@@ -643,10 +667,6 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> CliSession {
         {
             tracing::warn!("Failed to store recipe on session: {}", e);
         }
-    }
-
-    if session_config.resume {
-        handle_resumed_session_workdir(&agent, &session_id, session_config.interactive).await;
     }
 
     // Extensions are loaded after session creation because we may change directory when resuming

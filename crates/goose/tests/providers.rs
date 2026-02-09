@@ -351,7 +351,8 @@ impl ProviderTester {
         self.test_model_listing().await?;
         self.test_basic_response(&self.session_id_for_test("basic_response"))
             .await?;
-        // TODO: remove skip in https://github.com/block/goose/pull/6972
+        // CLI providers (claude-code, codex) call tools internally and return final
+        // text — the standard tool/image roundtrip tests don't apply.
         if !self.is_cli_provider {
             self.test_tool_usage(&self.session_id_for_test("tool_usage"))
                 .await?;
@@ -384,7 +385,6 @@ async fn test_provider(
     model_switch_name: Option<&str>,
     required_vars: &[&str],
     env_modifications: Option<HashMap<&str, Option<String>>>,
-    // CLI providers cannot propagate the agent-session-id header to MCP servers.
     is_cli_provider: bool,
 ) -> Result<()> {
     TEST_REPORT.record_fail(name);
@@ -443,7 +443,13 @@ async fn test_provider(
     let mcp_extension =
         ExtensionConfig::streamable_http("mcp-fixture", &mcp.url, "MCP fixture", 30_u64);
 
-    let provider = match create_with_named_model(&provider_name, model_name).await {
+    let provider = match create_with_named_model(
+        &provider_name,
+        model_name,
+        vec![mcp_extension.clone()],
+    )
+    .await
+    {
         Ok(p) => p,
         Err(e) => {
             println!("Skipping {} tests - failed to create provider: {}", name, e);

@@ -1584,7 +1584,13 @@ impl Agent {
             }
         };
 
-        let provider = crate::providers::create(&provider_name, model_config)
+        let extensions = EnabledExtensionsState::from_extension_data(&session.extension_data)
+            .map(|state| state.extensions)
+            .unwrap_or_else(|| {
+                crate::config::extensions::get_enabled_extensions_with_config(config)
+            });
+
+        let provider = crate::providers::create(&provider_name, model_config, extensions)
             .await
             .map_err(|e| anyhow!("Could not create provider: {}", e))?;
 
