@@ -355,8 +355,9 @@ Custom providers must use OpenAI, Anthropic, or Ollama compatible API formats. T
          - `Ollama Compatible`
        - **Display Name**: A friendly name for the provider
        - **API URL**: The base URL of the API endpoint
-       - **API Key**: The API key, which is accessed using a custom environment variable and stored in the keychain (or `secrets.yaml` if the keyring is disabled)
-         - For `Ollama Compatible` providers, click `This is a local model (no auth required)`
+       - **Authentication**:
+         - **API Key**: The API key, which is accessed using a custom environment variable and stored in the keychain (or `secrets.yaml` if the keyring is disabled)
+            - For providers that don't require authorization (e.g., local models like Ollama, vLLM, LM Studio, or internal APIs), uncheck the **"This provider requires an API key"** checkbox
        - **Available Models**: Comma-separated list of available model names
        - **Streaming Support**: Whether the API supports streaming responses (click to toggle)
     7. Click `Create Provider`
@@ -413,8 +414,9 @@ Custom providers must use OpenAI, Anthropic, or Ollama compatible API formats. T
          - `Ollama Compatible`
        - **Name**: A friendly name for the provider
        - **API URL**: The base URL of the API endpoint
-       - **API Key**: The API key, which is accessed using a custom environment variable and stored in the keychain (or `secrets.yaml` if the keyring is disabled)
-         - For `Ollama Compatible` providers, press `Enter` to skip (or enter any value to be able to use the provider in goose Desktop)
+       - **Authentication Required**: Answer "Yes" if your provider needs an API key, or "No" if authentication is not required
+         - If Yes: You'll be prompted to enter your **API Key** (stored securely in the keychain or `secrets.yaml`)
+         - If No: The API key prompt is skipped
        - **Available Models**: Comma-separated list of available model names
        - **Streaming Support**: Whether the API supports streaming responses
        - **Custom Headers**: Any additional header names and values
@@ -453,7 +455,8 @@ Custom providers must use OpenAI, Anthropic, or Ollama compatible API formats. T
         "x-origin-client-id": "YOUR_CLIENT_ID",
         "x-origin-secret": "YOUR_SECRET_VALUE"
       },
-      "supports_streaming": true
+      "supports_streaming": true,
+      "requires_auth": true
     }
     ```
 
