@@ -9,12 +9,6 @@
 #  - Windows: Uses Windows runner with native MSVC build
 on:
   workflow_dispatch:
-    inputs:
-      windows_only:
-        description: 'Build only Windows (for testing)'
-        required: false
-        type: boolean
-        default: false
   workflow_call:
     inputs:
       version:
@@ -32,8 +26,6 @@ jobs:
   build-cli:
     name: Build CLI
     runs-on: ${{ matrix.build-on }}
-    # Skip non-Windows builds when windows_only is true (for manual testing)
-    if: ${{ !inputs.windows_only || matrix.os == 'windows' }}
     strategy:
       fail-fast: false
       matrix:
