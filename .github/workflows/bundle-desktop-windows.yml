@@ -1,10 +1,13 @@
 name: "Bundle Desktop (Windows)"
 
 on:
-#  push:
-#    branches: [ "main" ]
-#  pull_request:
-#    branches: [ "main" ]
+  workflow_dispatch:
+    inputs:
+      signing:
+        description: 'Whether to sign the Windows executable'
+        required: false
+        type: boolean
+        default: false
   workflow_call:
     inputs:
       version:
