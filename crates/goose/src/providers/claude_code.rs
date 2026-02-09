@@ -475,6 +475,7 @@ impl ProviderDef for ClaudeCodeProvider {
             CLAUDE_CODE_DOC_URL,
             vec![ConfigKey::from_value_type::<ClaudeCodeCommand>(true, false)],
         )
+        .with_unlisted_models()
     }
 
     fn from_env(model: ModelConfig) -> BoxFuture<'static, Result<Self::Provider>> {
