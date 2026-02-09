@@ -10,12 +10,15 @@ use axum::{
     Json, Router,
 };
 use goose::agents::ExtensionConfig;
+use goose::conversation::message::Message;
+use goose::conversation::Conversation;
 use goose::recipe::Recipe;
 use goose::session::extension_data::ExtensionState;
-use goose::session::session_manager::SessionInsights;
+use goose::session::session_manager::{SessionInsights, SessionType};
 use goose::session::{EnabledExtensionsState, Session};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use std::path::PathBuf;
 use std::sync::Arc;
 use utoipa::ToSchema;
 
@@ -24,6 +27,22 @@ use utoipa::ToSchema;
 pub struct SessionListResponse {
     /// List of available session information objects
     sessions: Vec<Session>,
+}
+
+#[derive(Deserialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct CreateSessionRequest {
+    /// Working directory for the session
+    working_dir: String,
+    /// Optional session name (defaults to "New Chat")
+    name: Option<String>,
+}
+
+#[derive(Deserialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct UpdateConversationRequest {
+    /// The conversation messages to save
+    messages: Vec<Message>,
 }
 
 #[derive(Deserialize, ToSchema)]
@@ -487,9 +506,82 @@ async fn get_session_extensions(
     Ok(Json(SessionExtensionsResponse { extensions }))
 }
 
+#[utoipa::path(
+    post,
+    path = "/sessions",
+    request_body = CreateSessionRequest,
+    responses(
+        (status = 200, description = "Session created successfully", body = Session),
+        (status = 401, description = "Unauthorized - Invalid or missing API key"),
+        (status = 500, description = "Internal server error")
+    ),
+    security(
+        ("api_key" = [])
+    ),
+    tag = "Session Management"
+)]
+async fn create_session(
+    State(state): State<Arc<AppState>>,
+    Json(request): Json<CreateSessionRequest>,
+) -> Result<Json<Session>, StatusCode> {
+    let name = request.name.unwrap_or_else(|| "New Chat".to_string());
+    
+    let session = state
+        .session_manager()
+        .create_session(PathBuf::from(&request.working_dir), name, SessionType::User)
+        .await
+        .map_err(|e| {
+            tracing::error!("Failed to create session: {}", e);
+            StatusCode::INTERNAL_SERVER_ERROR
+        })?;
+
+    Ok(Json(session))
+}
+
+#[utoipa::path(
+    put,
+    path = "/sessions/{session_id}/conversation",
+    request_body = UpdateConversationRequest,
+    params(
+        ("session_id" = String, Path, description = "Unique identifier for the session")
+    ),
+    responses(
+        (status = 200, description = "Conversation updated successfully"),
+        (status = 401, description = "Unauthorized - Invalid or missing API key"),
+        (status = 404, description = "Session not found"),
+        (status = 500, description = "Internal server error")
+    ),
+    security(
+        ("api_key" = [])
+    ),
+    tag = "Session Management"
+)]
+async fn update_conversation(
+    State(state): State<Arc<AppState>>,
+    Path(session_id): Path<String>,
+    Json(request): Json<UpdateConversationRequest>,
+) -> Result<StatusCode, StatusCode> {
+    let conversation = Conversation::new_unvalidated(request.messages);
+    
+    state
+        .session_manager()
+        .replace_conversation(&session_id, &conversation)
+        .await
+        .map_err(|e| {
+            tracing::error!("Failed to update conversation for session {}: {}", session_id, e);
+            if e.to_string().contains("not found") {
+                StatusCode::NOT_FOUND
+            } else {
+                StatusCode::INTERNAL_SERVER_ERROR
+            }
+        })?;
+
+    Ok(StatusCode::OK)
+}
+
 pub fn routes(state: Arc<AppState>) -> Router {
     Router::new()
-        .route("/sessions", get(list_sessions))
+        .route("/sessions", get(list_sessions).post(create_session))
         .route("/sessions/{session_id}", get(get_session))
         .route("/sessions/{session_id}", delete(delete_session))
         .route("/sessions/{session_id}/export", get(export_session))
@@ -499,6 +591,10 @@ pub fn routes(state: Arc<AppState>) -> Router {
         )
         .route("/sessions/insights", get(get_session_insights))
         .route("/sessions/{session_id}/name", put(update_session_name))
+        .route(
+            "/sessions/{session_id}/conversation",
+            put(update_conversation),
+        )
         .route(
             "/sessions/{session_id}/user_recipe_values",
             put(update_session_user_recipe_values),

@@ -81,10 +81,18 @@ export async function createGooseSession(
 }
 
 /**
+ * Get the goosed URL from window config.
+ */
+function getGoosedUrl(): string {
+  return String(window.appConfig.get('GOOSE_API_HOST') || '');
+}
+
+/**
  * Create a new session using the Pi backend.
  */
 export async function createPiSession(workingDir: string): Promise<Session> {
-  const result = await window.electron.pi.createSession({ workingDir });
+  const goosedUrl = getGoosedUrl();
+  const result = await window.electron.pi.createSession({ workingDir, goosedUrl });
 
   if (!result.success || !result.session) {
     throw new Error(result.error || 'Failed to create Pi session');

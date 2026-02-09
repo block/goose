@@ -195,6 +195,13 @@ function toGooseSession(piSession: {
   };
 }
 
+/**
+ * Get the goosed URL from window config.
+ */
+function getGoosedUrl(): string {
+  return String(window.appConfig?.get('GOOSE_API_HOST') || '');
+}
+
 export function usePiChat({
   sessionId,
   onStreamFinish,
@@ -223,7 +230,8 @@ export function usePiChat({
         }
 
         // Try to resume existing session first
-        const resumeResult = await window.electron.pi.resumeSession(sessionId);
+        const goosedUrl = getGoosedUrl();
+        const resumeResult = await window.electron.pi.resumeSession(sessionId, goosedUrl);
         
         if (cancelled) return;
 
@@ -251,7 +259,7 @@ export function usePiChat({
           const workingDir =
             (window.appConfig?.get('GOOSE_WORKING_DIR') as string) || process.cwd?.() || '/';
 
-          const createResult = await window.electron.pi.createSession({ workingDir });
+          const createResult = await window.electron.pi.createSession({ workingDir, goosedUrl });
 
           if (cancelled) return;
 

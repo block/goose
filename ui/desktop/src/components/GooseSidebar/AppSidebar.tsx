@@ -34,6 +34,13 @@ import { getInitialWorkingDir } from '../../utils/workingDir';
 import { useConfig } from '../ConfigContext';
 import type { AgentBackend } from '../../hooks/useAgentChat';
 
+/**
+ * Get the goosed URL from window config.
+ */
+function getGoosedUrl(): string {
+  return String(window.appConfig?.get('GOOSE_API_HOST') || '');
+}
+
 interface SidebarProps {
   onSelectSession: (sessionId: string) => void;
   refreshTrigger?: number;
@@ -267,7 +274,8 @@ const AppSidebar: React.FC<SidebarProps> = ({ currentPath }) => {
         let session: Session | null = null;
         
         if (agentBackend === 'pi') {
-          const piSession = await window.electron.pi.getSession(activeSessionId);
+          const goosedUrl = getGoosedUrl();
+          const piSession = await window.electron.pi.getSession(activeSessionId, goosedUrl);
           if (piSession) {
             session = piSessionToGooseSession(piSession);
           }
@@ -300,9 +308,18 @@ const AppSidebar: React.FC<SidebarProps> = ({ currentPath }) => {
       try {
         let sessions: Session[] = [];
         
+        // For Pi backend, first try to load from goosed, fall back to local storage
         if (agentBackend === 'pi') {
-          const piSessions = await window.electron.pi.listSessions();
-          sessions = piSessions.slice(0, 10).map(piSessionToGooseSession);
+          const goosedUrl = getGoosedUrl();
+          if (goosedUrl) {
+            // Use goosed API - Pi sessions are stored there
+            const response = await listSessions<true>({ throwOnError: true });
+            sessions = response.data.sessions.slice(0, 10);
+          } else {
+            // Fall back to local Pi sessions (legacy)
+            const piSessions = await window.electron.pi.listSessions();
+            sessions = piSessions.slice(0, 10).map(piSessionToGooseSession);
+          }
         } else {
           const response = await listSessions<true>({ throwOnError: true });
           sessions = response.data.sessions.slice(0, 10);
@@ -359,9 +376,18 @@ const AppSidebar: React.FC<SidebarProps> = ({ currentPath }) => {
           
           let apiSessions: Session[] = [];
           
+          // For Pi backend, first try to load from goosed, fall back to local storage
           if (currentBackend === 'pi') {
-            const piSessions = await window.electron.pi.listSessions();
-            apiSessions = piSessions.slice(0, 10).map(piSessionToGooseSession);
+            const goosedUrl = getGoosedUrl();
+            if (goosedUrl) {
+              // Use goosed API - Pi sessions are stored there
+              const response = await listSessions<true>({ throwOnError: true });
+              apiSessions = response.data.sessions.slice(0, 10);
+            } else {
+              // Fall back to local Pi sessions (legacy)
+              const piSessions = await window.electron.pi.listSessions();
+              apiSessions = piSessions.slice(0, 10).map(piSessionToGooseSession);
+            }
           } else {
             const response = await listSessions<true>({ throwOnError: true });
             apiSessions = response.data.sessions.slice(0, 10);

@@ -2668,6 +2668,45 @@
             "api_key": []
           }
         ]
+      },
+      "post": {
+        "tags": [
+          "Session Management"
+        ],
+        "operationId": "create_session",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateSessionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Session created successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Session"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized - Invalid or missing API key"
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ]
       }
     },
     "/sessions/import": {
@@ -2808,6 +2847,54 @@
         "responses": {
           "200": {
             "description": "Session deleted successfully"
+          },
+          "401": {
+            "description": "Unauthorized - Invalid or missing API key"
+          },
+          "404": {
+            "description": "Session not found"
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ]
+      }
+    },
+    "/sessions/{session_id}/conversation": {
+      "put": {
+        "tags": [
+          "Session Management"
+        ],
+        "operationId": "update_conversation",
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "path",
+            "description": "Unique identifier for the session",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateConversationRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Conversation updated successfully"
           },
           "401": {
             "description": "Unauthorized - Invalid or missing API key"
@@ -3665,6 +3752,23 @@
           },
           "recipe": {
             "$ref": "#/components/schemas/Recipe"
+          }
+        }
+      },
+      "CreateSessionRequest": {
+        "type": "object",
+        "required": [
+          "workingDir"
+        ],
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "Optional session name (defaults to \"New Chat\")",
+            "nullable": true
+          },
+          "workingDir": {
+            "type": "string",
+            "description": "Working directory for the session"
           }
         }
       },
@@ -7050,6 +7154,21 @@
             "type": "boolean",
             "description": "Whether the app prefers to have a border around it",
             "nullable": true
+          }
+        }
+      },
+      "UpdateConversationRequest": {
+        "type": "object",
+        "required": [
+          "messages"
+        ],
+        "properties": {
+          "messages": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Message"
+            },
+            "description": "The conversation messages to save"
           }
         }
       },

@@ -15,7 +15,7 @@ import { ipcMain, IpcMainInvokeEvent, app } from 'electron';
 import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync, readdirSync, unlinkSync } from 'node:fs';
 import { join } from 'node:path';
 import log from '../utils/logger';
-import { PiEventAccumulator, type PiAgentEvent, type GooseMessage, type ToolNotification } from './eventTranslator';
+import { PiEventAccumulator, type PiAgentEvent, type GooseMessage, type ToolNotification, translateGooseMessageToPi, type PiMessage } from './eventTranslator';
 
 const PI_LOG = '/tmp/pi-debug.log';
 const piLog = (msg: string, ...args: unknown[]) => {
@@ -46,13 +46,15 @@ export interface PiSession {
   working_dir: string;
   message_count: number;
   conversation: GooseMessage[];
-  // Token tracking (Pi doesn't provide this, but UI expects it)
+  // Token tracking
   input_tokens: number;
   output_tokens: number;
   total_tokens: number;
   accumulated_input_tokens: number;
   accumulated_output_tokens: number;
   accumulated_total_tokens: number;
+  // Goosed integration
+  goosedUrl?: string;  // URL of goosed for this session
 }
 
 // Module state
@@ -191,6 +193,76 @@ export function getPiVersion(): string | null {
 
 export interface CreateSessionOptions {
   workingDir?: string;
+  goosedUrl?: string;  // URL of goosed server for session storage
+}
+
+/**
+ * Create session in goosed's SQLite database.
+ */
+async function createGoosedSession(goosedUrl: string, workingDir: string): Promise<{ id: string; created_at: string }> {
+  const response = await fetch(`${goosedUrl}/sessions`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ working_dir: workingDir }),
+  });
+  
+  if (!response.ok) {
+    const text = await response.text();
+    throw new Error(`Failed to create session in goosed: ${response.status} ${text}`);
+  }
+  
+  const session = await response.json();
+  return { id: session.id, created_at: session.created_at };
+}
+
+/**
+ * Save conversation to goosed's SQLite database.
+ */
+async function saveConversationToGoosed(goosedUrl: string, sessionId: string, messages: GooseMessage[]): Promise<void> {
+  const response = await fetch(`${goosedUrl}/sessions/${sessionId}/conversation`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ messages }),
+  });
+  
+  if (!response.ok) {
+    const text = await response.text();
+    piLog('Failed to save conversation to goosed:', response.status, text);
+    // Don't throw - we still have local state
+  }
+}
+
+/**
+ * Load session from goosed's SQLite database.
+ */
+async function loadGoosedSession(goosedUrl: string, sessionId: string): Promise<PiSession | null> {
+  try {
+    const response = await fetch(`${goosedUrl}/sessions/${sessionId}`);
+    if (!response.ok) {
+      return null;
+    }
+    
+    const session = await response.json();
+    return {
+      id: session.id,
+      name: session.name,
+      created_at: session.created_at,
+      updated_at: session.updated_at,
+      working_dir: session.working_dir,
+      message_count: session.message_count || 0,
+      conversation: session.conversation?.messages || [],
+      input_tokens: session.input_tokens || 0,
+      output_tokens: session.output_tokens || 0,
+      total_tokens: session.total_tokens || 0,
+      accumulated_input_tokens: session.accumulated_input_tokens || 0,
+      accumulated_output_tokens: session.accumulated_output_tokens || 0,
+      accumulated_total_tokens: session.accumulated_total_tokens || 0,
+      goosedUrl,
+    };
+  } catch (error) {
+    piLog('Failed to load session from goosed:', error);
+    return null;
+  }
 }
 
 /**
@@ -209,6 +281,7 @@ export async function createPiSession(options: CreateSessionOptions = {}): Promi
   }
 
   const workingDir = options.workingDir || process.cwd();
+  const goosedUrl = options.goosedUrl;
   
   // Set working directory
   process.chdir(workingDir);
@@ -224,15 +297,28 @@ export async function createPiSession(options: CreateSessionOptions = {}): Promi
   currentAgentSession = result.session;
   eventAccumulator.reset();
 
-  // Create session metadata
-  const sessionId = generateSessionId();
-  const now = new Date().toISOString();
+  // Create session - use goosed if URL provided, otherwise fall back to local storage
+  let sessionId: string;
+  let createdAt: string;
+  
+  if (goosedUrl) {
+    piLog('Creating session in goosed at:', goosedUrl);
+    const goosedSession = await createGoosedSession(goosedUrl, workingDir);
+    sessionId = goosedSession.id;
+    createdAt = goosedSession.created_at;
+    piLog('Session created in goosed:', sessionId);
+  } else {
+    // Fallback to local ID generation (for testing or when goosed unavailable)
+    sessionId = generateSessionId();
+    createdAt = new Date().toISOString();
+    piLog('Created local session (no goosedUrl provided):', sessionId);
+  }
   
   currentSession = {
     id: sessionId,
     name: 'New Chat',
-    created_at: now,
-    updated_at: now,
+    created_at: createdAt,
+    updated_at: createdAt,
     working_dir: workingDir,
     message_count: 0,
     conversation: [],
@@ -242,10 +328,15 @@ export async function createPiSession(options: CreateSessionOptions = {}): Promi
     accumulated_input_tokens: 0,
     accumulated_output_tokens: 0,
     accumulated_total_tokens: 0,
+    goosedUrl,
   };
   
   currentSessionId = sessionId;
-  saveSession(currentSession);
+  
+  // Only save to local JSON if not using goosed
+  if (!goosedUrl) {
+    saveSession(currentSession);
+  }
 
   piLog('Session created successfully:', sessionId);
   return currentSession;
@@ -254,13 +345,28 @@ export async function createPiSession(options: CreateSessionOptions = {}): Promi
 /**
  * Resume an existing session.
  */
-export async function resumePiSession(sessionId: string): Promise<PiSession> {
-  piLog('resumePiSession called for:', sessionId);
+export async function resumePiSession(sessionId: string, goosedUrl?: string): Promise<PiSession> {
+  piLog('resumePiSession called for:', sessionId, 'goosedUrl:', goosedUrl);
   if (!piModule) {
     throw new Error('Pi module not loaded. Call initializePi() first.');
   }
 
-  const session = loadSession(sessionId);
+  // Try to load from goosed first, then fall back to local storage
+  let session: PiSession | null = null;
+  
+  if (goosedUrl) {
+    piLog('Loading session from goosed:', goosedUrl);
+    session = await loadGoosedSession(goosedUrl, sessionId);
+    if (session) {
+      piLog('Session loaded from goosed, message count:', session.conversation?.length || 0);
+    }
+  }
+  
+  if (!session) {
+    piLog('Loading session from local storage');
+    session = loadSession(sessionId);
+  }
+  
   if (!session) {
     throw new Error(`Session not found: ${sessionId}`);
   }
@@ -281,11 +387,33 @@ export async function resumePiSession(sessionId: string): Promise<PiSession> {
   const result = await piModule.createAgentSession(sessionConfig);
   currentAgentSession = result.session;
   currentSession = session;
+  currentSession.goosedUrl = goosedUrl;  // Remember goosed URL for saving
   currentSessionId = sessionId;
   eventAccumulator.reset();
 
-  // TODO: Replay conversation history to Pi if it supports it
-  // For now, Pi starts fresh but we show the old messages in UI
+  // THE KEY FIX: Inject conversation history into Pi so it knows the context
+  if (session.conversation && session.conversation.length > 0) {
+    piLog('Injecting conversation history into Pi, message count:', session.conversation.length);
+    
+    // Translate Goose messages to Pi format
+    const piMessages: PiMessage[] = [];
+    for (const gooseMsg of session.conversation) {
+      const piMsg = translateGooseMessageToPi(gooseMsg);
+      if (piMsg) {
+        piMessages.push(piMsg);
+      }
+    }
+    
+    piLog('Translated messages for Pi:', piMessages.length);
+    
+    // Inject into Pi's agent state
+    // Pi's agent.replaceMessages() expects AgentMessage[] which is compatible with PiMessage
+    if (piMessages.length > 0 && currentAgentSession.agent) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      currentAgentSession.agent.replaceMessages(piMessages as any);
+      piLog('Conversation history injected into Pi agent');
+    }
+  }
 
   piLog('Session resumed successfully:', sessionId);
   return session;
@@ -362,7 +490,12 @@ export async function promptPi(
     currentSession.name = generateSessionName(currentSession.conversation);
   }
   
-  saveSession(currentSession);
+  // Save session - use goosed if available, otherwise local
+  if (currentSession.goosedUrl) {
+    saveConversationToGoosed(currentSession.goosedUrl, currentSession.id, currentSession.conversation);
+  } else {
+    saveSession(currentSession);
+  }
 
   eventAccumulator.reset();
 
@@ -411,7 +544,11 @@ export async function promptPi(
       }
       
       // Save final conversation state
-      saveSession(currentSession!);
+      if (currentSession!.goosedUrl) {
+        saveConversationToGoosed(currentSession!.goosedUrl, currentSession!.id, currentSession!.conversation);
+      } else {
+        saveSession(currentSession!);
+      }
       onComplete(currentSession!.conversation);
     }
   });
@@ -427,7 +564,11 @@ export async function promptPi(
       unsubscribeFn = null;
     }
     // Still save what we have
-    saveSession(currentSession!);
+    if (currentSession!.goosedUrl) {
+      saveConversationToGoosed(currentSession!.goosedUrl, currentSession!.id, currentSession!.conversation);
+    } else {
+      saveSession(currentSession!);
+    }
     onError(error instanceof Error ? error : new Error(String(error)));
   }
 }
@@ -490,10 +631,10 @@ export function registerPiIpcHandlers(): void {
   });
 
   // Resume existing session
-  ipcMain.handle('pi:resumeSession', async (_event: IpcMainInvokeEvent, sessionId: string) => {
-    piLog('IPC pi:resumeSession called for:', sessionId);
+  ipcMain.handle('pi:resumeSession', async (_event: IpcMainInvokeEvent, sessionId: string, goosedUrl?: string) => {
+    piLog('IPC pi:resumeSession called for:', sessionId, 'goosedUrl:', goosedUrl);
     try {
-      const session = await resumePiSession(sessionId);
+      const session = await resumePiSession(sessionId, goosedUrl);
       return { success: true, session };
     } catch (error) {
       piLog('IPC pi:resumeSession error:', error);
@@ -506,17 +647,22 @@ export function registerPiIpcHandlers(): void {
     return getCurrentSession();
   });
 
-  // List all sessions
+  // List all sessions - for now, returns local sessions only
+  // When using goosed, the UI calls goosed API directly for session list
   ipcMain.handle('pi:listSessions', () => {
     return listAllSessions();
   });
 
   // Get a specific session
-  ipcMain.handle('pi:getSession', (_event: IpcMainInvokeEvent, sessionId: string) => {
+  ipcMain.handle('pi:getSession', async (_event: IpcMainInvokeEvent, sessionId: string, goosedUrl?: string) => {
+    if (goosedUrl) {
+      return loadGoosedSession(goosedUrl, sessionId);
+    }
     return loadSession(sessionId);
   });
 
-  // Delete a session
+  // Delete a session - for now, only deletes local sessions
+  // goosed session deletion goes through goosed API
   ipcMain.handle('pi:deleteSession', (_event: IpcMainInvokeEvent, sessionId: string) => {
     return deleteSessionFile(sessionId);
   });

@@ -204,6 +204,98 @@ export function translatePiMessage(piMessage: PiMessage): GooseMessage {
   };
 }
 
+/**
+ * Translates a Goose message back to Pi message format.
+ * Used when restoring conversation history from Goose's session storage into Pi.
+ */
+export function translateGooseMessageToPi(gooseMessage: GooseMessage): PiMessage | null {
+  const timestamp = gooseMessage.created * 1000; // Pi uses milliseconds
+
+  if (gooseMessage.role === 'user') {
+    // Check if this is a tool response (stored as user role in Goose)
+    const toolResponseContent = gooseMessage.content.find((c) => c.type === 'toolResponse');
+
+    if (toolResponseContent && toolResponseContent.type === 'toolResponse') {
+      // This is a tool result, translate back to Pi's toolResult message
+      const toolResponse = toolResponseContent as {
+        type: 'toolResponse';
+        id: string;
+        toolResult: {
+          status: string;
+          value?: { content: Array<{ type: string; text?: string }> };
+          error?: string;
+        };
+      };
+      const result = toolResponse.toolResult;
+
+      const content: (PiTextContent | PiImageContent)[] = [];
+      if (result.status === 'error' && result.error) {
+        content.push({ type: 'text', text: result.error });
+      } else if (result.value?.content) {
+        for (const c of result.value.content) {
+          if (c.type === 'text' && c.text) {
+            content.push({ type: 'text', text: c.text });
+          }
+        }
+      }
+
+      return {
+        role: 'toolResult',
+        toolCallId: toolResponse.id,
+        toolName: '', // We don't store this in Goose format, Pi may not need it
+        content,
+        isError: result.status === 'error',
+        timestamp,
+      };
+    }
+
+    // Regular user message
+    const userContent: (PiTextContent | PiImageContent)[] = [];
+    for (const c of gooseMessage.content) {
+      if (c.type === 'text') {
+        userContent.push({ type: 'text', text: c.text });
+      } else if (c.type === 'image') {
+        userContent.push({ type: 'image', data: c.data, mimeType: c.mimeType });
+      }
+    }
+
+    return {
+      role: 'user',
+      content: userContent,
+      timestamp,
+    };
+  }
+
+  if (gooseMessage.role === 'assistant') {
+    const assistantContent: PiAssistantContent[] = [];
+
+    for (const c of gooseMessage.content) {
+      if (c.type === 'text') {
+        assistantContent.push({ type: 'text', text: c.text });
+      } else if (c.type === 'thinking' && 'thinking' in c) {
+        assistantContent.push({ type: 'thinking', thinking: (c as { thinking: string }).thinking });
+      } else if (c.type === 'toolRequest') {
+        const toolReq = c as { type: 'toolRequest'; id: string; toolCall: { name: string; arguments: Record<string, unknown> } };
+        assistantContent.push({
+          type: 'toolCall',
+          id: toolReq.id,
+          name: toolReq.toolCall.name,
+          arguments: toolReq.toolCall.arguments,
+        });
+      }
+    }
+
+    return {
+      role: 'assistant',
+      content: assistantContent,
+      timestamp,
+    };
+  }
+
+  // Unknown role
+  return null;
+}
+
 function generateId(): string {
   return Math.random().toString(36).substring(2, 10);
 }

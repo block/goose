@@ -54,6 +54,7 @@ interface UpdaterEvent {
 // Pi Agent types
 interface PiSessionOptions {
   workingDir?: string;
+  goosedUrl?: string;
 }
 
 interface PiSession {
@@ -167,10 +168,10 @@ type ElectronAPI = {
     getVersion: () => Promise<string | null>;
     getState: () => Promise<PiState>;
     createSession: (options: PiSessionOptions) => Promise<{ success: boolean; session?: PiSession; error?: string }>;
-    resumeSession: (sessionId: string) => Promise<{ success: boolean; session?: PiSession; error?: string }>;
+    resumeSession: (sessionId: string, goosedUrl?: string) => Promise<{ success: boolean; session?: PiSession; error?: string }>;
     getCurrentSession: () => Promise<PiSession | null>;
     listSessions: () => Promise<PiSession[]>;
-    getSession: (sessionId: string) => Promise<PiSession | null>;
+    getSession: (sessionId: string, goosedUrl?: string) => Promise<PiSession | null>;
     deleteSession: (sessionId: string) => Promise<boolean>;
     stopSession: () => Promise<{ success: boolean }>;
     abort: () => Promise<{ success: boolean }>;
@@ -315,10 +316,10 @@ const electronAPI: ElectronAPI = {
     getVersion: () => ipcRenderer.invoke('pi:getVersion'),
     getState: () => ipcRenderer.invoke('pi:getState'),
     createSession: (options: PiSessionOptions) => ipcRenderer.invoke('pi:createSession', options),
-    resumeSession: (sessionId: string) => ipcRenderer.invoke('pi:resumeSession', sessionId),
+    resumeSession: (sessionId: string, goosedUrl?: string) => ipcRenderer.invoke('pi:resumeSession', sessionId, goosedUrl),
     getCurrentSession: () => ipcRenderer.invoke('pi:getCurrentSession'),
     listSessions: () => ipcRenderer.invoke('pi:listSessions'),
-    getSession: (sessionId: string) => ipcRenderer.invoke('pi:getSession', sessionId),
+    getSession: (sessionId: string, goosedUrl?: string) => ipcRenderer.invoke('pi:getSession', sessionId, goosedUrl),
     deleteSession: (sessionId: string) => ipcRenderer.invoke('pi:deleteSession', sessionId),
     stopSession: () => ipcRenderer.invoke('pi:stopSession'),
     abort: () => ipcRenderer.invoke('pi:abort'),

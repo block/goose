@@ -138,6 +138,17 @@ export type CreateScheduleRequest = {
     recipe: Recipe;
 };
 
+export type CreateSessionRequest = {
+    /**
+     * Optional session name (defaults to "New Chat")
+     */
+    name?: string | null;
+    /**
+     * Working directory for the session
+     */
+    workingDir: string;
+};
+
 /**
  * Content Security Policy metadata for MCP Apps
  * Specifies allowed domains for network connections and resource loading
@@ -1302,6 +1313,13 @@ export type UiMetadata = {
      * Whether the app prefers to have a border around it
      */
     prefersBorder?: boolean | null;
+};
+
+export type UpdateConversationRequest = {
+    /**
+     * The conversation messages to save
+     */
+    messages: Array<Message>;
 };
 
 export type UpdateCustomProviderRequest = {
@@ -3470,6 +3488,33 @@ export type ListSessionsResponses = {
 
 export type ListSessionsResponse = ListSessionsResponses[keyof ListSessionsResponses];
 
+export type CreateSessionData = {
+    body: CreateSessionRequest;
+    path?: never;
+    query?: never;
+    url: '/sessions';
+};
+
+export type CreateSessionErrors = {
+    /**
+     * Unauthorized - Invalid or missing API key
+     */
+    401: unknown;
+    /**
+     * Internal server error
+     */
+    500: unknown;
+};
+
+export type CreateSessionResponses = {
+    /**
+     * Session created successfully
+     */
+    200: Session;
+};
+
+export type CreateSessionResponse = CreateSessionResponses[keyof CreateSessionResponses];
+
 export type ImportSessionData = {
     body: ImportSessionRequest;
     path?: never;
@@ -3597,6 +3642,40 @@ export type GetSessionResponses = {
 };
 
 export type GetSessionResponse = GetSessionResponses[keyof GetSessionResponses];
+
+export type UpdateConversationData = {
+    body: UpdateConversationRequest;
+    path: {
+        /**
+         * Unique identifier for the session
+         */
+        session_id: string;
+    };
+    query?: never;
+    url: '/sessions/{session_id}/conversation';
+};
+
+export type UpdateConversationErrors = {
+    /**
+     * Unauthorized - Invalid or missing API key
+     */
+    401: unknown;
+    /**
+     * Session not found
+     */
+    404: unknown;
+    /**
+     * Internal server error
+     */
+    500: unknown;
+};
+
+export type UpdateConversationResponses = {
+    /**
+     * Conversation updated successfully
+     */
+    200: unknown;
+};
 
 export type ExportSessionData = {
     body?: never;
