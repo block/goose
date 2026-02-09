@@ -1,6 +1,6 @@
 ---
-title: Linux MCP server Extension
-description: Add Linux MCP server as a goose Extension
+title: Linux MCP Server Extension
+description: Add Linux MCP Server as a goose Extension
 ---
 
 import Tabs from '@theme/Tabs';
@@ -10,14 +10,12 @@ import CLIExtensionInstructions from '@site/src/components/CLIExtensionInstructi
 import GooseDesktopInstaller from '@site/src/components/GooseDesktopInstaller';
 import GooseBuiltinInstaller from '@site/src/components/GooseBuiltinInstaller';
 
-<YouTubeShortEmbed videoUrl="https://www.youtube.com/embed/VIDEO_ID" />
-
 This tutorial covers how to add the [Linux MCP Server](https://github.com/rhel-lightspeed/linux-mcp-server) as a goose extension to enable AI assistants to run, discover, and troubleshoot complex issues on Linux systems.
 
 :::tip TLDR
 <Tabs groupId="interface">
   <TabItem value="ui" label="goose Desktop" default>
-  [Install Linux MCP server](https://rhel-lightspeed.github.io/linux-mcp-server/install/)
+  [Install Linux MCP Server](https://rhel-lightspeed.github.io/linux-mcp-server/install/)
   </TabItem>
   <TabItem value="cli" label="goose CLI">
   **Command**
@@ -32,12 +30,7 @@ This tutorial covers how to add the [Linux MCP Server](https://github.com/rhel-l
 ## Configuration
 
 :::info
-You need the following components:
-
-- *Python 3.10* or later.
-- *goose* installed and configured.
-- *Sudo privileges (for certain diagnostic tools used by the server)*.
-
+Note that you'll need [uv](https://docs.astral.sh/uv/#installation) installed on your system to run this command, as it uses *uvx*. 
 :::
 
 
@@ -71,7 +64,7 @@ You need the following components:
 
 ## Example Usage
 
-Follow the instructions on how to use the Linux MCP server for system diagnostics and troubleshooting.
+Follow the instructions on how to use the Linux MCP Server for system diagnostics and troubleshooting.
 
 ### goose Prompt
 

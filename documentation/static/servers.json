@@ -400,57 +400,57 @@
       {
         "name": "LINUX_MCP_USER",
         "description": "Default username for SSH connections",
-        "required": false,
+        "required": false
       },
       {
         "name": "LINUX_MCP_SSH_KEY_PATH",
         "description": "Path to SSH private key",
-        "required": false,
+        "required": false
       },
       {
         "name": "LINUX_MCP_KEY_PASSPHRASE",
         "description": "Passphrase for encrypted SSH key",
-        "required": false,
+        "required": false
       },
       {
         "name": "LINUX_MCP_SEARCH_FOR_SSH_KEY",
         "description": "Auto-discover keys in `~/.ssh`",
-        "required": false,
+        "required": false
       },
       {
         "name": "LINUX_MCP_COMMAND_TIMEOUT",
         "description": "SSH command timeout in seconds (default: 30)",
-        "required": false,
+        "required": false
       },
       {
         "name": "LINUX_MCP_VERIFY_HOST_KEYS",
         "description": "Verify remote host identity via known_hosts",
-        "required": false,
+        "required": false
       },
       {
         "name": "LINUX_MCP_KNOWN_HOSTS_PATH",
         "description": "Custom path to known_hosts file",
-        "required": false,
+        "required": false
       },
       {
         "name": "LINUX_MCP_ALLOWED_LOG_PATHS",
         "description": "Comma-separated allowlist of log files",
-        "required": false,
+        "required": false
       },
       {
         "name": "LINUX_MCP_LOG_DIR",
         "description": "Server log directory",
-        "required": false,
+        "required": false
       },
       {
         "name": "LINUX_MCP_LOG_LEVEL",
         "description": "Log verbosity (DEBUG, INFO, WARNING)",
-        "required": false,
+        "required": false
       },
       {
         "name": "LINUX_MCP_LOG_RETENTION_DAYS",
         "description": "Days to keep log files",
-        "required": false,
+        "required": false
       }
     ]
   },
