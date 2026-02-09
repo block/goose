@@ -70,6 +70,12 @@ export interface HostContext {
     };
   };
   theme: 'light' | 'dark';
+  styles?: {
+    variables?: Record<string, string>;
+    css?: {
+      fonts?: string;
+    };
+  };
   displayMode: 'inline' | 'fullscreen' | 'standalone';
   availableDisplayModes: ('inline' | 'fullscreen' | 'standalone')[];
   viewport: {

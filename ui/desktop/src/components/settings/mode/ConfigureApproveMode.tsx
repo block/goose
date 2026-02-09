@@ -50,15 +50,15 @@ export function ConfigureApproveMode({
 
   return (
     <div className="fixed inset-0 bg-black/30">
-      <Card className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[440px] bg-background-default rounded-xl overflow-hidden p-[16px] pt-[24px] pb-0">
+      <Card className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[440px] bg-background-primary rounded-xl overflow-hidden p-[16px] pt-[24px] pb-0">
         <div className="px-4 pb-0 space-y-6">
           {/* Header */}
           <div className="flex">
-            <h2 className="text-2xl font-regular text-text-default">Configure approve mode</h2>
+            <h2 className="text-2xl font-regular text-text-primary">Configure approve mode</h2>
           </div>
 
           <div className="mt-[24px]">
-            <p className="text-sm text-text-muted mb-6">
+            <p className="text-sm text-text-secondary mb-6">
               Approve requests can either be given to all tool requests or determine which actions
               may need integration
             </p>
@@ -85,7 +85,7 @@ export function ConfigureApproveMode({
               variant="ghost"
               disabled={isSubmitting}
               onClick={handleModeSubmit}
-              className="w-full h-[60px] rounded-none border-t border-border-default hover:bg-background-muted text-text-default dark:border-gray-600 text-base font-regular"
+              className="w-full h-[60px] rounded-none border-t border-border-primary hover:bg-background-secondary text-text-primary dark:border-gray-600 text-base font-regular"
             >
               {isSubmitting ? 'Saving...' : 'Save'}
             </Button>
@@ -94,7 +94,7 @@ export function ConfigureApproveMode({
               variant="ghost"
               disabled={isSubmitting}
               onClick={onClose}
-              className="w-full h-[60px] rounded-none border-t border-border-default text-text-muted hover:bg-background-muted dark:border-gray-600 text-base font-regular"
+              className="w-full h-[60px] rounded-none border-t border-border-primary text-text-secondary hover:bg-background-secondary dark:border-gray-600 text-base font-regular"
             >
               Cancel
             </Button>

@@ -52,7 +52,7 @@ export function useSandboxBridge(options: SandboxBridgeOptions): SandboxBridgeRe
     onSizeChanged,
   } = options;
 
-  const { resolvedTheme } = useTheme();
+  const { resolvedTheme, themeVariables } = useTheme();
   const iframeRef = useRef<HTMLIFrameElement | null>(null);
   const isGuestInitializedRef = useRef(false);
   const [proxyUrl, setProxyUrl] = useState<string | null>(null);
@@ -127,6 +127,9 @@ export function useSandboxBridge(options: SandboxBridgeOptions): SandboxBridgeRe
             const hostContext: HostContext = {
               toolInfo: undefined,
               theme: resolvedTheme,
+              styles: themeVariables ? {
+                variables: themeVariables,
+              } : undefined,
               displayMode: 'inline',
               availableDisplayModes: ['inline'],
               viewport: {
@@ -186,6 +189,7 @@ export function useSandboxBridge(options: SandboxBridgeOptions): SandboxBridgeRe
       resourceCsp,
       resourcePermissions,
       resolvedTheme,
+      themeVariables,
       sendToSandbox,
       onMcpRequest,
       onSizeChanged,

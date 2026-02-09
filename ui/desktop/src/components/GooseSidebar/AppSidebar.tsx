@@ -165,8 +165,8 @@ const SessionList = React.memo<{
                 onClick={() => onSessionClick(session)}
                 className={`w-full text-left ml-3 px-1.5 py-1.5 pr-2 rounded-md text-sm transition-colors flex items-center gap-1 min-w-0 ${
                   activeSessionId === session.id
-                    ? 'bg-background-medium text-text-default'
-                    : 'text-text-muted hover:bg-background-medium/50 hover:text-text-default'
+                    ? 'bg-background-tertiary text-text-primary'
+                    : 'text-text-secondary hover:bg-background-tertiary/50 hover:text-text-primary'
                 }`}
                 title={displayName}
               >
@@ -486,7 +486,7 @@ const AppSidebar: React.FC<SidebarProps> = ({ currentPath }) => {
                 onClick={() => navigate(entry.path)}
                 isActive={isActivePath(entry.path)}
                 tooltip={entry.tooltip}
-                className="w-full justify-start px-3 rounded-lg h-fit hover:bg-background-medium/50 transition-all duration-200 data-[active=true]:bg-background-medium"
+                className="w-full justify-start px-3 rounded-lg h-fit hover:bg-background-tertiary/50 transition-all duration-200 data-[active=true]:bg-background-tertiary"
               >
                 <IconComponent className="w-4 h-4" />
                 <span>{entry.label}</span>
@@ -520,7 +520,7 @@ const AppSidebar: React.FC<SidebarProps> = ({ currentPath }) => {
                     onClick={() => navigate('/')}
                     isActive={isActivePath('/')}
                     tooltip="Go back to the main chat screen"
-                    className="w-full justify-start px-3 rounded-lg h-fit hover:bg-background-medium/50 transition-all duration-200 data-[active=true]:bg-background-medium"
+                    className="w-full justify-start px-3 rounded-lg h-fit hover:bg-background-tertiary/50 transition-all duration-200 data-[active=true]:bg-background-tertiary"
                   >
                     <Home className="w-4 h-4" />
                     <span>Home</span>
@@ -541,7 +541,7 @@ const AppSidebar: React.FC<SidebarProps> = ({ currentPath }) => {
                         data-testid="sidebar-new-chat-button"
                         onClick={handleNewChat}
                         tooltip="Start a new chat"
-                        className="flex-1 justify-start px-3 rounded-lg h-fit hover:bg-background-medium/50 transition-all duration-200"
+                        className="flex-1 justify-start px-3 rounded-lg h-fit hover:bg-background-tertiary/50 transition-all duration-200"
                       >
                         <MessageSquarePlus className="w-4 h-4" />
                         <span>Chat</span>
@@ -549,13 +549,13 @@ const AppSidebar: React.FC<SidebarProps> = ({ currentPath }) => {
                       {recentSessions.length > 0 && (
                         <CollapsibleTrigger asChild>
                           <button
-                            className="flex items-center justify-center w-6 h-8 hover:bg-background-medium/50 rounded-md transition-colors"
+                            className="flex items-center justify-center w-6 h-8 hover:bg-background-tertiary/50 rounded-md transition-colors"
                             aria-label={
                               isChatExpanded ? 'Collapse chat sessions' : 'Expand chat sessions'
                             }
                           >
                             <ChevronRight
-                              className={`w-4 h-4 text-text-muted transition-transform duration-200 ${
+                              className={`w-4 h-4 text-text-secondary transition-transform duration-200 ${
                                 isChatExpanded ? 'rotate-90' : ''
                               }`}
                             />
@@ -577,7 +577,7 @@ const AppSidebar: React.FC<SidebarProps> = ({ currentPath }) => {
                       {/* View All Link */}
                       <button
                         onClick={handleViewAllClick}
-                        className="w-full text-left px-3 py-1.5 rounded-md text-sm text-text-muted hover:bg-background-medium/50 hover:text-text-default transition-colors flex items-center gap-2"
+                        className="w-full text-left px-3 py-1.5 rounded-md text-sm text-text-secondary hover:bg-background-tertiary/50 hover:text-text-primary transition-colors flex items-center gap-2"
                       >
                         <History className="w-4 h-4" />
                         <span>View All</span>

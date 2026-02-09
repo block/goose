@@ -843,6 +843,27 @@ pub async fn configure_provider_oauth(
     Ok(Json("OAuth configuration completed".to_string()))
 }
 
+#[derive(Serialize, ToSchema)]
+pub struct ThemeVariablesResponse {
+    /// MCP-compatible CSS variables with light-dark() format
+    /// These variables use MCP standard naming (--color-*) and light-dark() format
+    /// for seamless integration with both the main app and MCP apps.
+    variables: HashMap<String, String>,
+}
+
+#[utoipa::path(
+    get,
+    path = "/theme/variables",
+    responses(
+        (status = 200, description = "MCP theme variables with light-dark() format", body = ThemeVariablesResponse)
+    )
+)]
+pub async fn get_theme_variables() -> Json<ThemeVariablesResponse> {
+    use crate::theme_css;
+    let variables = theme_css::generate_mcp_theme_variables();
+    Json(ThemeVariablesResponse { variables })
+}
+
 pub fn routes(state: Arc<AppState>) -> Router {
     Router::new()
         .route("/config", get(read_all_config))
@@ -875,6 +896,7 @@ pub fn routes(state: Arc<AppState>) -> Router {
             "/config/providers/{name}/oauth",
             post(configure_provider_oauth),
         )
+        .route("/theme/variables", get(get_theme_variables))
         .with_state(state)
 }
 

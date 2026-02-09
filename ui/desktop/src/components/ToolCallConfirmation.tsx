@@ -18,8 +18,8 @@ export default function ToolConfirmation({
   const { id, toolName, prompt } = data;
 
   return (
-    <div className="goose-message-content bg-background-default border border-border-default rounded-2xl overflow-hidden">
-      <div className="bg-background-muted px-4 py-2 text-text-default">
+    <div className="goose-message-content bg-background-primary border border-border-primary rounded-2xl overflow-hidden">
+      <div className="bg-background-secondary px-4 py-2 text-text-primary">
         {prompt
           ? 'Do you allow this tool call?'
           : 'Goose would like to call the above tool. Allow?'}

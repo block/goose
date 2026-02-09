@@ -4,7 +4,7 @@ export const MainPanelLayout: React.FC<{
   children: React.ReactNode;
   removeTopPadding?: boolean;
   backgroundColor?: string;
-}> = ({ children, removeTopPadding = false, backgroundColor = 'bg-background-default' }) => {
+}> = ({ children, removeTopPadding = false, backgroundColor = 'bg-background-primary' }) => {
   return (
     <div className={`h-dvh`}>
       {/* Padding top matches the app toolbar drag area height - can be removed for full bleed */}

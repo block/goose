@@ -3236,6 +3236,49 @@
         }
       }
     },
+    "/theme.css": {
+      "get": {
+        "tags": [
+          "super::routes::config_management"
+        ],
+        "operationId": "read_theme_css",
+        "responses": {
+          "200": {
+            "description": "Custom theme CSS",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No custom theme configured"
+          }
+        }
+      }
+    },
+    "/theme/variables": {
+      "get": {
+        "tags": [
+          "super::routes::config_management"
+        ],
+        "operationId": "get_theme_variables",
+        "responses": {
+          "200": {
+            "description": "MCP theme variables",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ThemeVariablesResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/tunnel/start": {
       "post": {
         "tags": [
@@ -6820,6 +6863,21 @@
           },
           "text": {
             "type": "string"
+          }
+        }
+      },
+      "ThemeVariablesResponse": {
+        "type": "object",
+        "required": [
+          "variables"
+        ],
+        "properties": {
+          "variables": {
+            "type": "object",
+            "description": "MCP-compatible CSS variables with light-dark() format",
+            "additionalProperties": {
+              "type": "string"
+            }
           }
         }
       },

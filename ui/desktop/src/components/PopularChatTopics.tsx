@@ -43,23 +43,23 @@ export default function PopularChatTopics({ append }: PopularChatTopicsProps) {
 
   return (
     <div className="absolute bottom-0 left-0 p-6 max-w-md">
-      <h3 className="text-text-muted text-sm mb-1">Popular chat topics</h3>
+      <h3 className="text-text-secondary text-sm mb-1">Popular chat topics</h3>
       <div className="space-y-1">
         {POPULAR_TOPICS.map((topic) => (
           <div
             key={topic.id}
-            className="flex items-center justify-between py-1.5 hover:bg-background-muted rounded-md cursor-pointer transition-colors"
+            className="flex items-center justify-between py-1.5 hover:bg-background-secondary rounded-md cursor-pointer transition-colors"
             onClick={() => handleTopicClick(topic.prompt)}
           >
             <div className="flex items-center gap-3 flex-1 min-w-0">
-              <div className="flex-shrink-0 text-text-muted">{topic.icon}</div>
+              <div className="flex-shrink-0 text-text-secondary">{topic.icon}</div>
               <div className="flex-1 min-w-0">
-                <p className="text-text-default text-sm leading-tight">{topic.description}</p>
+                <p className="text-text-primary text-sm leading-tight">{topic.description}</p>
               </div>
             </div>
             <div className="flex-shrink-0 ml-4">
               <button
-                className="text-sm text-text-muted hover:text-text-default transition-colors cursor-pointer"
+                className="text-sm text-text-secondary hover:text-text-primary transition-colors cursor-pointer"
                 onClick={(e) => {
                   e.stopPropagation();
                   handleTopicClick(topic.prompt);

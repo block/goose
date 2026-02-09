@@ -18,7 +18,7 @@ const ThemeSelector: React.FC<ThemeSelectorProps> = ({
 
   return (
     <div className={`${!horizontal ? 'px-1 py-2 space-y-2' : ''} ${className}`}>
-      {!hideTitle && <div className="text-xs text-text-default px-3">Theme</div>}
+      {!hideTitle && <div className="text-xs text-text-primary px-3">Theme</div>}
       <div
         className={`${horizontal ? 'flex' : 'grid grid-cols-3'} gap-1 ${!horizontal ? 'px-3' : ''}`}
       >
@@ -28,7 +28,7 @@ const ThemeSelector: React.FC<ThemeSelectorProps> = ({
           className={`flex items-center justify-center gap-1 p-2 rounded-md border transition-colors text-xs ${
             userThemePreference === 'light'
               ? 'bg-background-accent text-text-on-accent border-border-accent hover:!bg-background-accent hover:!text-text-on-accent'
-              : 'border-border-default hover:!bg-background-muted text-text-muted hover:text-text-default'
+              : 'border-border-primary hover:!bg-background-secondary text-text-secondary hover:text-text-primary'
           }`}
           variant="ghost"
           size="sm"
@@ -43,7 +43,7 @@ const ThemeSelector: React.FC<ThemeSelectorProps> = ({
           className={`flex items-center justify-center gap-1 p-2 rounded-md border transition-colors text-xs ${
             userThemePreference === 'dark'
               ? 'bg-background-accent text-text-on-accent border-border-accent hover:!bg-background-accent hover:!text-text-on-accent'
-              : 'border-border-default hover:!bg-background-muted text-text-muted hover:text-text-default'
+              : 'border-border-primary hover:!bg-background-secondary text-text-secondary hover:text-text-primary'
           }`}
           variant="ghost"
           size="sm"
@@ -58,7 +58,7 @@ const ThemeSelector: React.FC<ThemeSelectorProps> = ({
           className={`flex items-center justify-center gap-1 p-2 rounded-md border transition-colors text-xs ${
             userThemePreference === 'system'
               ? 'bg-background-accent text-text-on-accent border-border-accent hover:!bg-background-accent hover:!text-text-on-accent'
-              : 'border-border-default hover:!bg-background-muted text-text-muted hover:text-text-default'
+              : 'border-border-primary hover:!bg-background-secondary text-text-secondary hover:text-text-primary'
           }`}
           variant="ghost"
           size="sm"

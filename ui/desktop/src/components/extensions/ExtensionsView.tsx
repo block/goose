@@ -95,17 +95,17 @@ export default function ExtensionsView({
         className="flex flex-col min-w-0 flex-1 overflow-y-auto relative"
         data-search-scroll-area
       >
-        <div className="bg-background-default px-8 pb-4 pt-16">
+        <div className="bg-background-primary px-8 pb-4 pt-16">
           <div className="flex flex-col page-transition">
             <div className="flex justify-between items-center mb-1">
               <h1 className="text-4xl font-light">Extensions</h1>
             </div>
-            <p className="text-sm text-text-muted mb-2">
+            <p className="text-sm text-text-secondary mb-2">
               These extensions use the Model Context Protocol (MCP). They can expand Goose's
               capabilities using three main components: Prompts, Resources, and Tools.{' '}
               {getSearchShortcutText()} to search.
             </p>
-            <p className="text-sm text-text-muted mb-6">
+            <p className="text-sm text-text-secondary mb-6">
               Extensions enabled here are used as the default for new chats. You can also toggle
               active extensions during chat.
             </p>

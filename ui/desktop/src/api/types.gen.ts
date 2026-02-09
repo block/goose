@@ -1176,6 +1176,15 @@ export type TextContent = {
     text: string;
 };
 
+export type ThemeVariablesResponse = {
+    /**
+     * MCP-compatible CSS variables with light-dark() format
+     */
+    variables: {
+        [key: string]: string;
+    };
+};
+
 export type ThinkingContent = {
     signature: string;
     thinking: string;
@@ -3881,6 +3890,45 @@ export type SendTelemetryEventResponses = {
      */
     202: unknown;
 };
+
+export type ReadThemeCssData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/theme.css';
+};
+
+export type ReadThemeCssErrors = {
+    /**
+     * No custom theme configured
+     */
+    404: unknown;
+};
+
+export type ReadThemeCssResponses = {
+    /**
+     * Custom theme CSS
+     */
+    200: string;
+};
+
+export type ReadThemeCssResponse = ReadThemeCssResponses[keyof ReadThemeCssResponses];
+
+export type GetThemeVariablesData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/theme/variables';
+};
+
+export type GetThemeVariablesResponses = {
+    /**
+     * MCP theme variables
+     */
+    200: ThemeVariablesResponse;
+};
+
+export type GetThemeVariablesResponse = GetThemeVariablesResponses[keyof GetThemeVariablesResponses];
 
 export type StartTunnelData = {
     body?: never;

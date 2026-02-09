@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
+import { getThemeVariables } from '../api';
 
 type ThemePreference = 'light' | 'dark' | 'system';
 type ResolvedTheme = 'light' | 'dark';
@@ -7,6 +8,7 @@ interface ThemeContextValue {
   userThemePreference: ThemePreference;
   setUserThemePreference: (pref: ThemePreference) => void;
   resolvedTheme: ResolvedTheme;
+  themeVariables: Record<string, string> | null;
 }
 
 const ThemeContext = createContext<ThemeContextValue | null>(null);
@@ -51,6 +53,68 @@ function applyThemeToDocument(theme: ResolvedTheme): void {
   document.documentElement.classList.remove(toRemove);
 }
 
+const THEME_STYLE_ID = 'goose-mcp-theme';
+
+/**
+ * Parse light-dark() values and generate CSS for :root and .dark
+ * Example: "light-dark(#fff, #000)" => { light: "#fff", dark: "#000" }
+ */
+function parseLightDark(value: string): { light: string; dark: string } | null {
+  const match = value.match(/^light-dark\((.+),\s*(.+)\)$/);
+  if (!match) return null;
+  return { light: match[1].trim(), dark: match[2].trim() };
+}
+
+/**
+ * Generate and inject CSS from theme variables
+ */
+function injectThemeCSS(variables: Record<string, string> | null): void {
+  const styleElement = document.getElementById(THEME_STYLE_ID) as HTMLStyleElement;
+
+  if (!variables || Object.keys(variables).length === 0) {
+    // Remove style element if no variables
+    if (styleElement) {
+      styleElement.remove();
+    }
+    return;
+  }
+
+  // Separate variables into light and dark mode
+  const rootVars: string[] = [];
+  const darkVars: string[] = [];
+
+  for (const [name, value] of Object.entries(variables)) {
+    const parsed = parseLightDark(value);
+    if (parsed) {
+      rootVars.push(`  ${name}: ${parsed.light};`);
+      darkVars.push(`  ${name}: ${parsed.dark};`);
+    }
+  }
+
+  // Generate CSS
+  const css = `:root {\n${rootVars.join('\n')}\n}\n\n.dark {\n${darkVars.join('\n')}\n}`;
+
+  // Inject or update the style tag
+  if (!styleElement) {
+    const newStyleElement = document.createElement('style');
+    newStyleElement.id = THEME_STYLE_ID;
+    newStyleElement.textContent = css;
+    document.head.appendChild(newStyleElement);
+  } else {
+    styleElement.textContent = css;
+  }
+}
+
+async function loadThemeVariables(): Promise<Record<string, string> | null> {
+  try {
+    const response = await getThemeVariables();
+    return response.data?.variables || null;
+  } catch (err) {
+    console.warn('Failed to load theme variables:', err);
+    return null;
+  }
+}
+
 interface ThemeProviderProps {
   children: React.ReactNode;
 }
@@ -61,6 +125,7 @@ export function ThemeProvider({ children }: ThemeProviderProps) {
   const [resolvedTheme, setResolvedTheme] = useState<ResolvedTheme>(() =>
     resolveTheme(loadThemePreference())
   );
+  const [themeVariables, setThemeVariables] = useState<Record<string, string> | null>(null);
 
   const setUserThemePreference = useCallback((preference: ThemePreference) => {
     setUserThemePreferenceState(preference);
@@ -119,10 +184,19 @@ export function ThemeProvider({ children }: ThemeProviderProps) {
     applyThemeToDocument(resolvedTheme);
   }, [resolvedTheme]);
 
+  // Load theme variables and inject CSS on mount
+  useEffect(() => {
+    loadThemeVariables().then((variables) => {
+      setThemeVariables(variables);
+      injectThemeCSS(variables);
+    });
+  }, []);
+
   const value: ThemeContextValue = {
     userThemePreference,
     setUserThemePreference,
     resolvedTheme,
+    themeVariables,
   };
 
   return <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>;
