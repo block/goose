@@ -108,7 +108,6 @@ jobs:
           echo "Copying Windows binary..."
           cp -f ./target/x86_64-pc-windows-msvc/release/goosed.exe ./ui/desktop/src/bin/
 
-          # Copy Windows platform files (tools, scripts, etc.)
           if [ -d "./ui/desktop/src/platform/windows/bin" ]; then
             echo "Copying Windows platform files..."
             for file in ./ui/desktop/src/platform/windows/bin/*.{exe,dll,cmd}; do
@@ -143,11 +142,9 @@ jobs:
           mkdir -p ./out/Goose-win32-x64/resources/bin
           cp -r src/bin/* out/Goose-win32-x64/resources/bin/
 
-          # Create flat distribution structure
           mkdir -p ./dist-windows
           cp -r ./out/Goose-win32-x64/* ./dist-windows/
 
-          # Verify the final structure
           echo "📋 Final flat distribution structure:"
           ls -la ./dist-windows/
           echo "📋 Binary files in resources/bin:"
@@ -167,7 +164,6 @@ jobs:
           set -exuo pipefail
           echo "🔐 Starting Windows code signing with jsign + AWS KMS..."
 
-          # Create certificate file from secret
           echo "📝 Creating certificate file from GitHub secret..."
           echo "${{ secrets.WINDOWS_CODESIGN_CERTIFICATE }}" > block-codesign-cert.pem
 
@@ -176,7 +172,6 @@ jobs:
           curl -sL https://github.com/ebourg/jsign/releases/download/6.0/jsign-6.0.jar -o jsign.jar
           echo "05ca18d4ab7b8c2183289b5378d32860f0ea0f3bdab1f1b8cae5894fb225fa8a  jsign.jar" | sha256sum -c
 
-          # Sign the main Electron executable (Goose.exe)
           echo "🔐 Signing main Electron executable: Goose.exe"
           cd ui/desktop/dist-windows/
 
@@ -193,7 +188,6 @@ jobs:
 
           echo "✅ Main executable Goose.exe signed successfully"
 
-          # Sign the backend executable (goosed.exe)
           echo "🔐 Signing backend executable: goosed.exe"
           cd resources/bin/
 
@@ -218,7 +212,6 @@ jobs:
           ls -la resources/bin/goosed.exe
           sha256sum resources/bin/goosed.exe
 
-          # Clean up certificate file
           rm -f ${GITHUB_WORKSPACE}/block-codesign-cert.pem
 
       - name: Verify signed executables are in final distribution
@@ -244,13 +237,11 @@ jobs:
           cd ui/desktop
           echo "📦 Creating Windows zip package..."
 
-          # Create a zip file from the dist-windows directory
           7z a -tzip "Goose-win32-x64.zip" dist-windows/
 
           echo "✅ Windows zip package created:"
           ls -la Goose-win32-x64.zip
 
-          # Also create the zip in the expected output structure for consistency
           mkdir -p out/Goose-win32-x64/
           cp Goose-win32-x64.zip out/Goose-win32-x64/
 

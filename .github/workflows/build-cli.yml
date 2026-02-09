@@ -123,7 +123,6 @@ jobs:
           echo "🚀 Building Windows CLI executable..."
           cargo build --release --target x86_64-pc-windows-msvc -p goose-cli
 
-          # Verify build succeeded
           if [ ! -f "./target/x86_64-pc-windows-msvc/release/goose.exe" ]; then
             echo "❌ Windows CLI binary not found."
             ls -la ./target/x86_64-pc-windows-msvc/release/ || echo "Release directory doesn't exist"
@@ -156,13 +155,10 @@ jobs:
         run: |
           export TARGET="${{ matrix.architecture }}-${{ matrix.target-suffix }}"
 
-          # Create a directory for the package contents
           mkdir -p "target/${TARGET}/release/goose-package"
 
-          # Copy the goose binary (no DLLs needed for MSVC build)
           cp "target/${TARGET}/release/goose.exe" "target/${TARGET}/release/goose-package/"
 
-          # Create the zip archive
           cd "target/${TARGET}/release"
           7z a -tzip "goose-${TARGET}.zip" goose-package/
           echo "ARTIFACT=target/${TARGET}/release/goose-${TARGET}.zip" >> $GITHUB_ENV
