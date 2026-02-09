@@ -19,24 +19,42 @@ Extensions built with MCP Apps or MCP-UI allow goose Desktop to provide interact
 [MCP Apps](/docs/tutorials/building-mcp-apps) is now the official MCP specification for interactive UIs. MCP-UI extensions still work in goose, but MCP Apps is the recommended path for new extensions.
 :::
 
+:::warning Experimental Features
+The features described in this topic are experimental and in active development. Behavior and support may change in future releases.
+:::
+
 ## MCP Apps
 
-MCP Apps bring interactive interfaces to goose through the official [MCP Apps specification](https://github.com/modelcontextprotocol/ext-apps). Apps can be launched as standalone apps or embedded in your chat session.
+MCP Apps bring interactive interfaces to goose through the official [MCP Apps specification](https://github.com/modelcontextprotocol/ext-apps). Depending on the extension, apps can be launched in standalone, sandboxed windows or embedded in your chat window.
 
-### Launching Apps Directly
+### Launching Apps in Standalone Windows
 
-MCP Apps can be launched in their own windows where you can interact with their UI directly. This is useful for interfaces like dashboards and data visualizers, so you can jump straight to the interface without sending messages to goose.
+Some MCP Apps can be launched in their own windows, allowing you to jump straight to the interface without sending messages to goose.
 
 1. Click the <PanelLeft className="inline" size={16} /> button in the top-left to open the sidebar
 2. Click `Apps` in the sidebar
-3. Browse your available apps. The page displays recently cached MCP Apps and MCP Apps from your enabled extensions.
+3. Browse your available MCP Apps
 4. Click `Launch` to launch an app in a new window
 
-The MCP App opens with its own interface where you can click buttons, fill forms, or use other controls. Apps can call tools and read resources through MCP, but cannot communicate with goose.
+:::info Apps Extension
+To see the `Apps` page in the sidebar, the [Apps extension](/docs/mcp/apps-mcp) must be enabled from the `Extensions` page. You can also use it to create custom standalone apps.
+:::
 
-### Using Apps in Chat
+The `Apps` page displays custom HTML apps you created using the Apps extension, imported HTML apps, and apps from your enabled MCP Apps extensions. The app interface lets you click buttons, fill forms, or use other controls. Apps can call tools and read resources through MCP (if enabled through CORS), but cannot communicate with goose (e.g. via chat).
 
-MCP Apps can also render directly in your conversation when goose calls a tool that returns UI. The interactive interface appears inline with the chat, letting you make selections, fill forms, or trigger actions without leaving the conversation flow.
+#### Import an HTML App
+
+Import apps that were created with the Apps extension and shared with you.
+
+1. Click the <PanelLeft className="inline" size={16} /> button in the top-left to open the sidebar
+2. Click `Apps` in the sidebar
+3. Click `Import App`, browse to the app's `.html` file on your file system, and click `Open`
+
+### Using Apps in Chat Windows
+
+Some MCP Apps render directly in your conversation when goose calls a tool that returns UI. The interactive interface appears inline with the chat, letting you make selections, fill forms, or trigger actions without leaving the conversation flow.
+
+If needed, you can just ask goose whether the UI can be loaded in the chat window.
 
 <div style={{ width: '100%', maxWidth: '800px', margin: '0 auto' }}>
   <video 
