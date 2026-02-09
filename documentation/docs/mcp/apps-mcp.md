@@ -15,7 +15,7 @@ The Apps extension lets you create, manage, and launch simple custom apps throug
 
 Custom apps are single-file HTML applications with JavaScript, CSS, and HTML (no external dependencies or npm packages). They're exposed as [MCP App resources](/docs/guides/interactive-chat/mcp-ui) that run in standalone, sandboxed windows that you can launch from the `Apps` page or by asking goose in chat.
 
-ou can create, modify, and delete apps through chat without needing to edit files directly. Behind the scenes, the Apps extension stores each app as an HTML file in:
+You can create, modify, and delete apps through chat without needing to edit files directly. Behind the scenes, the Apps extension stores each app as an HTML file in:
 
 - **macOS/Linux:** `~/.local/share/goose/apps/`
 - **Windows:** `%APPDATA%\Block\goose\data\apps\`
