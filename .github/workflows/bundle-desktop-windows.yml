@@ -69,7 +69,7 @@ jobs:
       - name: Cache Rust dependencies
         uses: Swatinem/rust-cache@v2
         with:
-          shared-key: windows-msvc-shared
+          key: windows-msvc-desktop
 
       - name: Setup Rust
         shell: bash
