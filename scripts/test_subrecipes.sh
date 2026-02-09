@@ -7,7 +7,7 @@ fi
 
 if [ -z "$SKIP_BUILD" ]; then
   echo "Building goose..."
-  cargo build --release --bin goose
+  cargo build --bin goose
   echo ""
 else
   echo "Skipping build (SKIP_BUILD is set)..."
@@ -17,7 +17,7 @@ fi
 SCRIPT_DIR=$(pwd)
 
 # Add goose binary to PATH so subagents can find it when spawning
-export PATH="$SCRIPT_DIR/target/release:$PATH"
+export PATH="$SCRIPT_DIR/target/debug:$PATH"
 
 # Set default provider and model if not already set
 # Use fast model for CI to speed up tests
@@ -76,7 +76,7 @@ RESULTS=()
 check_recipe_output() {
   local tmpfile=$1
   local mode=$2
-  
+
   # Check for delegate tool invocation (new format: "─── delegate |")
   if grep -q "─── delegate" "$tmpfile"; then
     echo "✓ SUCCESS: Delegate tool invoked"
@@ -85,7 +85,7 @@ check_recipe_output() {
     echo "✗ FAILED: No evidence of delegate tool invocation"
     RESULTS+=("✗ Delegate tool invocation ($mode)")
   fi
-  
+
   # Check that both subrecipes were called (shown as "source: <name>" in delegate output)
   if grep -q "source:.*file_stats\|source.*file_stats" "$tmpfile" && grep -q "source:.*code_patterns\|source.*code_patterns" "$tmpfile"; then
     echo "✓ SUCCESS: Both subrecipes (file_stats, code_patterns) found in output"
@@ -98,7 +98,7 @@ check_recipe_output() {
 
 echo "Running recipe with parallel subrecipes..."
 TMPFILE=$(mktemp)
-if (cd "$TESTDIR" && "$SCRIPT_DIR/target/release/goose" run --recipe project_analyzer_parallel.yaml --no-session 2>&1) | tee "$TMPFILE"; then
+if (cd "$TESTDIR" && "$SCRIPT_DIR/target/debug/goose" run --recipe project_analyzer_parallel.yaml --no-session 2>&1) | tee "$TMPFILE"; then
   echo "✓ SUCCESS: Recipe completed successfully"
   RESULTS+=("✓ Recipe exit code")
   check_recipe_output "$TMPFILE" "parallel"

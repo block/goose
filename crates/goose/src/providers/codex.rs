@@ -1,9 +1,12 @@
 use anyhow::Result;
 use async_trait::async_trait;
+use base64::{engine::general_purpose::STANDARD as BASE64, Engine as _};
+use futures::future::BoxFuture;
 use serde_json::json;
-use std::ffi::OsString;
-use std::path::PathBuf;
+use std::io::Write;
+use std::path::{Path, PathBuf};
 use std::process::Stdio;
+use tempfile::NamedTempFile;
 use tokio::io::{AsyncBufReadExt, BufReader};
 use tokio::process::Command;
 
@@ -11,12 +14,12 @@ use super::base::{ConfigKey, Provider, ProviderDef, ProviderMetadata, ProviderUs
 use super::errors::ProviderError;
 use super::utils::{filter_extensions_from_system_prompt, RequestLog};
 use crate::config::base::{CodexCommand, CodexReasoningEffort, CodexSkipGitCheck};
+use crate::config::paths::Paths;
 use crate::config::search_path::SearchPaths;
 use crate::config::{Config, GooseMode};
 use crate::conversation::message::{Message, MessageContent};
 use crate::model::ModelConfig;
 use crate::subprocess::configure_command_no_window;
-use futures::future::BoxFuture;
 use rmcp::model::Role;
 use rmcp::model::Tool;
 
@@ -33,6 +36,10 @@ pub const CODEX_DOC_URL: &str = "https://developers.openai.com/codex/cli";
 /// Valid reasoning effort levels for Codex
 pub const CODEX_REASONING_LEVELS: &[&str] = &["none", "low", "medium", "high", "xhigh"];
 
+/// Spawns the Codex CLI (`codex exec`) as a one-shot child process per turn.
+/// Text prompt is piped via stdin (`-`), images are passed as temporary files
+/// via the `-i` flag. Output is JSONL on stdout (`--json`), with events like
+/// `item.completed`, `turn.completed`, and `error`.
 #[derive(Debug, serde::Serialize)]
 pub struct CodexProvider {
     command: PathBuf,
@@ -48,8 +55,8 @@ pub struct CodexProvider {
 impl CodexProvider {
     pub async fn from_env(model: ModelConfig) -> Result<Self> {
         let config = Config::global();
-        let command: OsString = config.get_codex_command().unwrap_or_default().into();
-        let resolved_command = SearchPaths::builder().with_npm().resolve(command)?;
+        let command: String = config.get_codex_command().unwrap_or_default().into();
+        let resolved_command = SearchPaths::builder().with_npm().resolve(&command)?;
 
         // Get reasoning effort from config, default to "high"
         let reasoning_effort = config
@@ -97,38 +104,6 @@ impl CodexProvider {
         true
     }
 
-    /// Convert goose messages to a simple text prompt format
-    /// Similar to Gemini CLI, we use Human:/Assistant: prefixes
-    fn messages_to_prompt(&self, system: &str, messages: &[Message]) -> String {
-        let mut full_prompt = String::new();
-
-        let filtered_system = filter_extensions_from_system_prompt(system);
-        if !filtered_system.is_empty() {
-            full_prompt.push_str(&filtered_system);
-            full_prompt.push_str("\n\n");
-        }
-
-        // Add conversation history
-        for message in messages.iter().filter(|m| m.is_agent_visible()) {
-            let role_prefix = match message.role {
-                Role::User => "Human: ",
-                Role::Assistant => "Assistant: ",
-            };
-            full_prompt.push_str(role_prefix);
-
-            for content in &message.content {
-                if let MessageContent::Text(text_content) = content {
-                    full_prompt.push_str(&text_content.text);
-                    full_prompt.push('\n');
-                }
-            }
-            full_prompt.push('\n');
-        }
-
-        full_prompt.push_str("Assistant: ");
-        full_prompt
-    }
-
     /// Apply permission flags based on GOOSE_MODE setting
     fn apply_permission_flags(cmd: &mut Command) -> Result<(), ProviderError> {
         let config = Config::global();
@@ -162,7 +137,10 @@ impl CodexProvider {
         messages: &[Message],
         _tools: &[Tool],
     ) -> Result<Vec<String>, ProviderError> {
-        let prompt = self.messages_to_prompt(system, messages);
+        // Single pass: text → prompt (stdin), images → temp files (-i flags)
+        let image_dir = Paths::state_dir().join("codex/images");
+        std::fs::create_dir_all(&image_dir).ok();
+        let (prompt, temp_files) = prepare_input(system, messages, &image_dir)?;
 
         if std::env::var("GOOSE_CODEX_DEBUG").is_ok() {
             println!("=== CODEX PROVIDER DEBUG ===");
@@ -172,11 +150,19 @@ impl CodexProvider {
             println!("Skip git check: {}", self.skip_git_check);
             println!("Prompt length: {} chars", prompt.len());
             println!("Prompt: {}", prompt);
+            println!("Image files: {}", temp_files.len());
             println!("============================");
         }
 
         let mut cmd = Command::new(&self.command);
         configure_command_no_window(&mut cmd);
+
+        // Propagate extended PATH so the codex subprocess can find Node.js
+        // and other dependencies (especially when launched from the desktop app
+        // where the inherited PATH is limited).
+        if let Ok(path) = SearchPaths::builder().with_npm().path() {
+            cmd.env("PATH", path);
+        }
 
         // Use 'exec' subcommand for non-interactive mode
         cmd.arg("exec");
@@ -202,6 +188,11 @@ impl CodexProvider {
         // Skip git repo check if configured
         if self.skip_git_check {
             cmd.arg("--skip-git-repo-check");
+        }
+
+        // Codex treats -i as supplementary context, not positionally interleaved with text
+        for tmp in &temp_files {
+            cmd.arg("-i").arg(tmp.path());
         }
 
         // Pass the prompt via stdin using '-' argument
@@ -235,6 +226,19 @@ impl CodexProvider {
             .take()
             .ok_or_else(|| ProviderError::RequestFailed("Failed to capture stdout".to_string()))?;
 
+        // Drain stderr concurrently to prevent pipe buffer deadlock
+        let stderr_handle = {
+            let stderr = child.stderr.take();
+            tokio::spawn(async move {
+                let mut output = String::new();
+                if let Some(mut stderr) = stderr {
+                    use tokio::io::AsyncReadExt;
+                    let _ = stderr.read_to_string(&mut output).await;
+                }
+                output
+            })
+        };
+
         let mut reader = BufReader::new(stdout);
         let mut lines = Vec::new();
         let mut line = String::new();
@@ -262,7 +266,10 @@ impl CodexProvider {
             ProviderError::RequestFailed(format!("Failed to wait for command: {}", e))
         })?;
 
-        if !exit_status.success() {
+        // Allow the stderr task to finish
+        let _ = stderr_handle.await;
+
+        if !exit_status.success() && lines.is_empty() {
             return Err(ProviderError::RequestFailed(format!(
                 "Codex command failed with exit code: {:?}",
                 exit_status.code()
@@ -394,6 +401,15 @@ impl CodexProvider {
 
         if let Some(err) = error_message {
             if all_text_content.is_empty() {
+                if err.contains("context window") || err.contains("context_length_exceeded") {
+                    return Err(ProviderError::ContextLengthExceeded(err));
+                }
+                if err.to_lowercase().contains("rate limit") {
+                    return Err(ProviderError::RateLimitExceeded {
+                        details: err,
+                        retry_delay: None,
+                    });
+                }
                 return Err(ProviderError::RequestFailed(format!(
                     "Codex CLI error: {}",
                     err
@@ -473,6 +489,96 @@ impl CodexProvider {
     }
 }
 
+/// Builds the text prompt and extracts images to temp files in a single pass.
+/// Text goes to the prompt string (piped via stdin); images become temp files
+/// (passed via `-i` flags). Returns (prompt, temp_files).
+fn prepare_input(
+    system: &str,
+    messages: &[Message],
+    image_dir: &Path,
+) -> Result<(String, Vec<NamedTempFile>), ProviderError> {
+    let mut prompt = String::new();
+    let mut temp_files = Vec::new();
+
+    let filtered_system = filter_extensions_from_system_prompt(system);
+    if !filtered_system.is_empty() {
+        prompt.push_str(&filtered_system);
+        prompt.push_str("\n\n");
+    }
+
+    for message in messages.iter().filter(|m| m.is_agent_visible()) {
+        let role_prefix = match message.role {
+            Role::User => "Human: ",
+            Role::Assistant => "Assistant: ",
+        };
+        prompt.push_str(role_prefix);
+
+        for content in &message.content {
+            match content {
+                MessageContent::Text(t) => {
+                    prompt.push_str(&t.text);
+                    prompt.push('\n');
+                }
+                MessageContent::Image(img) => {
+                    let decoded = BASE64.decode(&img.data).map_err(|e| {
+                        ProviderError::RequestFailed(format!("Failed to decode image: {}", e))
+                    })?;
+                    // Codex only supports png and jpeg:
+                    // https://github.com/openai/codex/blob/aea7610c/codex-rs/utils/image/src/lib.rs#L162-L167
+                    let ext = match img.mime_type.as_str() {
+                        "image/png" => "png",
+                        "image/jpeg" => "jpg",
+                        _ => {
+                            return Err(ProviderError::RequestFailed(format!(
+                                "Unsupported image MIME type for Codex: {}",
+                                img.mime_type
+                            )));
+                        }
+                    };
+                    let mut tmp = tempfile::Builder::new()
+                        .suffix(&format!(".{}", ext))
+                        .tempfile_in(image_dir)
+                        .map_err(|e| {
+                            ProviderError::RequestFailed(format!(
+                                "Failed to create temp file: {}",
+                                e
+                            ))
+                        })?;
+                    tmp.write_all(&decoded).map_err(|e| {
+                        ProviderError::RequestFailed(format!("Failed to write image: {}", e))
+                    })?;
+                    temp_files.push(tmp);
+                }
+                MessageContent::ToolRequest(req) => {
+                    if let Ok(call) = &req.tool_call {
+                        prompt.push_str(&format!("[tool_use: {} id={}]\n", call.name, req.id));
+                    }
+                }
+                MessageContent::ToolResponse(resp) => {
+                    if let Ok(result) = &resp.tool_result {
+                        let text: String = result
+                            .content
+                            .iter()
+                            .filter_map(|c| match &c.raw {
+                                rmcp::model::RawContent::Text(t) => Some(t.text.as_str()),
+                                _ => None,
+                            })
+                            .collect::<Vec<&str>>()
+                            .join("\n");
+                        prompt.push_str(&format!("[tool_result id={}] {}\n", resp.id, text));
+                    }
+                }
+                _ => {}
+            }
+        }
+        prompt.push('\n');
+    }
+
+    prompt.push_str("Assistant: ");
+    Ok((prompt, temp_files))
+}
+
+#[async_trait]
 impl ProviderDef for CodexProvider {
     type Provider = Self;
 
@@ -555,11 +661,17 @@ impl Provider for CodexProvider {
             ProviderUsage::new(model_config.model_name.clone(), usage),
         ))
     }
+
+    async fn fetch_supported_models(&self) -> Result<Vec<String>, ProviderError> {
+        Ok(CODEX_KNOWN_MODELS.iter().map(|s| s.to_string()).collect())
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use goose_test_support::TEST_IMAGE_B64;
+    use test_case::test_case;
 
     #[test]
     fn test_codex_metadata() {
@@ -574,61 +686,76 @@ mod tests {
             .any(|m| m.name == CODEX_DEFAULT_MODEL));
     }
 
-    #[test]
-    fn test_messages_to_prompt_empty() {
-        let provider = CodexProvider {
-            command: PathBuf::from("codex"),
-            model: ModelConfig::new("gpt-5.2-codex").unwrap(),
-            name: "codex".to_string(),
-            reasoning_effort: "high".to_string(),
-            skip_git_check: false,
-        };
+    #[test_case("image/png", ".png" ; "png image")]
+    #[test_case("image/jpeg", ".jpg" ; "jpeg image")]
+    fn test_prepare_input_image(mime: &str, expected_ext: &str) {
+        let dir = tempfile::tempdir().unwrap();
+        let messages = vec![Message::user()
+            .with_text("Describe")
+            .with_image(TEST_IMAGE_B64, mime)];
+        let (_prompt, temp_files) = prepare_input("", &messages, dir.path()).unwrap();
+        assert_eq!(temp_files.len(), 1);
+        let path = temp_files[0].path();
+        assert!(
+            path.to_str().unwrap().ends_with(expected_ext),
+            "expected extension {expected_ext}, got {:?}",
+            path
+        );
+    }
 
-        let prompt = provider.messages_to_prompt("", &[]);
-        assert_eq!(prompt, "Assistant: ");
+    #[test_case("image/gif" ; "gif")]
+    #[test_case("image/webp" ; "webp")]
+    #[test_case("image/svg+xml" ; "svg")]
+    fn test_prepare_input_image_unsupported(mime: &str) {
+        let dir = tempfile::tempdir().unwrap();
+        let messages = vec![Message::user()
+            .with_text("Describe")
+            .with_image(TEST_IMAGE_B64, mime)];
+        let err = prepare_input("", &messages, dir.path()).unwrap_err();
+        assert!(
+            err.to_string().contains("Unsupported image MIME type"),
+            "expected unsupported MIME error, got: {err}"
+        );
     }
 
     #[test]
-    fn test_messages_to_prompt_with_system() {
-        let provider = CodexProvider {
-            command: PathBuf::from("codex"),
-            model: ModelConfig::new("gpt-5.2-codex").unwrap(),
-            name: "codex".to_string(),
-            reasoning_effort: "high".to_string(),
-            skip_git_check: false,
-        };
-
-        let prompt = provider.messages_to_prompt("You are a helpful assistant.", &[]);
-        assert!(prompt.starts_with("You are a helpful assistant."));
-        assert!(prompt.ends_with("Assistant: "));
+    fn test_prepare_input_tool_request() {
+        use rmcp::model::CallToolRequestParams;
+        let dir = tempfile::tempdir().unwrap();
+        let tool_call = Ok(CallToolRequestParams {
+            name: "developer__shell".into(),
+            arguments: Some(serde_json::from_value(json!({"cmd": "ls"})).unwrap()),
+            meta: None,
+            task: None,
+        });
+        let messages = vec![Message::new(
+            Role::Assistant,
+            0,
+            vec![MessageContent::tool_request("call_123", tool_call)],
+        )];
+        let (prompt, temp_files) = prepare_input("", &messages, dir.path()).unwrap();
+        assert!(prompt.contains("[tool_use: developer__shell id=call_123]"));
+        assert!(temp_files.is_empty());
     }
 
     #[test]
-    fn test_messages_to_prompt_with_messages() {
-        let provider = CodexProvider {
-            command: PathBuf::from("codex"),
-            model: ModelConfig::new("gpt-5.2-codex").unwrap(),
-            name: "codex".to_string(),
-            reasoning_effort: "high".to_string(),
-            skip_git_check: false,
+    fn test_prepare_input_tool_response() {
+        use rmcp::model::{CallToolResult, Content};
+        let dir = tempfile::tempdir().unwrap();
+        let result = CallToolResult {
+            content: vec![Content::text("file1.txt\nfile2.txt")],
+            is_error: None,
+            structured_content: None,
+            meta: None,
         };
-
-        let messages = vec![
-            Message::new(
-                Role::User,
-                chrono::Utc::now().timestamp(),
-                vec![MessageContent::text("Hello")],
-            ),
-            Message::new(
-                Role::Assistant,
-                chrono::Utc::now().timestamp(),
-                vec![MessageContent::text("Hi there!")],
-            ),
-        ];
-
-        let prompt = provider.messages_to_prompt("", &messages);
-        assert!(prompt.contains("Human: Hello"));
-        assert!(prompt.contains("Assistant: Hi there!"));
+        let messages = vec![Message::new(
+            Role::User,
+            0,
+            vec![MessageContent::tool_response("call_123", Ok(result))],
+        )];
+        let (prompt, temp_files) = prepare_input("", &messages, dir.path()).unwrap();
+        assert!(prompt.contains("[tool_result id=call_123] file1.txt\nfile2.txt"));
+        assert!(temp_files.is_empty());
     }
 
     #[test]
@@ -776,8 +903,56 @@ mod tests {
         assert_eq!(usage.total_tokens, Some(5100));
     }
 
-    #[test]
-    fn test_parse_response_error_event() {
+    #[test_case(
+        &[
+            r#"{"type":"thread.started","thread_id":"test"}"#,
+            r#"{"type":"error","message":"Codex ran out of room in the model's context window and could not finish the task."}"#,
+        ],
+        ProviderError::ContextLengthExceeded(
+            "Codex ran out of room in the model's context window and could not finish the task.".to_string()
+        )
+        ; "context_window_exceeded"
+    )]
+    #[test_case(
+        &[
+            r#"{"type":"thread.started","thread_id":"test"}"#,
+            r#"{"type":"error","message":"Rate limit reached for gpt-5.1 in organization on tokens per min (TPM): Limit 30000."}"#,
+        ],
+        ProviderError::RateLimitExceeded {
+            details: "Rate limit reached for gpt-5.1 in organization on tokens per min (TPM): Limit 30000.".to_string(),
+            retry_delay: None,
+        }
+        ; "rate_limit"
+    )]
+    #[test_case(
+        &[
+            r#"{"type":"thread.started","thread_id":"test"}"#,
+            r#"{"type":"error","message":"You exceeded your current quota, please check your plan and billing details."}"#,
+        ],
+        ProviderError::RequestFailed(
+            "Codex CLI error: You exceeded your current quota, please check your plan and billing details.".to_string()
+        )
+        ; "quota_exceeded"
+    )]
+    #[test_case(
+        &[
+            r#"{"type":"thread.started","thread_id":"test"}"#,
+            r#"{"type":"error","message":"Model not supported"}"#,
+        ],
+        ProviderError::RequestFailed("Codex CLI error: Model not supported".to_string())
+        ; "generic_error"
+    )]
+    #[test_case(
+        &[
+            r#"{"type":"thread.started","thread_id":"test"}"#,
+            r#"{"type":"turn.failed","message":"response.failed event received (connection reset)"}"#,
+        ],
+        ProviderError::RequestFailed(
+            "Codex CLI error: response.failed event received (connection reset)".to_string()
+        )
+        ; "stream_error"
+    )]
+    fn test_parse_response_error_event(lines: &[&str], expected: ProviderError) {
         let provider = CodexProvider {
             command: PathBuf::from("codex"),
             model: ModelConfig::new("gpt-5.2-codex").unwrap(),
@@ -786,15 +961,9 @@ mod tests {
             skip_git_check: false,
         };
 
-        let lines = vec![
-            r#"{"type":"thread.started","thread_id":"test"}"#.to_string(),
-            r#"{"type":"error","message":"Model not supported"}"#.to_string(),
-        ];
+        let lines: Vec<String> = lines.iter().map(|s| s.to_string()).collect();
         let result = provider.parse_response(&lines);
-        assert!(result.is_err());
-
-        let err = result.unwrap_err();
-        assert!(err.to_string().contains("Model not supported"));
+        assert_eq!(result.unwrap_err(), expected);
     }
 
     #[test]
@@ -894,31 +1063,6 @@ mod tests {
         // Third key should be CODEX_SKIP_GIT_CHECK (optional)
         assert_eq!(metadata.config_keys[2].name, "CODEX_SKIP_GIT_CHECK");
         assert!(!metadata.config_keys[2].required);
-    }
-
-    #[test]
-    fn test_messages_to_prompt_filters_non_text() {
-        let provider = CodexProvider {
-            command: PathBuf::from("codex"),
-            model: ModelConfig::new("gpt-5.2-codex").unwrap(),
-            name: "codex".to_string(),
-            reasoning_effort: "high".to_string(),
-            skip_git_check: false,
-        };
-
-        // Create messages with both text and non-text content
-        let messages = vec![Message::new(
-            Role::User,
-            chrono::Utc::now().timestamp(),
-            vec![
-                MessageContent::text("Hello"),
-                // Tool requests would be filtered out as they're not text
-            ],
-        )];
-
-        let prompt = provider.messages_to_prompt("System prompt", &messages);
-        assert!(prompt.contains("System prompt"));
-        assert!(prompt.contains("Human: Hello"));
     }
 
     #[test]

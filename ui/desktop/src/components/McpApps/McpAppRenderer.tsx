@@ -85,7 +85,13 @@ export default function McpAppRenderer({
         if (response.data) {
           const content = response.data;
           const meta = content._meta as
-            | { ui?: { csp?: CspMetadata; permissions?: PermissionsMetadata; prefersBorder?: boolean } }
+            | {
+                ui?: {
+                  csp?: CspMetadata;
+                  permissions?: PermissionsMetadata;
+                  prefersBorder?: boolean;
+                };
+              }
             | undefined;
 
           if (content.text !== cachedHtml) {
@@ -293,8 +299,8 @@ export default function McpAppRenderer({
   return (
     <div
       className={cn(
-        'bg-bgApp overflow-hidden',
-        resource.prefersBorder ? 'border border-borderSubtle rounded-lg' : 'my-6'
+        'bg-background-default overflow-hidden',
+        resource.prefersBorder ? 'border border-border-default rounded-lg' : 'my-6'
       )}
     >
       {resource.html && proxyUrl ? (

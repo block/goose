@@ -349,7 +349,7 @@ impl McpClientTrait for CodeExecutionClient {
                         Get detailed type information for specific functions.
 
                         Provide a list of function identifiers in the format "Namespace.functionName"
-                        (e.g., "Developer.shell", "Github.create_issue").
+                        (e.g., "Developer.shell", "Github.createIssue").
 
                         Returns full TypeScript interface definitions with parameter types,
                         return types, and descriptions for the requested functions.
@@ -372,9 +372,9 @@ impl McpClientTrait for CodeExecutionClient {
                         SYNTAX - TypeScript with async run() function:
                         ```typescript
                         async function run() {
-                            // Access functions via Namespace.functionName({ params })
+                            // Access functions via Namespace.functionName({ params }) — always camelCase
                             const files = await Developer.shell({ command: "ls -la" });
-                            const readme = await Developer.text_editor({ path: "./README.md", command: "view" });
+                            const readme = await Developer.textEditor({ path: "./README.md", command: "view" });
                             return { files, readme };
                         }
                         ```
@@ -391,13 +391,16 @@ impl McpClientTrait for CodeExecutionClient {
                         KEY RULES:
                         - Code MUST define an async function named `run()`
                         - All function calls are async - use `await`
-                        - Access functions as Namespace.functionName() (e.g., Developer.shell, Github.create_issue)
+                        - Function names are always camelCase (e.g., Developer.textEditor, Github.listIssues, Github.createIssue)
                         - Return value from `run()` is the result, all `console.log()` output will be returned as well.
-                        - Only functions from `list_functions()` are available - no `fetch()`, fs, or other Node/Deno APIs
+                        - Only functions from `list_functions()` and `console` methods are available — no `fetch()`, `fs`, or other Node/Deno APIs
                         - Variables don't persist between `execute()` calls - return or log anything you need later
-                        - Add console.log() statements between API calls to track progress if errors occur
-                        - Code runs in an isolated Deno sandbox with restricted network access
-                        - If a function returns `any` do not assume it has any particular fields
+                        - Code runs in an isolated sandbox with restricted network access
+
+                        HANDLING RETURN VALUES:
+                        - If a function returns `any`, do NOT assume its shape - log it first: `console.log(JSON.stringify(result))`
+                        - Many functions return wrapper objects, not raw arrays - check the response structure before calling .filter(), .map(), etc.
+                        - Always inspect unfamiliar return values with console.log() before processing them
 
                         TOKEN USAGE WARNING: This tool could return LARGE responses if your code returns big objects.
                         To minimize tokens:

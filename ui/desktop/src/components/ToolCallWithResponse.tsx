@@ -9,6 +9,7 @@ import {
   ToolRequestMessageContent,
   ToolResponseMessageContent,
   NotificationEvent,
+  ToolConfirmationData,
 } from '../types/message';
 import { cn, snakeToTitleCase } from '../utils';
 import { LoadingStatus } from './ui/Dot';
@@ -18,6 +19,7 @@ import MCPUIResourceRenderer from './MCPUIResourceRenderer';
 import { isUIResource } from '@mcp-ui/client';
 import { CallToolResponse, Content, EmbeddedResource } from '../api';
 import McpAppRenderer from './McpApps/McpAppRenderer';
+import ToolApprovalButtons from './ToolApprovalButtons';
 
 interface ToolGraphNode {
   tool: string;
@@ -58,6 +60,8 @@ interface ToolCallWithResponseProps {
   isStreamingMessage?: boolean;
   isPendingApproval: boolean;
   append?: (value: string) => void;
+  confirmationContent?: ToolConfirmationData;
+  isApprovalClicked?: boolean;
 }
 
 function getToolResultContent(toolResult: Record<string, unknown>): Content[] {
@@ -136,7 +140,7 @@ function McpAppWrapper({
         sessionId={sessionId}
         append={append}
       />
-      <div className="mt-3 p-4 py-3 border border-borderSubtle rounded-lg bg-background-muted flex items-center">
+      <div className="mt-3 p-4 py-3 border border-border-default rounded-lg bg-background-muted flex items-center">
         <FlaskConical className="mr-2" size={20} />
         <div className="text-sm font-sans">
           MCP Apps are experimental and may change at any time.
@@ -155,6 +159,8 @@ export default function ToolCallWithResponse({
   isStreamingMessage,
   isPendingApproval,
   append,
+  confirmationContent,
+  isApprovalClicked,
 }: ToolCallWithResponseProps) {
   // Handle both the wrapped ToolResult format and the unwrapped format
   // The server serializes ToolResult<T> as { status: "success", value: T } or { status: "error", error: string }
@@ -176,11 +182,14 @@ export default function ToolCallWithResponse({
 
   const shouldShowMcpContent = !isPendingApproval;
 
+  const showInlineApproval = isPendingApproval && confirmationContent && sessionId;
+
   return (
     <>
       <div
         className={cn(
-          'w-full text-sm font-sans rounded-lg overflow-hidden border-borderSubtle border'
+          'w-full text-sm font-sans rounded-lg overflow-hidden border',
+          showInlineApproval ? 'border-amber-500/50 bg-amber-50/5' : 'border-border-default'
         )}
       >
         <ToolCallView
@@ -192,6 +201,27 @@ export default function ToolCallWithResponse({
             isStreamingMessage,
           }}
         />
+        {/* Inline approval UI */}
+        {showInlineApproval && (
+          <div className="border-t border-amber-500/30">
+            {confirmationContent.prompt && (
+              <div className="px-4 py-2 text-sm text-amber-600 dark:text-amber-400 bg-amber-50/10">
+                {confirmationContent.prompt}
+              </div>
+            )}
+            <div className="px-4 pb-2">
+              <ToolApprovalButtons
+                data={{
+                  id: confirmationContent.id,
+                  toolName: confirmationContent.toolName,
+                  prompt: confirmationContent.prompt ?? undefined,
+                  sessionId,
+                  isClicked: isApprovalClicked,
+                }}
+              />
+            </div>
+          </div>
+        )}
       </div>
       {/* MCP UI — Inline */}
       {shouldShowMcpContent &&
@@ -205,7 +235,7 @@ export default function ToolCallWithResponse({
             return (
               <div key={index} className="mt-3">
                 <MCPUIResourceRenderer content={resourceContent} appendPromptToChat={append} />
-                <div className="mt-3 p-4 py-3 border border-borderSubtle rounded-lg bg-background-muted flex items-center">
+                <div className="mt-3 p-4 py-3 border border-border-default rounded-lg bg-background-muted flex items-center">
                   <FlaskConical className="mr-2" size={20} />
                   <div className="text-sm font-sans">
                     MCP UI is experimental and may change at any time.
@@ -716,7 +746,7 @@ function ToolCallView({
           (typeof code === 'string' || Array.isArray(toolGraph))
         ) {
           return (
-            <div className="border-t border-borderSubtle">
+            <div className="border-t border-border-default">
               <CodeModeView toolGraph={toolGraph} code={code} />
             </div>
           );
@@ -724,7 +754,7 @@ function ToolCallView({
 
         if (isToolDetails) {
           return (
-            <div className="border-t border-borderSubtle">
+            <div className="border-t border-border-default">
               <ToolDetailsView toolCall={toolCall} isStartExpanded={isExpandToolDetails} />
             </div>
           );
@@ -734,7 +764,7 @@ function ToolCallView({
       })()}
 
       {logs && logs.length > 0 && (
-        <div className="border-t border-borderSubtle">
+        <div className="border-t border-border-default">
           <ToolLogsView
             logs={logs}
             working={loadingStatus === 'loading'}
@@ -748,7 +778,7 @@ function ToolCallView({
       {toolResults.length === 0 &&
         progressEntries.length > 0 &&
         progressEntries.map((entry, index) => (
-          <div className="p-3 border-t border-borderSubtle" key={index}>
+          <div className="p-3 border-t border-border-default" key={index}>
             <ProgressBar progress={entry.progress} total={entry.total} message={entry.message} />
           </div>
         ))}
@@ -757,7 +787,7 @@ function ToolCallView({
       {!isCancelledMessage && (
         <>
           {toolResults.map((result, index) => (
-            <div key={index} className={cn('border-t border-borderSubtle')}>
+            <div key={index} className={cn('border-t border-border-default')}>
               <ToolResultView toolCall={toolCall} result={result} isStartExpanded={false} />
             </div>
           ))}
@@ -817,7 +847,7 @@ function CodeModeView({ toolGraph, code }: CodeModeViewProps) {
         <pre className="font-mono text-xs text-textSubtle whitespace-pre-wrap">{renderGraph()}</pre>
       )}
       {code && (
-        <div className="border-t border-borderSubtle -mx-4 mt-2">
+        <div className="border-t border-border-default -mx-4 mt-2">
           <ToolCallExpandable
             label={<span className="pl-4 font-sans text-sm">Code</span>}
             isStartExpanded={false}

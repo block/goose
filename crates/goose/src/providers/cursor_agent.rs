@@ -2,7 +2,6 @@ use anyhow::Result;
 use async_trait::async_trait;
 use rmcp::model::Role;
 use serde_json::{json, Value};
-use std::ffi::OsString;
 use std::path::PathBuf;
 use std::process::Stdio;
 use tokio::io::{AsyncBufReadExt, BufReader};
@@ -36,8 +35,8 @@ pub struct CursorAgentProvider {
 impl CursorAgentProvider {
     pub async fn from_env(model: ModelConfig) -> Result<Self> {
         let config = crate::config::Config::global();
-        let command: OsString = config.get_cursor_agent_command().unwrap_or_default().into();
-        let resolved_command = SearchPaths::builder().with_npm().resolve(command)?;
+        let command: String = config.get_cursor_agent_command().unwrap_or_default().into();
+        let resolved_command = SearchPaths::builder().with_npm().resolve(&command)?;
 
         Ok(Self {
             command: resolved_command,
@@ -354,6 +353,13 @@ impl Provider for CursorAgentProvider {
     fn get_model_config(&self) -> ModelConfig {
         // Return the model config with appropriate context limit for Cursor models
         self.model.clone()
+    }
+
+    async fn fetch_supported_models(&self) -> Result<Vec<String>, ProviderError> {
+        Ok(CURSOR_AGENT_KNOWN_MODELS
+            .iter()
+            .map(|s| s.to_string())
+            .collect())
     }
 
     #[tracing::instrument(
