@@ -4,6 +4,7 @@ use crate::agents::code_execution_extension;
 use crate::agents::extension_manager_extension;
 use crate::agents::summon_extension;
 use crate::agents::todo_extension;
+use crate::agents::tom_extension;
 use std::collections::HashMap;
 
 use crate::agents::mcp_client::McpClientTrait;
@@ -122,6 +123,18 @@ pub static PLATFORM_EXTENSIONS: Lazy<HashMap<&'static str, PlatformExtensionDef>
                 client_factory: |ctx| {
                     Box::new(code_execution_extension::CodeExecutionClient::new(ctx).unwrap())
                 },
+            },
+        );
+
+        map.insert(
+            tom_extension::EXTENSION_NAME,
+            PlatformExtensionDef {
+                name: tom_extension::EXTENSION_NAME,
+                display_name: "Top Of Mind",
+                description:
+                    "Inject custom context into every turn via GOOSE_MOIM_MESSAGE_TEXT and GOOSE_MOIM_MESSAGE_FILE environment variables",
+                default_enabled: false,
+                client_factory: |ctx| Box::new(tom_extension::TomClient::new(ctx).unwrap()),
             },
         );
 

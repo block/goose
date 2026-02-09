@@ -17,7 +17,6 @@ path = "src/main.rs"
 [dependencies]
 goose = { path = "../goose" }
 goose-acp = { path = "../goose-acp" }
-goose-bench = { path = "../goose-bench" }
 goose-mcp = { path = "../goose-mcp" }
 rmcp = { workspace = true }
 clap = { version = "4.4", features = ["derive"] }

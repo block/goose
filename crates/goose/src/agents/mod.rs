@@ -23,6 +23,7 @@ pub(crate) mod subagent_handler;
 pub(crate) mod subagent_task_config;
 pub(crate) mod summon_extension;
 pub(crate) mod todo_extension;
+pub(crate) mod tom_extension;
 mod tool_execution;
 pub mod types;
 

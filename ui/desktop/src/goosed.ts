@@ -105,7 +105,8 @@ export const startGoosed = async (options: StartGoosedOptions): Promise<GoosedRe
   }
 
   if (process.env.GOOSE_EXTERNAL_BACKEND) {
-    return connectToExternalBackend(dir, 'http://127.0.0.1:3000');
+    const port = process.env.GOOSE_PORT || '3000';
+    return connectToExternalBackend(dir, `http://127.0.0.1:${port}`);
   }
 
   let goosedPath = getGoosedBinaryPath(app);

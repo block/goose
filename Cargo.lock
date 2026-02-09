@@ -4240,29 +4240,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "goose-bench"
-version = "1.23.0"
-dependencies = [
- "anyhow",
- "async-trait",
- "chrono",
- "ctor",
- "dotenvy",
- "goose",
- "include_dir",
- "once_cell",
- "paste",
- "regex",
- "rmcp 0.14.0",
- "serde",
- "serde_json",
- "tokio",
- "tracing",
- "tracing-subscriber",
- "winapi",
-]
-
-[[package]]
 name = "goose-cli"
 version = "1.23.0"
 dependencies = [
@@ -4282,7 +4259,6 @@ dependencies = [
  "futures",
  "goose",
  "goose-acp",
- "goose-bench",
  "goose-mcp",
  "http 1.4.0",
  "indicatif 0.18.3",
