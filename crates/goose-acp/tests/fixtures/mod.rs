@@ -5,20 +5,13 @@ use async_trait::async_trait;
 use fs_err as fs;
 use goose::builtin_extension::register_builtin_extensions;
 use goose::config::{GooseMode, PermissionManager};
-use goose::model::ModelConfig;
 use goose::providers::api_client::{ApiClient, AuthMethod};
+use goose::providers::base::Provider;
 use goose::providers::openai::OpenAiProvider;
+use goose::providers::provider_registry::ProviderConstructor;
 use goose::session_context::SESSION_ID_HEADER;
-use goose_acp::server::{serve, AcpServerConfig, GooseAcpAgent};
-use rmcp::model::{ClientNotification, ClientRequest, Meta, ServerResult};
-use rmcp::service::{NotificationContext, RequestContext, ServiceRole};
-use rmcp::transport::streamable_http_server::{
-    session::local::LocalSessionManager, StreamableHttpServerConfig, StreamableHttpService,
-};
-use rmcp::{
-    handler::server::router::tool::ToolRouter, model::*, tool, tool_handler, tool_router,
-    ErrorData as McpError, RoleServer, ServerHandler, Service,
-};
+use goose_acp::server::{serve, GooseAcpAgent};
+use goose_test_support::ExpectedSessionId;
 use sacp::schema::{
     McpServer, PermissionOptionKind, RequestPermissionOutcome, RequestPermissionRequest,
     RequestPermissionResponse, SelectedPermissionOutcome, ToolCallStatus,
@@ -32,10 +25,6 @@ use tokio::task::JoinHandle;
 use tokio_util::compat::{TokioAsyncReadCompatExt, TokioAsyncWriteCompatExt};
 use wiremock::matchers::{method, path};
 use wiremock::{Mock, MockServer, ResponseTemplate};
-
-pub const FAKE_CODE: &str = "test-uuid-12345-67890";
-
-const NOT_YET_SET: &str = "session-id-not-yet-set";
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub enum PermissionDecision {
@@ -78,54 +67,6 @@ fn select_option(
             ))
         })
         .unwrap_or(RequestPermissionOutcome::Cancelled)
-}
-
-#[derive(Clone)]
-pub struct ExpectedSessionId {
-    value: Arc<Mutex<String>>,
-    errors: Arc<Mutex<Vec<String>>>,
-}
-
-impl Default for ExpectedSessionId {
-    fn default() -> Self {
-        Self {
-            value: Arc::new(Mutex::new(NOT_YET_SET.to_string())),
-            errors: Arc::new(Mutex::new(Vec::new())),
-        }
-    }
-}
-
-impl ExpectedSessionId {
-    pub fn set(&self, id: &sacp::schema::SessionId) {
-        *self.value.lock().unwrap() = id.0.to_string();
-    }
-
-    pub fn validate(&self, actual: Option<&str>) -> Result<(), String> {
-        let expected = self.value.lock().unwrap();
-
-        let err = match actual {
-            Some(act) if act == *expected => None,
-            _ => Some(format!(
-                "{} mismatch: expected '{}', got {:?}",
-                SESSION_ID_HEADER, expected, actual
-            )),
-        };
-        match err {
-            Some(e) => {
-                self.errors.lock().unwrap().push(e.clone());
-                Err(e)
-            }
-            None => Ok(()),
-        }
-    }
-
-    /// Calling this ensures requests have coherent session IDs.
-    pub fn assert_matches(&self, actual: &str) {
-        let result = self.validate(Some(actual));
-        assert!(result.is_ok(), "{}", result.unwrap_err());
-        let e = self.errors.lock().unwrap();
-        assert!(e.is_empty(), "Session ID validation errors: {:?}", *e);
-    }
 }
 
 pub struct OpenAiFixture {
@@ -212,151 +153,28 @@ impl OpenAiFixture {
     }
 }
 
-#[derive(Clone)]
-struct Lookup {
-    tool_router: ToolRouter<Lookup>,
-}
+pub type DuplexTransport = sacp::ByteStreams<
+    tokio_util::compat::Compat<tokio::io::DuplexStream>,
+    tokio_util::compat::Compat<tokio::io::DuplexStream>,
+>;
 
-impl Default for Lookup {
-    fn default() -> Self {
-        Self::new()
-    }
-}
+/// Wires up duplex streams, spawns `serve` for the given agent, and returns
+/// a ready-to-use sacp transport plus the server handle.
+#[allow(dead_code)]
+pub async fn serve_agent_in_process(
+    agent: Arc<GooseAcpAgent>,
+) -> (DuplexTransport, JoinHandle<()>) {
+    let (client_read, server_write) = tokio::io::duplex(64 * 1024);
+    let (server_read, client_write) = tokio::io::duplex(64 * 1024);
 
-#[tool_router]
-impl Lookup {
-    pub fn new() -> Self {
-        Self {
-            tool_router: Self::tool_router(),
+    let handle = tokio::spawn(async move {
+        if let Err(e) = serve(agent, server_read.compat(), server_write.compat_write()).await {
+            tracing::error!("ACP server error: {e}");
         }
-    }
+    });
 
-    #[tool(description = "Get the code")]
-    fn get_code(&self) -> Result<CallToolResult, McpError> {
-        Ok(CallToolResult::success(vec![Content::text(FAKE_CODE)]))
-    }
-}
-
-#[tool_handler]
-impl ServerHandler for Lookup {
-    fn get_info(&self) -> ServerInfo {
-        ServerInfo {
-            protocol_version: ProtocolVersion::V_2025_03_26,
-            capabilities: ServerCapabilities::builder().enable_tools().build(),
-            server_info: Implementation {
-                name: "lookup".into(),
-                version: "1.0.0".into(),
-                ..Default::default()
-            },
-            instructions: Some("Lookup server with get_code tool.".into()),
-        }
-    }
-}
-
-trait HasMeta {
-    fn meta(&self) -> &Meta;
-}
-
-impl<R: ServiceRole> HasMeta for RequestContext<R> {
-    fn meta(&self) -> &Meta {
-        &self.meta
-    }
-}
-
-impl<R: ServiceRole> HasMeta for NotificationContext<R> {
-    fn meta(&self) -> &Meta {
-        &self.meta
-    }
-}
-
-struct ValidatingService<S> {
-    inner: S,
-    expected_session_id: ExpectedSessionId,
-}
-
-impl<S> ValidatingService<S> {
-    fn new(inner: S, expected_session_id: ExpectedSessionId) -> Self {
-        Self {
-            inner,
-            expected_session_id,
-        }
-    }
-
-    fn validate<C: HasMeta>(&self, context: &C) -> Result<(), McpError> {
-        let actual = context
-            .meta()
-            .0
-            .get(SESSION_ID_HEADER)
-            .and_then(|v| v.as_str());
-        self.expected_session_id
-            .validate(actual)
-            .map_err(|e| McpError::new(ErrorCode::INVALID_REQUEST, e, None))
-    }
-}
-
-impl<S: Service<RoleServer>> Service<RoleServer> for ValidatingService<S> {
-    async fn handle_request(
-        &self,
-        request: ClientRequest,
-        context: RequestContext<RoleServer>,
-    ) -> Result<ServerResult, McpError> {
-        if !matches!(request, ClientRequest::InitializeRequest(_)) {
-            self.validate(&context)?;
-        }
-        self.inner.handle_request(request, context).await
-    }
-
-    async fn handle_notification(
-        &self,
-        notification: ClientNotification,
-        context: NotificationContext<RoleServer>,
-    ) -> Result<(), McpError> {
-        if !matches!(notification, ClientNotification::InitializedNotification(_)) {
-            self.validate(&context).ok();
-        }
-        self.inner.handle_notification(notification, context).await
-    }
-
-    fn get_info(&self) -> ServerInfo {
-        self.inner.get_info()
-    }
-}
-
-pub struct McpFixture {
-    pub url: String,
-    // Keep the server alive in tests; underscore avoids unused field warnings.
-    _handle: JoinHandle<()>,
-}
-
-impl McpFixture {
-    pub async fn new(expected_session_id: ExpectedSessionId) -> Self {
-        let service = StreamableHttpService::new(
-            {
-                let expected_session_id = expected_session_id.clone();
-                move || {
-                    Ok(ValidatingService::new(
-                        Lookup::new(),
-                        expected_session_id.clone(),
-                    ))
-                }
-            },
-            LocalSessionManager::default().into(),
-            StreamableHttpServerConfig::default(),
-        );
-        let router = axum::Router::new().nest_service("/mcp", service);
-        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
-        let addr = listener.local_addr().unwrap();
-        let url = format!("http://{addr}/mcp");
-
-        let handle = tokio::spawn(async move {
-            axum::serve(listener, router).await.unwrap();
-        });
-
-        Self {
-            url,
-            _handle: handle,
-        }
-    }
+    let transport = sacp::ByteStreams::new(client_write.compat_write(), client_read.compat());
+    (transport, handle)
 }
 
 #[allow(dead_code)]
@@ -365,42 +183,41 @@ pub async fn spawn_acp_server_in_process(
     builtins: &[String],
     data_root: &Path,
     goose_mode: GooseMode,
-) -> (
-    tokio::io::DuplexStream,
-    tokio::io::DuplexStream,
-    JoinHandle<()>,
-    Arc<PermissionManager>,
-) {
+) -> (DuplexTransport, JoinHandle<()>, Arc<PermissionManager>) {
     fs::create_dir_all(data_root).unwrap();
-    let api_client = ApiClient::new(
-        openai_base_url.to_string(),
-        AuthMethod::BearerToken("test-key".to_string()),
-    )
-    .unwrap();
-    let model_config = ModelConfig::new("gpt-5-nano").unwrap();
-    let provider = OpenAiProvider::new(api_client, model_config);
-
-    let config = AcpServerConfig {
-        provider: Arc::new(provider),
-        builtins: builtins.to_vec(),
-        data_dir: data_root.to_path_buf(),
-        config_dir: data_root.to_path_buf(),
-        goose_mode,
-        disable_session_naming: true,
-    };
-
-    let (client_read, server_write) = tokio::io::duplex(64 * 1024);
-    let (server_read, client_write) = tokio::io::duplex(64 * 1024);
-
-    let agent = Arc::new(GooseAcpAgent::with_config(config).await.unwrap());
-    let permission_manager = agent.permission_manager();
-    let handle = tokio::spawn(async move {
-        if let Err(e) = serve(agent, server_read.compat(), server_write.compat_write()).await {
-            tracing::error!("ACP server error: {e}");
-        }
+    // ensure_provider reads the model from config lazily, so tests need a config.yaml.
+    let config_path = data_root.join(goose::config::base::CONFIG_YAML_NAME);
+    if !config_path.exists() {
+        fs::write(&config_path, "GOOSE_MODEL: gpt-5-nano\n").unwrap();
+    }
+    let base_url = openai_base_url.to_string();
+    let provider_factory: ProviderConstructor = Arc::new(move |model_config| {
+        let base_url = base_url.clone();
+        Box::pin(async move {
+            let api_client =
+                ApiClient::new(base_url, AuthMethod::BearerToken("test-key".to_string())).unwrap();
+            let provider: Arc<dyn Provider> =
+                Arc::new(OpenAiProvider::new(api_client, model_config));
+            Ok(provider)
+        })
     });
 
-    (client_read, client_write, handle, permission_manager)
+    let agent = Arc::new(
+        GooseAcpAgent::new(
+            provider_factory,
+            builtins.to_vec(),
+            data_root.to_path_buf(),
+            data_root.to_path_buf(),
+            goose_mode,
+            true,
+        )
+        .await
+        .unwrap(),
+    );
+    let permission_manager = agent.permission_manager();
+    let (transport, handle) = serve_agent_in_process(agent).await;
+
+    (transport, handle, permission_manager)
 }
 
 pub struct TestOutput {
@@ -461,6 +278,28 @@ where
         // Re-raise the original panic so the test shows the real failure message.
         std::panic::resume_unwind(err);
     }
+}
+
+/// Connects to the given agent via in-process duplex streams, sends an
+/// `InitializeRequest`, and returns the response.
+#[allow(dead_code)]
+pub async fn initialize_agent(agent: Arc<GooseAcpAgent>) -> sacp::schema::InitializeResponse {
+    let (transport, _handle) = serve_agent_in_process(agent).await;
+    sacp::ClientToAgent::builder()
+        .connect_to(transport)
+        .unwrap()
+        .run_until(|cx: sacp::JrConnectionCx<sacp::ClientToAgent>| async move {
+            let resp = cx
+                .send_request(sacp::schema::InitializeRequest::new(
+                    sacp::schema::ProtocolVersion::LATEST,
+                ))
+                .block_task()
+                .await
+                .unwrap();
+            Ok::<_, sacp::Error>(resp)
+        })
+        .await
+        .unwrap()
 }
 
 pub mod server;

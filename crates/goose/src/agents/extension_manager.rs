@@ -41,7 +41,7 @@ use crate::config::search_path::SearchPaths;
 use crate::config::{get_all_extensions, Config};
 use crate::oauth::oauth_flow;
 use crate::prompt_template;
-use crate::subprocess::configure_command_no_window;
+use crate::subprocess::configure_subprocess;
 use rmcp::model::{
     CallToolRequestParams, Content, ErrorCode, ErrorData, GetPromptResult, Prompt, Resource,
     ResourceContents, ServerInfo, Tool,
@@ -206,9 +206,7 @@ async fn child_process_client(
     working_dir: Option<&PathBuf>,
     docker_container: Option<String>,
 ) -> ExtensionResult<McpClient> {
-    #[cfg(unix)]
-    command.process_group(0);
-    configure_command_no_window(&mut command);
+    configure_subprocess(&mut command);
 
     if let Ok(path) = SearchPaths::builder().path() {
         command.env("PATH", path);
@@ -482,6 +480,7 @@ impl ExtensionManager {
         config: ExtensionConfig,
         working_dir: Option<PathBuf>,
         container: Option<&Container>,
+        session_id: Option<&str>,
     ) -> ExtensionResult<()> {
         let config_name = config.key().to_string();
         let sanitized_name = name_to_key(&config_name);
@@ -530,7 +529,11 @@ impl ExtensionManager {
                 timeout,
                 ..
             } => {
-                let all_envs = merge_environments(envs, env_keys, &sanitized_name).await?;
+                let mut all_envs = merge_environments(envs, env_keys, &sanitized_name).await?;
+
+                if let Some(sid) = session_id {
+                    all_envs.insert("AGENT_SESSION_ID".to_string(), sid.to_string());
+                }
 
                 // Check for malicious packages before launching the process
                 extension_malware_check::deny_if_malicious_cmd_args(cmd, args).await?;

@@ -16,7 +16,7 @@ use crate::config::search_path::SearchPaths;
 use crate::config::{Config, GooseMode};
 use crate::conversation::message::{Message, MessageContent};
 use crate::model::ModelConfig;
-use crate::subprocess::configure_command_no_window;
+use crate::subprocess::configure_subprocess;
 use rmcp::model::Tool;
 
 const CLAUDE_CODE_PROVIDER_NAME: &str = "claude-code";
@@ -278,7 +278,7 @@ impl ClaudeCodeProvider {
             .get_or_try_init(|| async {
                 let mut cmd = Command::new(&self.command);
                 // NO -p flag — persistent mode
-                configure_command_no_window(&mut cmd);
+                configure_subprocess(&mut cmd);
                 cmd.arg("--input-format")
                     .arg("stream-json")
                     .arg("--output-format")
@@ -491,6 +491,13 @@ impl Provider for ClaudeCodeProvider {
     fn get_model_config(&self) -> ModelConfig {
         // Return the model config with appropriate context limit for Claude models
         self.model.clone()
+    }
+
+    async fn fetch_supported_models(&self) -> Result<Vec<String>, ProviderError> {
+        Ok(CLAUDE_CODE_KNOWN_MODELS
+            .iter()
+            .map(|s| s.to_string())
+            .collect())
     }
 
     #[tracing::instrument(

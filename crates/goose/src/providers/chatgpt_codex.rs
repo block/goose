@@ -985,13 +985,11 @@ impl Provider for ChatGptCodexProvider {
         Ok(())
     }
 
-    async fn fetch_supported_models(&self) -> Result<Option<Vec<String>>, ProviderError> {
-        Ok(Some(
-            CHATGPT_CODEX_KNOWN_MODELS
-                .iter()
-                .map(|s| s.to_string())
-                .collect(),
-        ))
+    async fn fetch_supported_models(&self) -> Result<Vec<String>, ProviderError> {
+        Ok(CHATGPT_CODEX_KNOWN_MODELS
+            .iter()
+            .map(|s| s.to_string())
+            .collect())
     }
 }
 
@@ -999,15 +997,13 @@ impl Provider for ChatGptCodexProvider {
 mod tests {
     use super::*;
     use crate::conversation::message::Message;
+    use goose_test_support::TEST_IMAGE_B64;
     use jsonwebtoken::{Algorithm, EncodingKey, Header};
     use rmcp::model::{CallToolRequestParams, CallToolResult, Content, ErrorCode, ErrorData};
     use rmcp::object;
     use test_case::test_case;
     use wiremock::matchers::{body_string_contains, method, path};
     use wiremock::{Mock, MockServer, ResponseTemplate};
-
-    /// 1x1 transparent PNG, base64-encoded.
-    const TINY_PNG_B64: &str = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR4nGNgYAAAAAMAASsJTYQAAAAASUVORK5CYII=";
 
     fn input_kinds(payload: &Value) -> Vec<String> {
         payload["input"]
@@ -1108,7 +1104,7 @@ mod tests {
         vec![
             Message::user()
                 .with_text("describe this")
-                .with_image(TINY_PNG_B64, "image/png"),
+                .with_image(TEST_IMAGE_B64, "image/png"),
         ],
         vec![
             "message:user".to_string(),
@@ -1124,7 +1120,7 @@ mod tests {
 
     #[test]
     fn test_image_url_format() {
-        let messages = vec![Message::user().with_image(TINY_PNG_B64, "image/png")];
+        let messages = vec![Message::user().with_image(TEST_IMAGE_B64, "image/png")];
         let items = build_input_items(&messages).unwrap();
         // The image is inside the content array of the user message
         let content = items[0]["content"].as_array().unwrap();
