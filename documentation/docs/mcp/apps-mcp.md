@@ -28,7 +28,7 @@ You can create, modify, and delete apps through chat without needing to edit fil
   <TabItem value="ui" label="goose Desktop" default>
   <GooseBuiltinInstaller
     extensionName="Apps"
-    description="Create and manage custom Goose apps through chat. Apps are HTML/CSS/JavaScript and run in sandboxed windows."
+    description="Create and manage custom goose apps through chat. Apps are HTML/CSS/JavaScript and run in sandboxed windows."
   />
   </TabItem>
   <TabItem value="cli" label="goose CLI">
