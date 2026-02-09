@@ -47,12 +47,11 @@ export default function ModelsBottomBar({
   const [isLeadWorkerModalOpen, setIsLeadWorkerModalOpen] = useState(false);
   const [isLeadWorkerActive, setIsLeadWorkerActive] = useState(false);
   const [providerDefaultModel, setProviderDefaultModel] = useState<string | null>(null);
-
   const recipeProvider = recipe?.settings?.goose_provider;
   const recipeModel = recipe?.settings?.goose_model;
-
-  const effectiveProvider = recipeProvider || currentProvider;
-  const effectiveModel = recipeModel || currentModel;
+  const [userChangedModel, setUserChangedModel] = useState(false);
+  const effectiveProvider = userChangedModel ? currentProvider : (recipeProvider || currentProvider);
+  const effectiveModel = userChangedModel ? currentModel : (recipeModel || currentModel);
 
   // Check if lead/worker mode is active
   useEffect(() => {
@@ -123,11 +122,11 @@ export default function ModelsBottomBar({
   useEffect(() => {
     if (effectiveProvider) {
       (async () => {
-        if (recipeProvider) {
+        if (!userChangedModel && recipeProvider) {
           const metadata = await getProviderMetadata(recipeProvider, getProviders);
           const displayName = metadata?.display_name ?? metadata?.name ?? recipeProvider;
           setDisplayProvider(displayName);
-        } else {
+        } else if (currentProvider) {
           const providerDisplayName = await getCurrentProviderDisplayName();
           if (providerDisplayName) {
             setDisplayProvider(providerDisplayName);
@@ -142,6 +141,7 @@ export default function ModelsBottomBar({
     effectiveProvider,
     recipeProvider,
     currentProvider,
+    userChangedModel,
     getCurrentProviderDisplayName,
     getCurrentModelAndProviderForDisplay,
     recipe,
@@ -168,14 +168,17 @@ export default function ModelsBottomBar({
 
   useEffect(() => {
     (async () => {
-      if (recipeModel) {
+      if (!userChangedModel && recipeModel) {
         setDisplayModelName(recipeModel);
+      } else if (currentModel) {
+        const displayName = await getCurrentModelDisplayName();
+        setDisplayModelName(displayName);
       } else {
         const displayName = await getCurrentModelDisplayName();
         setDisplayModelName(displayName);
       }
     })();
-  }, [effectiveModel, recipeModel, currentModel, getCurrentModelDisplayName, recipe]);
+  }, [effectiveModel, recipeModel, currentModel, userChangedModel, getCurrentModelDisplayName, recipe]);
 
   return (
     <div className="relative flex items-center" ref={dropdownRef}>
@@ -213,6 +216,9 @@ export default function ModelsBottomBar({
         <SwitchModelModal
           sessionId={sessionId}
           setView={setView}
+          initialProvider={!userChangedModel ? recipeProvider : undefined}
+          initialModel={!userChangedModel ? recipeModel : undefined}
+          onModelSelected={() => setUserChangedModel(true)}
           onClose={() => setIsAddModelModalOpen(false)}
         />
       ) : null}

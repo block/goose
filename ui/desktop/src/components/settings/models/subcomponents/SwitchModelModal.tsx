@@ -65,6 +65,7 @@ type SwitchModelModalProps = {
   setView: (view: View) => void;
   onModelSelected?: (model: string) => void;
   initialProvider?: string | null;
+  initialModel?: string | null;
   titleOverride?: string;
 };
 export const SwitchModelModal = ({
@@ -73,6 +74,7 @@ export const SwitchModelModal = ({
   setView,
   onModelSelected,
   initialProvider,
+  initialModel,
   titleOverride,
 }: SwitchModelModalProps) => {
   const { getProviders, read } = useConfig();
@@ -80,13 +82,13 @@ export const SwitchModelModal = ({
   const [providerOptions, setProviderOptions] = useState<{ value: string; label: string }[]>([]);
   type ModelOption = { value: string; label: string; provider: string; isDisabled?: boolean };
   const [modelOptions, setModelOptions] = useState<{ options: ModelOption[] }[]>([]);
-  const [provider, setProvider] = useState<string | null>(
-    initialProvider || currentProvider || null
-  );
-  // Only use currentModel if we're not switching to a different provider
-  // Otherwise, let the auto-select logic pick an appropriate model for the new provider
+  const effectiveInitialProvider = initialProvider || currentProvider || null;
+  const [provider, setProvider] = useState<string | null>(effectiveInitialProvider);
+  const effectiveInitialModel = initialModel || currentModel || '';
   const [model, setModel] = useState<string>(
-    initialProvider && initialProvider !== currentProvider ? '' : currentModel || ''
+    effectiveInitialProvider && effectiveInitialProvider !== currentProvider && !initialModel
+      ? ''
+      : effectiveInitialModel
   );
   const [isCustomModel, setIsCustomModel] = useState(false);
   const [validationErrors, setValidationErrors] = useState({
