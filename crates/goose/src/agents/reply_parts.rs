@@ -163,19 +163,27 @@ impl Agent {
         // Stable tool ordering is important for multi session prompt caching.
         tools.sort_by(|a, b| a.name.cmp(&b.name));
 
-        // Prepare system prompt
-        let extensions_info = self.extension_manager.get_extensions_info().await;
-        let (extension_count, tool_count) = self
-            .extension_manager
-            .get_extension_and_tool_counts(session_id)
-            .await;
-
         // Get model name from provider
         let provider = self.provider().await?;
         let model_config = provider.get_model_config();
 
         let small_mode =
             std::env::var("GOOSE_SMALL_MODE").map(|v| v == "true").unwrap_or(false);
+
+        // Prepare system prompt
+        let mut extensions_info = self.extension_manager.get_extensions_info().await;
+
+        // In code_execution mode, only include code_execution and skills extension instructions
+        if code_execution_active {
+            extensions_info.retain(|ext| {
+                ext.name == CODE_EXECUTION_EXTENSION || ext.name == SKILLS_EXTENSION
+            });
+        }
+
+        let (extension_count, tool_count) = self
+            .extension_manager
+            .get_extension_and_tool_counts(session_id)
+            .await;
 
         let prompt_manager = self.prompt_manager.lock().await;
         let mut system_prompt = prompt_manager

@@ -125,8 +125,6 @@ impl<'a> SystemPromptBuilder<'a, PromptManager> {
     }
 
     pub fn build(self) -> String {
-
-
         let mut extensions_info = self.extensions_info;
 
         // Add frontend instructions to extensions_info to simplify json rendering

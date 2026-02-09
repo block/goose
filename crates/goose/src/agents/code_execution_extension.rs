@@ -73,20 +73,10 @@ impl CodeExecutionClient {
                 website_url: None,
             },
             instructions: Some(indoc! {r#"
-                BATCH MULTIPLE TOOL CALLS INTO ONE execute CALL.
+                FIRST: Call list_functions to discover available tools.
 
-                This extension exists to reduce round-trips. When a task requires multiple tool calls:
-                - WRONG: Multiple execute calls, each with one tool
-                - RIGHT: One execute call with a script that calls all needed tools
-
-                IMPORTANT: All tool calls are ASYNC. Use await for each call.
-
-                Workflow:
-                    1. Use the list_functions and get_function_details tools to discover tools and signatures
-                    2. Write ONE script that calls ALL tools needed for the task, no need to import anything,
-                       all the namespaces returned by list_functions and get_function_details will be available
-                    3. Chain results: use output from one tool as input to the next
-                    4. Only return and console.log data you need, tools could have very large responses.
+                Then write JavaScript that calls those tools and run it with execute.
+                All tool calls are async - use await. Batch multiple calls into one script.
             "#}.to_string()),
         };
 

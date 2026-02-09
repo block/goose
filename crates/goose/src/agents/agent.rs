@@ -842,15 +842,19 @@ impl Agent {
             .await
             .unwrap_or_default();
 
-        // In small mode, filter to core tools only (read, edit, write, shell)
+        // In small mode, filter developer extension to core tools only (read, edit, write, shell)
+        // Other extensions keep all their tools
         let small_mode = std::env::var("GOOSE_SMALL_MODE").map(|v| v == "true").unwrap_or(false);
         if small_mode {
             let core_tools = ["read", "edit", "write", "shell"];
             prefixed_tools.retain(|tool| {
                 let tool_name: &str = tool.name.as_ref();
-                // Extract tool name after prefix (e.g., "developer__read" -> "read")
-                let short_name = tool_name.split("__").last().unwrap_or(tool_name);
-                core_tools.contains(&short_name)
+                if tool_name.starts_with("developer__") {
+                    let short_name = tool_name.split("__").last().unwrap_or(tool_name);
+                    core_tools.contains(&short_name)
+                } else {
+                    true
+                }
             });
         }
 
