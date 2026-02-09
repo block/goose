@@ -35,7 +35,7 @@
 - Improper trait implementations
 
 ### No Doc Updates with Code Changes
-- PRs with code changes shouldn't update `/documentation` - docs deploy on merge, code on release. Use `unlisted: true` or remove docs.
+- PRs with code changes shouldn't update `/documentation` - docs deploy on merge, code on release. Use `unlisted: true` or remove/hide docs.
 
 ## Project-Specific Context
 
