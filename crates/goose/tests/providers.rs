@@ -1,5 +1,7 @@
 use anyhow::Result;
 use dotenvy::dotenv;
+use goose::agents::{ExtensionManager, PromptManager};
+use goose::config::ExtensionConfig;
 use goose::conversation::message::{Message, MessageContent};
 use goose::providers::anthropic::ANTHROPIC_DEFAULT_MODEL;
 use goose::providers::azure::AZURE_DEFAULT_MODEL;
@@ -10,17 +12,15 @@ use goose::providers::databricks::DATABRICKS_DEFAULT_MODEL;
 use goose::providers::errors::ProviderError;
 use goose::providers::google::GOOGLE_DEFAULT_MODEL;
 use goose::providers::litellm::LITELLM_DEFAULT_MODEL;
-use goose::providers::ollama::OLLAMA_DEFAULT_MODEL;
 use goose::providers::openai::OPEN_AI_DEFAULT_MODEL;
 use goose::providers::sagemaker_tgi::SAGEMAKER_TGI_DEFAULT_MODEL;
 use goose::providers::snowflake::SNOWFLAKE_DEFAULT_MODEL;
 use goose::providers::xai::XAI_DEFAULT_MODEL;
-use rmcp::model::{AnnotateAble, Content, RawImageContent};
-use rmcp::model::{CallToolRequestParams, Tool};
-use rmcp::object;
+use goose::session::SessionManager;
+use goose_test_support::{ExpectedSessionId, McpFixture, FAKE_CODE, TEST_SESSION_ID};
 use std::collections::HashMap;
-use std::sync::Arc;
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
+use tokio_util::sync::CancellationToken;
 
 #[derive(Debug, Clone, Copy)]
 enum TestStatus {
@@ -88,11 +88,77 @@ lazy_static::lazy_static! {
 struct ProviderTester {
     provider: Arc<dyn Provider>,
     name: String,
+    extension_manager: Arc<ExtensionManager>,
 }
 
 impl ProviderTester {
-    fn new(provider: Arc<dyn Provider>, name: String) -> Self {
-        Self { provider, name }
+    fn new(
+        provider: Arc<dyn Provider>,
+        name: String,
+        extension_manager: Arc<ExtensionManager>,
+    ) -> Self {
+        Self {
+            provider,
+            name,
+            extension_manager,
+        }
+    }
+
+    async fn tool_roundtrip(&self, prompt: &str) -> Result<Message> {
+        let tools = self
+            .extension_manager
+            .get_prefixed_tools(TEST_SESSION_ID, None)
+            .await
+            .expect("get_prefixed_tools failed");
+
+        let info = self.extension_manager.get_extensions_info().await;
+        let system = PromptManager::new()
+            .builder()
+            .with_extensions(info.into_iter())
+            .build();
+
+        let message = Message::user().with_text(prompt);
+        let (response1, _) = self
+            .provider
+            .complete(
+                TEST_SESSION_ID,
+                &system,
+                std::slice::from_ref(&message),
+                &tools,
+            )
+            .await?;
+
+        let tool_req = response1
+            .content
+            .iter()
+            .filter_map(|c| c.as_tool_request())
+            .next_back()
+            .expect("Expected provider to return a tool request");
+        let params = tool_req
+            .tool_call
+            .as_ref()
+            .expect("tool_call should be Ok")
+            .clone();
+        let result = self
+            .extension_manager
+            .dispatch_tool_call(TEST_SESSION_ID, params, None, CancellationToken::new())
+            .await
+            .expect("dispatch failed")
+            .result
+            .await
+            .expect("tool call failed");
+        let tool_response = Message::user().with_tool_response(&tool_req.id, Ok(result));
+
+        let (response2, _) = self
+            .provider
+            .complete(
+                TEST_SESSION_ID,
+                &system,
+                &[message, response1, tool_response],
+                &tools,
+            )
+            .await?;
+        Ok(response2)
     }
 
     async fn test_basic_response(&self) -> Result<()> {
@@ -101,7 +167,7 @@ impl ProviderTester {
         let (response, _) = self
             .provider
             .complete(
-                "test-session-id",
+                TEST_SESSION_ID,
                 "You are a helpful assistant.",
                 &[message],
                 &[],
@@ -123,94 +189,13 @@ impl ProviderTester {
     }
 
     async fn test_tool_usage(&self) -> Result<()> {
-        let weather_tool = Tool::new(
-            "get_weather",
-            "Get the weather for a location",
-            object!({
-                "type": "object",
-                "required": ["location"],
-                "properties": {
-                    "location": {
-                        "type": "string",
-                        "description": "The city and state, e.g. San Francisco, CA"
-                    }
-                }
-            }),
-        );
-
-        let message = Message::user().with_text("What's the weather like in San Francisco?");
-
-        let (response1, _) = self
-            .provider
-            .complete(
-                "test-session-id",
-                "You are a helpful weather assistant.",
-                std::slice::from_ref(&message),
-                std::slice::from_ref(&weather_tool),
-            )
+        let response = self
+            .tool_roundtrip("Use the get_code tool and output only its result.")
             .await?;
-
-        println!("=== {}::reponse1 ===", self.name);
-        dbg!(&response1);
-        println!("===================");
-
         assert!(
-            response1
-                .content
-                .iter()
-                .any(|content| matches!(content, MessageContent::ToolRequest(_))),
-            "Expected tool request in response"
+            response.as_concat_text().contains(FAKE_CODE),
+            "Expected lookup code in final response"
         );
-
-        let id = &response1
-            .content
-            .iter()
-            .filter_map(|message| message.as_tool_request())
-            .next_back()
-            .expect("got tool request")
-            .id;
-
-        let weather = Message::user().with_tool_response(
-            id,
-            Ok(rmcp::model::CallToolResult {
-                content: vec![Content::text(
-                    "
-                  50°F°C
-                  Precipitation: 0%
-                  Humidity: 84%
-                  Wind: 2 mph
-                  Weather
-                  Saturday 9:00 PM
-                  Clear",
-                )],
-                structured_content: None,
-                is_error: Some(false),
-                meta: None,
-            }),
-        );
-
-        let (response2, _) = self
-            .provider
-            .complete(
-                "test-session-id",
-                "You are a helpful weather assistant.",
-                &[message, response1, weather],
-                &[weather_tool],
-            )
-            .await?;
-
-        println!("=== {}::reponse2 ===", self.name);
-        dbg!(&response2);
-        println!("===================");
-
-        assert!(
-            response2
-                .content
-                .iter()
-                .any(|content| matches!(content, MessageContent::Text(_))),
-            "Expected text for final response"
-        );
-
         Ok(())
     }
 
@@ -236,7 +221,7 @@ impl ProviderTester {
         let result = self
             .provider
             .complete(
-                "test-session-id",
+                TEST_SESSION_ID,
                 "You are a helpful assistant.",
                 &messages,
                 &[],
@@ -268,102 +253,15 @@ impl ProviderTester {
     }
 
     async fn test_image_content_support(&self) -> Result<()> {
-        use base64::{engine::general_purpose::STANDARD as BASE64, Engine as _};
-        use goose::conversation::message::Message;
-        use std::fs;
-
-        let image_path = "crates/goose/examples/test_assets/test_image.png";
-        let image_data = match fs::read(image_path) {
-            Ok(data) => data,
-            Err(_) => {
-                println!(
-                    "Test image not found at {}, skipping image test",
-                    image_path
-                );
-                return Ok(());
-            }
-        };
-
-        let base64_image = BASE64.encode(image_data);
-        let image_content = RawImageContent {
-            data: base64_image,
-            mime_type: "image/png".to_string(),
-            meta: None,
-        }
-        .no_annotation();
-
-        let message_with_image =
-            Message::user().with_image(image_content.data.clone(), image_content.mime_type.clone());
-
-        let result = self
-            .provider
-            .complete(
-                "test-session-id",
-                "You are a helpful assistant. Describe what you see in the image briefly.",
-                &[message_with_image],
-                &[],
-            )
-            .await;
-
-        println!("=== {}::image_content_support ===", self.name);
-        let (response, _) = result?;
-        println!("Image response: {:?}", response);
+        let response = self
+            .tool_roundtrip("Use the get_image tool and describe what you see in its result.")
+            .await?;
+        let text = response.as_concat_text().to_lowercase();
         assert!(
-            response
-                .content
-                .iter()
-                .any(|content| matches!(content, MessageContent::Text(_))),
-            "Expected text response for image"
+            text.contains("hello goose") || text.contains("test image"),
+            "Expected response to describe the test image, got: {}",
+            text
         );
-        println!("===================");
-
-        let screenshot_tool = Tool::new(
-            "get_screenshot",
-            "Get a screenshot of the current screen",
-            object!({
-                "type": "object",
-                "properties": {}
-            }),
-        );
-
-        let user_message = Message::user().with_text("Take a screenshot please");
-        let tool_request = Message::assistant().with_tool_request(
-            "test_id",
-            Ok(CallToolRequestParams {
-                meta: None,
-                task: None,
-                name: "get_screenshot".into(),
-                arguments: Some(object!({})),
-            }),
-        );
-        let tool_response = Message::user().with_tool_response(
-            "test_id",
-            Ok(rmcp::model::CallToolResult {
-                content: vec![Content::image(
-                    image_content.data.clone(),
-                    image_content.mime_type.clone(),
-                )],
-                structured_content: None,
-                is_error: Some(false),
-                meta: None,
-            }),
-        );
-
-        let result2 = self
-            .provider
-            .complete(
-                "test-session-id",
-                "You are a helpful assistant.",
-                &[user_message, tool_request, tool_response],
-                &[screenshot_tool],
-            )
-            .await;
-
-        println!("=== {}::tool_image_response ===", self.name);
-        let (response, _) = result2?;
-        println!("Tool image response: {:?}", response);
-        println!("===================");
-
         Ok(())
     }
 
@@ -374,19 +272,17 @@ impl ProviderTester {
         dbg!(&models);
         println!("===================");
 
-        if let Some(models) = models {
-            assert!(!models.is_empty(), "Expected non-empty model list");
-            let model_name = &self.provider.get_model_config().model_name;
-            // Some providers (e.g. Ollama) return names with tags like "qwen3:latest"
-            // while the configured model name may be just "qwen3".
-            assert!(
-                models
-                    .iter()
-                    .any(|m| m == model_name || m.starts_with(&format!("{}:", model_name))),
-                "Expected model '{}' in supported models",
-                model_name
-            );
-        }
+        assert!(!models.is_empty(), "Expected non-empty model list");
+        let model_name = &self.provider.get_model_config().model_name;
+        // Some providers (e.g. Ollama) return names with tags like "qwen3:latest"
+        // while the configured model name may be just "qwen3".
+        assert!(
+            models
+                .iter()
+                .any(|m| m == model_name || m.starts_with(&format!("{}:", model_name))),
+            "Expected model '{}' in supported models",
+            model_name
+        );
         Ok(())
     }
 
@@ -454,7 +350,12 @@ async fn test_provider(
         original_env
     };
 
-    let provider = match create_with_named_model(&name.to_lowercase(), model_name).await {
+    let expected_session_id = ExpectedSessionId::default();
+    let provider_name = name.to_lowercase();
+    let mcp = McpFixture::new(Some(expected_session_id.clone())).await;
+    expected_session_id.set(TEST_SESSION_ID);
+
+    let provider = match create_with_named_model(&provider_name, model_name).await {
         Ok(p) => p,
         Err(e) => {
             println!("Skipping {} tests - failed to create provider: {}", name, e);
@@ -477,8 +378,25 @@ async fn test_provider(
         }
     }
 
-    let tester = ProviderTester::new(provider, name.to_string());
-    match tester.run_test_suite().await {
+    let temp_dir = tempfile::tempdir()?;
+    let shared_provider = Arc::new(tokio::sync::Mutex::new(Some(provider.clone())));
+    let session_manager = Arc::new(SessionManager::new(temp_dir.path().to_path_buf()));
+    let extension_manager = Arc::new(ExtensionManager::new(shared_provider, session_manager));
+    extension_manager
+        .add_extension(
+            ExtensionConfig::streamable_http("mcp-fixture", &mcp.url, "MCP fixture", 30_u64),
+            None,
+            None,
+            None,
+        )
+        .await
+        .expect("failed to add extension");
+
+    let tester = ProviderTester::new(provider, name.to_string(), extension_manager);
+    let _mcp = mcp;
+    let result = tester.run_test_suite().await;
+
+    match result {
         Ok(_) => {
             TEST_REPORT.record_pass(name);
             Ok(())
@@ -567,7 +485,8 @@ async fn test_databricks_provider() -> Result<()> {
 
 #[tokio::test]
 async fn test_ollama_provider() -> Result<()> {
-    test_provider("Ollama", OLLAMA_DEFAULT_MODEL, &["OLLAMA_HOST"], None).await
+    // qwen3-vl supports text, tools, and vision (needed for image test)
+    test_provider("Ollama", "qwen3-vl", &["OLLAMA_HOST"], None).await
 }
 
 #[tokio::test]

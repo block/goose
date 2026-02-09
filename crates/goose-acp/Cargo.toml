@@ -43,6 +43,7 @@ uuid = { version = "1.11", features = ["v7"] }
 [dev-dependencies]
 assert-json-diff = "2.0.2"
 async-trait = "0.1.89"
+goose-test-support = { path = "../goose-test-support" }
 wiremock = { workspace = true }
 tempfile = "3"
 test-case = { workspace = true }

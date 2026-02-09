@@ -267,6 +267,13 @@ impl Provider for GeminiCliProvider {
         self.model.clone()
     }
 
+    async fn fetch_supported_models(&self) -> Result<Vec<String>, ProviderError> {
+        Ok(GEMINI_CLI_KNOWN_MODELS
+            .iter()
+            .map(|s| s.to_string())
+            .collect())
+    }
+
     #[tracing::instrument(
         skip(self, _model_config, system, messages, tools),
         fields(model_config, input, output, input_tokens, output_tokens, total_tokens)

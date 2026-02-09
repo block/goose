@@ -38,6 +38,7 @@ pub const OLLAMA_DEFAULT_PORT: u16 = 11434;
 pub const OLLAMA_DEFAULT_MODEL: &str = "qwen3";
 pub const OLLAMA_KNOWN_MODELS: &[&str] = &[
     OLLAMA_DEFAULT_MODEL,
+    "qwen3-vl",
     "qwen3-coder:30b",
     "qwen3-coder:480b-cloud",
 ];
@@ -307,7 +308,7 @@ impl Provider for OllamaProvider {
         stream_ollama(response, log)
     }
 
-    async fn fetch_supported_models(&self) -> Result<Option<Vec<String>>, ProviderError> {
+    async fn fetch_supported_models(&self) -> Result<Vec<String>, ProviderError> {
         let response = self
             .api_client
             .request(None, "api/tags")
@@ -340,7 +341,7 @@ impl Provider for OllamaProvider {
 
         model_names.sort();
 
-        Ok(Some(model_names))
+        Ok(model_names)
     }
 }
 

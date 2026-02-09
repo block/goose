@@ -662,20 +662,16 @@ impl Provider for CodexProvider {
         ))
     }
 
-    async fn fetch_supported_models(&self) -> Result<Option<Vec<String>>, ProviderError> {
-        Ok(Some(
-            CODEX_KNOWN_MODELS.iter().map(|s| s.to_string()).collect(),
-        ))
+    async fn fetch_supported_models(&self) -> Result<Vec<String>, ProviderError> {
+        Ok(CODEX_KNOWN_MODELS.iter().map(|s| s.to_string()).collect())
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use goose_test_support::TEST_IMAGE_B64;
     use test_case::test_case;
-
-    /// 1x1 transparent PNG, base64-encoded.
-    const TINY_PNG_B64: &str = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR4nGNgYAAAAAMAASsJTYQAAAAASUVORK5CYII=";
 
     #[test]
     fn test_codex_metadata() {
@@ -696,7 +692,7 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let messages = vec![Message::user()
             .with_text("Describe")
-            .with_image(TINY_PNG_B64, mime)];
+            .with_image(TEST_IMAGE_B64, mime)];
         let (_prompt, temp_files) = prepare_input("", &messages, dir.path()).unwrap();
         assert_eq!(temp_files.len(), 1);
         let path = temp_files[0].path();
@@ -714,7 +710,7 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let messages = vec![Message::user()
             .with_text("Describe")
-            .with_image(TINY_PNG_B64, mime)];
+            .with_image(TEST_IMAGE_B64, mime)];
         let err = prepare_input("", &messages, dir.path()).unwrap_err();
         assert!(
             err.to_string().contains("Unsupported image MIME type"),
