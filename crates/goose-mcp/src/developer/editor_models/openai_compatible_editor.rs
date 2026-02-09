@@ -95,8 +95,4 @@ impl EditorModelImpl for OpenAICompatibleEditor {
         eprintln!("OpenAI-compatible Editor API worked");
         Ok(content.to_string())
     }
-
-    fn get_str_replace_description(&self) -> &'static str {
-        "Edit the file with the new content."
-    }
 }

@@ -83,8 +83,13 @@ pub struct ReadParams {
     /// Path to file or directory (relative or absolute)
     pub path: String,
 
-    /// Optional line range [start, end] to view. 1-indexed, -1 for end of file.
-    pub view_range: Option<Vec<i64>>,
+    /// Line number to start reading from (1-indexed)
+    #[serde(default)]
+    pub offset: Option<usize>,
+
+    /// Maximum number of lines to read
+    #[serde(default)]
+    pub limit: Option<usize>,
 }
 
 /// Parameters for the edit tool
@@ -115,8 +120,12 @@ pub struct WriteParams {
 /// Parameters for the shell tool
 #[derive(Debug, Serialize, Deserialize, JsonSchema)]
 pub struct ShellParams {
-    /// The command string to execute in the shell
+    /// Bash command to execute
     pub command: String,
+
+    /// Timeout in seconds (optional)
+    #[serde(default)]
+    pub timeout: Option<u64>,
 }
 
 /// Parameters for the image_processor tool
@@ -252,11 +261,10 @@ impl ServerHandler for DeveloperServer {
 
         let instructions = formatdoc! {r#"
             Tools: read, edit, write, shell
-
-            - read: View file contents (use view_range for partial reads)
+            - read: View file contents (use offset/limit for large files)
             - edit: Replace exact text (old_str must match exactly)
             - write: Create or overwrite files
-            - shell: Run commands (prefer rg over grep/find)
+            - shell: Run commands
 
             os: {os}
             cwd: {cwd}
@@ -594,7 +602,7 @@ impl DeveloperServer {
     /// Read file contents or list directory.
     #[tool(
         name = "read",
-        description = "Read file contents. Use view_range [start, end] for partial reads."
+        description = "Read file contents. Use offset/limit for large files."
     )]
     pub async fn read(
         &self,
@@ -611,13 +619,13 @@ impl DeveloperServer {
             ));
         }
 
-        let view_range = params.view_range.as_ref().and_then(|vr| {
-            if vr.len() == 2 {
-                Some((vr[0] as usize, vr[1]))
-            } else {
-                None
-            }
-        });
+        // Convert offset/limit to internal view_range format
+        let view_range = match (params.offset, params.limit) {
+            (Some(offset), Some(limit)) => Some((offset, (offset + limit - 1) as i64)),
+            (Some(offset), None) => Some((offset, -1_i64)),
+            (None, Some(limit)) => Some((1, limit as i64)),
+            (None, None) => None,
+        };
         let content = text_editor_view(&path, view_range).await?;
         Ok(CallToolResult::success(content))
     }
@@ -678,18 +686,10 @@ impl DeveloperServer {
         Ok(CallToolResult::success(content))
     }
 
-    /// Execute a command in the shell.
-    ///
-    /// This will return the output and error concatenated into a single string, as
-    /// you would see from running on the command line. There will also be an indication
-    /// of if the command succeeded or failed.
-    ///
-    /// Avoid commands that produce a large amount of output, and consider piping those outputs to files.
-    /// If you need to run a long lived command, background it - e.g. `uvicorn main:app &` so that
-    /// this tool does not run indefinitely.
+    /// Execute a bash command.
     #[tool(
         name = "shell",
-        description = "Execute a command in the shell.This will return the output and error concatenated into a single string, as you would see from running on the command line. There will also be an indication of if the command succeeded or failed. Avoid commands that produce a large amount of output, and consider piping those outputs to files. If you need to run a long lived command, background it - e.g. `uvicorn main:app &` so that this tool does not run indefinitely."
+        description = "Execute a bash command. Returns stdout and stderr. Optionally provide a timeout in seconds."
     )]
     pub async fn shell(
         &self,

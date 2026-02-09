@@ -129,47 +129,6 @@ impl EditorModelImpl for MorphLLMEditor {
 
         Ok(content.to_string())
     }
-
-    fn get_str_replace_description(&self) -> &'static str {
-        "Use the edit_file to propose an edit to an existing file.
-        This will be read by a less intelligent model, which will quickly apply the edit. You should make it clear what the edit is, while also minimizing the unchanged code you write.
-        
-        **IMPORTANT**: in the new_str parameter, you must also provide an `instruction` - a single sentence written in the first person describing what you are going to do for the sketched edit. 
-        This instruction helps the less intelligent model understand and apply your edit correctly. 
-
-         Examples of good instructions:
-        - I am adding error handling to the user authentication function and removing the old authentication method
-        - The instruction should be specific enough to disambiguate any uncertainty in your edit.
-        
-
-        The format for new_str should be like this example: 
-
-        <code>
-          new code here you want to add 
-        </code>
-        <instruction>
-         adding new code with error handling
-        </instruction>
-
-        provide this to new_str as a single string.
-
-        When writing the edit, you should specify each edit in sequence, with the special comment // ... existing code ... to represent unchanged code in between edited lines.
-
-        For example:
-        // ... existing code ...
-        FIRST_EDIT
-        // ... existing code ...
-        SECOND_EDIT
-        // ... existing code ...
-        THIRD_EDIT
-        // ... existing code ...
-
-        You should bias towards repeating as few lines of the original file as possible to convey the change.
-        Each edit should contain sufficient context of unchanged lines around the code you're editing to resolve ambiguity.
-        If you plan on deleting a section, you must provide surrounding context to indicate the deletion.
-        DO NOT omit spans of pre-existing code without using the // ... existing code ... comment to indicate its absence.        
-        "
-    }
 }
 
 #[cfg(test)]

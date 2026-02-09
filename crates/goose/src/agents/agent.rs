@@ -808,6 +808,10 @@ impl Agent {
     }
 
     pub async fn subagents_enabled(&self, session_id: &str) -> bool {
+        // In small mode, disable subagents for simpler tool set
+        if std::env::var("GOOSE_SMALL_MODE").map(|v| v == "true").unwrap_or(false) {
+            return false;
+        }
         if self.config.goose_mode != GooseMode::Auto {
             return false;
         }
@@ -837,6 +841,18 @@ impl Agent {
             .get_prefixed_tools(session_id, extension_name.clone())
             .await
             .unwrap_or_default();
+
+        // In small mode, filter to core tools only (read, edit, write, shell)
+        let small_mode = std::env::var("GOOSE_SMALL_MODE").map(|v| v == "true").unwrap_or(false);
+        if small_mode {
+            let core_tools = ["read", "edit", "write", "shell"];
+            prefixed_tools.retain(|tool| {
+                let tool_name: &str = tool.name.as_ref();
+                // Extract tool name after prefix (e.g., "developer__read" -> "read")
+                let short_name = tool_name.split("__").last().unwrap_or(tool_name);
+                core_tools.contains(&short_name)
+            });
+        }
 
         let subagents_enabled = self.subagents_enabled(session_id).await;
         if (extension_name.is_none() || extension_name.as_deref() == Some("platform"))
@@ -1174,18 +1190,23 @@ impl Agent {
                     tool_call_cut_off,
                 );
 
-                let conversation_with_moim = super::moim::inject_moim(
-                    &session_config.id,
-                    conversation.clone(),
-                    &self.extension_manager,
-                    &working_dir,
-                ).await;
+                // In small mode, skip MOIM injection for simpler prompts
+                let conversation_for_llm = if std::env::var("GOOSE_SMALL_MODE").map(|v| v == "true").unwrap_or(false) {
+                    conversation.clone()
+                } else {
+                    super::moim::inject_moim(
+                        &session_config.id,
+                        conversation.clone(),
+                        &self.extension_manager,
+                        &working_dir,
+                    ).await
+                };
 
                 let mut stream = Self::stream_response_from_provider(
                     self.provider().await?,
                     &session_config.id,
                     &system_prompt,
-                    conversation_with_moim.messages(),
+                    conversation_for_llm.messages(),
                     &tools,
                     &toolshim_tools,
                 ).await?;

@@ -52,6 +52,7 @@ pub struct SystemPromptBuilder<'a, M> {
     subagents_enabled: bool,
     hints: Option<String>,
     code_execution_mode: bool,
+    small_mode: bool,
 }
 
 impl<'a> SystemPromptBuilder<'a, PromptManager> {
@@ -118,7 +119,14 @@ impl<'a> SystemPromptBuilder<'a, PromptManager> {
         self
     }
 
+    pub fn with_small_mode(mut self, small_mode: bool) -> Self {
+        self.small_mode = small_mode;
+        self
+    }
+
     pub fn build(self) -> String {
+
+
         let mut extensions_info = self.extensions_info;
 
         // Add frontend instructions to extensions_info to simplify json rendering
@@ -240,6 +248,7 @@ impl PromptManager {
             subagents_enabled: false,
             hints: None,
             code_execution_mode: false,
+            small_mode: false,
         }
     }
 

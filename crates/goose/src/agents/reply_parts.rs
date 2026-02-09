@@ -174,9 +174,13 @@ impl Agent {
         let provider = self.provider().await?;
         let model_config = provider.get_model_config();
 
+        let small_mode =
+            std::env::var("GOOSE_SMALL_MODE").map(|v| v == "true").unwrap_or(false);
+
         let prompt_manager = self.prompt_manager.lock().await;
         let mut system_prompt = prompt_manager
             .builder()
+            .with_small_mode(small_mode)
             .with_extensions(extensions_info.into_iter())
             .with_frontend_instructions(self.frontend_instructions.lock().await.clone())
             .with_extension_and_tool_counts(extension_count, tool_count)

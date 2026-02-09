@@ -95,8 +95,4 @@ impl EditorModelImpl for RelaceEditor {
         eprintln!("Relace Editor API worked");
         Ok(content.to_string())
     }
-
-    fn get_str_replace_description(&self) -> &'static str {
-        "edit_file will take the new_str and work out how to place old_str with it intelligently."
-    }
 }

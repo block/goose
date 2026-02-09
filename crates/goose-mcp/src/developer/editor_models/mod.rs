@@ -43,14 +43,6 @@ impl EditorModel {
         }
     }
 
-    /// Get the description for the str_replace command when this editor is active
-    pub fn get_str_replace_description(&self) -> &'static str {
-        match self {
-            EditorModel::MorphLLM(editor) => editor.get_str_replace_description(),
-            EditorModel::OpenAICompatible(editor) => editor.get_str_replace_description(),
-            EditorModel::Relace(editor) => editor.get_str_replace_description(),
-        }
-    }
 }
 
 /// Trait for individual editor implementations
@@ -62,9 +54,6 @@ pub trait EditorModelImpl {
         old_str: &str,
         update_snippet: &str,
     ) -> Result<String, String>;
-
-    /// Get the description for the str_replace command when this editor is active
-    fn get_str_replace_description(&self) -> &'static str;
 }
 
 /// Factory function to create the appropriate editor model based on environment variables
