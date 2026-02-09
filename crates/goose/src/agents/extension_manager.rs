@@ -41,7 +41,7 @@ use crate::config::search_path::SearchPaths;
 use crate::config::{get_all_extensions, Config};
 use crate::oauth::oauth_flow;
 use crate::prompt_template;
-use crate::subprocess::configure_command_no_window;
+use crate::subprocess::configure_subprocess;
 use rmcp::model::{
     CallToolRequestParams, Content, ErrorCode, ErrorData, GetPromptResult, Prompt, Resource,
     ResourceContents, ServerInfo, Tool,
@@ -206,7 +206,7 @@ async fn child_process_client(
     working_dir: Option<&PathBuf>,
     docker_container: Option<String>,
 ) -> ExtensionResult<McpClient> {
-    configure_command_no_window(&mut command);
+    configure_subprocess(&mut command);
 
     if let Ok(path) = SearchPaths::builder().path() {
         command.env("PATH", path);

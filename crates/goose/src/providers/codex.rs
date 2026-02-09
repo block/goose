@@ -19,7 +19,7 @@ use crate::config::search_path::SearchPaths;
 use crate::config::{Config, GooseMode};
 use crate::conversation::message::{Message, MessageContent};
 use crate::model::ModelConfig;
-use crate::subprocess::configure_command_no_window;
+use crate::subprocess::configure_subprocess;
 use rmcp::model::Role;
 use rmcp::model::Tool;
 
@@ -155,7 +155,7 @@ impl CodexProvider {
         }
 
         let mut cmd = Command::new(&self.command);
-        configure_command_no_window(&mut cmd);
+        configure_subprocess(&mut cmd);
 
         // Propagate extended PATH so the codex subprocess can find Node.js
         // and other dependencies (especially when launched from the desktop app

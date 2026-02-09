@@ -15,7 +15,7 @@ use crate::config::Config;
 use crate::conversation::message::{Message, MessageContent};
 use crate::model::ModelConfig;
 use crate::providers::base::ConfigKey;
-use crate::subprocess::configure_command_no_window;
+use crate::subprocess::configure_subprocess;
 use futures::future::BoxFuture;
 use rmcp::model::Role;
 use rmcp::model::Tool;
@@ -92,7 +92,7 @@ impl GeminiCliProvider {
         }
 
         let mut cmd = Command::new(&self.command);
-        configure_command_no_window(&mut cmd);
+        configure_subprocess(&mut cmd);
 
         if let Ok(path) = SearchPaths::builder().with_npm().path() {
             cmd.env("PATH", path);
