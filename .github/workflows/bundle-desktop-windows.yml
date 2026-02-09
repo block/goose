@@ -1,13 +1,6 @@
 name: "Bundle Desktop (Windows)"
 
 on:
-  workflow_dispatch:
-    inputs:
-      signing:
-        description: 'Whether to sign the Windows executable'
-        required: false
-        type: boolean
-        default: false
   workflow_call:
     inputs:
       version:
