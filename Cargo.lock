@@ -4330,6 +4330,7 @@ dependencies = [
  "tree-sitter-swift",
  "umya-spreadsheet",
  "url",
+ "uuid",
  "which 8.0.0",
  "xcap",
 ]
