@@ -105,18 +105,18 @@ pub struct ExtensionManager {
 /// A flattened representation of a resource used by the agent to prepare inference
 #[derive(Debug, Clone)]
 pub struct ResourceItem {
-    pub client_name: String,      // The name of the client that owns the resource
-    pub uri: String,              // The URI of the resource
-    pub name: String,             // The name of the resource
-    pub content: String,          // The content of the resource
+    pub extension_name: String, // The name of the extension that owns the resource
+    pub uri: String,            // The URI of the resource
+    pub name: String,           // The name of the resource
+    pub content: String,        // The content of the resource
     pub timestamp: DateTime<Utc>, // The timestamp of the resource
-    pub priority: f32,            // The priority of the resource
+    pub priority: f32,          // The priority of the resource
     pub token_count: Option<u32>, // The token count of the resource (filled in by the agent)
 }
 
 impl ResourceItem {
     pub fn new(
-        client_name: String,
+        extension_name: String,
         uri: String,
         name: String,
         content: String,
@@ -124,7 +124,7 @@ impl ResourceItem {
         priority: f32,
     ) -> Self {
         Self {
-            client_name,
+            extension_name,
             uri,
             name,
             content,
@@ -217,9 +217,17 @@ fn is_unprefixed_extension(config: &ExtensionConfig) -> bool {
     }
 }
 
+/// Returns true if the named extension is a first-class platform extension
+/// whose tools are exposed unprefixed and remain visible during code execution mode.
+pub fn is_first_class_extension(name: &str) -> bool {
+    PLATFORM_EXTENSIONS
+        .get(name_to_key(name).as_str())
+        .is_some_and(|def| def.unprefixed_tools)
+}
+
 /// Result of resolving a tool call to its owning extension
 struct ResolvedTool {
-    client_name: String,
+    extension_name: String,
     actual_tool_name: String,
     client: McpClientBox,
 }
@@ -1242,7 +1250,7 @@ impl ExtensionManager {
             let owner = name_to_key(prefix);
             if let Some(client) = self.get_server_client(&owner).await {
                 return Ok(ResolvedTool {
-                    client_name: owner,
+                    extension_name: owner,
                     actual_tool_name: actual.to_string(),
                     client,
                 });
@@ -1280,7 +1288,7 @@ impl ExtensionManager {
             })?;
 
             return Ok(ResolvedTool {
-                client_name: owner,
+                extension_name: owner,
                 actual_tool_name,
                 client,
             });
@@ -1303,7 +1311,7 @@ impl ExtensionManager {
         let tool_name_str = tool_call.name.to_string();
         let resolved = self.resolve_tool(session_id, &tool_name_str).await?;
 
-        if let Some(extension) = self.extensions.lock().await.get(&resolved.client_name) {
+        if let Some(extension) = self.extensions.lock().await.get(&resolved.extension_name) {
             if !extension
                 .config
                 .is_tool_available(&resolved.actual_tool_name)
@@ -1312,7 +1320,7 @@ impl ExtensionManager {
                     ErrorCode::RESOURCE_NOT_FOUND,
                     format!(
                         "Tool '{}' is not available for extension '{}'",
-                        resolved.actual_tool_name, resolved.client_name
+                        resolved.actual_tool_name, resolved.extension_name
                     ),
                     None,
                 )

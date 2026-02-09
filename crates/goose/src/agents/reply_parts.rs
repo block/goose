@@ -9,7 +9,6 @@ use tracing::debug;
 
 use super::super::agents::Agent;
 use crate::agents::code_execution_extension::EXTENSION_NAME as CODE_EXECUTION_EXTENSION;
-use crate::agents::summon_extension::EXTENSION_NAME as SUMMON_EXTENSION;
 use crate::conversation::message::{Message, MessageContent, ToolRequest};
 use crate::conversation::Conversation;
 use crate::providers::base::{stream_from_single_message, MessageStream, Provider, ProviderUsage};
@@ -150,13 +149,9 @@ impl Agent {
             .is_extension_enabled(CODE_EXECUTION_EXTENSION)
             .await;
         if code_execution_active {
-            let allowed_extensions = [CODE_EXECUTION_EXTENSION, SUMMON_EXTENSION];
             tools.retain(|tool| {
                 if let Some(owner) = crate::agents::extension_manager::get_tool_owner(tool) {
-                    let normalized = crate::config::extensions::name_to_key(&owner);
-                    allowed_extensions
-                        .iter()
-                        .any(|ext| crate::config::extensions::name_to_key(ext) == normalized)
+                    crate::agents::extension_manager::is_first_class_extension(&owner)
                 } else {
                     false
                 }
