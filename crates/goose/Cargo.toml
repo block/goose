@@ -148,6 +148,7 @@ ctor = "0.2.9"
 test-case = { workspace = true }
 env-lock = { workspace = true }
 rmcp = { workspace = true, features = ["transport-streamable-http-server"] }
+goose-test-support = { path = "../goose-test-support" }
 
 [[example]]
 name = "agent"

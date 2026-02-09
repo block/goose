@@ -6,7 +6,7 @@ use futures::future::BoxFuture;
 use std::collections::HashMap;
 use std::sync::Arc;
 
-type ProviderConstructor =
+pub type ProviderConstructor =
     Arc<dyn Fn(ModelConfig) -> BoxFuture<'static, Result<Arc<dyn Provider>>> + Send + Sync>;
 
 #[derive(Clone)]
