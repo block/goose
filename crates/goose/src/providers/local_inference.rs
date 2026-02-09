@@ -730,14 +730,14 @@ impl Provider for LocalInferenceProvider {
         Ok("Local conversation".to_string())
     }
 
-    async fn fetch_supported_models(&self) -> Result<Option<Vec<String>>, ProviderError> {
+    async fn fetch_supported_models(&self) -> Result<Vec<String>, ProviderError> {
         // Return all models - UI will show "(not downloaded)" for ones that aren't available
         let all_models: Vec<String> = available_local_models()
             .iter()
             .map(|m| m.id.to_string())
             .collect();
 
-        Ok(Some(all_models))
+        Ok(all_models)
     }
 
     async fn complete_with_model(
