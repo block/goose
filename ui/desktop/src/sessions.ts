@@ -7,6 +7,7 @@ import {
 } from './store/extensionOverrides';
 import type { FixedExtensionEntry } from './components/ConfigContext';
 import { AppEvents } from './constants/events';
+import { decodeRecipe, stripEmptyExtensions, Recipe } from './recipe';
 
 export function shouldShowNewChatTitle(session: Session): boolean {
   if (session.recipe) {
@@ -36,7 +37,6 @@ export function resumeSession(session: Session, setView: setViewType) {
 export async function createSession(
   workingDir: string,
   options?: {
-    recipeId?: string;
     recipeDeeplink?: string;
     extensionConfigs?: ExtensionConfig[];
     allExtensions?: FixedExtensionEntry[];
@@ -44,17 +44,15 @@ export async function createSession(
 ): Promise<Session> {
   const body: {
     working_dir: string;
-    recipe_id?: string;
-    recipe_deeplink?: string;
+    recipe?: Recipe;
     extension_overrides?: ExtensionConfig[];
   } = {
     working_dir: workingDir,
   };
 
-  if (options?.recipeId) {
-    body.recipe_id = options.recipeId;
-  } else if (options?.recipeDeeplink) {
-    body.recipe_deeplink = options.recipeDeeplink;
+  if (options?.recipeDeeplink) {
+    const recipe = await decodeRecipe(options.recipeDeeplink);
+    body.recipe = stripEmptyExtensions(recipe);
   }
 
   if (options?.extensionConfigs && options.extensionConfigs.length > 0) {
@@ -81,7 +79,6 @@ export async function startNewSession(
   setView: setViewType,
   workingDir: string,
   options?: {
-    recipeId?: string;
     recipeDeeplink?: string;
     allExtensions?: FixedExtensionEntry[];
   }

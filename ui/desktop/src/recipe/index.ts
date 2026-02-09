@@ -78,6 +78,19 @@ export async function generateDeepLink(recipe: Recipe): Promise<string> {
   return `goose://recipe?config=${encoded}`;
 }
 
+/**
+ * Strips empty extensions arrays from recipes before passing to the backend.
+ *
+ * This is a backwards compatibility workaround for the desktop app. Previously,
+ * the UI was saving recipes with an empty `extensions: []` array, which the
+ * backend interprets as "use no extensions" rather than "use user's default
+ * extensions". By removing the empty array, the backend will fall back to
+ * loading the user's configured default extensions.
+ *
+ * This can be removed once we have the ability to manage recipe extensions
+ * directly in the UI, allowing users to explicitly choose which extensions
+ * a recipe should use.
+ */
 export function stripEmptyExtensions(recipe: Recipe): Recipe {
   if (Array.isArray(recipe.extensions) && recipe.extensions.length === 0) {
     const { extensions: _, ...rest } = recipe;
