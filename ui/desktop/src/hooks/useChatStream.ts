@@ -369,9 +369,6 @@ export function useChatStream({
 
       const isNewSession = sessionId && sessionId.match(/^\d{8}_\d{6}$/);
       if (isNewSession) {
-        console.log(
-          'useChatStream: Message stream finished for new session, emitting message-stream-finished event'
-        );
         window.dispatchEvent(new CustomEvent(AppEvents.MESSAGE_STREAM_FINISHED));
       }
 
@@ -591,8 +588,6 @@ export function useChatStream({
           body: {
             session_id: sessionId,
             user_message: newMessage,
-            // Pass conversation explicitly when there are existing messages
-            // This ensures backend uses the correct conversation state (important for fork/edit)
             ...(hasExistingMessages && { conversation_so_far: currentState.messages }),
           },
           throwOnError: true,
@@ -754,26 +749,19 @@ export function useChatStream({
           });
 
           if (sessionResponse.data?.conversation) {
-            // The session has been truncated - it contains messages BEFORE the edited message
             const truncatedMessages = [...sessionResponse.data.conversation];
-
-            // Create the updated user message with new content
             const updatedUserMessage = createUserMessage(newContent);
 
-            // Preserve any existing image content from the original message
             for (const content of message.content) {
               if (content.type === 'image') {
                 updatedUserMessage.content.push(content);
               }
             }
 
-            // Update UI to show the edited message appended to truncated conversation
             const messagesForUI = [...truncatedMessages, updatedUserMessage];
             dispatch({ type: 'SET_MESSAGES', payload: messagesForUI });
             dispatch({ type: 'START_STREAMING' });
 
-            // Request response to the updated message
-            const { reply } = await import('../api');
             abortControllerRef.current = new AbortController();
 
             try {
@@ -781,7 +769,7 @@ export function useChatStream({
                 body: {
                   session_id: targetSessionId,
                   user_message: updatedUserMessage,
-                  conversation_so_far: truncatedMessages, // Explicitly pass truncated conversation
+                  conversation_so_far: truncatedMessages,
                 },
                 throwOnError: true,
                 signal: abortControllerRef.current.signal,
@@ -792,7 +780,7 @@ export function useChatStream({
               if (error instanceof Error && error.name === 'AbortError') {
                 dispatch({ type: 'SET_CHAT_STATE', payload: ChatState.Idle });
               } else {
-                throw error; // Let the outer catch block handle it
+                throw error;
               }
             }
           } else {
