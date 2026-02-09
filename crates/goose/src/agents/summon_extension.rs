@@ -1035,6 +1035,7 @@ impl SummonClient {
             crate::config::permission::PermissionManager::instance(),
             None,
             crate::config::GooseMode::Auto,
+            true, // disable session naming for subagents
         );
 
         let subagent_session = self
@@ -1473,6 +1474,7 @@ impl SummonClient {
             crate::config::permission::PermissionManager::instance(),
             None,
             crate::config::GooseMode::Auto,
+            true, // disable session naming for subagents
         );
 
         let subagent_session = self
