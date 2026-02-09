@@ -350,12 +350,10 @@ impl PromptInjectionScanner {
     }
 
     fn extract_tool_content(&self, tool_call: &CallToolRequestParams) -> String {
-        if tool_call.name == "developer__shell" {
-            if let Some(args) = &tool_call.arguments {
-                if let Some(command_value) = args.get("command") {
-                    if let Some(cmd_str) = command_value.as_str() {
-                        return cmd_str.to_string();
-                    }
+        if let Some(args) = &tool_call.arguments {
+            if let Some(command_value) = args.get("command") {
+                if let Some(cmd_str) = command_value.as_str() {
+                    return cmd_str.to_string();
                 }
             }
         }
