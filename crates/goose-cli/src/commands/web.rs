@@ -238,7 +238,7 @@ pub async fn handle_web(
     no_auth: bool,
 ) -> Result<()> {
     validate_network_auth(&host, &auth_token, no_auth);
-    let _ = crate::logging::setup_logging(Some("goose-web"));
+    crate::logging::setup_logging(Some("goose-web"), None)?;
 
     let (provider_name, model) = get_provider_and_model();
     let agent = create_agent(&provider_name, &model).await?;
