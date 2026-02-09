@@ -41,7 +41,7 @@ use crate::config::search_path::SearchPaths;
 use crate::config::{get_all_extensions, Config};
 use crate::oauth::oauth_flow;
 use crate::prompt_template;
-use crate::subprocess::configure_command_no_window;
+use crate::subprocess::configure_subprocess;
 use rmcp::model::{
     CallToolRequestParams, Content, ErrorCode, ErrorData, GetPromptResult, Prompt, Resource,
     ResourceContents, ServerInfo, Tool,
@@ -206,33 +206,22 @@ async fn child_process_client(
     working_dir: Option<&PathBuf>,
     docker_container: Option<String>,
 ) -> ExtensionResult<McpClient> {
-    #[cfg(unix)]
-    command.process_group(0);
-    configure_command_no_window(&mut command);
+    configure_subprocess(&mut command);
 
     if let Ok(path) = SearchPaths::builder().path() {
         command.env("PATH", path);
     }
 
-    // Use explicitly passed working_dir, falling back to GOOSE_WORKING_DIR env var
-    let effective_working_dir = working_dir
-        .map(|p| p.to_path_buf())
-        .or_else(|| std::env::var("GOOSE_WORKING_DIR").ok().map(PathBuf::from));
-
-    if let Some(ref dir) = effective_working_dir {
+    if let Some(dir) = working_dir {
         if dir.exists() && dir.is_dir() {
             tracing::info!("Setting MCP process working directory: {:?}", dir);
             command.current_dir(dir);
-            // Also set GOOSE_WORKING_DIR env var for the child process
-            command.env("GOOSE_WORKING_DIR", dir);
         } else {
             tracing::warn!(
                 "Working directory doesn't exist or isn't a directory: {:?}",
                 dir
             );
         }
-    } else {
-        tracing::info!("No working directory specified, using default");
     }
 
     let (transport, mut stderr) = TokioChildProcess::builder(command)
@@ -372,6 +361,9 @@ fn substitute_env_vars(value: &str, env_map: &HashMap<String, String>) -> String
     result
 }
 
+const GOOSE_USER_AGENT: reqwest::header::HeaderValue =
+    reqwest::header::HeaderValue::from_static(concat!("goose/", env!("CARGO_PKG_VERSION")));
+
 async fn create_streamable_http_client(
     uri: &str,
     timeout: Option<u64>,
@@ -381,6 +373,9 @@ async fn create_streamable_http_client(
     provider: SharedProvider,
 ) -> ExtensionResult<Box<dyn McpClientTrait>> {
     let mut default_headers = HeaderMap::new();
+
+    default_headers.insert(reqwest::header::USER_AGENT, GOOSE_USER_AGENT);
+
     for (key, value) in headers {
         let substituted_value = substitute_env_vars(value, all_envs);
         default_headers.insert(
@@ -414,7 +409,15 @@ async fn create_streamable_http_client(
         let am = oauth_flow(&uri.to_string(), &name.to_string())
             .await
             .map_err(|_| ExtensionError::SetupError("auth error".to_string()))?;
-        let auth_client = AuthClient::new(reqwest::Client::default(), am);
+        let mut auth_headers = HeaderMap::new();
+        auth_headers.insert(reqwest::header::USER_AGENT, GOOSE_USER_AGENT);
+        let auth_http_client = reqwest::Client::builder()
+            .default_headers(auth_headers)
+            .build()
+            .map_err(|_| {
+                ExtensionError::ConfigError("could not construct http client".to_string())
+            })?;
+        let auth_client = AuthClient::new(auth_http_client, am);
         let transport = StreamableHttpClientTransport::with_client(
             auth_client,
             StreamableHttpClientTransportConfig {
@@ -477,6 +480,7 @@ impl ExtensionManager {
         config: ExtensionConfig,
         working_dir: Option<PathBuf>,
         container: Option<&Container>,
+        session_id: Option<&str>,
     ) -> ExtensionResult<()> {
         let config_name = config.key().to_string();
         let sanitized_name = name_to_key(&config_name);
@@ -525,7 +529,11 @@ impl ExtensionManager {
                 timeout,
                 ..
             } => {
-                let all_envs = merge_environments(envs, env_keys, &sanitized_name).await?;
+                let mut all_envs = merge_environments(envs, env_keys, &sanitized_name).await?;
+
+                if let Some(sid) = session_id {
+                    all_envs.insert("AGENT_SESSION_ID".to_string(), sid.to_string());
+                }
 
                 // Check for malicious packages before launching the process
                 extension_malware_check::deny_if_malicious_cmd_args(cmd, args).await?;

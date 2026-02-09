@@ -26,6 +26,7 @@ use crate::providers::formats::gcpvertexai::{
     ModelProvider, RequestContext, DEFAULT_MODEL, KNOWN_MODELS,
 };
 use crate::providers::gcpauth::GcpAuth;
+use crate::providers::openai_compatible::map_http_error_to_provider_error;
 use crate::providers::retry::RetryConfig;
 use crate::providers::utils::RequestLog;
 use crate::session_context::SESSION_ID_HEADER;
@@ -351,9 +352,8 @@ impl GcpVertexAIProvider {
                 )));
             } else {
                 let response_text = response.text().await.unwrap_or_default();
-                return Err(ProviderError::RequestFailed(format!(
-                    "Request failed with status {status}: {response_text}"
-                )));
+                let payload = serde_json::from_str::<Value>(&response_text).ok();
+                return Err(map_http_error_to_provider_error(status, payload));
             }
         }
     }
@@ -695,10 +695,10 @@ impl Provider for GcpVertexAIProvider {
         }))
     }
 
-    async fn fetch_supported_models(&self) -> Result<Option<Vec<String>>, ProviderError> {
+    async fn fetch_supported_models(&self) -> Result<Vec<String>, ProviderError> {
         let models: Vec<String> = KNOWN_MODELS.iter().map(|s| s.to_string()).collect();
         let filtered = self.filter_by_org_policy(models).await;
-        Ok(Some(filtered))
+        Ok(filtered)
     }
 }
 

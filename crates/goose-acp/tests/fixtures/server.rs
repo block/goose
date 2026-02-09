@@ -13,7 +13,6 @@ use sacp::{ClientToAgent, JrConnectionCx};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 use tokio::sync::Notify;
-use tokio_util::compat::{TokioAsyncReadCompatExt, TokioAsyncWriteCompatExt};
 
 pub struct ClientToAgentSession {
     cx: JrConnectionCx<ClientToAgent>,
@@ -39,7 +38,7 @@ impl Session for ClientToAgentSession {
             false => (config.data_root.clone(), None),
         };
 
-        let (client_read, client_write, _handle, permission_manager) = spawn_acp_server_in_process(
+        let (transport, _handle, permission_manager) = spawn_acp_server_in_process(
             openai.uri(),
             &config.builtins,
             data_root.as_path(),
@@ -50,8 +49,6 @@ impl Session for ClientToAgentSession {
         let updates = Arc::new(Mutex::new(Vec::new()));
         let notify = Arc::new(Notify::new());
         let permission = Arc::new(Mutex::new(PermissionDecision::Cancel));
-
-        let transport = sacp::ByteStreams::new(client_write.compat_write(), client_read.compat());
 
         let (cx, session_id) = {
             let updates_clone = updates.clone();

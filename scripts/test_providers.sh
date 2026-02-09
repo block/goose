@@ -31,7 +31,7 @@ fi
 
 if [ -z "$SKIP_BUILD" ]; then
   echo "Building goose..."
-  cargo build --release --bin goose
+  cargo build --bin goose
   echo ""
 else
   echo "Skipping build (SKIP_BUILD is set)..."
@@ -247,7 +247,7 @@ run_test() {
   (
     export GOOSE_PROVIDER="$provider"
     export GOOSE_MODEL="$model"
-    cd "$testdir" && "$SCRIPT_DIR/target/release/goose" run --text "Immediately use the shell tool to run 'ls'. Do not ask for confirmation." --with-builtin "$BUILTINS" 2>&1
+    cd "$testdir" && "$SCRIPT_DIR/target/debug/goose" run --text "Immediately use the shell tool to run 'ls'. Do not ask for confirmation." --with-builtin "$BUILTINS" 2>&1
   ) > "$output_file" 2>&1
 
   # Check result
