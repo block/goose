@@ -247,6 +247,16 @@ pub fn format_messages(messages: &[Message], image_format: &ImageFormat) -> Vec<
             converted["content"] = json!(text_array.join("\n"));
         }
 
+        // Ensure assistant messages with tool_calls always have a content field.
+        // Some strict OpenAI-compatible providers require "content" to be present
+        // (even as null) when tool_calls are provided. See #6717.
+        if message.role == Role::Assistant
+            && converted.get("tool_calls").is_some()
+            && converted.get("content").is_none()
+        {
+            converted["content"] = json!(null);
+        }
+
         if converted.get("content").is_some() || converted.get("tool_calls").is_some() {
             output.insert(0, converted);
         }
@@ -1639,6 +1649,63 @@ data: [DONE]
         assert_eq!(result.tool_calls.len(), 1, "Expected 1 tool call");
         assert_eq!(result.tool_calls[0], "developer__shell");
         assert_usage_yielded_once(&result, 8320, 172, 8492);
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_format_messages_tool_calls_without_text_includes_content_null() -> anyhow::Result<()> {
+        // Issue #6717: When an assistant message has only tool calls and no text,
+        // some strict OpenAI-compatible providers require "content" to be present
+        // (e.g., as null or ""). Ensure we always include "content" when tool_calls exist.
+        let message = Message::assistant().with_tool_request(
+            "tool1",
+            Ok(CallToolRequestParams {
+                meta: None,
+                task: None,
+                name: "example".into(),
+                arguments: Some(object!({"param1": "value1"})),
+            }),
+        );
+
+        let spec = format_messages(&[message], &ImageFormat::OpenAi);
+
+        assert_eq!(spec.len(), 1);
+        assert_eq!(spec[0]["role"], "assistant");
+        assert!(spec[0]["tool_calls"].is_array());
+        // The key assertion: content field must be present (as null) even with no text
+        assert!(
+            spec[0].get("content").is_some(),
+            "Assistant message with tool_calls must include a 'content' field"
+        );
+        assert!(
+            spec[0]["content"].is_null(),
+            "Content should be null when there is no text content"
+        );
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_format_messages_tool_calls_with_text_keeps_content_string() -> anyhow::Result<()> {
+        // When an assistant message has both text and tool calls, content should be the text string
+        let mut message = Message::assistant().with_text("I'll help with that.");
+        message.content.push(MessageContent::tool_request(
+            "tool1".to_string(),
+            Ok(CallToolRequestParams {
+                meta: None,
+                task: None,
+                name: "example".into(),
+                arguments: Some(object!({"param1": "value1"})),
+            }),
+        ));
+
+        let spec = format_messages(&[message], &ImageFormat::OpenAi);
+
+        assert_eq!(spec.len(), 1);
+        assert_eq!(spec[0]["role"], "assistant");
+        assert!(spec[0]["tool_calls"].is_array());
+        assert_eq!(spec[0]["content"], "I'll help with that.");
 
         Ok(())
     }
