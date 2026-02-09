@@ -4,6 +4,12 @@ use std::path::PathBuf;
 use tokio::process::Command;
 use tokio::sync::OnceCell;
 
+#[cfg(windows)]
+use std::os::windows::process::CommandExt;
+
+#[cfg(windows)]
+const CREATE_NO_WINDOW: u32 = 0x08000000;
+
 static SHELL_PATH_DIRS: OnceCell<Result<Vec<PathBuf>, anyhow::Error>> = OnceCell::const_new();
 
 pub async fn get_shell_path_dirs() -> Result<&'static Vec<PathBuf>> {
@@ -79,16 +85,18 @@ async fn get_windows_path_async(shell: &str) -> Result<String> {
 
     let output = match shell_name {
         "pwsh" | "powershell" => {
-            Command::new(shell)
-                .args(["-NoLogo", "-Command", "$env:PATH"])
-                .output()
-                .await
+            let mut cmd = Command::new(shell);
+            cmd.args(["-NoLogo", "-Command", "$env:PATH"]);
+            #[cfg(windows)]
+            cmd.creation_flags(CREATE_NO_WINDOW);
+            cmd.output().await
         }
         _ => {
-            Command::new(shell)
-                .args(["/c", "echo %PATH%"])
-                .output()
-                .await
+            let mut cmd = Command::new(shell);
+            cmd.args(["/c", "echo %PATH%"]);
+            #[cfg(windows)]
+            cmd.creation_flags(CREATE_NO_WINDOW);
+            cmd.output().await
         }
     };
 
