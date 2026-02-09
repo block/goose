@@ -206,8 +206,6 @@ async fn child_process_client(
     working_dir: Option<&PathBuf>,
     docker_container: Option<String>,
 ) -> ExtensionResult<McpClient> {
-    #[cfg(unix)]
-    command.process_group(0);
     configure_command_no_window(&mut command);
 
     if let Ok(path) = SearchPaths::builder().path() {
