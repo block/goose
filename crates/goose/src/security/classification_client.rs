@@ -1,8 +1,15 @@
 use anyhow::{Context, Result};
+use futures::stream::{self, StreamExt};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::time::Duration;
 use url::Url;
+
+use crate::security::text_normalizer::TextNormalizer;
+use crate::utils::safe_truncate;
+
+/// Classifier models generally have a maximum capacity of 512 tokens per inference
+const MODEL_MAX_TOKENS: usize = 512;
 
 /// Request format following HuggingFace Inference Text Classification API specification
 #[derive(Debug, Serialize)]
@@ -217,6 +224,66 @@ impl ClassificationClient {
         };
 
         Ok(injection_score)
+    }
+
+    pub async fn classify_with_normalization(&self, text: &str) -> Result<f32> {
+        let normalized = TextNormalizer::normalize(text);
+        tracing::debug!(
+            "Text normalization: {} chars -> {} chars",
+            text.len(),
+            normalized.len()
+        );
+
+        tracing::debug!(
+            "Normalized text preview (first 500 chars): {}",
+            safe_truncate(&normalized, 500)
+        );
+
+        let chunks = TextNormalizer::chunk_for_classification(&normalized, MODEL_MAX_TOKENS);
+        tracing::debug!(
+            "Chunked normalized text into {} chunk(s) for classification",
+            chunks.len()
+        );
+
+        if chunks.is_empty() {
+            return Ok(0.0);
+        }
+
+        let results: Vec<Result<f32>> = stream::iter(chunks)
+            .map(|chunk| async move { self.classify(&chunk).await })
+            .buffer_unordered(3) // Scan up to 3 chunks concurrently
+            .collect()
+            .await;
+
+        let successes: Vec<f32> = results
+            .iter()
+            .filter_map(|r| r.as_ref().ok())
+            .copied()
+            .collect();
+        let failure_count = results.len() - successes.len();
+
+        if successes.is_empty() {
+            let first_error = results
+                .into_iter()
+                .find_map(|r| r.err())
+                .unwrap_or_else(|| anyhow::anyhow!("All chunk classifications failed"));
+            return Err(first_error);
+        }
+
+        if failure_count > 0 {
+            tracing::warn!(
+                "Partial chunk classification failure: {}/{} chunks failed",
+                failure_count,
+                results.len()
+            );
+        }
+
+        let max_confidence = successes.into_iter().fold(0.0_f32, f32::max);
+        tracing::debug!(
+            "Classification with normalization complete: max_confidence={:.3}",
+            max_confidence
+        );
+        Ok(max_confidence)
     }
 
     fn apply_softmax(&self, labels: &[ClassificationLabel]) -> Result<Vec<ClassificationLabel>> {
