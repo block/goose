@@ -60,7 +60,7 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@6044e13b5dc448c55e2357c09f80417699197238  # v6.2.0
         with:
-          node-version: 22
+          node-version: 24.10.0
 
       - name: Cache node_modules
         uses: actions/cache@8b402f58fbc84540c8b491a91e594a4576fec3d7  # v5.0.2
@@ -133,11 +133,15 @@ jobs:
 
       - name: Build desktop UI with npm
         shell: bash
+        env:
+          ELECTRON_PLATFORM: win32
         run: |
           cd ui/desktop
 
           npm install
-          npm run bundle:windows
+          node scripts/build-main.js
+          node scripts/prepare-platform-binaries.js
+          npm run make -- --platform=win32 --arch=x64
 
       - name: Copy exe to final out folder and prepare flat distribution
         shell: bash
