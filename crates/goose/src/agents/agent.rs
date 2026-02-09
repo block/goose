@@ -94,6 +94,7 @@ pub struct AgentConfig {
     pub permission_manager: Arc<PermissionManager>,
     pub scheduler_service: Option<Arc<dyn SchedulerTrait>>,
     pub goose_mode: GooseMode,
+    pub disable_session_naming: bool,
 }
 
 impl AgentConfig {
@@ -102,12 +103,14 @@ impl AgentConfig {
         permission_manager: Arc<PermissionManager>,
         scheduler_service: Option<Arc<dyn SchedulerTrait>>,
         goose_mode: GooseMode,
+        disable_session_naming: bool,
     ) -> Self {
         Self {
             session_manager,
             permission_manager,
             scheduler_service,
             goose_mode,
+            disable_session_naming,
         }
     }
 }
@@ -189,6 +192,9 @@ impl Agent {
             PermissionManager::instance(),
             None,
             Config::global().get_goose_mode().unwrap_or(GooseMode::Auto),
+            Config::global()
+                .get_goose_disable_session_naming()
+                .unwrap_or(false),
         ))
     }
 
@@ -777,7 +783,12 @@ impl Agent {
             _ => {
                 let container = self.container.lock().await;
                 self.extension_manager
-                    .add_extension(extension.clone(), working_dir, container.as_ref())
+                    .add_extension(
+                        extension.clone(),
+                        working_dir,
+                        container.as_ref(),
+                        Some(session_id),
+                    )
                     .await?;
             }
         }
@@ -1112,15 +1123,17 @@ impl Agent {
         let provider = self.provider().await?;
         let session_manager = self.config.session_manager.clone();
         let session_id = session_config.id.clone();
-        let manager_for_spawn = session_manager.clone();
-        tokio::spawn(async move {
-            if let Err(e) = manager_for_spawn
-                .maybe_update_name(&session_id, provider)
-                .await
-            {
-                warn!("Failed to generate session description: {}", e);
-            }
-        });
+        if !self.config.disable_session_naming {
+            let manager_for_spawn = session_manager.clone();
+            tokio::spawn(async move {
+                if let Err(e) = manager_for_spawn
+                    .maybe_update_name(&session_id, provider)
+                    .await
+                {
+                    warn!("Failed to generate session description: {}", e);
+                }
+            });
+        }
 
         let working_dir = session.working_dir.clone();
         Ok(Box::pin(async_stream::try_stream! {

@@ -565,6 +565,7 @@ pub async fn configure_provider_dialog() -> anyhow::Result<bool> {
     let provider_name = cliclack::select("Which model provider should we use?")
         .initial_value(&default_provider)
         .items(&provider_items)
+        .filter_mode()
         .interact()?;
 
     // Get the selected provider's metadata
@@ -690,15 +691,15 @@ pub async fn configure_provider_dialog() -> anyhow::Result<bool> {
     };
     spin.stop(style("Model fetch complete").green());
 
-    // Select a model: on fetch error show styled error and abort; if Some(models), show list; if None, free-text input
+    // Select a model: on fetch error show styled error and abort; if models available, show list; otherwise free-text input
     let model: String = match models_res {
         Err(e) => {
             // Provider hook error
             cliclack::outro(style(e.to_string()).on_red().white())?;
             return Ok(false);
         }
-        Ok(Some(models)) => select_model_from_list(&models, provider_meta)?,
-        Ok(None) => {
+        Ok(models) if !models.is_empty() => select_model_from_list(&models, provider_meta)?,
+        Ok(_) => {
             let default_model =
                 std::env::var("GOOSE_MODEL").unwrap_or(provider_meta.default_model.clone());
             cliclack::input("Enter a model from that provider:")
@@ -784,6 +785,7 @@ pub fn toggle_extensions_dialog() -> anyhow::Result<()> {
             .collect::<Vec<_>>(),
     )
     .initial_values(enabled_extensions)
+    .filter_mode()
     .interact()?;
 
     // Update enabled status for each extension
@@ -1122,6 +1124,7 @@ pub fn remove_extension_dialog() -> anyhow::Result<()> {
                 .map(|(name, _)| (name, name.as_str(), MULTISELECT_VISIBILITY_HINT))
                 .collect::<Vec<_>>(),
         )
+        .filter_mode()
         .interact()?;
 
     for name in selected {
@@ -1427,6 +1430,7 @@ pub async fn configure_tool_permissions_dialog() -> anyhow::Result<()> {
                 .map(|ext| (ext.clone(), ext.clone(), ""))
                 .collect::<Vec<_>>(),
         )
+        .filter_mode()
         .interact()?;
 
     let config = Config::global();
@@ -1507,6 +1511,7 @@ pub async fn configure_tool_permissions_dialog() -> anyhow::Result<()> {
                 })
                 .collect::<Vec<_>>(),
         )
+        .filter_mode()
         .interact()?;
 
     // Find the selected tool
@@ -1947,6 +1952,7 @@ fn remove_provider() -> anyhow::Result<()> {
 
     let selected_id = cliclack::select("Which custom provider would you like to remove?")
         .items(&provider_items)
+        .filter_mode()
         .interact()?;
 
     remove_custom_provider(selected_id)?;

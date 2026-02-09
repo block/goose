@@ -29,7 +29,7 @@ export const ToolCallStatusIndicator: React.FC<ToolCallStatusIndicatorProps> = (
   return (
     <div
       className={cn(
-        'absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full border border-background-default',
+        'absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full border border-border-default',
         getStatusStyles(),
         className
       )}

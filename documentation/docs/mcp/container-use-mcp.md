@@ -92,6 +92,10 @@ You'll need [Docker](https://www.docker.com/) installed on your system. If you w
 
 Here's a simple example of updating a file-based to-do app to use a SQLite database plus full testing - all within an isolated container environment.
 
+:::info
+See [Isolated Development Environments](/docs/tutorials/isolated-development-environments) for more examples, common workflows, and troubleshooting tips.
+:::
+
 #### Prompt
 
 ```

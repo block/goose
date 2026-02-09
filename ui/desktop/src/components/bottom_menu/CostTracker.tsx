@@ -121,7 +121,7 @@ export function CostTracker({ inputTokens = 0, outputTokens = 0, sessionCosts }:
   if (isLoading) {
     return (
       <>
-        <div className="flex items-center justify-center h-full text-textSubtle translate-y-[1px]">
+        <div className="flex items-center justify-center h-full text-text-muted translate-y-[1px]">
           <span className="text-xs font-mono">...</span>
         </div>
         <div className="w-px h-4 bg-border-default mx-2" />

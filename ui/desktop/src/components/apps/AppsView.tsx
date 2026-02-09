@@ -233,7 +233,7 @@ export default function AppsView() {
           </div>
         </div>
 
-        <div className="flex-1 overflow-y-auto bg-background-subtle px-8 pb-8">
+        <div className="flex-1 overflow-y-auto bg-background-muted px-8 pb-8">
           {loading ? (
             <div className="flex items-center justify-center h-64">
               <p className="text-text-muted">Loading apps...</p>
@@ -256,7 +256,7 @@ export default function AppsView() {
                 return (
                   <div
                     key={`${app.uri}-${app.mcpServers?.join(',')}`}
-                    className="flex flex-col p-4 border border-border-muted rounded-lg bg-background-panel hover:border-border-default transition-colors"
+                    className="flex flex-col p-4 border rounded-lg hover:border-border-default transition-colors"
                   >
                     <div className="flex-1 mb-4">
                       <h3 className="font-medium text-text-default mb-2">
@@ -266,7 +266,7 @@ export default function AppsView() {
                         <p className="text-sm text-text-muted mb-2">{app.description}</p>
                       )}
                       {app.mcpServers && app.mcpServers.length > 0 && (
-                        <span className="inline-block px-2 py-1 text-xs bg-background-subtle text-text-muted rounded">
+                        <span className="inline-block px-2 py-1 text-xs bg-background-muted text-text-muted rounded">
                           {isCustomApp ? 'Custom app' : app.mcpServers.join(', ')}
                         </span>
                       )}

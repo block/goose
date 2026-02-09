@@ -376,7 +376,7 @@ export const SwitchModelModal = ({
       <DialogContent className="sm:max-w-[500px]">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <Bot size={24} className="text-textStandard" />
+            <Bot size={24} className="text-text-default" />
             {titleOverride || 'Switch models'}
           </DialogTitle>
           <DialogDescription>
@@ -388,7 +388,7 @@ export const SwitchModelModal = ({
           {usePredefinedModels ? (
             <div className="w-full flex flex-col gap-4">
               <div className="flex justify-between items-center">
-                <label className="text-sm font-medium text-textStandard">Choose a model:</label>
+                <label className="text-sm font-medium text-text-default">Choose a model:</label>
               </div>
 
               <div className="space-y-2 max-h-64 overflow-y-auto">
@@ -408,7 +408,7 @@ export const SwitchModelModal = ({
                             {model.alias || model.name}
                           </span>
                           {model.alias?.includes('recommended') && (
-                            <span className="text-xs bg-background-muted text-textStandard px-2 py-1 rounded-full border border-borderSubtle ml-2">
+                            <span className="text-xs bg-background-muted text-text-default px-2 py-1 rounded-full border border-border-default ml-2">
                               Recommended
                             </span>
                           )}
@@ -570,10 +570,10 @@ export const SwitchModelModal = ({
                   ) : (
                     <div className="flex flex-col gap-2">
                       <div className="flex justify-between">
-                        <label className="text-sm text-textSubtle">Custom model name</label>
+                        <label className="text-sm text-text-muted">Custom model name</label>
                         <button
                           onClick={() => setIsCustomModel(false)}
-                          className="text-sm text-textSubtle"
+                          className="text-sm text-text-muted"
                         >
                           Back to model list
                         </button>
@@ -618,7 +618,7 @@ export const SwitchModelModal = ({
             href={QUICKSTART_GUIDE_URL}
             target="_blank"
             rel="noopener noreferrer"
-            className="inline-flex items-center text-text-muted hover:text-textStandard text-sm mr-auto"
+            className="inline-flex items-center text-text-muted hover:text-text-default text-sm mr-auto"
           >
             <ExternalLink size={14} className="mr-1" />
             Quick start guide

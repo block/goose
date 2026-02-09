@@ -664,6 +664,10 @@ For example, to start a session with a Streamable HTTP extension, you'd run:
 goose session --with-streamable-http-extension "https://example.com/streamable"
 ```
 
+### Extensions in Containers
+
+goose can use the `--container` flag to run extensions inside your Docker containers for devcontainer workflows. See [Running Extensions in Docker Containers](/docs/tutorials/goose-in-docker#running-extensions-in-docker-containers) for details.
+
 ## Developing Extensions
 
 goose extensions are implemented with MCP, a standard protocol that allows AI models and agents to securely connect with local or remote resources. Learn how to build your own [extension as an MCP server](https://modelcontextprotocol.io/quickstart/server).
