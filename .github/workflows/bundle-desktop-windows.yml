@@ -62,14 +62,14 @@ jobs:
             node_modules
             ui/desktop/node_modules
             .hermit/node/cache
-          key: windows-npm-cache-v1-${{ runner.os }}-node22-${{ hashFiles('**/package-lock.json') }}
+          key: windows-npm-cache-v1-${{ runner.os }}-node24-${{ hashFiles('**/package-lock.json') }}
           restore-keys: |
-            windows-npm-cache-v1-${{ runner.os }}-node22-
+            windows-npm-cache-v1-${{ runner.os }}-node24-
 
       - name: Cache Rust dependencies
         uses: Swatinem/rust-cache@v2
         with:
-          key: windows-msvc
+          shared-key: windows-msvc-shared
 
       - name: Setup Rust
         shell: bash
