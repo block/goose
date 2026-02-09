@@ -134,6 +134,7 @@ pub static PLATFORM_EXTENSIONS: Lazy<HashMap<&'static str, PlatformExtensionDef>
                 description:
                     "Inject custom context into every turn via GOOSE_MOIM_MESSAGE_TEXT and GOOSE_MOIM_MESSAGE_FILE environment variables",
                 default_enabled: false,
+                unprefixed_tools: false,
                 client_factory: |ctx| Box::new(tom_extension::TomClient::new(ctx).unwrap()),
             },
         );
