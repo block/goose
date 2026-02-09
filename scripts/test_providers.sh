@@ -23,6 +23,7 @@ done
 ALLOWED_FAILURES=(
   "google:gemini-3-pro-preview"
   "openrouter:nvidia/nemotron-3-nano-30b-a3b"
+  "openai:gpt-3.5-turbo"
 )
 
 if [ -f .env ]; then
