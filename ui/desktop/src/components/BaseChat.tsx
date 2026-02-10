@@ -279,7 +279,7 @@ export default function BaseChat({
       navigate(`/pair?${params.toString()}`, {
         state: {
           disableAnimation: true,
-          initialMessage: editedMessage,
+          initialMessage: editedMessage ? { msg: editedMessage, images: [] } : undefined,
         },
       });
     };

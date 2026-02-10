@@ -35,8 +35,8 @@ use std::path::PathBuf;
 use tracing::warn;
 
 #[derive(Parser)]
-#[command(author, version, display_name = "", about, long_about = None)]
-struct Cli {
+#[command(name = "goose", author, version, display_name = "", about, long_about = None)]
+pub struct Cli {
     #[command(subcommand)]
     command: Option<Command>,
 }

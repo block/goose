@@ -27,6 +27,10 @@ ALLOWED_FAILURES=(
   "openai:gpt-3.5-turbo"
 )
 
+# Agentic providers handle tools internally and return text results.
+# They can't produce the normal tool-call log patterns (e.g. "shell | developer").
+AGENTIC_PROVIDERS=("claude-code" "codex" "gemini-cli" "cursor-agent")
+
 if [ -f .env ]; then
   export $(grep -v '^#' .env | xargs)
 fi
@@ -41,6 +45,13 @@ else
 fi
 
 SCRIPT_DIR=$(pwd)
+
+# Create a test file with known content in the current directory
+# This cannot be /tmp as some agents cannot work outside the PWD
+mkdir -p target
+TEST_CONTENT="test-content-abc123"
+TEST_FILE="./target/test-content.txt"
+echo "$TEST_CONTENT" > "$TEST_FILE"
 
 # Format: "provider -> model1|model2|model3"
 # Base providers that are always tested (with appropriate env vars)
@@ -226,6 +237,16 @@ should_skip_provider() {
   return 1
 }
 
+is_agentic_provider() {
+  local provider="$1"
+  for agentic in "${AGENTIC_PROVIDERS[@]}"; do
+    if [ "$agentic" = "$provider" ]; then
+      return 0
+    fi
+  done
+  return 1
+}
+
 # Create temp directory for results
 RESULTS_DIR=$(mktemp -d)
 trap "rm -rf $RESULTS_DIR" EXIT
@@ -243,17 +264,34 @@ run_test() {
   local output_file="$4"
 
   local testdir=$(mktemp -d)
-  echo "hello" > "$testdir/hello.txt"
+
+  # Agentic providers use a file-read prompt with known content marker;
+  # regular providers use the shell prompt that produces tool-call logs.
+  local prompt
+  if is_agentic_provider "$provider"; then
+    cp "$TEST_FILE" "$testdir/test-content.txt"
+    prompt="read ./test-content.txt and output its contents exactly"
+  else
+    echo "hello" > "$testdir/hello.txt"
+    prompt="Immediately use the shell tool to run 'ls'. Do not ask for confirmation."
+  fi
 
   # Run the test and capture output
   (
     export GOOSE_PROVIDER="$provider"
     export GOOSE_MODEL="$model"
-    cd "$testdir" && "$SCRIPT_DIR/target/debug/goose" run --text "Immediately use the shell tool to run 'ls'. Do not ask for confirmation." --with-builtin "$BUILTINS" 2>&1
+    cd "$testdir" && "$SCRIPT_DIR/target/debug/goose" run --text "$prompt" --with-builtin "$BUILTINS" 2>&1
   ) > "$output_file" 2>&1
 
-  # Check result
-  if grep -qE "$SUCCESS_PATTERN" "$output_file"; then
+  # Check result: agentic providers return text containing the test content
+  # instead of producing tool-call log patterns
+  if is_agentic_provider "$provider"; then
+    if grep -qi "$TEST_CONTENT" "$output_file"; then
+      echo "success" > "$result_file"
+    else
+      echo "failure" > "$result_file"
+    fi
+  elif grep -qE "$SUCCESS_PATTERN" "$output_file"; then
     echo "success" > "$result_file"
   else
     echo "failure" > "$result_file"
@@ -272,6 +310,12 @@ for provider_config in "${PROVIDERS[@]}"; do
   # Skip provider if it's in SKIP_PROVIDERS
   if should_skip_provider "$PROVIDER"; then
     echo "⊘ Skipping provider: ${PROVIDER} (SKIP_PROVIDERS)"
+    continue
+  fi
+
+  # Agentic providers don't use goose's code_execution system
+  if [ "$CODE_EXEC_MODE" = true ] && is_agentic_provider "$PROVIDER"; then
+    echo "⊘ Skipping agentic provider in code_exec mode: ${PROVIDER}"
     continue
   fi
 

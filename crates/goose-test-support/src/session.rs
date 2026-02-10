@@ -1,6 +1,7 @@
 use std::sync::{Arc, Mutex};
 
 pub const TEST_SESSION_ID: &str = "test-session-id";
+pub const TEST_MODEL: &str = "gpt-5-nano";
 
 const NOT_YET_SET: &str = "session-id-not-yet-set";
 pub(crate) const SESSION_ID_HEADER: &str = "agent-session-id";

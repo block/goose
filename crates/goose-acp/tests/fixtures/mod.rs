@@ -11,10 +11,10 @@ use goose::providers::openai::OpenAiProvider;
 use goose::providers::provider_registry::ProviderConstructor;
 use goose::session_context::SESSION_ID_HEADER;
 use goose_acp::server::{serve, GooseAcpAgent};
-use goose_test_support::ExpectedSessionId;
+use goose_test_support::{ExpectedSessionId, TEST_MODEL};
 use sacp::schema::{
     McpServer, PermissionOptionKind, RequestPermissionOutcome, RequestPermissionRequest,
-    RequestPermissionResponse, SelectedPermissionOutcome, ToolCallStatus,
+    RequestPermissionResponse, SelectedPermissionOutcome, SessionModelState, ToolCallStatus,
 };
 use std::collections::VecDeque;
 use std::future::Future;
@@ -85,6 +85,17 @@ impl OpenAiFixture {
     ) -> Self {
         let mock_server = MockServer::start().await;
         let queue = Arc::new(Mutex::new(VecDeque::from(exchanges.clone())));
+
+        // Always return the models when asked, as there is no POST data to validate
+        Mock::given(method("GET"))
+            .and(path("/v1/models"))
+            .respond_with(
+                ResponseTemplate::new(200)
+                    .insert_header("content-type", "application/json")
+                    .set_body_string(include_str!("../test_data/openai_models.json")),
+            )
+            .mount(&mock_server)
+            .await;
 
         Mock::given(method("POST"))
             .and(path("/v1/chat/completions"))
@@ -188,7 +199,7 @@ pub async fn spawn_acp_server_in_process(
     // ensure_provider reads the model from config lazily, so tests need a config.yaml.
     let config_path = data_root.join(goose::config::base::CONFIG_YAML_NAME);
     if !config_path.exists() {
-        fs::write(&config_path, "GOOSE_MODEL: gpt-5-nano\n").unwrap();
+        fs::write(&config_path, format!("GOOSE_MODEL: {TEST_MODEL}\n")).unwrap();
     }
     let base_url = openai_base_url.to_string();
     let provider_factory: ProviderConstructor = Arc::new(move |model_config| {
@@ -249,9 +260,11 @@ pub trait Session {
     where
         Self: Sized;
     fn id(&self) -> &sacp::schema::SessionId;
+    fn models(&self) -> Option<&SessionModelState>;
     fn reset_openai(&self);
     fn reset_permissions(&self);
     async fn prompt(&mut self, text: &str, decision: PermissionDecision) -> TestOutput;
+    async fn set_model(&self, model_id: &str);
 }
 
 #[allow(dead_code)]

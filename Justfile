@@ -196,6 +196,12 @@ generate-openapi:
     @echo "Generating frontend API..."
     cd ui/desktop && npx @hey-api/openapi-ts
 
+# Generate manpages for the CLI
+generate-manpages:
+    @echo "Generating manpages..."
+    cargo run -p goose-cli --bin generate_manpages
+    @echo "Manpages generated at target/man/"
+
 # make GUI with latest binary
 lint-ui:
     cd ui/desktop && npm run lint:check
