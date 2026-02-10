@@ -23,6 +23,11 @@ import path from 'node:path';
 import os from 'node:os';
 import { spawn } from 'child_process';
 import 'dotenv/config';
+// Allow Node.js fetch to connect to the local goosed HTTPS server which uses
+// a self-signed certificate. This only affects Node.js-level networking in the
+// main process (health checks); all renderer/webContents requests go through
+// Chromium's network stack and are handled by the certificate-error event.
+process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
 import { checkServerStatus, startGoosed } from './goosed';
 import { expandTilde } from './utils/pathUtils';
 import log from './utils/logger';
@@ -1632,6 +1637,19 @@ async function appMain() {
 
   registerUpdateIpcHandlers();
 
+  // Accept self-signed certificates from the local goosed server (127.0.0.1).
+  // goosed generates a fresh self-signed TLS cert on every launch so that
+  // MCP app iframes are served over HTTPS and get a secure context.
+  app.on('certificate-error', (event, _webContents, url, _error, _certificate, callback) => {
+    const parsed = new URL(url);
+    if (parsed.hostname === '127.0.0.1' || parsed.hostname === 'localhost') {
+      event.preventDefault();
+      callback(true);
+    } else {
+      callback(false);
+    }
+  });
+
   // Handle microphone permission requests
   session.defaultSession.setPermissionRequestHandler((_webContents, permission, callback) => {
     console.log('Permission requested:', permission);
@@ -1648,6 +1666,7 @@ async function appMain() {
     const sources = [
       "'self'",
       'http://127.0.0.1:*',
+      'https://127.0.0.1:*',
       'https://api.github.com',
       'https://github.com',
       'https://objects.githubusercontent.com',

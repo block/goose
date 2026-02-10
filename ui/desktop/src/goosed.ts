@@ -215,7 +215,7 @@ export const startGoosed = async (options: StartGoosedOptions): Promise<GoosedRe
 
   log.info(`Goosed server successfully started on port ${port}`);
   return {
-    baseUrl: `http://127.0.0.1:${port}`,
+    baseUrl: `https://127.0.0.1:${port}`,
     workingDir: dir,
     process: goosedProcess,
     errorLog: stderrLines,

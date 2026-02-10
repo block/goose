@@ -2,11 +2,12 @@ use crate::configuration;
 use crate::state;
 use anyhow::Result;
 use axum::middleware;
+use axum_server::Handle;
 use goose_server::auth::check_token;
+use goose_server::tls::self_signed_config;
 use tower_http::cors::{Any, CorsLayer};
 use tracing::info;
 
-// Graceful shutdown signal
 #[cfg(unix)]
 async fn shutdown_signal() {
     use tokio::signal::unix::{signal, SignalKind};
@@ -47,17 +48,28 @@ pub async fn run() -> Result<()> {
         ))
         .layer(cors);
 
-    let listener = tokio::net::TcpListener::bind(settings.socket_addr()).await?;
-    info!("listening on {}", listener.local_addr()?);
+    let addr = settings.socket_addr();
+    let tls_config = self_signed_config().await?;
+
+    let handle = Handle::new();
+    let shutdown_handle = handle.clone();
+    tokio::spawn(async move {
+        shutdown_signal().await;
+        shutdown_handle.graceful_shutdown(None);
+    });
+
+    info!("listening on https://{}", addr);
 
     let tunnel_manager = app_state.tunnel_manager.clone();
     tokio::spawn(async move {
         tunnel_manager.check_auto_start().await;
     });
 
-    axum::serve(listener, app)
-        .with_graceful_shutdown(shutdown_signal())
+    axum_server::bind_rustls(addr, tls_config)
+        .handle(handle)
+        .serve(app.into_make_service())
         .await?;
+
     info!("server shutdown complete");
     Ok(())
 }

@@ -51,6 +51,8 @@ rustls = { version = "0.23", features = ["ring"] }
 uuid = { workspace = true }
 once_cell = { workspace = true }
 dirs = { workspace = true }
+rcgen = "0.13"
+axum-server = { version = "0.8.0", features = ["tls-rustls"] }
 
 [target.'cfg(windows)'.dependencies]
 winreg = { version = "0.55.0" }
