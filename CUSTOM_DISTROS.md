@@ -1,10 +1,12 @@
-# White-Labeling Goose
+# Custom Distributions of goose
+
+> **Tip:** This is sometimes referred to as "white labelling" — creating a branded or tailored version of an open source project for your organization.
 
 This guide explains how to create custom distributions of goose tailored to your organization's needs—whether that's preconfigured models, custom tools, branded interfaces, or entirely new user experiences.
 
 ## Overview
 
-Goose's architecture is designed for extensibility. Organizations can create "remixed" versions that:
+goose's architecture is designed for extensibility. Organizations can create "remixed" versions that:
 
 - **Preconfigure AI providers**: Ship with a specific model (local or cloud) and API credentials
 - **Bundle custom tools**: Include proprietary extensions for internal data sources
@@ -74,7 +76,7 @@ See [BUILDING_LINUX.md](BUILDING_LINUX.md) and [ui/desktop/README.md](ui/desktop
 
 ### Licensing
 
-Goose is licensed under Apache License 2.0 (ASL v2). White-label distributions must:
+goose is licensed under Apache License 2.0 (ASL v2). Custom distributions must:
 - Include the original license and copyright notices
 - Clearly indicate any modifications made
 - Not use "Goose" trademarks in ways that imply official endorsement
@@ -87,7 +89,7 @@ While you're free to maintain private forks, contributing improvements upstream 
 
 ### Telemetry
 
-Goose includes optional telemetry (via PostHog) to help improve the project. For white-label distributions, you can:
+goose includes optional telemetry (via PostHog) to help improve the project. For custom distributions, you can:
 - **Disable telemetry**: Set `GOOSE_DISABLE_TELEMETRY=1`
 - **Use your own instance**: Modify `crates/goose/src/posthog.rs` to point to your PostHog instance
 
@@ -101,7 +103,7 @@ To benefit from upstream improvements:
 
 ---
 
-# Appendix: White-Label Scenarios
+# Appendix: Custom Distribution Scenarios
 
 ## A. Preconfigured Local Model Distribution
 
@@ -210,7 +212,7 @@ async def query_data_lake(query: str) -> str:
 ```yaml
 # data-analyst.yaml
 title: Data Analyst Assistant
-description: Goose configured for data analysis
+description: goose configured for data analysis
 instructions: |
   You have access to the corporate data lake. Help users query and analyze data.
 extensions:
@@ -269,7 +271,7 @@ You are an AI assistant called [YourName], created by [YourCompany].
 ### Technical Details
 
 - Electron config: `ui/desktop/forge.config.ts`
-- UI components: `ui/desktop/src/renderer/` (if using standard structure)
+- UI entry point: `ui/desktop/src/renderer.tsx`
 - System prompts: `crates/goose/src/prompts/`
 
 ---
@@ -278,7 +280,7 @@ You are an AI assistant called [YourName], created by [YourCompany].
 
 **Goal**: Create an entirely new frontend while leveraging goose's backend.
 
-Goose provides two integration options for building custom UIs:
+goose provides two integration options for building custom UIs:
 
 ### Option 1: REST API (goose-server)
 
@@ -501,7 +503,7 @@ For providers with unique APIs, implement the Provider trait:
 
 **Goal**: Create standardized, repeatable workflows that users can run with minimal setup.
 
-Recipes are YAML files that define complete goose experiences—instructions, extensions, parameters, and prompts bundled together. They're ideal for white-labeling because they require no code changes and can be distributed as simple files.
+Recipes are YAML files that define complete goose experiences—instructions, extensions, parameters, and prompts bundled together. They're ideal for custom distributions because they require no code changes and can be distributed as simple files.
 
 ### Basic Recipe Structure
 
