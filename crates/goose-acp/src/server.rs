@@ -13,20 +13,22 @@ use goose::conversation::Conversation;
 use goose::mcp_utils::ToolResult;
 use goose::permission::permission_confirmation::PrincipalType;
 use goose::permission::{Permission, PermissionConfirmation};
-use goose::providers::create;
+use goose::providers::base::Provider;
+use goose::providers::provider_registry::ProviderConstructor;
 use goose::session::session_manager::SessionType;
 use goose::session::{Session, SessionManager};
 use rmcp::model::{CallToolResult, RawContent, ResourceContents, Role};
 use sacp::schema::{
-    AgentCapabilities, AuthenticateRequest, AuthenticateResponse, BlobResourceContents,
+    AgentCapabilities, AuthMethod, AuthenticateRequest, AuthenticateResponse, BlobResourceContents,
     CancelNotification, Content, ContentBlock, ContentChunk, EmbeddedResource,
     EmbeddedResourceResource, ImageContent, InitializeRequest, InitializeResponse,
-    LoadSessionRequest, LoadSessionResponse, McpCapabilities, McpServer, NewSessionRequest,
-    NewSessionResponse, PermissionOption, PermissionOptionKind, PromptCapabilities, PromptRequest,
-    PromptResponse, RequestPermissionOutcome, RequestPermissionRequest, ResourceLink, SessionId,
-    SessionNotification, SessionUpdate, StopReason, TextContent, TextResourceContents, ToolCall,
-    ToolCallContent, ToolCallId, ToolCallLocation, ToolCallStatus, ToolCallUpdate,
-    ToolCallUpdateFields, ToolKind,
+    LoadSessionRequest, LoadSessionResponse, McpCapabilities, McpServer, ModelId, ModelInfo,
+    NewSessionRequest, NewSessionResponse, PermissionOption, PermissionOptionKind,
+    PromptCapabilities, PromptRequest, PromptResponse, RequestPermissionOutcome,
+    RequestPermissionRequest, ResourceLink, SessionId, SessionModelState, SessionNotification,
+    SessionUpdate, SetSessionModelRequest, SetSessionModelResponse, StopReason, TextContent,
+    TextResourceContents, ToolCall, ToolCallContent, ToolCallId, ToolCallLocation, ToolCallStatus,
+    ToolCallUpdate, ToolCallUpdateFields, ToolKind,
 };
 use sacp::{AgentToClient, ByteStreams, Handled, JrConnectionCx, JrMessageHandler, MessageCx};
 use std::collections::HashMap;
@@ -46,15 +48,9 @@ struct GooseAcpSession {
 pub struct GooseAcpAgent {
     sessions: Arc<Mutex<HashMap<String, GooseAcpSession>>>,
     agent: Arc<Agent>,
-    provider: Arc<dyn goose::providers::base::Provider>,
-}
-
-pub struct AcpServerConfig {
-    pub provider: Arc<dyn goose::providers::base::Provider>,
-    pub builtins: Vec<String>,
-    pub data_dir: std::path::PathBuf,
-    pub config_dir: std::path::PathBuf,
-    pub goose_mode: goose::config::GooseMode,
+    provider_factory: ProviderConstructor,
+    config_dir: std::path::PathBuf,
+    provider_initialized: tokio::sync::OnceCell<Arc<dyn Provider>>,
 }
 
 fn mcp_server_to_extension_config(mcp_server: McpServer) -> Result<ExtensionConfig, String> {
@@ -250,7 +246,7 @@ async fn add_builtins(agent: &Agent, builtins: Vec<String>) {
 
         match agent
             .extension_manager
-            .add_extension(config, None, None)
+            .add_extension(config, None, None, None)
             .await
         {
             Ok(_) => info!(extension = %builtin, "extension loaded"),
@@ -263,7 +259,7 @@ async fn add_extensions(agent: &Agent, extensions: Vec<ExtensionConfig>) {
         let name = extension.name().to_string();
         match agent
             .extension_manager
-            .add_extension(extension, None, None)
+            .add_extension(extension, None, None, None)
             .await
         {
             Ok(_) => info!(extension = %name, "extension loaded"),
@@ -272,48 +268,44 @@ async fn add_extensions(agent: &Agent, extensions: Vec<ExtensionConfig>) {
     }
 }
 
+async fn build_model_state(
+    provider: &dyn Provider,
+    current_model: &str,
+) -> Result<SessionModelState, sacp::Error> {
+    let models = provider.fetch_recommended_models().await.map_err(|e| {
+        sacp::Error::internal_error().data(format!("Failed to fetch models: {}", e))
+    })?;
+    Ok(SessionModelState::new(
+        ModelId::new(current_model),
+        models
+            .iter()
+            .map(|name| ModelInfo::new(ModelId::new(&**name), &**name))
+            .collect(),
+    ))
+}
+
 impl GooseAcpAgent {
     pub fn permission_manager(&self) -> Arc<PermissionManager> {
         Arc::clone(&self.agent.config.permission_manager)
     }
 
-    pub async fn new(builtins: Vec<String>) -> Result<Self> {
-        let config = Config::global();
-
-        let provider_name: String = config
-            .get_goose_provider()
-            .map_err(|e| anyhow::anyhow!("No provider configured: {}", e))?;
-
-        let model_name: String = config
-            .get_goose_model()
-            .map_err(|e| anyhow::anyhow!("No model configured: {}", e))?;
-
-        let model_config = goose::model::ModelConfig::new(&model_name, &provider_name)?;
-        let provider = create(&provider_name, model_config).await?;
-        let goose_mode = config
-            .get_goose_mode()
-            .unwrap_or(goose::config::GooseMode::Auto);
-
-        Self::with_config(AcpServerConfig {
-            provider,
-            builtins,
-            data_dir: Paths::data_dir(),
-            config_dir: Paths::config_dir(),
-            goose_mode,
-        })
-        .await
-    }
-
-    pub async fn with_config(config: AcpServerConfig) -> Result<Self> {
-        let session_manager = Arc::new(SessionManager::new(config.data_dir));
-        let config_dir = config.config_dir.clone();
-        let permission_manager = Arc::new(PermissionManager::new(config.config_dir));
+    pub async fn new(
+        provider_factory: ProviderConstructor,
+        builtins: Vec<String>,
+        data_dir: std::path::PathBuf,
+        config_dir: std::path::PathBuf,
+        goose_mode: goose::config::GooseMode,
+        disable_session_naming: bool,
+    ) -> Result<Self> {
+        let session_manager = Arc::new(SessionManager::new(data_dir));
+        let permission_manager = Arc::new(PermissionManager::new(config_dir.clone()));
 
         let agent = Agent::with_config(AgentConfig::new(
             Arc::clone(&session_manager),
             permission_manager,
             None,
-            config.goose_mode,
+            goose_mode,
+            disable_session_naming,
         ));
 
         let agent_ptr = Arc::new(agent);
@@ -322,13 +314,15 @@ impl GooseAcpAgent {
         let config_file = Config::new(&config_path, "goose")?;
         let extensions = get_enabled_extensions_with_config(&config_file);
 
-        add_builtins(&agent_ptr, config.builtins).await;
+        add_builtins(&agent_ptr, builtins).await;
         add_extensions(&agent_ptr, extensions).await;
 
         Ok(Self {
-            provider: config.provider.clone(),
             sessions: Arc::new(Mutex::new(HashMap::new())),
             agent: agent_ptr,
+            provider_factory,
+            config_dir,
+            provider_initialized: tokio::sync::OnceCell::new(),
         })
     }
 
@@ -342,9 +336,7 @@ impl GooseAcpAgent {
             )
             .await?;
 
-        self.agent
-            .update_provider(self.provider.clone(), &goose_session.id)
-            .await?;
+        self.ensure_provider(&goose_session).await?;
 
         let session = GooseAcpSession {
             messages: Conversation::new_unvalidated(Vec::new()),
@@ -680,7 +672,15 @@ impl GooseAcpAgent {
                     .embedded_context(true),
             )
             .mcp_capabilities(McpCapabilities::new().http(true));
-        Ok(InitializeResponse::new(args.protocol_version).agent_capabilities(capabilities))
+        Ok(InitializeResponse::new(args.protocol_version)
+            .agent_capabilities(capabilities)
+            .auth_methods(vec![AuthMethod::new(
+                "goose-provider",
+                "Configure Provider",
+            )
+            .description(
+                "Run `goose configure` to set up your AI provider and API key",
+            )]))
     }
 
     async fn on_new_session(
@@ -700,7 +700,9 @@ impl GooseAcpAgent {
             .map_err(|e| {
                 sacp::Error::internal_error().data(format!("Failed to create session: {}", e))
             })?;
-        self.update_session_with_provider(&goose_session).await?;
+        let provider = self.ensure_provider(&goose_session).await.map_err(|e| {
+            sacp::Error::internal_error().data(format!("Failed to set provider: {}", e))
+        })?;
 
         for mcp_server in args.mcp_servers {
             let config = match mcp_server_to_extension_config(mcp_server) {
@@ -731,20 +733,31 @@ impl GooseAcpAgent {
             "Session started"
         );
 
-        Ok(NewSessionResponse::new(SessionId::new(goose_session.id)))
+        let model_state =
+            build_model_state(&**provider, &provider.get_model_config().model_name).await?;
+
+        Ok(NewSessionResponse::new(SessionId::new(goose_session.id)).models(model_state))
     }
 
-    async fn update_session_with_provider(
-        &self,
-        goose_session: &Session,
-    ) -> Result<(), sacp::Error> {
+    async fn create_provider(&self, session: &Session) -> Result<Arc<dyn Provider>> {
+        let config_path = self.config_dir.join(CONFIG_YAML_NAME);
+        let config = Config::new(&config_path, "goose")?;
+        let model_id = config.get_goose_model()?;
+        let provider_name = config
+            .get_goose_provider()
+            .map_err(|_| anyhow::anyhow!("No provider configured"))?;
+        let model_config = goose::model::ModelConfig::new(&model_id, &provider_name)?;
+        let provider = (self.provider_factory)(model_config).await?;
         self.agent
-            .update_provider(self.provider.clone(), &goose_session.id)
+            .update_provider(provider.clone(), &session.id)
+            .await?;
+        Ok(provider)
+    }
+
+    async fn ensure_provider(&self, session: &Session) -> Result<&Arc<dyn Provider>> {
+        self.provider_initialized
+            .get_or_try_init(|| self.create_provider(session))
             .await
-            .map_err(|e| {
-                sacp::Error::internal_error().data(format!("Failed to set provider: {}", e))
-            })?;
-        Ok(())
     }
 
     async fn on_load_session(
@@ -761,7 +774,9 @@ impl GooseAcpAgent {
             sacp::Error::invalid_params()
                 .data(format!("Failed to load session {}: {}", session_id, e))
         })?;
-        self.update_session_with_provider(&goose_session).await?;
+        let provider = self.ensure_provider(&goose_session).await.map_err(|e| {
+            sacp::Error::internal_error().data(format!("Failed to set provider: {}", e))
+        })?;
 
         let conversation = goose_session.conversation.ok_or_else(|| {
             sacp::Error::internal_error()
@@ -839,7 +854,10 @@ impl GooseAcpAgent {
             "Session loaded"
         );
 
-        Ok(LoadSessionResponse::new())
+        let model_state =
+            build_model_state(&**provider, &provider.get_model_config().model_name).await?;
+
+        Ok(LoadSessionResponse::new().models(model_state))
     }
 
     async fn on_prompt(
@@ -937,6 +955,36 @@ impl GooseAcpAgent {
 
         Ok(())
     }
+
+    async fn on_set_model(
+        &self,
+        session_id: &str,
+        model_id: &str,
+    ) -> Result<SetSessionModelResponse, sacp::Error> {
+        let config_path = self.config_dir.join(CONFIG_YAML_NAME);
+        let config = Config::new(&config_path, "goose").map_err(|e| {
+            sacp::Error::internal_error().data(format!("Failed to read config: {}", e))
+        })?;
+        let provider_name = config.get_goose_provider().map_err(|_| {
+            sacp::Error::internal_error().data("No provider configured".to_string())
+        })?;
+        let model_config =
+            goose::model::ModelConfig::new(model_id, &provider_name).map_err(|e| {
+                sacp::Error::internal_error().data(format!("Invalid model config: {}", e))
+            })?;
+        let provider = (self.provider_factory)(model_config).await.map_err(|e| {
+            sacp::Error::internal_error().data(format!("Failed to create provider: {}", e))
+        })?;
+        self.agent
+            .update_provider(provider, session_id)
+            .await
+            .map_err(|e| {
+                sacp::Error::internal_error().data(format!("Failed to update provider: {}", e))
+            })?;
+
+        info!(session_id = %session_id, model_id = %model_id, "Model switched");
+        Ok(SetSessionModelResponse::new())
+    }
 }
 
 pub struct GooseAcpHandler {
@@ -1006,7 +1054,30 @@ impl JrMessageHandler for GooseAcpHandler {
                 self.agent.on_cancel(notif).await
             })
             .await
-            .done()
+            // HACK: sacp doesn't support session/set_model yet, so we handle it as untyped JSON.
+            .otherwise({
+                let agent = self.agent.clone();
+                |message: MessageCx| async move {
+                    match message {
+                        MessageCx::Request(req, request_cx)
+                            if req.method == "session/set_model" =>
+                        {
+                            let params: SetSessionModelRequest = serde_json::from_value(req.params)
+                                .map_err(|e| sacp::Error::invalid_params().data(e.to_string()))?;
+                            let resp = agent
+                                .on_set_model(&params.session_id.0, &params.model_id.0)
+                                .await?;
+                            let json = serde_json::to_value(resp)
+                                .map_err(|e| sacp::Error::internal_error().data(e.to_string()))?;
+                            request_cx.respond(json)?;
+                            Ok(())
+                        }
+                        _ => Err(sacp::Error::method_not_found()),
+                    }
+                }
+            })
+            .await
+            .map(|()| Handled::Yes)
     }
 }
 
@@ -1033,7 +1104,13 @@ pub async fn run(builtins: Vec<String>) -> Result<()> {
     let outgoing = tokio::io::stdout().compat_write();
     let incoming = tokio::io::stdin().compat();
 
-    let agent = Arc::new(GooseAcpAgent::new(builtins).await?);
+    let server =
+        crate::server_factory::AcpServer::new(crate::server_factory::AcpServerFactoryConfig {
+            builtins,
+            data_dir: Paths::data_dir(),
+            config_dir: Paths::config_dir(),
+        });
+    let agent = server.create_agent().await?;
     serve(agent, incoming, outgoing).await
 }
 
@@ -1191,5 +1268,80 @@ print(\"hello, world\")
         expected: PermissionConfirmation,
     ) {
         assert_eq!(outcome_to_confirmation(&input), expected);
+    }
+
+    use goose::providers::errors::ProviderError;
+
+    struct MockModelProvider {
+        models: Result<Vec<String>, ProviderError>,
+    }
+
+    #[async_trait::async_trait]
+    impl goose::providers::base::Provider for MockModelProvider {
+        fn get_name(&self) -> &str {
+            "mock"
+        }
+
+        async fn complete_with_model(
+            &self,
+            _session_id: Option<&str>,
+            _model_config: &goose::model::ModelConfig,
+            _system: &str,
+            _messages: &[goose::conversation::message::Message],
+            _tools: &[rmcp::model::Tool],
+        ) -> Result<
+            (
+                goose::conversation::message::Message,
+                goose::providers::base::ProviderUsage,
+            ),
+            ProviderError,
+        > {
+            unimplemented!()
+        }
+
+        fn get_model_config(&self) -> goose::model::ModelConfig {
+            goose::model::ModelConfig::new_or_fail("unused", "test")
+        }
+
+        async fn fetch_recommended_models(&self) -> Result<Vec<String>, ProviderError> {
+            self.models.clone()
+        }
+    }
+
+    #[test_case(
+        "model-a", Ok(vec!["model-a".into(), "model-b".into()])
+        => Ok(SessionModelState::new(
+            ModelId::new("model-a"),
+            vec![ModelInfo::new(ModelId::new("model-a"), "model-a"),
+                 ModelInfo::new(ModelId::new("model-b"), "model-b")],
+        ))
+        ; "returns current and available models"
+    )]
+    #[test_case(
+        "model-a", Ok(vec![])
+        => Ok(SessionModelState::new(ModelId::new("model-a"), vec![]))
+        ; "empty model list"
+    )]
+    #[test_case(
+        "model-a", Err(ProviderError::ExecutionError("fail".into()))
+        => matches Err(_)
+        ; "fetch error propagates"
+    )]
+    #[test_case(
+        "switched-model", Ok(vec!["model-a".into(), "switched-model".into()])
+        => Ok(SessionModelState::new(
+            ModelId::new("switched-model"),
+            vec![ModelInfo::new(ModelId::new("model-a"), "model-a"),
+                 ModelInfo::new(ModelId::new("switched-model"), "switched-model")],
+        ))
+        ; "current model reflects switched model"
+    )]
+    #[tokio::test]
+    async fn test_build_model_state(
+        current_model: &str,
+        models: Result<Vec<String>, ProviderError>,
+    ) -> Result<SessionModelState, sacp::Error> {
+        let provider = MockModelProvider { models };
+        build_model_state(&provider, current_model).await
     }
 }

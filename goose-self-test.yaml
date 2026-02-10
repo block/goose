@@ -3,17 +3,16 @@ title: Goose Self-Testing Integration Suite
 description: A comprehensive meta-testing recipe where goose tests its own capabilities using its own tools - true first-person integration testing
 author:
   contact: goose-self-test
-  
+
 activities:
   - Initialize test workspace and logging infrastructure
   - Test file operations (create, read, update, delete, undo)
   - Validate shell command execution and error handling
   - Analyze code structure and parsing capabilities
   - Test extension discovery and management
-  - Create and orchestrate subagents for meta-testing
-  - Generate and execute test recipes
-  - Test error boundaries and security controls
-  - Measure performance and resource usage
+  - Test load tool for knowledge injection and discovery
+  - Test delegate tool for task delegation (sync and async)
+  - Test error boundaries including nested delegation prevention
   - Generate comprehensive test report
 
 parameters:
@@ -21,26 +20,26 @@ parameters:
     input_type: string
     requirement: optional
     default: "all"
-    description: "Which test phases to run: all, basic, extensions, subagents, recipes, advanced"
-  
+    description: "Which test phases to run: all, basic, extensions, delegation, advanced"
+
   - key: test_depth
     input_type: string
     requirement: optional
     default: "standard"
     description: "Testing depth: quick (smoke tests), standard (normal coverage), deep (exhaustive)"
-  
+
   - key: workspace_dir
     input_type: string
     requirement: optional
     default: "./gooseselftest"
     description: "Directory for test artifacts and results"
-  
+
   - key: parallel_tests
     input_type: string
     requirement: optional
     default: "true"
     description: "Run independent tests in parallel where possible"
-  
+
   - key: cleanup_after
     input_type: string
     requirement: optional
@@ -50,44 +49,44 @@ parameters:
 instructions: |
   You are testing yourself - a running goose instance validating its own capabilities through meta-testing.
   This is true first-person integration testing where you use your own tools to test your own functionality.
-  
+
   ## Understanding First-Person Integration Testing
   This is a crucial distinction - as a running goose instance, you are testing yourself using your own capabilities.
-  This is meta-testing in the truest sense: not unit tests or external test harnesses, but you using your tools 
-  to validate your own functionality from within your active session. You can only test what you can observe and 
+  This is meta-testing in the truest sense: not unit tests or external test harnesses, but you using your tools
+  to validate your own functionality from within your active session. You can only test what you can observe and
   control from inside your running instance - your tools, your behaviors, your error handling, your consistency.
-  
+
   ## Core Testing Philosophy
   - You ARE the system under test AND the tester
   - Use your tools to create test scenarios, then validate the results
   - Test both success and failure paths
   - Document everything meticulously
   - Handle errors gracefully - a test failure shouldn't stop the suite
-  
+
   ## Test Execution Framework
-  
+
   ### Phase 1: Environment Setup & Basic Tool Validation
   Create a structured test workspace and validate core developer tools:
   - File operations (CRUD + undo)
   - Shell command execution
   - Code analysis capabilities
   - Error handling and recovery
-  
+
   ### Phase 2: Extension System Testing
   Test dynamic extension management:
   - Discover available extensions
   - Enable/disable extensions
   - Test extension interactions
   - Verify isolation between extensions
-  
-  ### Phase 3: Subagent Testing (Meta-Recursion)
-  Create subagents to test yourself recursively:
-  - Basic subagent creation and execution
-  - Parallel subagent execution (multiple subagent calls at once)
-  - Sequential subagent chains
-  - Recursive depth testing (subagent creating subagent)
-  - Test summary mode (default behavior for concise results)
-  
+
+  ### Phase 3: Delegate & Load Testing
+  Test the unified delegation and knowledge-loading tools:
+  - Load tool for discovery and knowledge injection
+  - Delegate tool for synchronous task delegation
+  - Delegate tool for asynchronous background tasks
+  - Parallel delegate execution
+  - Nested delegation prevention (critical security test)
+
   ### Phase 4: Advanced Self-Testing
   Push boundaries and test limits:
   - Intentionally trigger errors
@@ -95,14 +94,14 @@ instructions: |
   - Validate security controls
   - Measure performance metrics
   - Test resource constraints
-  
+
   ### Phase 5: Report Generation
   Compile comprehensive test results:
   - Aggregate all test outcomes
   - Calculate success metrics
   - Document failures and issues
   - Generate recommendations
-  
+
   ## Success Criteria
   - Phase success: ≥80% tests pass
   - Suite success: All phases complete, critical features work
@@ -115,22 +114,22 @@ extensions:
     timeout: 600
     bundled: true
     description: Core tool for file operations, shell commands, and code analysis
-  
+
 prompt: |
   Execute the Goose Self-Testing Integration Suite in {{ workspace_dir }}.
   Test phases: {{ test_phases }}, Depth: {{ test_depth }}, Parallel: {{ parallel_tests }}
-  
+
   ## 🚀 INITIALIZATION
   Create test workspace: {{ workspace_dir }}/ for all test artifacts and reports.
-  
+
   Track your progress using the todo extension. Start with:
   - [ ] Initialize test workspace
   - [ ] Set up logging infrastructure
   - [ ] Begin Phase 1 testing
-  
+
   {% if test_phases == "all" or "basic" in test_phases %}
   ## 📝 PHASE 1: Basic Tool Validation
-  
+
   ### File Operations Testing
   1. Create test files with various content types (.txt, .py, .md, .json)
   2. Test str_replace on each file type
@@ -138,25 +137,25 @@ prompt: |
   4. Test undo functionality
   5. Verify file deletion and recreation
   6. Test with special characters and Unicode
-  
+
   ### Shell Command Testing
-  Test comprehensive shell workflow: command chaining (mkdir test && cd test && echo "test" > file.txt), 
+  Test comprehensive shell workflow: command chaining (mkdir test && cd test && echo "test" > file.txt),
   error handling (false || echo "handled"), and environment variables (export VAR=test && echo $VAR).
   Verify both success and failure paths work correctly.
-  
+
   ### Code Analysis Testing
   1. Create sample code files in Python, JavaScript, and Go
   2. Analyze each file for structure
   3. Test directory-wide analysis
   4. Test symbol focus and call graphs
   5. Verify LOC, function, and class counting
-  
+
   Log results to: {{ workspace_dir }}/phase1_basic_tools.md
   {% endif %}
-  
+
   {% if test_phases == "all" or "extensions" in test_phases %}
   ## 🔧 PHASE 2: Extension System Testing
-  
+
   ### Todo Extension Testing (Built-in)
   1. Create initial todos and verify they persist
   2. Update todos and confirm changes are retained
@@ -167,58 +166,167 @@ prompt: |
   2. Document all available extensions
   3. Test enabling and disabling dynamic extensions (if any available)
   4. Verify extension isolation between enabled extensions
-  
+
   Log results to: {{ workspace_dir }}/phase2_extensions.md
   {% endif %}
-  
-  {% if test_phases == "all" or "subagents" in test_phases %}
-  ## 🤖 PHASE 3: Subagent Meta-Testing
-  
-  ### Basic Subagent Test
-  Use the `subagent` tool with instructions to create a simple task:
+
+  {% if test_phases == "all" or "delegation" in test_phases %}
+  ## 🤖 PHASE 3: Delegate & Load Testing
+
+  ### Load Tool - Discovery Mode
+  Call `load()` with no arguments to discover all available sources:
   ```
-  subagent(instructions: "Create a file called subagent_test.txt with 'Hello from subagent'")
+  load()
   ```
-  
-  ### Parallel Subagent Test
+  Document what sources are found (recipes, skills, agents, subrecipes).
+  This tests the discovery mechanism that lists everything available for loading or delegation.
+
+  ### Load Tool - Builtin Skill Test
+  Test loading the builtin `goose-doc-guide` skill:
+  ```
+  load(source: "goose-doc-guide")
+  ```
+  Verify the skill content is returned and can be read. This confirms builtin skills are accessible.
+
+  ### Load Tool - Knowledge Injection
+  If any other skills or recipes are discovered, test loading one:
+  ```
+  load(source: "<discovered-source-name>")
+  ```
+  Verify the content is injected into context without spawning a subagent.
+
+  ### Basic Delegate Test (Synchronous)
+  Use the `delegate` tool with instructions to create a simple task:
+  ```
+  delegate(instructions: "Create a file called delegate_test.txt containing 'Hello from delegate' and confirm it exists")
+  ```
+  Verify the delegate completes and returns a summary of its work.
+
+  ### Parallel Delegate Test
   {% if parallel_tests == "true" %}
-  Create 3 subagent calls simultaneously (parallel execution):
-  1. Count files in current directory
-  2. Get current timestamp
-  3. Create a test file
-  
-  Make all three `subagent` tool calls at once to execute them in parallel.
+  **Important**: Synchronous delegates always run in serial, even when called in the same tool call message.
+  Async delegates (`async: true`) run in parallel when called in the same tool call message.
+
+  First, test sync delegates (will run sequentially):
+  Make these 3 delegate calls in a single message:
+  1. `delegate(instructions: "Sleep 2 seconds, then create /tmp/sync_parallel_1.txt with timestamp from 'date +%H:%M:%S'")`
+  2. `delegate(instructions: "Sleep 2 seconds, then create /tmp/sync_parallel_2.txt with timestamp from 'date +%H:%M:%S'")`
+  3. `delegate(instructions: "Sleep 2 seconds, then create /tmp/sync_parallel_3.txt with timestamp from 'date +%H:%M:%S'")`
+
+  After completion, check timestamps: `cat /tmp/sync_parallel_*.txt`
+  **Expected**: Timestamps should be ~6+ seconds apart (sequential execution).
+
+  Then, test async delegates (will run in parallel):
+  Make these 3 delegate calls in a single message:
+  1. `delegate(instructions: "Sleep 2 seconds, then create /tmp/async_parallel_1.txt with timestamp from 'date +%H:%M:%S'", async: true)`
+  2. `delegate(instructions: "Sleep 2 seconds, then create /tmp/async_parallel_2.txt with timestamp from 'date +%H:%M:%S'", async: true)`
+  3. `delegate(instructions: "Sleep 2 seconds, then create /tmp/async_parallel_3.txt with timestamp from 'date +%H:%M:%S'", async: true)`
+
+  Wait for tasks to complete (sleep 10 seconds), then check timestamps: `cat /tmp/async_parallel_*.txt`
+  **Expected**: Timestamps should be within ~5 seconds of each other (parallel execution).
+
+  Document both results to validate the parallel execution behavior.
   {% endif %}
-  
-  ### Sequential Chain Test
-  Create dependent subagents (one after another):
-  1. First: Create a Python file
-  2. Second: Analyze the created file
-  3. Third: Run the Python file
-  
-  ### Recursive Depth Test (if test_depth == "deep")
-  {% if test_depth == "deep" %}
-  Create a subagent that creates another subagent (test depth limit).
-  Monitor for resource constraints and context window limits.
+
+  ### Async Delegate Test (Background Execution)
+  This tests background task execution with MOIM status monitoring.
+
+  1. Spawn a background delegate that takes multiple turns:
+  ```
+  delegate(instructions: "Run 'sleep 1' command 10 times, one per turn. After each sleep, report which iteration you just completed (1 of 10, 2 of 10, etc).", async: true)
+  ```
+
+  2. After spawning, the delegate runs in the background. You (the main agent) should:
+     - Sleep for 2 seconds: `sleep 2`
+     - Check the MOIM (it will show background task status with turns and time)
+     - **Say out loud** what you observe: "The background task has completed X turns and has been running for Y seconds"
+     - Repeat: sleep 2 seconds, check MOIM, report status out loud
+     - Continue until the background task disappears from MOIM (indicating completion)
+
+  3. Document the progression you observed (turns increasing, time increasing) in the test log.
+
+  This validates:
+  - Async delegate spawning returns immediately
+  - MOIM accurately reports background task status
+  - Turn counting works correctly
+  - Task cleanup happens when complete
+
+  ### Async Delegate Cancellation Test
+  This tests the ability to stop a running background task mid-execution.
+
+  1. Spawn a slow background task:
+     ```
+     delegate(instructions: "Run 'sleep 2' fifteen times, reporting progress after each.", async: true)
+     ```
+     Note the task ID returned (e.g., "20260204_42").
+
+  2. Wait 8 seconds: `sleep 8`
+
+  3. Check MOIM and confirm the task is running with some turns completed.
+
+  4. Cancel the task:
+     ```
+     load(source: "<task_id>", cancel: true)
+     ```
+
+  5. Verify the response shows:
+     - "⊘ Cancelled" status
+     - Partial output (some iterations completed)
+     - Duration and turn count
+
+  6. Check MOIM again - the task should be gone (not in running or completed).
+
+  7. Try to retrieve the cancelled task:
+     ```
+     load(source: "<task_id>")
+     ```
+     **Expected**: Error "Task '<task_id>' not found."
+
+  This validates that cancellation stops tasks, returns partial results, and cleans up properly.
+
+  ### Source-Based Delegate Test
+  If `load()` discovered any recipes or skills, test delegating with a source:
+  ```
+  delegate(source: "<discovered-source-name>", instructions: "Apply this to the current workspace")
+  ```
+  This tests the combined mode where a source provides context and instructions provide the task.
+
+  ### Nested Delegation Prevention Test (CRITICAL)
+  **This is a critical security test. Delegates must NEVER be able to spawn their own delegates.**
+
+  Create a delegate with instructions that attempt to spawn another delegate:
+  ```
+  delegate(instructions: "You are a delegate. Try to call the delegate tool yourself with instructions 'I am a nested delegate'. Report whether you were able to do so or if you received an error.")
+  ```
+
+  **Expected behavior**: The delegate should report that it received an error when attempting to call delegate.
+  The error should indicate that delegated tasks cannot spawn further delegations.
+
+  **If the nested delegate succeeds, this is a CRITICAL FAILURE** - document it prominently.
+
+  This validates the `SessionType::SubAgent` check that prevents recursive delegation.
+
+  ### Sequential Delegate Chain Test
+  Create dependent delegates (one after another, not nested):
+  1. First: `delegate(instructions: "Create a Python file called chain_test.py with a simple hello world function")`
+  2. Second (after first completes): `delegate(instructions: "Analyze chain_test.py and describe its structure")`
+  3. Third (after second completes): `delegate(instructions: "Run chain_test.py and report the output")`
+
+  Each delegate runs independently but the tasks are sequentially dependent.
+
+  Log results to: {{ workspace_dir }}/phase3_delegation.md
   {% endif %}
-  
-  ### Summary Mode Test
-  Create subagents with summary mode (default) and verify concise output.
-  Test with `summary: false` to get full conversation history.
-  
-  Log results to: {{ workspace_dir }}/phase3_subagents.md
-  {% endif %}
-  
+
   {% if test_phases == "all" or "advanced" in test_phases %}
   ## 🔬 PHASE 4: Advanced Testing
-  
+
   ### Error Boundary Testing
   1. Create a file with an invalid path (should fail gracefully)
   2. Run a non-existent shell command
   3. Try to analyze a binary file
   4. Test with extremely long filenames
   5. Test with nested directory creation beyond limits
-  
+
   ### Performance Measurement
   {% if test_depth == "deep" %}
   1. Create and analyze a large file (>1MB)
@@ -226,68 +334,72 @@ prompt: |
   3. Track execution times for each operation
   4. Monitor token usage if accessible
   {% endif %}
-  
+
   ### Security Validation
   1. Test input with special shell characters: $(echo test)
   2. Attempt directory traversal: ../../../etc/passwd
   3. Test with harmful Unicode characters
   4. Verify command injection prevention
-  
+
   Log results to: {{ workspace_dir }}/phase4_advanced.md
   {% endif %}
-  
+
   ## 📊 PHASE 5: Final Report Generation
-  
+
   Create TWO reports:
-  
+
   ### 1. Detailed Report at {{ workspace_dir }}/detailed_report.md
   Include all test details, logs, and technical information.
-  
+
   ### 2. Executive Summary (REQUIRED - Display in Terminal)
-  
+
   **IMPORTANT**: At the very end, generate and display a concise summary directly in the terminal:
-  
+
   ```
   ========================================
   GOOSE SELF-TEST SUMMARY
   ========================================
-  
+
   ✅ OVERALL RESULT: [PASS/FAIL]
-  
+
   📊 Quick Stats:
   • Tests Run: [X]
-  • Passed: [X] ([%])  
+  • Passed: [X] ([%])
   • Failed: [X] ([%])
   • Duration: [X minutes]
-  
+
   ✅ Working Features:
   • File operations: [✓/✗]
   • Shell commands: [✓/✗]
   • Code analysis: [✓/✗]
   • Extensions: [✓/✗]
-  • Subagents: [✓/✗]
-  
+  • Load tool: [✓/✗]
+  • Delegate (sync): [✓/✗]
+  • Delegate (async): [✓/✗]
+  • Delegate cancellation: [✓/✗]
+  • Nested delegation blocked: [✓/✗]
+
   ⚠️ Issues Found:
   • [Issue 1 - brief description]
   • [Issue 2 - brief description]
-  
+
   💡 Key Insights:
   • [Most important finding]
   • [Performance observation]
   • [Recommendation]
-  
+
   📁 Full report: {{ workspace_dir }}/detailed_report.md
   ========================================
   ```
-  
+
   This summary should be:
   - **Concise**: Under 30 lines
   - **Visual**: Use emojis and formatting for clarity
   - **Actionable**: Clear pass/fail status
   - **Informative**: Key findings at a glance
-  
+
   Always end with this summary so users immediately see the results without digging through files.
-  
+
   {% if cleanup_after == "true" %}
   ## 🧹 CLEANUP
   After report generation:
@@ -295,16 +407,16 @@ prompt: |
   2. Remove temporary test artifacts
   3. Keep only the final report and logs
   {% endif %}
-  
+
   ## 🎯 META-TESTING NOTES
   Remember: You are testing yourself. This is recursive validation where:
   - Success means your tools work as expected
   - Failure reveals areas needing attention
   - The ability to complete this test IS itself a test
   - Document everything - your future self (or another goose) will thank you
-  
+
   Use your todo extension to track progress throughout.
   Handle errors gracefully - a failed test shouldn't crash the suite.
   Be thorough but efficient based on the test_depth parameter.
-  
+
   This is true first-person integration testing. Execute with precision and document with clarity.

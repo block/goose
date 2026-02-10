@@ -6,7 +6,7 @@ use goose::config::ExtensionEntry;
 use goose::conversation::Conversation;
 use goose::dictation::download_manager::{DownloadProgress, DownloadStatus};
 use goose::model::ModelConfig;
-use goose::permission::permission_confirmation::PrincipalType;
+use goose::permission::permission_confirmation::{Permission, PrincipalType};
 use goose::providers::base::{ConfigKey, ModelInfo, ProviderMetadata, ProviderType};
 use goose::session::{Session, SessionInsights, SessionType, SystemInfo};
 use rmcp::model::{
@@ -377,6 +377,7 @@ derive_utoipa!(Icon as IconSchema);
         super::routes::action_required::confirm_tool_action,
         super::routes::reply::reply,
         super::routes::session::list_sessions,
+        super::routes::session::search_sessions,
         super::routes::session::get_session,
         super::routes::session::get_session_insights,
         super::routes::session::update_session_name,
@@ -498,6 +499,7 @@ derive_utoipa!(Icon as IconSchema);
         ToolAnnotationsSchema,
         ToolInfo,
         PermissionLevel,
+        Permission,
         PrincipalType,
         ModelInfo,
         ModelConfig,

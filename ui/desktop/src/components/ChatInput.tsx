@@ -1165,8 +1165,8 @@ export default function ChatInput({
         disableAnimation ? '' : 'page-transition'
       } ${
         isFocused
-          ? 'border-borderProminent hover:border-borderProminent'
-          : 'border-borderSubtle hover:border-borderStandard'
+          ? 'border-border-strong hover:border-border-strong'
+          : 'border-border-default hover:border-border-default'
       } bg-background-default z-10 rounded-t-2xl`}
       data-drop-zone="true"
       onDrop={handleLocalDrop}
@@ -1191,7 +1191,7 @@ export default function ChatInput({
           onTriggerQueueProcessing={handleResumeQueue}
           editingMessageIdRef={editingMessageIdRef}
           isPaused={queuePausedRef.current}
-          className="border-b border-borderSubtle"
+          className="border-b border-border-default"
         />
       )}
       {/* Input row with inline action buttons wrapped in form */}
@@ -1219,7 +1219,7 @@ export default function ChatInput({
               overflowY: 'auto',
               paddingRight: dictationProvider ? '180px' : '120px',
             }}
-            className="w-full outline-none border-none focus:ring-0 bg-transparent px-3 pt-3 pb-1.5 text-sm resize-none text-textStandard placeholder:text-textPlaceholder"
+            className="w-full outline-none border-none focus:ring-0 bg-transparent px-3 pt-3 pb-1.5 text-sm resize-none text-text-default placeholder:text-text-muted"
           />
 
           {/* Inline action buttons - absolutely positioned on the right */}
@@ -1346,15 +1346,15 @@ export default function ChatInput({
 
             {/* Recording/transcribing status indicator - positioned above the button row */}
             {(isRecording || isTranscribing) && (
-              <div className="absolute right-0 -top-8 bg-background-default px-2 py-1 rounded text-xs whitespace-nowrap shadow-md border border-borderSubtle">
+              <div className="absolute right-0 -top-8 bg-background-default px-2 py-1 rounded text-xs whitespace-nowrap shadow-md border border-border-default">
                 <span className="flex items-center gap-2">
                   {isRecording && (
-                    <span className="flex items-center gap-1 text-textSubtle">
+                    <span className="flex items-center gap-1 text-text-muted">
                       <span className="inline-block w-2 h-2 bg-red-500 rounded-full animate-pulse" />
                       Listening
                     </span>
                   )}
-                  {isRecording && isTranscribing && <span className="text-textSubtle">•</span>}
+                  {isRecording && isTranscribing && <span className="text-text-muted">•</span>}
                   {isTranscribing && (
                     <span className="flex items-center gap-1 text-blue-500">
                       <span className="inline-block w-2 h-2 bg-blue-500 rounded-full animate-pulse" />
@@ -1370,7 +1370,7 @@ export default function ChatInput({
 
       {/* Combined files and images preview */}
       {(pastedImages.length > 0 || allDroppedFiles.length > 0) && (
-        <div className="flex flex-wrap gap-2 p-4 mt-2 border-t border-borderSubtle">
+        <div className="flex flex-wrap gap-2 p-4 mt-2 border-t border-border-default">
           {/* Render pasted images first */}
           {pastedImages.map((img) => (
             <div key={img.id} className="relative group w-20 h-20">
@@ -1378,7 +1378,7 @@ export default function ChatInput({
                 <img
                   src={img.dataUrl}
                   alt={`Pasted image ${img.id}`}
-                  className={`w-full h-full object-cover rounded border ${img.error ? 'border-red-500' : 'border-borderStandard'}`}
+                  className={`w-full h-full object-cover rounded border ${img.error ? 'border-red-500' : 'border-border-default'}`}
                 />
               )}
               {img.isLoading && (
@@ -1419,7 +1419,7 @@ export default function ChatInput({
                     <img
                       src={file.dataUrl}
                       alt={file.name}
-                      className={`w-full h-full object-cover rounded border ${file.error ? 'border-red-500' : 'border-borderStandard'}`}
+                      className={`w-full h-full object-cover rounded border ${file.error ? 'border-red-500' : 'border-border-default'}`}
                     />
                   )}
                   {file.isLoading && (
@@ -1437,15 +1437,15 @@ export default function ChatInput({
                 </div>
               ) : (
                 // File box preview
-                <div className="flex items-center gap-2 px-3 py-2 bg-bgSubtle border border-borderStandard rounded-lg min-w-[120px] max-w-[200px]">
-                  <div className="flex-shrink-0 w-8 h-8 bg-background-default border border-borderSubtle rounded flex items-center justify-center text-xs font-mono text-textSubtle">
+                <div className="flex items-center gap-2 px-3 py-2 bg-bgSubtle border border-border-default rounded-lg min-w-[120px] max-w-[200px]">
+                  <div className="flex-shrink-0 w-8 h-8 bg-background-default border border-border-default rounded flex items-center justify-center text-xs font-mono text-text-muted">
                     {file.name.split('.').pop()?.toUpperCase() || 'FILE'}
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm text-textStandard truncate" title={file.name}>
+                    <p className="text-sm text-text-default truncate" title={file.name}>
                       {file.name}
                     </p>
-                    <p className="text-xs text-textSubtle">{file.type || 'Unknown type'}</p>
+                    <p className="text-xs text-text-muted">{file.type || 'Unknown type'}</p>
                   </div>
                 </div>
               )}

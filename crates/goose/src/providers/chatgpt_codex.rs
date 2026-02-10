@@ -111,6 +111,12 @@ fn build_input_items(messages: &[Message]) -> Result<Vec<Value>> {
                         content_items.push(json!({ "type": content_type, "text": text.text }));
                     }
                 }
+                MessageContent::Image(img) => {
+                    content_items.push(json!({
+                        "type": "input_image",
+                        "image_url": format!("data:{};base64,{}", img.mime_type, img.data),
+                    }));
+                }
                 MessageContent::ToolRequest(request) => {
                     flush_text(&mut items, role, &mut content_items);
                     if let Ok(tool_call) = &request.tool_call {
@@ -859,6 +865,7 @@ impl ProviderDef for ChatGptCodexProvider {
                 None,
             )],
         )
+        .with_unlisted_models()
     }
 
     fn from_env(model: ModelConfig) -> BoxFuture<'static, Result<Self::Provider>> {
@@ -979,13 +986,11 @@ impl Provider for ChatGptCodexProvider {
         Ok(())
     }
 
-    async fn fetch_supported_models(&self) -> Result<Option<Vec<String>>, ProviderError> {
-        Ok(Some(
-            CHATGPT_CODEX_KNOWN_MODELS
-                .iter()
-                .map(|s| s.to_string())
-                .collect(),
-        ))
+    async fn fetch_supported_models(&self) -> Result<Vec<String>, ProviderError> {
+        Ok(CHATGPT_CODEX_KNOWN_MODELS
+            .iter()
+            .map(|s| s.to_string())
+            .collect())
     }
 }
 
@@ -993,6 +998,7 @@ impl Provider for ChatGptCodexProvider {
 mod tests {
     use super::*;
     use crate::conversation::message::Message;
+    use goose_test_support::TEST_IMAGE_B64;
     use jsonwebtoken::{Algorithm, EncodingKey, Header};
     use rmcp::model::{CallToolRequestParams, CallToolResult, Content, ErrorCode, ErrorData};
     use rmcp::object;
@@ -1095,11 +1101,38 @@ mod tests {
         ];
         "includes tool error output"
     )]
+    #[test_case(
+        vec![
+            Message::user()
+                .with_text("describe this")
+                .with_image(TEST_IMAGE_B64, "image/png"),
+        ],
+        vec![
+            "message:user".to_string(),
+        ];
+        "image content included in user message"
+    )]
     fn test_codex_input_order(messages: Vec<Message>, expected: Vec<String>) {
         let items = build_input_items(&messages).unwrap();
         let payload = json!({ "input": items });
         let kinds = input_kinds(&payload);
         assert_eq!(kinds, expected);
+    }
+
+    #[test]
+    fn test_image_url_format() {
+        let messages = vec![Message::user().with_image(TEST_IMAGE_B64, "image/png")];
+        let items = build_input_items(&messages).unwrap();
+        // The image is inside the content array of the user message
+        let content = items[0]["content"].as_array().unwrap();
+        let image_item = &content[0];
+        assert_eq!(image_item["type"], "input_image");
+        let url = image_item["image_url"].as_str().unwrap();
+        assert!(
+            url.starts_with("data:image/png;base64,"),
+            "image_url should start with data:image/png;base64, but was: {}",
+            url
+        );
     }
 
     #[test_case(

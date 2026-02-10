@@ -299,8 +299,8 @@ export default function McpAppRenderer({
   return (
     <div
       className={cn(
-        'bg-bgApp overflow-hidden',
-        resource.prefersBorder ? 'border border-borderSubtle rounded-lg' : 'my-6'
+        'bg-background-default overflow-hidden',
+        resource.prefersBorder ? 'border border-border-default rounded-lg' : 'my-6'
       )}
     >
       {resource.html && proxyUrl ? (

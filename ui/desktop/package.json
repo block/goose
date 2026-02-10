@@ -19,7 +19,6 @@
     "make": "electron-forge make",
     "bundle:default": "node scripts/prepare-platform-binaries.js && npm run make && (cd out/Goose-darwin-arm64 && ditto -c -k --sequesterRsrc --keepParent Goose.app Goose.zip) || echo 'out/Goose-darwin-arm64 not found; either the binary is not built or you are not on macOS'",
     "bundle:alpha": "ALPHA=true node scripts/prepare-platform-binaries.js && ALPHA=true npm run make && (cd out/Goose-darwin-arm64 && ditto -c -k --sequesterRsrc --keepParent Goose.app Goose_alpha.zip) || echo 'out/Goose-darwin-arm64 not found; either the binary is not built or you are not on macOS'",
-    "bundle:windows": "node scripts/build-main.js && ELECTRON_PLATFORM=win32 node scripts/prepare-platform-binaries.js && npm run make -- --platform=win32 --arch=x64",
     "bundle:intel": "node scripts/prepare-platform-binaries.js && npm run make -- --arch=x64 && cd out/Goose-darwin-x64 && ditto -c -k --sequesterRsrc --keepParent Goose.app Goose_intel_mac.zip",
     "debug": "echo 'run --remote-debugging-port=8315' && lldb out/Goose-darwin-arm64/Goose.app",
     "test-e2e": "npm run generate-api && playwright test",

@@ -40,11 +40,17 @@ export const BottomMenuExtensionSelection = ({ sessionId }: BottomMenuExtensionS
       }, 500);
     };
 
+    const handleExtensionsLoaded = () => {
+      setRefreshTrigger((prev) => prev + 1);
+    };
+
     window.addEventListener(AppEvents.SESSION_CREATED, handleSessionLoaded);
+    window.addEventListener(AppEvents.SESSION_EXTENSIONS_LOADED, handleExtensionsLoaded);
     window.addEventListener(AppEvents.MESSAGE_STREAM_FINISHED, handleSessionLoaded);
 
     return () => {
       window.removeEventListener(AppEvents.SESSION_CREATED, handleSessionLoaded);
+      window.removeEventListener(AppEvents.SESSION_EXTENSIONS_LOADED, handleExtensionsLoaded);
       window.removeEventListener(AppEvents.MESSAGE_STREAM_FINISHED, handleSessionLoaded);
     };
   }, []);
@@ -272,7 +278,7 @@ export const BottomMenuExtensionSelection = ({ sessionId }: BottomMenuExtensionS
               return (
                 <div
                   key={ext.name}
-                  className={`flex items-center justify-between px-2 py-2 hover:bg-background-hover transition-all duration-300 ${
+                  className={`flex items-center justify-between px-2 py-2 transition-all duration-300 ${
                     isToggling ? 'cursor-wait opacity-70' : 'cursor-pointer'
                   }`}
                   onClick={() => !isToggling && handleToggle(ext)}

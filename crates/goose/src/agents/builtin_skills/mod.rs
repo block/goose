@@ -3,7 +3,7 @@ use include_dir::{include_dir, Dir};
 static BUILTIN_SKILLS_DIR: Dir =
     include_dir!("$CARGO_MANIFEST_DIR/src/agents/builtin_skills/skills");
 
-pub fn get_all_builtin_skills() -> Vec<&'static str> {
+pub fn get_all() -> Vec<&'static str> {
     BUILTIN_SKILLS_DIR
         .files()
         .filter(|f| f.path().extension().is_some_and(|ext| ext == "md"))
