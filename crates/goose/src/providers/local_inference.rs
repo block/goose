@@ -1,3 +1,6 @@
+pub mod hf_models;
+pub mod local_model_registry;
+
 use crate::config::paths::Paths;
 use crate::conversation::message::{Message, MessageContent};
 use crate::model::ModelConfig;
@@ -5,29 +8,94 @@ use crate::providers::base::{
     MessageStream, Provider, ProviderDef, ProviderMetadata, ProviderUsage, Usage,
 };
 use crate::providers::errors::ProviderError;
+use crate::providers::formats::openai::format_tools;
 use anyhow::Result;
 use async_stream::try_stream;
 use async_trait::async_trait;
-use candle_core::{Device, Tensor};
-use candle_transformers::models::{quantized_llama, quantized_phi, quantized_phi3};
 use futures::future::BoxFuture;
+use llama_cpp_2::context::params::LlamaContextParams;
+use llama_cpp_2::llama_backend::LlamaBackend;
+use llama_cpp_2::llama_batch::LlamaBatch;
+use llama_cpp_2::model::params::LlamaModelParams;
+use llama_cpp_2::model::{AddBos, LlamaChatMessage, LlamaChatTemplate, LlamaModel};
+use llama_cpp_2::sampling::LlamaSampler;
+use llama_cpp_2::{list_llama_ggml_backend_devices, LlamaBackendDeviceType};
 use rmcp::model::{CallToolRequestParams, Role, Tool};
 use serde::{Deserialize, Serialize};
-use serde_json::json;
+use serde_json::{json, Value};
 use std::borrow::Cow;
+use std::collections::HashMap;
+use std::num::NonZeroU32;
 use std::path::PathBuf;
-use std::sync::Arc;
-use tokenizers::Tokenizer;
+use std::sync::{Arc, Mutex as StdMutex, Weak};
 use tokio::sync::Mutex;
 use utoipa::ToSchema;
 use uuid::Uuid;
+
+type ModelSlot = Arc<Mutex<Option<LoadedModel>>>;
+
+/// Owns the llama backend and all cached models. Field order matters:
+/// `models` is declared before `backend` so Rust drops all loaded models
+/// (and their Metal/GPU resources) before the backend calls
+/// `llama_backend_free()`, avoiding the ggml-metal assertion on shutdown.
+pub struct InferenceRuntime {
+    models: StdMutex<HashMap<String, ModelSlot>>,
+    backend: LlamaBackend,
+}
+
+/// Global weak reference used to share a single `InferenceRuntime` across
+/// all providers and server routes. Only a `Weak` is stored — strong `Arc`s
+/// live in providers and `AppState`. When all strong refs drop (normal
+/// shutdown), the runtime is deallocated and the backend freed. The `Weak`
+/// left behind is inert during `__cxa_finalize`, so no ggml statics race.
+static RUNTIME: StdMutex<Weak<InferenceRuntime>> = StdMutex::new(Weak::new());
+
+impl InferenceRuntime {
+    pub fn get_or_init() -> Arc<Self> {
+        let mut guard = RUNTIME.lock().expect("runtime lock poisoned");
+        if let Some(runtime) = guard.upgrade() {
+            return runtime;
+        }
+        let backend = match LlamaBackend::init() {
+            Ok(b) => b,
+            Err(llama_cpp_2::LlamaCppError::BackendAlreadyInitialized) => {
+                panic!("LlamaBackend already initialized but Weak was dead — should be impossible")
+            }
+            Err(e) => panic!("Failed to init llama backend: {}", e),
+        };
+        let runtime = Arc::new(Self {
+            models: StdMutex::new(HashMap::new()),
+            backend,
+        });
+        *guard = Arc::downgrade(&runtime);
+        runtime
+    }
+
+    pub fn backend(&self) -> &LlamaBackend {
+        &self.backend
+    }
+
+    fn get_or_create_model_slot(&self, model_id: &str) -> ModelSlot {
+        let mut map = self.models.lock().expect("model cache lock poisoned");
+        map.entry(model_id.to_string())
+            .or_insert_with(|| Arc::new(Mutex::new(None)))
+            .clone()
+    }
+
+    fn other_model_slots(&self, keep_model_id: &str) -> Vec<ModelSlot> {
+        let map = self.models.lock().expect("model cache lock poisoned");
+        map.iter()
+            .filter(|(id, _)| id.as_str() != keep_model_id)
+            .map(|(_, slot)| slot.clone())
+            .collect()
+    }
+}
 
 const PROVIDER_NAME: &str = "local";
 const DEFAULT_MODEL: &str = "llama-3.2-1b";
 
 pub const LOCAL_LLM_MODEL_CONFIG_KEY: &str = "LOCAL_LLM_MODEL";
 
-// Load tiny model system prompt with environment context
 fn load_tiny_model_prompt() -> String {
     use std::env;
 
@@ -54,7 +122,6 @@ fn load_tiny_model_prompt() -> String {
     });
 
     crate::prompt_template::render_template("tiny_model_system.md", &context).unwrap_or_else(|e| {
-        // Fallback if template fails to load
         eprintln!("WARNING: Failed to load tiny_model_system.md: {:?}", e);
         "You are Goose, an AI assistant. You can execute shell commands by starting lines with $."
             .to_string()
@@ -70,51 +137,15 @@ pub enum ModelTier {
     Large,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum ChatTemplate {
-    Llama3,
-    ChatML,
-    Mistral,
-}
-
-impl Default for ChatTemplate {
-    fn default() -> Self {
-        ChatTemplate::Llama3
-    }
-}
-
-impl ChatTemplate {
-    /// Get EOS token strings to strip from output
-    fn eos_strings(&self) -> &[&str] {
-        match self {
-            ChatTemplate::Llama3 => &["<|eot_id|>", "<|end_of_text|>"],
-            ChatTemplate::ChatML => &["<|im_end|>"],
-            ChatTemplate::Mistral => &["</s>"],
-        }
-    }
-}
-
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct LocalLlmModel {
-    /// Model identifier (e.g., "llama-3.2-1b")
     pub id: &'static str,
-    /// Display name
     pub name: &'static str,
-    /// Model file size in MB
     pub size_mb: u32,
-    /// Maximum context window in tokens
     pub context_limit: usize,
-    /// Download URL for the model GGUF file
     pub url: &'static str,
-    /// Download URL for the tokenizer JSON
-    pub tokenizer_url: &'static str,
-    /// Description and use case
     pub description: &'static str,
-    /// Model tier/category
     pub tier: ModelTier,
-    /// Chat template format
-    #[serde(skip)]
-    pub chat_template: ChatTemplate,
 }
 
 const LOCAL_LLM_MODELS: &[LocalLlmModel] = &[
@@ -124,10 +155,8 @@ const LOCAL_LLM_MODELS: &[LocalLlmModel] = &[
         size_mb: 700,
         context_limit: 4096,
         url: "https://huggingface.co/bartowski/Llama-3.2-1B-Instruct-GGUF/resolve/main/Llama-3.2-1B-Instruct-Q4_K_M.gguf",
-        tokenizer_url: "https://huggingface.co/NousResearch/Hermes-2-Pro-Llama-3-8B/resolve/main/tokenizer.json",
         description: "Fastest, CPU-optimized for quick responses",
         tier: ModelTier::Tiny,
-        chat_template: ChatTemplate::Llama3,
     },
     LocalLlmModel {
         id: "llama-3.2-3b",
@@ -135,10 +164,8 @@ const LOCAL_LLM_MODELS: &[LocalLlmModel] = &[
         size_mb: 2000,
         context_limit: 8192,
         url: "https://huggingface.co/bartowski/Llama-3.2-3B-Instruct-GGUF/resolve/main/Llama-3.2-3B-Instruct-Q4_K_M.gguf",
-        tokenizer_url: "https://huggingface.co/NousResearch/Hermes-2-Pro-Llama-3-8B/resolve/main/tokenizer.json",
         description: "Good balance of speed and quality for laptops",
         tier: ModelTier::Small,
-        chat_template: ChatTemplate::Llama3,
     },
     LocalLlmModel {
         id: "hermes-2-pro-7b",
@@ -146,10 +173,8 @@ const LOCAL_LLM_MODELS: &[LocalLlmModel] = &[
         size_mb: 4500,
         context_limit: 8192,
         url: "https://huggingface.co/NousResearch/Hermes-2-Pro-Llama-3-8B-GGUF/resolve/main/Hermes-2-Pro-Llama-3-8B-Q4_K_M.gguf",
-        tokenizer_url: "https://huggingface.co/NousResearch/Hermes-2-Pro-Llama-3-8B/resolve/main/tokenizer.json",
         description: "High quality for desktops with GPU",
         tier: ModelTier::Medium,
-        chat_template: ChatTemplate::ChatML,
     },
     LocalLlmModel {
         id: "mistral-small-22b",
@@ -157,10 +182,8 @@ const LOCAL_LLM_MODELS: &[LocalLlmModel] = &[
         size_mb: 13000,
         context_limit: 32768,
         url: "https://huggingface.co/bartowski/Mistral-Small-Instruct-2409-GGUF/resolve/main/Mistral-Small-Instruct-2409-Q4_K_M.gguf",
-        tokenizer_url: "https://huggingface.co/mistralai/Mistral-Small-Instruct-2409/resolve/main/tokenizer.json",
         description: "Highest quality with long context support",
         tier: ModelTier::Large,
-        chat_template: ChatTemplate::Mistral,
     },
 ];
 
@@ -169,12 +192,8 @@ impl LocalLlmModel {
         Paths::in_data_dir("models").join(format!("{}.gguf", self.id))
     }
 
-    pub fn tokenizer_path(&self) -> PathBuf {
-        Paths::in_data_dir("models").join(format!("{}_tokenizer.json", self.id))
-    }
-
     pub fn is_downloaded(&self) -> bool {
-        self.local_path().exists() && self.tokenizer_path().exists()
+        self.local_path().exists()
     }
 }
 
@@ -186,120 +205,200 @@ pub fn get_local_model(id: &str) -> Option<&'static LocalLlmModel> {
     LOCAL_LLM_MODELS.iter().find(|m| m.id == id)
 }
 
-pub fn recommend_local_model() -> &'static str {
-    let has_gpu = Device::new_cuda(0).is_ok() || Device::new_metal(0).is_ok();
-    let mem_mb = sys_info::mem_info().map(|m| m.avail / 1024).unwrap_or(0);
+/// Resolve model path, context limit, and settings for any model ID — checks registry first,
+/// then falls back to the hardcoded featured list.
+pub fn resolve_model_path(
+    model_id: &str,
+) -> Option<(
+    PathBuf,
+    usize,
+    crate::providers::local_inference::local_model_registry::ModelSettings,
+)> {
+    use crate::providers::local_inference::local_model_registry::get_registry;
 
-    if has_gpu && mem_mb >= 16_000 {
-        "hermes-2-pro-7b" // Medium tier - GPU with lots of memory
-    } else if mem_mb >= 4_000 {
-        "llama-3.2-3b" // Small tier - decent memory
+    // Check registry first (covers both HF-downloaded and migrated legacy models)
+    if let Ok(registry) = get_registry().lock() {
+        if let Some(entry) = registry.get_model(model_id) {
+            let ctx = entry.settings.context_size.unwrap_or(0) as usize;
+            return Some((entry.local_path.clone(), ctx, entry.settings.clone()));
+        }
+    }
+
+    // Fall back to hardcoded featured list
+    get_local_model(model_id).map(|m| {
+        (
+            m.local_path(),
+            m.context_limit,
+            crate::providers::local_inference::local_model_registry::ModelSettings::default(),
+        )
+    })
+}
+
+pub fn available_inference_memory_bytes(runtime: &InferenceRuntime) -> u64 {
+    let _ = &runtime.backend;
+    let devices = list_llama_ggml_backend_devices();
+
+    let accel_memory = devices
+        .iter()
+        .filter(|d| {
+            matches!(
+                d.device_type,
+                LlamaBackendDeviceType::Gpu
+                    | LlamaBackendDeviceType::IntegratedGpu
+                    | LlamaBackendDeviceType::Accelerator
+            )
+        })
+        .map(|d| d.memory_free as u64)
+        .max()
+        .unwrap_or(0);
+
+    if accel_memory > 0 {
+        accel_memory
     } else {
-        "llama-3.2-1b" // Tiny tier - low memory
+        devices
+            .iter()
+            .filter(|d| d.device_type == LlamaBackendDeviceType::Cpu)
+            .map(|d| d.memory_free as u64)
+            .max()
+            .unwrap_or(0)
     }
 }
 
-enum ModelWeights {
-    Llama(quantized_llama::ModelWeights),
-    Phi(quantized_phi::ModelWeights),
-    Phi3(quantized_phi3::ModelWeights),
-}
+pub fn recommend_local_model(runtime: &InferenceRuntime) -> &'static str {
+    let effective_memory_mb = available_inference_memory_bytes(runtime) / (1024 * 1024);
 
-impl ModelWeights {
-    fn forward(&mut self, input: &Tensor, pos: usize) -> candle_core::Result<Tensor> {
-        match self {
-            ModelWeights::Llama(m) => m.forward(input, pos),
-            ModelWeights::Phi(m) => m.forward(input, pos),
-            ModelWeights::Phi3(m) => m.forward(input, pos),
-        }
+    if effective_memory_mb >= 16_000 {
+        "mistral-small-22b"
+    } else if effective_memory_mb >= 6_000 {
+        "hermes-2-pro-7b"
+    } else if effective_memory_mb >= 3_000 {
+        "llama-3.2-3b"
+    } else {
+        "llama-3.2-1b"
     }
 }
 
 struct LoadedModel {
-    model: ModelWeights,
-    tokenizer: Tokenizer,
-    device: Device,
-    eos_token_ids: Vec<u32>,
+    model: LlamaModel,
+    template: LlamaChatTemplate,
 }
 
-/// Streaming parser for emulator commands
-/// Accumulates chunks and emits complete text or commands
+enum EmulatorAction {
+    Text(String),
+    ShellCommand(String),
+    ExecuteCode(String),
+}
+
+enum ParserState {
+    Normal,
+    InCommand,
+    InExecuteBlock,
+}
+
 struct StreamingEmulatorParser {
     buffer: String,
-    in_command: bool,
-    command_start_pos: usize,
+    state: ParserState,
+    code_mode_enabled: bool,
 }
 
 impl StreamingEmulatorParser {
-    fn new() -> Self {
+    fn new(code_mode_enabled: bool) -> Self {
         Self {
             buffer: String::new(),
-            in_command: false,
-            command_start_pos: 0,
+            state: ParserState::Normal,
+            code_mode_enabled,
         }
     }
 
-    /// Process a chunk and return any complete items (text or commands)
-    /// Returns (optional_text, optional_command)
-    fn process_chunk(&mut self, chunk: &str) -> Vec<(Option<String>, Option<String>)> {
+    fn process_chunk(&mut self, chunk: &str) -> Vec<EmulatorAction> {
         self.buffer.push_str(chunk);
         let mut results = Vec::new();
 
         loop {
-            if self.in_command {
-                // Look for newline to end the command
-                if let Some(newline_pos) = self.buffer[self.command_start_pos..].find('\n') {
-                    let absolute_pos = self.command_start_pos + newline_pos;
-                    // Extract command from "$ command"
-                    let command_line = &self.buffer[self.command_start_pos..absolute_pos];
-                    if let Some(command) = command_line.strip_prefix('$') {
-                        let command = command.trim();
-                        if !command.is_empty() {
-                            results.push((None, Some(command.to_string())));
+            match self.state {
+                ParserState::InCommand => {
+                    if let Some((command_line, rest)) = self.buffer.split_once('\n') {
+                        if let Some(command) = command_line.strip_prefix('$') {
+                            let command = command.trim();
+                            if !command.is_empty() {
+                                results.push(EmulatorAction::ShellCommand(command.to_string()));
+                            }
                         }
+                        self.buffer = rest.to_string();
+                        self.state = ParserState::Normal;
+                    } else {
+                        break;
                     }
-                    // Remove processed part from buffer
-                    self.buffer = self.buffer[absolute_pos + 1..].to_string();
-                    self.in_command = false;
-                    self.command_start_pos = 0;
-                } else {
-                    // Command not complete yet, wait for more chunks
-                    break;
                 }
-            } else {
-                // Look for command start: "\n$" or "$" at beginning
-                if let Some(pos) = self.buffer.find("\n$") {
-                    // Emit text before the command
-                    let text = self.buffer[..pos + 1].to_string(); // Include the \n
-                    if !text.trim().is_empty() {
-                        results.push((Some(text), None));
-                    }
-                    // Remove text from buffer, start command parsing
-                    self.buffer = self.buffer[pos + 1..].to_string(); // Buffer now starts with "$"
-                    self.in_command = true;
-                    self.command_start_pos = 0;
-                } else if self.buffer.starts_with('$') && self.buffer.len() == chunk.len() {
-                    // Command at very start of response (first chunk)
-                    self.in_command = true;
-                    self.command_start_pos = 0;
-                } else {
-                    // No command found, but keep last few chars in case of split pattern
-                    // E.g., chunk ends with "\n" and next starts with "$"
-                    if self.buffer.chars().count() > 2 && !self.buffer.ends_with('\n') {
-                        // Emit all but last 2 characters as safe text (use char boundaries)
-                        let mut chars = self.buffer.chars();
-                        let keep_count = 2;
-                        let emit_count = self.buffer.chars().count() - keep_count;
-
-                        let emit_text: String = chars.by_ref().take(emit_count).collect();
-                        let keep_text: String = chars.collect();
-
-                        if !emit_text.is_empty() {
-                            results.push((Some(emit_text), None));
+                ParserState::InExecuteBlock => {
+                    // Look for closing ``` to end the execute block
+                    if let Some(end_idx) = self.buffer.find("\n```") {
+                        #[allow(clippy::string_slice)]
+                        let code = self.buffer[..end_idx].to_string();
+                        // Skip past the closing ``` and any trailing newline
+                        #[allow(clippy::string_slice)]
+                        let rest = &self.buffer[end_idx + 4..];
+                        let rest = rest.strip_prefix('\n').unwrap_or(rest);
+                        self.buffer = rest.to_string();
+                        self.state = ParserState::Normal;
+                        if !code.trim().is_empty() {
+                            results.push(EmulatorAction::ExecuteCode(code));
                         }
-                        self.buffer = keep_text;
+                    } else {
+                        // Still accumulating code — wait for closing fence
+                        break;
                     }
-                    break;
+                }
+                ParserState::Normal => {
+                    // Check for ```execute block (code mode)
+                    if self.code_mode_enabled {
+                        if let Some((before, after)) = self.buffer.split_once("```execute\n") {
+                            if !before.trim().is_empty() {
+                                results.push(EmulatorAction::Text(before.to_string()));
+                            }
+                            self.buffer = after.to_string();
+                            self.state = ParserState::InExecuteBlock;
+                            continue;
+                        }
+                        // Also handle without newline after tag (accumulating)
+                        if self.buffer.ends_with("```execute") {
+                            let before = self.buffer.trim_end_matches("```execute");
+                            if !before.trim().is_empty() {
+                                results.push(EmulatorAction::Text(before.to_string()));
+                            }
+                            self.buffer.clear();
+                            self.state = ParserState::InExecuteBlock;
+                            continue;
+                        }
+                    }
+
+                    // Check for $ command
+                    if let Some((before_dollar, from_dollar)) = self.buffer.split_once("\n$") {
+                        let text = format!("{}\n", before_dollar);
+                        if !text.trim().is_empty() {
+                            results.push(EmulatorAction::Text(text));
+                        }
+                        self.buffer = format!("${}", from_dollar);
+                        self.state = ParserState::InCommand;
+                    } else if self.buffer.starts_with('$') && self.buffer.len() == chunk.len() {
+                        self.state = ParserState::InCommand;
+                    } else {
+                        // Hold back a small tail in case it's the start of
+                        // a ``` fence or a \n$ command prefix.
+                        let hold_back = if self.code_mode_enabled { 12 } else { 2 };
+                        let char_count = self.buffer.chars().count();
+                        if char_count > hold_back && !self.buffer.ends_with('\n') {
+                            let mut chars = self.buffer.chars();
+                            let emit_count = char_count - hold_back;
+                            let emit_text: String = chars.by_ref().take(emit_count).collect();
+                            let keep_text: String = chars.collect();
+                            if !emit_text.is_empty() {
+                                results.push(EmulatorAction::Text(emit_text));
+                            }
+                            self.buffer = keep_text;
+                        }
+                        break;
+                    }
                 }
             }
         }
@@ -307,376 +406,579 @@ impl StreamingEmulatorParser {
         results
     }
 
-    /// Flush any remaining buffer content, handling incomplete commands
-    fn flush(&mut self) -> Vec<(Option<String>, Option<String>)> {
+    fn flush(&mut self) -> Vec<EmulatorAction> {
         let mut results = Vec::new();
 
         if !self.buffer.is_empty() {
-            if self.in_command {
-                // We're in the middle of parsing a command - complete it
-                let command_line = self.buffer.trim();
-                if let Some(command) = command_line.strip_prefix('$') {
-                    let command = command.trim();
-                    if !command.is_empty() {
-                        results.push((None, Some(command.to_string())));
+            match self.state {
+                ParserState::InCommand => {
+                    let command_line = self.buffer.trim();
+                    if let Some(command) = command_line.strip_prefix('$') {
+                        let command = command.trim();
+                        if !command.is_empty() {
+                            results.push(EmulatorAction::ShellCommand(command.to_string()));
+                        }
+                    } else if !command_line.is_empty() {
+                        results.push(EmulatorAction::Text(self.buffer.clone()));
                     }
-                } else if !command_line.is_empty() {
-                    // Malformed command, just emit as text
-                    results.push((Some(self.buffer.clone()), None));
                 }
-            } else {
-                // Just regular text remaining
-                results.push((Some(self.buffer.clone()), None));
+                ParserState::InExecuteBlock => {
+                    // Unterminated code block — execute what we have
+                    let code = self.buffer.trim();
+                    if !code.is_empty() {
+                        results.push(EmulatorAction::ExecuteCode(code.to_string()));
+                    }
+                }
+                ParserState::Normal => {
+                    results.push(EmulatorAction::Text(self.buffer.clone()));
+                }
             }
             self.buffer.clear();
-            self.in_command = false;
+            self.state = ParserState::Normal;
         }
 
         results
     }
 }
 
+fn extract_text_content(msg: &Message) -> String {
+    let mut parts = Vec::new();
+
+    for content in &msg.content {
+        match content {
+            MessageContent::Text(text) => {
+                parts.push(text.text.clone());
+            }
+            MessageContent::ToolRequest(req) => {
+                if let Ok(call) = &req.tool_call {
+                    if let Some(cmd) = call
+                        .arguments
+                        .as_ref()
+                        .and_then(|a| a.get("command"))
+                        .and_then(|v| v.as_str())
+                    {
+                        parts.push(format!("$ {}", cmd));
+                    } else if let Some(code) = call
+                        .arguments
+                        .as_ref()
+                        .and_then(|a| a.get("code"))
+                        .and_then(|v| v.as_str())
+                    {
+                        parts.push(format!("```execute\n{}\n```", code));
+                    }
+                }
+            }
+            MessageContent::ToolResponse(response) => match &response.tool_result {
+                Ok(result) => {
+                    let mut output_parts = Vec::new();
+                    for content_item in &result.content {
+                        if let Some(text_content) = content_item.as_text() {
+                            output_parts.push(text_content.text.to_string());
+                        }
+                    }
+                    if !output_parts.is_empty() {
+                        parts.push(format!("Command output:\n{}", output_parts.join("\n")));
+                    }
+                }
+                Err(e) => {
+                    parts.push(format!("Command error: {}", e));
+                }
+            },
+            _ => {}
+        }
+    }
+
+    parts.join("\n")
+}
+
+/// Build a compact JSON string of tools with only name and description
+/// (no parameter schemas) to reduce token count for small context windows.
+fn compact_tools_json(tools: &[Tool]) -> Option<String> {
+    let compact: Vec<Value> = tools
+        .iter()
+        .map(|t| {
+            json!({
+                "type": "function",
+                "function": {
+                    "name": t.name,
+                    "description": t.description.as_ref().map(|d| d.as_ref()).unwrap_or(""),
+                }
+            })
+        })
+        .collect();
+    serde_json::to_string(&compact).ok()
+}
+
+/// Estimate the maximum context length that can fit in available accelerator/CPU
+/// memory based on the model's KV cache requirements.
+///
+/// Returns `None` if the model architecture values are unavailable.
+fn estimate_max_context_for_memory(
+    model: &LlamaModel,
+    runtime: &InferenceRuntime,
+) -> Option<usize> {
+    let available = available_inference_memory_bytes(runtime);
+    if available == 0 {
+        return None;
+    }
+
+    // Reserve 20% of available memory for computation scratch buffers and overhead.
+    let usable = (available as f64 * 0.8) as u64;
+
+    let n_layer = model.n_layer() as u64;
+    let n_head_kv = model.n_head_kv() as u64;
+    let n_head = model.n_head() as u64;
+    let n_embd = model.n_embd() as u64;
+
+    if n_head == 0 || n_layer == 0 || n_head_kv == 0 || n_embd == 0 {
+        return None;
+    }
+
+    let head_dim = n_embd / n_head;
+    // KV cache: 2 (K+V) * n_layer * n_head_kv * head_dim * 2 bytes (f16) per context token
+    let bytes_per_token = 2 * n_layer * n_head_kv * head_dim * 2;
+
+    if bytes_per_token == 0 {
+        return None;
+    }
+
+    Some((usable / bytes_per_token) as usize)
+}
+
+fn effective_context_size(
+    prompt_token_count: usize,
+    context_limit: usize,
+    n_ctx_train: usize,
+    memory_max_ctx: Option<usize>,
+) -> usize {
+    let limit = if context_limit > 0 {
+        context_limit
+    } else {
+        n_ctx_train
+    };
+
+    // Cap by estimated memory capacity when available.
+    let limit = match memory_max_ctx {
+        Some(mem_max) if mem_max < limit => {
+            tracing::info!(
+                "Capping context from {} to {} based on available memory",
+                limit,
+                mem_max,
+            );
+            mem_max
+        }
+        _ => limit,
+    };
+
+    let min_generation_headroom = 512;
+    let needed = prompt_token_count + min_generation_headroom;
+    needed.max(limit)
+}
+
+/// Split generated text into (content, tool_calls_json).
+/// Looks for the last top-level JSON object containing `"tool_calls"`.
+/// Returns the text before it as content, and the JSON string if found.
+#[allow(clippy::string_slice)]
+fn split_content_and_tool_calls(text: &str) -> (String, Option<String>) {
+    let trimmed = text.trim_end();
+    if !trimmed.ends_with('}') {
+        return (text.to_string(), None);
+    }
+
+    // Scan backwards for the matching '{' of the final '}'.
+    // We only match on ASCII braces so `start` is always a char boundary.
+    let bytes = trimmed.as_bytes();
+    let mut depth = 0i32;
+    let mut json_start = None;
+    for i in (0..bytes.len()).rev() {
+        match bytes[i] {
+            b'}' => depth += 1,
+            b'{' => {
+                depth -= 1;
+                if depth == 0 {
+                    json_start = Some(i);
+                    break;
+                }
+            }
+            _ => {}
+        }
+    }
+
+    let Some(start) = json_start else {
+        return (text.to_string(), None);
+    };
+
+    let json_str = &trimmed[start..];
+    let parsed: Value = match serde_json::from_str(json_str) {
+        Ok(v) => v,
+        Err(_) => return (text.to_string(), None),
+    };
+
+    if parsed
+        .get("tool_calls")
+        .and_then(|v| v.as_array())
+        .is_none()
+    {
+        return (text.to_string(), None);
+    }
+
+    let content = trimmed[..start].trim_end().to_string();
+    (content, Some(json_str.to_string()))
+}
+
+/// Return the byte length of text that is safe to stream.
+/// Everything before the last unmatched top-level `{` is safe — the `{` could
+/// be the start of a tool-call JSON block still being generated.
+/// If all braces are balanced the entire text is safe.
+fn safe_stream_end(text: &str) -> usize {
+    // Hold back from the start of any incomplete <tool_call> tag.
+    // If we find an unmatched opening, nothing from that point should be streamed.
+    let xml_hold = text.find("<tool_call>").unwrap_or(text.len());
+
+    let bytes = text.as_bytes();
+    let mut safe_end = bytes.len();
+    let mut depth = 0i32;
+    for (i, &b) in bytes.iter().enumerate() {
+        match b {
+            b'{' => {
+                if depth == 0 {
+                    safe_end = i;
+                }
+                depth += 1;
+            }
+            b'}' => {
+                depth -= 1;
+                if depth == 0 {
+                    safe_end = i + 1;
+                }
+            }
+            _ => {
+                if depth == 0 {
+                    safe_end = i + 1;
+                }
+            }
+        }
+    }
+
+    // Also hold back a partial `<tool_call` prefix at the end of the text.
+    // The tag is 11 chars; if the last N chars are a prefix of `<tool_call>`, hold them.
+    let tag = b"<tool_call>";
+    let tail_hold = {
+        let mut hold = safe_end;
+        let check_len = tag.len().min(bytes.len());
+        for start in (safe_end.saturating_sub(check_len))..safe_end {
+            let tail = &bytes[start..safe_end];
+            if tag.starts_with(tail) {
+                hold = start;
+                break;
+            }
+        }
+        hold
+    };
+
+    safe_end.min(xml_hold).min(tail_hold)
+}
+
+/// Extract tool call messages from a JSON object containing "tool_calls".
+/// Handles both the model's native format (name/arguments at top level)
+/// and the OpenAI format (function.name/function.arguments).
+fn extract_tool_call_messages(tool_calls_json: &str, message_id: &str) -> Vec<Message> {
+    let parsed: Value = match serde_json::from_str(tool_calls_json) {
+        Ok(v) => v,
+        Err(_) => return vec![],
+    };
+
+    let Some(tool_calls) = parsed.get("tool_calls").and_then(|v| v.as_array()) else {
+        return vec![];
+    };
+
+    let mut messages = Vec::new();
+    for tc in tool_calls {
+        // Try OpenAI format first: {"function": {"name": ..., "arguments": ...}, "id": ...}
+        // Then model's native format: {"name": ..., "arguments": {...}, "id": ...}
+        let (name, arguments) = if let Some(func) = tc.get("function") {
+            let n = func.get("name").and_then(|v| v.as_str()).unwrap_or("");
+            let args_str = func
+                .get("arguments")
+                .and_then(|v| v.as_str())
+                .unwrap_or("{}");
+            let args: Option<serde_json::Map<String, Value>> = serde_json::from_str(args_str).ok();
+            (n.to_string(), args)
+        } else {
+            let n = tc.get("name").and_then(|v| v.as_str()).unwrap_or("");
+            // Arguments may be an object directly (model format) or a string (OAI format)
+            let args = if let Some(obj) = tc.get("arguments").and_then(|v| v.as_object()) {
+                Some(obj.clone())
+            } else if let Some(s) = tc.get("arguments").and_then(|v| v.as_str()) {
+                serde_json::from_str(s).ok()
+            } else {
+                None
+            };
+            (n.to_string(), args)
+        };
+
+        if name.is_empty() {
+            continue;
+        }
+
+        let id = tc
+            .get("id")
+            .and_then(|v| v.as_str())
+            .map(|s| s.to_string())
+            .unwrap_or_else(|| Uuid::new_v4().to_string());
+
+        let tool_call = CallToolRequestParams {
+            meta: None,
+            task: None,
+            name: Cow::Owned(name),
+            arguments,
+        };
+
+        let mut msg = Message::assistant();
+        msg.content
+            .push(MessageContent::tool_request(id, Ok(tool_call)));
+        msg.id = Some(message_id.to_string());
+        messages.push(msg);
+    }
+
+    messages
+}
+
+/// Parse XML-style tool calls used by models like qwen3-coder.
+/// Format:
+/// ```text
+/// <tool_call>
+/// <function=tool_name>
+/// <parameter=param1>value1</parameter>
+/// <parameter=param2>value2</parameter>
+/// </function>
+/// </tool_call>
+/// ```
+/// Returns (content_before_tool_calls, vec_of_tool_calls) or None if no XML tool calls found.
+#[allow(clippy::type_complexity)]
+fn split_content_and_xml_tool_calls(
+    text: &str,
+) -> Option<(String, Vec<(String, serde_json::Map<String, Value>)>)> {
+    let (content, first_block_and_rest) = text.split_once("<tool_call>")?;
+    let content = content.trim_end().to_string();
+    let mut tool_calls = Vec::new();
+
+    // Process the first block, then keep splitting on subsequent <tool_call> tags
+    let mut remaining = first_block_and_rest;
+    loop {
+        // Split off the block up to </tool_call> (or take the rest if unclosed)
+        let (block, after_close) = remaining
+            .split_once("</tool_call>")
+            .unwrap_or((remaining, ""));
+
+        if let Some(tool_call) = parse_single_xml_tool_call(block) {
+            tool_calls.push(tool_call);
+        }
+
+        // Try to find the next <tool_call> in what remains
+        match after_close.split_once("<tool_call>") {
+            Some((_between, next_remaining)) => remaining = next_remaining,
+            None => break,
+        }
+    }
+
+    if tool_calls.is_empty() {
+        None
+    } else {
+        Some((content, tool_calls))
+    }
+}
+
+fn parse_single_xml_tool_call(block: &str) -> Option<(String, serde_json::Map<String, Value>)> {
+    // Extract function name from <function=NAME>...
+    let (_, after_func_eq) = block.split_once("<function=")?;
+    let (func_name, func_body) = after_func_eq.split_once('>')?;
+    let func_name = func_name.trim().to_string();
+
+    let mut args = serde_json::Map::new();
+    let mut rest = func_body;
+
+    // Extract each <parameter=NAME>VALUE</parameter>
+    while let Some((_, after_param_eq)) = rest.split_once("<parameter=") {
+        let Some((param_name, after_name_close)) = after_param_eq.split_once('>') else {
+            break;
+        };
+        let param_name = param_name.trim().to_string();
+
+        let (value, after_value) = after_name_close
+            .split_once("</parameter>")
+            .unwrap_or((after_name_close, ""));
+        let value = value.trim();
+
+        let json_value =
+            serde_json::from_str(value).unwrap_or_else(|_| Value::String(value.to_string()));
+        args.insert(param_name, json_value);
+
+        rest = after_value;
+    }
+
+    Some((func_name, args))
+}
+
+fn extract_xml_tool_call_messages(
+    tool_calls: Vec<(String, serde_json::Map<String, Value>)>,
+    message_id: &str,
+) -> Vec<Message> {
+    tool_calls
+        .into_iter()
+        .map(|(name, args)| {
+            let tool_call = CallToolRequestParams {
+                meta: None,
+                task: None,
+                name: Cow::Owned(name),
+                arguments: if args.is_empty() { None } else { Some(args) },
+            };
+            let mut msg = Message::assistant();
+            msg.content.push(MessageContent::tool_request(
+                Uuid::new_v4().to_string(),
+                Ok(tool_call),
+            ));
+            msg.id = Some(message_id.to_string());
+            msg
+        })
+        .collect()
+}
+
+fn build_context_params(
+    ctx_size: u32,
+    settings: &crate::providers::local_inference::local_model_registry::ModelSettings,
+) -> LlamaContextParams {
+    let mut params = LlamaContextParams::default().with_n_ctx(NonZeroU32::new(ctx_size));
+
+    if let Some(n_batch) = settings.n_batch {
+        params = params.with_n_batch(n_batch);
+    }
+    if let Some(n_threads) = settings.n_threads {
+        params = params.with_n_threads(n_threads);
+        params = params.with_n_threads_batch(n_threads);
+    }
+    if let Some(flash_attn) = settings.flash_attention {
+        // llama_flash_attn_type: 0 = disabled, 1 = enabled
+        let policy = if flash_attn { 1 } else { 0 };
+        params = params.with_flash_attention_policy(policy);
+    }
+
+    params
+}
+
+fn build_sampler(
+    settings: &crate::providers::local_inference::local_model_registry::ModelSettings,
+) -> LlamaSampler {
+    use crate::providers::local_inference::local_model_registry::SamplingConfig;
+
+    let has_penalties = settings.repeat_penalty != 1.0
+        || settings.frequency_penalty != 0.0
+        || settings.presence_penalty != 0.0;
+
+    let mut samplers: Vec<LlamaSampler> = Vec::new();
+
+    if has_penalties {
+        samplers.push(LlamaSampler::penalties(
+            settings.repeat_last_n,
+            settings.repeat_penalty,
+            settings.frequency_penalty,
+            settings.presence_penalty,
+        ));
+    }
+
+    match &settings.sampling {
+        SamplingConfig::Greedy => {
+            samplers.push(LlamaSampler::greedy());
+        }
+        SamplingConfig::Temperature {
+            temperature,
+            top_k,
+            top_p,
+            min_p,
+            seed,
+        } => {
+            samplers.push(LlamaSampler::top_k(*top_k));
+            samplers.push(LlamaSampler::top_p(*top_p, 1));
+            samplers.push(LlamaSampler::min_p(*min_p, 1));
+            samplers.push(LlamaSampler::temp(*temperature));
+            samplers.push(LlamaSampler::dist(seed.unwrap_or(0)));
+        }
+        SamplingConfig::MirostatV2 { tau, eta, seed } => {
+            samplers.push(LlamaSampler::mirostat_v2(seed.unwrap_or(0), *tau, *eta));
+        }
+    }
+
+    if samplers.len() == 1 {
+        samplers.pop().unwrap()
+    } else {
+        LlamaSampler::chain_simple(samplers)
+    }
+}
+
 pub struct LocalInferenceProvider {
-    model: Arc<Mutex<Option<LoadedModel>>>,
+    runtime: Arc<InferenceRuntime>,
+    model: ModelSlot,
     model_config: ModelConfig,
     name: String,
 }
 
 impl LocalInferenceProvider {
     pub async fn from_env(model: ModelConfig) -> Result<Self> {
+        let runtime = InferenceRuntime::get_or_init();
+        let model_slot = runtime.get_or_create_model_slot(&model.model_name);
         Ok(Self {
-            model: Arc::new(Mutex::new(None)),
+            runtime,
+            model: model_slot,
             model_config: model,
             name: PROVIDER_NAME.to_string(),
         })
     }
 
-    async fn load_model(model_id: &str) -> Result<LoadedModel, ProviderError> {
-        // Get model definition
-        let model_info = get_local_model(model_id)
+    fn load_model_sync(
+        runtime: &InferenceRuntime,
+        model_id: &str,
+        settings: &crate::providers::local_inference::local_model_registry::ModelSettings,
+    ) -> Result<LoadedModel, ProviderError> {
+        let (model_path, _context_limit, _) = resolve_model_path(model_id)
             .ok_or_else(|| ProviderError::ExecutionError(format!("Unknown model: {}", model_id)))?;
-
-        let model_path = model_info.local_path();
-        let tokenizer_path = model_info.tokenizer_path();
 
         if !model_path.exists() {
             return Err(ProviderError::ExecutionError(format!(
                 "Model not downloaded: {}. Please download it from Settings > Local Inference.",
-                model_info.name
+                model_id
             )));
         }
 
-        tracing::info!("Loading {} from: {}", model_info.name, model_path.display());
+        tracing::info!("Loading {} from: {}", model_id, model_path.display());
 
-        // Device selection (from whisper.rs pattern)
-        let device = if let Ok(device) = Device::new_metal(0) {
-            tracing::info!("Using Metal device");
-            device
-        } else {
-            tracing::info!("Using CPU device");
-            Device::Cpu
-        };
+        let backend = runtime.backend();
 
-        // Load GGUF file
-        let mut file = std::fs::File::open(&model_path).map_err(|e| {
-            ProviderError::ExecutionError(format!("Failed to open model file: {}", e))
-        })?;
+        let mut params = LlamaModelParams::default();
+        if let Some(n_gpu_layers) = settings.n_gpu_layers {
+            params = params.with_n_gpu_layers(n_gpu_layers);
+        }
+        if settings.use_mlock {
+            params = params.with_use_mlock(true);
+        }
+        let model = LlamaModel::load_from_file(backend, &model_path, &params)
+            .map_err(|e| ProviderError::ExecutionError(format!("Failed to load model: {}", e)))?;
 
-        // Read GGUF content
-        let content = candle_core::quantized::gguf_file::Content::read(&mut file).map_err(|e| {
-            ProviderError::ExecutionError(format!("Failed to read GGUF file: {}", e))
-        })?;
-
-        // Detect model architecture from ID
-        let model_id_lower = model_id.to_lowercase();
-        let is_phi = model_id_lower.contains("phi");
-
-        // Load model weights based on architecture
-        // Try multiple architectures if name contains "phi"
-        let (model, eos_token_id) = if is_phi {
-            // Try Phi (Phi-2) first
-            match quantized_phi::ModelWeights::from_gguf(content, &mut file, &device) {
-                Ok(weights) => {
-                    tracing::info!("Loaded with Phi architecture");
-                    (ModelWeights::Phi(weights), 50256) // Phi-2 EOS token
-                }
-                Err(e1) => {
-                    tracing::info!("Phi architecture failed ({}), trying Phi-3", e1);
-                    // Reopen file for second attempt
-                    let mut file = std::fs::File::open(&model_path).map_err(|e| {
-                        ProviderError::ExecutionError(format!("Failed to reopen model file: {}", e))
-                    })?;
-                    let content = candle_core::quantized::gguf_file::Content::read(&mut file)
-                        .map_err(|e| {
-                            ProviderError::ExecutionError(format!(
-                                "Failed to re-read GGUF file: {}",
-                                e
-                            ))
-                        })?;
-
-                    match quantized_phi3::ModelWeights::from_gguf(
-                        false, content, &mut file, &device,
-                    ) {
-                        Ok(weights) => {
-                            tracing::info!("Loaded with Phi-3 architecture");
-                            (ModelWeights::Phi3(weights), 32000) // Phi-3 EOS token
-                        }
-                        Err(e2) => {
-                            tracing::warn!(
-                                "Phi-3 architecture failed ({}), falling back to Llama",
-                                e2
-                            );
-                            // Try Llama as last resort
-                            let mut file = std::fs::File::open(&model_path).map_err(|e| {
-                                ProviderError::ExecutionError(format!(
-                                    "Failed to reopen model file: {}",
-                                    e
-                                ))
-                            })?;
-                            let content =
-                                candle_core::quantized::gguf_file::Content::read(&mut file)
-                                    .map_err(|e| {
-                                        ProviderError::ExecutionError(format!(
-                                            "Failed to re-read GGUF file: {}",
-                                            e
-                                        ))
-                                    })?;
-
-                            let weights = quantized_llama::ModelWeights::from_gguf(
-                                content, &mut file, &device,
-                            )
-                            .map_err(|e| {
-                                ProviderError::ExecutionError(format!(
-                                    "Failed to load as Phi ({}), Phi-3 ({}), or Llama ({})",
-                                    e1, e2, e
-                                ))
-                            })?;
-                            tracing::info!(
-                                "Loaded Phi model with Llama architecture (may not work correctly)"
-                            );
-                            (ModelWeights::Llama(weights), 50256) // Use Phi EOS token
-                        }
-                    }
-                }
-            }
-        } else {
-            tracing::info!("Using Llama architecture");
-            let weights = quantized_llama::ModelWeights::from_gguf(content, &mut file, &device)
-                .map_err(|e| {
+        let template = match model.chat_template(None) {
+            Ok(t) => t,
+            Err(_) => {
+                tracing::warn!("Model has no embedded chat template, falling back to chatml");
+                LlamaChatTemplate::new("chatml").map_err(|e| {
                     ProviderError::ExecutionError(format!(
-                        "Failed to load Llama model weights: {}",
+                        "Failed to create fallback chat template: {}",
                         e
                     ))
-                })?;
-            (ModelWeights::Llama(weights), 128001) // Llama 3 EOS token
-        };
-
-        // Load tokenizer
-        let tokenizer = if tokenizer_path.exists() {
-            tracing::info!("Loading tokenizer from: {}", tokenizer_path.display());
-            Tokenizer::from_file(&tokenizer_path).map_err(|e| {
-                ProviderError::ExecutionError(format!("Failed to load tokenizer: {}", e))
-            })?
-        } else {
-            return Err(ProviderError::ExecutionError(format!(
-                "Tokenizer not found at {}. Please download the model again.",
-                tokenizer_path.display()
-            )));
-        };
-
-        // Build list of EOS token IDs: start with architecture default, then add template-specific ones
-        let mut eos_token_ids = vec![eos_token_id];
-
-        // Look up token IDs for the chat template's EOS strings from tokenizer
-        for eos_str in model_info.chat_template.eos_strings() {
-            if let Some(token_id) = tokenizer.token_to_id(eos_str) {
-                if !eos_token_ids.contains(&token_id) {
-                    eos_token_ids.push(token_id);
-                }
-            } else {
-                tracing::warn!("EOS string '{}' not found in tokenizer vocabulary", eos_str);
+                })?
             }
-        }
+        };
 
         tracing::info!("Model loaded successfully");
 
-        Ok(LoadedModel {
-            model,
-            tokenizer,
-            device,
-            eos_token_ids,
-        })
-    }
-
-    fn build_prompt(
-        &self,
-        system: &str,
-        messages: &[Message],
-        template: ChatTemplate,
-        tools: &[Tool],
-    ) -> String {
-        match template {
-            ChatTemplate::Llama3 => Self::format_llama3(system, messages, tools),
-            ChatTemplate::ChatML => Self::format_chatml(system, messages, tools),
-            ChatTemplate::Mistral => Self::format_mistral(system, messages, tools),
-        }
-    }
-
-    /// Format message content for emulator, including text and tool responses
-    fn format_message_content_for_emulator(msg: &Message) -> String {
-        let mut parts = Vec::new();
-
-        for content in &msg.content {
-            match content {
-                MessageContent::Text(text) => {
-                    parts.push(text.text.clone());
-                }
-                MessageContent::ToolResponse(response) => {
-                    // Include tool results in the prompt so model sees the output
-                    match &response.tool_result {
-                        Ok(result) => {
-                            for content_item in &result.content {
-                                if let Some(text_content) = content_item.as_text() {
-                                    parts.push(text_content.text.to_string());
-                                }
-                                // Skip images and resources for now
-                            }
-                        }
-                        Err(e) => {
-                            parts.push(format!("Error: {}", e));
-                        }
-                    }
-                }
-                _ => {
-                    // Skip tool requests, images, etc.
-                }
-            }
-        }
-
-        parts.join("\n")
-    }
-
-    fn format_llama3(system: &str, messages: &[Message], tools: &[Tool]) -> String {
-        let mut prompt = String::from("<|begin_of_text|>");
-
-        // Add system message
-        if !system.is_empty() || !tools.is_empty() {
-            prompt.push_str("<|start_header_id|>system<|end_header_id|>\n\n");
-            prompt.push_str(system);
-
-            // Add tools if present
-            if !tools.is_empty() {
-                if !system.is_empty() {
-                    prompt.push_str("\n\n");
-                }
-                prompt.push_str("# Tools\n\nYou have access to the following tools:\n\n");
-                for tool in tools {
-                    let desc = tool
-                        .description
-                        .as_ref()
-                        .map(|d| d.as_ref())
-                        .unwrap_or("No description");
-                    prompt.push_str(&format!("- {}: {}\n", tool.name, desc));
-                }
-            }
-
-            prompt.push_str("<|eot_id|>");
-        }
-
-        // Add conversation messages
-        for msg in messages {
-            let role = match msg.role {
-                Role::User => "user",
-                Role::Assistant => "assistant",
-            };
-
-            let content = Self::format_message_content_for_emulator(msg);
-            if !content.trim().is_empty() {
-                prompt.push_str(&format!("<|start_header_id|>{}<|end_header_id|>\n\n", role));
-                prompt.push_str(&content);
-                prompt.push_str("<|eot_id|>");
-            }
-        }
-
-        // Add assistant prefix to prompt completion
-        prompt.push_str("<|start_header_id|>assistant<|end_header_id|>\n\n");
-        prompt
-    }
-
-    fn format_chatml(system: &str, messages: &[Message], _tools: &[Tool]) -> String {
-        let mut prompt = String::new();
-
-        // Add system message
-        if !system.is_empty() {
-            prompt.push_str("<|im_start|>system\n");
-            prompt.push_str(system);
-            prompt.push_str("<|im_end|>\n");
-        }
-
-        // Add conversation messages
-        for msg in messages {
-            let role = match msg.role {
-                Role::User => "user",
-                Role::Assistant => "assistant",
-            };
-
-            let content = Self::format_message_content_for_emulator(msg);
-            if !content.trim().is_empty() {
-                prompt.push_str(&format!("<|im_start|>{}\n", role));
-                prompt.push_str(&content);
-                prompt.push_str("<|im_end|>\n");
-            }
-        }
-
-        // Add assistant prefix
-        prompt.push_str("<|im_start|>assistant\n");
-        prompt
-    }
-
-    fn format_mistral(system: &str, messages: &[Message], _tools: &[Tool]) -> String {
-        let mut prompt = String::new();
-
-        // Mistral doesn't have a separate system role, prepend to first user message
-        let system_prefix = if !system.is_empty() {
-            format!("{}\n\n", system)
-        } else {
-            String::new()
-        };
-
-        // Add conversation messages
-        let mut first_user = true;
-        for msg in messages {
-            let content = Self::format_message_content_for_emulator(msg);
-            if content.trim().is_empty() {
-                continue;
-            }
-
-            match msg.role {
-                Role::User => {
-                    prompt.push_str("[INST] ");
-                    if first_user {
-                        prompt.push_str(&system_prefix);
-                        first_user = false;
-                    }
-                    prompt.push_str(&content);
-                    prompt.push_str(" [/INST]");
-                }
-                Role::Assistant => {
-                    prompt.push(' ');
-                    prompt.push_str(&content);
-                    prompt.push_str("</s>");
-                }
-            }
-        }
-
-        // If no messages, still include system in first user turn
-        if first_user && !system.is_empty() {
-            prompt.push_str("[INST] ");
-            prompt.push_str(&system_prefix);
-            prompt.push_str("[/INST]");
-        }
-
-        prompt
+        Ok(LoadedModel { model, template })
     }
 }
 
@@ -687,19 +989,35 @@ impl ProviderDef for LocalInferenceProvider {
     where
         Self: Sized,
     {
+        use crate::providers::local_inference::local_model_registry::get_registry;
+
+        let mut known_models: Vec<&str> = vec![
+            "llama-3.2-1b",
+            "llama-3.2-3b",
+            "hermes-2-pro-7b",
+            "mistral-small-22b",
+        ];
+
+        // Add any registry models not already in the featured list
+        let mut dynamic_models = Vec::new();
+        if let Ok(registry) = get_registry().lock() {
+            for entry in registry.list_models() {
+                if !known_models.contains(&entry.id.as_str()) {
+                    dynamic_models.push(entry.id.clone());
+                }
+            }
+        }
+        let dynamic_refs: Vec<&str> = dynamic_models.iter().map(|s| s.as_str()).collect();
+        known_models.extend(dynamic_refs);
+
         ProviderMetadata::new(
             PROVIDER_NAME,
             "Local Inference",
-            "Local inference using quantized GGUF models (Candle)",
+            "Local inference using quantized GGUF models (llama.cpp)",
             DEFAULT_MODEL,
-            vec![
-                "llama-3.2-1b",
-                "llama-3.2-3b",
-                "hermes-2-pro-7b",
-                "mistral-small-22b",
-            ],
-            "https://github.com/huggingface/candle",
-            vec![], // No API keys required - models managed through UI
+            known_models,
+            "https://github.com/utilityai/llama-cpp-rs",
+            vec![],
         )
     }
 
@@ -726,16 +1044,24 @@ impl Provider for LocalInferenceProvider {
         _session_id: &str,
         _messages: &crate::conversation::Conversation,
     ) -> Result<String, ProviderError> {
-        // Disable session naming for performance
         Ok("Local conversation".to_string())
     }
 
     async fn fetch_supported_models(&self) -> Result<Vec<String>, ProviderError> {
-        // Return all models - UI will show "(not downloaded)" for ones that aren't available
-        let all_models: Vec<String> = available_local_models()
+        use crate::providers::local_inference::local_model_registry::get_registry;
+
+        let mut all_models: Vec<String> = available_local_models()
             .iter()
             .map(|m| m.id.to_string())
             .collect();
+
+        if let Ok(registry) = get_registry().lock() {
+            for entry in registry.list_models() {
+                if !all_models.contains(&entry.id) {
+                    all_models.push(entry.id.clone());
+                }
+            }
+        }
 
         Ok(all_models)
     }
@@ -750,7 +1076,6 @@ impl Provider for LocalInferenceProvider {
     ) -> Result<(Message, ProviderUsage), ProviderError> {
         use futures::StreamExt;
 
-        // Just call stream and accumulate results
         let mut stream = self
             .stream(session_id.unwrap_or(""), system, messages, tools)
             .await?;
@@ -762,7 +1087,6 @@ impl Provider for LocalInferenceProvider {
             let (message_opt, usage_opt) = result?;
 
             if let Some(msg) = message_opt {
-                // Accumulate message content
                 accumulated_message.id = msg.id.or(accumulated_message.id);
                 for content in msg.content {
                     accumulated_message.content.push(content);
@@ -784,175 +1108,416 @@ impl Provider for LocalInferenceProvider {
     async fn stream(
         &self,
         _session_id: &str,
-        _system: &str,
+        system: &str,
         messages: &[Message],
         tools: &[Tool],
     ) -> Result<MessageStream, ProviderError> {
-        // Get model metadata to determine chat template
         let model_config = &self.model_config;
-        let model_info = get_local_model(&model_config.model_name).ok_or_else(|| {
-            ProviderError::ExecutionError(format!("Model not found: {}", model_config.model_name))
-        })?;
-        let template = model_info.chat_template;
+        let (_model_path, model_context_limit, model_settings) =
+            resolve_model_path(&model_config.model_name).ok_or_else(|| {
+                ProviderError::ExecutionError(format!(
+                    "Model not found: {}",
+                    model_config.model_name
+                ))
+            })?;
 
-        let tiny_prompt = load_tiny_model_prompt();
+        // Ensure model is loaded — unload any other models first to free memory.
+        {
+            let mut model_lock = self.model.lock().await;
+            if model_lock.is_none() {
+                for slot in self.runtime.other_model_slots(&model_config.model_name) {
+                    let mut other = slot.lock().await;
+                    if other.is_some() {
+                        tracing::info!("Unloading previous model to free memory");
+                        *other = None;
+                    }
+                }
 
-        let prompt = self.build_prompt(&tiny_prompt, &messages, template, tools);
-
-        let mut model_lock = self.model.lock().await;
-        if model_lock.is_none() {
-            *model_lock = Some(Self::load_model(&model_config.model_name).await?);
+                let model_id = model_config.model_name.clone();
+                let settings_for_load = model_settings.clone();
+                let runtime_for_load = self.runtime.clone();
+                let loaded = tokio::task::spawn_blocking(move || {
+                    Self::load_model_sync(&runtime_for_load, &model_id, &settings_for_load)
+                })
+                .await
+                .map_err(|e| {
+                    ProviderError::ExecutionError(format!("Model load task failed: {}", e))
+                })??;
+                *model_lock = Some(loaded);
+            }
         }
 
-        // Clone Arc to move into the stream
-        let model_arc = self.model.clone();
-        let model_name = model_config.model_name.clone();
+        // Models that support native OpenAI-compatible tool-call JSON use the
+        // native path (template-based tool calling with JSON output). All other
+        // models use the emulator which parses `$ command` and ```execute blocks.
+        let use_emulator = !model_settings.native_tool_calling;
+        let system_prompt = if use_emulator {
+            load_tiny_model_prompt()
+        } else {
+            system.to_string()
+        };
 
-        Ok(Box::pin(try_stream! {
-            // Generate a consistent message ID for all chunks
-            let message_id = Uuid::new_v4().to_string();
+        // Build chat messages for the template
+        let mut chat_messages =
+            vec![
+                LlamaChatMessage::new("system".to_string(), system_prompt.clone()).map_err(
+                    |e| {
+                        ProviderError::ExecutionError(format!(
+                            "Failed to create system message: {}",
+                            e
+                        ))
+                    },
+                )?,
+            ];
 
-            // Create streaming parser for emulator commands
-            let mut parser = StreamingEmulatorParser::new();
+        // Check if Code Mode extension is available
+        let code_mode_enabled = tools.iter().any(|t| t.name == "code_execution__execute");
 
-            // Get mutable access to model
-            let mut model_lock = model_arc.lock().await;
-            let loaded = model_lock.as_mut().ok_or_else(|| {
-                ProviderError::ExecutionError("Model not loaded".to_string())
-            })?;
+        // Append tool descriptions to system prompt
+        if use_emulator && !tools.is_empty() {
+            let mut tool_desc = String::new();
 
-            // Encode prompt
-            let prompt_tokens = loaded
-                .tokenizer
-                .encode(prompt.as_str(), false)
-                .map_err(|e| ProviderError::ExecutionError(format!("Failed to encode prompt: {}", e)))?
-                .get_ids()
-                .to_vec();
+            if code_mode_enabled {
+                // Build Code Mode instructions with available functions as
+                // Namespace.functionName() — matching how Code Mode exposes them.
+                tool_desc.push_str("\n\n# Running Code\n\n");
+                tool_desc.push_str(
+                    "You can call tools by writing code in a ```execute block. \
+                     The code runs immediately — do not explain it, just run it.\n\n",
+                );
+                tool_desc.push_str("Example — counting files in /tmp:\n\n");
+                tool_desc.push_str("```execute\nasync function run() {\n");
+                tool_desc.push_str(
+                    "  const result = await Developer.shell({ command: \"ls -1 /tmp | wc -l\" });\n",
+                );
+                tool_desc.push_str("  return result;\n}\n```\n\n");
+                tool_desc.push_str("Rules:\n");
+                tool_desc.push_str("- Code MUST define async function run() and return a result\n");
+                tool_desc.push_str("- All function calls are async — use await\n");
+                tool_desc
+                    .push_str("- Use ```execute for tool calls, $ for simple shell one-liners\n\n");
+                tool_desc.push_str("Available functions:\n\n");
 
-            // PREFILL: Process entire prompt at once for speed
-            let input = Tensor::new(prompt_tokens.as_slice(), &loaded.device)
-                .map_err(|e| ProviderError::ExecutionError(format!("Failed to create input tensor: {}", e)))?
-                .unsqueeze(0)
-                .map_err(|e| ProviderError::ExecutionError(format!("Failed to unsqueeze input tensor: {}", e)))?;
-
-            let logits = loaded.model.forward(&input, 0).map_err(|e| {
-                ProviderError::ExecutionError(format!("Prefill forward pass failed: {}", e))
-            })?;
-
-            // Quantized model returns [batch_size, vocab_size] directly for the last position
-            // Just squeeze to get [vocab_size] and sample
-            let logits = logits
-                .squeeze(0)
-                .map_err(|e| ProviderError::ExecutionError(format!("Failed to squeeze batch dim: {}", e)))?;
-
-            let mut next_token = logits
-                .argmax(0)
-                .map_err(|e| ProviderError::ExecutionError(format!("Failed to sample token: {}", e)))?
-                .to_scalar::<u32>()
-                .map_err(|e| ProviderError::ExecutionError(format!("Failed to convert token: {}", e)))?;
-
-            let decoded = loaded
-                .tokenizer
-                .decode(&[next_token], false)
-                .map_err(|e| ProviderError::ExecutionError(format!("Failed to decode token: {}", e)))?;
-
-            // Process first token through parser (skip if EOS)
-            let mut tool_call_emitted = false;
-            if !loaded.eos_token_ids.contains(&next_token) {
-                let parse_results = parser.process_chunk(&decoded);
-                for (text, command) in parse_results {
-                    if let Some(text) = text {
-                        let mut message = Message::assistant().with_text(&text);
-                        message.id = Some(message_id.clone());
-                        yield (Some(message), None);
+                for tool in tools {
+                    if tool.name.starts_with("code_execution__") {
+                        continue;
                     }
-                    if let Some(command) = command {
-                        // Create tool request
-                        let tool_id = Uuid::new_v4().to_string();
-                        let mut args = serde_json::Map::new();
-                        args.insert("command".to_string(), json!(command));
-
-                        let tool_call = CallToolRequestParams {
-                        meta: None,
-                        task: None,
-                        name: Cow::Borrowed("developer__shell"),
-                        arguments: Some(args),
-                    };
-
-                    let mut message = Message::assistant();
-                    message.content.push(MessageContent::tool_request(tool_id, Ok(tool_call)));
-                    message.id = Some(message_id.clone());
-                    yield (Some(message), None);
-
-                    // Stop after first tool call
-                    tool_call_emitted = true;
+                    let parts: Vec<&str> = tool.name.splitn(2, "__").collect();
+                    if parts.len() == 2 {
+                        let namespace = {
+                            let mut c = parts[0].chars();
+                            match c.next() {
+                                None => String::new(),
+                                Some(first) => first.to_uppercase().chain(c).collect::<String>(),
+                            }
+                        };
+                        // Convert snake_case to camelCase
+                        let camel_name: String = parts[1]
+                            .split('_')
+                            .enumerate()
+                            .map(|(i, part)| {
+                                if i == 0 {
+                                    part.to_string()
+                                } else {
+                                    let mut c = part.chars();
+                                    match c.next() {
+                                        None => String::new(),
+                                        Some(first) => first.to_uppercase().chain(c).collect(),
+                                    }
+                                }
+                            })
+                            .collect();
+                        let desc = tool.description.as_ref().map(|d| d.as_ref()).unwrap_or("");
+                        tool_desc.push_str(&format!("- {namespace}.{camel_name}(): {desc}\n"));
+                    }
                 }
+            } else {
+                tool_desc.push_str("\n\n# Tools\n\nYou have access to the following tools:\n\n");
+                for tool in tools {
+                    let desc = tool
+                        .description
+                        .as_ref()
+                        .map(|d| d.as_ref())
+                        .unwrap_or("No description");
+                    tool_desc.push_str(&format!("- {}: {}\n", tool.name, desc));
                 }
             }
 
-            // GENERATION LOOP: Generate remaining tokens (only if no tool call yet)
-            // Use model's context limit, cap output at 2K tokens to leave room for prompt
-            let max_output = model_info.context_limit.saturating_sub(prompt_tokens.len()).min(2048);
-            let mut output_token_count: i32 = 1; // Count the first token from prefill
-            if !tool_call_emitted {
-                for index in 0..max_output.saturating_sub(1) {
-                // Check for EOS tokens
-                if loaded.eos_token_ids.contains(&next_token) {
-                    break;
+            chat_messages = vec![LlamaChatMessage::new(
+                "system".to_string(),
+                format!("{}{}", system_prompt, tool_desc),
+            )
+            .map_err(|e| {
+                ProviderError::ExecutionError(format!("Failed to create system message: {}", e))
+            })?];
+        }
+
+        for msg in messages {
+            let role = match msg.role {
+                Role::User => "user",
+                Role::Assistant => "assistant",
+            };
+            let content = extract_text_content(msg);
+            if !content.trim().is_empty() {
+                chat_messages.push(LlamaChatMessage::new(role.to_string(), content).map_err(
+                    |e| ProviderError::ExecutionError(format!("Failed to create message: {}", e)),
+                )?);
+            }
+        }
+
+        let (full_tools_json, compact_tools) = if !use_emulator && !tools.is_empty() {
+            let full = format_tools(tools)
+                .ok()
+                .and_then(|spec| serde_json::to_string(&spec).ok());
+            let compact = compact_tools_json(tools);
+            (full, compact)
+        } else {
+            (None, None)
+        };
+
+        let model_arc = self.model.clone();
+        let runtime = self.runtime.clone();
+        let model_name = model_config.model_name.clone();
+        let context_limit = model_context_limit;
+        let settings = model_settings;
+
+        // Channel for streaming tokens from blocking thread to async stream
+        let (tx, mut rx) = tokio::sync::mpsc::channel::<
+            Result<(Option<Message>, Option<ProviderUsage>), ProviderError>,
+        >(32);
+
+        tokio::task::spawn_blocking(move || {
+            let rt = tokio::runtime::Handle::current();
+
+            let model_guard = rt.block_on(model_arc.lock());
+            let loaded = match model_guard.as_ref() {
+                Some(l) => l,
+                None => {
+                    let _ = tx.blocking_send(Err(ProviderError::ExecutionError(
+                        "Model not loaded".to_string(),
+                    )));
+                    return;
+                }
+            };
+
+            let message_id = Uuid::new_v4().to_string();
+
+            if use_emulator {
+                // === Emulator path (Tiny/Small models) ===
+                let prompt =
+                    match loaded
+                        .model
+                        .apply_chat_template(&loaded.template, &chat_messages, true)
+                    {
+                        Ok(p) => p,
+                        Err(e) => {
+                            let _ = tx.blocking_send(Err(ProviderError::ExecutionError(format!(
+                                "Failed to apply chat template: {}",
+                                e
+                            ))));
+                            return;
+                        }
+                    };
+
+                let tokens = match loaded.model.str_to_token(&prompt, AddBos::Never) {
+                    Ok(t) => t,
+                    Err(e) => {
+                        let _ = tx.blocking_send(Err(ProviderError::ExecutionError(format!(
+                            "Failed to tokenize prompt: {}",
+                            e
+                        ))));
+                        return;
+                    }
+                };
+
+                let prompt_token_count = tokens.len();
+                let n_ctx_train = loaded.model.n_ctx_train() as usize;
+                let memory_max_ctx = estimate_max_context_for_memory(&loaded.model, &runtime);
+                let effective_ctx = if let Some(ctx_size) = settings.context_size {
+                    ctx_size as usize
+                } else {
+                    effective_context_size(
+                        prompt_token_count,
+                        context_limit,
+                        n_ctx_train,
+                        memory_max_ctx,
+                    )
+                };
+                if let Some(mem_max) = memory_max_ctx {
+                    if prompt_token_count > mem_max {
+                        let _ =
+                            tx.blocking_send(Err(ProviderError::ContextLengthExceeded(format!(
+                                "Prompt ({} tokens) exceeds estimated memory capacity ({} tokens). \
+                                 Try a smaller model or reduce conversation length.",
+                                prompt_token_count, mem_max,
+                            ))));
+                        return;
+                    }
+                }
+                let ctx_params = build_context_params(effective_ctx as u32, &settings);
+                let mut ctx = match loaded.model.new_context(runtime.backend(), ctx_params) {
+                    Ok(c) => c,
+                    Err(e) => {
+                        let _ = tx.blocking_send(Err(ProviderError::ExecutionError(format!(
+                            "Failed to create context: {}",
+                            e
+                        ))));
+                        return;
+                    }
+                };
+
+                let n_batch = ctx.n_batch() as usize;
+                for chunk in tokens.chunks(n_batch) {
+                    let mut batch = match LlamaBatch::get_one(chunk) {
+                        Ok(b) => b,
+                        Err(e) => {
+                            let _ = tx.blocking_send(Err(ProviderError::ExecutionError(format!(
+                                "Failed to create batch: {}",
+                                e
+                            ))));
+                            return;
+                        }
+                    };
+                    if let Err(e) = ctx.decode(&mut batch) {
+                        let _ = tx.blocking_send(Err(ProviderError::ExecutionError(format!(
+                            "Prefill decode failed: {}",
+                            e
+                        ))));
+                        return;
+                    }
                 }
 
-                // Single token input for generation
-                let input = Tensor::new(&[next_token], &loaded.device)
-                    .map_err(|e| ProviderError::ExecutionError(format!("Failed to create tensor: {}", e)))?
-                    .unsqueeze(0)
-                    .map_err(|e| ProviderError::ExecutionError(format!("Failed to unsqueeze tensor: {}", e)))?;
+                let mut sampler = build_sampler(&settings);
+                let mut emulator_parser = StreamingEmulatorParser::new(code_mode_enabled);
+                let mut output_token_count: i32 = 0;
+                let mut tool_call_emitted = false;
+                let max_output = if let Some(max) = settings.max_output_tokens {
+                    effective_ctx.saturating_sub(prompt_token_count).min(max)
+                } else {
+                    effective_ctx.saturating_sub(prompt_token_count)
+                };
+                let mut decoder = encoding_rs::UTF_8.new_decoder();
 
-                // Position is prompt_len + already_generated_tokens
-                // We already generated 1 token from prefill, so add 1
-                let pos = prompt_tokens.len() + index + 1;
-                let logits = loaded
-                    .model
-                    .forward(&input, pos)
-                    .map_err(|e| ProviderError::ExecutionError(format!("Generation forward pass failed at pos {}: {}", pos, e)))?;
+                for _ in 0..max_output {
+                    let token = sampler.sample(&ctx, -1);
+                    sampler.accept(token);
 
-                let logits = logits.squeeze(0)
-                    .map_err(|e| ProviderError::ExecutionError(format!("Failed to squeeze logits: {}", e)))?;
+                    if loaded.model.is_eog_token(token) {
+                        break;
+                    }
 
-                next_token = logits.argmax(0)
-                    .map_err(|e| ProviderError::ExecutionError(format!("Failed to sample token: {}", e)))?
-                    .to_scalar::<u32>()
-                    .map_err(|e| ProviderError::ExecutionError(format!("Failed to convert token: {}", e)))?;
+                    output_token_count += 1;
 
-                // Check for EOS before decoding/yielding
-                if loaded.eos_token_ids.contains(&next_token) {
-                    break;
+                    let piece = match loaded.model.token_to_piece(token, &mut decoder, true, None) {
+                        Ok(p) => p,
+                        Err(e) => {
+                            let _ = tx.blocking_send(Err(ProviderError::ExecutionError(format!(
+                                "Failed to decode token: {}",
+                                e
+                            ))));
+                            return;
+                        }
+                    };
+
+                    if !piece.is_empty() {
+                        let actions = emulator_parser.process_chunk(&piece);
+                        for action in actions {
+                            match action {
+                                EmulatorAction::Text(text) => {
+                                    let mut message = Message::assistant().with_text(&text);
+                                    message.id = Some(message_id.clone());
+                                    if tx.blocking_send(Ok((Some(message), None))).is_err() {
+                                        return;
+                                    }
+                                }
+                                EmulatorAction::ShellCommand(command) => {
+                                    let tool_id = Uuid::new_v4().to_string();
+                                    let mut args = serde_json::Map::new();
+                                    args.insert("command".to_string(), json!(command));
+
+                                    let tool_call = CallToolRequestParams {
+                                        meta: None,
+                                        task: None,
+                                        name: Cow::Owned("developer__shell".to_string()),
+                                        arguments: Some(args),
+                                    };
+
+                                    let mut message = Message::assistant();
+                                    message
+                                        .content
+                                        .push(MessageContent::tool_request(tool_id, Ok(tool_call)));
+                                    message.id = Some(message_id.clone());
+                                    if tx.blocking_send(Ok((Some(message), None))).is_err() {
+                                        return;
+                                    }
+                                    tool_call_emitted = true;
+                                }
+                                EmulatorAction::ExecuteCode(code) => {
+                                    let tool_id = Uuid::new_v4().to_string();
+                                    let wrapped = if code.contains("async function run()") {
+                                        code
+                                    } else {
+                                        format!("async function run() {{\n{}\n}}", code)
+                                    };
+                                    let mut args = serde_json::Map::new();
+                                    args.insert("code".to_string(), json!(wrapped));
+
+                                    let tool_call = CallToolRequestParams {
+                                        meta: None,
+                                        task: None,
+                                        name: Cow::Owned("code_execution__execute".to_string()),
+                                        arguments: Some(args),
+                                    };
+
+                                    let mut message = Message::assistant();
+                                    message
+                                        .content
+                                        .push(MessageContent::tool_request(tool_id, Ok(tool_call)));
+                                    message.id = Some(message_id.clone());
+                                    if tx.blocking_send(Ok((Some(message), None))).is_err() {
+                                        return;
+                                    }
+                                    tool_call_emitted = true;
+                                }
+                            }
+                        }
+                    }
+
+                    if tool_call_emitted {
+                        break;
+                    }
+
+                    let next_tokens = [token];
+                    let mut next_batch = match LlamaBatch::get_one(&next_tokens) {
+                        Ok(b) => b,
+                        Err(e) => {
+                            let _ = tx.blocking_send(Err(ProviderError::ExecutionError(format!(
+                                "Failed to create batch: {}",
+                                e
+                            ))));
+                            return;
+                        }
+                    };
+                    if let Err(e) = ctx.decode(&mut next_batch) {
+                        let _ = tx.blocking_send(Err(ProviderError::ExecutionError(format!(
+                            "Decode failed: {}",
+                            e
+                        ))));
+                        return;
+                    }
                 }
 
-                // Count the generated token
-                output_token_count += 1;
-
-                // Decode token
-                let mut decoded = loaded
-                    .tokenizer
-                    .decode(&[next_token], false)
-                    .map_err(|e| ProviderError::ExecutionError(format!("Failed to decode token: {}", e)))?;
-
-                // Strip EOS tokens from this chunk
-                for eos_str in template.eos_strings() {
-                    decoded = decoded.replace(eos_str, "");
-                }
-
-                if !decoded.is_empty() {
-                    // Process through parser
-                    let parse_results = parser.process_chunk(&decoded);
-                    for (text, command) in parse_results {
-                        if let Some(text) = text {
+                let flush_results = emulator_parser.flush();
+                for action in flush_results {
+                    match action {
+                        EmulatorAction::Text(text) => {
                             let mut message = Message::assistant().with_text(&text);
                             message.id = Some(message_id.clone());
-                            yield (Some(message), None);
+                            if tx.blocking_send(Ok((Some(message), None))).is_err() {
+                                return;
+                            }
                         }
-                        if let Some(command) = command {
-                            // Create tool request
+                        EmulatorAction::ShellCommand(command) => {
                             let tool_id = Uuid::new_v4().to_string();
                             let mut args = serde_json::Map::new();
                             args.insert("command".to_string(), json!(command));
@@ -960,66 +1525,446 @@ impl Provider for LocalInferenceProvider {
                             let tool_call = CallToolRequestParams {
                                 meta: None,
                                 task: None,
-                                name: Cow::Borrowed("developer__shell"),
+                                name: Cow::Owned("developer__shell".to_string()),
                                 arguments: Some(args),
                             };
 
                             let mut message = Message::assistant();
-                            message.content.push(MessageContent::tool_request(tool_id, Ok(tool_call)));
+                            message
+                                .content
+                                .push(MessageContent::tool_request(tool_id, Ok(tool_call)));
                             message.id = Some(message_id.clone());
-                            yield (Some(message), None);
+                            if tx.blocking_send(Ok((Some(message), None))).is_err() {
+                                return;
+                            }
+                        }
+                        EmulatorAction::ExecuteCode(code) => {
+                            let tool_id = Uuid::new_v4().to_string();
+                            let wrapped = if code.contains("async function run()") {
+                                code
+                            } else {
+                                format!("async function run() {{\n{}\n}}", code)
+                            };
+                            let mut args = serde_json::Map::new();
+                            args.insert("code".to_string(), json!(wrapped));
 
-                            // Stop generation after first tool call
-                            tool_call_emitted = true;
+                            let tool_call = CallToolRequestParams {
+                                meta: None,
+                                task: None,
+                                name: Cow::Owned("code_execution__execute".to_string()),
+                                arguments: Some(args),
+                            };
+
+                            let mut message = Message::assistant();
+                            message
+                                .content
+                                .push(MessageContent::tool_request(tool_id, Ok(tool_call)));
+                            message.id = Some(message_id.clone());
+                            if tx.blocking_send(Ok((Some(message), None))).is_err() {
+                                return;
+                            }
                         }
                     }
                 }
 
-                // Break out of generation loop after tool call
-                if tool_call_emitted {
-                    break;
-                }
-                }
-            }
+                let input_tokens = prompt_token_count as i32;
+                let total_tokens = input_tokens + output_token_count;
+                let usage = Usage::new(
+                    Some(input_tokens),
+                    Some(output_token_count),
+                    Some(total_tokens),
+                );
+                let provider_usage = ProviderUsage::new(model_name, usage);
+                let _ = tx.blocking_send(Ok((None, Some(provider_usage))));
+            } else {
+                // === Native tool-calling path (Medium/Large models) ===
+                // Compute the context cap up front (before tokenizing) so the
+                // tool-budget check uses the same limit that inference will.
+                let min_generation_headroom = 512;
+                let n_ctx_train = loaded.model.n_ctx_train() as usize;
+                let memory_max_ctx = estimate_max_context_for_memory(&loaded.model, &runtime);
+                let context_cap = if let Some(ctx_size) = settings.context_size {
+                    ctx_size as usize
+                } else {
+                    let base = if context_limit > 0 {
+                        context_limit
+                    } else {
+                        n_ctx_train
+                    };
+                    match memory_max_ctx {
+                        Some(mem_max) if mem_max < base => mem_max,
+                        _ => base,
+                    }
+                };
+                let token_budget = context_cap.saturating_sub(min_generation_headroom);
 
-            // Flush any remaining parser buffer (handles incomplete commands at end of stream)
-            let flush_results = parser.flush();
-            for (text, command) in flush_results {
-                if let Some(text) = text {
-                    let mut message = Message::assistant().with_text(&text);
-                    message.id = Some(message_id.clone());
-                    yield (Some(message), None);
-                }
-                if let Some(command) = command {
-                    // Create tool request for the final command
-                    let tool_id = Uuid::new_v4().to_string();
-                    let mut args = serde_json::Map::new();
-                    args.insert("command".to_string(), json!(command));
+                // Try full tool schemas first; if the prompt overflows the
+                // context window, retry with compact definitions (name +
+                // description only, no parameter schemas).
+                let apply_template = |tools: Option<&str>| {
+                    loaded.model.apply_chat_template_with_tools_oaicompat(
+                        &loaded.template,
+                        &chat_messages,
+                        tools,
+                        None,
+                        true,
+                    )
+                };
 
-                    let tool_call = CallToolRequestParams {
-                        meta: None,
-                        task: None,
-                        name: Cow::Borrowed("developer__shell"),
-                        arguments: Some(args),
+                let template_result = match apply_template(full_tools_json.as_deref()) {
+                    Ok(r) => {
+                        let token_count = loaded
+                            .model
+                            .str_to_token(&r.prompt, AddBos::Never)
+                            .map(|t| t.len())
+                            .unwrap_or(0);
+                        if token_count > token_budget {
+                            apply_template(compact_tools.as_deref()).unwrap_or(r)
+                        } else {
+                            r
+                        }
+                    }
+                    Err(_) => match apply_template(compact_tools.as_deref()) {
+                        Ok(r) => r,
+                        Err(e) => {
+                            let _ = tx.blocking_send(Err(ProviderError::ExecutionError(format!(
+                                "Failed to apply chat template: {}",
+                                e
+                            ))));
+                            return;
+                        }
+                    },
+                };
+
+                let tokens = match loaded
+                    .model
+                    .str_to_token(&template_result.prompt, AddBos::Never)
+                {
+                    Ok(t) => t,
+                    Err(e) => {
+                        let _ = tx.blocking_send(Err(ProviderError::ExecutionError(format!(
+                            "Failed to tokenize prompt: {}",
+                            e
+                        ))));
+                        return;
+                    }
+                };
+
+                let prompt_token_count = tokens.len();
+
+                // effective_context_size may expand beyond the cap when the
+                // prompt itself already exceeds it, ensuring we at least
+                // attempt to fit the prompt plus minimal generation room.
+                let effective_ctx = if let Some(ctx_size) = settings.context_size {
+                    ctx_size as usize
+                } else {
+                    effective_context_size(
+                        prompt_token_count,
+                        context_limit,
+                        n_ctx_train,
+                        memory_max_ctx,
+                    )
+                };
+                if let Some(mem_max) = memory_max_ctx {
+                    if prompt_token_count > mem_max {
+                        let _ =
+                            tx.blocking_send(Err(ProviderError::ContextLengthExceeded(format!(
+                                "Prompt ({} tokens) exceeds estimated memory capacity ({} tokens). \
+                                 Try a smaller model or reduce conversation length.",
+                                prompt_token_count, mem_max,
+                            ))));
+                        return;
+                    }
+                }
+                let ctx_params = build_context_params(effective_ctx as u32, &settings);
+                let mut ctx = match loaded.model.new_context(runtime.backend(), ctx_params) {
+                    Ok(c) => c,
+                    Err(e) => {
+                        let _ = tx.blocking_send(Err(ProviderError::ExecutionError(format!(
+                            "Failed to create context: {}",
+                            e
+                        ))));
+                        return;
+                    }
+                };
+
+                let n_batch = ctx.n_batch() as usize;
+                for chunk in tokens.chunks(n_batch) {
+                    let mut batch = match LlamaBatch::get_one(chunk) {
+                        Ok(b) => b,
+                        Err(e) => {
+                            let _ = tx.blocking_send(Err(ProviderError::ExecutionError(format!(
+                                "Failed to create batch: {}",
+                                e
+                            ))));
+                            return;
+                        }
+                    };
+                    if let Err(e) = ctx.decode(&mut batch) {
+                        let _ = tx.blocking_send(Err(ProviderError::ExecutionError(format!(
+                            "Prefill decode failed: {}",
+                            e
+                        ))));
+                        return;
+                    }
+                }
+
+                let mut sampler = build_sampler(&settings);
+                let mut output_token_count: i32 = 0;
+                let max_output = if let Some(max) = settings.max_output_tokens {
+                    effective_ctx.saturating_sub(prompt_token_count).min(max)
+                } else {
+                    effective_ctx.saturating_sub(prompt_token_count)
+                };
+                let mut decoder = encoding_rs::UTF_8.new_decoder();
+                let mut generated_text = String::new();
+
+                // For streaming, we buffer text and only send content that
+                // precedes any tool-call JSON. Once we see the start of a
+                // `{"tool_calls"` block we hold back everything from that
+                // point on so the raw JSON never reaches the user.
+                let mut streamed_len: usize = 0;
+
+                for _ in 0..max_output {
+                    let token = sampler.sample(&ctx, -1);
+                    sampler.accept(token);
+
+                    if loaded.model.is_eog_token(token) {
+                        break;
+                    }
+
+                    output_token_count += 1;
+
+                    let piece = match loaded.model.token_to_piece(token, &mut decoder, true, None) {
+                        Ok(p) => p,
+                        Err(e) => {
+                            let _ = tx.blocking_send(Err(ProviderError::ExecutionError(format!(
+                                "Failed to decode token: {}",
+                                e
+                            ))));
+                            return;
+                        }
                     };
 
-                    let mut message = Message::assistant();
-                    message.content.push(MessageContent::tool_request(tool_id, Ok(tool_call)));
-                    message.id = Some(message_id.clone());
-                    yield (Some(message), None);
+                    if !piece.is_empty() {
+                        generated_text.push_str(&piece);
+
+                        // Determine how far we can safely stream:
+                        // - If a complete tool-call JSON block is found at
+                        //   the end, only stream the content before it.
+                        // - Otherwise, hold back any unmatched `{` that could
+                        //   be the start of a tool-call block in progress.
+                        let has_xml_tc =
+                            split_content_and_xml_tool_calls(&generated_text).is_some();
+                        let (content, tc) = split_content_and_tool_calls(&generated_text);
+                        let stream_up_to = if tc.is_some() {
+                            content.len()
+                        } else if has_xml_tc {
+                            split_content_and_xml_tool_calls(&generated_text)
+                                .map(|(c, _)| c.len())
+                                .unwrap_or(0)
+                        } else {
+                            safe_stream_end(&generated_text)
+                        };
+                        if stream_up_to > streamed_len {
+                            #[allow(clippy::string_slice)]
+                            let new_text = &generated_text[streamed_len..stream_up_to];
+                            if !new_text.is_empty() {
+                                let mut msg = Message::assistant().with_text(new_text);
+                                msg.id = Some(message_id.clone());
+                                if tx.blocking_send(Ok((Some(msg), None))).is_err() {
+                                    return;
+                                }
+                            }
+                            streamed_len = stream_up_to;
+                        }
+
+                        let should_stop = template_result
+                            .additional_stops
+                            .iter()
+                            .any(|stop| generated_text.ends_with(stop));
+                        if should_stop {
+                            break;
+                        }
+                    }
+
+                    let next_tokens = [token];
+                    let mut next_batch = match LlamaBatch::get_one(&next_tokens) {
+                        Ok(b) => b,
+                        Err(e) => {
+                            let _ = tx.blocking_send(Err(ProviderError::ExecutionError(format!(
+                                "Failed to create batch: {}",
+                                e
+                            ))));
+                            return;
+                        }
+                    };
+                    if let Err(e) = ctx.decode(&mut next_batch) {
+                        let _ = tx.blocking_send(Err(ProviderError::ExecutionError(format!(
+                            "Decode failed: {}",
+                            e
+                        ))));
+                        return;
+                    }
                 }
+
+                // Try XML tool call format first (e.g. qwen3-coder), then JSON
+                let (content, tool_call_msgs) = if let Some((xml_content, xml_calls)) =
+                    split_content_and_xml_tool_calls(&generated_text)
+                {
+                    let msgs = extract_xml_tool_call_messages(xml_calls, &message_id);
+                    (xml_content, msgs)
+                } else {
+                    let (json_content, tool_calls_json) =
+                        split_content_and_tool_calls(&generated_text);
+                    let msgs = tool_calls_json
+                        .map(|tc| extract_tool_call_messages(&tc, &message_id))
+                        .unwrap_or_default();
+                    (json_content, msgs)
+                };
+
+                // Send any remaining content text we haven't streamed yet.
+                if content.len() > streamed_len {
+                    #[allow(clippy::string_slice)]
+                    let remaining = &content[streamed_len..];
+                    if !remaining.is_empty() {
+                        let mut msg = Message::assistant().with_text(remaining);
+                        msg.id = Some(message_id.clone());
+                        let _ = tx.blocking_send(Ok((Some(msg), None)));
+                    }
+                }
+
+                if !tool_call_msgs.is_empty() {
+                    for msg in tool_call_msgs {
+                        let _ = tx.blocking_send(Ok((Some(msg), None)));
+                    }
+                } else if content.is_empty() && !generated_text.is_empty() {
+                    let mut msg = Message::assistant().with_text(&generated_text);
+                    msg.id = Some(message_id.clone());
+                    let _ = tx.blocking_send(Ok((Some(msg), None)));
+                }
+
+                let input_tokens = prompt_token_count as i32;
+                let total_tokens = input_tokens + output_token_count;
+                let usage = Usage::new(
+                    Some(input_tokens),
+                    Some(output_token_count),
+                    Some(total_tokens),
+                );
+                let provider_usage = ProviderUsage::new(model_name, usage);
+                let _ = tx.blocking_send(Ok((None, Some(provider_usage))));
+            }
+        });
+
+        Ok(Box::pin(try_stream! {
+            while let Some(result) = rx.recv().await {
+                let item = result?;
+                yield item;
             }
 
-            // Final yield with usage
-            let input_tokens = prompt_tokens.len() as i32;
-            let total_tokens = input_tokens + output_token_count;
-            let usage = Usage::new(Some(input_tokens), Some(output_token_count), Some(total_tokens));
-            let provider_usage = ProviderUsage::new(model_name.clone(), usage);
-            yield (None, Some(provider_usage));
         }))
     }
 
     fn supports_streaming(&self) -> bool {
         true
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_parse_xml_tool_call_single() {
+        let text = "I'll search for that.\n\n<tool_call>\n<function=search__files>\n<parameter=pattern>local.*inference</parameter>\n</function>\n</tool_call>";
+        let result = split_content_and_xml_tool_calls(text);
+        assert!(result.is_some());
+        let (content, calls) = result.unwrap();
+        assert_eq!(content, "I'll search for that.");
+        assert_eq!(calls.len(), 1);
+        assert_eq!(calls[0].0, "search__files");
+        assert_eq!(calls[0].1.get("pattern").unwrap(), "local.*inference");
+    }
+
+    #[test]
+    fn test_parse_xml_tool_call_multiple_params() {
+        let text = "<tool_call>\n<function=developer__shell>\n<parameter=command>ls -la</parameter>\n<parameter=timeout>30</parameter>\n</function>\n</tool_call>";
+        let result = split_content_and_xml_tool_calls(text);
+        assert!(result.is_some());
+        let (content, calls) = result.unwrap();
+        assert!(content.is_empty());
+        assert_eq!(calls.len(), 1);
+        assert_eq!(calls[0].0, "developer__shell");
+        assert_eq!(calls[0].1.get("command").unwrap(), "ls -la");
+        // 30 should be parsed as a number
+        assert_eq!(calls[0].1.get("timeout").unwrap(), &json!(30));
+    }
+
+    #[test]
+    fn test_parse_xml_tool_call_no_tool_call() {
+        let text = "Just some regular text with no tool calls.";
+        assert!(split_content_and_xml_tool_calls(text).is_none());
+    }
+
+    #[test]
+    fn test_parse_xml_tool_call_multiple_calls() {
+        let text = "Doing two things:\n<tool_call>\n<function=foo__bar>\n<parameter=x>1</parameter>\n</function>\n</tool_call>\n<tool_call>\n<function=baz__qux>\n<parameter=y>hello</parameter>\n</function>\n</tool_call>";
+        let result = split_content_and_xml_tool_calls(text);
+        assert!(result.is_some());
+        let (content, calls) = result.unwrap();
+        assert_eq!(content, "Doing two things:");
+        assert_eq!(calls.len(), 2);
+        assert_eq!(calls[0].0, "foo__bar");
+        assert_eq!(calls[1].0, "baz__qux");
+    }
+
+    #[test]
+    fn test_parse_xml_tool_call_multiline_value() {
+        let text = "<tool_call>\n<function=developer__write_file>\n<parameter=path>test.py</parameter>\n<parameter=content>def hello():\n    print(\"world\")</parameter>\n</function>\n</tool_call>";
+        let result = split_content_and_xml_tool_calls(text);
+        assert!(result.is_some());
+        let (_content, calls) = result.unwrap();
+        assert_eq!(calls[0].0, "developer__write_file");
+        assert_eq!(
+            calls[0].1.get("content").unwrap(),
+            "def hello():\n    print(\"world\")"
+        );
+    }
+
+    #[test]
+    fn test_safe_stream_end_holds_back_tool_call_tag() {
+        let text = "Some text before <tool_call>\n<function=foo>";
+        let safe = safe_stream_end(text);
+        assert!(safe <= text.find("<tool_call>").unwrap());
+    }
+
+    #[test]
+    fn test_safe_stream_end_holds_back_partial_tag() {
+        let text = "Some text <tool_ca";
+        let safe = safe_stream_end(text);
+        // Should hold back the partial tag
+        assert!(safe <= text.find('<').unwrap());
+    }
+
+    #[test]
+    fn test_extract_xml_tool_call_messages() {
+        let calls = vec![(
+            "developer__shell".to_string(),
+            serde_json::Map::from_iter(vec![("command".to_string(), json!("ls"))]),
+        )];
+        let msgs = extract_xml_tool_call_messages(calls, "test-id");
+        assert_eq!(msgs.len(), 1);
+        assert_eq!(msgs[0].id, Some("test-id".to_string()));
+        match &msgs[0].content[0] {
+            MessageContent::ToolRequest(req) => {
+                let call = req.tool_call.as_ref().unwrap();
+                assert_eq!(&*call.name, "developer__shell");
+                assert_eq!(
+                    call.arguments.as_ref().unwrap().get("command").unwrap(),
+                    "ls"
+                );
+            }
+            _ => panic!("Expected ToolRequest"),
+        }
     }
 }

@@ -433,6 +433,46 @@ export type GooseApp = McpAppResource & (WindowProps | null) & {
     prd?: string | null;
 };
 
+export type HfDownloadRequest = {
+    filename?: string | null;
+    repo_id?: string | null;
+    spec?: string | null;
+};
+
+export type HfDownloadResponse = {
+    model_id: string;
+};
+
+/**
+ * A single downloadable GGUF file (used internally and for downloads).
+ */
+export type HfGgufFile = {
+    download_url: string;
+    filename: string;
+    quantization: string;
+    size_bytes: number;
+};
+
+export type HfModelInfo = {
+    author: string;
+    downloads: number;
+    gguf_files: Array<HfGgufFile>;
+    model_name: string;
+    repo_id: string;
+};
+
+/**
+ * A quantization variant — groups sharded files into one logical entry.
+ */
+export type HfQuantVariant = {
+    description: string;
+    download_url: string;
+    filename: string;
+    quality_rank: number;
+    quantization: string;
+    size_bytes: number;
+};
+
 export type Icon = {
     mimeType?: string;
     sizes?: Array<string>;
@@ -499,69 +539,26 @@ export type LoadedProvider = {
 };
 
 export type LocalLlmModel = {
-    /**
-     * Maximum context window in tokens
-     */
     context_limit: number;
-    /**
-     * Description and use case
-     */
     description: string;
-    /**
-     * Model identifier (e.g., "llama-3.2-1b")
-     */
     id: string;
-    /**
-     * Display name
-     */
     name: string;
-    /**
-     * Model file size in MB
-     */
     size_mb: number;
     tier: ModelTier;
-    /**
-     * Download URL for the tokenizer JSON
-     */
-    tokenizer_url: string;
-    /**
-     * Download URL for the model GGUF file
-     */
     url: string;
 };
 
 export type LocalModelResponse = {
-    /**
-     * Maximum context window in tokens
-     */
     context_limit: number;
-    /**
-     * Description and use case
-     */
     description: string;
-    /**
-     * Model identifier (e.g., "llama-3.2-1b")
-     */
     id: string;
-    /**
-     * Display name
-     */
     name: string;
-    /**
-     * Model file size in MB
-     */
     size_mb: number;
     tier: ModelTier;
-    /**
-     * Download URL for the tokenizer JSON
-     */
-    tokenizer_url: string;
-    /**
-     * Download URL for the model GGUF file
-     */
     url: string;
 } & {
     downloaded: boolean;
+    featured: boolean;
     recommended: boolean;
 };
 
@@ -719,6 +716,24 @@ export type ModelInfo = {
      * Whether this model supports cache control
      */
     supports_cache_control?: boolean | null;
+};
+
+export type ModelListItem = LocalModelResponse | RegistryModelResponse;
+
+export type ModelSettings = {
+    context_size?: number | null;
+    flash_attention?: boolean | null;
+    frequency_penalty?: number;
+    max_output_tokens?: number | null;
+    n_batch?: number | null;
+    n_gpu_layers?: number | null;
+    n_threads?: number | null;
+    native_tool_calling?: boolean;
+    presence_penalty?: number;
+    repeat_last_n?: number;
+    repeat_penalty?: number;
+    sampling?: SamplingConfig;
+    use_mlock?: boolean;
 };
 
 export type ModelTier = 'tiny' | 'small' | 'medium' | 'large';
@@ -952,9 +967,26 @@ export type RedactedThinkingContent = {
     data: string;
 };
 
+export type RegistryModelResponse = {
+    display_name: string;
+    downloaded: boolean;
+    featured: boolean;
+    filename: string;
+    id: string;
+    quantization: string;
+    repo_id: string;
+    settings: ModelSettings;
+    size_bytes: number;
+};
+
 export type RemoveExtensionRequest = {
     name: string;
     session_id: string;
+};
+
+export type RepoVariantsResponse = {
+    recommended_index?: number | null;
+    variants: Array<HfQuantVariant>;
 };
 
 export type ResourceContents = {
@@ -1032,6 +1064,22 @@ export type Role = string;
 
 export type RunNowResponse = {
     session_id: string;
+};
+
+export type SamplingConfig = {
+    type: 'Greedy';
+} | {
+    min_p: number;
+    seed?: number | null;
+    temperature: number;
+    top_k: number;
+    top_p: number;
+    type: 'Temperature';
+} | {
+    eta: number;
+    seed?: number | null;
+    tau: number;
+    type: 'MirostatV2';
 };
 
 export type SavePromptRequest = {
@@ -2873,6 +2921,33 @@ export type StartTetrateSetupResponses = {
 
 export type StartTetrateSetupResponse = StartTetrateSetupResponses[keyof StartTetrateSetupResponses];
 
+export type DownloadHfModelData = {
+    body: HfDownloadRequest;
+    path?: never;
+    query?: never;
+    url: '/local-inference/download';
+};
+
+export type DownloadHfModelErrors = {
+    /**
+     * Invalid request
+     */
+    400: unknown;
+    /**
+     * Internal server error
+     */
+    500: unknown;
+};
+
+export type DownloadHfModelResponses = {
+    /**
+     * Download started
+     */
+    202: HfDownloadResponse;
+};
+
+export type DownloadHfModelResponse = DownloadHfModelResponses[keyof DownloadHfModelResponses];
+
 export type ListLocalModelsData = {
     body?: never;
     path?: never;
@@ -2884,7 +2959,7 @@ export type ListLocalModelsResponses = {
     /**
      * List of available local LLM models
      */
-    200: Array<LocalModelResponse>;
+    200: Array<ModelListItem>;
 };
 
 export type ListLocalModelsResponse = ListLocalModelsResponses[keyof ListLocalModelsResponses];
@@ -2990,6 +3065,118 @@ export type DownloadLocalModelResponses = {
      */
     202: unknown;
 };
+
+export type GetModelSettingsData = {
+    body?: never;
+    path: {
+        model_id: string;
+    };
+    query?: never;
+    url: '/local-inference/models/{model_id}/settings';
+};
+
+export type GetModelSettingsErrors = {
+    /**
+     * Model not found
+     */
+    404: unknown;
+};
+
+export type GetModelSettingsResponses = {
+    /**
+     * Model settings
+     */
+    200: ModelSettings;
+};
+
+export type GetModelSettingsResponse = GetModelSettingsResponses[keyof GetModelSettingsResponses];
+
+export type UpdateModelSettingsData = {
+    body: ModelSettings;
+    path: {
+        model_id: string;
+    };
+    query?: never;
+    url: '/local-inference/models/{model_id}/settings';
+};
+
+export type UpdateModelSettingsErrors = {
+    /**
+     * Model not found
+     */
+    404: unknown;
+    /**
+     * Failed to save settings
+     */
+    500: unknown;
+};
+
+export type UpdateModelSettingsResponses = {
+    /**
+     * Settings updated
+     */
+    200: ModelSettings;
+};
+
+export type UpdateModelSettingsResponse = UpdateModelSettingsResponses[keyof UpdateModelSettingsResponses];
+
+export type GetRepoFilesData = {
+    body?: never;
+    path: {
+        author: string;
+        repo: string;
+    };
+    query?: never;
+    url: '/local-inference/repo/{author}/{repo}/files';
+};
+
+export type GetRepoFilesErrors = {
+    /**
+     * Failed to fetch repo files
+     */
+    500: unknown;
+};
+
+export type GetRepoFilesResponses = {
+    /**
+     * GGUF quantization variants in repo
+     */
+    200: RepoVariantsResponse;
+};
+
+export type GetRepoFilesResponse = GetRepoFilesResponses[keyof GetRepoFilesResponses];
+
+export type SearchHfModelsData = {
+    body?: never;
+    path?: never;
+    query: {
+        /**
+         * Search query
+         */
+        q: string;
+        /**
+         * Max results
+         */
+        limit?: number | null;
+    };
+    url: '/local-inference/search';
+};
+
+export type SearchHfModelsErrors = {
+    /**
+     * Search failed
+     */
+    500: unknown;
+};
+
+export type SearchHfModelsResponses = {
+    /**
+     * Search results
+     */
+    200: Array<HfModelInfo>;
+};
+
+export type SearchHfModelsResponse = SearchHfModelsResponses[keyof SearchHfModelsResponses];
 
 export type McpUiProxyData = {
     body?: never;
