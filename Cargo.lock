@@ -4209,6 +4209,7 @@ dependencies = [
 name = "goose-acp"
 version = "1.23.0"
 dependencies = [
+ "agent-client-protocol-schema",
  "anyhow",
  "assert-json-diff",
  "async-stream",

@@ -47,6 +47,7 @@ pub const OPEN_AI_KNOWN_MODELS: &[(&str, usize)] = &[
     ("gpt-3.5-turbo", 16_385),
     ("gpt-4-turbo", 128_000),
     ("o4-mini", 128_000),
+    ("gpt-5-nano", 400_000),
     ("gpt-5.1-codex", 400_000),
     ("gpt-5-codex", 400_000),
 ];
