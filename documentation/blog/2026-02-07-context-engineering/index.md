@@ -42,13 +42,14 @@ One-shot prompting worked when agents were party tricks. You crafted a clever pr
 
 A single prompt stopped being a solution and became a bottleneck. What matters now isn’t the sentence you type. It’s the system that surrounds it.
 
-Once we started wanting deployable and repeatable workflows. Things like, memory, long term state, planning loops, guardrails and context handoffs between steps became the focus. Resulting in prompts becoming one *small* step along the way.
+Once we started wanting deployable and repeatable workflows, the focus shifted to systems that could persist state, plan ahead, and enforce guardrails. Prompts became one small step inside a much larger pipeline.
 
 As someone put it in a thread I recently came across:
 
 > “The best model with bad context loses to an average model with great context.”
 
-That’s the shift in one line.
+That’s the shift in one line, context is now the advantage.
+
 
 
 ---
