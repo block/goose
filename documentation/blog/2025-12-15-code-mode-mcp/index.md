@@ -35,7 +35,7 @@ posts. Since the approach and the benefits are clearly laid out in those posts I
 
 In v1.17.0 of goose, we've introduced an open source implementation of this idea in a new platform extension called: Code Execution.
 Our implementation generates a JavaScript interface representing the connected MCP tools and then lets the model write code to run
-against it in [boa](https://github.com/boa-dev/boa) which is an embeddable Javascript engine. One neat feature of boa we were able
+against it in [boa](https://github.com/boa-dev/boa) which is an embeddable JavaScript engine. One neat feature of boa we were able
 to take advantage of was the concept of [NativeFunction](https://docs.rs/boa_engine/latest/boa_engine/native_function/struct.NativeFunction.html).
 
 In boa, a `NativeFunction` is something which exposes a function in the embedded JavaScript environment which calls back into a
