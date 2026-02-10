@@ -399,65 +399,100 @@ mod tests {
         assert_snapshot!(system_prompt)
     }
 
+    struct TempEnvVar {
+        key: String,
+        original: Option<String>,
+    }
+
+    impl TempEnvVar {
+        fn set(key: &str, value: &str) -> Self {
+            let original = std::env::var(key).ok();
+            std::env::set_var(key, value);
+            Self {
+                key: key.to_string(),
+                original,
+            }
+        }
+
+        fn remove(key: &str) -> Self {
+            let original = std::env::var(key).ok();
+            std::env::remove_var(key);
+            Self {
+                key: key.to_string(),
+                original,
+            }
+        }
+    }
+
+    impl Drop for TempEnvVar {
+        fn drop(&mut self) {
+            match &self.original {
+                Some(val) => std::env::set_var(&self.key, val),
+                None => std::env::remove_var(&self.key),
+            }
+        }
+    }
+
     #[test]
+    #[serial_test::serial]
     fn test_critical_advisory_appended_to_prompt() {
-        std::env::set_var("CRITICAL_ADVISORY", "Do not access production databases");
+        let _env = TempEnvVar::set("CRITICAL_ADVISORY", "Do not access production databases");
         let manager = PromptManager::new();
         let result = manager.builder().build();
         assert!(result.ends_with("Critical Advisory: Do not access production databases"));
-        std::env::remove_var("CRITICAL_ADVISORY");
     }
 
     #[test]
+    #[serial_test::serial]
     fn test_critical_advisory_multiline_collapsed() {
-        std::env::set_var("CRITICAL_ADVISORY", "line one\nline two\nline three");
+        let _env = TempEnvVar::set("CRITICAL_ADVISORY", "line one\nline two\nline three");
         let manager = PromptManager::new();
         let result = manager.builder().build();
         assert!(result.ends_with("Critical Advisory: line one line two line three"));
-        std::env::remove_var("CRITICAL_ADVISORY");
     }
 
     #[test]
+    #[serial_test::serial]
     fn test_critical_advisory_empty_ignored() {
-        std::env::set_var("CRITICAL_ADVISORY", "  ");
+        let _env = TempEnvVar::set("CRITICAL_ADVISORY", "  ");
         let manager = PromptManager::new();
         let result = manager.builder().build();
         assert!(!result.contains("Critical Advisory"));
-        std::env::remove_var("CRITICAL_ADVISORY");
     }
 
     #[test]
+    #[serial_test::serial]
     fn test_critical_advisory_unset_ignored() {
-        std::env::remove_var("CRITICAL_ADVISORY");
+        let _env = TempEnvVar::remove("CRITICAL_ADVISORY");
         let manager = PromptManager::new();
         let result = manager.builder().build();
         assert!(!result.contains("Critical Advisory"));
     }
 
     #[test]
+    #[serial_test::serial]
     fn test_critical_advisory_python_none_ignored() {
-        std::env::set_var("CRITICAL_ADVISORY", "None");
+        let _env = TempEnvVar::set("CRITICAL_ADVISORY", "None");
         let manager = PromptManager::new();
         let result = manager.builder().build();
         assert!(!result.contains("Critical Advisory"));
-        std::env::remove_var("CRITICAL_ADVISORY");
     }
 
     #[test]
+    #[serial_test::serial]
     fn test_critical_advisory_js_undefined_ignored() {
-        std::env::set_var("CRITICAL_ADVISORY", "undefined");
+        let _env = TempEnvVar::set("CRITICAL_ADVISORY", "undefined");
         let manager = PromptManager::new();
         let result = manager.builder().build();
         assert!(!result.contains("Critical Advisory"));
-        std::env::remove_var("CRITICAL_ADVISORY");
     }
 
     #[test]
+    #[serial_test::serial]
     fn test_critical_advisory_null_ignored() {
-        std::env::set_var("CRITICAL_ADVISORY", "null");
+        let _env = TempEnvVar::set("CRITICAL_ADVISORY", "null");
         let manager = PromptManager::new();
         let result = manager.builder().build();
         assert!(!result.contains("Critical Advisory"));
-        std::env::remove_var("CRITICAL_ADVISORY");
     }
 }
