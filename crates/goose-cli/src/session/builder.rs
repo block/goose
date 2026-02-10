@@ -600,11 +600,7 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> CliSession {
     let recipe = session_config.recipe.as_ref();
 
     agent
-        .apply_recipe_components(
-            recipe.and_then(|r| r.sub_recipes.clone()),
-            recipe.and_then(|r| r.response.clone()),
-            true,
-        )
+        .apply_recipe_components(recipe.and_then(|r| r.response.clone()), true)
         .await;
 
     let new_provider = match create(&resolved.provider_name, resolved.model_config).await {
@@ -642,6 +638,17 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> CliSession {
             output::render_error(&format!("Failed to initialize agent: {}", e));
             process::exit(1);
         });
+
+    if let Some(recipe) = session_config.recipe.clone() {
+        if let Err(e) = session_manager
+            .update(&session_id)
+            .recipe(Some(recipe))
+            .apply()
+            .await
+        {
+            tracing::warn!("Failed to store recipe on session: {}", e);
+        }
+    }
 
     if session_config.resume {
         handle_resumed_session_workdir(&agent, &session_id, session_config.interactive).await;

@@ -72,3 +72,4 @@ result
 
 # Goose self-test artifacts
 gooseselftest/
+.tasks/

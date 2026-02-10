@@ -20,6 +20,8 @@ use std::sync::Arc;
 use tokio_util::sync::CancellationToken;
 use tracing::{debug, info};
 
+pub type OnMessageCallback = Arc<dyn Fn(&Message) + Send + Sync>;
+
 #[derive(Serialize)]
 pub struct SubagentPromptContext {
     pub max_turns: usize,
@@ -52,6 +54,39 @@ pub async fn run_complete_subagent_task(
     .await
 }
 
+pub async fn run_subagent_task_with_callback(
+    config: AgentConfig,
+    recipe: Recipe,
+    task_config: TaskConfig,
+    return_last_only: bool,
+    session_id: String,
+    cancellation_token: Option<CancellationToken>,
+    on_message: Option<OnMessageCallback>,
+) -> Result<String, anyhow::Error> {
+    let (messages, final_output) = get_agent_messages_with_callback(
+        config,
+        recipe,
+        task_config,
+        session_id,
+        cancellation_token,
+        on_message,
+    )
+    .await
+    .map_err(|e| {
+        ErrorData::new(
+            ErrorCode::INTERNAL_ERROR,
+            format!("Failed to execute task: {}", e),
+            None,
+        )
+    })?;
+
+    if let Some(output) = final_output {
+        return Ok(output);
+    }
+
+    Ok(extract_response_text(&messages, return_last_only))
+}
+
 pub async fn run_complete_subagent_task_with_notifications(
     config: AgentConfig,
     recipe: Recipe,
@@ -82,7 +117,11 @@ pub async fn run_complete_subagent_task_with_notifications(
         return Ok(output);
     }
 
-    let response_text = if return_last_only {
+    Ok(extract_response_text(&messages, return_last_only))
+}
+
+fn extract_response_text(messages: &Conversation, return_last_only: bool) -> String {
+    if return_last_only {
         messages
             .messages()
             .last()
@@ -133,12 +172,100 @@ pub async fn run_complete_subagent_task_with_notifications(
             .collect();
 
         all_text_content.join("\n")
-    };
-
-    Ok(response_text)
+    }
 }
 
 pub const SUBAGENT_TOOL_REQUEST_TYPE: &str = "subagent_tool_request";
+
+fn get_agent_messages_with_callback(
+    config: AgentConfig,
+    recipe: Recipe,
+    task_config: TaskConfig,
+    session_id: String,
+    cancellation_token: Option<CancellationToken>,
+    on_message: Option<OnMessageCallback>,
+) -> AgentMessagesFuture {
+    Box::pin(async move {
+        let system_instructions = recipe.instructions.clone().unwrap_or_default();
+        let user_task = recipe
+            .prompt
+            .clone()
+            .unwrap_or_else(|| "Begin.".to_string());
+
+        let agent = Arc::new(Agent::with_config(config));
+
+        agent
+            .update_provider(task_config.provider.clone(), &session_id)
+            .await
+            .map_err(|e| anyhow!("Failed to set provider on sub agent: {}", e))?;
+
+        for extension in &task_config.extensions {
+            if let Err(e) = agent.add_extension(extension.clone(), &session_id).await {
+                debug!(
+                    "Failed to add extension '{}' to subagent: {}",
+                    extension.name(),
+                    e
+                );
+            }
+        }
+
+        let has_response_schema = recipe.response.is_some();
+        agent
+            .apply_recipe_components(recipe.response.clone(), true)
+            .await;
+
+        let subagent_prompt =
+            build_subagent_prompt(&agent, &task_config, &session_id, system_instructions).await?;
+        agent.override_system_prompt(subagent_prompt).await;
+
+        let user_message = Message::user().with_text(user_task);
+        let mut conversation = Conversation::new_unvalidated(vec![user_message.clone()]);
+
+        if let Some(activities) = recipe.activities {
+            for activity in activities {
+                info!("Recipe activity: {}", activity);
+            }
+        }
+        let session_config = SessionConfig {
+            id: session_id.clone(),
+            schedule_id: None,
+            max_turns: task_config.max_turns.map(|v| v as u32),
+            retry_config: recipe.retry,
+        };
+
+        let mut stream =
+            crate::session_context::with_session_id(Some(session_id.to_string()), async {
+                agent
+                    .reply(user_message, session_config, cancellation_token)
+                    .await
+            })
+            .await
+            .map_err(|e| anyhow!("Failed to get reply from agent: {}", e))?;
+
+        while let Some(message_result) = stream.next().await {
+            match message_result {
+                Ok(AgentEvent::Message(msg)) => {
+                    if let Some(ref callback) = on_message {
+                        callback(&msg);
+                    }
+                    conversation.push(msg);
+                }
+                Ok(AgentEvent::McpNotification(_)) | Ok(AgentEvent::ModelChange { .. }) => {}
+                Ok(AgentEvent::HistoryReplaced(updated_conversation)) => {
+                    conversation = updated_conversation;
+                }
+                Err(e) => {
+                    tracing::error!("Error receiving message from subagent: {}", e);
+                    break;
+                }
+            }
+        }
+
+        let final_output = get_final_output(&agent, has_response_schema).await;
+
+        Ok((conversation, final_output))
+    })
+}
 
 fn get_agent_messages_with_notifications(
     config: AgentConfig,
@@ -174,7 +301,7 @@ fn get_agent_messages_with_notifications(
 
         let has_response_schema = recipe.response.is_some();
         agent
-            .apply_recipe_components(recipe.sub_recipes.clone(), recipe.response.clone(), true)
+            .apply_recipe_components(recipe.response.clone(), true)
             .await;
 
         let subagent_prompt =
