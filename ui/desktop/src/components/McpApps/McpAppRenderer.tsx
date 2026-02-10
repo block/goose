@@ -1,5 +1,6 @@
 import { AppRenderer } from '@mcp-ui/client';
 import type {
+  McpUiDisplayMode,
   McpUiHostContext,
   McpUiResourceCsp,
   McpUiResourcePermissions,
@@ -27,7 +28,7 @@ import {
 const DEFAULT_IFRAME_HEIGHT = 100;
 
 /** Display modes the host supports - apps can request to switch between these */
-const AVAILABLE_DISPLAY_MODES: string[] = ['inline'];
+const AVAILABLE_DISPLAY_MODES: McpUiDisplayMode[] = ['inline'];
 
 /**
  * Builds the URL for the MCP app sandbox proxy.
@@ -399,9 +400,9 @@ export default function McpAppRenderer({
       locale: navigator.language,
       timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
       userAgent: navigator.userAgent,
-      platform: 'web',
+      platform: 'desktop',
       deviceCapabilities: {
-        touch: false,
+        touch: navigator.maxTouchPoints > 0,
         hover: true,
       },
       safeAreaInsets: {
