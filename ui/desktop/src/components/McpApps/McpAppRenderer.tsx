@@ -404,8 +404,14 @@ export default function McpAppRenderer({
       // todo: toolInfo: {}
       theme: resolvedTheme,
       // todo:  styles: { variables: {}, styles: {}}
-      displayMode: displayMode === 'standalone' ? 'fullscreen' : displayMode, // should this be a currentDisplayMode?
-      availableDisplayModes: AVAILABLE_DISPLAY_MODES,
+      // 'standalone' is a Goose-specific display mode (dedicated Electron window)
+      // that extends the MCP spec's inline | fullscreen | pip modes.
+      // Apps in chat can only use inline (eventually fullscreen/pip).
+      // Apps in standalone windows cannot switch modes.
+      displayMode: displayMode as McpUiDisplayMode,
+      availableDisplayModes: displayMode === 'standalone'
+        ? [displayMode as McpUiDisplayMode]
+        : AVAILABLE_DISPLAY_MODES,
       // todo:  containerDimensions: {} (depends on displayMode)
       locale: navigator.language,
       timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
