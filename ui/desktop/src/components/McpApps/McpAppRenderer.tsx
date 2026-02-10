@@ -345,8 +345,8 @@ export default function McpAppRenderer({
   );
 
   /** Handles `ui/size-changed` - updates container dimensions when the MCP app resizes.
-   * - Height: always respected (with minimum of 0)
-   * - Width: if provided, container uses that width (capped at 100%); if not provided, container is fluid (100%) */
+   * - Height: non-positive values are ignored (keeps previous height)
+   * - Width: if provided, container uses that width (capped at 100%); if omitted or non-positive, container is fluid (100%) */
   const handleSizeChanged = useCallback(
     ({ height, width }: McpUiSizeChangedNotification['params']) => {
       if (height !== undefined && height > 0) {
