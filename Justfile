@@ -162,6 +162,16 @@ debug-ui-main-process:
 	npm install && \
 	npm run start-gui-debug
 
+# Package the desktop app locally for testing (macOS)
+# Applies ad-hoc code signing with entitlements (needed for mic access, etc.)
+package-ui:
+    @just release-binary
+    @echo "Packaging desktop app..."
+    cd ui/desktop && npm install && npm run package
+    @echo "Signing with entitlements..."
+    codesign --force --deep --sign - --entitlements ui/desktop/entitlements.plist ui/desktop/out/Goose-darwin-arm64/Goose.app
+    @echo "Done! Launch with: open ui/desktop/out/Goose-darwin-arm64/Goose.app"
+
 # Run UI with alpha changes
 run-ui-alpha:
     @just release-binary

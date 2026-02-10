@@ -16,8 +16,8 @@ const MIN_SPEECH_MS = 200;
 // without clipping early speech onsets. Determined empirically for 16kHz mono input.
 const RMS_THRESHOLD = 0.015;
 
-// The worklet file lives next to index.html. Resolve relative to the page
-// location so it works both on the dev server and under file:// in packaged builds.
+// Resolve worklet URL at runtime from window.location so it works under both
+// the dev server (http://localhost) and packaged builds (file://).
 const WORKLET_URL = new URL('audio-capture-worklet.js', window.location.href.split('#')[0]).href;
 
 function encodeWav(samples: Float32Array, sampleRate: number): ArrayBuffer {
