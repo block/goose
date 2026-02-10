@@ -127,7 +127,7 @@ pub static PLATFORM_EXTENSIONS: Lazy<HashMap<&'static str, PlatformExtensionDef>
                 display_name: "Top Of Mind",
                 description:
                     "Inject custom context into every turn via GOOSE_MOIM_MESSAGE_TEXT and GOOSE_MOIM_MESSAGE_FILE environment variables",
-                default_enabled: false,
+                default_enabled: true,
                 client_factory: |ctx| Box::new(tom_extension::TomClient::new(ctx).unwrap()),
             },
         );
