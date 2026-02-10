@@ -122,7 +122,7 @@ pub static PLATFORM_EXTENSIONS: Lazy<HashMap<&'static str, PlatformExtensionDef>
                 default_enabled: true,
                 unprefixed_tools: true,
                 client_factory: |ctx| {
-                    skills_extension::SkillsClient::new(ctx)
+                    summon_extension::SummonClient::new(ctx)
                         .ok()
                         .map(|client| Box::new(client) as Box<dyn McpClientTrait>)
                 },
@@ -155,7 +155,11 @@ pub static PLATFORM_EXTENSIONS: Lazy<HashMap<&'static str, PlatformExtensionDef>
                     "Inject custom context into every turn via GOOSE_MOIM_MESSAGE_TEXT and GOOSE_MOIM_MESSAGE_FILE environment variables",
                 default_enabled: true,
                 unprefixed_tools: false,
-                client_factory: |ctx| Box::new(tom_extension::TomClient::new(ctx).unwrap()),
+                client_factory: |ctx| {
+                    tom_extension::TomClient::new(ctx)
+                        .ok()
+                        .map(|client| Box::new(client) as Box<dyn McpClientTrait>)
+                },
             },
         );
 
