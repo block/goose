@@ -200,7 +200,11 @@ impl<'a> SystemPromptBuilder<'a, PromptManager> {
 
         if let Ok(advisory) = std::env::var("CRITICAL_ADVISORY") {
             let advisory = advisory.trim();
-            if !advisory.is_empty() {
+            if !advisory.is_empty()
+                && !advisory.eq_ignore_ascii_case("none")
+                && !advisory.eq_ignore_ascii_case("undefined")
+                && !advisory.eq_ignore_ascii_case("null")
+            {
                 let one_line = advisory.replace('\n', " ");
                 prompt = format!("{}\n\nCritical Advisory: {}", prompt, one_line);
             }
@@ -428,5 +432,32 @@ mod tests {
         let manager = PromptManager::new();
         let result = manager.builder().build();
         assert!(!result.contains("Critical Advisory"));
+    }
+
+    #[test]
+    fn test_critical_advisory_python_none_ignored() {
+        std::env::set_var("CRITICAL_ADVISORY", "None");
+        let manager = PromptManager::new();
+        let result = manager.builder().build();
+        assert!(!result.contains("Critical Advisory"));
+        std::env::remove_var("CRITICAL_ADVISORY");
+    }
+
+    #[test]
+    fn test_critical_advisory_js_undefined_ignored() {
+        std::env::set_var("CRITICAL_ADVISORY", "undefined");
+        let manager = PromptManager::new();
+        let result = manager.builder().build();
+        assert!(!result.contains("Critical Advisory"));
+        std::env::remove_var("CRITICAL_ADVISORY");
+    }
+
+    #[test]
+    fn test_critical_advisory_null_ignored() {
+        std::env::set_var("CRITICAL_ADVISORY", "null");
+        let manager = PromptManager::new();
+        let result = manager.builder().build();
+        assert!(!result.contains("Critical Advisory"));
+        std::env::remove_var("CRITICAL_ADVISORY");
     }
 }
