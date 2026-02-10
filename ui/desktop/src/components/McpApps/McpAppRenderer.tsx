@@ -286,6 +286,7 @@ export default function McpAppRenderer({
           return { type: 'text' as const, text: JSON.stringify(item) };
         }),
         isError: response.data?.is_error || false,
+        structuredContent: response.data?.structured_content as { [key: string]: unknown } | undefined,
       };
     },
     [sessionId, extensionName]
