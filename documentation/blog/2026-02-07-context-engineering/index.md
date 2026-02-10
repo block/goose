@@ -1,6 +1,6 @@
 ---
 title: "One Shot Prompting is Dead"
-description: "Welcome to the era of context engineering. Here's a practical look at how AI workflows are shifting from clever prompts to engineered systems."
+description: "Practical steps and mental models for building context engineered workflows instead of clever prompts."
 authors:
   - ebony
 ---
@@ -40,79 +40,101 @@ That’s a completely different problem, and now it has a name. **Context engine
 
 One shot prompting worked when agents were party tricks. You crafted a clever prompt, you got a clever answer, and by “clever answer” I mean a fully “working” app, so everyone clapped. But the moment we asked agents to plan, remember, call tools, and operate across multiple steps, the definition of “worked” fell apart.
 
-A single prompt stopped being a solution and became a bottleneck. What matters now isn’t the sentence you type. It’s the system that surrounds it.
-
-Once we started wanting deployable and repeatable workflows, the focus shifted to systems that could persist state, plan ahead, and enforce guardrails. Prompts became one small step inside a much larger pipeline.
+A single prompt stopped being a solution and became a bottleneck. What matters now isn’t the sentence you type. It’s the system that surrounds it. Prompts didn’t disappear, but they were demoted to one step inside a larger pipeline designed to hold state, plan ahead, and enforce guardrails.
 
 As someone put it in a thread I recently came across:
 
 > “The best model with bad context loses to an average model with great context.”
 
-That’s the shift in one line, context is now the advantage.
+That line explains the shift. Context is now the advantage.
 
+And this isn’t theoretical. You can see it in how serious agent systems are being built. Projects like [OpenClaw](https://openclaw.ai/) and [Ralph Wiggum loop](https://ghuntley.com/loop/) aren’t chasing clever phrasing. They’re designing environments where context persists, decisions accumulate, and agents can operate across time without resetting every session.
 
+The excitement around these systems isn’t just hype either. It’s relief. Builders have been hungry for real working examples that behave *predictably* over time.
 
----
-
-## We’re already living in the post prompt era
-
-This isn’t a prediction. It’s already happening.
-
-Patterns like [Ralph Wiggum loop](https://ghuntley.com/loop/), [OpenClaw](https://openclaw.ai/), and multi agent planning systems aren’t about clever wording. They’re about designing context pipelines that let agents think across steps.
-
-The reaction to these projects weren't just hype. Developers went **completely* feral over them because they were hungry for real examples of successful context engineering. Not prompt tricks but actual systems that held state, iterated, and behaved *predictably* across time.
-
-That excitement tells you where the energy is moving. Builders are asking for environments that scale. And once you start designing those environments, new concerns show up immediately, context pollution, memory drift, permission boundaries, security, governance, etc. Context engineering isn’t just about giving agents more power, it’s about deciding what they’re allowed to carry forward and what they’re not allowed to touch.
-
-That’s the shift, working with agents is becoming more architectural.
-
-You see the same philosophy showing up across the ecosystem. Stripe’s [end-to-end coding agents](https://stripe.dev/blog/minions-stripes-one-shot-end-to-end-coding-agents), Goose’s [skills](https://block.github.io/goose/docs/guides/context-engineering/using-skills/) and [recipes](https://block.github.io/goose/docs/guides/recipes/), and tools like [rp-why](https://block.github.io/goose/blog/2026/02/06/rp-why-skill) that analyze interaction patterns over time are all converging on the same idea. Success isn’t measured in prompts anymore, it’s measured in systems and how well you can orchestrate them.
-
-Developers are already sharing success stories with context engineering. My coworker, Rizel Scarlett, documented how she used [RPI to build a lightweight OpenClaw alternative](https://block.github.io/goose/blog/2026/02/06/rpi-openclaw-alternative) after the usual back and forth prompting led her to hit multiple context limits. Structured [research, planning, and implementation](https://block.github.io/goose/docs/tutorials/rpi/) gave her agent the ability to approach the project strategicly, appose to just responding.
-
-Once you see that, the next question isn’t philosophical anymore. It’s practical. What does building this way actually look like for me?
+Which leads to the only question that matters ....
 
 ---
 
-## What building inside this shift actually looks like
+## How do I actually do this?
 
-When I started building our skills marketplace, one shot prompting got messy fast. My normal flow of researching in one tool and implementing in another didn’t hold up. That’s what forced me to stop and experiment with RPI.
+When I started building our skills marketplace, one shot prompting alone couldn't cut it. My normal workflow involved researching in one place and implementing in another, and every time I switched tools I had to re-explain the same decisions. Context wasn’t living inside the system. It was living in my head. The agent would forget, I would remember, and the entire session became an exercise in rehydration instead of progress.
 
+That was the moment I experimented with RPI. Not because it was trendy, but because the alternative had become tedious.
 
-I didn’t adopt a new context engineering workflow because it was trendy. I adopted it because honestly the alternative became tedious. Once I committed to RPI, the friction disappeared. I repeated myself less. My agent made fewer mistakes. We stopped losing the plot halfway through the project. And I had research and planning docs I could actually read.
+You don’t have to adopt RPI, or any new pattern, tomorrow to benefit from this. You can simulate the shift in your next session with a small change in how you start.
 
-Because of that experience, I started applying the same approach to other projects too. I built a video workflow agent where the operational steps live inside the system through recipes, and skills. So as a team, we’re not carrying the process in our heads anymore, we can now focus on the creative direction of our videos instead of babysitting the workflow.
+Before you execute anything, put your agent in chat only mode and run this handoff.
+
+**Step 1: Align on the finish line**
+
+Tell the agent exactly what counts as done.
+
+> “We are shipping: ___  
+> Success looks like: ___”
+
+If the finish line feels fuzzy to you this is the time to flesh it out with your agent, if not your session will drift.
+
+**Step 2: Lock in non-negotiables**
+
+Define what is not up for debate.
+
+> “Constraints: ___  
+> Architecture we are committing to: ___ ”
+
+This prevents the classic agent spiral where it keeps trying to overengineer the project instead of building it.
+
+**Step 3: Capture persistent context**
+
+Write down the facts that must survive the session.
+
+> “Context that must persist:  
+> – ___  
+> – ___  
+> – ___”
+
+This is research, assumptions, domain knowledge, edge cases, terminology, anything your agent will need to pick up exactly where it left off.
+
+Now save it somewhere accessible:
+
+- a file in the project  
+- a context file (goosehints, Cursor rules, etc)
+- a memory extension   
+
+Anything that outlives the chat window.
+
+The rule is simple. Context should live in the system, not in your head.
 
 ---
 
 ## This is good news for people who think beyond code
 
-The interesting part is this shift isn’t just technical. There’s a quiet career implication hiding inside it. AI isn’t replacing engineers per se. It’s replacing the old workflows and fundamentals we’ve come to rely on.
+The interesting part is this shift isn’t just technical. It has a quiet career implication hiding inside it. AI isn’t replacing engineers. It’s replacing workflows that stop at “my code runs, so I’m done.” Context engineering rewards a different mindset, the ability to pick up all these different patterns and utilize them by thinking about how decisions propagate through a system, what persists, and what the downstream effects look like over time.
 
-The thought process being phased out, in my opinion, is the one that ends at “my code runs, so I’m done.” Context engineering rewards a different mindset. 
-
-We need to understand how a series of decisions propagate through a system and the different outcomes they create. That’s a mindset shift I’m actively working toward too, so I’d be remiss not to share it. We all need to be actively zooming out, seeing the bigger picture, and designing with downstream effects in mind.
+That’s a muscle I’m actively working on too. And the more I lean into it, the clearer the direction becomes.
 
 ---
 
-## The new skill isn’t prompting
+## The real skill is orchestration
 
-Prompting isn’t gone. It’s still useful for demos and bringing ideas to life quickly.
+We attended its funeral, but as you can see, prompting isn’t really gone. It just stopped being the workflow.
 
-But one shot prompting as a workflow has been demoted. The long term skill to master is understanding how information flows, what persists, what’s reusable, and what the agent is allowed to safely assume. In other words, mastering the orchestration of these systems.
+One shot prompting is still great for demos and exploration. But when the goal is building systems that last longer than a single session, the advantage shifts to how well you design the environment around the model.
 
-One shot prompting didn’t die because it failed. It died because we outgrew it.
+The people who thrive in this era won’t be the ones with the cleverest phrasing. They’ll be the ones who know how to orchestrate context so intelligence accumulates instead of resetting.
+
+And honestly, that’s progress.
 
 
 <head>
   <meta property="og:title" content="One Shot Prompting is Dead" />
   <meta property="og:type" content="article" />
   <meta property="og:url" content="https://block.github.io/goose/blog//2026/02/07/context-engineering" />
-  <meta property="og:description" content="Welcome to the era of context engineering. Here's a practical look at how AI workflows are shifting from clever prompts to engineered systems." />
+  <meta property="og:description" content="Practical steps and mental models for building context-engineered workflows instead of clever prompts." />
   <meta property="og:image" content="https://block.github.io/goose/assets/images/blogbanner-2fa90c93a49496447d38217739242dec.png" />
   <meta name="twitter:card" content="summary_large_image" />
   <meta property="twitter:domain" content="block.github.io/goose" />
   <meta name="twitter:title" content="One Shot Prompting is Dead" />
-  <meta name="twitter:description" content="Welcome to the era of context engineering. Here's a practical look at how AI workflows are shifting from clever prompts to engineered systems." />
+  <meta name="twitter:description" content="Practical steps and mental models for building context-engineered workflows instead of clever prompts.." />
   <meta name="twitter:image" content="https://block.github.io/goose/assets/images/blogbanner-2fa90c93a49496447d38217739242dec.png" />
 </head>
