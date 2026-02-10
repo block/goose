@@ -5,9 +5,9 @@ use super::{
 use async_trait::async_trait;
 use goose::config::PermissionManager;
 use sacp::schema::{
-    ContentBlock, InitializeRequest, NewSessionRequest, PromptRequest, ProtocolVersion,
-    RequestPermissionRequest, SessionNotification, SessionUpdate, StopReason, TextContent,
-    ToolCallStatus,
+    ContentBlock, InitializeRequest, NewSessionRequest, NewSessionResponse, PromptRequest,
+    ProtocolVersion, RequestPermissionRequest, SessionModelState, SessionNotification,
+    SessionUpdate, StopReason, TextContent, ToolCallStatus,
 };
 use sacp::{ClientToAgent, JrConnectionCx};
 use std::sync::{Arc, Mutex};
@@ -17,6 +17,7 @@ use tokio::sync::Notify;
 pub struct ClientToAgentSession {
     cx: JrConnectionCx<ClientToAgent>,
     session_id: sacp::schema::SessionId,
+    new_session_response: NewSessionResponse,
     updates: Arc<Mutex<Vec<SessionNotification>>>,
     permission: Arc<Mutex<PermissionDecision>>,
     notify: Arc<Notify>,
@@ -50,7 +51,7 @@ impl Session for ClientToAgentSession {
         let notify = Arc::new(Notify::new());
         let permission = Arc::new(Mutex::new(PermissionDecision::Cancel));
 
-        let (cx, session_id) = {
+        let (cx, session_id, new_session_response) = {
             let updates_clone = updates.clone();
             let notify_clone = notify.clone();
             let permission_clone = permission.clone();
@@ -60,9 +61,12 @@ impl Session for ClientToAgentSession {
                 Arc::new(Mutex::new(None));
             let session_id_holder: Arc<Mutex<Option<sacp::schema::SessionId>>> =
                 Arc::new(Mutex::new(None));
+            let response_holder: Arc<Mutex<Option<NewSessionResponse>>> =
+                Arc::new(Mutex::new(None));
 
             let cx_holder_clone = cx_holder.clone();
             let session_id_holder_clone = session_id_holder.clone();
+            let response_holder_clone = response_holder.clone();
 
             let (ready_tx, ready_rx) = tokio::sync::oneshot::channel();
 
@@ -109,7 +113,7 @@ impl Session for ClientToAgentSession {
                                 .unwrap();
 
                             let work_dir = tempfile::tempdir().unwrap();
-                            let session = cx
+                            let response = cx
                                 .send_request(
                                     NewSessionRequest::new(work_dir.path())
                                         .mcp_servers(mcp_servers),
@@ -119,7 +123,8 @@ impl Session for ClientToAgentSession {
                                 .unwrap();
 
                             *cx_holder.lock().unwrap() = Some(cx.clone());
-                            *session_id_holder.lock().unwrap() = Some(session.session_id);
+                            *session_id_holder.lock().unwrap() = Some(response.session_id.clone());
+                            *response_holder_clone.lock().unwrap() = Some(response);
                             let _ = ready_tx.send(());
 
                             std::future::pending::<Result<(), sacp::Error>>().await
@@ -136,12 +141,14 @@ impl Session for ClientToAgentSession {
 
             let cx = cx_holder.lock().unwrap().take().unwrap();
             let session_id = session_id_holder.lock().unwrap().take().unwrap();
-            (cx, session_id)
+            let new_session_response = response_holder.lock().unwrap().take().unwrap();
+            (cx, session_id, new_session_response)
         };
 
         Self {
             cx,
             session_id,
+            new_session_response,
             updates,
             permission,
             notify,
@@ -153,6 +160,10 @@ impl Session for ClientToAgentSession {
 
     fn id(&self) -> &sacp::schema::SessionId {
         &self.session_id
+    }
+
+    fn models(&self) -> Option<&SessionModelState> {
+        self.new_session_response.models.as_ref()
     }
 
     fn reset_openai(&self) {
@@ -194,6 +205,19 @@ impl Session for ClientToAgentSession {
         }
 
         TestOutput { text, tool_status }
+    }
+
+    // HACK: sacp doesn't support session/set_model yet, so we send it as untyped JSON.
+    async fn set_model(&self, model_id: &str) {
+        let msg = sacp::UntypedMessage::new(
+            "session/set_model",
+            serde_json::json!({
+                "sessionId": self.session_id.0,
+                "modelId": model_id
+            }),
+        )
+        .unwrap();
+        self.cx.send_request(msg).block_task().await.unwrap();
     }
 }
 

@@ -14,7 +14,12 @@ workspace = true
 name = "goose"
 path = "src/main.rs"
 
+[[bin]]
+name = "generate_manpages"
+path = "src/bin/generate_manpages.rs"
+
 [dependencies]
+clap_mangen = "0.2.31"
 goose = { path = "../goose" }
 goose-acp = { path = "../goose-acp" }
 goose-mcp = { path = "../goose-mcp" }
@@ -66,3 +71,4 @@ disable-update = []
 [dev-dependencies]
 tempfile = "3"
 tokio = { workspace = true }
+

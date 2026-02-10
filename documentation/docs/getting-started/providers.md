@@ -25,6 +25,7 @@ goose is compatible with a wide range of LLM providers, allowing you to choose a
 | [Amazon SageMaker TGI](https://docs.aws.amazon.com/sagemaker/latest/dg/realtime-endpoints.html) | Run Text Generation Inference models through Amazon SageMaker endpoints. **AWS credentials must be configured in advance.** | `SAGEMAKER_ENDPOINT_NAME`, `AWS_REGION` (optional), `AWS_PROFILE` (optional)  |
 | [Anthropic](https://www.anthropic.com/)                                     | Offers Claude, an advanced AI model for natural language tasks.                                                                                                                                                           | `ANTHROPIC_API_KEY`, `ANTHROPIC_HOST` (optional)                                                                                                                                                                 |
 | [Azure OpenAI](https://learn.microsoft.com/en-us/azure/ai-services/openai/) | Access Azure-hosted OpenAI models, including GPT-4 and GPT-3.5. Supports both API key and Azure credential chain authentication.                                                                                          | `AZURE_OPENAI_ENDPOINT`, `AZURE_OPENAI_DEPLOYMENT_NAME`, `AZURE_OPENAI_API_KEY` (optional)                                                                                           |
+| [ChatGPT Codex](https://chatgpt.com/codex) | Access GPT-5 Codex models optimized for code generation and understanding. **Requires a ChatGPT Plus/Pro subscription.** | No manual key. Uses browser-based OAuth authentication for both CLI and Desktop. |
 | [Databricks](https://www.databricks.com/)                                   | Unified data analytics and AI platform for building and deploying models.                                                                                                                                                 | `DATABRICKS_HOST`, `DATABRICKS_TOKEN` |
 | [Docker Model Runner](https://docs.docker.com/ai/model-runner/)                             | Local models running in Docker Desktop or Docker CE with OpenAI-compatible API endpoints. **Because this provider runs locally, you must first [download a model](#local-llms).**                     | `OPENAI_HOST`, `OPENAI_BASE_PATH`   |
 | [Gemini](https://ai.google.dev/gemini-api/docs)                             | Advanced LLMs by Google with multimodal capabilities (text, images).                                                                                                                                                      | `GOOGLE_API_KEY`                                                                                                                                                                    |
@@ -70,26 +71,41 @@ To configure your chosen provider, see available options, or select a model, vis
   <TabItem value="ui" label="goose Desktop" default>
   **First-time users:**
   
-  On the welcome screen the first time you open goose, you have three options:
-  - **Automatic setup with [Tetrate Agent Router](https://tetrate.io/products/tetrate-agent-router-service)**
-  - **Automatic Setup with [OpenRouter](https://openrouter.ai/)**
-  - **Other Providers**
+  On the welcome screen the first time you open goose, you have these options:
+  - **Quick Setup with API Key** - goose will automatically configure your provider based on your API key
+  - **[ChatGPT Subscription](https://chatgpt.com/codex)** - Sign in with your ChatGPT Plus/Pro credentials to access GPT-5 Codex models
+  - **[Agent Router by Tetrate](https://tetrate.io/products/tetrate-agent-router-service)** - Access multiple AI models with automatic setup
+  - **[OpenRouter](https://openrouter.ai/)** - Access 200+ models with one API using pay-per-use pricing
+  - **Other Providers** - Manually configure additional providers through settings
   <Tabs groupId="setup">
-    <TabItem value="tetrate" label="Tetrate Agent Router" default>
-    We recommend starting with Tetrate Agent Router. Tetrate provides access to multiple AI models with built-in rate limiting and automatic failover. 
+    <TabItem value="apikey" label="Quick Setup" default>
+    1. Choose `Quick Setup with API Key`.
+    2. Enter your API key from your provider (for example, OpenAI, Anthropic, or Google).
+    3. goose will automatically detect your provider and configure the connection.
+    4. When setup is complete, you're ready to begin your first session.
+    </TabItem>
+
+    <TabItem value="chatgpt" label="ChatGPT Subscription">
+    1. Choose `ChatGPT Subscription`.
+    2. goose will open a browser window for you to sign in with the credentials of your active ChatGPT Plus or Pro subscription.
+    3. Authorize goose to access your ChatGPT subscription.
+    4. When you return to goose Desktop, you're ready to begin your first session.
+    </TabItem>
+    <TabItem value="tetrate" label="Agent Router">
+    We recommend new users start with Agent Router by Tetrate. Tetrate provides access to multiple AI models with built-in rate limiting and automatic failover. 
 
     :::info Free Credits Offer
     You'll receive $10 in free credits the first time you automatically authenticate with Tetrate through goose. This offer is available to both new and existing Tetrate users.
     :::
-    1. Choose `Automatic setup with Tetrate Agent Router`. 
+    1. Choose `Agent Router by Tetrate`. 
     2. goose will open a browser window for you to authenticate with Tetrate, or create a new account if you don't have one already.
-    3. When you return to the goose desktop app, you're ready to begin your first session.
+    3. When you return to goose Desktop, you're ready to begin your first session.
     </TabItem>
 
     <TabItem value="openrouter" label="OpenRouter">
     1. Choose `Automatic setup with OpenRouter`. 
     2. goose will open a browser window for you to authenticate with OpenRouter, or create a new account if you don't have one already.
-    3. When you return to the goose desktop app, you're ready to begin your first session.
+    3. When you return to the goose Desktop, you're ready to begin your first session.
     </TabItem>
 
     <TabItem value="others" label="Other Providers">
@@ -355,8 +371,9 @@ Custom providers must use OpenAI, Anthropic, or Ollama compatible API formats. T
          - `Ollama Compatible`
        - **Display Name**: A friendly name for the provider
        - **API URL**: The base URL of the API endpoint
-       - **API Key**: The API key, which is accessed using a custom environment variable and stored in the keychain (or `secrets.yaml` if the keyring is disabled)
-         - For `Ollama Compatible` providers, click `This is a local model (no auth required)`
+       - **Authentication**:
+         - **API Key**: The API key, which is accessed using a custom environment variable and stored in the keychain (or `secrets.yaml` if the keyring is disabled)
+            - For providers that don't require authorization (e.g., local models like Ollama, vLLM, LM Studio, or internal APIs), uncheck the **"This provider requires an API key"** checkbox
        - **Available Models**: Comma-separated list of available model names
        - **Streaming Support**: Whether the API supports streaming responses (click to toggle)
     7. Click `Create Provider`
@@ -413,8 +430,9 @@ Custom providers must use OpenAI, Anthropic, or Ollama compatible API formats. T
          - `Ollama Compatible`
        - **Name**: A friendly name for the provider
        - **API URL**: The base URL of the API endpoint
-       - **API Key**: The API key, which is accessed using a custom environment variable and stored in the keychain (or `secrets.yaml` if the keyring is disabled)
-         - For `Ollama Compatible` providers, press `Enter` to skip (or enter any value to be able to use the provider in goose Desktop)
+       - **Authentication Required**: Answer "Yes" if your provider needs an API key, or "No" if authentication is not required
+         - If Yes: You'll be prompted to enter your **API Key** (stored securely in the keychain or `secrets.yaml`)
+         - If No: The API key prompt is skipped
        - **Available Models**: Comma-separated list of available model names
        - **Streaming Support**: Whether the API supports streaming responses
        - **Custom Headers**: Any additional header names and values
@@ -453,7 +471,8 @@ Custom providers must use OpenAI, Anthropic, or Ollama compatible API formats. T
         "x-origin-client-id": "YOUR_CLIENT_ID",
         "x-origin-secret": "YOUR_SECRET_VALUE"
       },
-      "supports_streaming": true
+      "supports_streaming": true,
+      "requires_auth": true
     }
     ```
 

@@ -114,12 +114,14 @@ goose works with [supported LLM providers](/docs/getting-started/providers) that
 
 <Tabs groupId="interface">
   <TabItem value="ui" label="goose Desktop" default>
-  On the welcome screen, you have three options:
-  - **Automatic setup with [Tetrate Agent Router](https://tetrate.io/products/tetrate-agent-router-service)**
-  - **Automatic Setup with [OpenRouter](https://openrouter.ai/)**
-  - **Other Providers**
+  On the welcome screen, you have these options:
+  - **Quick Setup with API Key** - goose will automatically configure your provider based on your API key
+  - **[ChatGPT Subscription](https://chatgpt.com/codex)** - Sign in with your ChatGPT Plus/Pro credentials to access GPT-5 Codex models
+  - **[Agent Router by Tetrate](https://tetrate.io/products/tetrate-agent-router-service)** - Access multiple AI models with automatic setup
+  - **[OpenRouter](https://openrouter.ai/)** - Access 200+ models with one API using pay-per-use pricing
+  - **Other Providers** - Manually configure additional providers through settings
 
-  For this quickstart, choose `Automatic setup with Tetrate Agent Router`. Tetrate provides access to multiple AI models with built-in rate limiting and automatic failover. For more information about OpenRouter or other providers, see [Configure LLM Provider](/docs/getting-started/providers).
+  For this quickstart, choose **Agent Router by Tetrate**. Tetrate provides access to multiple AI models with built-in rate limiting and automatic failover. For more information about other providers, see [Configure LLM Provider](/docs/getting-started/providers).
   
   goose will open a browser for you to authenticate with Tetrate, or create a new account if you don't have one already. When you return to the goose desktop app, you're ready to begin your first session.
       
@@ -157,13 +159,13 @@ goose works with [supported LLM providers](/docs/getting-started/providers) that
    │  Configure Providers 
    │
    ◆  Which model provider should we use?
-   │  ○ Anthropic
-   │  ○ Azure OpenAI 
    │  ○ Amazon Bedrock 
-   │  ○ Claude Code
-   │  ○ Codex CLI
-   │  ○ Databricks 
-   │  ○ Gemini CLI
+   │  ○ Amazon SageMaker TGI 
+   │  ○ Anthropic 
+   │  ○ Azure OpenAI 
+   │  ○ ChatGPT Codex 
+   │  ○ Claude Code CLI 
+   │  ○ ...
    |  ● Tetrate Agent Router Service (Enterprise router for AI models)
    │  ○ ...
    └  

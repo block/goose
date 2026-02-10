@@ -3,8 +3,8 @@ use common_tests::fixtures::initialize_agent;
 use common_tests::fixtures::run_test;
 use common_tests::fixtures::server::ClientToAgentSession;
 use common_tests::{
-    run_config_mcp, run_permission_persistence, run_prompt_basic, run_prompt_codemode,
-    run_prompt_image, run_prompt_mcp,
+    run_config_mcp, run_model_list, run_permission_persistence, run_prompt_basic,
+    run_prompt_codemode, run_prompt_image, run_prompt_mcp, run_set_model,
 };
 use goose::config::GooseMode;
 use goose::providers::provider_registry::ProviderConstructor;
@@ -14,6 +14,16 @@ use std::sync::Arc;
 #[test]
 fn test_config_mcp() {
     run_test(async { run_config_mcp::<ClientToAgentSession>().await });
+}
+
+#[test]
+fn test_model_list() {
+    run_test(async { run_model_list::<ClientToAgentSession>().await });
+}
+
+#[test]
+fn test_set_model() {
+    run_test(async { run_set_model::<ClientToAgentSession>().await });
 }
 
 #[test]
