@@ -135,15 +135,15 @@ export default function McpAppRenderer({
     if (!resource.html || sandboxUrlFetched) {
       return;
     }
-    setSandboxUrlFetched(true);
     const cspAtFetchTime = resource.csp;
     setSandboxCsp(cspAtFetchTime);
     fetchMcpAppProxyUrl(cspAtFetchTime).then((url) => {
       if (url) {
         setSandboxUrl(new URL(url));
       } else {
-        console.error('[McpAppRenderer] Failed to get sandbox URL');
+        setError('Failed to initialize sandbox proxy');
       }
+      setSandboxUrlFetched(true);
     });
   }, [resource.html, resource.csp, sandboxUrlFetched]);
 
