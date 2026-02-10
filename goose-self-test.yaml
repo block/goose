@@ -214,7 +214,7 @@ prompt: |
   
   ### Error Boundary Testing
   1. Create a file with an invalid path (should fail gracefully)
-  2. Run a non-existent shell command
+  2. Run a nonexistent shell command
   3. Try to analyze a binary file
   4. Test with extremely long filenames
   5. Test with nested directory creation beyond limits
