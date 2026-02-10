@@ -750,7 +750,7 @@ impl Config {
             .and_then(|v| Ok(serde_json::from_value(v.clone())?))
     }
 
-    /// Get secrets. If primary is in env, use env for all keys. Otherwise use secret storage.
+    /// Get secrets. If primary is in env, use env for all keys. Otherwise, use secret storage.
     pub fn get_secrets(
         &self,
         primary: &str,
