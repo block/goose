@@ -22,6 +22,7 @@ use super::{
     provider_registry::ProviderRegistry,
     sagemaker_tgi::SageMakerTgiProvider,
     snowflake::SnowflakeProvider,
+    tanzu::TanzuAIServicesProvider,
     tetrate::TetrateProvider,
     venice::VeniceProvider,
     xai::XaiProvider,
@@ -61,6 +62,7 @@ async fn init_registry() -> RwLock<ProviderRegistry> {
         registry.register::<OpenRouterProvider>(true);
         registry.register::<SageMakerTgiProvider>(false);
         registry.register::<SnowflakeProvider>(false);
+        registry.register::<TanzuAIServicesProvider>(false);
         registry.register::<TetrateProvider>(true);
         registry.register::<VeniceProvider>(false);
         registry.register::<XaiProvider>(false);
