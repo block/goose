@@ -295,21 +295,12 @@ export default function McpAppRenderer({
         },
       });
 
-      const content = response.data?.content || [];
+      // The server (rmcp) serializes Content with a `type` discriminator
+      // (e.g. "text", "image", "audio", "resource", "resource_link") via
+      // #[serde(tag = "type")]. Our generated TS types don't reflect this,
+      // but the wire format already matches CallToolResult.content.
       return {
-        content: content.map((item) => {
-          if ('text' in item && item.text !== undefined) {
-            return { type: 'text' as const, text: item.text };
-          }
-          if ('data' in item && item.data !== undefined) {
-            return {
-              type: 'image' as const,
-              data: item.data,
-              mimeType: item.mimeType || 'image/png',
-            };
-          }
-          return { type: 'text' as const, text: JSON.stringify(item) };
-        }),
+        content: (response.data?.content || []) as unknown as CallToolResult['content'],
         isError: response.data?.is_error || false,
         structuredContent: response.data?.structured_content as { [key: string]: unknown } | undefined,
       };
@@ -435,17 +426,12 @@ export default function McpAppRenderer({
     return context;
   }, [resolvedTheme, displayMode]);
 
-  // Transform our ToolResult to the SDK's CallToolResult format.
-  // Our API types (RawTextContent, RawImageContent) lack the `type` discriminator
-  // that CallToolResult requires, so we map them to the expected shape.
+  // The server serializes content with a `type` discriminator that matches
+  // CallToolResult.content, so we pass through without re-mapping.
   const appToolResult = useMemo((): CallToolResult | undefined => {
     if (!toolResult) return undefined;
     return {
-      content: toolResult.content.map((item) => {
-        if ('text' in item) return { type: 'text' as const, text: item.text };
-        if ('data' in item) return { type: 'image' as const, data: item.data, mimeType: item.mimeType };
-        return { type: 'text' as const, text: JSON.stringify(item) };
-      }),
+      content: toolResult.content as unknown as CallToolResult['content'],
       structuredContent: toolResult.structuredContent as { [key: string]: unknown } | undefined,
     };
   }, [toolResult]);
