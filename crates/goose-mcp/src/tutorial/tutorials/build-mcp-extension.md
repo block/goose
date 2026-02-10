@@ -393,7 +393,7 @@ When users encounter issues:
    - Use ripgrep to find specific examples within the reference
    - Reference real implementations rather than making assumptions
 
-4. When building the project, if any compliation or type issues occur, _always_ check the reference SDK before making a fix.
+4. When building the project, if any compilation or type issues occur, _always_ check the reference SDK before making a fix.
 
 5. When helping with implementations:
 
