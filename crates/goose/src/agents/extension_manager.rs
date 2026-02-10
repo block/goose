@@ -199,10 +199,12 @@ pub fn get_parameter_names(tool: &Tool) -> Vec<String> {
     names
 }
 
+const TOOL_EXTENSION_META_KEY: &str = "goose_extension";
+
 pub fn get_tool_owner(tool: &Tool) -> Option<String> {
     tool.meta
         .as_ref()
-        .and_then(|m| m.0.get("goose_extension"))
+        .and_then(|m| m.0.get(TOOL_EXTENSION_META_KEY))
         .and_then(|v| v.as_str())
         .map(|s| s.to_string())
 }
@@ -913,7 +915,7 @@ impl ExtensionManager {
                                 .map(|m| m.0.clone())
                                 .unwrap_or_default();
                             meta_map.insert(
-                                "goose_extension".to_string(),
+                                TOOL_EXTENSION_META_KEY.to_string(),
                                 serde_json::Value::String(name.clone()),
                             );
 
