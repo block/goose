@@ -116,9 +116,9 @@ goose works with [supported LLM providers](/docs/getting-started/providers) that
   <TabItem value="ui" label="goose Desktop" default>
   On the welcome screen, you have these options:
   - **Quick Setup with API Key** - goose will automatically configure your provider based on your API key
-  - **ChatGPT Subscription** - Sign in with your ChatGPT Plus/Pro credentials to access GPT-5 Codex models
-  - **Agent Router by Tetrate** - Access multiple AI models with automatic setup
-  - **OpenRouter** - Access 200+ models with one API using pay-per-use pricing
+  - **[ChatGPT Subscription](https://chatgpt.com/codex)** - Sign in with your ChatGPT Plus/Pro credentials to access GPT-5 Codex models
+  - **[Agent Router by Tetrate](https://tetrate.io/products/tetrate-agent-router-service)** - Access multiple AI models with automatic setup
+  - **[OpenRouter](https://openrouter.ai/)** - Access 200+ models with one API using pay-per-use pricing
   - **Other Providers** - Manually configure additional providers through settings
 
   For this quickstart, choose **Agent Router by Tetrate**. Tetrate provides access to multiple AI models with built-in rate limiting and automatic failover. For more information about other providers, see [Configure LLM Provider](/docs/getting-started/providers).
