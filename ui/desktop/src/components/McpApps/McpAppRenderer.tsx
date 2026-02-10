@@ -2,6 +2,7 @@ import { AppRenderer } from '@mcp-ui/client';
 import type {
   McpUiHostContext,
   McpUiResourceCsp,
+  McpUiResourcePermissions,
   McpUiSizeChangedNotification,
 } from '@modelcontextprotocol/ext-apps/app-bridge';
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
@@ -171,7 +172,7 @@ export default function McpAppRenderer({
             | {
                 ui?: {
                   csp?: CspMetadata;
-                  permissions?: { sandbox?: string };
+                  permissions?: McpUiResourcePermissions;
                   prefersBorder?: boolean;
                 };
               }
@@ -181,7 +182,12 @@ export default function McpAppRenderer({
             setResource({
               html: content.text,
               csp: meta?.ui?.csp || null,
-              permissions: meta?.ui?.permissions?.sandbox || null,
+              // Per the ext-apps spec, _meta.ui.permissions is McpUiResourcePermissions
+              // (camera, microphone, etc.) used to build the iframe Permission Policy
+              // `allow` attribute. The @mcp-ui/client SDK does not yet forward these
+              // via sendSandboxResourceReady — tracked in:
+              // https://github.com/MCP-UI-Org/mcp-ui/issues/180
+              permissions: null,
               prefersBorder: meta?.ui?.prefersBorder ?? true,
             });
           }
