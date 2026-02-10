@@ -188,7 +188,7 @@ impl<'a> SystemPromptBuilder<'a, PromptManager> {
             .map(|extra| sanitize_unicode_tags(&extra))
             .collect();
 
-        if sanitized_system_prompt_extras.is_empty() {
+        let mut prompt = if sanitized_system_prompt_extras.is_empty() {
             base_prompt
         } else {
             format!(
@@ -196,7 +196,17 @@ impl<'a> SystemPromptBuilder<'a, PromptManager> {
                 base_prompt,
                 sanitized_system_prompt_extras.join("\n\n")
             )
+        };
+
+        if let Ok(advisory) = std::env::var("CRITICAL_ADVISORY") {
+            let advisory = advisory.trim();
+            if !advisory.is_empty() {
+                let one_line = advisory.replace('\n', " ");
+                prompt = format!("{}\n\nCritical Advisory: {}", prompt, one_line);
+            }
         }
+
+        prompt
     }
 }
 
@@ -383,5 +393,40 @@ mod tests {
             .build();
 
         assert_snapshot!(system_prompt)
+    }
+
+    #[test]
+    fn test_critical_advisory_appended_to_prompt() {
+        std::env::set_var("CRITICAL_ADVISORY", "Do not access production databases");
+        let manager = PromptManager::new();
+        let result = manager.builder().build();
+        assert!(result.ends_with("Critical Advisory: Do not access production databases"));
+        std::env::remove_var("CRITICAL_ADVISORY");
+    }
+
+    #[test]
+    fn test_critical_advisory_multiline_collapsed() {
+        std::env::set_var("CRITICAL_ADVISORY", "line one\nline two\nline three");
+        let manager = PromptManager::new();
+        let result = manager.builder().build();
+        assert!(result.ends_with("Critical Advisory: line one line two line three"));
+        std::env::remove_var("CRITICAL_ADVISORY");
+    }
+
+    #[test]
+    fn test_critical_advisory_empty_ignored() {
+        std::env::set_var("CRITICAL_ADVISORY", "  ");
+        let manager = PromptManager::new();
+        let result = manager.builder().build();
+        assert!(!result.contains("Critical Advisory"));
+        std::env::remove_var("CRITICAL_ADVISORY");
+    }
+
+    #[test]
+    fn test_critical_advisory_unset_ignored() {
+        std::env::remove_var("CRITICAL_ADVISORY");
+        let manager = PromptManager::new();
+        let result = manager.builder().build();
+        assert!(!result.contains("Critical Advisory"));
     }
 }
