@@ -228,6 +228,7 @@ These variables control how goose manages conversation sessions and context.
 | `GOOSE_RANDOM_THINKING_MESSAGES` | Controls whether to show amusing random messages during processing | "true", "false" | "true" |
 | `GOOSE_CLI_SHOW_COST` | Toggles display of model cost estimates in CLI output | "true", "1" (case insensitive) to enable | false |
 | `GOOSE_AUTO_COMPACT_THRESHOLD` | Set the percentage threshold at which goose [automatically summarizes your session](/docs/guides/sessions/smart-context-management#automatic-compaction). | Float between 0.0 and 1.0 (disabled at 0.0) | 0.8 |
+| `GOOSE_TOOL_CALL_CUTOFF` | Number of tool calls to keep in full detail before summarizing older tool outputs to help maintain efficient context usage  | Integer (e.g., 5, 10, 20) | 10 |
 
 **Examples**
 
@@ -271,6 +272,9 @@ export GOOSE_CLI_SHOW_COST=true
 
 # Automatically compact sessions when 60% of available tokens are used
 export GOOSE_AUTO_COMPACT_THRESHOLD=0.6
+
+# Keep more tool calls in full detail (useful for debugging or verbose workflows)
+export GOOSE_TOOL_CALL_CUTOFF=20
 ```
 
 ### Model Context Limit Overrides
