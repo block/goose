@@ -46,7 +46,7 @@ already have one. This includes any necessary build tools or dependencies.
 - Always check the reference SDK for typing and correct usage
 - Python: Initialize a project using `uv init $PROJECT NAME`
 - Python: Use `uv add` for all python package management, to keep `pyproject.toml` up to date
-- Typescript: Initialize a project using `npm init -y`
+- TypeScript: Initialize a project using `npm init -y`
 - Kotlin: Use the following `gradle init` command to initialize:
   ```bash
     gradle init \
