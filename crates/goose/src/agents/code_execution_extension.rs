@@ -55,11 +55,12 @@ impl CodeExecutionClient {
         let info = InitializeResult {
             protocol_version: ProtocolVersion::V_2025_03_26,
             capabilities: ServerCapabilities {
-                tasks: None,
                 tools: Some(ToolsCapability {
                     list_changed: Some(false),
                 }),
+                tasks: None,
                 resources: None,
+                extensions: None,
                 prompts: None,
                 completions: None,
                 experimental: None,
@@ -67,6 +68,7 @@ impl CodeExecutionClient {
             },
             server_info: Implementation {
                 name: EXTENSION_NAME.to_string(),
+                description: None,
                 title: Some("Code Mode".to_string()),
                 version: "1.0.0".to_string(),
                 icons: None,

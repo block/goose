@@ -418,6 +418,7 @@ impl ServerHandler for DeveloperServer {
                 name: "goose-developer".to_string(),
                 version: env!("CARGO_PKG_VERSION").to_owned(),
                 title: None,
+                description: None,
                 icons: None,
                 website_url: None,
             },
