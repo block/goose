@@ -1,6 +1,6 @@
 ---
 title: "One Shot Prompting is Dead - The Era of Context Engineering"
-description: "One-shot prompting isn’t the future. Context engineering is. A practical look at how AI workflows are shifting from clever prompts to engineered systems."
+description: "A practical look at how AI workflows are shifting from clever prompts to engineered systems."
 authors:
   - ebony
 ---
@@ -108,11 +108,11 @@ One-shot prompting didn’t die because it failed. It died because we outgrew it
   <meta property="og:title" content="One Shot Prompting is Dead - The Era of Context Engineering" />
   <meta property="og:type" content="article" />
   <meta property="og:url" content="https://block.github.io/goose/blog//2026/02/07/context-engineering" />
-  <meta property="og:description" content="One-shot prompting isn’t the future. Context engineering is. A practical look at how AI workflows are shifting from clever prompts to engineered systems." />
+  <meta property="og:description" content="A practical look at how AI workflows are shifting from clever prompts to engineered systems." />
   <meta property="og:image" content="https://block.github.io/goose/assets/images/blogbanner-2fa90c93a49496447d38217739242dec.png" />
   <meta name="twitter:card" content="summary_large_image" />
   <meta property="twitter:domain" content="block.github.io/goose" />
   <meta name="twitter:title" content="One Shot Prompting is Dead - The Era of Context Engineering" />
-  <meta name="twitter:description" content="One-shot prompting isn’t the future. Context engineering is. A practical look at how AI workflows are shifting from clever prompts to engineered systems." />
+  <meta name="twitter:description" content="A practical look at how AI workflows are shifting from clever prompts to engineered systems." />
   <meta name="twitter:image" content="https://block.github.io/goose/assets/images/blogbanner-2fa90c93a49496447d38217739242dec.png" />
 </head>
