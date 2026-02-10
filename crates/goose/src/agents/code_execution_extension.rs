@@ -7,7 +7,7 @@ use pctx_code_mode::model::{CallbackConfig, ExecuteInput, GetFunctionDetailsInpu
 use pctx_code_mode::{CallbackRegistry, CodeMode};
 use rmcp::model::{
     CallToolRequestParams, CallToolResult, Content, Implementation, InitializeResult, JsonObject,
-    ListToolsResult, ProtocolVersion, RawContent, ServerCapabilities, Tool as McpTool,
+    ListToolsResult, ProtocolVersion, RawContent, Role, ServerCapabilities, Tool as McpTool,
     ToolAnnotations, ToolsCapability,
 };
 use schemars::{schema_for, JsonSchema};
@@ -270,9 +270,16 @@ fn create_tool_callback(
                         if let Some(sc) = &result.structured_content {
                             Ok(serde_json::to_value(sc).unwrap_or(Value::Null))
                         } else {
+                            // Filter to assistant-audience or no-audience content,
+                            // skipping user-only content to avoid duplicated output
                             let text: String = result
                                 .content
                                 .iter()
+                                .filter(|c| {
+                                    c.audience().is_none_or(|audiences| {
+                                        audiences.is_empty() || audiences.contains(&Role::Assistant)
+                                    })
+                                })
                                 .filter_map(|c| match &c.raw {
                                     RawContent::Text(t) => Some(t.text.clone()),
                                     _ => None,
