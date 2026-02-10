@@ -38,6 +38,16 @@ adewale:
     x: ace_kyd
     github: acekyd
 
+debbie:
+  name: Debbie O'brien
+  title: Staff Developer Advocate
+  image_url: https://avatars.githubusercontent.com/u/13063165?v=4
+  page: true
+  socials:
+    x: debs_obrien
+    linkedin: debbie-obrien
+    github: debs-obrien
+
 dalton:
   name: Dalton Turner
   title: Software Engineer
@@ -211,6 +221,6 @@ matt:
 
 dakota:
   name: Dakota Fabro
-  description: Software Engineer, Engineering Fellowship
-  avatar: https://avatars.githubusercontent.com/u/148207179?v=4
+  title: Software Engineer, Engineering Fellowship
+  image_url: https://avatars.githubusercontent.com/u/80979850?v=4
 
