@@ -53,45 +53,6 @@ pub struct CodexProvider {
 }
 
 impl CodexProvider {
-    pub async fn from_env(model: ModelConfig) -> Result<Self> {
-        let config = Config::global();
-        let command: String = config.get_codex_command().unwrap_or_default().into();
-        let resolved_command = SearchPaths::builder().with_npm().resolve(&command)?;
-
-        // Get reasoning effort from config, default to "high"
-        let reasoning_effort = config
-            .get_codex_reasoning_effort()
-            .map(String::from)
-            .unwrap_or_else(|_| "high".to_string());
-
-        // Validate reasoning effort
-        let reasoning_effort =
-            if Self::supports_reasoning_effort(&model.model_name, &reasoning_effort) {
-                reasoning_effort
-            } else {
-                tracing::warn!(
-                    "Invalid CODEX_REASONING_EFFORT '{}' for model '{}', using 'high'",
-                    reasoning_effort,
-                    model.model_name
-                );
-                "high".to_string()
-            };
-
-        // Get skip_git_check from config, default to false
-        let skip_git_check = config
-            .get_codex_skip_git_check()
-            .map(|s| s.to_lowercase() == "true")
-            .unwrap_or(false);
-
-        Ok(Self {
-            command: resolved_command,
-            model,
-            name: CODEX_PROVIDER_NAME.to_string(),
-            reasoning_effort,
-            skip_git_check,
-        })
-    }
-
     fn supports_reasoning_effort(model_name: &str, reasoning_effort: &str) -> bool {
         if !CODEX_REASONING_LEVELS.contains(&reasoning_effort) {
             return false;
@@ -600,7 +561,44 @@ impl ProviderDef for CodexProvider {
     }
 
     fn from_env(model: ModelConfig) -> BoxFuture<'static, Result<Self::Provider>> {
-        Box::pin(Self::from_env(model))
+        Box::pin(async move {
+            let config = Config::global();
+            let command: String = config.get_codex_command().unwrap_or_default().into();
+            let resolved_command = SearchPaths::builder().with_npm().resolve(command)?;
+
+            // Get reasoning effort from config, default to "high"
+            let reasoning_effort = config
+                .get_codex_reasoning_effort()
+                .map(String::from)
+                .unwrap_or_else(|_| "high".to_string());
+
+            // Validate reasoning effort
+            let reasoning_effort =
+                if Self::supports_reasoning_effort(&model.model_name, &reasoning_effort) {
+                    reasoning_effort
+                } else {
+                    tracing::warn!(
+                        "Invalid CODEX_REASONING_EFFORT '{}' for model '{}', using 'high'",
+                        reasoning_effort,
+                        model.model_name
+                    );
+                    "high".to_string()
+                };
+
+            // Get skip_git_check from config, default to false
+            let skip_git_check = config
+                .get_codex_skip_git_check()
+                .map(|s| s.to_lowercase() == "true")
+                .unwrap_or(false);
+
+            Ok(Self {
+                command: resolved_command,
+                model,
+                name: CODEX_PROVIDER_NAME.to_string(),
+                reasoning_effort,
+                skip_git_check,
+            })
+        })
     }
 }
 

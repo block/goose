@@ -7,6 +7,8 @@ use goose::providers::anthropic::ANTHROPIC_DEFAULT_MODEL;
 use goose::providers::azure::AZURE_DEFAULT_MODEL;
 use goose::providers::base::Provider;
 use goose::providers::bedrock::BEDROCK_DEFAULT_MODEL;
+use goose::providers::claude_code::CLAUDE_CODE_DEFAULT_MODEL;
+use goose::providers::codex::CODEX_DEFAULT_MODEL;
 use goose::providers::create_with_named_model;
 use goose::providers::databricks::DATABRICKS_DEFAULT_MODEL;
 use goose::providers::errors::ProviderError;
@@ -89,6 +91,7 @@ struct ProviderTester {
     provider: Arc<dyn Provider>,
     name: String,
     extension_manager: Arc<ExtensionManager>,
+    is_cli_provider: bool,
 }
 
 impl ProviderTester {
@@ -96,18 +99,20 @@ impl ProviderTester {
         provider: Arc<dyn Provider>,
         name: String,
         extension_manager: Arc<ExtensionManager>,
+        is_cli_provider: bool,
     ) -> Self {
         Self {
             provider,
             name,
             extension_manager,
+            is_cli_provider,
         }
     }
 
-    async fn tool_roundtrip(&self, prompt: &str) -> Result<Message> {
+    async fn tool_roundtrip(&self, prompt: &str, session_id: &str) -> Result<Message> {
         let tools = self
             .extension_manager
-            .get_prefixed_tools(TEST_SESSION_ID, None)
+            .get_prefixed_tools(session_id, None)
             .await
             .expect("get_prefixed_tools failed");
 
@@ -120,20 +125,22 @@ impl ProviderTester {
         let message = Message::user().with_text(prompt);
         let (response1, _) = self
             .provider
-            .complete(
-                TEST_SESSION_ID,
-                &system,
-                std::slice::from_ref(&message),
-                &tools,
-            )
+            .complete(session_id, &system, std::slice::from_ref(&message), &tools)
             .await?;
 
+        // Agentic CLI providers (claude-code, codex) call tools internally and
+        // return the final text result directly — no tool_request in the response.
         let tool_req = response1
             .content
             .iter()
             .filter_map(|c| c.as_tool_request())
-            .next_back()
-            .expect("Expected provider to return a tool request");
+            .next_back();
+
+        let tool_req = match tool_req {
+            Some(req) => req,
+            None => return Ok(response1),
+        };
+
         let params = tool_req
             .tool_call
             .as_ref()
@@ -141,7 +148,7 @@ impl ProviderTester {
             .clone();
         let result = self
             .extension_manager
-            .dispatch_tool_call(TEST_SESSION_ID, params, None, CancellationToken::new())
+            .dispatch_tool_call(session_id, params, None, CancellationToken::new())
             .await
             .expect("dispatch failed")
             .result
@@ -152,7 +159,7 @@ impl ProviderTester {
         let (response2, _) = self
             .provider
             .complete(
-                TEST_SESSION_ID,
+                session_id,
                 &system,
                 &[message, response1, tool_response],
                 &tools,
@@ -161,17 +168,12 @@ impl ProviderTester {
         Ok(response2)
     }
 
-    async fn test_basic_response(&self) -> Result<()> {
+    async fn test_basic_response(&self, session_id: &str) -> Result<()> {
         let message = Message::user().with_text("Just say hello!");
 
         let (response, _) = self
             .provider
-            .complete(
-                TEST_SESSION_ID,
-                "You are a helpful assistant.",
-                &[message],
-                &[],
-            )
+            .complete(session_id, "You are a helpful assistant.", &[message], &[])
             .await?;
 
         assert_eq!(
@@ -185,21 +187,33 @@ impl ProviderTester {
             "Expected text response"
         );
 
-        Ok(())
-    }
-
-    async fn test_tool_usage(&self) -> Result<()> {
-        let response = self
-            .tool_roundtrip("Use the get_code tool and output only its result.")
-            .await?;
-        assert!(
-            response.as_concat_text().contains(FAKE_CODE),
-            "Expected lookup code in final response"
+        println!(
+            "=== {}::basic_response === {}",
+            self.name,
+            response.as_concat_text()
         );
         Ok(())
     }
 
-    async fn test_context_length_exceeded_error(&self) -> Result<()> {
+    async fn test_tool_usage(&self, session_id: &str) -> Result<()> {
+        let response = self
+            .tool_roundtrip(
+                "Use the get_code tool and output only its result.",
+                session_id,
+            )
+            .await?;
+        let text = response.as_concat_text();
+        assert!(
+            text.contains(FAKE_CODE),
+            "Expected lookup code '{}' in final response, got: {}",
+            FAKE_CODE,
+            text
+        );
+        println!("=== {}::tool_usage === {}", self.name, text);
+        Ok(())
+    }
+
+    async fn test_context_length_exceeded_error(&self, session_id: &str) -> Result<()> {
         let large_message_content = if self.name.to_lowercase() == "google" {
             "hello ".repeat(1_300_000)
         } else {
@@ -220,19 +234,17 @@ impl ProviderTester {
 
         let result = self
             .provider
-            .complete(
-                TEST_SESSION_ID,
-                "You are a helpful assistant.",
-                &messages,
-                &[],
-            )
+            .complete(session_id, "You are a helpful assistant.", &messages, &[])
             .await;
 
         println!("=== {}::context_length_exceeded_error ===", self.name);
         dbg!(&result);
         println!("===================");
 
-        if self.name.to_lowercase() == "ollama" || self.name.to_lowercase() == "openrouter" {
+        let name_lower = self.name.to_lowercase();
+        if name_lower == "ollama" || name_lower == "openrouter" {
+            // These providers handle context overflow internally: ollama and
+            // openrouter truncate or have large windows.
             assert!(
                 result.is_ok(),
                 "Expected to succeed because of default truncation or large context window"
@@ -252,9 +264,12 @@ impl ProviderTester {
         Ok(())
     }
 
-    async fn test_image_content_support(&self) -> Result<()> {
+    async fn test_image_content_support(&self, session_id: &str) -> Result<()> {
         let response = self
-            .tool_roundtrip("Use the get_image tool and describe what you see in its result.")
+            .tool_roundtrip(
+                "Use the get_image tool and describe what you see in its result.",
+                session_id,
+            )
             .await?;
         let text = response.as_concat_text().to_lowercase();
         assert!(
@@ -262,6 +277,7 @@ impl ProviderTester {
             "Expected response to describe the test image, got: {}",
             text
         );
+        println!("=== {}::image_content === {}", self.name, text);
         Ok(())
     }
 
@@ -274,24 +290,40 @@ impl ProviderTester {
 
         assert!(!models.is_empty(), "Expected non-empty model list");
         let model_name = &self.provider.get_model_config().model_name;
-        // Some providers (e.g. Ollama) return names with tags like "qwen3:latest"
-        // while the configured model name may be just "qwen3".
+        // Model names may not match exactly: Ollama adds tags like "qwen3:latest",
+        // and CLI providers like claude-code use aliases (e.g. "sonnet") that are
+        // substrings of full model names (e.g. "claude-sonnet-4-5-20250929").
         assert!(
             models
                 .iter()
-                .any(|m| m == model_name || m.starts_with(&format!("{}:", model_name))),
+                .any(|m| m == model_name || m.contains(model_name) || model_name.contains(m)),
             "Expected model '{}' in supported models",
             model_name
         );
         Ok(())
     }
 
+    fn session_id_for_test(&self, test_name: &str) -> String {
+        if self.is_cli_provider {
+            format!("test_{}", test_name)
+        } else {
+            TEST_SESSION_ID.to_string()
+        }
+    }
+
     async fn run_test_suite(&self) -> Result<()> {
         self.test_model_listing().await?;
-        self.test_basic_response().await?;
-        self.test_tool_usage().await?;
-        self.test_context_length_exceeded_error().await?;
-        self.test_image_content_support().await?;
+        self.test_basic_response(&self.session_id_for_test("basic_response"))
+            .await?;
+        // TODO: remove skip in https://github.com/block/goose/pull/6972
+        if !self.is_cli_provider {
+            self.test_tool_usage(&self.session_id_for_test("tool_usage"))
+                .await?;
+            self.test_image_content_support(&self.session_id_for_test("image_content"))
+                .await?;
+        }
+        self.test_context_length_exceeded_error(&self.session_id_for_test("context_length"))
+            .await?;
         Ok(())
     }
 }
@@ -307,6 +339,8 @@ async fn test_provider(
     model_name: &str,
     required_vars: &[&str],
     env_modifications: Option<HashMap<&str, Option<String>>>,
+    // CLI providers cannot propagate the agent-session-id header to MCP servers.
+    is_cli_provider: bool,
 ) -> Result<()> {
     TEST_REPORT.record_fail(name);
 
@@ -350,10 +384,19 @@ async fn test_provider(
         original_env
     };
 
-    let expected_session_id = ExpectedSessionId::default();
     let provider_name = name.to_lowercase();
-    let mcp = McpFixture::new(Some(expected_session_id.clone())).await;
-    expected_session_id.set(TEST_SESSION_ID);
+    let expected_session_id = if is_cli_provider {
+        None
+    } else {
+        Some(ExpectedSessionId::default())
+    };
+    let mcp = McpFixture::new(expected_session_id.clone()).await;
+    if let Some(ref id) = expected_session_id {
+        id.set(TEST_SESSION_ID);
+    }
+
+    let mcp_extension =
+        ExtensionConfig::streamable_http("mcp-fixture", &mcp.url, "MCP fixture", 30_u64);
 
     let provider = match create_with_named_model(&provider_name, model_name).await {
         Ok(p) => p,
@@ -383,16 +426,16 @@ async fn test_provider(
     let session_manager = Arc::new(SessionManager::new(temp_dir.path().to_path_buf()));
     let extension_manager = Arc::new(ExtensionManager::new(shared_provider, session_manager));
     extension_manager
-        .add_extension(
-            ExtensionConfig::streamable_http("mcp-fixture", &mcp.url, "MCP fixture", 30_u64),
-            None,
-            None,
-            None,
-        )
+        .add_extension(mcp_extension, None, None, None)
         .await
         .expect("failed to add extension");
 
-    let tester = ProviderTester::new(provider, name.to_string(), extension_manager);
+    let tester = ProviderTester::new(
+        provider,
+        name.to_string(),
+        extension_manager,
+        is_cli_provider,
+    );
     let _mcp = mcp;
     let result = tester.run_test_suite().await;
 
@@ -411,7 +454,14 @@ async fn test_provider(
 
 #[tokio::test]
 async fn test_openai_provider() -> Result<()> {
-    test_provider("openai", OPEN_AI_DEFAULT_MODEL, &["OPENAI_API_KEY"], None).await
+    test_provider(
+        "openai",
+        OPEN_AI_DEFAULT_MODEL,
+        &["OPENAI_API_KEY"],
+        None,
+        false,
+    )
+    .await
 }
 
 #[tokio::test]
@@ -425,6 +475,7 @@ async fn test_azure_provider() -> Result<()> {
             "AZURE_OPENAI_DEPLOYMENT_NAME",
         ],
         None,
+        false,
     )
     .await
 }
@@ -436,6 +487,7 @@ async fn test_bedrock_provider_long_term_credentials() -> Result<()> {
         BEDROCK_DEFAULT_MODEL,
         &["AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY"],
         None,
+        false,
     )
     .await
 }
@@ -450,6 +502,7 @@ async fn test_bedrock_provider_aws_profile_credentials() -> Result<()> {
         BEDROCK_DEFAULT_MODEL,
         &["AWS_PROFILE"],
         Some(env_mods),
+        false,
     )
     .await
 }
@@ -468,6 +521,7 @@ async fn test_bedrock_provider_bearer_token() -> Result<()> {
         BEDROCK_DEFAULT_MODEL,
         &["AWS_BEARER_TOKEN_BEDROCK", "AWS_REGION"],
         Some(env_mods),
+        false,
     )
     .await
 }
@@ -479,6 +533,7 @@ async fn test_databricks_provider() -> Result<()> {
         DATABRICKS_DEFAULT_MODEL,
         &["DATABRICKS_HOST", "DATABRICKS_TOKEN"],
         None,
+        false,
     )
     .await
 }
@@ -486,7 +541,7 @@ async fn test_databricks_provider() -> Result<()> {
 #[tokio::test]
 async fn test_ollama_provider() -> Result<()> {
     // qwen3-vl supports text, tools, and vision (needed for image test)
-    test_provider("Ollama", "qwen3-vl", &["OLLAMA_HOST"], None).await
+    test_provider("Ollama", "qwen3-vl", &["OLLAMA_HOST"], None, false).await
 }
 
 #[tokio::test]
@@ -496,6 +551,7 @@ async fn test_anthropic_provider() -> Result<()> {
         ANTHROPIC_DEFAULT_MODEL,
         &["ANTHROPIC_API_KEY"],
         None,
+        false,
     )
     .await
 }
@@ -507,13 +563,21 @@ async fn test_openrouter_provider() -> Result<()> {
         OPEN_AI_DEFAULT_MODEL,
         &["OPENROUTER_API_KEY"],
         None,
+        false,
     )
     .await
 }
 
 #[tokio::test]
 async fn test_google_provider() -> Result<()> {
-    test_provider("Google", GOOGLE_DEFAULT_MODEL, &["GOOGLE_API_KEY"], None).await
+    test_provider(
+        "Google",
+        GOOGLE_DEFAULT_MODEL,
+        &["GOOGLE_API_KEY"],
+        None,
+        false,
+    )
+    .await
 }
 
 #[tokio::test]
@@ -523,6 +587,7 @@ async fn test_snowflake_provider() -> Result<()> {
         SNOWFLAKE_DEFAULT_MODEL,
         &["SNOWFLAKE_HOST", "SNOWFLAKE_TOKEN"],
         None,
+        false,
     )
     .await
 }
@@ -534,6 +599,7 @@ async fn test_sagemaker_tgi_provider() -> Result<()> {
         SAGEMAKER_TGI_DEFAULT_MODEL,
         &["SAGEMAKER_ENDPOINT_NAME"],
         None,
+        false,
     )
     .await
 }
@@ -551,12 +617,32 @@ async fn test_litellm_provider() -> Result<()> {
         ("LITELLM_API_KEY", Some("".to_string())),
     ]);
 
-    test_provider("LiteLLM", LITELLM_DEFAULT_MODEL, &[], Some(env_mods)).await
+    test_provider("LiteLLM", LITELLM_DEFAULT_MODEL, &[], Some(env_mods), false).await
 }
 
 #[tokio::test]
 async fn test_xai_provider() -> Result<()> {
-    test_provider("Xai", XAI_DEFAULT_MODEL, &["XAI_API_KEY"], None).await
+    test_provider("Xai", XAI_DEFAULT_MODEL, &["XAI_API_KEY"], None, false).await
+}
+
+#[tokio::test]
+async fn test_claude_code_provider() -> Result<()> {
+    if which::which("claude").is_err() {
+        println!("'claude' CLI not found, skipping test");
+        TEST_REPORT.record_skip("claude-code");
+        return Ok(());
+    }
+    test_provider("claude-code", CLAUDE_CODE_DEFAULT_MODEL, &[], None, true).await
+}
+
+#[tokio::test]
+async fn test_codex_provider() -> Result<()> {
+    if which::which("codex").is_err() {
+        println!("'codex' CLI not found, skipping test");
+        TEST_REPORT.record_skip("codex");
+        return Ok(());
+    }
+    test_provider("codex", CODEX_DEFAULT_MODEL, &[], None, true).await
 }
 
 #[ctor::dtor]
