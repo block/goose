@@ -5,6 +5,7 @@ on:
     workflows:
       - CI
       - Release
+      - Canary
     types: [completed]
 
 

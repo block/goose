@@ -337,6 +337,7 @@ impl ProviderDef for CursorAgentProvider {
                 true, false,
             )],
         )
+        .with_unlisted_models()
     }
 
     fn from_env(model: ModelConfig) -> BoxFuture<'static, Result<Self::Provider>> {

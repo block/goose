@@ -2,8 +2,9 @@ use crate::agents::apps_extension;
 use crate::agents::chatrecall_extension;
 use crate::agents::code_execution_extension;
 use crate::agents::extension_manager_extension;
-use crate::agents::skills_extension;
+use crate::agents::summon_extension;
 use crate::agents::todo_extension;
+use crate::agents::tom_extension;
 use std::collections::HashMap;
 
 use crate::agents::mcp_client::McpClientTrait;
@@ -52,6 +53,7 @@ pub static PLATFORM_EXTENSIONS: Lazy<HashMap<&'static str, PlatformExtensionDef>
                 description:
                     "Enable a todo list for goose so it can keep track of what it is doing",
                 default_enabled: true,
+                unprefixed_tools: false,
                 client_factory: |ctx| {
                     todo_extension::TodoClient::new(ctx)
                         .ok()
@@ -68,6 +70,7 @@ pub static PLATFORM_EXTENSIONS: Lazy<HashMap<&'static str, PlatformExtensionDef>
                 description:
                     "Create and manage custom Goose apps through chat. Apps are HTML/CSS/JavaScript and run in sandboxed windows.",
                 default_enabled: true,
+                unprefixed_tools: false,
                 client_factory: |ctx| {
                     apps_extension::AppsManagerClient::new(ctx)
                         .ok()
@@ -84,6 +87,7 @@ pub static PLATFORM_EXTENSIONS: Lazy<HashMap<&'static str, PlatformExtensionDef>
                 description:
                     "Search past conversations and load session summaries for contextual memory",
                 default_enabled: false,
+                unprefixed_tools: false,
                 client_factory: |ctx| {
                     chatrecall_extension::ChatRecallClient::new(ctx)
                         .ok()
@@ -100,6 +104,7 @@ pub static PLATFORM_EXTENSIONS: Lazy<HashMap<&'static str, PlatformExtensionDef>
                 description:
                     "Enable extension management tools for discovering, enabling, and disabling extensions",
                 default_enabled: true,
+                unprefixed_tools: false,
                 client_factory: |ctx| {
                     extension_manager_extension::ExtensionManagerClient::new(ctx)
                         .ok()
@@ -109,12 +114,13 @@ pub static PLATFORM_EXTENSIONS: Lazy<HashMap<&'static str, PlatformExtensionDef>
         );
 
         map.insert(
-            skills_extension::EXTENSION_NAME,
+            summon_extension::EXTENSION_NAME,
             PlatformExtensionDef {
-                name: skills_extension::EXTENSION_NAME,
-                display_name: "Skills",
-                description: "Load and use skills from relevant directories",
+                name: summon_extension::EXTENSION_NAME,
+                display_name: "Summon",
+                description: "Load knowledge and delegate tasks to subagents",
                 default_enabled: true,
+                unprefixed_tools: true,
                 client_factory: |ctx| {
                     skills_extension::SkillsClient::new(ctx)
                         .ok()
@@ -131,11 +137,25 @@ pub static PLATFORM_EXTENSIONS: Lazy<HashMap<&'static str, PlatformExtensionDef>
                 description:
                     "Goose will make extension calls through code execution, saving tokens",
                 default_enabled: false,
+                unprefixed_tools: true,
                 client_factory: |ctx| {
                     code_execution_extension::CodeExecutionClient::new(ctx)
                         .ok()
                         .map(|client| Box::new(client) as Box<dyn McpClientTrait>)
                 },
+            },
+        );
+
+        map.insert(
+            tom_extension::EXTENSION_NAME,
+            PlatformExtensionDef {
+                name: tom_extension::EXTENSION_NAME,
+                display_name: "Top Of Mind",
+                description:
+                    "Inject custom context into every turn via GOOSE_MOIM_MESSAGE_TEXT and GOOSE_MOIM_MESSAGE_FILE environment variables",
+                default_enabled: true,
+                unprefixed_tools: false,
+                client_factory: |ctx| Box::new(tom_extension::TomClient::new(ctx).unwrap()),
             },
         );
 
@@ -210,12 +230,15 @@ impl PlatformExtensionContext {
     }
 }
 
+/// Definition for a platform extension that runs in-process with direct agent access.
 #[derive(Debug, Clone)]
 pub struct PlatformExtensionDef {
     pub name: &'static str,
     pub display_name: &'static str,
     pub description: &'static str,
     pub default_enabled: bool,
+    /// If true, tools are exposed without extension prefix for intuitive first-class use.
+    pub unprefixed_tools: bool,
     pub client_factory: fn(PlatformExtensionContext) -> Option<Box<dyn McpClientTrait>>,
 }
 
