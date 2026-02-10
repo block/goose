@@ -14,6 +14,7 @@ import { useTheme } from '../../contexts/ThemeContext';
 import { cn } from '../../utils';
 import { errorMessage } from '../../utils/conversionUtils';
 import { getProtocol, isProtocolSafe } from '../../utils/urlSecurity';
+import FlyingBird from '../FlyingBird';
 import {
   GooseDisplayMode,
   SandboxPermissions,
@@ -24,7 +25,7 @@ import {
 } from './types';
 
 /** Minimum height for the MCP app iframe in pixels */
-const DEFAULT_IFRAME_HEIGHT = 100;
+const DEFAULT_IFRAME_HEIGHT = 200;
 
 /** Display modes the host supports within a chat session.
  * Currently only inline is supported. Fullscreen (in-window takeover) and pip
@@ -454,7 +455,19 @@ export default function McpAppRenderer({
     }
 
     if (isLoading) {
-      return <div className="flex items-center justify-center p-4">Loading MCP app...</div>;
+      return (
+        <div className="relative flex h-full w-full items-center justify-center overflow-hidden rounded bg-black/[0.03] dark:bg-white/[0.03]">
+          <div
+            className="absolute inset-0 animate-shimmer"
+            style={{
+              animationDuration: '2s',
+              background:
+                'linear-gradient(90deg, transparent 0%, rgba(128,128,128,0.08) 40%, rgba(128,128,128,0.12) 50%, rgba(128,128,128,0.08) 60%, transparent 100%)',
+            }}
+          />
+          <FlyingBird className="relative z-10 scale-200 opacity-30" cycleInterval={120} />
+        </div>
+      );
     }
 
     return (
