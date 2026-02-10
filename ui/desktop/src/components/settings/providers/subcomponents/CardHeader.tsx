@@ -10,7 +10,7 @@ interface CardHeaderProps {
 
 // Make CardTitle a proper React component
 const CardTitle = memo(({ name }: { name: string }) => {
-  return <h3 className="text-base font-medium text-textStandard truncate mr-2">{name}</h3>;
+  return <h3 className="text-base font-medium text-text-default truncate mr-2">{name}</h3>;
 });
 CardTitle.displayName = 'CardTitle';
 

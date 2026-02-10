@@ -141,12 +141,12 @@ export function ShortcutRecorder({
             text-xs font-mono px-3 py-2 rounded border
             ${
               recording
-                ? 'bg-background-default border-border-focus ring-1 ring-border-focus'
+                ? 'bg-background-default ring-1'
                 : conflict
                   ? 'bg-background-muted border-yellow-600/50'
-                  : 'bg-background-muted border-border-default cursor-pointer hover:border-border-focus'
+                  : 'bg-background-muted border-border-default cursor-pointer'
             }
-            focus:outline-none focus:ring-1 focus:ring-border-focus
+            focus:outline-none focus:ring-1
             w-64 text-center
           `}
         >

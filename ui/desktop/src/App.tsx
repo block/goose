@@ -593,7 +593,7 @@ export function AppInner() {
         console.log('[App] Processing initial message from launcher:', initialMessage);
         navigate('/pair', {
           state: {
-            initialMessage,
+            initialMessage: { msg: initialMessage, images: [] },
           },
         });
         setTimeout(() => {

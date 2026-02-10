@@ -10,7 +10,9 @@ check-everything:
     @echo "  → Formatting Rust code..."
     cargo fmt --all
     @echo "  → Running clippy linting..."
-    ./scripts/clippy-lint.sh
+    cargo clippy --all-targets -- -D warnings
+    @echo "  → Checking for banned TLS crates..."
+    ./scripts/check-no-native-tls.sh
     @echo "  → Checking UI code formatting..."
     cd ui/desktop && npm run lint:check
     @echo "  → Validating OpenAPI schema..."
@@ -142,7 +144,6 @@ debug-ui *alpha:
     @echo "🚀 Starting goose frontend in external backend mode{{ if alpha == "alpha" { " with alpha features enabled" } else { "" } }}"
     cd ui/desktop && \
     export GOOSE_EXTERNAL_BACKEND=true && \
-    export GOOSE_EXTERNAL_PORT=3000 && \
     {{ if alpha == "alpha" { "export ALPHA=true &&" } else { "" } }} \
     npm install && \
     npm run {{ if alpha == "alpha" { "start-alpha-gui" } else { "start-gui" } }}

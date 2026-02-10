@@ -21,7 +21,7 @@ goose is compatible with a wide range of LLM providers, allowing you to choose a
 
 | Provider                                                                    | Description                                                                                                                                                                                                               | Parameters                                                                                                                                                                          |
 |-----------------------------------------------------------------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| [Amazon Bedrock](https://aws.amazon.com/bedrock/)                           | Offers a variety of foundation models, including Claude, Jurassic-2, and others. **AWS environment variables must be set in advance, not configured through `goose configure`**                                           | `AWS_PROFILE`, or `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_REGION`                                                                                                 |
+| [Amazon Bedrock](https://aws.amazon.com/bedrock/)                           | Offers a variety of foundation models, including Claude, Jurassic-2, and others. **AWS environment variables must be set in advance, not configured through `goose configure`**                                           | Credential auth: `AWS_PROFILE`, or `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_REGION`<br /><br />Bearer token auth: `AWS_BEARER_TOKEN_BEDROCK` and `AWS_REGION`, `AWS_DEFAULT_REGION`, or `AWS_PROFILE` |
 | [Amazon SageMaker TGI](https://docs.aws.amazon.com/sagemaker/latest/dg/realtime-endpoints.html) | Run Text Generation Inference models through Amazon SageMaker endpoints. **AWS credentials must be configured in advance.** | `SAGEMAKER_ENDPOINT_NAME`, `AWS_REGION` (optional), `AWS_PROFILE` (optional)  |
 | [Anthropic](https://www.anthropic.com/)                                     | Offers Claude, an advanced AI model for natural language tasks.                                                                                                                                                           | `ANTHROPIC_API_KEY`, `ANTHROPIC_HOST` (optional)                                                                                                                                                                 |
 | [Azure OpenAI](https://learn.microsoft.com/en-us/azure/ai-services/openai/) | Access Azure-hosted OpenAI models, including GPT-4 and GPT-3.5. Supports both API key and Azure credential chain authentication.                                                                                          | `AZURE_OPENAI_ENDPOINT`, `AZURE_OPENAI_DEPLOYMENT_NAME`, `AZURE_OPENAI_API_KEY` (optional)                                                                                           |
@@ -329,7 +329,7 @@ For enterprise deployments, you can pre-configure these values using environment
 
 ## Configure Custom Provider
 
-Custom providers let you connect to services that aren't in the [available providers](#available-providers) list. They appear in goose's provider list and can be selected like any other provider.
+Create custom providers to connect to services that aren't [already supported](#available-providers) or customize how you connect to them. Custom providers appear in goose's provider list and can be selected like any other provider.
 
 **Benefits:**
 - **Multiple endpoints**: Switch between different services (e.g., vLLM, corporate proxy, OpenAI)
@@ -338,7 +338,7 @@ Custom providers let you connect to services that aren't in the [available provi
 - **Custom naming**: Show "Corporate API" instead of "OpenAI" in the UI
 - **Separate credentials**: Assign each provider its own API key
 
-Custom providers must use OpenAI, Anthropic, or Ollama compatible API formats. OpenAI-compatible providers can include custom headers for additional authentication, API keys, tokens, or tenant identifiers. Each custom provider maps to a JSON configuration file.
+Custom providers must use OpenAI, Anthropic, or Ollama compatible API formats. They can include custom headers for additional authentication, API keys, tokens, or tenant identifiers. Each custom provider maps to a JSON configuration file.
 
 **To add a custom provider:**
 <Tabs groupId="interface">
@@ -355,14 +355,15 @@ Custom providers must use OpenAI, Anthropic, or Ollama compatible API formats. O
          - `Ollama Compatible`
        - **Display Name**: A friendly name for the provider
        - **API URL**: The base URL of the API endpoint
-       - **API Key**: The API key, which is accessed using a custom environment variable and stored in the keychain (or `secrets.yaml` if the keyring is disabled)
-         - For `Ollama Compatible` providers, click `This is a local model (no auth required)`
+       - **Authentication**:
+         - **API Key**: The API key, which is accessed using a custom environment variable and stored in the keychain (or `secrets.yaml` if the keyring is disabled)
+            - For providers that don't require authorization (e.g., local models like Ollama, vLLM, LM Studio, or internal APIs), uncheck the **"This provider requires an API key"** checkbox
        - **Available Models**: Comma-separated list of available model names
        - **Streaming Support**: Whether the API supports streaming responses (click to toggle)
     7. Click `Create Provider`
 
     :::info Custom Headers
-    Currently, custom headers for OpenAI compatible providers can't be defined in goose Desktop. As a workaround, configure the provider using goose CLI or edit the provider configuration file directly.
+    Currently, custom headers can't be defined in goose Desktop. As a workaround, edit the provider configuration file after creation.
     :::
 
   </TabItem>
@@ -413,11 +414,16 @@ Custom providers must use OpenAI, Anthropic, or Ollama compatible API formats. O
          - `Ollama Compatible`
        - **Name**: A friendly name for the provider
        - **API URL**: The base URL of the API endpoint
-       - **API Key**: The API key, which is accessed using a custom environment variable and stored in the keychain (or `secrets.yaml` if the keyring is disabled)
-         - For `Ollama Compatible` providers, press `Enter` to skip (or enter any value to be able to use the provider in goose Desktop)
+       - **Authentication Required**: Answer "Yes" if your provider needs an API key, or "No" if authentication is not required
+         - If Yes: You'll be prompted to enter your **API Key** (stored securely in the keychain or `secrets.yaml`)
+         - If No: The API key prompt is skipped
        - **Available Models**: Comma-separated list of available model names
        - **Streaming Support**: Whether the API supports streaming responses
-       - **Custom Headers**: Required header names and values (`OpenAI Compatible` providers only)
+       - **Custom Headers**: Any additional header names and values
+
+    :::info Custom Headers
+    Currently, custom headers can only be defined for OpenAI compatible providers in the CLI. For Anthropic or Ollama compatible providers, edit the provider configuration file after creation.
+    :::
 
   </TabItem>
   <TabItem value="config" label="Config File">
@@ -449,7 +455,8 @@ Custom providers must use OpenAI, Anthropic, or Ollama compatible API formats. O
         "x-origin-client-id": "YOUR_CLIENT_ID",
         "x-origin-secret": "YOUR_SECRET_VALUE"
       },
-      "supports_streaming": true
+      "supports_streaming": true,
+      "requires_auth": true
     }
     ```
 
@@ -476,7 +483,6 @@ Custom providers must use OpenAI, Anthropic, or Ollama compatible API formats. O
     4. Click `Configure providers`
     5. Click on your custom provider in the list
     6. Update the fields you want to change
-       <br/>**Important:** Verify that `Provider Type` shows the correct value before saving. Otherwise, it may default to `OpenAI Compatible` regardless of the original setting.
     7. Click `Update Provider`
 
   </TabItem>

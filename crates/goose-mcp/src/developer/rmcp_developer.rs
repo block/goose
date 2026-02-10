@@ -18,16 +18,25 @@ use rmcp::{
     tool, tool_handler, tool_router, RoleServer, ServerHandler,
 };
 
-/// Header name for passing working directory through MCP request metadata
 const WORKING_DIR_HEADER: &str = "agent-working-dir";
+const SESSION_ID_HEADER: &str = "agent-session-id";
 
-/// Extract working directory from MCP request metadata
 fn extract_working_dir_from_meta(meta: &Meta) -> Option<PathBuf> {
     meta.0
         .get(WORKING_DIR_HEADER)
         .and_then(|v| v.as_str())
         .filter(|s| !s.is_empty())
+        .filter(|s| !s.contains('\0'))
         .map(PathBuf::from)
+}
+
+fn extract_session_id_from_meta(meta: &Meta) -> Option<String> {
+    meta.0
+        .get(SESSION_ID_HEADER)
+        .and_then(|v| v.as_str())
+        .filter(|s| !s.is_empty())
+        .filter(|s| !s.contains('\0'))
+        .map(String::from)
 }
 
 use serde::{Deserialize, Serialize};
@@ -887,6 +896,7 @@ impl DeveloperServer {
         let request_id = context.id;
 
         let working_dir = extract_working_dir_from_meta(&context.meta);
+        let session_id = extract_session_id_from_meta(&context.meta);
 
         // Validate the shell command
         self.validate_shell_command(command)?;
@@ -901,7 +911,13 @@ impl DeveloperServer {
 
         // Execute the command and capture output
         let output_result = self
-            .execute_shell_command(command, &peer, cancellation_token.clone(), working_dir)
+            .execute_shell_command(
+                command,
+                &peer,
+                cancellation_token.clone(),
+                working_dir,
+                session_id,
+            )
             .await;
 
         // Clean up the process from tracking
@@ -986,6 +1002,7 @@ impl DeveloperServer {
         peer: &rmcp::service::Peer<RoleServer>,
         cancellation_token: CancellationToken,
         working_dir: Option<PathBuf>,
+        session_id: Option<String>,
     ) -> Result<String, ErrorData> {
         let mut shell_config = ShellConfig::default();
         let shell_name = std::path::Path::new(&shell_config.executable)
@@ -1000,6 +1017,12 @@ impl DeveloperServer {
                     env_file.clone().into_os_string(),
                 ))
             }
+        }
+
+        if let Some(sid) = session_id {
+            shell_config
+                .envs
+                .push((OsString::from("AGENT_SESSION_ID"), OsString::from(sid)));
         }
 
         let mut command = configure_shell_command(&shell_config, command, working_dir.as_deref());

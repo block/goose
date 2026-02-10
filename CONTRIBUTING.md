@@ -103,7 +103,7 @@ When making changes to the Rust code, test them on the CLI or run checks, tests,
 cargo check  # verify changes compile
 cargo test  # run tests with changes
 cargo fmt   # format code
-./scripts/clippy-lint.sh # run the linter
+cargo clippy --all-targets -- -D warnings # run the linter
 ```
 
 ### Node

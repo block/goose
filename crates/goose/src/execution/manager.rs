@@ -89,6 +89,9 @@ impl AgentManager {
             permission_manager,
             Some(Arc::clone(&self.scheduler)),
             mode,
+            Config::global()
+                .get_goose_disable_session_naming()
+                .unwrap_or(false),
         );
         let agent = Arc::new(Agent::with_config(config));
         if let Some(provider) = &*self.default_provider.read().await {
