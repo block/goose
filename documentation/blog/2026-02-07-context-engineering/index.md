@@ -1,17 +1,17 @@
 ---
-title: "One Shot Prompting is Dead - The Era of Context Engineering"
-description: "A practical look at how AI workflows are shifting from clever prompts to engineered systems."
+title: "One Shot Prompting is Dead"
+description: "Welcome to the era of context engineering. Here's a practical look at how AI workflows are shifting from clever prompts to engineered systems."
 authors:
   - ebony
 ---
 
-![One-shot prompting is dead - The era of context engineering](blogbanner.png)
+![One shot prompting is dead](blogbanner.png)
 
 I attended one shot prompting’s funeral.
 
 There were no tears. Just a room full of developers quietly pretending they weren’t taking shots the night before. Because if we’re being honest, everyone saw this coming and couldn’t be happier it was over.
 
-Saying “one-shot prompting is dead” isn’t revolutionary. It’s just catching up to what builders have been experiencing for months.
+Saying “one shot prompting is dead” isn’t revolutionary. It’s just catching up to what builders have been experiencing for months.
 
 <!-- truncate -->
 
@@ -38,7 +38,7 @@ That’s a completely different problem, and now it has a name. **Context engine
 
 ## The abstraction that broke
 
-One-shot prompting worked when agents were party tricks. You crafted a clever prompt, you got a clever answer, and by “clever answer” I mean a fully “working” app, so everyone clapped. But the moment we asked agents to plan, remember, call tools, and operate across multiple steps, the definition of “worked” fell apart.
+One shot prompting worked when agents were party tricks. You crafted a clever prompt, you got a clever answer, and by “clever answer” I mean a fully “working” app, so everyone clapped. But the moment we asked agents to plan, remember, call tools, and operate across multiple steps, the definition of “worked” fell apart.
 
 A single prompt stopped being a solution and became a bottleneck. What matters now isn’t the sentence you type. It’s the system that surrounds it.
 
@@ -54,11 +54,11 @@ That’s the shift in one line, context is now the advantage.
 
 ---
 
-## We’re already living in the post-prompt era
+## We’re already living in the post prompt era
 
 This isn’t a prediction. It’s already happening.
 
-Patterns like [Ralph Wiggum loop](https://ghuntley.com/loop/), [OpenClaw](https://openclaw.ai/), and multi-agent planning systems aren’t about clever wording. They’re about designing context pipelines that let agents think across steps.
+Patterns like [Ralph Wiggum loop](https://ghuntley.com/loop/), [OpenClaw](https://openclaw.ai/), and multi agent planning systems aren’t about clever wording. They’re about designing context pipelines that let agents think across steps.
 
 The reaction to these projects weren't just hype. Developers went **completely* feral over them because they were hungry for real examples of successful context engineering. Not prompt tricks but actual systems that held state, iterated, and behaved *predictably* across time.
 
@@ -76,7 +76,7 @@ Once you see that, the next question isn’t philosophical anymore. It’s pract
 
 ## What building inside this shift actually looks like
 
-When I started building our skills marketplace, one-shot prompting got messy fast. My normal flow of researching in one tool and implementing in another didn’t hold up. That’s what forced me to stop and experiment with RPI.
+When I started building our skills marketplace, one shot prompting got messy fast. My normal flow of researching in one tool and implementing in another didn’t hold up. That’s what forced me to stop and experiment with RPI.
 
 
 I didn’t adopt a new context engineering workflow because it was trendy. I adopted it because honestly the alternative became tedious. Once I committed to RPI, the friction disappeared. I repeated myself less. My agent made fewer mistakes. We stopped losing the plot halfway through the project. And I had research and planning docs I could actually read.
@@ -99,20 +99,20 @@ We need to understand how a series of decisions propagate through a system and t
 
 Prompting isn’t gone. It’s still useful for demos and bringing ideas to life quickly.
 
-But one-shot prompting as a workflow has been demoted. The long term skill to master is understanding how information flows, what persists, what’s reusable, and what the agent is allowed to safely assume. In other words, mastering the orchestration of these systems.
+But one shot prompting as a workflow has been demoted. The long term skill to master is understanding how information flows, what persists, what’s reusable, and what the agent is allowed to safely assume. In other words, mastering the orchestration of these systems.
 
-One-shot prompting didn’t die because it failed. It died because we outgrew it.
+One shot prompting didn’t die because it failed. It died because we outgrew it.
 
 
 <head>
-  <meta property="og:title" content="One Shot Prompting is Dead - The Era of Context Engineering" />
+  <meta property="og:title" content="One Shot Prompting is Dead" />
   <meta property="og:type" content="article" />
   <meta property="og:url" content="https://block.github.io/goose/blog//2026/02/07/context-engineering" />
-  <meta property="og:description" content="A practical look at how AI workflows are shifting from clever prompts to engineered systems." />
+  <meta property="og:description" content="Welcome to the era of context engineering. Here's a practical look at how AI workflows are shifting from clever prompts to engineered systems." />
   <meta property="og:image" content="https://block.github.io/goose/assets/images/blogbanner-2fa90c93a49496447d38217739242dec.png" />
   <meta name="twitter:card" content="summary_large_image" />
   <meta property="twitter:domain" content="block.github.io/goose" />
-  <meta name="twitter:title" content="One Shot Prompting is Dead - The Era of Context Engineering" />
-  <meta name="twitter:description" content="A practical look at how AI workflows are shifting from clever prompts to engineered systems." />
+  <meta name="twitter:title" content="One Shot Prompting is Dead" />
+  <meta name="twitter:description" content="Welcome to the era of context engineering. Here's a practical look at how AI workflows are shifting from clever prompts to engineered systems." />
   <meta name="twitter:image" content="https://block.github.io/goose/assets/images/blogbanner-2fa90c93a49496447d38217739242dec.png" />
 </head>
