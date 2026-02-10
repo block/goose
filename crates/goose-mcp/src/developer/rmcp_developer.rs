@@ -1,10 +1,8 @@
 use anyhow::anyhow;
-use base64::Engine;
 use etcetera::AppStrategy;
 use ignore::gitignore::{Gitignore, GitignoreBuilder};
 use include_dir::{include_dir, Dir};
 use indoc::formatdoc;
-use once_cell::sync::Lazy;
 use rmcp::{
     handler::server::{router::tool::ToolRouter, wrapper::Parameters},
     model::{
@@ -45,11 +43,9 @@ use std::{
     env::join_paths,
     ffi::OsString,
     future::Future,
-    io::Cursor,
     path::{Path, PathBuf},
     sync::{Arc, Mutex},
 };
-use xcap::{Monitor, Window};
 
 use tokio::{
     io::{AsyncBufReadExt, BufReader},
@@ -60,22 +56,9 @@ use tokio_util::sync::CancellationToken;
 
 use crate::developer::{paths::get_shell_path_dirs, shell::ShellConfig};
 
-use super::analyze::{types::AnalyzeParams, CodeAnalyzer};
 use super::editor_models::{create_editor_model, EditorModel};
 use super::shell::{configure_shell_command, expand_path, is_absolute_path, kill_process_group};
 use super::text_editor::{text_editor_replace, text_editor_view, text_editor_write};
-
-/// Parameters for the screen_capture tool
-#[derive(Debug, Serialize, Deserialize, JsonSchema)]
-pub struct ScreenCaptureParams {
-    /// The display number to capture (0 is main display)
-    #[serde(default)]
-    pub display: Option<u64>,
-
-    /// Optional: the exact title of the window to capture.
-    /// Use the list_windows tool to find the available windows.
-    pub window_title: Option<String>,
-}
 
 /// Parameters for the read tool
 #[derive(Debug, Serialize, Deserialize, JsonSchema)]
@@ -128,13 +111,6 @@ pub struct ShellParams {
     pub timeout: Option<u64>,
 }
 
-/// Parameters for the image_processor tool
-#[derive(Debug, Serialize, Deserialize, JsonSchema)]
-pub struct ImageProcessorParams {
-    /// Absolute path to the image file to process
-    pub path: String,
-}
-
 /// Template structure for prompt definitions
 #[derive(Debug, Serialize, Deserialize)]
 pub struct PromptTemplate {
@@ -153,13 +129,6 @@ pub struct PromptArgumentTemplate {
 
 // Embeds the prompts directory to the build
 static PROMPTS_DIR: Dir = include_dir!("$CARGO_MANIFEST_DIR/src/developer/prompts");
-
-static MACOS_SCREENSHOT_FILENAME_RE: Lazy<regex::Regex> = Lazy::new(|| {
-    regex::Regex::new(
-        r"^Screenshot \d{4}-\d{2}-\d{2} at \d{1,2}\.\d{2}\.\d{2} (AM|PM|am|pm)(?: \(\d+\))?\.png$",
-    )
-    .expect("macOS screenshot filename regex should be valid")
-});
 
 const DEFAULT_GOOSEIGNORE_CONTENT: &str = concat!(
     "# This file is created automatically if no .gooseignore exists.\n",
@@ -239,7 +208,6 @@ pub struct DeveloperServer {
     ignore_patterns: Gitignore,
     editor_model: Option<EditorModel>,
     prompts: HashMap<String, Prompt>,
-    code_analyzer: CodeAnalyzer,
     #[cfg(test)]
     pub running_processes: Arc<RwLock<HashMap<String, CancellationToken>>>,
     #[cfg(not(test))]
@@ -462,7 +430,6 @@ impl DeveloperServer {
             ignore_patterns,
             editor_model,
             prompts: load_prompt_files(),
-            code_analyzer: CodeAnalyzer::new(),
             running_processes: Arc::new(RwLock::new(HashMap::new())),
             extend_path_with_shell: false,
             bash_env_file: None,
@@ -480,125 +447,6 @@ impl DeveloperServer {
     }
 
     /// List all available windows that can be used with screen_capture.
-    /// Returns a list of window titles that can be used with the window_title parameter
-    /// of the screen_capture tool.
-    #[tool(
-        name = "list_windows",
-        description = "List all available window titles that can be used with screen_capture. Returns a list of window titles that can be used with the window_title parameter of the screen_capture tool."
-    )]
-    pub async fn list_windows(&self) -> Result<CallToolResult, ErrorData> {
-        let windows = Window::all().map_err(|_| {
-            ErrorData::new(
-                ErrorCode::INTERNAL_ERROR,
-                "Failed to list windows".to_string(),
-                None,
-            )
-        })?;
-
-        let window_titles: Vec<String> =
-            windows.into_iter().filter_map(|w| w.title().ok()).collect();
-
-        let content_text = format!("Available windows:\n{}", window_titles.join("\n"));
-
-        Ok(CallToolResult::success(vec![
-            Content::text(content_text.clone()).with_audience(vec![Role::Assistant]),
-            Content::text(content_text)
-                .with_audience(vec![Role::User])
-                .with_priority(0.0),
-        ]))
-    }
-
-    /// Capture a screenshot of a specified display or window.
-    /// You can capture either:
-    /// 1. A full display (monitor) using the display parameter
-    /// 2. A specific window by its title using the window_title parameter
-    ///
-    /// Only one of display or window_title should be specified.
-    #[tool(
-        name = "screen_capture",
-        description = "Capture a screenshot of a specified display or window. You can capture either: 1. A full display (monitor) using the display parameter 2. A specific window by its title using the window_title parameter. Only one of display or window_title should be specified."
-    )]
-    pub async fn screen_capture(
-        &self,
-        params: Parameters<ScreenCaptureParams>,
-    ) -> Result<CallToolResult, ErrorData> {
-        let params = params.0;
-
-        let image = if let Some(window_title) = &params.window_title {
-            // Try to find and capture the specified window
-            let windows = Window::all().map_err(|_| {
-                ErrorData::new(
-                    ErrorCode::INTERNAL_ERROR,
-                    "Failed to list windows".to_string(),
-                    None,
-                )
-            })?;
-
-            let window = windows
-                .into_iter()
-                .find(|w| w.title().is_ok_and(|t| &t == window_title))
-                .ok_or_else(|| {
-                    ErrorData::new(
-                        ErrorCode::INTERNAL_ERROR,
-                        format!("No window found with title '{}'", window_title),
-                        None,
-                    )
-                })?;
-
-            window.capture_image().map_err(|e| {
-                ErrorData::new(
-                    ErrorCode::INTERNAL_ERROR,
-                    format!("Failed to capture window '{}': {}", window_title, e),
-                    None,
-                )
-            })?
-        } else {
-            // Default to display capture if no window title is specified
-            let display = params.display.unwrap_or(0) as usize;
-
-            let monitors = Monitor::all().map_err(|_| {
-                ErrorData::new(
-                    ErrorCode::INTERNAL_ERROR,
-                    "Failed to access monitors".to_string(),
-                    None,
-                )
-            })?;
-
-            let monitor = monitors.get(display).ok_or_else(|| {
-                ErrorData::new(
-                    ErrorCode::INTERNAL_ERROR,
-                    format!(
-                        "{} was not an available monitor, {} found.",
-                        display,
-                        monitors.len()
-                    ),
-                    None,
-                )
-            })?;
-
-            monitor.capture_image().map_err(|e| {
-                ErrorData::new(
-                    ErrorCode::INTERNAL_ERROR,
-                    format!("Failed to capture display {}: {}", display, e),
-                    None,
-                )
-            })?
-        };
-
-        let dynamic_image = xcap::image::DynamicImage::ImageRgba8(image);
-        let (bytes, mime_type) = Self::prepare_image_for_llm(dynamic_image)?;
-
-        // Convert to base64
-        let data = base64::prelude::BASE64_STANDARD.encode(bytes);
-
-        // Return two Content objects like the old implementation:
-        // one text for Assistant, one image with priority 0.0
-        Ok(CallToolResult::success(vec![
-            Content::text("Screenshot captured").with_audience(vec![Role::Assistant]),
-            Content::image(data, &mime_type).with_priority(0.0),
-        ]))
-    }
-
     /// Read file contents or list directory.
     #[tool(
         name = "read",
@@ -976,174 +824,6 @@ impl DeveloperServer {
         Ok(())
     }
 
-    /// Analyze code structure and relationships.
-    ///
-    /// Automatically selects the appropriate analysis:
-    /// - Files: Semantic analysis with call graphs
-    /// - Directories: Structure overview with metrics
-    /// - With focus parameter: Track symbol across files
-    ///
-    /// Examples:
-    /// analyze(path="file.py") -> semantic analysis
-    /// analyze(path="src/") -> structure overview down to max_depth subdirs
-    /// analyze(path="src/", focus="main") -> track main() across files in src/ down to max_depth subdirs
-    #[tool(
-        name = "analyze",
-        description = "Analyze code structure in 3 modes: 1) Directory overview - file tree with LOC/function/class counts to max_depth. 2) File details - functions, classes, imports. 3) Symbol focus - call graphs across directory to max_depth (requires directory path, case-sensitive). Typical flow: directory → files → symbols. Functions called >3x show •N."
-    )]
-    pub async fn analyze(
-        &self,
-        params: Parameters<AnalyzeParams>,
-    ) -> Result<CallToolResult, ErrorData> {
-        let params = params.0;
-        let path = self.resolve_path(&params.path)?;
-        self.code_analyzer
-            .analyze(params, path, &self.ignore_patterns)
-    }
-
-    /// Process an image file from disk.
-    ///
-    /// The image will be:
-    /// 1. Resized to max 1024px on either dimension while maintaining aspect ratio
-    /// 2. Converted to JPEG format (85% quality)
-    /// 3. Returned as base64 encoded data
-    ///
-    /// This allows processing image files for use in the conversation with optimized file sizes.
-    #[tool(
-        name = "image_processor",
-        description = "Process an image file from disk. Resizes to max 1024px, converts to JPEG (85% quality), and returns as base64 data for optimized LLM consumption."
-    )]
-    pub async fn image_processor(
-        &self,
-        params: Parameters<ImageProcessorParams>,
-    ) -> Result<CallToolResult, ErrorData> {
-        let params = params.0;
-        let path_str = &params.path;
-
-        let path = {
-            let p = self.resolve_path(path_str)?;
-            if cfg!(target_os = "macos") {
-                self.normalize_mac_screenshot_path(&p)
-            } else {
-                p
-            }
-        };
-
-        // Check if file is ignored before proceeding
-        if self.is_ignored(&path) {
-            return Err(ErrorData::new(
-                ErrorCode::INTERNAL_ERROR,
-                format!(
-                    "Access to '{}' is restricted by .gooseignore",
-                    path.display()
-                ),
-                None,
-            ));
-        }
-
-        // Check if file exists
-        if !path.exists() {
-            return Err(ErrorData::new(
-                ErrorCode::INTERNAL_ERROR,
-                format!("File '{}' does not exist", path.display()),
-                None,
-            ));
-        }
-
-        // Check file size (10MB limit for image files)
-        const MAX_FILE_SIZE: u64 = 10 * 1024 * 1024; // 10MB in bytes
-        let file_size = std::fs::metadata(&path)
-            .map_err(|e| {
-                ErrorData::new(
-                    ErrorCode::INTERNAL_ERROR,
-                    format!("Failed to get file metadata: {}", e),
-                    None,
-                )
-            })?
-            .len();
-
-        if file_size > MAX_FILE_SIZE {
-            return Err(ErrorData::new(
-                ErrorCode::INTERNAL_ERROR,
-                format!(
-                    "File '{}' is too large ({:.2}MB). Maximum size is 10MB.",
-                    path.display(),
-                    file_size as f64 / (1024.0 * 1024.0)
-                ),
-                None,
-            ));
-        }
-
-        // Open and decode the image
-        let image = xcap::image::open(&path).map_err(|e| {
-            ErrorData::new(
-                ErrorCode::INTERNAL_ERROR,
-                format!("Failed to open image file: {}", e),
-                None,
-            )
-        })?;
-
-        let (bytes, mime_type) = Self::prepare_image_for_llm(image)?;
-
-        let data = base64::prelude::BASE64_STANDARD.encode(bytes);
-
-        Ok(CallToolResult::success(vec![
-            Content::text(format!(
-                "Successfully processed image from {}",
-                path.display()
-            ))
-            .with_audience(vec![Role::Assistant]),
-            Content::image(data, &mime_type).with_priority(0.0),
-        ]))
-    }
-
-    fn prepare_image_for_llm(
-        mut image: xcap::image::DynamicImage,
-    ) -> Result<(Vec<u8>, String), ErrorData> {
-        let max_dimension = 1024;
-        let (width, height) = (image.width(), image.height());
-
-        if width > max_dimension || height > max_dimension {
-            let (new_width, new_height) = if width > height {
-                let scale = max_dimension as f32 / width as f32;
-                (max_dimension, (height as f32 * scale) as u32)
-            } else {
-                let scale = max_dimension as f32 / height as f32;
-                ((width as f32 * scale) as u32, max_dimension)
-            };
-
-            image = xcap::image::DynamicImage::ImageRgba8(xcap::image::imageops::resize(
-                &image,
-                new_width,
-                new_height,
-                xcap::image::imageops::FilterType::Lanczos3,
-            ));
-        }
-
-        let rgb_image = image.to_rgb8();
-        let (img_width, img_height) = rgb_image.dimensions();
-
-        let mut bytes: Vec<u8> = Vec::new();
-        let mut cursor = Cursor::new(&mut bytes);
-
-        image::codecs::jpeg::JpegEncoder::new_with_quality(&mut cursor, 85)
-            .encode(
-                rgb_image.as_raw(),
-                img_width,
-                img_height,
-                image::ColorType::Rgb8,
-            )
-            .map_err(|e| {
-                ErrorData::new(
-                    ErrorCode::INTERNAL_ERROR,
-                    format!("Failed to encode image as JPEG: {}", e),
-                    None,
-                )
-            })?;
-
-        Ok((bytes, "image/jpeg".to_string()))
-    }
-
     // Helper method to resolve and validate file paths
     fn resolve_path(&self, path_str: &str) -> Result<PathBuf, ErrorData> {
         let cwd = std::env::current_dir().expect("should have a current working dir");
@@ -1228,40 +908,6 @@ impl DeveloperServer {
         }
 
         false
-    }
-
-    // Helper function to handle Mac screenshot filenames that contain U+202F (narrow no-break space)
-    fn normalize_mac_screenshot_path(&self, path: &Path) -> PathBuf {
-        // Only process if the path has a filename
-        if let Some(filename) = path.file_name().and_then(|f| f.to_str()) {
-            // Check if this matches Mac screenshot pattern:
-            // "Screenshot YYYY-MM-DD at H.MM.SS AM/PM.png"
-            if let Some(captures) = MACOS_SCREENSHOT_FILENAME_RE.captures(filename) {
-                // Get the AM/PM part
-                let meridian = captures.get(1).unwrap().as_str();
-
-                // Find the last space before AM/PM and replace it with U+202F
-                let space_pos = filename
-                    .rfind(meridian)
-                    .and_then(|pos| filename.get(..pos).map(|s| s.trim_end().len()))
-                    .unwrap_or(0);
-
-                if space_pos > 0 {
-                    let parent = path.parent().unwrap_or(Path::new(""));
-                    if let (Some(before), Some(after)) =
-                        (filename.get(..space_pos), filename.get(space_pos + 1..))
-                    {
-                        let new_filename = format!("{}{}{}", before, '\u{202F}', after);
-                        let new_path = parent.join(new_filename);
-
-                        return new_path;
-                    }
-                }
-            }
-        }
-
-        // Return the original path if it doesn't match or couldn't be processed
-        path.to_path_buf()
     }
 
     // shell output can be large, this will help manage that
@@ -1394,6 +1040,7 @@ mod tests {
                 .shell(
                     Parameters(ShellParams {
                         command: "".to_string(),
+                        timeout: None,
                     }),
                     RequestContext {
                         ct: Default::default(),
@@ -1429,6 +1076,7 @@ mod tests {
             // Test PowerShell command
             let shell_params = Parameters(ShellParams {
                 command: "Get-ChildItem".to_string(),
+                timeout: None,
             });
 
             let result = server
@@ -1460,7 +1108,7 @@ mod tests {
 
     #[tokio::test]
     #[serial]
-    async fn test_text_editor_size_limits() {
+    async fn test_read_size_limits() {
         let temp_dir = tempfile::tempdir().unwrap();
         std::env::set_current_dir(&temp_dir).unwrap();
         let server = create_test_server();
@@ -1473,18 +1121,9 @@ mod tests {
             let content = "x".repeat(3 * 1024 * 1024); // 3MB
             fs::write(&large_file_path, content).unwrap();
 
-            let view_params = Parameters(TextEditorParams {
-                path: large_file_path.to_str().unwrap().to_string(),
-                command: "view".to_string(),
-                view_range: None,
-                file_text: None,
-                old_str: None,
-                new_str: None,
-                insert_line: None,
-                diff: None,
-            });
+            let view_params = Parameters(ReadParams { path: large_file_path.to_str().unwrap().to_string(), offset: None, limit: None });
 
-            let result = server.text_editor(view_params).await;
+            let result = server.read(view_params).await;
 
             assert!(result.is_err());
             let err = result.err().unwrap();
@@ -1500,18 +1139,9 @@ mod tests {
             let content = "x".repeat(500_000);
             fs::write(&many_chars_path, content).unwrap();
 
-            let view_params = Parameters(TextEditorParams {
-                path: many_chars_path.to_str().unwrap().to_string(),
-                command: "view".to_string(),
-                view_range: None,
-                file_text: None,
-                old_str: None,
-                new_str: None,
-                insert_line: None,
-                diff: None,
-            });
+            let view_params = Parameters(ReadParams { path: many_chars_path.to_str().unwrap().to_string(), offset: None, limit: None });
 
-            let result = server.text_editor(view_params).await;
+            let result = server.read(view_params).await;
 
             assert!(result.is_err());
             let err = result.err().unwrap();
@@ -1522,7 +1152,7 @@ mod tests {
 
     #[tokio::test]
     #[serial]
-    async fn test_text_editor_write_and_view_file() {
+    async fn test_write_and_read_file() {
         let temp_dir = tempfile::tempdir().unwrap();
         let file_path = temp_dir.path().join("test.txt");
         let file_path_str = file_path.to_str().unwrap();
@@ -1531,32 +1161,14 @@ mod tests {
         let server = create_test_server();
 
         // Create a new file
-        let write_params = Parameters(TextEditorParams {
-            path: file_path_str.to_string(),
-            command: "write".to_string(),
-            view_range: None,
-            file_text: Some("Hello, world!".to_string()),
-            old_str: None,
-            new_str: None,
-            insert_line: None,
-            diff: None,
-        });
+        let write_params = Parameters(WriteParams { path: file_path_str.to_string(), content: "Hello, world!".to_string() });
 
-        server.text_editor(write_params).await.unwrap();
+        server.write(write_params).await.unwrap();
 
         // View the file
-        let view_params = Parameters(TextEditorParams {
-            path: file_path_str.to_string(),
-            command: "view".to_string(),
-            view_range: None,
-            file_text: None,
-            old_str: None,
-            new_str: None,
-            insert_line: None,
-            diff: None,
-        });
+        let view_params = Parameters(ReadParams { path: file_path_str.to_string(), offset: None, limit: None });
 
-        let view_result = server.text_editor(view_params).await.unwrap();
+        let view_result = server.read(view_params).await.unwrap();
 
         assert!(!view_result.content.is_empty());
         let user_content = view_result
@@ -1574,7 +1186,7 @@ mod tests {
 
     #[tokio::test]
     #[serial]
-    async fn test_text_editor_str_replace() {
+    async fn test_edit_str_replace() {
         let temp_dir = tempfile::tempdir().unwrap();
         let file_path = temp_dir.path().join("test.txt");
         let file_path_str = file_path.to_str().unwrap();
@@ -1583,32 +1195,14 @@ mod tests {
         let server = create_test_server();
 
         // Create a new file
-        let write_params = Parameters(TextEditorParams {
-            path: file_path_str.to_string(),
-            command: "write".to_string(),
-            view_range: None,
-            file_text: Some("Hello, world!".to_string()),
-            old_str: None,
-            new_str: None,
-            insert_line: None,
-            diff: None,
-        });
+        let write_params = Parameters(WriteParams { path: file_path_str.to_string(), content: "Hello, world!".to_string() });
 
-        server.text_editor(write_params).await.unwrap();
+        server.write(write_params).await.unwrap();
 
         // Replace string
-        let replace_params = Parameters(TextEditorParams {
-            path: file_path_str.to_string(),
-            command: "str_replace".to_string(),
-            view_range: None,
-            file_text: None,
-            old_str: Some("world".to_string()),
-            new_str: Some("Rust".to_string()),
-            insert_line: None,
-            diff: None,
-        });
+        let replace_params = Parameters(EditParams { path: file_path_str.to_string(), old_str: "world".to_string(), new_str: "Rust".to_string() });
 
-        let replace_result = server.text_editor(replace_params).await.unwrap();
+        let replace_result = server.edit(replace_params).await.unwrap();
 
         let assistant_content = replace_result
             .content
@@ -1631,75 +1225,6 @@ mod tests {
         assert!(content.contains("Hello, Rust!"));
     }
 
-    #[tokio::test]
-    #[serial]
-    async fn test_text_editor_undo_edit() {
-        let temp_dir = tempfile::tempdir().unwrap();
-        let file_path = temp_dir.path().join("test.txt");
-        let file_path_str = file_path.to_str().unwrap();
-        std::env::set_current_dir(&temp_dir).unwrap();
-
-        let server = create_test_server();
-
-        // Create a file
-        let write_params = Parameters(TextEditorParams {
-            path: file_path_str.to_string(),
-            command: "write".to_string(),
-            view_range: None,
-            file_text: Some("Original content".to_string()),
-            old_str: None,
-            new_str: None,
-            insert_line: None,
-            diff: None,
-        });
-
-        server.text_editor(write_params).await.unwrap();
-
-        // Make an edit
-        let replace_params = Parameters(TextEditorParams {
-            path: file_path_str.to_string(),
-            command: "str_replace".to_string(),
-            view_range: None,
-            file_text: None,
-            old_str: Some("Original".to_string()),
-            new_str: Some("Modified".to_string()),
-            insert_line: None,
-            diff: None,
-        });
-
-        server.text_editor(replace_params).await.unwrap();
-
-        // Verify the edit was made
-        let content = fs::read_to_string(&file_path).unwrap();
-        assert!(content.contains("Modified content"));
-
-        // Undo the edit
-        let undo_params = Parameters(TextEditorParams {
-            path: file_path_str.to_string(),
-            command: "undo_edit".to_string(),
-            view_range: None,
-            file_text: None,
-            old_str: None,
-            new_str: None,
-            insert_line: None,
-            diff: None,
-        });
-
-        let undo_result = server.text_editor(undo_params).await.unwrap();
-
-        // Verify undo worked
-        let content = fs::read_to_string(&file_path).unwrap();
-        assert!(content.contains("Original content"));
-
-        let undo_content = undo_result
-            .content
-            .iter()
-            .find(|c| c.as_text().is_some())
-            .unwrap()
-            .as_text()
-            .unwrap();
-        assert!(undo_content.text.contains("Undid the last edit"));
-    }
 
     #[tokio::test]
     #[serial]
@@ -1743,7 +1268,7 @@ mod tests {
 
     #[tokio::test]
     #[serial]
-    async fn test_text_editor_respects_ignore_patterns() {
+    async fn test_tools_respect_ignore_patterns() {
         let temp_dir = tempfile::tempdir().unwrap();
         std::env::set_current_dir(&temp_dir).unwrap();
 
@@ -1754,18 +1279,9 @@ mod tests {
 
         // Try to write to an ignored file
         let secret_path = temp_dir.path().join("secret.txt");
-        let write_params = Parameters(TextEditorParams {
-            path: secret_path.to_str().unwrap().to_string(),
-            command: "write".to_string(),
-            view_range: None,
-            file_text: Some("test content".to_string()),
-            old_str: None,
-            new_str: None,
-            insert_line: None,
-            diff: None,
-        });
+        let write_params = Parameters(WriteParams { path: secret_path.to_str().unwrap().to_string(), content: "test content".to_string() });
 
-        let result = server.text_editor(write_params).await;
+        let result = server.write(write_params).await;
         assert!(
             result.is_err(),
             "Should not be able to write to ignored file"
@@ -1774,18 +1290,9 @@ mod tests {
 
         // Try to write to a non-ignored file
         let allowed_path = temp_dir.path().join("allowed.txt");
-        let write_params = Parameters(TextEditorParams {
-            path: allowed_path.to_str().unwrap().to_string(),
-            command: "write".to_string(),
-            view_range: None,
-            file_text: Some("test content".to_string()),
-            old_str: None,
-            new_str: None,
-            insert_line: None,
-            diff: None,
-        });
+        let write_params = Parameters(WriteParams { path: allowed_path.to_str().unwrap().to_string(), content: "test content".to_string() });
 
-        let result = server.text_editor(write_params).await;
+        let result = server.write(write_params).await;
         assert!(
             result.is_ok(),
             "Should be able to write to non-ignored file"
@@ -1812,6 +1319,7 @@ mod tests {
                 .shell(
                     Parameters(ShellParams {
                         command: format!("cat {}", secret_file_path.to_str().unwrap()),
+                        timeout: None,
                     }),
                     RequestContext {
                         ct: Default::default(),
@@ -1834,6 +1342,7 @@ mod tests {
                 .shell(
                     Parameters(ShellParams {
                         command: format!("cat {}", allowed_file_path.to_str().unwrap()),
+                        timeout: None,
                     }),
                     RequestContext {
                         ct: Default::default(),
@@ -1855,32 +1364,10 @@ mod tests {
         });
     }
 
-    #[tokio::test]
-    #[serial]
-    async fn test_text_editor_descriptions() {
-        let temp_dir = tempfile::tempdir().unwrap();
-        std::env::set_current_dir(&temp_dir).unwrap();
-
-        // Test without editor API configured (should be the case in tests due to cfg!(test))
-        let server = create_test_server();
-
-        // Get server info which contains tool descriptions
-        let server_info = server.get_info();
-        let instructions = server_info.instructions.unwrap_or_default();
-
-        // Should use traditional description with str_replace command
-        assert!(instructions.contains("Replace text in one or more files"));
-        assert!(instructions.contains("str_replace"));
-
-        // Should not contain editor API description or edit_file command
-        assert!(!instructions.contains("Edit the file with the new content"));
-        assert!(!instructions.contains("edit_file"));
-        assert!(!instructions.contains("work out how to place old_str with it intelligently"));
-    }
 
     #[tokio::test]
     #[serial]
-    async fn test_text_editor_view_range() {
+    async fn test_read_with_offset_limit() {
         let temp_dir = tempfile::tempdir().unwrap();
         let file_path = temp_dir.path().join("test.txt");
         let file_path_str = file_path.to_str().unwrap();
@@ -1891,32 +1378,14 @@ mod tests {
         // Create a multi-line file
         let content =
             "Line 1\nLine 2\nLine 3\nLine 4\nLine 5\nLine 6\nLine 7\nLine 8\nLine 9\nLine 10";
-        let write_params = Parameters(TextEditorParams {
-            path: file_path_str.to_string(),
-            command: "write".to_string(),
-            view_range: None,
-            file_text: Some(content.to_string()),
-            old_str: None,
-            new_str: None,
-            insert_line: None,
-            diff: None,
-        });
+        let write_params = Parameters(WriteParams { path: file_path_str.to_string(), content: content.to_string() });
 
-        server.text_editor(write_params).await.unwrap();
+        server.write(write_params).await.unwrap();
 
         // Test viewing specific range
-        let view_params = Parameters(TextEditorParams {
-            path: file_path_str.to_string(),
-            command: "view".to_string(),
-            view_range: Some(vec![3, 6]),
-            file_text: None,
-            old_str: None,
-            new_str: None,
-            insert_line: None,
-            diff: None,
-        });
+        let view_params = Parameters(ReadParams { path: file_path_str.to_string(), offset: Some(3), limit: Some(4) });
 
-        let view_result = server.text_editor(view_params).await.unwrap();
+        let view_result = server.read(view_params).await.unwrap();
 
         let text = view_result
             .content
@@ -1942,7 +1411,7 @@ mod tests {
 
     #[tokio::test]
     #[serial]
-    async fn test_text_editor_view_range_to_end() {
+    async fn test_read_with_offset_limit_to_end() {
         let temp_dir = tempfile::tempdir().unwrap();
         let file_path = temp_dir.path().join("test.txt");
         let file_path_str = file_path.to_str().unwrap();
@@ -1952,32 +1421,14 @@ mod tests {
 
         // Create a multi-line file
         let content = "Line 1\nLine 2\nLine 3\nLine 4\nLine 5";
-        let write_params = Parameters(TextEditorParams {
-            path: file_path_str.to_string(),
-            command: "write".to_string(),
-            view_range: None,
-            file_text: Some(content.to_string()),
-            old_str: None,
-            new_str: None,
-            insert_line: None,
-            diff: None,
-        });
+        let write_params = Parameters(WriteParams { path: file_path_str.to_string(), content: content.to_string() });
 
-        server.text_editor(write_params).await.unwrap();
+        server.write(write_params).await.unwrap();
 
         // Test viewing from line 3 to end using -1
-        let view_params = Parameters(TextEditorParams {
-            path: file_path_str.to_string(),
-            command: "view".to_string(),
-            view_range: Some(vec![3, -1]),
-            file_text: None,
-            old_str: None,
-            new_str: None,
-            insert_line: None,
-            diff: None,
-        });
+        let view_params = Parameters(ReadParams { path: file_path_str.to_string(), offset: Some(3), limit: None });
 
-        let view_result = server.text_editor(view_params).await.unwrap();
+        let view_result = server.read(view_params).await.unwrap();
 
         let text = view_result
             .content
@@ -2002,7 +1453,7 @@ mod tests {
 
     #[tokio::test]
     #[serial]
-    async fn test_text_editor_view_range_invalid() {
+    async fn test_read_with_offset_limit_invalid() {
         let temp_dir = tempfile::tempdir().unwrap();
         let file_path = temp_dir.path().join("test.txt");
         let file_path_str = file_path.to_str().unwrap();
@@ -2012,478 +1463,31 @@ mod tests {
 
         // Create a small file
         let content = "Line 1\nLine 2\nLine 3";
-        let write_params = Parameters(TextEditorParams {
-            path: file_path_str.to_string(),
-            command: "write".to_string(),
-            view_range: None,
-            file_text: Some(content.to_string()),
-            old_str: None,
-            new_str: None,
-            insert_line: None,
-            diff: None,
-        });
+        let write_params = Parameters(WriteParams { path: file_path_str.to_string(), content: content.to_string() });
 
-        server.text_editor(write_params).await.unwrap();
+        server.write(write_params).await.unwrap();
 
         // Test invalid range - start line beyond file
-        let view_params = Parameters(TextEditorParams {
-            path: file_path_str.to_string(),
-            command: "view".to_string(),
-            view_range: Some(vec![10, 15]),
-            file_text: None,
-            old_str: None,
-            new_str: None,
-            insert_line: None,
-            diff: None,
-        });
+        let view_params = Parameters(ReadParams { path: file_path_str.to_string(), offset: Some(10), limit: Some(6) });
 
-        let result = server.text_editor(view_params).await;
+        let result = server.read(view_params).await;
         assert!(result.is_err());
         let error = result.unwrap_err();
         assert_eq!(error.code, ErrorCode::INVALID_PARAMS);
         assert!(error.message.contains("beyond the end of the file"));
     }
 
-    #[tokio::test]
-    #[serial]
-    async fn test_text_editor_insert_at_beginning() {
-        let temp_dir = tempfile::tempdir().unwrap();
-        let file_path = temp_dir.path().join("test.txt");
-        let file_path_str = file_path.to_str().unwrap();
-        std::env::set_current_dir(&temp_dir).unwrap();
 
-        let server = create_test_server();
 
-        // Create a file with some content
-        let content = "Line 2\nLine 3\nLine 4";
-        let write_params = Parameters(TextEditorParams {
-            path: file_path_str.to_string(),
-            command: "write".to_string(),
-            view_range: None,
-            file_text: Some(content.to_string()),
-            old_str: None,
-            new_str: None,
-            insert_line: None,
-            diff: None,
-        });
 
-        server.text_editor(write_params).await.unwrap();
 
-        // Insert at the beginning (line 0)
-        let insert_params = Parameters(TextEditorParams {
-            path: file_path_str.to_string(),
-            command: "insert".to_string(),
-            view_range: None,
-            file_text: None,
-            old_str: None,
-            new_str: Some("Line 1".to_string()),
-            insert_line: Some(0),
-            diff: None,
-        });
 
-        let insert_result = server.text_editor(insert_params).await.unwrap();
 
-        let text = insert_result
-            .content
-            .iter()
-            .find(|c| {
-                c.audience()
-                    .is_some_and(|roles| roles.contains(&Role::Assistant))
-            })
-            .unwrap()
-            .as_text()
-            .unwrap();
 
-        assert!(text.text.contains("Text has been inserted at line 1"));
-
-        // Verify the file content by reading it directly
-        let file_content = fs::read_to_string(&file_path).unwrap();
-        assert!(file_content.contains("Line 1\nLine 2\nLine 3\nLine 4"));
-    }
 
     #[tokio::test]
     #[serial]
-    async fn test_text_editor_insert_in_middle() {
-        let temp_dir = tempfile::tempdir().unwrap();
-        let file_path = temp_dir.path().join("test.txt");
-        let file_path_str = file_path.to_str().unwrap();
-        std::env::set_current_dir(&temp_dir).unwrap();
-
-        let server = create_test_server();
-
-        // Create a file with some content
-        let content = "Line 1\nLine 2\nLine 4\nLine 5";
-        let write_params = Parameters(TextEditorParams {
-            path: file_path_str.to_string(),
-            command: "write".to_string(),
-            view_range: None,
-            file_text: Some(content.to_string()),
-            old_str: None,
-            new_str: None,
-            insert_line: None,
-            diff: None,
-        });
-
-        server.text_editor(write_params).await.unwrap();
-
-        // Insert after line 2
-        let insert_params = Parameters(TextEditorParams {
-            path: file_path_str.to_string(),
-            command: "insert".to_string(),
-            view_range: None,
-            file_text: None,
-            old_str: None,
-            new_str: Some("Line 3".to_string()),
-            insert_line: Some(2),
-            diff: None,
-        });
-
-        let insert_result = server.text_editor(insert_params).await.unwrap();
-
-        let text = insert_result
-            .content
-            .iter()
-            .find(|c| {
-                c.audience()
-                    .is_some_and(|roles| roles.contains(&Role::Assistant))
-            })
-            .unwrap()
-            .as_text()
-            .unwrap();
-
-        assert!(text.text.contains("Text has been inserted at line 3"));
-
-        // Verify the file content by reading it directly
-        let file_content = fs::read_to_string(&file_path).unwrap();
-        let lines: Vec<&str> = file_content.lines().collect();
-        assert_eq!(lines[0], "Line 1");
-        assert_eq!(lines[1], "Line 2");
-        assert_eq!(lines[2], "Line 3");
-        assert_eq!(lines[3], "Line 4");
-        assert_eq!(lines[4], "Line 5");
-    }
-
-    #[tokio::test]
-    #[serial]
-    async fn test_text_editor_insert_at_end() {
-        let temp_dir = tempfile::tempdir().unwrap();
-        let file_path = temp_dir.path().join("test.txt");
-        let file_path_str = file_path.to_str().unwrap();
-        std::env::set_current_dir(&temp_dir).unwrap();
-
-        let server = create_test_server();
-
-        // Create a file with some content
-        let content = "Line 1\nLine 2\nLine 3";
-        let write_params = Parameters(TextEditorParams {
-            path: file_path_str.to_string(),
-            command: "write".to_string(),
-            view_range: None,
-            file_text: Some(content.to_string()),
-            old_str: None,
-            new_str: None,
-            insert_line: None,
-            diff: None,
-        });
-
-        server.text_editor(write_params).await.unwrap();
-
-        // Insert at the end (after line 3)
-        let insert_params = Parameters(TextEditorParams {
-            path: file_path_str.to_string(),
-            command: "insert".to_string(),
-            view_range: None,
-            file_text: None,
-            old_str: None,
-            new_str: Some("Line 4".to_string()),
-            insert_line: Some(3),
-            diff: None,
-        });
-
-        let insert_result = server.text_editor(insert_params).await.unwrap();
-
-        let text = insert_result
-            .content
-            .iter()
-            .find(|c| {
-                c.audience()
-                    .is_some_and(|roles| roles.contains(&Role::Assistant))
-            })
-            .unwrap()
-            .as_text()
-            .unwrap();
-
-        assert!(text.text.contains("Text has been inserted at line 4"));
-
-        // Verify the file content by reading it directly
-        let file_content = fs::read_to_string(&file_path).unwrap();
-        assert!(file_content.contains("Line 1\nLine 2\nLine 3\nLine 4"));
-    }
-
-    #[tokio::test]
-    #[serial]
-    async fn test_text_editor_insert_at_end_negative() {
-        let temp_dir = tempfile::tempdir().unwrap();
-        let file_path = temp_dir.path().join("test.txt");
-        let file_path_str = file_path.to_str().unwrap();
-        std::env::set_current_dir(&temp_dir).unwrap();
-
-        let server = create_test_server();
-
-        // Create a file with some content
-        let content = "Line 1\nLine 2\nLine 3";
-        let write_params = Parameters(TextEditorParams {
-            path: file_path_str.to_string(),
-            command: "write".to_string(),
-            view_range: None,
-            file_text: Some(content.to_string()),
-            old_str: None,
-            new_str: None,
-            insert_line: None,
-            diff: None,
-        });
-
-        server.text_editor(write_params).await.unwrap();
-
-        // Insert at the end using -1
-        let insert_params = Parameters(TextEditorParams {
-            path: file_path_str.to_string(),
-            command: "insert".to_string(),
-            view_range: None,
-            file_text: None,
-            old_str: None,
-            new_str: Some("Line 4".to_string()),
-            insert_line: Some(-1),
-            diff: None,
-        });
-
-        let insert_result = server.text_editor(insert_params).await.unwrap();
-
-        let text = insert_result
-            .content
-            .iter()
-            .find(|c| {
-                c.audience()
-                    .is_some_and(|roles| roles.contains(&Role::Assistant))
-            })
-            .unwrap()
-            .as_text()
-            .unwrap();
-
-        assert!(text.text.contains("Text has been inserted at line 4"));
-
-        // Verify the file content by reading it directly
-        let file_content = fs::read_to_string(&file_path).unwrap();
-        assert!(file_content.contains("Line 1\nLine 2\nLine 3\nLine 4"));
-    }
-
-    #[tokio::test]
-    #[serial]
-    async fn test_text_editor_insert_invalid_line() {
-        let temp_dir = tempfile::tempdir().unwrap();
-        let file_path = temp_dir.path().join("test.txt");
-        let file_path_str = file_path.to_str().unwrap();
-        std::env::set_current_dir(&temp_dir).unwrap();
-
-        let server = create_test_server();
-
-        // Create a file with some content
-        let content = "Line 1\nLine 2\nLine 3";
-        let write_params = Parameters(TextEditorParams {
-            path: file_path_str.to_string(),
-            command: "write".to_string(),
-            view_range: None,
-            file_text: Some(content.to_string()),
-            old_str: None,
-            new_str: None,
-            insert_line: None,
-            diff: None,
-        });
-
-        server.text_editor(write_params).await.unwrap();
-
-        // Try to insert beyond the end of the file
-        let insert_params = Parameters(TextEditorParams {
-            path: file_path_str.to_string(),
-            command: "insert".to_string(),
-            view_range: None,
-            file_text: None,
-            old_str: None,
-            new_str: Some("Line 11".to_string()),
-            insert_line: Some(10),
-            diff: None,
-        });
-
-        let result = server.text_editor(insert_params).await;
-
-        assert!(result.is_err());
-        let err = result.err().unwrap();
-        assert_eq!(err.code, ErrorCode::INVALID_PARAMS);
-        assert!(err.message.contains("beyond the end of the file"));
-    }
-
-    #[tokio::test]
-    #[serial]
-    async fn test_text_editor_insert_missing_parameters() {
-        let temp_dir = tempfile::tempdir().unwrap();
-        let file_path = temp_dir.path().join("test.txt");
-        let file_path_str = file_path.to_str().unwrap();
-        std::env::set_current_dir(&temp_dir).unwrap();
-
-        let server = create_test_server();
-
-        // Create a file first
-        let write_params = Parameters(TextEditorParams {
-            path: file_path_str.to_string(),
-            command: "write".to_string(),
-            view_range: None,
-            file_text: Some("Initial content".to_string()),
-            old_str: None,
-            new_str: None,
-            insert_line: None,
-            diff: None,
-        });
-
-        server.text_editor(write_params).await.unwrap();
-
-        // Test insert without new_str parameter
-        let insert_params = Parameters(TextEditorParams {
-            path: file_path_str.to_string(),
-            command: "insert".to_string(),
-            view_range: None,
-            file_text: None,
-            old_str: None,
-            new_str: None, // Missing required parameter
-            insert_line: Some(1),
-            diff: None,
-        });
-
-        let result = server.text_editor(insert_params).await;
-        assert!(result.is_err());
-        let error = result.unwrap_err();
-        assert_eq!(error.code, ErrorCode::INVALID_PARAMS);
-        assert!(error.message.contains("Missing 'new_str' parameter"));
-
-        // Test insert without insert_line parameter
-        let insert_params = Parameters(TextEditorParams {
-            path: file_path_str.to_string(),
-            command: "insert".to_string(),
-            view_range: None,
-            file_text: None,
-            old_str: None,
-            new_str: Some("New text".to_string()),
-            insert_line: None, // Missing required parameter
-            diff: None,
-        });
-
-        let result = server.text_editor(insert_params).await;
-        assert!(result.is_err());
-        let error = result.unwrap_err();
-        assert_eq!(error.code, ErrorCode::INVALID_PARAMS);
-        assert!(error.message.contains("Missing 'insert_line' parameter"));
-    }
-
-    #[tokio::test]
-    #[serial]
-    async fn test_text_editor_insert_with_undo() {
-        let temp_dir = tempfile::tempdir().unwrap();
-        let file_path = temp_dir.path().join("test.txt");
-        let file_path_str = file_path.to_str().unwrap();
-        std::env::set_current_dir(&temp_dir).unwrap();
-
-        let server = create_test_server();
-
-        // Create a file with some content
-        let content = "Line 1\nLine 2";
-        let write_params = Parameters(TextEditorParams {
-            path: file_path_str.to_string(),
-            command: "write".to_string(),
-            view_range: None,
-            file_text: Some(content.to_string()),
-            old_str: None,
-            new_str: None,
-            insert_line: None,
-            diff: None,
-        });
-
-        server.text_editor(write_params).await.unwrap();
-
-        // Insert a line
-        let insert_params = Parameters(TextEditorParams {
-            path: file_path_str.to_string(),
-            command: "insert".to_string(),
-            view_range: None,
-            file_text: None,
-            old_str: None,
-            new_str: Some("Inserted Line".to_string()),
-            insert_line: Some(1),
-            diff: None,
-        });
-
-        server.text_editor(insert_params).await.unwrap();
-
-        // Undo the insert
-        let undo_params = Parameters(TextEditorParams {
-            path: file_path_str.to_string(),
-            command: "undo_edit".to_string(),
-            view_range: None,
-            file_text: None,
-            old_str: None,
-            new_str: None,
-            insert_line: None,
-            diff: None,
-        });
-
-        let undo_result = server.text_editor(undo_params).await.unwrap();
-
-        let text = undo_result
-            .content
-            .iter()
-            .find(|c| c.as_text().is_some())
-            .unwrap()
-            .as_text()
-            .unwrap();
-        assert!(text.text.contains("Undid the last edit"));
-
-        // Verify the file is back to original content
-        let file_content = fs::read_to_string(&file_path).unwrap();
-        assert!(file_content.contains("Line 1\nLine 2"));
-        assert!(!file_content.contains("Inserted Line"));
-    }
-
-    #[tokio::test]
-    #[serial]
-    async fn test_text_editor_insert_nonexistent_file() {
-        let temp_dir = tempfile::tempdir().unwrap();
-        let file_path = temp_dir.path().join("nonexistent.txt");
-        let file_path_str = file_path.to_str().unwrap();
-        std::env::set_current_dir(&temp_dir).unwrap();
-
-        let server = create_test_server();
-
-        // Try to insert into a nonexistent file
-        let insert_params = Parameters(TextEditorParams {
-            path: file_path_str.to_string(),
-            command: "insert".to_string(),
-            view_range: None,
-            file_text: None,
-            old_str: None,
-            new_str: Some("New line".to_string()),
-            insert_line: Some(0),
-            diff: None,
-        });
-
-        let result = server.text_editor(insert_params).await;
-
-        assert!(result.is_err());
-        let err = result.err().unwrap();
-        assert_eq!(err.code, ErrorCode::INVALID_PARAMS);
-        assert!(err.message.contains("does not exist"));
-    }
-
-    #[tokio::test]
-    #[serial]
-    async fn test_text_editor_view_large_file_without_range() {
+    async fn test_read_large_file_without_range() {
         let temp_dir = tempfile::tempdir().unwrap();
         let file_path = temp_dir.path().join("large_file.txt");
         let file_path_str = file_path.to_str().unwrap();
@@ -2497,32 +1501,14 @@ mod tests {
             content.push_str(&format!("Line {}\n", i));
         }
 
-        let write_params = Parameters(TextEditorParams {
-            path: file_path_str.to_string(),
-            command: "write".to_string(),
-            view_range: None,
-            file_text: Some(content),
-            old_str: None,
-            new_str: None,
-            insert_line: None,
-            diff: None,
-        });
+        let write_params = Parameters(WriteParams { path: file_path_str.to_string(), content });
 
-        server.text_editor(write_params).await.unwrap();
+        server.write(write_params).await.unwrap();
 
         // Test viewing without view_range - should trigger the error
-        let view_params = Parameters(TextEditorParams {
-            path: file_path_str.to_string(),
-            command: "view".to_string(),
-            view_range: None,
-            file_text: None,
-            old_str: None,
-            new_str: None,
-            insert_line: None,
-            diff: None,
-        });
+        let view_params = Parameters(ReadParams { path: file_path_str.to_string(), offset: None, limit: None });
 
-        let result = server.text_editor(view_params).await;
+        let result = server.read(view_params).await;
 
         assert!(result.is_err());
         let err = result.err().unwrap();
@@ -2536,18 +1522,9 @@ mod tests {
             .contains("please pass in view_range with [1, 2001]"));
 
         // Test viewing with view_range - should work
-        let view_params = Parameters(TextEditorParams {
-            path: file_path_str.to_string(),
-            command: "view".to_string(),
-            view_range: Some(vec![1, 100]),
-            file_text: None,
-            old_str: None,
-            new_str: None,
-            insert_line: None,
-            diff: None,
-        });
+        let view_params = Parameters(ReadParams { path: file_path_str.to_string(), offset: Some(1), limit: Some(100) });
 
-        let result = server.text_editor(view_params).await;
+        let result = server.read(view_params).await;
         assert!(result.is_ok());
 
         let view_result = result.unwrap();
@@ -2568,24 +1545,15 @@ mod tests {
         assert!(!text.text.contains("101: Line 101"));
 
         // Test viewing with explicit full range - should work
-        let view_params = Parameters(TextEditorParams {
-            path: file_path_str.to_string(),
-            command: "view".to_string(),
-            view_range: Some(vec![1, 2001]),
-            file_text: None,
-            old_str: None,
-            new_str: None,
-            insert_line: None,
-            diff: None,
-        });
+        let view_params = Parameters(ReadParams { path: file_path_str.to_string(), offset: Some(1), limit: Some(2001) });
 
-        let result = server.text_editor(view_params).await;
+        let result = server.read(view_params).await;
         assert!(result.is_ok());
     }
 
     #[tokio::test]
     #[serial]
-    async fn test_text_editor_view_file_with_exactly_2000_lines() {
+    async fn test_read_file_with_exactly_2000_lines() {
         let temp_dir = tempfile::tempdir().unwrap();
         let file_path = temp_dir.path().join("file_2000.txt");
         let file_path_str = file_path.to_str().unwrap();
@@ -2599,32 +1567,14 @@ mod tests {
             content.push_str(&format!("Line {}\n", i));
         }
 
-        let write_params = Parameters(TextEditorParams {
-            path: file_path_str.to_string(),
-            command: "write".to_string(),
-            view_range: None,
-            file_text: Some(content),
-            old_str: None,
-            new_str: None,
-            insert_line: None,
-            diff: None,
-        });
+        let write_params = Parameters(WriteParams { path: file_path_str.to_string(), content });
 
-        server.text_editor(write_params).await.unwrap();
+        server.write(write_params).await.unwrap();
 
         // Test viewing without view_range - should work since it's exactly 2000 lines
-        let view_params = Parameters(TextEditorParams {
-            path: file_path_str.to_string(),
-            command: "view".to_string(),
-            view_range: None,
-            file_text: None,
-            old_str: None,
-            new_str: None,
-            insert_line: None,
-            diff: None,
-        });
+        let view_params = Parameters(ReadParams { path: file_path_str.to_string(), offset: None, limit: None });
 
-        let result = server.text_editor(view_params).await;
+        let result = server.read(view_params).await;
 
         assert!(result.is_ok());
         let view_result = result.unwrap();
@@ -2646,7 +1596,7 @@ mod tests {
 
     #[tokio::test]
     #[serial]
-    async fn test_text_editor_view_small_file_without_range() {
+    async fn test_read_small_file_without_range() {
         let temp_dir = tempfile::tempdir().unwrap();
         let file_path = temp_dir.path().join("small_file.txt");
         let file_path_str = file_path.to_str().unwrap();
@@ -2660,32 +1610,14 @@ mod tests {
             content.push_str(&format!("Line {}\n", i));
         }
 
-        let write_params = Parameters(TextEditorParams {
-            path: file_path_str.to_string(),
-            command: "write".to_string(),
-            view_range: None,
-            file_text: Some(content),
-            old_str: None,
-            new_str: None,
-            insert_line: None,
-            diff: None,
-        });
+        let write_params = Parameters(WriteParams { path: file_path_str.to_string(), content });
 
-        server.text_editor(write_params).await.unwrap();
+        server.write(write_params).await.unwrap();
 
         // Test viewing without view_range - should work fine
-        let view_params = Parameters(TextEditorParams {
-            path: file_path_str.to_string(),
-            command: "view".to_string(),
-            view_range: None,
-            file_text: None,
-            old_str: None,
-            new_str: None,
-            insert_line: None,
-            diff: None,
-        });
+        let view_params = Parameters(ReadParams { path: file_path_str.to_string(), offset: None, limit: None });
 
-        let result = server.text_editor(view_params).await;
+        let result = server.read(view_params).await;
 
         assert!(result.is_ok());
         let view_result = result.unwrap();
@@ -2707,7 +1639,7 @@ mod tests {
 
     #[tokio::test]
     #[serial]
-    async fn test_text_editor_view_directory() {
+    async fn test_read_directory() {
         let temp_dir = tempfile::tempdir().unwrap();
         let temp_path = temp_dir.path();
 
@@ -2727,16 +1659,7 @@ mod tests {
 
         // Test viewing a directory
         let result = server
-            .text_editor(Parameters(TextEditorParams {
-                command: "view".to_string(),
-                path: temp_path.to_str().unwrap().to_string(),
-                view_range: None,
-                file_text: None,
-                old_str: None,
-                new_str: None,
-                insert_line: None,
-                diff: None,
-            }))
+            .read(Parameters(ReadParams { path: temp_path.to_str().unwrap().to_string(), offset: None, limit: None }))
             .await;
 
         assert!(result.is_ok());
@@ -2766,7 +1689,7 @@ mod tests {
 
     #[tokio::test]
     #[serial]
-    async fn test_text_editor_view_directory_with_many_files() {
+    async fn test_read_directory_with_many_files() {
         let temp_dir = tempfile::tempdir().unwrap();
         let temp_path = temp_dir.path();
 
@@ -2790,16 +1713,7 @@ mod tests {
         let server = create_test_server();
 
         let result = server
-            .text_editor(Parameters(TextEditorParams {
-                command: "view".to_string(),
-                path: temp_path.to_str().unwrap().to_string(),
-                view_range: None,
-                file_text: None,
-                old_str: None,
-                new_str: None,
-                insert_line: None,
-                diff: None,
-            }))
+            .read(Parameters(ReadParams { path: temp_path.to_str().unwrap().to_string(), offset: None, limit: None }))
             .await;
 
         assert!(result.is_ok());
@@ -2822,7 +1736,7 @@ mod tests {
 
     #[tokio::test]
     #[serial]
-    async fn test_text_editor_view_empty_directory() {
+    async fn test_read_empty_directory() {
         let temp_dir = tempfile::tempdir().unwrap();
         let temp_path = temp_dir.path();
 
@@ -2837,16 +1751,7 @@ mod tests {
         }
 
         let result = server
-            .text_editor(Parameters(TextEditorParams {
-                command: "view".to_string(),
-                path: temp_path.to_str().unwrap().to_string(),
-                view_range: None,
-                file_text: None,
-                old_str: None,
-                new_str: None,
-                insert_line: None,
-                diff: None,
-            }))
+            .read(Parameters(ReadParams { path: temp_path.to_str().unwrap().to_string(), offset: None, limit: None }))
             .await;
 
         assert!(result.is_ok());
@@ -2883,6 +1788,7 @@ mod tests {
                 .shell(
                     Parameters(ShellParams {
                         command: command.to_string(),
+                        timeout: None,
                     }),
                     RequestContext {
                         ct: Default::default(),
@@ -3032,6 +1938,7 @@ mod tests {
                 .shell(
                     Parameters(ShellParams {
                         command: command.to_string(),
+                        timeout: None,
                     }),
                     RequestContext {
                         ct: Default::default(),
@@ -3169,7 +2076,7 @@ mod tests {
 
     #[tokio::test]
     #[serial]
-    async fn test_text_editor_with_absolute_path() {
+    async fn test_read_with_absolute_path() {
         let temp_dir = tempfile::tempdir().unwrap();
         std::env::set_current_dir(&temp_dir).unwrap();
 
@@ -3177,18 +2084,9 @@ mod tests {
         let absolute_path = temp_dir.path().join("absolute_test.txt");
         let absolute_path_str = absolute_path.to_str().unwrap();
 
-        let write_params = Parameters(TextEditorParams {
-            path: absolute_path_str.to_string(),
-            command: "write".to_string(),
-            view_range: None,
-            file_text: Some("Absolute path test".to_string()),
-            old_str: None,
-            new_str: None,
-            insert_line: None,
-            diff: None,
-        });
+        let write_params = Parameters(WriteParams { path: absolute_path_str.to_string(), content: "Absolute path test".to_string() });
 
-        let result = server.text_editor(write_params).await;
+        let result = server.write(write_params).await;
         assert!(result.is_ok());
 
         let content = fs::read_to_string(&absolute_path).unwrap();
@@ -3197,25 +2095,16 @@ mod tests {
 
     #[tokio::test]
     #[serial]
-    async fn test_text_editor_with_relative_path() {
+    async fn test_read_with_relative_path() {
         let temp_dir = tempfile::tempdir().unwrap();
         std::env::set_current_dir(&temp_dir).unwrap();
 
         let server = create_test_server();
         let relative_path = "relative_test.txt";
 
-        let write_params = Parameters(TextEditorParams {
-            path: relative_path.to_string(),
-            command: "write".to_string(),
-            view_range: None,
-            file_text: Some("Relative path test".to_string()),
-            old_str: None,
-            new_str: None,
-            insert_line: None,
-            diff: None,
-        });
+        let write_params = Parameters(WriteParams { path: relative_path.to_string(), content: "Relative path test".to_string() });
 
-        let result = server.text_editor(write_params).await;
+        let result = server.write(write_params).await;
         assert!(result.is_ok());
 
         let absolute_path = temp_dir.path().join(relative_path);
@@ -3249,6 +2138,7 @@ mod tests {
                     .shell(
                         Parameters(ShellParams {
                             command: "sleep 30".to_string(),
+                            timeout: None,
                         }),
                         context,
                     )
@@ -3337,6 +2227,7 @@ mod tests {
                     .shell(
                         Parameters(ShellParams {
                             command: "bash -c 'sleep 60 & wait'".to_string(),
+                            timeout: None,
                         }),
                         context,
                     )
@@ -3434,6 +2325,7 @@ mod tests {
                 .shell(
                     Parameters(ShellParams {
                         command: "echo 'Hello, World!'".to_string(),
+                        timeout: None,
                     }),
                     context,
                 )

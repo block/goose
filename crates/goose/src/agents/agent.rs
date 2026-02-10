@@ -808,8 +808,8 @@ impl Agent {
     }
 
     pub async fn subagents_enabled(&self, session_id: &str) -> bool {
-        // In small mode, disable subagents for simpler tool set
-        if std::env::var("GOOSE_SMALL_MODE").map(|v| v == "true").unwrap_or(false) {
+        // Small mode is on by default — disable subagents unless explicitly opted out
+        if std::env::var("GOOSE_SMALL_MODE").map(|v| v != "false").unwrap_or(true) {
             return false;
         }
         if self.config.goose_mode != GooseMode::Auto {
@@ -842,9 +842,9 @@ impl Agent {
             .await
             .unwrap_or_default();
 
-        // In small mode, filter developer extension to core tools only (read, edit, write, shell)
-        // Other extensions keep all their tools
-        let small_mode = std::env::var("GOOSE_SMALL_MODE").map(|v| v == "true").unwrap_or(false);
+        // Small mode on by default: filter developer extension to core tools only (read, edit, write, shell)
+        // Set GOOSE_SMALL_MODE=false to expose all tools
+        let small_mode = std::env::var("GOOSE_SMALL_MODE").map(|v| v != "false").unwrap_or(true);
         if small_mode {
             let core_tools = ["read", "edit", "write", "shell"];
             prefixed_tools.retain(|tool| {
@@ -1194,8 +1194,8 @@ impl Agent {
                     tool_call_cut_off,
                 );
 
-                // In small mode, skip MOIM injection for simpler prompts
-                let conversation_for_llm = if std::env::var("GOOSE_SMALL_MODE").map(|v| v == "true").unwrap_or(false) {
+                // Small mode on by default: skip MOIM injection for simpler prompts
+                let conversation_for_llm = if std::env::var("GOOSE_SMALL_MODE").map(|v| v != "false").unwrap_or(true) {
                     conversation.clone()
                 } else {
                     super::moim::inject_moim(

@@ -168,7 +168,7 @@ impl Agent {
         let model_config = provider.get_model_config();
 
         let small_mode =
-            std::env::var("GOOSE_SMALL_MODE").map(|v| v == "true").unwrap_or(false);
+            std::env::var("GOOSE_SMALL_MODE").map(|v| v != "false").unwrap_or(true);
 
         // Prepare system prompt
         let mut extensions_info = self.extension_manager.get_extensions_info().await;

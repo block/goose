@@ -277,40 +277,6 @@ new file mode 100644
     }
 
     #[tokio::test]
-    async fn test_undo_after_diff() {
-        let temp_dir = TempDir::new().unwrap();
-        let file_path = temp_dir.path().join("test.txt");
-
-        std::fs::write(&file_path, "original\n").unwrap();
-
-        let diff = r#"--- a/test.txt
-+++ b/test.txt
-@@ -1 +1 @@
--original
-+modified"#;
-
-        let history = Arc::new(Mutex::new(HashMap::new()));
-
-        // Apply diff
-        let result = apply_diff(&file_path, diff, &history).await;
-        if let Err(e) = &result {
-            eprintln!("Error applying diff in test_undo_after_diff: {:?}", e);
-        }
-        assert!(result.is_ok());
-        // patcher doesn't preserve trailing newlines in the same way
-        let content_after = std::fs::read_to_string(&file_path).unwrap();
-        assert!(content_after == "modified" || content_after == "modified\n");
-
-        // Undo should restore original
-        let undo_result = text_editor_undo(&file_path, &history).await;
-        if let Err(e) = &undo_result {
-            eprintln!("Error undoing in test_undo_after_diff: {:?}", e);
-        }
-        assert!(undo_result.is_ok());
-        assert_eq!(std::fs::read_to_string(&file_path).unwrap(), "original\n");
-    }
-
-    #[tokio::test]
     async fn test_multi_file_diff() {
         let temp_dir = TempDir::new().unwrap();
         let base_path = temp_dir.path();
