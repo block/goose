@@ -129,7 +129,7 @@ These variables configure a [lead/worker model pattern](/docs/tutorials/lead-wor
 | `GOOSE_LEAD_MODEL` | **Required to enable lead mode.** Name of the lead model | Model name (e.g., "gpt-4o", "claude-sonnet-4-20250514") | None |
 | `GOOSE_LEAD_PROVIDER` | Provider for the lead model | [See available providers](/docs/getting-started/providers#available-providers) | Falls back to `GOOSE_PROVIDER` |
 | `GOOSE_LEAD_TURNS` | Number of initial turns using the lead model before switching to the worker model | Integer | 3 |
-| `GOOSE_LEAD_FAILURE_THRESHOLD` | Consecutive failures before fallback to the lead model | Integer | 2 |
+| `GOOSE_LEAD_FAILURE_THRESHOLD` | Consecutive failures before falling back to the lead model | Integer | 2 |
 | `GOOSE_LEAD_FALLBACK_TURNS` | Number of turns to use the lead model in fallback mode | Integer | 2 |
 
 A _turn_ is one complete prompt-response interaction. Here's how it works with the default settings:
