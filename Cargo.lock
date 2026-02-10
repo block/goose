@@ -4112,7 +4112,7 @@ dependencies = [
 
 [[package]]
 name = "goose"
-version = "1.23.0"
+version = "1.24.0"
 dependencies = [
  "ahash",
  "anyhow",
@@ -4207,7 +4207,7 @@ dependencies = [
 
 [[package]]
 name = "goose-acp"
-version = "1.23.0"
+version = "1.24.0"
 dependencies = [
  "anyhow",
  "assert-json-diff",
@@ -4241,7 +4241,7 @@ dependencies = [
 
 [[package]]
 name = "goose-cli"
-version = "1.23.0"
+version = "1.24.0"
 dependencies = [
  "anstream",
  "anyhow",
@@ -4287,7 +4287,7 @@ dependencies = [
 
 [[package]]
 name = "goose-mcp"
-version = "1.23.0"
+version = "1.24.0"
 dependencies = [
  "anyhow",
  "base64 0.22.1",
@@ -4336,7 +4336,7 @@ dependencies = [
 
 [[package]]
 name = "goose-server"
-version = "1.23.0"
+version = "1.24.0"
 dependencies = [
  "anyhow",
  "axum 0.8.8",
@@ -4382,7 +4382,7 @@ dependencies = [
 
 [[package]]
 name = "goose-test"
-version = "1.23.0"
+version = "1.24.0"
 dependencies = [
  "clap",
  "serde_json",
@@ -4390,7 +4390,7 @@ dependencies = [
 
 [[package]]
 name = "goose-test-support"
-version = "1.23.0"
+version = "1.24.0"
 dependencies = [
  "axum 0.7.9",
  "rmcp 0.14.0",

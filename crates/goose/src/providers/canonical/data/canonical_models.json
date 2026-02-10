@@ -655,6 +655,39 @@
     }
   },
   {
+    "id": "amazon-bedrock/anthropic.claude-opus-4.6-v1",
+    "name": "Claude Opus 4.6",
+    "family": "claude-opus",
+    "attachment": true,
+    "reasoning": true,
+    "tool_call": true,
+    "temperature": true,
+    "knowledge": "2025-05",
+    "release_date": "2026-02-05",
+    "last_updated": "2026-02-05",
+    "modalities": {
+      "input": [
+        "text",
+        "image",
+        "pdf"
+      ],
+      "output": [
+        "text"
+      ]
+    },
+    "open_weights": false,
+    "cost": {
+      "input": 5.0,
+      "output": 25.0,
+      "cache_read": 0.5,
+      "cache_write": 6.25
+    },
+    "limit": {
+      "context": 1000000,
+      "output": 128000
+    }
+  },
+  {
     "id": "amazon-bedrock/anthropic.claude-sonnet-4-20250514-v1:0",
     "name": "Claude Sonnet 4",
     "family": "claude-sonnet",
@@ -1010,12 +1043,45 @@
     "cost": {
       "input": 5.0,
       "output": 25.0,
-      "cache_read": 1.5,
-      "cache_write": 18.75
+      "cache_read": 0.5,
+      "cache_write": 6.25
     },
     "limit": {
       "context": 200000,
       "output": 64000
+    }
+  },
+  {
+    "id": "amazon-bedrock/eu.anthropic.claude-opus-4.6-v1",
+    "name": "Claude Opus 4.6 (EU)",
+    "family": "claude-opus",
+    "attachment": true,
+    "reasoning": true,
+    "tool_call": true,
+    "temperature": true,
+    "knowledge": "2025-05",
+    "release_date": "2026-02-05",
+    "last_updated": "2026-02-05",
+    "modalities": {
+      "input": [
+        "text",
+        "image",
+        "pdf"
+      ],
+      "output": [
+        "text"
+      ]
+    },
+    "open_weights": false,
+    "cost": {
+      "input": 5.0,
+      "output": 25.0,
+      "cache_read": 0.5,
+      "cache_write": 6.25
+    },
+    "limit": {
+      "context": 1000000,
+      "output": 128000
     }
   },
   {
@@ -1151,6 +1217,39 @@
     }
   },
   {
+    "id": "amazon-bedrock/global.anthropic.claude-opus-4.6-v1",
+    "name": "Claude Opus 4.6 (Global)",
+    "family": "claude-opus",
+    "attachment": true,
+    "reasoning": true,
+    "tool_call": true,
+    "temperature": true,
+    "knowledge": "2025-05",
+    "release_date": "2026-02-05",
+    "last_updated": "2026-02-05",
+    "modalities": {
+      "input": [
+        "text",
+        "image",
+        "pdf"
+      ],
+      "output": [
+        "text"
+      ]
+    },
+    "open_weights": false,
+    "cost": {
+      "input": 5.0,
+      "output": 25.0,
+      "cache_read": 0.5,
+      "cache_write": 6.25
+    },
+    "limit": {
+      "context": 1000000,
+      "output": 128000
+    }
+  },
+  {
     "id": "amazon-bedrock/global.anthropic.claude-sonnet-4-20250514-v1:0",
     "name": "Claude Sonnet 4 (Global)",
     "family": "claude-sonnet",
@@ -1238,8 +1337,8 @@
     },
     "open_weights": false,
     "cost": {
-      "input": 0.05,
-      "output": 0.1
+      "input": 0.049999999999999996,
+      "output": 0.09999999999999999
     },
     "limit": {
       "context": 131072,
@@ -2347,12 +2446,45 @@
     "cost": {
       "input": 5.0,
       "output": 25.0,
-      "cache_read": 1.5,
-      "cache_write": 18.75
+      "cache_read": 0.5,
+      "cache_write": 6.25
     },
     "limit": {
       "context": 200000,
       "output": 64000
+    }
+  },
+  {
+    "id": "amazon-bedrock/us.anthropic.claude-opus-4.6-v1",
+    "name": "Claude Opus 4.6 (US)",
+    "family": "claude-opus",
+    "attachment": true,
+    "reasoning": true,
+    "tool_call": true,
+    "temperature": true,
+    "knowledge": "2025-05",
+    "release_date": "2026-02-05",
+    "last_updated": "2026-02-05",
+    "modalities": {
+      "input": [
+        "text",
+        "image",
+        "pdf"
+      ],
+      "output": [
+        "text"
+      ]
+    },
+    "open_weights": false,
+    "cost": {
+      "input": 5.0,
+      "output": 25.0,
+      "cache_read": 0.5,
+      "cache_write": 6.25
+    },
+    "limit": {
+      "context": 1000000,
+      "output": 128000
     }
   },
   {
@@ -2785,6 +2917,39 @@
     }
   },
   {
+    "id": "anthropic/claude-opus-4.6",
+    "name": "Claude Opus 4.6",
+    "family": "claude-opus",
+    "attachment": true,
+    "reasoning": true,
+    "tool_call": true,
+    "temperature": true,
+    "knowledge": "2025-05",
+    "release_date": "2026-02-05",
+    "last_updated": "2026-02-05",
+    "modalities": {
+      "input": [
+        "text",
+        "image",
+        "pdf"
+      ],
+      "output": [
+        "text"
+      ]
+    },
+    "open_weights": false,
+    "cost": {
+      "input": 5.0,
+      "output": 25.0,
+      "cache_read": 0.5,
+      "cache_write": 6.25
+    },
+    "limit": {
+      "context": 200000,
+      "output": 128000
+    }
+  },
+  {
     "id": "anthropic/claude-sonnet-4",
     "name": "Claude Sonnet 4",
     "family": "claude-sonnet",
@@ -2980,6 +3145,39 @@
     "limit": {
       "context": 200000,
       "output": 64000
+    }
+  },
+  {
+    "id": "azure/claude-opus-4.6",
+    "name": "Claude Opus 4.6",
+    "family": "claude-opus",
+    "attachment": true,
+    "reasoning": true,
+    "tool_call": true,
+    "temperature": true,
+    "knowledge": "2025-05",
+    "release_date": "2026-02-05",
+    "last_updated": "2026-02-05",
+    "modalities": {
+      "input": [
+        "text",
+        "image",
+        "pdf"
+      ],
+      "output": [
+        "text"
+      ]
+    },
+    "open_weights": false,
+    "cost": {
+      "input": 5.0,
+      "output": 25.0,
+      "cache_read": 0.5,
+      "cache_write": 6.25
+    },
+    "limit": {
+      "context": 200000,
+      "output": 128000
     }
   },
   {
@@ -4370,6 +4568,36 @@
       "input": 0.6,
       "output": 2.5,
       "cache_read": 0.15
+    },
+    "limit": {
+      "context": 262144,
+      "output": 262144
+    }
+  },
+  {
+    "id": "azure/kimi-k2.5",
+    "name": "Kimi K2.5",
+    "family": "kimi",
+    "attachment": false,
+    "reasoning": true,
+    "tool_call": true,
+    "temperature": true,
+    "knowledge": "2025-01",
+    "release_date": "2026-02-06",
+    "last_updated": "2026-02-06",
+    "modalities": {
+      "input": [
+        "text",
+        "image"
+      ],
+      "output": [
+        "text"
+      ]
+    },
+    "open_weights": true,
+    "cost": {
+      "input": 0.6,
+      "output": 3.0
     },
     "limit": {
       "context": 262144,
@@ -8768,6 +8996,38 @@
     }
   },
   {
+    "id": "openai/gpt-5.3-codex",
+    "name": "GPT-5.3 Codex",
+    "family": "gpt-codex",
+    "attachment": true,
+    "reasoning": true,
+    "tool_call": true,
+    "temperature": false,
+    "knowledge": "2025-08-31",
+    "release_date": "2026-02-05",
+    "last_updated": "2026-02-05",
+    "modalities": {
+      "input": [
+        "text",
+        "image",
+        "pdf"
+      ],
+      "output": [
+        "text"
+      ]
+    },
+    "open_weights": false,
+    "cost": {
+      "input": 1.75,
+      "output": 14.0,
+      "cache_read": 0.175
+    },
+    "limit": {
+      "context": 400000,
+      "output": 128000
+    }
+  },
+  {
     "id": "openai/o1",
     "name": "o1",
     "family": "o",
@@ -9165,7 +9425,7 @@
     "family": "allenai",
     "attachment": false,
     "reasoning": true,
-    "tool_call": true,
+    "tool_call": false,
     "temperature": true,
     "knowledge": "2025-06",
     "release_date": "2026-01-09",
@@ -9386,6 +9646,39 @@
     "limit": {
       "context": 200000,
       "output": 32000
+    }
+  },
+  {
+    "id": "openrouter/anthropic/claude-opus-4.6",
+    "name": "Claude Opus 4.6",
+    "family": "claude-opus",
+    "attachment": true,
+    "reasoning": true,
+    "tool_call": true,
+    "temperature": true,
+    "knowledge": "2025-05-30",
+    "release_date": "2026-02-05",
+    "last_updated": "2026-02-05",
+    "modalities": {
+      "input": [
+        "text",
+        "image",
+        "pdf"
+      ],
+      "output": [
+        "text"
+      ]
+    },
+    "open_weights": false,
+    "cost": {
+      "input": 5.0,
+      "output": 25.0,
+      "cache_read": 0.5,
+      "cache_write": 6.25
+    },
+    "limit": {
+      "context": 1000000,
+      "output": 128000
     }
   },
   {
@@ -9673,7 +9966,7 @@
     "family": "mistral",
     "attachment": false,
     "reasoning": false,
-    "tool_call": true,
+    "tool_call": false,
     "temperature": true,
     "knowledge": "2025-06",
     "release_date": "2025-07-09",
@@ -10831,7 +11124,7 @@
     "family": "liquid",
     "attachment": false,
     "reasoning": false,
-    "tool_call": true,
+    "tool_call": false,
     "temperature": true,
     "knowledge": "2025-06",
     "release_date": "2026-01-20",
@@ -10860,7 +11153,7 @@
     "family": "liquid",
     "attachment": false,
     "reasoning": true,
-    "tool_call": true,
+    "tool_call": false,
     "temperature": true,
     "knowledge": "2025-06",
     "release_date": "2026-01-20",
@@ -10889,7 +11182,7 @@
     "family": "llama",
     "attachment": true,
     "reasoning": false,
-    "tool_call": true,
+    "tool_call": false,
     "temperature": true,
     "knowledge": "2024-08",
     "release_date": "2024-07-23",
@@ -10948,7 +11241,7 @@
     "family": "llama",
     "attachment": true,
     "reasoning": false,
-    "tool_call": true,
+    "tool_call": false,
     "temperature": true,
     "knowledge": "2023-12",
     "release_date": "2024-09-25",
@@ -11770,7 +12063,7 @@
     "family": "hermes",
     "attachment": false,
     "reasoning": true,
-    "tool_call": true,
+    "tool_call": false,
     "temperature": true,
     "knowledge": "2023-12",
     "release_date": "2024-08-16",
@@ -12750,6 +13043,34 @@
     "limit": {
       "context": 200000,
       "output": 100000
+    }
+  },
+  {
+    "id": "openrouter/openrouter/pony-alpha",
+    "name": "Pony Alpha",
+    "family": "pony",
+    "attachment": false,
+    "reasoning": true,
+    "tool_call": true,
+    "temperature": true,
+    "release_date": "2026-02-06",
+    "last_updated": "2026-02-06",
+    "modalities": {
+      "input": [
+        "text"
+      ],
+      "output": [
+        "text"
+      ]
+    },
+    "open_weights": false,
+    "cost": {
+      "input": 0.0,
+      "output": 0.0
+    },
+    "limit": {
+      "context": 200000,
+      "output": 131000
     }
   },
   {
@@ -13782,7 +14103,7 @@
     "family": "tngtech",
     "attachment": false,
     "reasoning": true,
-    "tool_call": false,
+    "tool_call": true,
     "temperature": true,
     "knowledge": "2025-07",
     "release_date": "2025-11-26",
@@ -14055,6 +14376,36 @@
     }
   },
   {
+    "id": "openrouter/xiaomi/mimo-v2-flash",
+    "name": "MiMo-V2-Flash",
+    "family": "mimo",
+    "attachment": false,
+    "reasoning": true,
+    "tool_call": true,
+    "temperature": true,
+    "knowledge": "2024-12",
+    "release_date": "2025-12-14",
+    "last_updated": "2025-12-14",
+    "modalities": {
+      "input": [
+        "text"
+      ],
+      "output": [
+        "text"
+      ]
+    },
+    "open_weights": true,
+    "cost": {
+      "input": 0.1,
+      "output": 0.3,
+      "cache_read": 0.01
+    },
+    "limit": {
+      "context": 262144,
+      "output": 65536
+    }
+  },
+  {
     "id": "openrouter/z-ai/glm-4.5",
     "name": "GLM 4.5",
     "family": "glm",
@@ -14288,6 +14639,37 @@
     "limit": {
       "context": 200000,
       "output": 65535
+    }
+  },
+  {
+    "id": "venice/claude-opus-4.6",
+    "name": "Claude Opus 4.6",
+    "family": "claude-opus",
+    "attachment": true,
+    "reasoning": true,
+    "tool_call": true,
+    "temperature": true,
+    "release_date": "2026-02-05",
+    "last_updated": "2026-02-05",
+    "modalities": {
+      "input": [
+        "text",
+        "image"
+      ],
+      "output": [
+        "text"
+      ]
+    },
+    "open_weights": false,
+    "cost": {
+      "input": 6.0,
+      "output": 30.0,
+      "cache_read": 0.6,
+      "cache_write": 7.5
+    },
+    "limit": {
+      "context": 1000000,
+      "output": 128000
     }
   },
   {
@@ -15070,6 +15452,34 @@
     "limit": {
       "context": 198000,
       "output": 49500
+    }
+  },
+  {
+    "id": "venice/zai-org-glm-4.7-flash",
+    "name": "GLM 4.7 Flash",
+    "family": "glm-flash",
+    "attachment": false,
+    "reasoning": false,
+    "tool_call": true,
+    "temperature": true,
+    "release_date": "2026-01-29",
+    "last_updated": "2026-01-30",
+    "modalities": {
+      "input": [
+        "text"
+      ],
+      "output": [
+        "text"
+      ]
+    },
+    "open_weights": true,
+    "cost": {
+      "input": 0.125,
+      "output": 0.5
+    },
+    "limit": {
+      "context": 128000,
+      "output": 32000
     }
   },
   {
