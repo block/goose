@@ -133,13 +133,22 @@ export default function McpAppRenderer({
   const [sandboxUrl, setSandboxUrl] = useState<URL | null>(null);
   const [sandboxCsp, setSandboxCsp] = useState<McpUiResourceCsp | null>(null);
   const [sandboxUrlFetched, setSandboxUrlFetched] = useState(false);
+  // Tracks whether the resource fetch has completed so the sandbox URL effect
+  // waits for metadata (CSP) before creating the proxy.
+  const [resourceFetched, setResourceFetched] = useState(false);
 
-  // Initialize sandbox URL once after HTML loads.
+  // Initialize sandbox URL once after HTML and metadata are available.
+  // We wait for resourceFetched so that when cachedHtml is provided, we don't
+  // create the proxy before the resource fetch has had a chance to populate CSP.
   // We only fetch once (tracked by sandboxUrlFetched) to prevent iframe recreation
-  // which would cause the app to lose state. CSP is captured at fetch time to keep
-  // sandboxConfig stable across re-renders.
+  // which would cause the app to lose state.
   useEffect(() => {
     if (!resource.html || sandboxUrlFetched) {
+      return;
+    }
+    // When there's a sessionId, wait for the resource fetch to complete so we
+    // have metadata (CSP). Without a sessionId there's no fetch to wait for.
+    if (sessionId && !resourceFetched) {
       return;
     }
     const cspAtFetchTime = resource.csp;
@@ -152,11 +161,12 @@ export default function McpAppRenderer({
       }
       setSandboxUrlFetched(true);
     });
-  }, [resource.html, resource.csp, sandboxUrlFetched]);
+  }, [resource.html, resource.csp, sandboxUrlFetched, sessionId, resourceFetched]);
 
   // Fetch the MCP resource (HTML + metadata) from the extension.
   // If cachedHtml is provided, we show it immediately and only update if the
-  // fetched content differs. This enables instant rendering for tool results.
+  // fetched content differs. Metadata (CSP, permissions, prefersBorder) is
+  // always applied regardless of whether the HTML changed.
   useEffect(() => {
     if (!sessionId) {
       return;
@@ -184,19 +194,17 @@ export default function McpAppRenderer({
               }
             | undefined;
 
-          if (content.text !== cachedHtml) {
-            setResource({
-              html: content.text,
-              csp: meta?.ui?.csp || null,
-              // Per the ext-apps spec, _meta.ui.permissions is McpUiResourcePermissions
-              // (camera, microphone, etc.) used to build the iframe Permission Policy
-              // `allow` attribute. The @mcp-ui/client SDK does not yet forward these
-              // via sendSandboxResourceReady — tracked in:
-              // https://github.com/MCP-UI-Org/mcp-ui/issues/180
-              permissions: null,
-              prefersBorder: meta?.ui?.prefersBorder ?? true,
-            });
-          }
+          setResource({
+            html: content.text ?? cachedHtml ?? null,
+            csp: meta?.ui?.csp || null,
+            // Per the ext-apps spec, _meta.ui.permissions is McpUiResourcePermissions
+            // (camera, microphone, etc.) used to build the iframe Permission Policy
+            // `allow` attribute. The @mcp-ui/client SDK does not yet forward these
+            // via sendSandboxResourceReady — tracked in:
+            // https://github.com/MCP-UI-Org/mcp-ui/issues/180
+            permissions: null,
+            prefersBorder: meta?.ui?.prefersBorder ?? true,
+          });
         }
       } catch (err) {
         console.error('[McpAppRenderer] Error fetching resource:', err);
@@ -205,6 +213,8 @@ export default function McpAppRenderer({
         } else {
           console.warn('Failed to fetch fresh resource, using cached version:', err);
         }
+      } finally {
+        setResourceFetched(true);
       }
     };
 
