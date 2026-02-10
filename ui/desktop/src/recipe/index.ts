@@ -49,7 +49,7 @@ export async function decodeRecipe(deeplink: string): Promise<Recipe> {
       throw new Error('Decoded recipe is null');
     }
 
-    return response.data.recipe as Recipe;
+    return stripEmptyExtensions(response.data.recipe as Recipe);
   } catch (error) {
     console.error('Failed to decode deeplink:', error);
     throw error;

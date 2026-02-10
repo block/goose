@@ -7,7 +7,7 @@ import {
 } from './store/extensionOverrides';
 import type { FixedExtensionEntry } from './components/ConfigContext';
 import { AppEvents } from './constants/events';
-import { decodeRecipe, stripEmptyExtensions, Recipe } from './recipe';
+import { decodeRecipe, Recipe } from './recipe';
 
 export function shouldShowNewChatTitle(session: Session): boolean {
   if (session.recipe) {
@@ -51,8 +51,7 @@ export async function createSession(
   };
 
   if (options?.recipeDeeplink) {
-    const recipe = await decodeRecipe(options.recipeDeeplink);
-    body.recipe = stripEmptyExtensions(recipe);
+    body.recipe = await decodeRecipe(options.recipeDeeplink);
   }
 
   if (options?.extensionConfigs && options.extensionConfigs.length > 0) {
@@ -84,9 +83,10 @@ export async function startNewSession(
   }
 ): Promise<Session> {
   const session = await createSession(workingDir, options);
-
-  // Include session data so sidebar can add it immediately (before it has messages)
   window.dispatchEvent(new CustomEvent(AppEvents.SESSION_CREATED, { detail: { session } }));
+  window.dispatchEvent(
+    new CustomEvent(AppEvents.SESSION_EXTENSIONS_LOADED, { detail: { session } })
+  );
 
   const initialMessage = initialText ? { msg: initialText, images: [] } : undefined;
 
