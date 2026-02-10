@@ -60,6 +60,24 @@ Which leads to the only question that matters ....
 
 When I started building our skills marketplace, one shot prompting alone couldn't cut it. My normal workflow involved researching in one place and implementing in another, and every time I switched tools I had to re-explain the same decisions. Context wasn’t living inside the system. It was living in my head. The agent would forget, I would remember, and the entire session became an exercise in rehydration instead of progress.
 
+Here’s what that loop looked like in practice:
+
+{/* Video Player */}
+<div style={{ width: '100%', maxWidth: '800px', margin: '0 auto' }}>
+  <video
+    controls
+    playsInline
+    style={{ width: '100%', height: 'auto', display: 'block' }}
+  >
+    <source src={require('@site/static/videos/contextBlog.mp4').default} type="video/mp4" />
+    Your browser does not support the video tag.
+  </video>
+</div>
+
+
+
+> *Even **this** demo is powered by persistent context.*
+
 That was the moment I experimented with [RPI](https://block.github.io/goose/docs/tutorials/rpi). Not because it was trendy, but because the alternative had become tedious.
 
 You don’t have to adopt RPI, or any new pattern, tomorrow to benefit from this. You can simulate the shift in your next session with a small change in how you start.
