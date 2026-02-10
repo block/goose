@@ -381,7 +381,7 @@ export default function McpAppRenderer({
     if (!sandboxUrl) return null;
     return {
       url: sandboxUrl,
-      permissions: resource.permissions || 'allow-scripts allow-same-origin allow-forms',
+      permissions: resource.permissions || 'allow-scripts allow-same-origin',
       csp: mcpUiCsp,
     };
   }, [sandboxUrl, resource.permissions, mcpUiCsp]);
