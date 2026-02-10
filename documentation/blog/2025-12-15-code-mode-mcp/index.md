@@ -20,7 +20,7 @@ posts. Since the approach and the benefits are clearly laid out in those posts I
 
 ### Summary
 
-* Instead of exposing the tools directly to the model an MCP client application can:
+* Instead of exposing the tools directly to the model, an MCP client application can:
     * Generate a programmatic interface to these same tools (typically JS or TS powered)
     * Provide a limited set of tools to the model (search available modules/tool source code, read the source code for a tool, and then a tool to execute some code)
     * Run the code the model generates to call the programmatic API in a sandboxed environment for safety
