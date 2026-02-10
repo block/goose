@@ -32,6 +32,9 @@ let cfg = {
         LSItemContentTypes: ['public.directory', 'public.folder'],
       },
     ],
+    // Usage descriptions for macOS TCC (Transparency, Consent, and Control)
+    NSCalendarsUsageDescription: 'Goose needs access to your calendars to help manage and query calendar events.',
+    NSRemindersUsageDescription: 'Goose needs access to your reminders to help manage and query reminders.',
   },
 };
 
@@ -43,8 +46,8 @@ module.exports = {
       name: '@electron-forge/publisher-github',
       config: {
         repository: {
-          owner: 'block',
-          name: 'goose',
+          owner: process.env.GITHUB_OWNER || 'block',
+          name: process.env.GITHUB_REPO || 'goose',
         },
         prerelease: false,
         draft: true,

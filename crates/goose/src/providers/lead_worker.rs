@@ -1,15 +1,20 @@
-use anyhow::Result;
+use anyhow::{anyhow, Result};
 use async_trait::async_trait;
 use std::ops::Deref;
 use std::sync::Arc;
 use tokio::sync::Mutex;
 
-use super::base::{LeadWorkerProviderTrait, Provider, ProviderMetadata, ProviderUsage};
+use super::base::{
+    LeadWorkerProviderTrait, Provider, ProviderDef, ProviderMetadata, ProviderUsage,
+};
 use super::errors::ProviderError;
 use crate::conversation::message::{Message, MessageContent};
 use crate::model::ModelConfig;
+use futures::future::BoxFuture;
 use rmcp::model::Tool;
 use rmcp::model::{Content, RawContent};
+
+const LEAD_WORKER_PROVIDER_NAME: &str = "lead_worker";
 
 /// A provider that switches between a lead model and a worker model based on turn count
 /// and can fallback to lead model on consecutive failures
@@ -314,12 +319,13 @@ impl LeadWorkerProviderTrait for LeadWorkerProvider {
     }
 }
 
-#[async_trait]
-impl Provider for LeadWorkerProvider {
+impl ProviderDef for LeadWorkerProvider {
+    type Provider = Self;
+
     fn metadata() -> ProviderMetadata {
         // This is a wrapper provider, so we return minimal metadata
         ProviderMetadata::new(
-            "lead_worker",
+            LEAD_WORKER_PROVIDER_NAME,
             "Lead/Worker Provider",
             "A provider that switches between lead and worker models based on turn count",
             "",     // No default model as this is determined by the wrapped providers
@@ -329,6 +335,13 @@ impl Provider for LeadWorkerProvider {
         )
     }
 
+    fn from_env(_model: ModelConfig) -> BoxFuture<'static, Result<Self::Provider>> {
+        Box::pin(async { Err(anyhow!("LeadWorkerProvider must be constructed explicitly")) })
+    }
+}
+
+#[async_trait]
+impl Provider for LeadWorkerProvider {
     fn get_name(&self) -> &str {
         // Return the lead provider's name as the default
         self.lead_provider.get_name()
@@ -432,22 +445,14 @@ impl Provider for LeadWorkerProvider {
         final_result
     }
 
-    async fn fetch_supported_models(&self) -> Result<Option<Vec<String>>, ProviderError> {
+    async fn fetch_supported_models(&self) -> Result<Vec<String>, ProviderError> {
         // Combine models from both providers
-        let lead_models = self.lead_provider.fetch_supported_models().await?;
+        let mut all_models = self.lead_provider.fetch_supported_models().await?;
         let worker_models = self.worker_provider.fetch_supported_models().await?;
-
-        match (lead_models, worker_models) {
-            (Some(lead), Some(worker)) => {
-                let mut all_models = lead;
-                all_models.extend(worker);
-                all_models.sort();
-                all_models.dedup();
-                Ok(Some(all_models))
-            }
-            (Some(models), None) | (None, Some(models)) => Ok(Some(models)),
-            (None, None) => Ok(None),
-        }
+        all_models.extend(worker_models);
+        all_models.sort();
+        all_models.dedup();
+        Ok(all_models)
     }
 
     fn supports_embeddings(&self) -> bool {
@@ -486,7 +491,7 @@ impl Provider for LeadWorkerProvider {
 mod tests {
     use super::*;
     use crate::conversation::message::{Message, MessageContent};
-    use crate::providers::base::{ProviderMetadata, ProviderUsage, Usage};
+    use crate::providers::base::{ProviderUsage, Usage};
     use chrono::Utc;
     use rmcp::model::{AnnotateAble, RawTextContent, Role};
 
@@ -498,10 +503,6 @@ mod tests {
 
     #[async_trait]
     impl Provider for MockProvider {
-        fn metadata() -> ProviderMetadata {
-            ProviderMetadata::empty()
-        }
-
         fn get_name(&self) -> &str {
             "mock-lead"
         }
@@ -684,10 +685,6 @@ mod tests {
 
     #[async_trait]
     impl Provider for MockFailureProvider {
-        fn metadata() -> ProviderMetadata {
-            ProviderMetadata::empty()
-        }
-
         fn get_name(&self) -> &str {
             "mock-lead"
         }

@@ -24,6 +24,7 @@ pub mod subagent_handler;
 mod subagent_task_config;
 pub mod subagent_tool;
 pub(crate) mod todo_extension;
+pub(crate) mod tom_extension;
 mod tool_execution;
 pub mod types;
 

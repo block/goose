@@ -4,6 +4,7 @@ use std::time::Duration;
 use anyhow::Result;
 use async_stream::try_stream;
 use async_trait::async_trait;
+use futures::future::BoxFuture;
 use futures::StreamExt;
 use futures::TryStreamExt;
 use once_cell::sync::Lazy;
@@ -15,7 +16,9 @@ use url::Url;
 
 use crate::conversation::message::Message;
 use crate::model::ModelConfig;
-use crate::providers::base::{ConfigKey, MessageStream, Provider, ProviderMetadata, ProviderUsage};
+use crate::providers::base::{
+    ConfigKey, MessageStream, Provider, ProviderDef, ProviderMetadata, ProviderUsage,
+};
 
 use crate::providers::errors::ProviderError;
 use crate::providers::formats::gcpvertexai::{
@@ -23,11 +26,13 @@ use crate::providers::formats::gcpvertexai::{
     ModelProvider, RequestContext, DEFAULT_MODEL, KNOWN_MODELS,
 };
 use crate::providers::gcpauth::GcpAuth;
+use crate::providers::openai_compatible::map_http_error_to_provider_error;
 use crate::providers::retry::RetryConfig;
 use crate::providers::utils::RequestLog;
 use crate::session_context::SESSION_ID_HEADER;
 use rmcp::model::Tool;
 
+const GCP_VERTEX_AI_PROVIDER_NAME: &str = "gcp_vertex_ai";
 /// Base URL for GCP Vertex AI documentation
 const GCP_VERTEX_AI_DOC_URL: &str = "https://cloud.google.com/vertex-ai";
 /// Default timeout for API requests in seconds
@@ -175,7 +180,7 @@ impl GcpVertexAIProvider {
             location,
             model,
             retry_config,
-            name: Self::metadata().name,
+            name: GCP_VERTEX_AI_PROVIDER_NAME.to_string(),
         })
     }
 
@@ -347,9 +352,8 @@ impl GcpVertexAIProvider {
                 )));
             } else {
                 let response_text = response.text().await.unwrap_or_default();
-                return Err(ProviderError::RequestFailed(format!(
-                    "Request failed with status {status}: {response_text}"
-                )));
+                let payload = serde_json::from_str::<Value>(&response_text).ok();
+                return Err(map_http_error_to_provider_error(status, payload));
             }
         }
     }
@@ -541,14 +545,12 @@ impl GcpVertexAIProvider {
     }
 }
 
-#[async_trait]
-impl Provider for GcpVertexAIProvider {
-    fn metadata() -> ProviderMetadata
-    where
-        Self: Sized,
-    {
+impl ProviderDef for GcpVertexAIProvider {
+    type Provider = Self;
+
+    fn metadata() -> ProviderMetadata {
         ProviderMetadata::new(
-            "gcp_vertex_ai",
+            GCP_VERTEX_AI_PROVIDER_NAME,
             "GCP Vertex AI",
             "Access variety of AI models such as Claude, Gemini through Vertex AI",
             DEFAULT_MODEL,
@@ -591,6 +593,13 @@ impl Provider for GcpVertexAIProvider {
         .with_unlisted_models()
     }
 
+    fn from_env(model: ModelConfig) -> BoxFuture<'static, Result<Self::Provider>> {
+        Box::pin(Self::from_env(model))
+    }
+}
+
+#[async_trait]
+impl Provider for GcpVertexAIProvider {
     fn get_name(&self) -> &str {
         &self.name
     }
@@ -686,10 +695,10 @@ impl Provider for GcpVertexAIProvider {
         }))
     }
 
-    async fn fetch_supported_models(&self) -> Result<Option<Vec<String>>, ProviderError> {
+    async fn fetch_supported_models(&self) -> Result<Vec<String>, ProviderError> {
         let models: Vec<String> = KNOWN_MODELS.iter().map(|s| s.to_string()).collect();
         let filtered = self.filter_by_org_policy(models).await;
-        Ok(Some(filtered))
+        Ok(filtered)
     }
 }
 

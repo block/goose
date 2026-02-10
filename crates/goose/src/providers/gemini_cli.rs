@@ -1,13 +1,12 @@
 use anyhow::Result;
 use async_trait::async_trait;
 use serde_json::json;
-use std::ffi::OsString;
 use std::path::PathBuf;
 use std::process::Stdio;
 use tokio::io::{AsyncBufReadExt, BufReader};
 use tokio::process::Command;
 
-use super::base::{Provider, ProviderMetadata, ProviderUsage, Usage};
+use super::base::{Provider, ProviderDef, ProviderMetadata, ProviderUsage, Usage};
 use super::errors::ProviderError;
 use super::utils::{filter_extensions_from_system_prompt, RequestLog};
 use crate::config::base::GeminiCliCommand;
@@ -16,10 +15,12 @@ use crate::config::Config;
 use crate::conversation::message::{Message, MessageContent};
 use crate::model::ModelConfig;
 use crate::providers::base::ConfigKey;
-use crate::subprocess::configure_command_no_window;
+use crate::subprocess::configure_subprocess;
+use futures::future::BoxFuture;
 use rmcp::model::Role;
 use rmcp::model::Tool;
 
+const GEMINI_CLI_PROVIDER_NAME: &str = "gemini-cli";
 pub const GEMINI_CLI_DEFAULT_MODEL: &str = "gemini-2.5-pro";
 pub const GEMINI_CLI_KNOWN_MODELS: &[&str] = &[
     "gemini-2.5-pro",
@@ -40,13 +41,13 @@ pub struct GeminiCliProvider {
 impl GeminiCliProvider {
     pub async fn from_env(model: ModelConfig) -> Result<Self> {
         let config = Config::global();
-        let command: OsString = config.get_gemini_cli_command().unwrap_or_default().into();
-        let resolved_command = SearchPaths::builder().with_npm().resolve(command)?;
+        let command: String = config.get_gemini_cli_command().unwrap_or_default().into();
+        let resolved_command = SearchPaths::builder().with_npm().resolve(&command)?;
 
         Ok(Self {
             command: resolved_command,
             model,
-            name: Self::metadata().name,
+            name: GEMINI_CLI_PROVIDER_NAME.to_string(),
         })
     }
 
@@ -91,7 +92,7 @@ impl GeminiCliProvider {
         }
 
         let mut cmd = Command::new(&self.command);
-        configure_command_no_window(&mut cmd);
+        configure_subprocess(&mut cmd);
 
         if let Ok(path) = SearchPaths::builder().with_npm().path() {
             cmd.env("PATH", path);
@@ -235,11 +236,12 @@ impl GeminiCliProvider {
     }
 }
 
-#[async_trait]
-impl Provider for GeminiCliProvider {
+impl ProviderDef for GeminiCliProvider {
+    type Provider = Self;
+
     fn metadata() -> ProviderMetadata {
         ProviderMetadata::new(
-            "gemini-cli",
+            GEMINI_CLI_PROVIDER_NAME,
             "Gemini CLI",
             "Execute Gemini models via gemini CLI tool",
             GEMINI_CLI_DEFAULT_MODEL,
@@ -247,8 +249,16 @@ impl Provider for GeminiCliProvider {
             GEMINI_CLI_DOC_URL,
             vec![ConfigKey::from_value_type::<GeminiCliCommand>(true, false)],
         )
+        .with_unlisted_models()
     }
 
+    fn from_env(model: ModelConfig) -> BoxFuture<'static, Result<Self::Provider>> {
+        Box::pin(Self::from_env(model))
+    }
+}
+
+#[async_trait]
+impl Provider for GeminiCliProvider {
     fn get_name(&self) -> &str {
         &self.name
     }
@@ -256,6 +266,13 @@ impl Provider for GeminiCliProvider {
     fn get_model_config(&self) -> ModelConfig {
         // Return the model config with appropriate context limit for Gemini models
         self.model.clone()
+    }
+
+    async fn fetch_supported_models(&self) -> Result<Vec<String>, ProviderError> {
+        Ok(GEMINI_CLI_KNOWN_MODELS
+            .iter()
+            .map(|s| s.to_string())
+            .collect())
     }
 
     #[tracing::instrument(

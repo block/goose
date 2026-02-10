@@ -231,7 +231,7 @@ export default function ProviderConfigurationModal({
                       ? 'Signing in...'
                       : `Sign in with ${provider.metadata.display_name}`}
                   </Button>
-                  <p className="text-sm text-textSubtle text-center">
+                  <p className="text-sm text-text-muted text-center">
                     A browser window will open for you to complete the login.
                   </p>
                 </div>
