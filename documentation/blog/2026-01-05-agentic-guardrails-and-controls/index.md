@@ -100,7 +100,7 @@ Common mitigation techniques for indirect content injection recommend additional
 
 Another mitigation technique involves performing some analysis on returned content prior to execution to identify potential injection attempts. A simple string match approach (regex, etc.) or a more complex classification approach (such as [Prompt Guard](https://www.llama.com/docs/model-cards-and-prompt-formats/prompt-guard/)) may be used to achieve this goal. However, these detection methods (while useful), are not infallible and may still result in untrusted instructions being processed by the LLM.
 
-Another mitigation is sandboxing. Ensuring the agent runs within a limited environment such as a well-hardened docker-container can limit the actions the agent and associated tools can perform on the underlying host (i.e. cannot delete all files unless that volume is mounted). This mitigation does not protect against attacks targeting other MCP available to the agent (i.e. using a poisoned email payload to commit malicious code)
+Another mitigation is sandboxing. Ensuring the agent runs within a limited environment such as a well-hardened docker-container can limit the actions that the agent and associated tools can perform on the underlying host (i.e. cannot delete all files unless that volume is mounted). This mitigation does not protect against attacks targeting other MCP available to the agent (i.e. using a poisoned email payload to commit malicious code)
 
 ## Proposed design
 
