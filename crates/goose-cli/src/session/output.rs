@@ -18,6 +18,8 @@ use std::sync::Arc;
 use std::time::Duration;
 
 pub const DEFAULT_MIN_PRIORITY: f32 = 0.0;
+pub const DEFAULT_CLI_LIGHT_THEME: &str = "GitHub";
+pub const DEFAULT_CLI_DARK_THEME: &str = "zenburn";
 
 // Re-export theme for use in main
 #[derive(Clone, Copy)]
@@ -28,11 +30,15 @@ pub enum Theme {
 }
 
 impl Theme {
-    fn as_str(&self) -> &'static str {
+    fn as_str(&self) -> String {
         match self {
-            Theme::Light => "GitHub",
-            Theme::Dark => "zenburn",
-            Theme::Ansi => "base16",
+            Theme::Light => Config::global()
+                .get_param::<String>("GOOSE_CLI_LIGHT_THEME")
+                .unwrap_or(DEFAULT_CLI_LIGHT_THEME.to_string()),
+            Theme::Dark => Config::global()
+                .get_param::<String>("GOOSE_CLI_DARK_THEME")
+                .unwrap_or(DEFAULT_CLI_DARK_THEME.to_string()),
+            Theme::Ansi => "base16".to_string(),
         }
     }
 
