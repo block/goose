@@ -28,7 +28,7 @@ import { expandTilde } from './utils/pathUtils';
 import log from './utils/logger';
 import { ensureWinShims } from './utils/winShims';
 import { addRecentDir, loadRecentDirs } from './utils/recentDirs';
-import { formatAppName, errorMessage } from './utils/conversionUtils';
+import { formatAppName, errorMessage, formatErrorForLogging } from './utils/conversionUtils';
 import type { Settings } from './utils/settings';
 import { defaultKeyboardShortcuts, getKeyboardShortcuts } from './utils/settings';
 import * as crypto from 'crypto';
@@ -1116,12 +1116,12 @@ const handleFatalError = (error: Error) => {
 };
 
 process.on('uncaughtException', (error) => {
-  console.error('Uncaught Exception:', error);
+  console.error('Uncaught Exception:', formatErrorForLogging(error));
   handleFatalError(error);
 });
 
 process.on('unhandledRejection', (error) => {
-  console.error('Unhandled Rejection:', error);
+  console.error('Unhandled Rejection:', formatErrorForLogging(error));
   handleFatalError(error instanceof Error ? error : new Error(String(error)));
 });
 
