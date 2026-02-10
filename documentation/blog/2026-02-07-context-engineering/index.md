@@ -19,7 +19,7 @@ Saying “one-shot prompting is dead” isn’t revolutionary. It’s just catch
 
 ## The blog post that aged faster than oat milk
 
-Earlier this year I wrote a post about  [how to prompt better](https://block.github.io/goose/blog/2025/03/19/better-ai-prompting). I shared tricks, phrasing tips, and even said to add a few “pleases” and “thank yous” and your AI agent would give you the world. At the time it felt cutting edge, because it was. There were livestreams and conference talks entirely about how to prompt better.
+Last year ago, I wrote a post about [how to prompt better](https://block.github.io/goose/blog/2025/03/19/better-ai-prompting). I shared tricks, phrasing tips, and even said to add a few “pleases” and “thank yous” and your AI agent would give you the world. At the time it felt cutting edge, because it was. There were livestreams and conference talks entirely about how to prompt better.
 
 Less than a year later, it feel… quaint. Not because prompting stopped mattering, but because prompting stopped being the main character.
 
@@ -42,7 +42,7 @@ One-shot prompting worked when models were chat toys. You asked a clever questio
 
 A single prompt stopped being a solution and became a bottleneck. What matters now isn’t the sentence you type. It’s the system that surrounds it.
 
-Memory and long-term state. Tools and retrieval. Structured constraints. Reusable skills. Planning loops. Guardrails. Context handoffs between steps.
+Memory and long term state. Tools and retrieval. Structured constraints. Reusable skills. Planning loops. Guardrails. Context handoffs between steps.
 
 Once we started wanting deployable and repeatable workflows, prompts became just one input among many.
 
