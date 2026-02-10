@@ -27,7 +27,7 @@ use goose::session::SessionType;
 use serde_json::Value;
 use std::collections::HashMap;
 
-// useful for light themes where there is no dicernible colour contrast between
+// useful for light themes where there is no discernible colour contrast between
 // cursor-selected and cursor-unselected items.
 const MULTISELECT_VISIBILITY_HINT: &str = "<";
 
