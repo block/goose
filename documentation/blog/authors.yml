@@ -1,3 +1,14 @@
+amanda:
+  name: Amanda Martin
+  title: Staff Developer Advocate
+  image_url: https://avatars.githubusercontent.com/u/97615019?v=4
+  page: true
+  socials:
+    linkedin: amandamartin-dev
+    x: hey_amandam
+    github: amandamartin-dev
+
+
 ebony:
   name: Ebony Louis
   title: Developer Advocate
