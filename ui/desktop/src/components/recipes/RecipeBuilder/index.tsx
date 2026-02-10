@@ -20,6 +20,8 @@ export default function RecipeBuilder({ onClose, onRecipeSaved }: RecipeBuilderP
   const [testPanelOpen, setTestPanelOpen] = useState(false);
   const [recipe, setRecipe] = useState<Recipe | null>(null);
   const [isSaving, setIsSaving] = useState(false);
+  // Track whether the user has edited the recipe in the Edit view (not yet synced to Chat)
+  const [recipeEditedInEditView, setRecipeEditedInEditView] = useState(false);
   // Track the recipe version when test was started (for change detection)
   const [testRecipeSnapshot, setTestRecipeSnapshot] = useState<Recipe | null>(null);
 
@@ -91,12 +93,23 @@ export default function RecipeBuilder({ onClose, onRecipeSaved }: RecipeBuilderP
             <div
               className={`absolute inset-0 flex flex-col ${currentView !== 'chat' ? 'hidden' : ''}`}
             >
-              <RecipeBuilderChat recipe={recipe} onRecipeChange={setRecipe} />
+              <RecipeBuilderChat
+                recipe={recipe}
+                onRecipeChange={setRecipe}
+                recipeEditedInEditView={recipeEditedInEditView}
+                onRecipeEditSynced={() => setRecipeEditedInEditView(false)}
+              />
             </div>
             <div
               className={`absolute inset-0 flex flex-col ${currentView !== 'edit' ? 'hidden' : ''}`}
             >
-              <RecipeBuilderEdit recipe={recipe} onRecipeChange={setRecipe} />
+              <RecipeBuilderEdit
+                recipe={recipe}
+                onRecipeChange={(r) => {
+                  setRecipe(r);
+                  setRecipeEditedInEditView(true);
+                }}
+              />
             </div>
           </div>
 

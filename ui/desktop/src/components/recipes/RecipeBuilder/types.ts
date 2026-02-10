@@ -25,6 +25,8 @@ export interface RecipeBuilderHeaderProps {
 export interface RecipeBuilderChatProps {
   recipe: Recipe | null;
   onRecipeChange: (recipe: Recipe) => void;
+  recipeEditedInEditView: boolean;
+  onRecipeEditSynced: () => void;
 }
 
 export interface RecipeBuilderTestProps {

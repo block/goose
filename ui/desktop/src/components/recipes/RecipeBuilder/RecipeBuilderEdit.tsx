@@ -61,6 +61,9 @@ function formDataToRecipe(data: RecipeFormData): Recipe {
 export default function RecipeBuilderEdit({ recipe, onRecipeChange }: RecipeBuilderEditProps) {
   const lastExternalRecipeRef = useRef<Recipe | null>(null);
   const isInternalUpdateRef = useRef(false);
+  // True while form.reset() is running from an external recipe update (e.g., AI generated a recipe).
+  // Prevents the form subscription from calling onRecipeChange during resets.
+  const isResettingFromExternalRef = useRef(false);
 
   const form = useForm({
     defaultValues: recipeToFormData(recipe),
@@ -70,13 +73,18 @@ export default function RecipeBuilderEdit({ recipe, onRecipeChange }: RecipeBuil
     const isSameRecipe = JSON.stringify(recipe) === JSON.stringify(lastExternalRecipeRef.current);
     if (!isSameRecipe && !isInternalUpdateRef.current) {
       lastExternalRecipeRef.current = recipe;
+      isResettingFromExternalRef.current = true;
       form.reset(recipeToFormData(recipe));
+      isResettingFromExternalRef.current = false;
     }
     isInternalUpdateRef.current = false;
   }, [recipe, form]);
 
   useEffect(() => {
     return form.store.subscribe(() => {
+      // Skip changes triggered by form.reset() from external updates
+      if (isResettingFromExternalRef.current) return;
+
       const formData = form.state.values;
       const newRecipe = formDataToRecipe(formData);
 
