@@ -962,12 +962,14 @@ impl GooseAcpAgent {
             sacp::Error::internal_error().data(format!("Failed to create provider: {}", e))
         })?;
 
-        let sessions = self.sessions.lock().await;
-        let session = sessions.get(session_id).ok_or_else(|| {
-            sacp::Error::invalid_params().data(format!("Session not found: {}", session_id))
-        })?;
-        session
-            .agent
+        let agent = {
+            let sessions = self.sessions.lock().await;
+            let session = sessions.get(session_id).ok_or_else(|| {
+                sacp::Error::invalid_params().data(format!("Session not found: {}", session_id))
+            })?;
+            session.agent.clone()
+        };
+        agent
             .update_provider(provider, session_id)
             .await
             .map_err(|e| {
