@@ -63,7 +63,9 @@ impl CliProcess {
             "request_id": request_id,
             "request": {"subtype": "set_model", "model": model}
         });
-        let mut req_str = serde_json::to_string(&req).unwrap();
+        let mut req_str = serde_json::to_string(&req).map_err(|e| {
+            ProviderError::RequestFailed(format!("Failed to serialize set_model request: {e}"))
+        })?;
         req_str.push('\n');
         self.stdin
             .write_all(req_str.as_bytes())
@@ -89,6 +91,14 @@ impl CliProcess {
                     }
                     if let Ok(parsed) = serde_json::from_str::<Value>(trimmed) {
                         if parsed.get("type").and_then(|t| t.as_str()) == Some("control_response") {
+                            // Skip responses that don't match our request_id
+                            if parsed
+                                .pointer("/response/request_id")
+                                .and_then(|id| id.as_str())
+                                != Some(request_id.as_str())
+                            {
+                                continue;
+                            }
                             let success =
                                 parsed.pointer("/response/subtype").and_then(|s| s.as_str())
                                     == Some("success");
@@ -639,7 +649,9 @@ impl Provider for ClaudeCodeProvider {
             "request_id": "model_list",
             "request": {"subtype": "initialize"}
         });
-        let mut request_str = serde_json::to_string(&request).unwrap();
+        let mut request_str = serde_json::to_string(&request).map_err(|e| {
+            ProviderError::RequestFailed(format!("Failed to serialize initialize request: {e}"))
+        })?;
         request_str.push('\n');
         stdin.write_all(request_str.as_bytes()).await.map_err(|e| {
             ProviderError::RequestFailed(format!("Failed to write initialize request: {e}"))
@@ -670,7 +682,7 @@ impl Provider for ClaudeCodeProvider {
             }
         }
 
-        let _ = child.start_kill();
+        let _ = child.kill().await;
         Ok(parse_models_from_lines(&lines))
     }
 

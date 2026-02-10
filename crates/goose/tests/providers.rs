@@ -275,8 +275,6 @@ impl ProviderTester {
     }
 
     async fn test_model_switch(&self, session_id: &str) -> Result<()> {
-        // The process is already running with the default model from test_basic_response.
-        // Switch to model_switch_name and call complete_with_model to exercise send_set_model.
         let default = &self.provider.get_model_config().model_name;
         let alt = self
             .model_switch_name
@@ -297,7 +295,7 @@ impl ProviderTester {
             .await?;
 
         assert!(
-            matches!(response.content[0], MessageContent::Text(_)),
+            matches!(response.content.first(), Some(MessageContent::Text(_))),
             "Expected text response after model switch"
         );
         println!(
