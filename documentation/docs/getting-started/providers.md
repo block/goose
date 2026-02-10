@@ -71,26 +71,41 @@ To configure your chosen provider, see available options, or select a model, vis
   <TabItem value="ui" label="goose Desktop" default>
   **First-time users:**
   
-  On the welcome screen the first time you open goose, you have three options:
-  - **Automatic setup with [Tetrate Agent Router](https://tetrate.io/products/tetrate-agent-router-service)**
-  - **Automatic Setup with [OpenRouter](https://openrouter.ai/)**
-  - **Other Providers**
+  On the welcome screen the first time you open goose, you have these options:
+  - **Quick Setup with API Key** - goose will automatically configure your provider based on your API key
+  - **[ChatGPT Subscription](https://chatgpt.com/codex)** - Sign in with your ChatGPT Plus/Pro credentials to access GPT-5 Codex models
+  - **[Agent Router by Tetrate](https://tetrate.io/products/tetrate-agent-router-service)** - Access multiple AI models with automatic setup
+  - **[OpenRouter](https://openrouter.ai/)** - Access 200+ models with one API using pay-per-use pricing
+  - **Other Providers** - Manually configure additional providers through settings
   <Tabs groupId="setup">
-    <TabItem value="tetrate" label="Tetrate Agent Router" default>
-    We recommend starting with Tetrate Agent Router. Tetrate provides access to multiple AI models with built-in rate limiting and automatic failover. 
+    <TabItem value="apikey" label="Quick Setup" default>
+    1. Choose `Quick Setup with API Key`.
+    2. Enter your API key from your provider (for example, OpenAI, Anthropic, or Google).
+    3. goose will automatically detect your provider and configure the connection.
+    4. When setup is complete, you're ready to begin your first session.
+    </TabItem>
+
+    <TabItem value="chatgpt" label="ChatGPT Subscription">
+    1. Choose `ChatGPT Subscription`.
+    2. goose will open a browser window for you to sign in with the credentials of your active ChatGPT Plus or Pro subscription.
+    3. Authorize goose to access your ChatGPT subscription.
+    4. When you return to goose Desktop, you're ready to begin your first session.
+    </TabItem>
+    <TabItem value="tetrate" label="Agent Router">
+    We recommend new users start with Agent Router by Tetrate. Tetrate provides access to multiple AI models with built-in rate limiting and automatic failover. 
 
     :::info Free Credits Offer
     You'll receive $10 in free credits the first time you automatically authenticate with Tetrate through goose. This offer is available to both new and existing Tetrate users.
     :::
-    1. Choose `Automatic setup with Tetrate Agent Router`. 
+    1. Choose `Agent Router by Tetrate`. 
     2. goose will open a browser window for you to authenticate with Tetrate, or create a new account if you don't have one already.
-    3. When you return to the goose desktop app, you're ready to begin your first session.
+    3. When you return to goose Desktop, you're ready to begin your first session.
     </TabItem>
 
     <TabItem value="openrouter" label="OpenRouter">
     1. Choose `Automatic setup with OpenRouter`. 
     2. goose will open a browser window for you to authenticate with OpenRouter, or create a new account if you don't have one already.
-    3. When you return to the goose desktop app, you're ready to begin your first session.
+    3. When you return to the goose Desktop, you're ready to begin your first session.
     </TabItem>
 
     <TabItem value="others" label="Other Providers">
