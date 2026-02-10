@@ -277,7 +277,7 @@ This creates isolated `config/`, `data/`, and `state/` directories under the spe
 
 ## Enable traces in goose with [locally hosted Langfuse](https://langfuse.com/docs/deployment/self-host)
 
-- Start a local Langfuse using the docs [here](https://langfuse.com/self-hosting/docker-compose). Create an organization and project and create API credentials.
+- [Start a local Langfuse using the docs](https://langfuse.com/self-hosting/docker-compose). Create an organization and project and create API credentials.
 - Set the environment variables so that goose can connect to the langfuse server:
 
 ```
