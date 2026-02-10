@@ -876,7 +876,7 @@ impl Config {
         Paths::config_dir().join("secrets.yaml")
     }
 
-    /// Perform fallback to file storage when keyring is unavailable
+    /// Fall back to file storage when keyring is unavailable
     fn fallback_to_file_storage(&self) -> Result<HashMap<String, Value>, ConfigError> {
         let path = Self::secrets_file_path();
         self.read_secrets_from_file(&path)

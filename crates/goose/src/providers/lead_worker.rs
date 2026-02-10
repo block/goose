@@ -17,7 +17,7 @@ use rmcp::model::{Content, RawContent};
 const LEAD_WORKER_PROVIDER_NAME: &str = "lead_worker";
 
 /// A provider that switches between a lead model and a worker model based on turn count
-/// and can fallback to lead model on consecutive failures
+/// and can fall back to lead model on consecutive failures
 pub struct LeadWorkerProvider {
     lead_provider: Arc<dyn Provider>,
     worker_provider: Arc<dyn Provider>,

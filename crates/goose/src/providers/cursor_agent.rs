@@ -161,7 +161,7 @@ impl CursorAgentProvider {
             }
         }
 
-        // If no valid result line found, fallback to joining all lines
+        // If no valid result line found, fall back to joining all lines
         let response_text = lines.join("\n");
 
         let message_content = vec![MessageContent::text(response_text)];
