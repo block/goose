@@ -9,7 +9,6 @@ import type {
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { callTool, readResource } from '../../api';
-import type { CspMetadata } from '../../api/types.gen';
 import { AppEvents } from '../../constants/events';
 import { useTheme } from '../../contexts/ThemeContext';
 import { cn } from '../../utils';
@@ -35,7 +34,7 @@ const AVAILABLE_DISPLAY_MODES: McpUiDisplayMode[] = ['inline'];
  * The proxy handles CSP (Content Security Policy) enforcement for network requests
  * made by the sandboxed iframe, allowing controlled access to external domains.
  */
-async function fetchMcpAppProxyUrl(csp: CspMetadata | null): Promise<string | null> {
+async function fetchMcpAppProxyUrl(csp: McpUiResourceCsp | null): Promise<string | null> {
   try {
     const baseUrl = await window.electron.getGoosedHostPort();
     const secretKey = await window.electron.getSecretKey();
@@ -53,6 +52,12 @@ async function fetchMcpAppProxyUrl(csp: CspMetadata | null): Promise<string | nu
     }
     if (csp?.resourceDomains?.length) {
       params.set('resource_domains', csp.resourceDomains.join(','));
+    }
+    if (csp?.frameDomains?.length) {
+      params.set('frame_domains', csp.frameDomains.join(','));
+    }
+    if (csp?.baseUriDomains?.length) {
+      params.set('base_uri_domains', csp.baseUriDomains.join(','));
     }
 
     return `${baseUrl}/mcp-app-proxy?${params.toString()}`;
@@ -94,7 +99,7 @@ interface McpAppRendererProps {
 /** Data fetched from the MCP resource endpoint */
 interface ResourceData {
   html: string | null;
-  csp: CspMetadata | null;
+  csp: McpUiResourceCsp | null;
   permissions: SandboxPermissions | null;
   prefersBorder: boolean;
 }
@@ -126,7 +131,7 @@ export default function McpAppRenderer({
   // null = fluid (100% width), number = explicit width from app
   const [iframeWidth, setIframeWidth] = useState<number | null>(null);
   const [sandboxUrl, setSandboxUrl] = useState<URL | null>(null);
-  const [sandboxCsp, setSandboxCsp] = useState<CspMetadata | null>(null);
+  const [sandboxCsp, setSandboxCsp] = useState<McpUiResourceCsp | null>(null);
   const [sandboxUrlFetched, setSandboxUrlFetched] = useState(false);
 
   // Initialize sandbox URL once after HTML loads.
@@ -172,7 +177,7 @@ export default function McpAppRenderer({
           const meta = content._meta as
             | {
                 ui?: {
-                  csp?: CspMetadata;
+                  csp?: McpUiResourceCsp;
                   permissions?: McpUiResourcePermissions;
                   prefersBorder?: boolean;
                 };
@@ -366,13 +371,14 @@ export default function McpAppRenderer({
   //   }
   // }, []);
 
-  // Convert our API's CspMetadata to the SDK's McpUiResourceCsp format.
-  // Uses sandboxCsp (captured at fetch time) to keep config stable.
+  // Forward CSP to the SDK. Uses sandboxCsp (captured at fetch time) to keep config stable.
   const mcpUiCsp = useMemo((): McpUiResourceCsp | undefined => {
     if (!sandboxCsp) return undefined;
     return {
       connectDomains: sandboxCsp.connectDomains ?? undefined,
       resourceDomains: sandboxCsp.resourceDomains ?? undefined,
+      frameDomains: sandboxCsp.frameDomains ?? undefined,
+      baseUriDomains: sandboxCsp.baseUriDomains ?? undefined,
     };
   }, [sandboxCsp]);
 

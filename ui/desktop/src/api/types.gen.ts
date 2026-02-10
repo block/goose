@@ -144,9 +144,17 @@ export type CreateScheduleRequest = {
  */
 export type CspMetadata = {
     /**
+     * Domains allowed for base-uri
+     */
+    baseUriDomains?: Array<string> | null;
+    /**
      * Domains allowed for connect-src (fetch, XHR, WebSocket)
      */
     connectDomains?: Array<string> | null;
+    /**
+     * Domains allowed for frame-src (nested iframes)
+     */
+    frameDomains?: Array<string> | null;
     /**
      * Domains allowed for resource loading (scripts, styles, images, fonts, media)
      */
