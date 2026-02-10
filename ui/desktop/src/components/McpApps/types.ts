@@ -4,7 +4,7 @@ import type {
   McpUiToolCancelledNotification,
   McpUiDisplayMode,
 } from '@modelcontextprotocol/ext-apps/app-bridge';
-import { Content } from '../../api';
+import type { Content } from '../../api';
 
 /**
  * Space-separated sandbox tokens for iframe permissions.
