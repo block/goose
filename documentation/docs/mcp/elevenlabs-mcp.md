@@ -79,7 +79,7 @@ By connecting to the ElevenLabs MCP server, goose can transform plain text into 
 
 ### goose Prompt
 
-> Hey goose, create a script for me for my youtube short video, I want there to be two different voices. The first voice should cut me off and be a human narrator style and then switch to a cassual AI tone after I read the prompt. Here's an example of a YT short script I've done in the past: 
+> Hey goose, create a script for me for my youtube short video, I want there to be two different voices. The first voice should cut me off and be a human narrator style and then switch to a casual AI tone after I read the prompt. Here's an example of a YT short script I've done in the past: 
 
 Wait… Within Seconds, goose performed Security Audits Across Multiple Projects?! 🔥
 
