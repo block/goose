@@ -127,6 +127,7 @@ jobs:
         run: |
           git config --global url."https://github.com/".insteadOf "ssh://git@github.com/"
           git config --global url."https://github.com/".insteadOf "git@github.com:"
+          git config --global url."https://github.com/".insteadOf "git+ssh://git@github.com/"
 
       - name: Build desktop UI with npm
         shell: bash
