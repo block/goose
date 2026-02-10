@@ -223,7 +223,7 @@ Help users test their MCP extension using these steps:
 Instruct users to start a goose session with their extension.
 
 **Important**: You cannot start the goose session for them, as it is interactive. You will have to let them
-know to start it in a terminal. Make sure you include instructions on how to setup the environment
+know to start it in a terminal. Make sure you include instructions on how to set up the environment
 
 ```bash
 # Python example

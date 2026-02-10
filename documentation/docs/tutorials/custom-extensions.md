@@ -211,7 +211,7 @@ Verify that your MCP server is running in the MCP Inspector (a browser-based dev
 MCP Inspector requires Node.js and npm installed on your computer. 
 :::
 
-1. Setup the project environment:
+1. Set up the project environment:
 
    ```bash
    uv sync
@@ -240,7 +240,7 @@ MCP Inspector requires Node.js and npm installed on your computer.
 
   </TabItem>
   <TabItem value="cli" label="In the CLI">
-1. Setup the project environment:
+1. Set up the project environment:
 
    ```bash
    uv sync
