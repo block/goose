@@ -423,7 +423,7 @@ export default function McpAppRenderer({
     };
   }, [toolResult]);
 
-  const isToolCancelled = toolCancelled?.reason !== undefined;
+  const isToolCancelled = !!toolCancelled;
   const isLoading = !sandboxConfig || !resource.html;
 
   // Render content based on state: error, loading, or app
