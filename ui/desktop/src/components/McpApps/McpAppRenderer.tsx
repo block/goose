@@ -26,7 +26,10 @@ import {
 /** Minimum height for the MCP app iframe in pixels */
 const DEFAULT_IFRAME_HEIGHT = 100;
 
-/** Display modes the host supports - apps can request to switch between these */
+/** Display modes the host supports within a chat session.
+ * Currently only inline is supported. Fullscreen (in-window takeover) and pip
+ * are not yet implemented. Standalone (separate Electron window) is handled
+ * outside of this component and is not an McpUiDisplayMode. */
 const AVAILABLE_DISPLAY_MODES: McpUiDisplayMode[] = ['inline'];
 
 /**
@@ -419,7 +422,7 @@ export default function McpAppRenderer({
       platform: 'desktop',
       deviceCapabilities: {
         touch: navigator.maxTouchPoints > 0,
-        hover: true,
+        hover: window.matchMedia('(hover: hover)').matches,
       },
       safeAreaInsets: {
         top: 0,
