@@ -114,7 +114,7 @@ if [ "$HAS_CHANGES" = "true" ]; then
         grep -v "^Closing session" | \
         grep -v "^Loading recipe:" | \
         grep -v "^Description:" | \
-        sed '/^$/N;/^\n$/D' > cli-changes.md.tmp
+        cat -s > cli-changes.md.tmp
     
     # Check if we got meaningful content
     if [ -s cli-changes.md.tmp ] && grep -q "# CLI Command Changes" cli-changes.md.tmp; then
@@ -148,7 +148,7 @@ if [ "$HAS_CHANGES" = "true" ]; then
         grep -v "^Closing session" | \
         grep -v "^Loading recipe:" | \
         grep -v "^Description:" | \
-        sed '/^$/N;/^\n$/D'
+        cat -s
     
     echo "✓ Documentation update complete"
     

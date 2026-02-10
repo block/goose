@@ -105,7 +105,7 @@ head -50 cli-changes.md
 - Markdown formatted properly
 - Breaking changes listed first
 - Examples provided for complex changes
-- No backticks used (security constraint)
+- When testing AI workflows, ensure any content sent via the `store_comment` tool does not contain triple-backtick code fences (```), even though regular backticks in markdown files like `cli-changes.md` are allowed.
 
 ### Step 5: Test Documentation Update Recipe
 

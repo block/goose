@@ -52,7 +52,7 @@ build_from_source() {
     
     if [ "$version" = "HEAD" ]; then
         echo "Building goose from HEAD..." >&2
-        cargo build --release --quiet 2>&1 >&2 || {
+        cargo build --release --quiet >&2 2>&1 || {
             echo "Error: Failed to build goose from HEAD" >&2
             return 1
         }
@@ -68,13 +68,13 @@ build_from_source() {
         
         # Create a worktree for the version
         local worktree_dir="$TEMP_DIR/goose-$version"
-        git worktree add --quiet "$worktree_dir" "$version" 2>&1 >&2 || {
+        git worktree add --quiet "$worktree_dir" "$version" >&2 2>&1 || {
             echo "Error: Failed to create worktree for $version" >&2
             return 1
         }
         
         cd "$worktree_dir"
-        cargo build --release --quiet 2>&1 >&2 || {
+        cargo build --release --quiet >&2 2>&1 || {
             echo "Error: Failed to build goose from $version" >&2
             cd "$GOOSE_REPO"
             git worktree remove "$worktree_dir" 2>/dev/null || true

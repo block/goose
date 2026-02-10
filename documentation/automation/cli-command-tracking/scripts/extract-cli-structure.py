@@ -14,7 +14,7 @@ import subprocess
 import json
 import re
 import os
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Dict, List, Optional, Tuple
 
 
@@ -247,7 +247,6 @@ def extract_command_structure(binary_path: str, command_path: List[str] = None,
     
     # Get both short and long help
     help_text_long = run_help_command(binary_path, command_path, short=False)
-    help_text_short = run_help_command(binary_path, command_path, short=True)
     
     if not help_text_long:
         return None
@@ -327,12 +326,8 @@ def main():
     root_structure = extract_command_structure(binary_path, [])
     
     # Build output JSON
-    # Use timezone-aware UTC datetime
-    try:
-        from datetime import timezone
-        now = datetime.now(timezone.utc).isoformat().replace('+00:00', 'Z')
-    except:
-        now = datetime.utcnow().isoformat() + 'Z'
+    # Use timezone-aware UTC datetime (Python 3.7+)
+    now = datetime.now(timezone.utc).isoformat().replace('+00:00', 'Z')
     
     output = {
         'version': version,

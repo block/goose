@@ -13,8 +13,8 @@ Example:
 
 import sys
 import json
-from datetime import datetime
-from typing import Dict, List, Any, Set, Tuple
+from datetime import datetime, timezone
+from typing import Dict, List
 
 
 def get_command_path(command: Dict, parent_path: str = "") -> str:
@@ -321,11 +321,7 @@ def main():
     )
     
     # Build output
-    try:
-        from datetime import timezone
-        now = datetime.now(timezone.utc).isoformat().replace('+00:00', 'Z')
-    except:
-        now = datetime.utcnow().isoformat() + 'Z'
+    now = datetime.now(timezone.utc).isoformat().replace('+00:00', 'Z')
     
     output = {
         'old_version': old_data['version'],
