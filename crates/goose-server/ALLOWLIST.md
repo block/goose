@@ -31,7 +31,7 @@ export GOOSE_ALLOWLIST_WARNING=true
 ```
 
 
-When this environment variable is set to `true` (case insensitive), the allowlist check will be bypassed and all commands will be allowed, even if the `GOOSE_ALLOWLIST` environment variable is set.
+When this environment variable is set to `true` (case-insensitive), the allowlist check will be bypassed and all commands will be allowed, even if the `GOOSE_ALLOWLIST` environment variable is set.
 
 ## Allowlist File Format
 
