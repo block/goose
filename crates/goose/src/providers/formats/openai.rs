@@ -978,6 +978,66 @@ mod tests {
     }
 
     #[test]
+    fn test_format_messages_tool_calls_only_sets_content_null() -> anyhow::Result<()> {
+        // Strict OpenAI-compatible providers require "content" to be present
+        // (even as null) when tool_calls are provided. See #6717.
+        let message = Message::assistant().with_tool_request(
+            "tool1",
+            Ok(CallToolRequestParams {
+                meta: None,
+                task: None,
+                name: "example".into(),
+                arguments: Some(object!({"param1": "value1"})),
+            }),
+        );
+
+        let spec = format_messages(&[message], &ImageFormat::OpenAi);
+
+        assert_eq!(spec.len(), 1);
+        assert_eq!(spec[0]["role"], "assistant");
+        assert!(spec[0]["tool_calls"].is_array());
+        assert!(
+            spec[0].get("content").is_some(),
+            "content field must be present for assistant tool-call messages"
+        );
+        assert!(
+            spec[0]["content"].is_null(),
+            "content must be null (not missing) when assistant has only tool_calls"
+        );
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_format_messages_tool_calls_with_text_keeps_content_string() -> anyhow::Result<()> {
+        // When an assistant message has both text and tool calls,
+        // content should remain as the text string.
+        let message = Message::assistant()
+            .with_text("I'll help with that.")
+            .with_tool_request(
+                "tool1",
+                Ok(CallToolRequestParams {
+                    meta: None,
+                    task: None,
+                    name: "example".into(),
+                    arguments: Some(object!({"param1": "value1"})),
+                }),
+            );
+
+        let spec = format_messages(&[message], &ImageFormat::OpenAi);
+
+        assert_eq!(spec.len(), 1);
+        assert_eq!(spec[0]["role"], "assistant");
+        assert!(spec[0]["tool_calls"].is_array());
+        assert_eq!(
+            spec[0]["content"], "I'll help with that.",
+            "content should be the text string when both text and tool_calls present"
+        );
+
+        Ok(())
+    }
+
+    #[test]
     fn test_format_tools_duplicate() -> anyhow::Result<()> {
         let tool1 = Tool::new(
             "test_tool",
