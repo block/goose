@@ -597,7 +597,7 @@ where
                 // Skip event type lines
                 continue;
             } else {
-                // Try to parse as-is in case there's no prefix
+                // Try to parse as-is when there's no prefix
                 &response_str
             };
 

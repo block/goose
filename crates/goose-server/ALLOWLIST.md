@@ -1,4 +1,4 @@
-IMPORTANT: currently GOOSE_ALLOWLIST is used in main.ts in ui/desktop, and not in goose-server. The following is for reference in case it is used on the server side for launch time enforcement.
+IMPORTANT: currently GOOSE_ALLOWLIST is used in main.ts in ui/desktop, and not in goose-server. The following is for reference when it is used on the server side for launch time enforcement.
 
 # goose Extension Allowlist
 
