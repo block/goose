@@ -77,22 +77,19 @@ async fn get_windows_path_async(shell: &str) -> Result<String> {
         .and_then(|s| s.to_str())
         .unwrap_or("cmd");
 
-    let output = match shell_name {
-        "pwsh" | "powershell" => {
-            Command::new(shell)
-                .args(["-NoLogo", "-Command", "$env:PATH"])
-                .output()
-                .await
-        }
-        _ => {
-            Command::new(shell)
-                .args(["/c", "echo %PATH%"])
-                .output()
-                .await
-        }
+    let mut command = Command::new(shell);
+    match shell_name {
+        "pwsh" | "powershell" => command.args(["-NoLogo", "-Command", "$env:PATH"]),
+        _ => command.args(["/c", "echo %PATH%"]),
     };
 
-    let output = output.map_err(|e| anyhow::anyhow!("Failed to execute shell command: {}", e))?;
+    #[cfg(windows)]
+    command.creation_flags(0x08000000 /* CREATE_NO_WINDOW */);
+
+    let output = command
+        .output()
+        .await
+        .map_err(|e| anyhow::anyhow!("Failed to execute shell command: {}", e))?;
 
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);

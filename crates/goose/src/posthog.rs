@@ -8,6 +8,8 @@ use chrono::{DateTime, Utc};
 use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
 use std::fs;
+#[cfg(windows)]
+use std::os::windows::process::CommandExt;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Mutex;
 use uuid::Uuid;
@@ -139,9 +141,10 @@ fn get_platform_version() -> Option<String> {
     }
     #[cfg(target_os = "windows")]
     {
-        std::process::Command::new("cmd")
-            .args(["/C", "ver"])
-            .output()
+        let mut cmd = std::process::Command::new("cmd");
+        cmd.args(["/C", "ver"]);
+        cmd.creation_flags(0x08000000 /* CREATE_NO_WINDOW */);
+        cmd.output()
             .ok()
             .and_then(|o| String::from_utf8(o.stdout).ok())
             .map(|s| s.trim().to_string())

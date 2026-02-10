@@ -7,6 +7,8 @@ use serde::{Deserialize, Serialize};
 use goose::recipe::read_recipe_file_content::RecipeFile;
 use std::env;
 use std::fs;
+#[cfg(windows)]
+use std::os::windows::process::CommandExt;
 use std::path::Path;
 use std::path::PathBuf;
 use std::process::Command;
@@ -102,12 +104,13 @@ fn clone_and_download_recipe(recipe_name: &str, recipe_repo_full_name: &str) -> 
 
 pub fn ensure_gh_authenticated() -> Result<()> {
     // Check authentication status
-    let status = Command::new("gh")
-        .args(["auth", "status"])
-        .status()
-        .map_err(|_| {
-            anyhow::anyhow!("Failed to run `gh auth status`. Make sure you have `gh` installed.")
-        })?;
+    let mut cmd = Command::new("gh");
+    cmd.args(["auth", "status"]);
+    #[cfg(windows)]
+    cmd.creation_flags(0x08000000 /* CREATE_NO_WINDOW */);
+    let status = cmd.status().map_err(|_| {
+        anyhow::anyhow!("Failed to run `gh auth status`. Make sure you have `gh` installed.")
+    })?;
 
     if status.success() {
         return Ok(());
@@ -148,9 +151,12 @@ fn ensure_repo_cloned(recipe_repo_full_name: &str) -> Result<PathBuf> {
         Ok(local_repo_path)
     } else {
         let error_message: String = format!("Failed to clone repo: {}", recipe_repo_full_name);
-        let status = Command::new("gh")
-            .args(["repo", "clone", recipe_repo_full_name])
-            .current_dir(local_repo_parent_path.clone())
+        let mut cmd = Command::new("gh");
+        cmd.args(["repo", "clone", recipe_repo_full_name])
+            .current_dir(local_repo_parent_path.clone());
+        #[cfg(windows)]
+        cmd.creation_flags(0x08000000 /* CREATE_NO_WINDOW */);
+        let status = cmd
             .status()
             .map_err(|_: std::io::Error| anyhow::anyhow!(error_message.clone()))?;
 
@@ -164,9 +170,11 @@ fn ensure_repo_cloned(recipe_repo_full_name: &str) -> Result<PathBuf> {
 
 fn fetch_origin(local_repo_path: &Path) -> Result<()> {
     let error_message: String = format!("Failed to fetch at {}", local_repo_path.to_str().unwrap());
-    let status = Command::new("git")
-        .args(["fetch", "origin"])
-        .current_dir(local_repo_path)
+    let mut cmd = Command::new("git");
+    cmd.args(["fetch", "origin"]).current_dir(local_repo_path);
+    #[cfg(windows)]
+    cmd.creation_flags(0x08000000 /* CREATE_NO_WINDOW */);
+    let status = cmd
         .status()
         .map_err(|_| anyhow::anyhow!(error_message.clone()))?;
 
@@ -186,11 +194,13 @@ fn get_folder_from_github(local_repo_path: &Path, recipe_name: &str) -> Result<P
     }
     fs::create_dir_all(&output_dir)?;
 
-    let archive_output = Command::new("git")
-        .args(["archive", &ref_and_path])
+    let mut cmd = Command::new("git");
+    cmd.args(["archive", &ref_and_path])
         .current_dir(local_repo_path)
-        .stdout(Stdio::piped())
-        .spawn()?;
+        .stdout(Stdio::piped());
+    #[cfg(windows)]
+    cmd.creation_flags(0x08000000 /* CREATE_NO_WINDOW */);
+    let archive_output = cmd.spawn()?;
 
     let stdout = archive_output
         .stdout
@@ -228,8 +238,11 @@ fn discover_github_recipes(repo: &str) -> Result<Vec<RecipeInfo>> {
     ensure_gh_authenticated()?;
 
     // Get repository contents using GitHub CLI
-    let output = Command::new("gh")
-        .args(["api", &format!("repos/{}/contents", repo)])
+    let mut cmd = Command::new("gh");
+    cmd.args(["api", &format!("repos/{}/contents", repo)]);
+    #[cfg(windows)]
+    cmd.creation_flags(0x08000000 /* CREATE_NO_WINDOW */);
+    let output = cmd
         .output()
         .map_err(|e| anyhow!("Failed to fetch repository contents using 'gh api' command (executed when GOOSE_RECIPE_GITHUB_REPO is configured). This requires GitHub CLI (gh) to be installed and authenticated. Error: {}", e))?;
 
@@ -267,8 +280,11 @@ fn check_github_directory_for_recipe(repo: &str, dir_name: &str) -> Result<Recip
     use std::process::Command;
 
     // Check directory contents for recipe files
-    let output = Command::new("gh")
-        .args(["api", &format!("repos/{}/contents/{}", repo, dir_name)])
+    let mut cmd = Command::new("gh");
+    cmd.args(["api", &format!("repos/{}/contents/{}", repo, dir_name)]);
+    #[cfg(windows)]
+    cmd.creation_flags(0x08000000 /* CREATE_NO_WINDOW */);
+    let output = cmd
         .output()
         .map_err(|e| anyhow!("Failed to check directory contents: {}", e))?;
 
@@ -301,11 +317,14 @@ fn get_github_recipe_info(repo: &str, dir_name: &str, recipe_filename: &str) -> 
     use std::process::Command;
 
     // Get the recipe file content
-    let output = Command::new("gh")
-        .args([
-            "api",
-            &format!("repos/{}/contents/{}/{}", repo, dir_name, recipe_filename),
-        ])
+    let mut cmd = Command::new("gh");
+    cmd.args([
+        "api",
+        &format!("repos/{}/contents/{}/{}", repo, dir_name, recipe_filename),
+    ]);
+    #[cfg(windows)]
+    cmd.creation_flags(0x08000000 /* CREATE_NO_WINDOW */);
+    let output = cmd
         .output()
         .map_err(|e| anyhow!("Failed to get recipe file content: {}", e))?;
 

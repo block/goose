@@ -112,6 +112,9 @@ pub fn configure_shell_command(
 ) -> tokio::process::Command {
     let mut command_builder = tokio::process::Command::new(&shell_config.executable);
 
+    #[cfg(windows)]
+    command_builder.creation_flags(0x08000000 /* CREATE_NO_WINDOW */);
+
     if let Some(dir) = working_dir {
         command_builder.current_dir(dir);
     }
@@ -174,10 +177,10 @@ pub async fn kill_process_group(
     {
         if let Some(pid) = pid {
             // Use taskkill to kill the process tree on Windows
-            let _kill_result = tokio::process::Command::new("taskkill")
-                .args(&["/F", "/T", "/PID", &pid.to_string()])
-                .output()
-                .await;
+            let mut kill_cmd = tokio::process::Command::new("taskkill");
+            kill_cmd.args(&["/F", "/T", "/PID", &pid.to_string()]);
+            kill_cmd.creation_flags(0x08000000 /* CREATE_NO_WINDOW */);
+            let _kill_result = kill_cmd.output().await;
         }
 
         // Return the result of tokio's kill

@@ -241,6 +241,9 @@ pub async fn execute_shell_command(
             cmd
         };
 
+        #[cfg(windows)]
+        cmd.creation_flags(0x08000000 /* CREATE_NO_WINDOW */);
+
         let output = cmd
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())

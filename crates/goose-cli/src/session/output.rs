@@ -13,6 +13,8 @@ use serde_json::Value;
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::io::{Error, IsTerminal, Write};
+#[cfg(windows)]
+use std::os::windows::process::CommandExt;
 use std::path::Path;
 use std::sync::Arc;
 use std::time::Duration;
@@ -167,13 +169,16 @@ pub fn run_status_hook(status: &str) {
         let status = status.to_string();
         std::thread::spawn(move || {
             #[cfg(target_os = "windows")]
-            let result = std::process::Command::new("cmd")
-                .arg("/C")
-                .arg(format!("{} {}", hook, status))
-                .stdin(std::process::Stdio::null())
-                .stdout(std::process::Stdio::null())
-                .stderr(std::process::Stdio::null())
-                .status();
+            let result = {
+                let mut cmd = std::process::Command::new("cmd");
+                cmd.arg("/C")
+                    .arg(format!("{} {}", hook, status))
+                    .stdin(std::process::Stdio::null())
+                    .stdout(std::process::Stdio::null())
+                    .stderr(std::process::Stdio::null());
+                cmd.creation_flags(0x08000000 /* CREATE_NO_WINDOW */);
+                cmd.status()
+            };
 
             #[cfg(not(target_os = "windows"))]
             let result = std::process::Command::new("sh")
