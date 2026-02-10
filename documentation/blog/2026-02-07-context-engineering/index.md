@@ -11,7 +11,7 @@ I attended one shot prompting’s funeral.
 
 There were no tears. Just a room full of developers quietly pretending they weren’t taking shots the night before. Because if we’re being honest, everyone saw this coming and couldn’t be happier it was over.
 
-Saying “one-shot prompting is dead” isn’t revolutionary. It’s just catching up to what builders have been experiencing for months. Its grip started to crack, and once it broke, you couldn’t unsee it.
+Saying “one-shot prompting is dead” isn’t revolutionary. It’s just catching up to what builders have been experiencing for months.
 
 <!-- truncate -->
 
