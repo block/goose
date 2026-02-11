@@ -168,11 +168,11 @@ ls -lh output/
 
 3. **Set up secrets** in your fork:
    - Go to Settings → Secrets and variables → Actions
-   - Add `OPENAI_API_KEY` secret
+   - Add `ANTHROPIC_API_KEY` secret
 
 4. **Set up variables** (optional):
-   - Add `GOOSE_PROVIDER` variable (default: openai)
-   - Add `GOOSE_MODEL` variable (default: gpt-4o)
+   - Add `GOOSE_PROVIDER` variable (default: anthropic)
+   - Add `GOOSE_MODEL` variable (default: claude-opus-4-5)
 
 5. **Trigger workflow manually**:
    - Go to Actions → "Update CLI Documentation"
@@ -354,7 +354,7 @@ jq empty output/cli-changes.json  # Validates JSON
 ### Workflow fails in fork
 
 Ensure:
-- `OPENAI_API_KEY` secret is set
+- `ANTHROPIC_API_KEY` secret is set
 - Upstream tags are fetched (workflow does this automatically)
 - Rust toolchain is available
 

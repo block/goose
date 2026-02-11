@@ -39,7 +39,7 @@ jobs:
     runs-on: ubuntu-latest
     
     env:
-      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
     
     steps:
       - name: Checkout repository
@@ -87,8 +87,8 @@ jobs:
       
       - name: Configure goose for CI
         env:
-          GOOSE_PROVIDER: ${{ vars.GOOSE_PROVIDER || 'openai' }}
-          GOOSE_MODEL: ${{ vars.GOOSE_MODEL || 'gpt-5' }}
+          GOOSE_PROVIDER: ${{ vars.GOOSE_PROVIDER || 'anthropic' }}
+          GOOSE_MODEL: ${{ vars.GOOSE_MODEL || 'claude-opus-4-5' }}
         run: |
           mkdir -p ~/.config/goose
           cat <<EOF > ~/.config/goose/config.yaml
@@ -174,7 +174,7 @@ jobs:
           echo "🔍 Environment diagnostics:"
           echo "  GOOSE_PROVIDER: $GOOSE_PROVIDER"
           echo "  GOOSE_MODEL: $GOOSE_MODEL"
-          echo "  OPENAI_API_KEY: ${OPENAI_API_KEY:0:8}..." # Show first 8 chars only
+          echo "  ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:0:8}..." # Show first 8 chars only
           echo "  CLI_COMMANDS_PATH: $CLI_COMMANDS_PATH"
           echo "  HOME: $HOME"
           echo "  PATH: $PATH"
