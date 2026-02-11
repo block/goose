@@ -139,7 +139,7 @@ If you're running goose in Docker containers or Linux environments without keyri
 
 If you still receive authentication/keyring errors like the following, goose was not able to fall back automatically. This can happen if goose doesn’t recognize the keyring failure as an access issue, or if the error is unrelated to keyring access.
 ```
-Failed to save token: Failed to access keyring: Platform secure storage failure: DBus error: Using X11 for dbus-daemon autolaunch was disabled at compile time
+Failed to save token: Failed to access keyring: <error message>
 ```
 
 To resolve this (or to proactively force file-based secret storage), set `GOOSE_DISABLE_KEYRING` to any value. This example sets it only while running `goose configure`:
