@@ -3,7 +3,7 @@ use crate::cli::StreamableHttpOptions;
 use super::output;
 use super::CliSession;
 use console::style;
-use goose::agents::{Agent, Container};
+use goose::agents::{Agent, Container, ExtensionError};
 use goose::config::get_enabled_extensions;
 use goose::config::resolve_extensions_for_new_session;
 use goose::config::{get_all_extensions, Config, ExtensionConfig};
@@ -490,14 +490,12 @@ async fn handle_resumed_session_workdir(agent: &Agent, session_id: &str, interac
     }
 }
 
-// Resolve separately from loading so Agentic providers (claude-code, codex, etc.) can
-// parse MCP extensions for session initialization.
-async fn resolve_extension_configs(
+async fn collect_extension_configs(
     agent: &Agent,
     session_config: &SessionBuilderConfig,
     recipe: Option<&Recipe>,
     session_id: &str,
-) -> Vec<ExtensionConfig> {
+) -> Result<Vec<ExtensionConfig>, ExtensionError> {
     let configured_extensions: Vec<ExtensionConfig> = if session_config.resume {
         agent
             .config
@@ -522,21 +520,21 @@ async fn resolve_extension_configs(
 
     let mut all: Vec<ExtensionConfig> = configured_extensions;
     all.extend(cli_flag_extensions.into_iter().map(|(_, cfg)| cfg));
-    all
+
+    Ok(all)
 }
 
 async fn resolve_and_load_extensions(
     agent: Agent,
-    session_config: &SessionBuilderConfig,
-    recipe: Option<&Recipe>,
-    session_id: &str,
+    extensions: Vec<ExtensionConfig>,
     provider_for_debug: Arc<dyn goose::providers::base::Provider>,
+    interactive: bool,
+    session_id: &str,
 ) -> Arc<Agent> {
     for warning in goose::config::get_warnings() {
         eprintln!("{}", style(format!("Warning: {}", warning)).yellow());
     }
 
-    let extensions = resolve_extension_configs(&agent, session_config, recipe, session_id).await;
     let extensions_to_load: Vec<(String, ExtensionConfig)> = extensions
         .into_iter()
         .map(|cfg| (cfg.name(), cfg))
@@ -546,7 +544,7 @@ async fn resolve_and_load_extensions(
         agent,
         extensions_to_load,
         provider_for_debug,
-        session_config.interactive,
+        interactive,
         session_id,
     )
     .await
@@ -618,12 +616,18 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> CliSession {
     }
 
     let extensions_for_provider =
-        resolve_extension_configs(&agent, &session_config, recipe, &session_id).await;
+        match collect_extension_configs(&agent, &session_config, recipe, &session_id).await {
+            Ok(exts) => exts,
+            Err(e) => {
+                output::render_error(&format!("Failed to collect extensions: {}", e));
+                process::exit(1);
+            }
+        };
 
     let new_provider = match create(
         &resolved.provider_name,
         resolved.model_config,
-        extensions_for_provider,
+        extensions_for_provider.clone(),
     )
     .await
     {
@@ -674,10 +678,10 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> CliSession {
     // Extensions are loaded after session creation because we may change directory when resuming
     let agent_ptr = resolve_and_load_extensions(
         agent,
-        &session_config,
-        recipe,
-        &session_id,
+        extensions_for_provider,
         Arc::clone(&provider_for_display),
+        session_config.interactive,
+        &session_id,
     )
     .await;
 

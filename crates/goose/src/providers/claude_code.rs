@@ -681,7 +681,12 @@ impl ProviderDef for ClaudeCodeProvider {
             let command: String = config.get_claude_code_command().unwrap_or_default().into();
             let resolved_command = SearchPaths::builder().with_npm().resolve(command)?;
 
-            let mcp_config_file = claude_mcp_config_json(&extensions)
+            let mut resolved = Vec::with_capacity(extensions.len());
+            for ext in extensions {
+                resolved.push(ext.resolve(config).await?);
+            }
+
+            let mcp_config_file = claude_mcp_config_json(&resolved)
                 .map(|json| write_mcp_config_file(&Paths::state_dir(), &json))
                 .transpose()?;
 
@@ -1086,7 +1091,7 @@ mod tests {
     )]
     #[test_case(
         vec![ExtensionConfig::StreamableHttp {
-            name: String::new(),
+            name: "mcp_kiwi_com".into(),
             description: String::new(),
             uri: "https://mcp.kiwi.com".into(),
             envs: Envs::default(),
@@ -1102,7 +1107,7 @@ mod tests {
                 "url": "https://mcp.kiwi.com"
             }
         }}))
-        ; "empty_name_derives_key_from_uri"
+        ; "resolved_name_used_as_key"
     )]
     fn test_claude_mcp_config_json(extensions: Vec<ExtensionConfig>, expected: Option<Value>) {
         let result = claude_mcp_config_json(&extensions)

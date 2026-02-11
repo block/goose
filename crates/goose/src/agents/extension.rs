@@ -11,6 +11,7 @@ use crate::agents::mcp_client::McpClientTrait;
 use crate::config;
 use crate::config::extensions::name_to_key;
 use crate::config::permission::PermissionLevel;
+use crate::config::Config;
 use once_cell::sync::Lazy;
 use rmcp::model::Tool;
 use rmcp::service::ClientInitializeError;
@@ -531,43 +532,10 @@ impl ExtensionConfig {
         }
     }
 
-    /// Returns a non-empty key identifying this extension.
     pub fn key(&self) -> String {
-        let key = name_to_key(&self.name());
-        if !key.is_empty() {
-            return key;
-        }
-        match self {
-            Self::StreamableHttp { uri, .. } => url::Url::parse(uri)
-                .ok()
-                .map(|u| {
-                    let mut s = String::new();
-                    if let Some(host) = u.host_str() {
-                        s.push_str(host);
-                    }
-                    if let Some(port) = u.port() {
-                        s.push('_');
-                        s.push_str(&port.to_string());
-                    }
-                    let path = u.path().trim_matches('/');
-                    if !path.is_empty() {
-                        s.push('_');
-                        s.push_str(path);
-                    }
-                    name_to_key(&s)
-                })
-                .filter(|k| !k.is_empty())
-                .unwrap_or_else(|| "unnamed".to_string()),
-            Self::Stdio { cmd, .. } => std::path::Path::new(cmd)
-                .file_name()
-                .and_then(|f| f.to_str())
-                .map(name_to_key)
-                .unwrap_or_else(|| "unnamed".to_string()),
-            _ => "unnamed".to_string(),
-        }
+        name_to_key(&self.name())
     }
 
-    /// Get the extension name regardless of variant
     pub fn name(&self) -> String {
         match self {
             Self::Sse { name, .. } => name,
@@ -608,6 +576,69 @@ impl ExtensionConfig {
         // If no tools are specified, all tools are available
         // If tools are specified, only those tools are available
         available_tools.is_empty() || available_tools.contains(&tool_name.to_string())
+    }
+
+    pub async fn resolve(self, config: &Config) -> ExtensionResult<Self> {
+        use crate::agents::extension_manager::{merge_environments, substitute_env_vars};
+
+        match self {
+            Self::Stdio {
+                name,
+                description,
+                cmd,
+                args,
+                envs,
+                env_keys,
+                timeout,
+                bundled,
+                available_tools,
+            } => {
+                let merged = merge_environments(&envs, &env_keys, &name, config).await?;
+                Ok(Self::Stdio {
+                    name,
+                    description,
+                    cmd,
+                    args,
+                    envs: Envs::new(merged),
+                    env_keys: vec![],
+                    timeout,
+                    bundled,
+                    available_tools,
+                })
+            }
+            Self::StreamableHttp {
+                name,
+                description,
+                uri,
+                envs,
+                env_keys,
+                headers,
+                timeout,
+                bundled,
+                available_tools,
+            } => {
+                let merged = merge_environments(&envs, &env_keys, &name, config).await?;
+                let headers = headers
+                    .into_iter()
+                    .map(|(k, v)| {
+                        let v = substitute_env_vars(&v, &merged);
+                        (k, v)
+                    })
+                    .collect();
+                Ok(Self::StreamableHttp {
+                    name,
+                    description,
+                    uri,
+                    envs: Envs::new(merged),
+                    env_keys: vec![],
+                    headers,
+                    timeout,
+                    bundled,
+                    available_tools,
+                })
+            }
+            other => Ok(other),
+        }
     }
 }
 
@@ -692,98 +723,8 @@ impl ToolInfo {
 #[cfg(test)]
 mod tests {
     use crate::agents::*;
+    use crate::config;
     use test_case::test_case;
-
-    #[test_case(
-        ExtensionConfig::StreamableHttp {
-            name: "kiwi".into(),
-            description: String::new(),
-            uri: "https://mcp.kiwi.com".into(),
-            envs: extension::Envs::default(),
-            env_keys: vec![],
-            headers: std::collections::HashMap::new(),
-            timeout: None,
-            bundled: None,
-            available_tools: vec![],
-        },
-        "kiwi"
-        ; "named_streamable_http"
-    )]
-    #[test_case(
-        ExtensionConfig::StreamableHttp {
-            name: String::new(),
-            description: String::new(),
-            uri: "https://mcp.kiwi.com".into(),
-            envs: extension::Envs::default(),
-            env_keys: vec![],
-            headers: std::collections::HashMap::new(),
-            timeout: None,
-            bundled: None,
-            available_tools: vec![],
-        },
-        "mcp_kiwi_com"
-        ; "empty_name_derives_from_host"
-    )]
-    #[test_case(
-        ExtensionConfig::Stdio {
-            name: String::new(),
-            description: String::new(),
-            cmd: "/usr/bin/my-server".into(),
-            args: vec![],
-            envs: extension::Envs::default(),
-            env_keys: vec![],
-            timeout: None,
-            bundled: None,
-            available_tools: vec![],
-        },
-        "my-server"
-        ; "empty_name_derives_from_cmd"
-    )]
-    #[test_case(
-        ExtensionConfig::StreamableHttp {
-            name: String::new(),
-            description: String::new(),
-            uri: "http://localhost:8080/api".into(),
-            envs: extension::Envs::default(),
-            env_keys: vec![],
-            headers: std::collections::HashMap::new(),
-            timeout: None,
-            bundled: None,
-            available_tools: vec![],
-        },
-        "localhost_8080_api"
-        ; "port_and_path_included"
-    )]
-    #[test_case(
-        ExtensionConfig::StreamableHttp {
-            name: String::new(),
-            description: String::new(),
-            uri: "http://localhost:9090/other".into(),
-            envs: extension::Envs::default(),
-            env_keys: vec![],
-            headers: std::collections::HashMap::new(),
-            timeout: None,
-            bundled: None,
-            available_tools: vec![],
-        },
-        "localhost_9090_other"
-        ; "different_port_and_path"
-    )]
-    #[test_case(
-        ExtensionConfig::Builtin {
-            name: String::new(),
-            description: String::new(),
-            display_name: None,
-            timeout: None,
-            bundled: None,
-            available_tools: vec![],
-        },
-        "unnamed"
-        ; "empty_builtin_gives_unnamed"
-    )]
-    fn test_key(config: ExtensionConfig, expected: &str) {
-        assert_eq!(config.key(), expected);
-    }
 
     #[test]
     fn test_deserialize_missing_description() {
@@ -844,5 +785,202 @@ available_tools: []
         } else {
             panic!("unexpected result of deserialization: {}", config)
         }
+    }
+
+    #[test_case(
+        ExtensionConfig::Builtin {
+            name: "developer".into(),
+            description: "dev".into(),
+            display_name: None,
+            timeout: None,
+            bundled: None,
+            available_tools: vec![],
+        },
+        ExtensionConfig::Builtin {
+            name: "developer".into(),
+            description: "dev".into(),
+            display_name: None,
+            timeout: None,
+            bundled: None,
+            available_tools: vec![],
+        }
+        ; "builtin_unchanged"
+    )]
+    #[test_case(
+        ExtensionConfig::StreamableHttp {
+            name: "test".into(),
+            description: String::new(),
+            uri: "https://example.com".into(),
+            envs: extension::Envs::new({
+                let mut m = std::collections::HashMap::new();
+                m.insert("AUTH_TOKEN".to_string(), "secret".to_string());
+                m
+            }),
+            env_keys: vec![],
+            headers: [(
+                "Authorization".to_string(),
+                "Bearer $AUTH_TOKEN".to_string(),
+            )]
+            .into_iter()
+            .collect(),
+            timeout: None,
+            bundled: None,
+            available_tools: vec![],
+        },
+        ExtensionConfig::StreamableHttp {
+            name: "test".into(),
+            description: String::new(),
+            uri: "https://example.com".into(),
+            envs: extension::Envs::new({
+                let mut m = std::collections::HashMap::new();
+                m.insert("AUTH_TOKEN".to_string(), "secret".to_string());
+                m
+            }),
+            env_keys: vec![],
+            headers: [(
+                "Authorization".to_string(),
+                "Bearer secret".to_string(),
+            )]
+            .into_iter()
+            .collect(),
+            timeout: None,
+            bundled: None,
+            available_tools: vec![],
+        }
+        ; "header_substitution"
+    )]
+    #[test_case(
+        ExtensionConfig::Stdio {
+            name: "test".into(),
+            description: String::new(),
+            cmd: "echo".into(),
+            args: vec![],
+            envs: extension::Envs::default(),
+            env_keys: vec![],
+            timeout: None,
+            bundled: None,
+            available_tools: vec![],
+        },
+        ExtensionConfig::Stdio {
+            name: "test".into(),
+            description: String::new(),
+            cmd: "echo".into(),
+            args: vec![],
+            envs: extension::Envs::default(),
+            env_keys: vec![],
+            timeout: None,
+            bundled: None,
+            available_tools: vec![],
+        }
+        ; "env_keys_cleared"
+    )]
+    #[test_case(
+        ExtensionConfig::Stdio {
+            name: "test".into(),
+            description: String::new(),
+            cmd: "echo".into(),
+            args: vec![],
+            envs: extension::Envs::default(),
+            env_keys: vec!["MY_SECRET".into()],
+            timeout: None,
+            bundled: None,
+            available_tools: vec![],
+        },
+        ExtensionConfig::Stdio {
+            name: "test".into(),
+            description: String::new(),
+            cmd: "echo".into(),
+            args: vec![],
+            envs: extension::Envs::new({
+                let mut m = std::collections::HashMap::new();
+                m.insert("MY_SECRET".to_string(), "secret_value".to_string());
+                m
+            }),
+            env_keys: vec![],
+            timeout: None,
+            bundled: None,
+            available_tools: vec![],
+        }
+        ; "env_key_resolved"
+    )]
+    #[test_case(
+        ExtensionConfig::StreamableHttp {
+            name: "test".into(),
+            description: String::new(),
+            uri: "https://example.com".into(),
+            envs: extension::Envs::default(),
+            env_keys: vec!["MY_SECRET".into()],
+            headers: [(
+                "Authorization".to_string(),
+                "Bearer $MY_SECRET".to_string(),
+            )]
+            .into_iter()
+            .collect(),
+            timeout: None,
+            bundled: None,
+            available_tools: vec![],
+        },
+        ExtensionConfig::StreamableHttp {
+            name: "test".into(),
+            description: String::new(),
+            uri: "https://example.com".into(),
+            envs: extension::Envs::new({
+                let mut m = std::collections::HashMap::new();
+                m.insert("MY_SECRET".to_string(), "secret_value".to_string());
+                m
+            }),
+            env_keys: vec![],
+            headers: [("Authorization".to_string(), "Bearer secret_value".to_string())]
+                .into_iter()
+                .collect(),
+            timeout: None,
+            bundled: None,
+            available_tools: vec![],
+        }
+        ; "http_env_key_and_header_substitution"
+    )]
+    #[test_case(
+        ExtensionConfig::Stdio {
+            name: "test".into(),
+            description: String::new(),
+            cmd: "echo".into(),
+            args: vec![],
+            envs: extension::Envs::new({
+                let mut m = std::collections::HashMap::new();
+                m.insert("MY_SECRET".to_string(), "original".to_string());
+                m
+            }),
+            env_keys: vec!["MY_SECRET".into()],
+            timeout: None,
+            bundled: None,
+            available_tools: vec![],
+        },
+        ExtensionConfig::Stdio {
+            name: "test".into(),
+            description: String::new(),
+            cmd: "echo".into(),
+            args: vec![],
+            envs: extension::Envs::new({
+                let mut m = std::collections::HashMap::new();
+                m.insert("MY_SECRET".to_string(), "original".to_string());
+                m
+            }),
+            env_keys: vec![],
+            timeout: None,
+            bundled: None,
+            available_tools: vec![],
+        }
+        ; "env_key_skipped_when_already_in_envs"
+    )]
+    #[tokio::test]
+    async fn test_resolve(config: ExtensionConfig, expected: ExtensionConfig) {
+        let dir = tempfile::tempdir().unwrap();
+        let cfg = config::Config::new_with_file_secrets(
+            dir.path().join("config.yaml"),
+            dir.path().join("secrets.yaml"),
+        )
+        .unwrap();
+        cfg.set("MY_SECRET", &"secret_value", true).unwrap();
+        assert_eq!(config.resolve(&cfg).await.unwrap(), expected);
     }
 }

@@ -570,6 +570,11 @@ fn toml_quote(s: &str) -> String {
     out
 }
 
+// Codex CLI only supports inline `-c key=value` TOML overrides — no file-based
+// config merging. Resolved secrets (from env_keys/keystore) in envs/headers end
+// up in process argv, visible via `ps`. Claude Code avoids this by writing to a
+// temp file with 0o600 permissions.
+// Tracking: https://github.com/openai/codex/issues/2628
 fn codex_mcp_config_overrides(extensions: &[ExtensionConfig]) -> Vec<String> {
     let mut overrides = Vec::new();
     for extension in extensions {
@@ -680,13 +685,18 @@ impl ProviderDef for CodexProvider {
                 .map(|s| s.to_lowercase() == "true")
                 .unwrap_or(false);
 
+            let mut resolved = Vec::with_capacity(extensions.len());
+            for ext in extensions {
+                resolved.push(ext.resolve(config).await?);
+            }
+
             Ok(Self {
                 command: resolved_command,
                 model,
                 name: CODEX_PROVIDER_NAME.to_string(),
                 reasoning_effort,
                 skip_git_check,
-                mcp_config_overrides: codex_mcp_config_overrides(&extensions),
+                mcp_config_overrides: codex_mcp_config_overrides(&resolved),
             })
         })
     }
@@ -816,7 +826,7 @@ mod tests {
     )]
     #[test_case(
         ExtensionConfig::StreamableHttp {
-            name: String::new(),
+            name: "mcp_kiwi_com".into(),
             description: String::new(),
             uri: "https://mcp.kiwi.com".into(),
             envs: Envs::default(),
@@ -829,11 +839,11 @@ mod tests {
         &[
             r#"mcp_servers.mcp_kiwi_com.url="https://mcp.kiwi.com""#,
         ]
-        ; "empty_name_derives_key_from_host"
+        ; "resolved_name_used_as_key_http"
     )]
     #[test_case(
         ExtensionConfig::Stdio {
-            name: String::new(),
+            name: "my-server".into(),
             cmd: "/usr/bin/my-server".into(),
             args: vec![],
             envs: Envs::default(),
@@ -846,7 +856,7 @@ mod tests {
         &[
             r#"mcp_servers.my-server.command="/usr/bin/my-server""#,
         ]
-        ; "empty_name_derives_key_from_cmd"
+        ; "resolved_name_used_as_key_stdio"
     )]
     fn test_codex_mcp_overrides(config: ExtensionConfig, expected: &[&str]) {
         let overrides = codex_mcp_config_overrides(&[config]);
