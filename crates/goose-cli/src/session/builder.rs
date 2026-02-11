@@ -72,6 +72,13 @@ fn parse_cli_flag_extensions(
     extensions_to_load
 }
 
+fn is_deprecated_platform_extension(extension: &ExtensionConfig) -> bool {
+    matches!(
+        extension,
+        ExtensionConfig::Platform { name, .. } if name.eq_ignore_ascii_case("skills")
+    )
+}
+
 /// Configuration for building a new Goose session
 ///
 /// This struct contains all the parameters needed to create a new session,
@@ -501,7 +508,7 @@ async fn resolve_and_load_extensions(
         eprintln!("{}", style(format!("Warning: {}", warning)).yellow());
     }
 
-    let configured_extensions: Vec<ExtensionConfig> = if session_config.resume {
+    let mut configured_extensions: Vec<ExtensionConfig> = if session_config.resume {
         agent
             .config
             .session_manager
@@ -516,6 +523,7 @@ async fn resolve_and_load_extensions(
     } else {
         resolve_extensions_for_new_session(recipe.and_then(|r| r.extensions.as_deref()), None)
     };
+    configured_extensions.retain(|config| !is_deprecated_platform_extension(config));
 
     let cli_flag_extensions = parse_cli_flag_extensions(
         &session_config.extensions,
