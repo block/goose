@@ -1327,14 +1327,10 @@ impl SummonClient {
             .or_else(|| session.provider_name.clone())
             .ok_or_else(|| anyhow::anyhow!("No provider configured"))?;
 
-        let mut model_config = session
-            .model_config
-            .clone()
-            .map(Ok)
-            .unwrap_or_else(|| {
-                crate::model::ModelConfig::new("default")
-                    .map(|c| c.with_canonical_limits(&provider_name))
-            })?;
+        let mut model_config = session.model_config.clone().map(Ok).unwrap_or_else(|| {
+            crate::model::ModelConfig::new("default")
+                .map(|c| c.with_canonical_limits(&provider_name))
+        })?;
 
         if let Some(model) = &params.model {
             model_config.model_name = model.clone();

@@ -740,8 +740,7 @@ impl GooseAcpAgent {
                 let provider_name = config
                     .get_goose_provider()
                     .map_err(|_| anyhow::anyhow!("No provider configured"))?;
-                goose::model::ModelConfig::new(&model_id)?
-                    .with_canonical_limits(&provider_name)
+                goose::model::ModelConfig::new(&model_id)?.with_canonical_limits(&provider_name)
             }
         };
         let provider = (self.provider_factory)(model_config).await?;
@@ -966,12 +965,11 @@ impl GooseAcpAgent {
         let provider_name = config.get_goose_provider().map_err(|_| {
             sacp::Error::internal_error().data("No provider configured".to_string())
         })?;
-        let model_config =
-            goose::model::ModelConfig::new(model_id)
-                .map_err(|e| {
-                    sacp::Error::invalid_params().data(format!("Invalid model config: {}", e))
-                })?
-                .with_canonical_limits(&provider_name);
+        let model_config = goose::model::ModelConfig::new(model_id)
+            .map_err(|e| {
+                sacp::Error::invalid_params().data(format!("Invalid model config: {}", e))
+            })?
+            .with_canonical_limits(&provider_name);
         let provider = (self.provider_factory)(model_config).await.map_err(|e| {
             sacp::Error::internal_error().data(format!("Failed to create provider: {}", e))
         })?;

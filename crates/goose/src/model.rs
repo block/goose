@@ -75,10 +75,7 @@ impl ModelConfig {
 
     /// Internal base constructor: parses env vars and predefined request_params.
     /// Does NOT do canonical lookup (that requires a provider).
-    fn new_base(
-        model_name: String,
-        context_env_var: Option<&str>,
-    ) -> Result<Self, ConfigError> {
+    fn new_base(model_name: String, context_env_var: Option<&str>) -> Result<Self, ConfigError> {
         // Priority 1: Check env vars first (highest priority)
         let context_limit = if let Some(env_var) = context_env_var {
             if let Ok(val) = std::env::var(env_var) {
@@ -262,8 +259,7 @@ impl ModelConfig {
         provider_name: &str,
     ) -> Result<Self, ConfigError> {
         // Create a full ModelConfig for the fast model with proper canonical lookup
-        let fast_config =
-            ModelConfig::new(fast_model_name)?.with_canonical_limits(provider_name);
+        let fast_config = ModelConfig::new(fast_model_name)?.with_canonical_limits(provider_name);
         self.fast_model_config = Some(Box::new(fast_config));
         Ok(self)
     }

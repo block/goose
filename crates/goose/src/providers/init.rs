@@ -247,9 +247,12 @@ mod tests {
             ("OPENAI_CUSTOM_HEADERS", Some("")),
         ]);
 
-        let provider = create("openai", ModelConfig::new_or_fail("gpt-4o-mini").with_canonical_limits("openai"))
-            .await
-            .unwrap();
+        let provider = create(
+            "openai",
+            ModelConfig::new_or_fail("gpt-4o-mini").with_canonical_limits("openai"),
+        )
+        .await
+        .unwrap();
         let lw = provider.as_lead_worker().unwrap();
         let (lead, worker) = lw.get_model_info();
         assert_eq!(lead, "gpt-4o");
@@ -272,9 +275,12 @@ mod tests {
             ("OPENAI_CUSTOM_HEADERS", Some("")),
         ]);
 
-        let provider = create("openai", ModelConfig::new_or_fail("gpt-4o-mini").with_canonical_limits("openai"))
-            .await
-            .unwrap();
+        let provider = create(
+            "openai",
+            ModelConfig::new_or_fail("gpt-4o-mini").with_canonical_limits("openai"),
+        )
+        .await
+        .unwrap();
         assert!(provider.as_lead_worker().is_none());
         assert_eq!(provider.get_model_config().model_name, "gpt-4o-mini");
     }
@@ -292,8 +298,9 @@ mod tests {
             ("GOOSE_CONTEXT_LIMIT", global_limit),
         ]);
 
-        let default_model =
-            ModelConfig::new_or_fail("gpt-3.5-turbo").with_canonical_limits("openai").with_context_limit(Some(16_000));
+        let default_model = ModelConfig::new_or_fail("gpt-3.5-turbo")
+            .with_canonical_limits("openai")
+            .with_context_limit(Some(16_000));
 
         let result = create_worker_model_config(&default_model, "openai").unwrap();
         assert_eq!(result.context_limit, Some(expected_limit));

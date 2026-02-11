@@ -15,7 +15,8 @@ mod tetrate_streaming_tests {
 
     async fn create_test_provider() -> Result<TetrateProvider> {
         // Create a test provider with the default model
-        let model_config = ModelConfig::new("claude-3-5-sonnet-latest")?.with_canonical_limits("tetrate");
+        let model_config =
+            ModelConfig::new("claude-3-5-sonnet-latest")?.with_canonical_limits("tetrate");
         TetrateProvider::from_env(model_config).await
     }
 
@@ -237,7 +238,8 @@ mod tetrate_streaming_tests {
         // Test with invalid API key to ensure error handling works
         std::env::set_var("TETRATE_API_KEY", "invalid-key-for-testing");
 
-        let model_config = ModelConfig::new("claude-3-5-sonnet-latest")?.with_canonical_limits("tetrate");
+        let model_config =
+            ModelConfig::new("claude-3-5-sonnet-latest")?.with_canonical_limits("tetrate");
         let provider = TetrateProvider::from_env(model_config).await?;
 
         let messages = vec![Message::user().with_text("Hello")];
