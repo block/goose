@@ -831,9 +831,6 @@ pub async fn configure_provider_oauth(
 
 #[derive(Serialize, ToSchema)]
 pub struct ThemeVariablesResponse {
-    /// MCP-compatible CSS variables with light-dark() format
-    /// These variables use MCP standard naming (--color-*) and light-dark() format
-    /// for seamless integration with both the main app and MCP apps.
     variables: HashMap<String, String>,
 }
 
@@ -869,13 +866,11 @@ pub async fn save_theme(Json(request): Json<SaveThemeRequest>) -> Result<Json<St
     let theme_path = Paths::in_data_dir("theme.css");
 
     if request.css.trim().is_empty() {
-        // Empty CSS means reset - delete the file
         if theme_path.exists() {
             std::fs::remove_file(&theme_path)?;
         }
         Ok(Json("Theme reset successfully".to_string()))
     } else {
-        // Non-empty CSS - write to file
         std::fs::write(&theme_path, request.css)?;
         Ok(Json("Theme saved successfully".to_string()))
     }
