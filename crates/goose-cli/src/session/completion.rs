@@ -403,15 +403,13 @@ impl Hinter for GooseCompleter {
 
         match cache.hint_status {
             HintStatus::Interrupted => {
-                Some("Interrupted, what should goose work on instead?".to_string())
+                Some("interrupted — type new instructions or Ctrl+C to exit".to_string())
             }
-            HintStatus::MaybeExit => {
-                Some("Press Ctrl+C again to exit, or type new instructions to continue".to_string())
-            }
+            HintStatus::MaybeExit => Some("Ctrl+C again to exit, or type to continue".to_string()),
             HintStatus::Default => {
                 let newline_key = super::input::get_newline_key().to_ascii_uppercase();
                 Some(format!(
-                    "Press Enter to send, Ctrl-{} for new line",
+                    "Enter to send · Ctrl+{} newline · Ctrl+C interrupt",
                     newline_key
                 ))
             }
