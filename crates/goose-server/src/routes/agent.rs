@@ -534,13 +534,14 @@ async fn update_agent_provider(
         }
     };
 
-    let model_config = ModelConfig::new(&model, &payload.provider)
+    let model_config = ModelConfig::new(&model)
         .map_err(|e| {
             (
                 StatusCode::BAD_REQUEST,
                 format!("Invalid model config: {}", e),
             )
         })?
+        .with_canonical_limits(&payload.provider)
         .with_context_limit(payload.context_limit)
         .with_request_params(payload.request_params);
 

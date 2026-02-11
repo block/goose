@@ -47,7 +47,6 @@ pub enum ConfigError {
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct ModelConfig {
     pub model_name: String,
-    pub provider_name: String,
     pub context_limit: Option<usize>,
     pub temperature: Option<f32>,
     pub max_tokens: Option<i32>,
@@ -61,8 +60,8 @@ pub struct ModelConfig {
 }
 
 impl ModelConfig {
-    pub fn new(model_name: &str, provider_name: &str) -> Result<Self, ConfigError> {
-        Self::new_with_context_env(model_name.to_string(), provider_name, None)
+    pub fn new(model_name: &str) -> Result<Self, ConfigError> {
+        Self::new_base(model_name.to_string(), None)
     }
 
     pub fn new_with_context_env(
@@ -70,8 +69,18 @@ impl ModelConfig {
         provider_name: &str,
         context_env_var: Option<&str>,
     ) -> Result<Self, ConfigError> {
+        let config = Self::new_base(model_name, context_env_var)?;
+        Ok(config.with_canonical_limits(provider_name))
+    }
+
+    /// Internal base constructor: parses env vars and predefined request_params.
+    /// Does NOT do canonical lookup (that requires a provider).
+    fn new_base(
+        model_name: String,
+        context_env_var: Option<&str>,
+    ) -> Result<Self, ConfigError> {
         // Priority 1: Check env vars first (highest priority)
-        let context_limit_from_env = if let Some(env_var) = context_env_var {
+        let context_limit = if let Some(env_var) = context_env_var {
             if let Ok(val) = std::env::var(env_var) {
                 Some(Self::validate_context_limit(&val, env_var)?)
             } else {
@@ -83,42 +92,17 @@ impl ModelConfig {
             None
         };
 
-        let max_tokens_from_env = Self::parse_max_tokens()?;
-
-        // Priority 2: Try canonical model lookup
-        let mut context_limit = context_limit_from_env;
-        let mut max_tokens = max_tokens_from_env;
-
-        if context_limit.is_none() || max_tokens.is_none() {
-            if let Some(canonical) =
-                crate::providers::canonical::maybe_get_canonical_model(provider_name, &model_name)
-            {
-                if context_limit.is_none() {
-                    context_limit = Some(canonical.limit.context);
-                }
-                if max_tokens.is_none() {
-                    max_tokens = canonical.limit.output.map(|o| o as i32);
-                }
-            }
-        }
-
-        // Priority 3: Check predefined models
-        let predefined = find_predefined_model(&model_name);
-        if context_limit.is_none() {
-            if let Some(ref pm) = predefined {
-                context_limit = pm.context_limit;
-            }
-        }
-
-        let request_params = predefined.and_then(|pm| pm.request_params);
-
+        let max_tokens = Self::parse_max_tokens()?;
         let temperature = Self::parse_temperature()?;
         let toolshim = Self::parse_toolshim()?;
         let toolshim_model = Self::parse_toolshim_model()?;
 
+        // Pick up request_params from predefined models (always applies)
+        let predefined = find_predefined_model(&model_name);
+        let request_params = predefined.and_then(|pm| pm.request_params);
+
         Ok(Self {
             model_name,
-            provider_name: provider_name.to_string(),
             context_limit,
             temperature,
             max_tokens,
@@ -127,6 +111,34 @@ impl ModelConfig {
             fast_model_config: None,
             request_params,
         })
+    }
+
+    /// Apply canonical model limits from the registry, then predefined model defaults.
+    /// Priority: env vars (already set) > canonical > predefined.
+    pub fn with_canonical_limits(mut self, provider_name: &str) -> Self {
+        // Priority 2: Try canonical model lookup (fills gaps left by env vars)
+        if self.context_limit.is_none() || self.max_tokens.is_none() {
+            if let Some(canonical) = crate::providers::canonical::maybe_get_canonical_model(
+                provider_name,
+                &self.model_name,
+            ) {
+                if self.context_limit.is_none() {
+                    self.context_limit = Some(canonical.limit.context);
+                }
+                if self.max_tokens.is_none() {
+                    self.max_tokens = canonical.limit.output.map(|o| o as i32);
+                }
+            }
+        }
+
+        // Priority 3: Check predefined models (fills remaining gaps)
+        if self.context_limit.is_none() {
+            if let Some(pm) = find_predefined_model(&self.model_name) {
+                self.context_limit = pm.context_limit;
+            }
+        }
+
+        self
     }
 
     fn validate_context_limit(val: &str, env_var: &str) -> Result<usize, ConfigError> {
@@ -244,9 +256,14 @@ impl ModelConfig {
         self
     }
 
-    pub fn with_fast(mut self, fast_model_name: &str) -> Result<Self, ConfigError> {
+    pub fn with_fast(
+        mut self,
+        fast_model_name: &str,
+        provider_name: &str,
+    ) -> Result<Self, ConfigError> {
         // Create a full ModelConfig for the fast model with proper canonical lookup
-        let fast_config = ModelConfig::new(fast_model_name, &self.provider_name)?;
+        let fast_config =
+            ModelConfig::new(fast_model_name)?.with_canonical_limits(provider_name);
         self.fast_model_config = Some(Box::new(fast_config));
         Ok(self)
     }
@@ -277,8 +294,8 @@ impl ModelConfig {
         4_096
     }
 
-    pub fn new_or_fail(model_name: &str, provider_name: &str) -> ModelConfig {
-        ModelConfig::new(model_name, provider_name)
+    pub fn new_or_fail(model_name: &str) -> ModelConfig {
+        ModelConfig::new(model_name)
             .unwrap_or_else(|_| panic!("Failed to create model config for {}", model_name))
     }
 }
@@ -334,7 +351,7 @@ mod tests {
             ("GOOSE_TOOLSHIM", None::<&str>),
             ("GOOSE_TOOLSHIM_OLLAMA_MODEL", None::<&str>),
         ]);
-        let config = ModelConfig::new("test-model", "test").unwrap();
+        let config = ModelConfig::new("test-model").unwrap();
         assert_eq!(config.max_tokens, Some(8192));
     }
 
@@ -347,7 +364,7 @@ mod tests {
             ("GOOSE_TOOLSHIM", None::<&str>),
             ("GOOSE_TOOLSHIM_OLLAMA_MODEL", None::<&str>),
         ]);
-        let config = ModelConfig::new("test-model", "test").unwrap();
+        let config = ModelConfig::new("test-model").unwrap();
         assert_eq!(config.max_tokens, None);
     }
 }

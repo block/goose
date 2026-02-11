@@ -167,7 +167,7 @@ impl Provider for MockCompactionProvider {
     }
 
     fn get_model_config(&self) -> ModelConfig {
-        ModelConfig::new("mock-model", "test").unwrap()
+        ModelConfig::new("mock-model").unwrap()
     }
 
     fn get_name(&self) -> &str {

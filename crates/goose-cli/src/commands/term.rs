@@ -293,7 +293,9 @@ pub async fn handle_term_info() -> Result<()> {
         .ok()
         .and_then(|model_name| {
             config.get_goose_provider().ok().and_then(|provider_name| {
-                goose::model::ModelConfig::new(&model_name, &provider_name).ok()
+                goose::model::ModelConfig::new(&model_name)
+                    .ok()
+                    .map(|c| c.with_canonical_limits(&provider_name))
             })
         })
         .map(|mc| mc.context_limit())

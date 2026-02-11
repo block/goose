@@ -1035,7 +1035,6 @@ mod tests {
         // Test default medium reasoning effort for O3 model
         let model_config = ModelConfig {
             model_name: "gpt-4o".to_string(),
-            provider_name: "openai".to_string(),
             context_limit: Some(4096),
             temperature: None,
             max_tokens: Some(1024),
@@ -1068,7 +1067,6 @@ mod tests {
     fn test_create_request_reasoning_effort() -> anyhow::Result<()> {
         let model_config = ModelConfig {
             model_name: "o3-mini-high".to_string(),
-            provider_name: "openai".to_string(),
             context_limit: Some(4096),
             temperature: None,
             max_tokens: Some(1024),
@@ -1388,7 +1386,6 @@ mod tests {
     fn test_create_request_claude_has_cache_control() -> anyhow::Result<()> {
         let model_config = ModelConfig {
             model_name: "databricks-claude-sonnet-4".to_string(),
-            provider_name: "databricks".to_string(),
             context_limit: Some(200000),
             temperature: None,
             max_tokens: Some(8192),
@@ -1441,7 +1438,6 @@ mod tests {
     fn test_create_request_non_claude_no_cache_control() -> anyhow::Result<()> {
         let model_config = ModelConfig {
             model_name: "gpt-4o".to_string(),
-            provider_name: "openai".to_string(),
             context_limit: Some(128000),
             temperature: None,
             max_tokens: Some(4096),

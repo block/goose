@@ -1398,19 +1398,19 @@ data: [DONE]"#;
         use crate::model::ModelConfig;
 
         // Test 1: Gemini 3 model defaults to low thinking level
-        let config = ModelConfig::new("gemini-3-pro", "google").unwrap();
+        let config = ModelConfig::new("gemini-3-pro").unwrap();
         let result = get_thinking_config(&config);
         assert!(result.is_some());
         let thinking_config = result.unwrap();
         assert!(matches!(thinking_config.thinking_level, ThinkingLevel::Low));
 
         // Test 2: Case-insensitive model detection
-        let config = ModelConfig::new("Gemini-3-Flash", "google").unwrap();
+        let config = ModelConfig::new("Gemini-3-Flash").unwrap();
         let result = get_thinking_config(&config);
         assert!(result.is_some());
 
         // Test 3: Non-Gemini 3 model returns None
-        let config = ModelConfig::new("gpt-4o", "openai").unwrap();
+        let config = ModelConfig::new("gpt-4o").unwrap();
         let result = get_thinking_config(&config);
         assert!(result.is_none());
     }

@@ -419,7 +419,7 @@ mod tests {
             }
 
             fn get_model_config(&self) -> ModelConfig {
-                ModelConfig::new("mock-model", "mock").unwrap()
+                ModelConfig::new("mock-model").unwrap()
             }
 
             fn get_name(&self) -> &str {

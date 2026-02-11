@@ -543,7 +543,6 @@ mod tests {
                 message,
                 config: ModelConfig {
                     model_name: "test".to_string(),
-                    provider_name: "test".to_string(),
                     context_limit: Some(context_limit),
                     temperature: None,
                     max_tokens: None,

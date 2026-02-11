@@ -1331,7 +1331,10 @@ impl SummonClient {
             .model_config
             .clone()
             .map(Ok)
-            .unwrap_or_else(|| crate::model::ModelConfig::new("default", &provider_name))?;
+            .unwrap_or_else(|| {
+                crate::model::ModelConfig::new("default")
+                    .map(|c| c.with_canonical_limits(&provider_name))
+            })?;
 
         if let Some(model) = &params.model {
             model_config.model_name = model.clone();

@@ -5219,7 +5219,6 @@
         "type": "object",
         "required": [
           "model_name",
-          "provider_name",
           "toolshim"
         ],
         "properties": {
@@ -5234,9 +5233,6 @@
             "nullable": true
           },
           "model_name": {
-            "type": "string"
-          },
-          "provider_name": {
             "type": "string"
           },
           "request_params": {

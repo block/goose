@@ -382,11 +382,12 @@ fn resolve_provider_and_model(
         config
     } else {
         let temperature = recipe_settings.and_then(|s| s.temperature);
-        goose::model::ModelConfig::new(&model_name, &provider_name)
+        goose::model::ModelConfig::new(&model_name)
             .unwrap_or_else(|e| {
                 output::render_error(&format!("Failed to create model configuration: {}", e));
                 process::exit(1);
             })
+            .with_canonical_limits(&provider_name)
             .with_temperature(temperature)
     };
 

@@ -132,7 +132,7 @@ pub async fn create_with_named_model(
     provider_name: &str,
     model_name: &str,
 ) -> Result<Arc<dyn Provider>> {
-    let config = ModelConfig::new(model_name, provider_name)?;
+    let config = ModelConfig::new(model_name)?.with_canonical_limits(provider_name);
     create(provider_name, config).await
 }
 
@@ -203,7 +203,8 @@ fn create_worker_model_config(
     default_model: &ModelConfig,
     provider_name: &str,
 ) -> Result<ModelConfig> {
-    let mut worker_config = ModelConfig::new_or_fail(&default_model.model_name, provider_name)
+    let mut worker_config = ModelConfig::new_or_fail(&default_model.model_name)
+        .with_canonical_limits(provider_name)
         .with_context_limit(default_model.context_limit)
         .with_temperature(default_model.temperature)
         .with_max_tokens(default_model.max_tokens)
@@ -246,7 +247,7 @@ mod tests {
             ("OPENAI_CUSTOM_HEADERS", Some("")),
         ]);
 
-        let provider = create("openai", ModelConfig::new_or_fail("gpt-4o-mini", "openai"))
+        let provider = create("openai", ModelConfig::new_or_fail("gpt-4o-mini").with_canonical_limits("openai"))
             .await
             .unwrap();
         let lw = provider.as_lead_worker().unwrap();
@@ -271,7 +272,7 @@ mod tests {
             ("OPENAI_CUSTOM_HEADERS", Some("")),
         ]);
 
-        let provider = create("openai", ModelConfig::new_or_fail("gpt-4o-mini", "openai"))
+        let provider = create("openai", ModelConfig::new_or_fail("gpt-4o-mini").with_canonical_limits("openai"))
             .await
             .unwrap();
         assert!(provider.as_lead_worker().is_none());
@@ -292,7 +293,7 @@ mod tests {
         ]);
 
         let default_model =
-            ModelConfig::new_or_fail("gpt-3.5-turbo", "openai").with_context_limit(Some(16_000));
+            ModelConfig::new_or_fail("gpt-3.5-turbo").with_canonical_limits("openai").with_context_limit(Some(16_000));
 
         let result = create_worker_model_config(&default_model, "openai").unwrap();
         assert_eq!(result.context_limit, Some(expected_limit));

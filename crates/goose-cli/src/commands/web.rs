@@ -168,7 +168,8 @@ fn get_provider_and_model() -> (String, String) {
 }
 
 async fn create_agent(provider_name: &str, model: &str) -> Result<Agent> {
-    let model_config = goose::model::ModelConfig::new(model, provider_name)?;
+    let model_config =
+        goose::model::ModelConfig::new(model)?.with_canonical_limits(provider_name);
 
     let agent = Agent::new();
 

@@ -612,7 +612,6 @@ export type ModelConfig = {
     context_limit?: number | null;
     max_tokens?: number | null;
     model_name: string;
-    provider_name: string;
     /**
      * Provider-specific request parameters (e.g., anthropic_beta headers)
      */

@@ -133,7 +133,9 @@ impl ProviderMetadata {
                 .iter()
                 .map(|&model_name| ModelInfo {
                     name: model_name.to_string(),
-                    context_limit: ModelConfig::new_or_fail(model_name, name).context_limit(),
+                    context_limit: ModelConfig::new_or_fail(model_name)
+                        .with_canonical_limits(name)
+                        .context_limit(),
                     input_token_cost: None,
                     output_token_cost: None,
                     currency: None,

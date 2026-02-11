@@ -380,7 +380,7 @@ pub async fn get_provider_models(
         )));
     }
 
-    let model_config = ModelConfig::new(&metadata.default_model, &name)?;
+    let model_config = ModelConfig::new(&metadata.default_model)?.with_canonical_limits(&name);
     let provider = goose::providers::create(&name, model_config).await?;
 
     let models_result = provider.fetch_recommended_models().await;
@@ -796,9 +796,11 @@ pub async fn configure_provider_oauth(
         )));
     }
 
-    let temp_model = ModelConfig::new("temp", &provider_name).map_err(|e| {
-        ErrorResponse::bad_request(format!("Failed to create temporary model config: {}", e))
-    })?;
+    let temp_model = ModelConfig::new("temp")
+        .map_err(|e| {
+            ErrorResponse::bad_request(format!("Failed to create temporary model config: {}", e))
+        })?
+        .with_canonical_limits(&provider_name);
 
     let provider = create(&provider_name, temp_model).await.map_err(|e| {
         ErrorResponse::bad_request(format!(
