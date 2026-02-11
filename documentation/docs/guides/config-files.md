@@ -17,7 +17,7 @@ The configuration files allow you to set default behaviors, configure language m
 
 - **config.yaml** - Provider, model, extensions, and general settings
 - **permission.yaml** - Tool permission levels configured via `goose configure`
-- **secrets.yaml** - API keys and secrets (when goose is using file-based secret storage; see [`GOOSE_DISABLE_KEYRING`](/docs/guides/environment-variables#security-and-privacy))
+- **secrets.yaml** - API keys and secrets (when goose is using [file-based secret storage](#security-considerations))
 - **permissions/tool_permissions.json** - Runtime permission decisions (auto-managed)
 - **prompts/** - Customized [prompt templates](/docs/guides/prompt-templates)
 
