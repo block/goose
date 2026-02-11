@@ -102,7 +102,18 @@ impl TetrateProvider {
             .response_post(session_id, "v1/chat/completions", payload)
             .await?;
 
-        // Check for HTTP 402 Payment Required before any other handling
+        // Check for HTTP 402 Payment Required before any other handling.
+        //
+        // NOTE: The exact HTTP status / error format Tetrate returns for credit
+        // exhaustion is not publicly documented. We defensively handle multiple
+        // possibilities:
+        //   1. HTTP 402 (Payment Required) — the standard status for this case
+        //   2. Error code 402 inside a 200 OK JSON body (Tetrate wraps some errors
+        //      in successful responses)
+        //   3. Keyword-based detection on the error message (e.g. "insufficient
+        //      credit", "payment required") as a safety net, regardless of the
+        //      HTTP status or error code — this also catches 429 responses that
+        //      are really about credits rather than rate limits.
         let status = response.status();
         if status == reqwest::StatusCode::PAYMENT_REQUIRED {
             let body = response.text().await.unwrap_or_default();
@@ -417,5 +428,235 @@ impl Provider for TetrateProvider {
 
     fn supports_streaming(&self) -> bool {
         self.supports_streaming
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // ── is_credits_exhausted: positive cases ──────────────────────────
+
+    #[test]
+    fn credits_exhausted_detects_insufficient_credit() {
+        assert!(TetrateProvider::is_credits_exhausted(
+            "Insufficient credit on your account"
+        ));
+    }
+
+    #[test]
+    fn credits_exhausted_detects_insufficient_balance() {
+        assert!(TetrateProvider::is_credits_exhausted(
+            "Insufficient balance to complete this request"
+        ));
+    }
+
+    #[test]
+    fn credits_exhausted_detects_insufficient_funds() {
+        assert!(TetrateProvider::is_credits_exhausted(
+            "Insufficient funds in your account"
+        ));
+    }
+
+    #[test]
+    fn credits_exhausted_detects_out_of_credit() {
+        assert!(TetrateProvider::is_credits_exhausted(
+            "You are out of credits"
+        ));
+    }
+
+    #[test]
+    fn credits_exhausted_detects_credits_exhausted_phrase() {
+        assert!(TetrateProvider::is_credits_exhausted("Credits exhausted"));
+    }
+
+    #[test]
+    fn credits_exhausted_detects_credits_have_been_exhausted() {
+        assert!(TetrateProvider::is_credits_exhausted(
+            "Your credits have been exhausted. Please top up."
+        ));
+    }
+
+    #[test]
+    fn credits_exhausted_detects_no_credits_remaining() {
+        assert!(TetrateProvider::is_credits_exhausted(
+            "No credits remaining on this API key"
+        ));
+    }
+
+    #[test]
+    fn credits_exhausted_detects_credit_balance() {
+        assert!(TetrateProvider::is_credits_exhausted(
+            "Your credit balance is $0.00"
+        ));
+    }
+
+    #[test]
+    fn credits_exhausted_detects_balance_is_zero() {
+        assert!(TetrateProvider::is_credits_exhausted(
+            "Your balance is zero"
+        ));
+    }
+
+    #[test]
+    fn credits_exhausted_detects_balance_too_low() {
+        assert!(TetrateProvider::is_credits_exhausted(
+            "Account balance too low for this model"
+        ));
+    }
+
+    #[test]
+    fn credits_exhausted_detects_payment_required() {
+        assert!(TetrateProvider::is_credits_exhausted("Payment required"));
+    }
+
+    #[test]
+    fn credits_exhausted_detects_billing() {
+        assert!(TetrateProvider::is_credits_exhausted(
+            "Please update your billing information"
+        ));
+    }
+
+    #[test]
+    fn credits_exhausted_detects_top_up() {
+        assert!(TetrateProvider::is_credits_exhausted(
+            "Please top up your account"
+        ));
+    }
+
+    #[test]
+    fn credits_exhausted_detects_add_credits() {
+        assert!(TetrateProvider::is_credits_exhausted(
+            "Please add credits to continue"
+        ));
+    }
+
+    #[test]
+    fn credits_exhausted_detects_purchase_credits() {
+        assert!(TetrateProvider::is_credits_exhausted(
+            "Purchase credits at router.tetrate.ai"
+        ));
+    }
+
+    #[test]
+    fn credits_exhausted_detects_exceeded_your_credit() {
+        assert!(TetrateProvider::is_credits_exhausted(
+            "You have exceeded your credit limit"
+        ));
+    }
+
+    // ── is_credits_exhausted: case-insensitivity ──────────────────────
+
+    #[test]
+    fn credits_exhausted_is_case_insensitive() {
+        assert!(TetrateProvider::is_credits_exhausted("INSUFFICIENT CREDIT"));
+        assert!(TetrateProvider::is_credits_exhausted("Out Of Credits"));
+        assert!(TetrateProvider::is_credits_exhausted("PAYMENT REQUIRED"));
+    }
+
+    #[test]
+    fn credits_exhausted_matches_embedded_in_longer_message() {
+        assert!(TetrateProvider::is_credits_exhausted(
+            "Error 402: Payment required. Visit dashboard to add credits."
+        ));
+    }
+
+    // ── is_credits_exhausted: negative cases ──────────────────────────
+
+    #[test]
+    fn credits_exhausted_false_for_rate_limit() {
+        assert!(!TetrateProvider::is_credits_exhausted(
+            "Rate limit exceeded. Please retry after 30 seconds."
+        ));
+    }
+
+    #[test]
+    fn credits_exhausted_false_for_server_error() {
+        assert!(!TetrateProvider::is_credits_exhausted(
+            "Internal server error"
+        ));
+    }
+
+    #[test]
+    fn credits_exhausted_false_for_auth_error() {
+        assert!(!TetrateProvider::is_credits_exhausted(
+            "Invalid API key provided"
+        ));
+    }
+
+    #[test]
+    fn credits_exhausted_false_for_context_length() {
+        assert!(!TetrateProvider::is_credits_exhausted(
+            "This model's maximum context length is 128000 tokens"
+        ));
+    }
+
+    #[test]
+    fn credits_exhausted_false_for_empty_string() {
+        assert!(!TetrateProvider::is_credits_exhausted(""));
+    }
+
+    #[test]
+    fn credits_exhausted_false_for_generic_error() {
+        assert!(!TetrateProvider::is_credits_exhausted(
+            "Something went wrong with the request"
+        ));
+    }
+
+    #[test]
+    fn credits_exhausted_false_for_model_not_found() {
+        assert!(!TetrateProvider::is_credits_exhausted(
+            "Model 'gpt-99' not found"
+        ));
+    }
+
+    // ── CreditsExhausted error variant ────────────────────────────────
+
+    #[test]
+    fn credits_exhausted_error_includes_dashboard_url() {
+        let err = ProviderError::CreditsExhausted {
+            details: "out of credits".to_string(),
+            top_up_url: Some(TETRATE_DASHBOARD_URL.to_string()),
+        };
+        match err {
+            ProviderError::CreditsExhausted { top_up_url, .. } => {
+                assert_eq!(
+                    top_up_url.as_deref(),
+                    Some("https://router.tetrate.ai/dashboard")
+                );
+            }
+            _ => panic!("Expected CreditsExhausted variant"),
+        }
+    }
+
+    #[test]
+    fn credits_exhausted_error_telemetry_type() {
+        let err = ProviderError::CreditsExhausted {
+            details: "test".to_string(),
+            top_up_url: None,
+        };
+        assert_eq!(err.telemetry_type(), "credits_exhausted");
+    }
+
+    #[test]
+    fn credits_exhausted_error_display() {
+        let err = ProviderError::CreditsExhausted {
+            details: "No credits remaining".to_string(),
+            top_up_url: None,
+        };
+        assert_eq!(err.to_string(), "Credits exhausted: No credits remaining");
+    }
+
+    #[test]
+    fn credits_exhausted_is_not_retried() {
+        use crate::providers::retry::should_retry;
+        let err = ProviderError::CreditsExhausted {
+            details: "out of credits".to_string(),
+            top_up_url: Some(TETRATE_DASHBOARD_URL.to_string()),
+        };
+        assert!(
+            !should_retry(&err),
+            "CreditsExhausted should not be retried — it is not a transient error"
+        );
     }
 }

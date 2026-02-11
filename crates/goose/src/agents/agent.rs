@@ -1437,23 +1437,34 @@ impl Agent {
                             crate::posthog::emit_error(provider_err.telemetry_type(), &provider_err.to_string());
                             error!("Credits exhausted: {}", details);
 
-                            let url = top_up_url.as_deref().unwrap_or("https://router.tetrate.ai/dashboard");
-
-                            // Try to open the user's browser to the top-up page
-                            let browser_msg = match webbrowser::open(url) {
-                                Ok(_) => format!(
-                                    "Your credits have been exhausted: {details}\n\n\
-                                     Opening your browser to add more credits: {url}\n\n\
-                                     Once you've topped up, retry your last message to continue."
-                                ),
-                                Err(browser_err) => {
-                                    tracing::warn!("Failed to open browser: {}", browser_err);
-                                    format!(
+                            // Build a user-facing message. If the provider supplied a
+                            // top-up URL we try to open it in the default browser (uses
+                            // the `webbrowser` crate — the same cross-platform mechanism
+                            // used by the Tetrate OAuth sign-up flow in signup_tetrate).
+                            // If no URL was provided (generic 402 from an unknown
+                            // provider) we just tell the user what happened.
+                            let browser_msg = if let Some(url) = top_up_url.as_deref() {
+                                match webbrowser::open(url) {
+                                    Ok(_) => format!(
                                         "Your credits have been exhausted: {details}\n\n\
-                                         To add more credits, visit: {url}\n\n\
+                                         Opening your browser to add more credits: {url}\n\n\
                                          Once you've topped up, retry your last message to continue."
-                                    )
+                                    ),
+                                    Err(browser_err) => {
+                                        tracing::warn!("Failed to open browser: {}", browser_err);
+                                        format!(
+                                            "Your credits have been exhausted: {details}\n\n\
+                                             To add more credits, visit: {url}\n\n\
+                                             Once you've topped up, retry your last message to continue."
+                                        )
+                                    }
                                 }
+                            } else {
+                                format!(
+                                    "Your credits have been exhausted: {details}\n\n\
+                                     Please check your account with your provider to add more \
+                                     credits, then retry your last message to continue."
+                                )
                             };
 
                             yield AgentEvent::Message(
