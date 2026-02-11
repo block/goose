@@ -1,3 +1,4 @@
+use crate::subprocess::SubprocessExt;
 use etcetera::{choose_app_strategy, AppStrategy};
 use indoc::{formatdoc, indoc};
 use reqwest::{Client, Url};
@@ -710,8 +711,7 @@ impl ComputerControllerServer {
                     .arg(&command)
                     .env("GOOSE_TERMINAL", "1")
                     .env("AGENT", "goose");
-                #[cfg(windows)]
-                cmd.creation_flags(0x08000000 /* CREATE_NO_WINDOW */);
+                cmd.set_no_window();
                 cmd.output().await.map_err(|e| {
                     ErrorData::new(
                         ErrorCode::INTERNAL_ERROR,
@@ -726,8 +726,7 @@ impl ComputerControllerServer {
                     .arg(&command)
                     .env("GOOSE_TERMINAL", "1")
                     .env("AGENT", "goose");
-                #[cfg(windows)]
-                cmd.creation_flags(0x08000000 /* CREATE_NO_WINDOW */);
+                cmd.set_no_window();
                 cmd.output().await.map_err(|e| {
                     ErrorData::new(
                         ErrorCode::INTERNAL_ERROR,

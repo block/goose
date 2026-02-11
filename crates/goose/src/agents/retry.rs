@@ -6,6 +6,8 @@ use tokio::process::Command;
 use tokio::sync::Mutex;
 use tracing::{debug, info, warn};
 
+use crate::subprocess::SubprocessExt;
+
 use crate::agents::types::SessionConfig;
 use crate::agents::types::{
     RetryConfig, SuccessCheck, DEFAULT_ON_FAILURE_TIMEOUT_SECONDS, DEFAULT_RETRY_TIMEOUT_SECONDS,
@@ -243,8 +245,7 @@ pub async fn execute_shell_command(
             cmd
         };
 
-        #[cfg(windows)]
-        cmd.creation_flags(0x08000000 /* CREATE_NO_WINDOW */);
+        cmd.set_no_window();
 
         let output = cmd
             .stdout(Stdio::piped())

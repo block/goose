@@ -1,3 +1,4 @@
+use crate::subprocess::SubprocessExt;
 use chrono;
 use serde::Deserialize;
 use std::sync::Arc;
@@ -134,8 +135,7 @@ impl AzureAuth {
             "--resource",
             "https://cognitiveservices.azure.com",
         ]);
-        #[cfg(windows)]
-        cmd.creation_flags(0x08000000 /* CREATE_NO_WINDOW */);
+        cmd.set_no_window();
         let output = cmd
             .output()
             .await

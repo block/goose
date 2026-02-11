@@ -6,6 +6,8 @@ use goose::conversation::message::{
     ActionRequiredData, Message, MessageContent, ToolRequest, ToolResponse,
 };
 use goose::providers::canonical::maybe_get_canonical_model;
+#[cfg(target_os = "windows")]
+use goose::subprocess::SubprocessExt;
 use goose::utils::safe_truncate;
 use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
 use rmcp::model::{CallToolRequestParams, JsonObject, PromptArgument};
@@ -13,8 +15,6 @@ use serde_json::Value;
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::io::{Error, IsTerminal, Write};
-#[cfg(windows)]
-use std::os::windows::process::CommandExt;
 use std::path::Path;
 use std::sync::Arc;
 use std::time::Duration;
@@ -176,7 +176,7 @@ pub fn run_status_hook(status: &str) {
                     .stdin(std::process::Stdio::null())
                     .stdout(std::process::Stdio::null())
                     .stderr(std::process::Stdio::null());
-                cmd.creation_flags(0x08000000 /* CREATE_NO_WINDOW */);
+                cmd.set_no_window();
                 cmd.status()
             };
 

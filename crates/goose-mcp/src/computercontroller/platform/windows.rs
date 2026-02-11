@@ -1,5 +1,5 @@
 use super::SystemAutomation;
-use std::os::windows::process::CommandExt;
+use crate::subprocess::SubprocessExt;
 use std::path::PathBuf;
 use std::process::Command;
 
@@ -14,7 +14,7 @@ impl SystemAutomation for WindowsAutomation {
             .arg(script)
             .env("GOOSE_TERMINAL", "1")
             .env("AGENT", "goose");
-        cmd.creation_flags(0x08000000 /* CREATE_NO_WINDOW */);
+        cmd.set_no_window();
         let output = cmd.output()?;
 
         Ok(String::from_utf8_lossy(&output.stdout).into_owned())
