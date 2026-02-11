@@ -439,7 +439,9 @@ impl WhisperTranscriber {
         };
         let mut tokens = vec![SOT_TOKEN, self.language_token, TRANSCRIBE_TOKEN];
         let sample_len = self.config.max_target_positions / 2;
-        let max_repeat = 3; // Stop if same token repeats this many times
+        let max_token_repeat = 3; // Stop if same token repeats this many times
+        let mut last_text_phrase: Vec<u32> = Vec::new();
+        let mut phrase_repeat_count = 0;
 
         for i in 0..sample_len {
             let tokens_tensor = Tensor::new(tokens.as_slice(), &self.device)?.unsqueeze(0)?;
@@ -478,18 +480,59 @@ impl WhisperTranscriber {
                 break;
             }
 
-            // Detect repetition: if the same text token repeats max_repeat times, stop
-            if next_token < TIMESTAMP_BEGIN && tokens.len() >= max_repeat + 3 {
-                let recent = &tokens[tokens.len() - max_repeat..];
+            // Detect single token repetition
+            if next_token < TIMESTAMP_BEGIN && tokens.len() >= max_token_repeat + 3 {
+                let recent = &tokens[tokens.len() - max_token_repeat..];
                 if recent.iter().all(|&t| t == next_token) {
                     tracing::debug!(
                         repeated_token = next_token,
-                        times = max_repeat,
-                        "repetition detected, stopping"
+                        times = max_token_repeat,
+                        "token repetition detected, stopping"
                     );
-                    // Remove the repeated tokens except the first occurrence
-                    tokens.truncate(tokens.len() - max_repeat + 1);
+                    tokens.truncate(tokens.len() - max_token_repeat + 1);
                     break;
+                }
+            }
+
+            // Detect phrase repetition: when we see a timestamp pair (end, start), check if the
+            // text phrase before it matches the previous phrase
+            if next_token >= TIMESTAMP_BEGIN && tokens.len() > 4 {
+                // Look for pattern: [text...], ts, ts where we just added the second ts
+                let prev_token = tokens[tokens.len() - 2];
+                if prev_token >= TIMESTAMP_BEGIN {
+                    // We have two consecutive timestamps - extract the text phrase before them
+                    let phrase_end = tokens.len() - 2;
+                    let mut phrase_start = phrase_end;
+                    while phrase_start > 3
+                        && tokens[phrase_start - 1] < TIMESTAMP_BEGIN
+                        && tokens[phrase_start - 1] != EOT_TOKEN
+                    {
+                        phrase_start -= 1;
+                    }
+
+                    if phrase_start < phrase_end {
+                        let current_phrase: Vec<u32> =
+                            tokens[phrase_start..phrase_end].iter().copied().collect();
+
+                        if !last_text_phrase.is_empty() && current_phrase == last_text_phrase {
+                            phrase_repeat_count += 1;
+                            if phrase_repeat_count >= 2 {
+                                tracing::debug!(
+                                    phrase = ?current_phrase,
+                                    repeat_count = phrase_repeat_count,
+                                    "phrase repetition detected, stopping"
+                                );
+                                // Remove repeated phrases, keep only the first occurrence
+                                let keep_until =
+                                    phrase_start + (phrase_end - phrase_start); // first phrase end
+                                tokens.truncate(keep_until);
+                                break;
+                            }
+                        } else {
+                            phrase_repeat_count = 0;
+                        }
+                        last_text_phrase = current_phrase;
+                    }
                 }
             }
         }
