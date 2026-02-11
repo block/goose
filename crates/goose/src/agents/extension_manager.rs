@@ -406,7 +406,7 @@ async fn create_streamable_http_client(
     let client_res = McpClient::connect(transport, timeout_duration, provider.clone()).await;
 
     if extract_auth_error(&client_res).is_some() {
-        let am = oauth_flow(&uri.to_string(), &name.to_string())
+        let auth_manager = oauth_flow(&uri.to_string(), &name.to_string())
             .await
             .map_err(|_| ExtensionError::SetupError("auth error".to_string()))?;
         let mut auth_headers = HeaderMap::new();
@@ -417,7 +417,7 @@ async fn create_streamable_http_client(
             .map_err(|_| {
                 ExtensionError::ConfigError("could not construct http client".to_string())
             })?;
-        let auth_client = AuthClient::new(auth_http_client, am);
+        let auth_client = AuthClient::new(auth_http_client, auth_manager);
         let transport = StreamableHttpClientTransport::with_client(
             auth_client,
             StreamableHttpClientTransportConfig {
