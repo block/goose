@@ -123,11 +123,11 @@ export const SessionMessages: React.FC<SessionMessagesProps> = ({
                       <div className="flex flex-col w-full">
                         {/* Reasoning content */}
                         {reasoningContent && (
-                          <details className="bg-bgSubtle border border-borderSubtle rounded p-2 mb-2">
-                            <summary className="cursor-pointer text-sm text-textSubtle select-none">
+                          <details className="mb-2">
+                            <summary className="cursor-pointer text-xs text-textSubtle select-none">
                               Show reasoning
                             </summary>
-                            <div className="mt-2">
+                            <div className="mt-2 text-sm">
                               <MarkdownContent content={reasoningContent} />
                             </div>
                           </details>
