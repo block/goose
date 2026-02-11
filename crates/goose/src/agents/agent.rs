@@ -1433,6 +1433,34 @@ impl Agent {
                                 }
                             }
                         }
+                        Err(ref provider_err @ ProviderError::CreditsExhausted { ref details, ref top_up_url }) => {
+                            crate::posthog::emit_error(provider_err.telemetry_type(), &provider_err.to_string());
+                            error!("Credits exhausted: {}", details);
+
+                            let url = top_up_url.as_deref().unwrap_or("https://router.tetrate.ai/dashboard");
+
+                            // Try to open the user's browser to the top-up page
+                            let browser_msg = match webbrowser::open(url) {
+                                Ok(_) => format!(
+                                    "Your credits have been exhausted: {details}\n\n\
+                                     Opening your browser to add more credits: {url}\n\n\
+                                     Once you've topped up, retry your last message to continue."
+                                ),
+                                Err(browser_err) => {
+                                    tracing::warn!("Failed to open browser: {}", browser_err);
+                                    format!(
+                                        "Your credits have been exhausted: {details}\n\n\
+                                         To add more credits, visit: {url}\n\n\
+                                         Once you've topped up, retry your last message to continue."
+                                    )
+                                }
+                            };
+
+                            yield AgentEvent::Message(
+                                Message::assistant().with_text(browser_msg)
+                            );
+                            break;
+                        }
                         Err(ref provider_err) => {
                             crate::posthog::emit_error(provider_err.telemetry_type(), &provider_err.to_string());
                             error!("Error: {}", provider_err);

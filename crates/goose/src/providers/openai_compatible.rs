@@ -219,6 +219,10 @@ pub fn map_http_error_to_provider_error(
         StatusCode::NOT_FOUND => {
             ProviderError::RequestFailed(format!("Resource not found (404): {}", extract_message()))
         }
+        StatusCode::PAYMENT_REQUIRED => ProviderError::CreditsExhausted {
+            details: extract_message(),
+            top_up_url: None,
+        },
         StatusCode::PAYLOAD_TOO_LARGE => ProviderError::ContextLengthExceeded(extract_message()),
         StatusCode::BAD_REQUEST => {
             let payload_str = extract_message();

@@ -34,6 +34,7 @@ pub const TETRATE_KNOWN_MODELS: &[&str] = &[
     "gpt-4.1",
 ];
 pub const TETRATE_DOC_URL: &str = "https://router.tetrate.ai";
+pub const TETRATE_DASHBOARD_URL: &str = "https://router.tetrate.ai/dashboard";
 
 #[derive(serde::Serialize)]
 pub struct TetrateProvider {
@@ -67,6 +68,30 @@ impl TetrateProvider {
         })
     }
 
+    /// Check if an error message indicates credit/balance exhaustion
+    fn is_credits_exhausted(message: &str) -> bool {
+        let lower = message.to_lowercase();
+        let credit_phrases = [
+            "insufficient credit",
+            "insufficient balance",
+            "insufficient fund",
+            "out of credit",
+            "credits exhausted",
+            "credits have been exhausted",
+            "no credits remaining",
+            "credit balance",
+            "balance is zero",
+            "balance too low",
+            "payment required",
+            "billing",
+            "top up",
+            "add credits",
+            "purchase credits",
+            "exceeded your credit",
+        ];
+        credit_phrases.iter().any(|phrase| lower.contains(phrase))
+    }
+
     async fn post(
         &self,
         session_id: Option<&str>,
@@ -77,6 +102,32 @@ impl TetrateProvider {
             .response_post(session_id, "v1/chat/completions", payload)
             .await?;
 
+        // Check for HTTP 402 Payment Required before any other handling
+        let status = response.status();
+        if status == reqwest::StatusCode::PAYMENT_REQUIRED {
+            let body = response.text().await.unwrap_or_default();
+            let detail = if body.is_empty() {
+                "Your Tetrate Agent Router credits have been exhausted.".to_string()
+            } else {
+                // Try to extract message from JSON error body
+                serde_json::from_str::<Value>(&body)
+                    .ok()
+                    .and_then(|v| {
+                        v.get("error")
+                            .and_then(|e| e.get("message"))
+                            .and_then(|m| m.as_str())
+                            .map(String::from)
+                    })
+                    .unwrap_or_else(|| {
+                        "Your Tetrate Agent Router credits have been exhausted.".to_string()
+                    })
+            };
+            return Err(ProviderError::CreditsExhausted {
+                details: detail,
+                top_up_url: Some(TETRATE_DASHBOARD_URL.to_string()),
+            });
+        }
+
         // Handle Google-compatible model responses differently
         if is_google_model(payload) {
             return handle_response_google_compat(response).await;
@@ -85,7 +136,17 @@ impl TetrateProvider {
         // For OpenAI-compatible models, parse the response body to JSON
         let response_body = handle_response_openai_compat(response)
             .await
-            .map_err(|e| ProviderError::RequestFailed(format!("Failed to parse response: {e}")))?;
+            .map_err(|e| {
+                // Check if the underlying error message indicates credit exhaustion
+                let err_str = e.to_string();
+                if Self::is_credits_exhausted(&err_str) {
+                    return ProviderError::CreditsExhausted {
+                        details: err_str,
+                        top_up_url: Some(TETRATE_DASHBOARD_URL.to_string()),
+                    };
+                }
+                ProviderError::RequestFailed(format!("Failed to parse response: {e}"))
+            })?;
 
         let _debug = format!(
             "Tetrate Agent Router Service request with payload: {} and response: {}",
@@ -104,6 +165,14 @@ impl TetrateProvider {
 
             let error_code = error_obj.get("code").and_then(|c| c.as_u64()).unwrap_or(0);
 
+            // Check for credit exhaustion in error messages regardless of error code
+            if Self::is_credits_exhausted(error_message) || error_code == 402 {
+                return Err(ProviderError::CreditsExhausted {
+                    details: error_message.to_string(),
+                    top_up_url: Some(TETRATE_DASHBOARD_URL.to_string()),
+                });
+            }
+
             // Check for context length errors in the error message
             if error_code == 400 && error_message.contains("maximum context length") {
                 return Err(ProviderError::ContextLengthExceeded(
@@ -115,10 +184,17 @@ impl TetrateProvider {
             match error_code {
                 401 | 403 => return Err(ProviderError::Authentication(error_message.to_string())),
                 429 => {
+                    // A 429 could also be a credits issue disguised as rate limiting
+                    if Self::is_credits_exhausted(error_message) {
+                        return Err(ProviderError::CreditsExhausted {
+                            details: error_message.to_string(),
+                            top_up_url: Some(TETRATE_DASHBOARD_URL.to_string()),
+                        });
+                    }
                     return Err(ProviderError::RateLimitExceeded {
                         details: error_message.to_string(),
                         retry_delay: None,
-                    })
+                    });
                 }
                 500 | 503 => return Err(ProviderError::ServerError(error_message.to_string())),
                 _ => return Err(ProviderError::RequestFailed(error_message.to_string())),
@@ -233,7 +309,37 @@ impl Provider for TetrateProvider {
                     .api_client
                     .response_post(Some(session_id), "v1/chat/completions", &payload)
                     .await?;
-                handle_status_openai_compat(resp).await
+
+                // Check for HTTP 402 before delegating to generic handler
+                if resp.status() == reqwest::StatusCode::PAYMENT_REQUIRED {
+                    let body = resp.text().await.unwrap_or_default();
+                    let detail = serde_json::from_str::<Value>(&body)
+                        .ok()
+                        .and_then(|v| {
+                            v.get("error")
+                                .and_then(|e| e.get("message"))
+                                .and_then(|m| m.as_str())
+                                .map(String::from)
+                        })
+                        .unwrap_or_else(|| {
+                            "Your Tetrate Agent Router credits have been exhausted.".to_string()
+                        });
+                    return Err(ProviderError::CreditsExhausted {
+                        details: detail,
+                        top_up_url: Some(TETRATE_DASHBOARD_URL.to_string()),
+                    });
+                }
+
+                handle_status_openai_compat(resp).await.map_err(|e| {
+                    // Check if the error message from status handler indicates credit exhaustion
+                    if Self::is_credits_exhausted(&e.to_string()) {
+                        return ProviderError::CreditsExhausted {
+                            details: e.to_string(),
+                            top_up_url: Some(TETRATE_DASHBOARD_URL.to_string()),
+                        };
+                    }
+                    e
+                })
             })
             .await
             .inspect_err(|e| {
