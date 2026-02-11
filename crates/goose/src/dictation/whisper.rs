@@ -439,6 +439,7 @@ impl WhisperTranscriber {
         };
         let mut tokens = vec![SOT_TOKEN, self.language_token, TRANSCRIBE_TOKEN];
         let sample_len = self.config.max_target_positions / 2;
+        let max_repeat = 3; // Stop if same token repeats this many times
 
         for i in 0..sample_len {
             let tokens_tensor = Tensor::new(tokens.as_slice(), &self.device)?.unsqueeze(0)?;
@@ -475,6 +476,21 @@ impl WhisperTranscriber {
             if tokens.len() > self.config.max_target_positions {
                 tracing::debug!("max target positions reached");
                 break;
+            }
+
+            // Detect repetition: if the same text token repeats max_repeat times, stop
+            if next_token < TIMESTAMP_BEGIN && tokens.len() >= max_repeat + 3 {
+                let recent = &tokens[tokens.len() - max_repeat..];
+                if recent.iter().all(|&t| t == next_token) {
+                    tracing::debug!(
+                        repeated_token = next_token,
+                        times = max_repeat,
+                        "repetition detected, stopping"
+                    );
+                    // Remove the repeated tokens except the first occurrence
+                    tokens.truncate(tokens.len() - max_repeat + 1);
+                    break;
+                }
             }
         }
 
@@ -591,11 +607,10 @@ impl WhisperTranscriber {
             .collect();
 
         if !timestamp_tokens.is_empty() {
-            let timestamp_last = if last_was_timestamp && !penultimate_was_timestamp {
-                *timestamp_tokens.last().unwrap()
-            } else {
-                timestamp_tokens.last().unwrap() + 1
-            };
+            // Timestamps shouldn't decrease; forbid timestamp tokens smaller than or equal to the last.
+            // When last_was_timestamp && !penultimate_was_timestamp, we just output an "end" timestamp
+            // after text, so we need to advance past it to prevent repeating.
+            let timestamp_last = timestamp_tokens.last().unwrap() + 1;
 
             for i in 0..vocab_size {
                 mask_buffer[i as usize] = if i >= TIMESTAMP_BEGIN && i < timestamp_last {
