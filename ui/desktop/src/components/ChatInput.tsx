@@ -1549,7 +1549,6 @@ export default function ChatInput({
                 dropdownRef={dropdownRef}
                 setView={setView}
                 alerts={alerts}
-                recipe={recipe}
               />
             </div>
           </Tooltip>

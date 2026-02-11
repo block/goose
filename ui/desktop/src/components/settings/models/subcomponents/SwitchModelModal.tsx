@@ -70,7 +70,6 @@ type SwitchModelModalProps = {
   setView: (view: View) => void;
   onModelSelected?: (model: string) => void;
   initialProvider?: string | null;
-  initialModel?: string | null;
   titleOverride?: string;
 };
 export const SwitchModelModal = ({
@@ -79,7 +78,6 @@ export const SwitchModelModal = ({
   setView,
   onModelSelected,
   initialProvider,
-  initialModel,
   titleOverride,
 }: SwitchModelModalProps) => {
   const { getProviders, read } = useConfig();
@@ -87,14 +85,8 @@ export const SwitchModelModal = ({
   const [providerOptions, setProviderOptions] = useState<{ value: string; label: string }[]>([]);
   type ModelOption = { value: string; label: string; provider: string; isDisabled?: boolean };
   const [modelOptions, setModelOptions] = useState<{ options: ModelOption[] }[]>([]);
-  const effectiveInitialProvider = initialProvider || currentProvider || null;
-  const [provider, setProvider] = useState<string | null>(effectiveInitialProvider);
-  const effectiveInitialModel = initialModel || currentModel || '';
-  const [model, setModel] = useState<string>(
-    effectiveInitialProvider && effectiveInitialProvider !== currentProvider && !initialModel
-      ? ''
-      : effectiveInitialModel
-  );
+  const [provider, setProvider] = useState<string | null>(initialProvider || currentProvider || null);
+  const [model, setModel] = useState<string>(currentModel || '');
   const [isCustomModel, setIsCustomModel] = useState(false);
   const [validationErrors, setValidationErrors] = useState({
     provider: '',
@@ -174,12 +166,10 @@ export const SwitchModelModal = ({
       }
 
       await changeModel(sessionId, modelObj);
+      onModelSelected?.(modelObj.name);
 
       trackModelChanged(modelObj.provider || '', modelObj.name);
 
-      if (onModelSelected) {
-        onModelSelected(modelObj.name);
-      }
       onClose();
     }
   };
@@ -214,8 +204,7 @@ export const SwitchModelModal = ({
     // Load providers for manual model selection
     (async () => {
       try {
-        // Force refresh if initialProvider is set (OAuth flow needs fresh data)
-        const providersResponse = await getProviders(!!initialProvider);
+        const providersResponse = await getProviders(false);
         const activeProviders = providersResponse.filter((provider) => provider.is_configured);
         // Create provider options and add "Use other provider" option
         setProviderOptions([
@@ -284,7 +273,7 @@ export const SwitchModelModal = ({
         setLoadingModels(false);
       }
     })();
-  }, [getProviders, usePredefinedModels, read, initialProvider]);
+  }, [getProviders, usePredefinedModels, read]);
 
   const filteredModelOptions = provider
     ? modelOptions.filter((group) => group.options[0]?.provider === provider)

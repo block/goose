@@ -1566,30 +1566,18 @@ impl Agent {
     pub async fn restore_provider_from_session(&self, session: &Session) -> Result<()> {
         let config = Config::global();
 
-        let recipe_provider = session
-            .recipe
-            .as_ref()
-            .and_then(|r| r.settings.as_ref())
-            .and_then(|s| s.goose_provider.clone());
-
-        let recipe_model = session
-            .recipe
-            .as_ref()
-            .and_then(|r| r.settings.as_ref())
-            .and_then(|s| s.goose_model.clone());
-
         let provider_name = session
             .provider_name
             .clone()
-            .or(recipe_provider)
             .or_else(|| config.get_goose_provider().ok())
             .ok_or_else(|| anyhow!("Could not configure agent: missing provider"))?;
 
         let model_config = match session.model_config.clone() {
             Some(saved_config) => saved_config,
             None => {
-                let model_name = recipe_model
-                    .or_else(|| config.get_goose_model().ok())
+                let model_name = config
+                    .get_goose_model()
+                    .ok()
                     .ok_or_else(|| anyhow!("Could not configure agent: missing model"))?;
                 crate::model::ModelConfig::new(&model_name)
                     .map_err(|e| anyhow!("Could not configure agent: invalid model {}", e))?
