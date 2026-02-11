@@ -24,7 +24,7 @@ import type {
   McpUiSizeChangedNotification,
 } from '@modelcontextprotocol/ext-apps/app-bridge';
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useReducer, useState } from 'react';
 import { callTool, readResource } from '../../api';
 import { AppEvents } from '../../constants/events';
 import { useTheme } from '../../contexts/ThemeContext';
@@ -91,11 +91,74 @@ interface McpAppRendererProps {
   cachedHtml?: string;
 }
 
-interface ResourceData {
-  html: string | null;
+interface ResourceMeta {
   csp: McpUiResourceCsp | null;
   permissions: SandboxPermissions | null;
   prefersBorder: boolean;
+}
+
+const DEFAULT_META: ResourceMeta = { csp: null, permissions: null, prefersBorder: true };
+
+// Lifecycle: idle → loading_resource → loading_sandbox → ready
+// Any state can transition to error. The sandbox URL is fetched only once
+// to prevent iframe recreation (which would cause the app to lose state).
+type AppState =
+  | { status: 'idle' }
+  | { status: 'loading_resource'; html: string | null; meta: ResourceMeta }
+  | { status: 'loading_sandbox'; html: string; meta: ResourceMeta }
+  | { status: 'ready'; html: string; meta: ResourceMeta; sandboxUrl: URL; sandboxCsp: McpUiResourceCsp | null }
+  | { status: 'error'; message: string; html: string | null; meta: ResourceMeta };
+
+type AppAction =
+  | { type: 'FETCH_RESOURCE' }
+  | { type: 'RESOURCE_LOADED'; html: string | null; meta: ResourceMeta }
+  | { type: 'RESOURCE_FAILED'; message: string }
+  | { type: 'SANDBOX_READY'; sandboxUrl: string; sandboxCsp: McpUiResourceCsp | null }
+  | { type: 'SANDBOX_FAILED'; message: string }
+  | { type: 'ERROR'; message: string };
+
+function getMeta(state: AppState): ResourceMeta {
+  return state.status === 'idle' ? DEFAULT_META : state.meta;
+}
+
+function getHtml(state: AppState): string | null {
+  return state.status === 'idle' ? null : state.html;
+}
+
+function appReducer(state: AppState, action: AppAction): AppState {
+  const meta = getMeta(state);
+  const html = getHtml(state);
+
+  switch (action.type) {
+    case 'FETCH_RESOURCE':
+      return { status: 'loading_resource', html, meta };
+
+    case 'RESOURCE_LOADED':
+      if (!action.html) {
+        return { status: 'loading_resource', html: null, meta: action.meta };
+      }
+      if (state.status === 'ready') {
+        return { ...state, html: action.html, meta: action.meta };
+      }
+      return { status: 'loading_sandbox', html: action.html, meta: action.meta };
+
+    case 'RESOURCE_FAILED':
+      if (html) {
+        if (state.status === 'ready') return state;
+        return { status: 'loading_sandbox', html, meta };
+      }
+      return { status: 'error', message: action.message, html: null, meta };
+
+    case 'SANDBOX_READY':
+      if (!html) return state;
+      return { status: 'ready', html, meta, sandboxUrl: new URL(action.sandboxUrl), sandboxCsp: action.sandboxCsp };
+
+    case 'SANDBOX_FAILED':
+      return { status: 'error', message: action.message, html, meta };
+
+    case 'ERROR':
+      return { status: 'error', message: action.message, html, meta };
+  }
 }
 
 export default function McpAppRenderer({
@@ -113,58 +176,24 @@ export default function McpAppRenderer({
   const isExpandedView = displayMode === 'fullscreen' || displayMode === 'standalone';
 
   const { resolvedTheme } = useTheme();
-  const [resource, setResource] = useState<ResourceData>({
-    html: cachedHtml || null,
-    csp: null,
-    permissions: null,
-    prefersBorder: true,
-  });
-  const [error, setError] = useState<string | null>(null);
+
+  const initialState: AppState = cachedHtml
+    ? { status: 'loading_sandbox', html: cachedHtml, meta: DEFAULT_META }
+    : { status: 'idle' };
+
+  const [state, dispatch] = useReducer(appReducer, initialState);
   const [iframeHeight, setIframeHeight] = useState(DEFAULT_IFRAME_HEIGHT);
   // null = fluid (100% width), number = explicit width from app
   const [iframeWidth, setIframeWidth] = useState<number | null>(null);
-  const [sandboxUrl, setSandboxUrl] = useState<URL | null>(null);
-  const [sandboxCsp, setSandboxCsp] = useState<McpUiResourceCsp | null>(null);
-  const [sandboxUrlFetched, setSandboxUrlFetched] = useState(false);
-  // Tracks whether the resource fetch has completed so the sandbox URL effect
-  // waits for metadata (CSP) before creating the proxy.
-  const [resourceFetched, setResourceFetched] = useState(false);
 
-  // Initialize sandbox URL once after HTML and metadata are available.
-  // We wait for resourceFetched so that when cachedHtml is provided, we don't
-  // create the proxy before the resource fetch has had a chance to populate CSP.
-  // We only fetch once (tracked by sandboxUrlFetched) to prevent iframe recreation
-  // which would cause the app to lose state.
+  // Fetch the resource from the extension to get HTML and metadata (CSP, permissions, etc.).
+  // If cachedHtml is provided we show it immediately; the fetch updates metadata and
+  // replaces HTML only if the server returns different content.
   useEffect(() => {
-    if (!resource.html || sandboxUrlFetched) {
-      return;
-    }
-    // When there's a sessionId, wait for the resource fetch to complete so we
-    // have metadata (CSP). Without a sessionId there's no fetch to wait for.
-    if (sessionId && !resourceFetched) {
-      return;
-    }
-    const cspAtFetchTime = resource.csp;
-    setSandboxCsp(cspAtFetchTime);
-    fetchMcpAppProxyUrl(cspAtFetchTime).then((url) => {
-      if (url) {
-        setSandboxUrl(new URL(url));
-      } else {
-        setError('Failed to initialize sandbox proxy');
-      }
-      setSandboxUrlFetched(true);
-    });
-  }, [resource.html, resource.csp, sandboxUrlFetched, sessionId, resourceFetched]);
+    if (!sessionId) return;
 
-  // If cachedHtml is provided, we show it immediately and only update if the
-  // fetched content differs. Metadata (CSP, permissions, prefersBorder) is
-  // always applied regardless of whether the HTML changed.
-  useEffect(() => {
-    if (!sessionId) {
-      return;
-    }
-
-    const fetchResource = async () => {
+    const fetchResourceData = async () => {
+      dispatch({ type: 'FETCH_RESOURCE' });
       try {
         const response = await readResource({
           body: {
@@ -176,7 +205,7 @@ export default function McpAppRenderer({
 
         if (response.data) {
           const content = response.data;
-          const meta = content._meta as
+          const rawMeta = content._meta as
             | {
                 ui?: {
                   csp?: McpUiResourceCsp;
@@ -186,29 +215,44 @@ export default function McpAppRenderer({
               }
             | undefined;
 
-          setResource({
+          dispatch({
+            type: 'RESOURCE_LOADED',
             html: content.text ?? cachedHtml ?? null,
-            csp: meta?.ui?.csp || null,
-            // todo: pass meta?.ui?.permissions to SDK once it supports sendSandboxResourceReady
-            // https://github.com/MCP-UI-Org/mcp-ui/issues/180
-            permissions: null,
-            prefersBorder: meta?.ui?.prefersBorder ?? true,
+            meta: {
+              csp: rawMeta?.ui?.csp || null,
+              // todo: pass permissions to SDK once it supports sendSandboxResourceReady
+              // https://github.com/MCP-UI-Org/mcp-ui/issues/180
+              permissions: null,
+              prefersBorder: rawMeta?.ui?.prefersBorder ?? true,
+            },
           });
         }
       } catch (err) {
         console.error('[McpAppRenderer] Error fetching resource:', err);
-        if (!cachedHtml) {
-          setError(errorMessage(err, 'Failed to load resource'));
-        } else {
+        if (cachedHtml) {
           console.warn('Failed to fetch fresh resource, using cached version:', err);
         }
-      } finally {
-        setResourceFetched(true);
+        dispatch({ type: 'RESOURCE_FAILED', message: errorMessage(err, 'Failed to load resource') });
       }
     };
 
-    fetchResource();
+    fetchResourceData();
   }, [resourceUri, extensionName, sessionId, cachedHtml]);
+
+  // Create the sandbox proxy URL once we have HTML and metadata.
+  // Fetched only once — recreating the proxy would destroy iframe state.
+  const pendingCsp = state.status === 'loading_sandbox' ? state.meta.csp : null;
+  useEffect(() => {
+    if (state.status !== 'loading_sandbox') return;
+
+    fetchMcpAppProxyUrl(pendingCsp).then((url) => {
+      if (url) {
+        dispatch({ type: 'SANDBOX_READY', sandboxUrl: url, sandboxCsp: pendingCsp });
+      } else {
+        dispatch({ type: 'SANDBOX_FAILED', message: 'Failed to initialize sandbox proxy' });
+      }
+    });
+  }, [state.status, pendingCsp]);
 
   const handleOpenLink = useCallback(async ({ url }: { url: string }) => {
     if (isProtocolSafe(url)) {
@@ -341,27 +385,32 @@ export default function McpAppRenderer({
 
   const handleError = useCallback((err: Error) => {
     console.error('[MCP App Error]:', err);
-    setError(errorMessage(err));
+    dispatch({ type: 'ERROR', message: errorMessage(err) });
   }, []);
 
-  const mcpUiCsp = useMemo((): McpUiResourceCsp | undefined => {
-    if (!sandboxCsp) return undefined;
-    return {
-      connectDomains: sandboxCsp.connectDomains ?? undefined,
-      resourceDomains: sandboxCsp.resourceDomains ?? undefined,
-      frameDomains: sandboxCsp.frameDomains ?? undefined,
-      baseUriDomains: sandboxCsp.baseUriDomains ?? undefined,
-    };
-  }, [sandboxCsp]);
+  const meta = getMeta(state);
+  const html = getHtml(state);
 
-  const sandboxConfig = useMemo(() => {
-    if (!sandboxUrl) return null;
+  const readyCsp = state.status === 'ready' ? state.sandboxCsp : null;
+  const mcpUiCsp = useMemo((): McpUiResourceCsp | undefined => {
+    if (!readyCsp) return undefined;
     return {
-      url: sandboxUrl,
-      permissions: resource.permissions || 'allow-scripts allow-same-origin',
+      connectDomains: readyCsp.connectDomains ?? undefined,
+      resourceDomains: readyCsp.resourceDomains ?? undefined,
+      frameDomains: readyCsp.frameDomains ?? undefined,
+      baseUriDomains: readyCsp.baseUriDomains ?? undefined,
+    };
+  }, [readyCsp]);
+
+  const readySandboxUrl = state.status === 'ready' ? state.sandboxUrl : null;
+  const sandboxConfig = useMemo(() => {
+    if (!readySandboxUrl) return null;
+    return {
+      url: readySandboxUrl,
+      permissions: meta.permissions || 'allow-scripts allow-same-origin',
       csp: mcpUiCsp,
     };
-  }, [sandboxUrl, resource.permissions, mcpUiCsp]);
+  }, [readySandboxUrl, meta.permissions, mcpUiCsp]);
 
   const hostContext = useMemo((): McpUiHostContext => {
     const context: McpUiHostContext = {
@@ -405,16 +454,17 @@ export default function McpAppRenderer({
   }, [toolResult]);
 
   const isToolCancelled = !!toolCancelled;
-  const isLoading = !sandboxConfig || !resource.html;
+  const isError = state.status === 'error';
+  const isReady = state.status === 'ready';
 
   const renderContent = () => {
-    if (error) {
+    if (isError) {
       return (
-        <div className="p-4 text-red-700 dark:text-red-300">Failed to load MCP app: {error}</div>
+        <div className="p-4 text-red-700 dark:text-red-300">Failed to load MCP app: {state.message}</div>
       );
     }
 
-    if (isLoading) {
+    if (!isReady) {
       return (
         <div className="relative flex h-full w-full items-center justify-center overflow-hidden rounded bg-black/[0.03] dark:bg-white/[0.03]">
           <div
@@ -432,9 +482,9 @@ export default function McpAppRenderer({
 
     return (
       <AppRenderer
-        sandbox={sandboxConfig}
+        sandbox={sandboxConfig!}
         toolName={resourceUri}
-        html={resource.html ?? undefined}
+        html={html ?? undefined}
         toolInput={toolInput?.arguments}
         toolInputPartial={toolInputPartial ? { arguments: toolInputPartial.arguments } : undefined}
         toolCancelled={isToolCancelled}
@@ -454,9 +504,9 @@ export default function McpAppRenderer({
   const containerClasses = cn(
     'bg-background-default overflow-hidden',
     iframeWidth === null && '[&_iframe]:!w-full',
-    error && 'border border-red-500 rounded-lg bg-red-50 dark:bg-red-900/20',
-    !error && !isExpandedView && 'mt-6 mb-2',
-    !error && !isExpandedView && resource.prefersBorder && 'border border-border-default rounded-lg'
+    isError && 'border border-red-500 rounded-lg bg-red-50 dark:bg-red-900/20',
+    !isError && !isExpandedView && 'mt-6 mb-2',
+    !isError && !isExpandedView && meta.prefersBorder && 'border border-border-default rounded-lg'
   );
 
   const containerStyle = isExpandedView
