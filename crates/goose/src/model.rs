@@ -73,10 +73,7 @@ impl ModelConfig {
         Ok(config.with_canonical_limits(provider_name))
     }
 
-    /// Internal base constructor: parses env vars and predefined request_params.
-    /// Does NOT do canonical lookup (that requires a provider).
     fn new_base(model_name: String, context_env_var: Option<&str>) -> Result<Self, ConfigError> {
-        // Priority 1: Check env vars first (highest priority)
         let context_limit = if let Some(env_var) = context_env_var {
             if let Ok(val) = std::env::var(env_var) {
                 Some(Self::validate_context_limit(&val, env_var)?)
@@ -110,10 +107,7 @@ impl ModelConfig {
         })
     }
 
-    /// Apply canonical model limits from the registry, then predefined model defaults.
-    /// Priority: env vars (already set) > canonical > predefined.
     pub fn with_canonical_limits(mut self, provider_name: &str) -> Self {
-        // Priority 2: Try canonical model lookup (fills gaps left by env vars)
         if self.context_limit.is_none() || self.max_tokens.is_none() {
             if let Some(canonical) = crate::providers::canonical::maybe_get_canonical_model(
                 provider_name,
@@ -128,7 +122,7 @@ impl ModelConfig {
             }
         }
 
-        // Priority 3: Check predefined models (fills remaining gaps)
+        // Try filling remaining gaps from predefined models
         if self.context_limit.is_none() {
             if let Some(pm) = find_predefined_model(&self.model_name) {
                 self.context_limit = pm.context_limit;
