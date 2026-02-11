@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useState } from 'react';
 import { ExtensionConfig } from '../../../api';
 import { useConfig } from '../../ConfigContext';
 import { Input } from '../../ui/input';
@@ -17,22 +17,17 @@ export const RecipeExtensionSelector = ({
   const { extensionsList: allExtensions } = useConfig();
   const [searchQuery, setSearchQuery] = useState('');
 
-  const selectedExtensionNames = useMemo(
-    () => new Set(selectedExtensions.map((ext) => ext.name)),
-    [selectedExtensions]
-  );
+  const selectedExtensionNames = new Set(selectedExtensions.map((ext) => ext.name));
 
-  const displayExtensions = useMemo(() => {
-    const extensionMap = new Map(allExtensions.map((ext) => [ext.name, ext]));
+  const extensionMap = new Map(allExtensions.map((ext) => [ext.name, ext]));
 
-    selectedExtensions.forEach((ext) => {
-      if (!extensionMap.has(ext.name)) {
-        extensionMap.set(ext.name, { ...ext, enabled: true });
-      }
-    });
+  selectedExtensions.forEach((ext) => {
+    if (!extensionMap.has(ext.name)) {
+      extensionMap.set(ext.name, { ...ext, enabled: true });
+    }
+  });
 
-    return Array.from(extensionMap.values());
-  }, [allExtensions, selectedExtensions]);
+  const displayExtensions = Array.from(extensionMap.values());
 
   const handleToggle = (extensionConfig: ExtensionConfig) => {
     const isSelected = selectedExtensionNames.has(extensionConfig.name);
@@ -47,26 +42,22 @@ export const RecipeExtensionSelector = ({
     }
   };
 
-  const filteredExtensions = useMemo(() => {
-    return displayExtensions.filter((ext) => {
-      const query = searchQuery.toLowerCase();
-      return (
-        ext.name.toLowerCase().includes(query) ||
-        (ext.description && ext.description.toLowerCase().includes(query))
-      );
-    });
-  }, [displayExtensions, searchQuery]);
+  const filteredExtensions = displayExtensions.filter((ext) => {
+    const query = searchQuery.toLowerCase();
+    return (
+      ext.name.toLowerCase().includes(query) ||
+      (ext.description && ext.description.toLowerCase().includes(query))
+    );
+  });
 
-  const sortedExtensions = useMemo(() => {
-    return [...filteredExtensions].sort((a, b) => {
-      const aSelected = selectedExtensionNames.has(a.name);
-      const bSelected = selectedExtensionNames.has(b.name);
+  const sortedExtensions = [...filteredExtensions].sort((a, b) => {
+    const aSelected = selectedExtensionNames.has(a.name);
+    const bSelected = selectedExtensionNames.has(b.name);
 
-      if (aSelected !== bSelected) return aSelected ? -1 : 1;
+    if (aSelected !== bSelected) return aSelected ? -1 : 1;
 
-      return a.name.localeCompare(b.name);
-    });
-  }, [filteredExtensions, selectedExtensionNames]);
+    return a.name.localeCompare(b.name);
+  });
 
   const activeCount = selectedExtensions.length;
 
