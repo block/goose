@@ -162,7 +162,7 @@ ls -lh output/
    cp -r /path/to/cli-command-tracking \
          /path/to/forked-goose/documentation/automation/
    
-   cp /path/to/cli-command-tracking/workflow/docs-update-cli-ref.yml \
+   cp /path/to/goose/.github/workflows/docs-update-cli-ref.yml \
       /path/to/forked-goose/.github/workflows/
    ```
 

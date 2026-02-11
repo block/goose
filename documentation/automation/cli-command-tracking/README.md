@@ -277,7 +277,7 @@ cli-command-tracking/
 ├── recipes/                            # AI recipes
 │   ├── synthesize-cli-changes.yaml     # Generate change docs
 │   └── update-cli-commands.yaml        # Update documentation
-├── workflow/                           # GitHub Actions workflow
+├── .github/workflows/                  # GitHub Actions workflow
 │   └── docs-update-cli-ref.yml         # Workflow definition
 └── output/                             # Generated files (gitignored)
     ├── old-cli-structure.json          # Previous version structure

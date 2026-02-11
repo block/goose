@@ -7,6 +7,7 @@
 # For HEAD or non-release refs, builds from source.
 
 set -e
+set -o pipefail
 
 VERSION=${1:-"HEAD"}
 GOOSE_REPO=${GOOSE_REPO:-"$HOME/Development/goose"}
@@ -24,6 +25,7 @@ is_release_tag() {
 # Download pre-built binary for a release version
 download_release_binary() {
     local version=$1
+    local safe_version=${version//\//-}
     local bin_dir="$TEMP_DIR/bin"
     mkdir -p "$bin_dir"
     
@@ -42,6 +44,7 @@ download_release_binary() {
 # Build goose from source
 build_from_source() {
     local version=$1
+    local safe_version=${version//\//-}
     
     if [ ! -d "$GOOSE_REPO" ]; then
         echo "Error: GOOSE_REPO directory not found: $GOOSE_REPO" >&2
@@ -67,7 +70,7 @@ build_from_source() {
         echo "Building goose from $version..." >&2
         
         # Create a worktree for the version
-        local worktree_dir="$TEMP_DIR/goose-$version"
+        local worktree_dir="$TEMP_DIR/goose-$safe_version"
         git worktree add --quiet "$worktree_dir" "$version" >&2 2>&1 || {
             echo "Error: Failed to create worktree for $version" >&2
             return 1
@@ -83,7 +86,7 @@ build_from_source() {
         
         # Clean up worktree but keep the binary accessible
         local bin_path="$worktree_dir/target/release/goose"
-        local temp_bin="$TEMP_DIR/goose-$version-bin"
+        local temp_bin="$TEMP_DIR/goose-$safe_version-bin"
         cp "$bin_path" "$temp_bin"
         
         cd "$GOOSE_REPO"

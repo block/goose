@@ -62,31 +62,39 @@ echo "Old Version: $OLD_VERSION"
 echo "New Version: $NEW_VERSION"
 echo ""
 
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+
 # Change to output directory
-cd "$(dirname "$0")/../output"
+OUTPUT_DIR="$SCRIPT_DIR/../output"
+mkdir -p "$OUTPUT_DIR"
+cd "$OUTPUT_DIR"
+
+# Use a per-run temp directory for logs to avoid collisions
+LOG_DIR=$(mktemp -d)
+trap 'rm -rf "$LOG_DIR"' EXIT
 
 echo "Step 1: Extracting CLI structure from $OLD_VERSION..."
-if ! ../scripts/extract-cli-structure.sh "$OLD_VERSION" > old-cli-structure.json 2>/tmp/extract-old.log; then
+if ! ../scripts/extract-cli-structure.sh "$OLD_VERSION" > old-cli-structure.json 2>"$LOG_DIR/extract-old.log"; then
     echo "✗ Failed to extract CLI structure from $OLD_VERSION" >&2
     echo "Error output:" >&2
-    cat /tmp/extract-old.log >&2
+    cat "$LOG_DIR/extract-old.log" >&2
     exit 1
 fi
 echo "✓ Extracted $(jq '.commands | length' old-cli-structure.json) commands"
 
 echo ""
 echo "Step 2: Extracting CLI structure from $NEW_VERSION..."
-if ! ../scripts/extract-cli-structure.sh "$NEW_VERSION" > new-cli-structure.json 2>/tmp/extract-new.log; then
+if ! ../scripts/extract-cli-structure.sh "$NEW_VERSION" > new-cli-structure.json 2>"$LOG_DIR/extract-new.log"; then
     echo "✗ Failed to extract CLI structure from $NEW_VERSION" >&2
     echo "Error output:" >&2
-    cat /tmp/extract-new.log >&2
+    cat "$LOG_DIR/extract-new.log" >&2
     exit 1
 fi
 echo "✓ Extracted $(jq '.commands | length' new-cli-structure.json) commands"
 
 echo ""
 echo "Step 3: Comparing CLI structures..."
-python3 ../scripts/diff-cli-structures.py old-cli-structure.json new-cli-structure.json > cli-changes.json 2>/tmp/diff.log
+python3 ../scripts/diff-cli-structures.py old-cli-structure.json new-cli-structure.json > cli-changes.json 2>"$LOG_DIR/diff.log"
 
 HAS_CHANGES=$(jq -r '.has_changes' cli-changes.json)
 echo "✓ Comparison complete. Has changes: $HAS_CHANGES"
@@ -115,6 +123,12 @@ if [ "$HAS_CHANGES" = "true" ]; then
         grep -v "^Loading recipe:" | \
         grep -v "^Description:" | \
         cat -s > cli-changes.md.tmp
+
+    # If the pipeline fails, surface the goose error (grep can exit 1 when it matches nothing)
+    if [ ${PIPESTATUS[0]} -ne 0 ]; then
+        echo "✗ Failed to synthesize CLI changes (goose run failed)" >&2
+        exit 1
+    fi
     
     # Check if we got meaningful content
     if [ -s cli-changes.md.tmp ] && grep -q "# CLI Command Changes" cli-changes.md.tmp; then
@@ -149,6 +163,11 @@ if [ "$HAS_CHANGES" = "true" ]; then
         grep -v "^Loading recipe:" | \
         grep -v "^Description:" | \
         cat -s
+
+    if [ ${PIPESTATUS[0]} -ne 0 ]; then
+        echo "✗ Failed to update documentation (goose run failed)" >&2
+        exit 1
+    fi
     
     echo "✓ Documentation update complete"
     

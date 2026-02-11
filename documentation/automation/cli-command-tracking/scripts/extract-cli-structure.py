@@ -136,19 +136,27 @@ def parse_option_block(block: str) -> Optional[Dict]:
     if not lines:
         return None
     
-    # First line has the flags and value_name
+    # First line has the flags, optional value name, and sometimes inline help (common clap output)
     first_line = lines[0].strip()
+    inline_help = None
+
+    # Split on 2+ spaces to separate flags from inline help text.
+    # Example: "-o, --output <FILE>  Write output to file"
+    parts = re.split(r'\s{2,}', first_line, maxsplit=1)
+    flags_part = parts[0]
+    if len(parts) == 2:
+        inline_help = parts[1].strip() or None
     
     # Extract short flag (e.g., -f)
-    short_match = re.search(r'-([a-zA-Z])\b', first_line)
+    short_match = re.search(r'-([a-zA-Z])\b', flags_part)
     short = short_match.group(1) if short_match else None
     
     # Extract long flag (e.g., --format)
-    long_match = re.search(r'--([a-z][a-z0-9-]*)', first_line)
+    long_match = re.search(r'--([a-z][a-z0-9-]*)', flags_part)
     long = long_match.group(1) if long_match else None
     
     # Extract value_name (e.g., <FORMAT>)
-    value_name_match = re.search(r'<([^>]+)>', first_line)
+    value_name_match = re.search(r'<([^>]+)>', flags_part)
     value_name = value_name_match.group(1) if value_name_match else None
     
     # Collect help text from subsequent indented lines
@@ -162,6 +170,9 @@ def parse_option_block(block: str) -> Optional[Dict]:
             break
     
     help_text = ' '.join(help_lines)
+
+    if inline_help:
+        help_text = f"{inline_help} {help_text}".strip() if help_text else inline_help
     
     # Extract default value
     default = None
@@ -204,10 +215,16 @@ def parse_subcommands(help_text: str) -> List[Tuple[str, List[str]]]:
     commands_text = commands_match.group(1)
     
     # Each command line starts with the command name (not indented or minimally indented)
-    for line in commands_text.split('\n'):
-        line = line.strip()
-        if not line or line.startswith(' '):
+    for raw_line in commands_text.split('\n'):
+        # Preserve indentation to avoid mis-parsing wrapped description lines.
+        # In clap help, actual command entries are typically not indented.
+        if not raw_line.strip():
             continue
+
+        if raw_line.startswith(' ') or raw_line.startswith('\t'):
+            continue
+
+        line = raw_line.strip()
         
         # Extract command name (first word)
         parts = line.split()
