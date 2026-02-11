@@ -57,6 +57,15 @@ pub struct ModelSettings {
     pub n_threads: Option<i32>,
     #[serde(default)]
     pub native_tool_calling: bool,
+    /// RPC endpoints for distributed inference (e.g. ["192.168.1.10:50052", "192.168.1.11:50052"]).
+    /// When set, these are registered as ggml backends before model load so llama.cpp
+    /// distributes layers across local + remote devices.
+    #[serde(default)]
+    pub rpc_endpoints: Vec<String>,
+    /// Tensor split proportions across devices (e.g. "0.5,0.3,0.2").
+    /// Forces a specific distribution of model layers across devices instead of
+    /// letting llama.cpp auto-assign by free memory.
+    pub tensor_split: Option<String>,
 }
 
 fn default_repeat_penalty() -> f32 {
@@ -83,6 +92,8 @@ impl Default for ModelSettings {
             flash_attention: None,
             n_threads: None,
             native_tool_calling: false,
+            rpc_endpoints: Vec::new(),
+            tensor_split: None,
         }
     }
 }

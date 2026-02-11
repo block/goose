@@ -12,7 +12,14 @@ import {
 const DEFAULT_SETTINGS: ModelSettings = {
   context_size: null,
   max_output_tokens: null,
-  sampling: { type: 'Temperature', temperature: 0.8, top_k: 40, top_p: 0.95, min_p: 0.05, seed: null },
+  sampling: {
+    type: 'Temperature',
+    temperature: 0.8,
+    top_k: 40,
+    top_p: 0.95,
+    min_p: 0.05,
+    seed: null,
+  },
   repeat_penalty: 1.0,
   repeat_last_n: 64,
   frequency_penalty: 0.0,
@@ -23,6 +30,8 @@ const DEFAULT_SETTINGS: ModelSettings = {
   flash_attention: null,
   n_threads: null,
   native_tool_calling: false,
+  rpc_endpoints: [],
+  tensor_split: null,
 };
 
 type SamplingType = SamplingConfig['type'];
@@ -177,7 +186,14 @@ export const ModelSettingsPanel = ({ modelId }: { modelId: string }) => {
     } else if (type === 'MirostatV2') {
       sampling = { type: 'MirostatV2', tau: 5.0, eta: 0.1, seed: null };
     } else {
-      sampling = { type: 'Temperature', temperature: 0.8, top_k: 40, top_p: 0.95, min_p: 0.05, seed: null };
+      sampling = {
+        type: 'Temperature',
+        temperature: 0.8,
+        top_k: 40,
+        top_p: 0.95,
+        min_p: 0.05,
+        seed: null,
+      };
     }
     save({ ...settings, sampling });
   };
@@ -393,7 +409,13 @@ export const ModelSettingsPanel = ({ modelId }: { modelId: string }) => {
         <SelectField
           label="Flash attention"
           description="Enable flash attention optimization"
-          value={settings.flash_attention === null || settings.flash_attention === undefined ? 'auto' : settings.flash_attention ? 'on' : 'off'}
+          value={
+            settings.flash_attention === null || settings.flash_attention === undefined
+              ? 'auto'
+              : settings.flash_attention
+                ? 'on'
+                : 'off'
+          }
           options={[
             { value: 'auto', label: 'Auto' },
             { value: 'on', label: 'On' },
@@ -411,6 +433,54 @@ export const ModelSettingsPanel = ({ modelId }: { modelId: string }) => {
           value={settings.native_tool_calling ?? false}
           onChange={(v) => updateField('native_tool_calling', v)}
         />
+      </div>
+
+      {/* Distributed Inference (RPC) */}
+      <div className="space-y-2">
+        <h5 className="text-xs font-medium text-text-default">Distributed Inference (RPC)</h5>
+        <span className="text-xs text-text-muted">
+          Spread model layers across machines running{' '}
+          <code className="text-[10px] bg-background-subtle px-0.5 rounded">rpc-server</code> from
+          llama.cpp. Layers are distributed automatically based on available memory.
+        </span>
+        <div className="flex flex-col gap-1">
+          <label className="text-xs font-medium text-text-default">RPC Workers</label>
+          <textarea
+            className="w-full rounded border border-border-subtle bg-background-default px-2 py-1 text-sm text-text-default font-mono"
+            rows={3}
+            value={(settings.rpc_endpoints ?? []).join('\n')}
+            onChange={(e) => {
+              const lines = e.target.value
+                .split('\n')
+                .map((l) => l.trim())
+                .filter((l) => l.length > 0);
+              updateField('rpc_endpoints', lines);
+            }}
+            placeholder={'192.168.1.10:50052\n192.168.1.11:50052'}
+          />
+          <span className="text-xs text-text-muted">
+            One host:port per line. Reload the model after changing.
+          </span>
+        </div>
+        {(settings.rpc_endpoints ?? []).length > 0 && (
+          <div className="flex flex-col gap-1">
+            <label className="text-xs font-medium text-text-default">Tensor split (optional)</label>
+            <input
+              type="text"
+              className="w-full rounded border border-border-subtle bg-background-default px-2 py-1 text-sm text-text-default font-mono"
+              value={((settings as Record<string, unknown>).tensor_split as string) ?? ''}
+              onChange={(e) => {
+                const val = e.target.value.trim();
+                updateField('tensor_split' as keyof ModelSettings, val || null);
+              }}
+              placeholder="auto"
+            />
+            <span className="text-xs text-text-muted">
+              Override layer distribution: comma-separated proportions per device, in order: RPC
+              workers then local GPU. Leave blank for automatic.
+            </span>
+          </div>
+        )}
       </div>
     </div>
   );

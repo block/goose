@@ -4205,6 +4205,7 @@ dependencies = [
  "keyring",
  "lazy_static",
  "llama-cpp-2",
+ "llama-cpp-sys-2",
  "lru",
  "minijinja",
  "mockall",
@@ -5650,23 +5651,21 @@ checksum = "11d3d7f243d5c5a8b9bb5d6dd2b1602c0cb0b9db1621bafc7ed66e35ff9fe092"
 
 [[package]]
 name = "llama-cpp-2"
-version = "0.1.133"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "888c8805527f4c35ec16f26003d54a318cde1629e7439da8e9ef2d6d3883e106"
+version = "0.1.134"
+source = "git+https://github.com/michaelneale/llama-cpp-rs?branch=rpc#421bc9fa95197235649ea4b72f0e7da1e77e45e3"
 dependencies = [
  "encoding_rs",
  "enumflags2",
  "llama-cpp-sys-2",
- "thiserror 1.0.69",
+ "thiserror 2.0.18",
  "tracing",
  "tracing-core",
 ]
 
 [[package]]
 name = "llama-cpp-sys-2"
-version = "0.1.133"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a180dfa6d6f9d1df1e031bcdf0464bbad4f9b326395bfd28f2fa539d8cbc9c2b"
+version = "0.1.134"
+source = "git+https://github.com/michaelneale/llama-cpp-rs?branch=rpc#421bc9fa95197235649ea4b72f0e7da1e77e45e3"
 dependencies = [
  "bindgen",
  "cc",

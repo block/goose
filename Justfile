@@ -432,3 +432,35 @@ build-test-tools:
 record-mcp-tests: build-test-tools
   GOOSE_RECORD_MCP=1 cargo test --package goose --test mcp_integration_test
   git add crates/goose/tests/mcp_replays/
+
+# Build a matching rpc-server binary for distributed inference
+# The binary must match the llama.cpp version linked into goose
+build-rpc-server:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    CARGO_GIT="${CARGO_HOME:-$HOME/.cargo}/git"
+    LLAMA_SRC=$(find "$CARGO_GIT/checkouts" -path "*/llama-cpp-rs-*/llama-cpp-sys-2/llama.cpp" -type d 2>/dev/null | head -1)
+    if [ -z "$LLAMA_SRC" ]; then
+        echo "Error: llama-cpp-rs not found in cargo cache. Run 'cargo build -p goose' first."
+        exit 1
+    fi
+    echo "Building rpc-server from: $LLAMA_SRC"
+    echo "  llama.cpp commit: $(cd "$LLAMA_SRC" && git log --oneline -1)"
+    BUILD_DIR="$LLAMA_SRC/build_rpc"
+    mkdir -p "$BUILD_DIR"
+    cd "$BUILD_DIR"
+    if [ "$(uname)" = "Darwin" ]; then
+        cmake .. -DGGML_METAL=ON -DGGML_RPC=ON
+        cmake --build . --config Release -j$(sysctl -n hw.ncpu) --target rpc-server
+    else
+        cmake .. -DGGML_RPC=ON
+        cmake --build . --config Release -j$(nproc) --target rpc-server
+    fi
+    mkdir -p "{{justfile_directory()}}/target"
+    cp "$BUILD_DIR/bin/rpc-server" "{{justfile_directory()}}/target/"
+    echo ""
+    echo "✅ rpc-server built at: ./target/rpc-server"
+    echo ""
+    echo "Usage:"
+    echo "  ./target/rpc-server -d CPU -p 50052     # CPU worker"
+    echo "  ./target/rpc-server -H 0.0.0.0 -p 50052 # expose on network"

@@ -278,6 +278,56 @@ pub fn recommend_local_model(runtime: &InferenceRuntime) -> &'static str {
     }
 }
 
+/// Register RPC endpoints as ggml backend devices using the same dynamic
+/// proc_address lookup that llama-server uses. This must be called before
+/// model load so llama.cpp's scheduler sees the remote workers.
+fn register_rpc_endpoints(endpoints: &[String]) -> Result<(), ProviderError> {
+    use std::ffi::CString;
+
+    unsafe {
+        let rpc_name = CString::new("RPC").unwrap();
+        let rpc_reg = llama_cpp_sys_2::ggml_backend_reg_by_name(rpc_name.as_ptr());
+        if rpc_reg.is_null() {
+            return Err(ProviderError::ExecutionError(
+                "RPC backend not available — llama.cpp was not compiled with GGML_RPC=ON"
+                    .to_string(),
+            ));
+        }
+
+        let fn_name = CString::new("ggml_backend_rpc_add_server").unwrap();
+        let proc = llama_cpp_sys_2::ggml_backend_reg_get_proc_address(rpc_reg, fn_name.as_ptr());
+        if proc.is_null() {
+            return Err(ProviderError::ExecutionError(
+                "RPC backend found but ggml_backend_rpc_add_server not available".to_string(),
+            ));
+        }
+
+        // The function signature is: ggml_backend_reg_t (*)(const char* endpoint)
+        type AddServerFn = unsafe extern "C" fn(
+            *const std::os::raw::c_char,
+        ) -> llama_cpp_sys_2::ggml_backend_reg_t;
+        let add_server: AddServerFn = std::mem::transmute(proc);
+
+        for endpoint in endpoints {
+            let c_endpoint = CString::new(endpoint.as_str()).map_err(|_| {
+                ProviderError::ExecutionError(format!("Invalid RPC endpoint: {}", endpoint))
+            })?;
+            tracing::info!("Registering RPC endpoint: {}", endpoint);
+            let reg = add_server(c_endpoint.as_ptr());
+            if reg.is_null() {
+                return Err(ProviderError::ExecutionError(format!(
+                    "Failed to register RPC endpoint: {}",
+                    endpoint
+                )));
+            }
+            // Register the backend so it appears in the global device list
+            llama_cpp_sys_2::ggml_backend_register(reg);
+        }
+    }
+
+    Ok(())
+}
+
 struct LoadedModel {
     model: LlamaModel,
     template: LlamaChatTemplate,
@@ -951,15 +1001,39 @@ impl LocalInferenceProvider {
 
         tracing::info!("Loading {} from: {}", model_id, model_path.display());
 
+        // Register RPC endpoints before model load so llama.cpp sees them as devices
+        if !settings.rpc_endpoints.is_empty() {
+            register_rpc_endpoints(&settings.rpc_endpoints)?;
+        }
+
         let backend = runtime.backend();
 
         let mut params = LlamaModelParams::default();
-        if let Some(n_gpu_layers) = settings.n_gpu_layers {
+        if !settings.rpc_endpoints.is_empty() {
+            // With RPC, offload all layers to distribute across devices (same as -ngl 99)
+            params = params.with_n_gpu_layers(settings.n_gpu_layers.unwrap_or(99));
+        } else if let Some(n_gpu_layers) = settings.n_gpu_layers {
             params = params.with_n_gpu_layers(n_gpu_layers);
         }
         if settings.use_mlock {
             params = params.with_use_mlock(true);
         }
+
+        // Parse and apply tensor_split if configured
+        let tensor_split_values: Vec<f32> = settings
+            .tensor_split
+            .as_deref()
+            .map(|s| {
+                s.split(',')
+                    .filter_map(|v| v.trim().parse::<f32>().ok())
+                    .collect()
+            })
+            .unwrap_or_default();
+        if !tensor_split_values.is_empty() {
+            tracing::info!("Using tensor split: {:?}", tensor_split_values);
+            params = params.with_tensor_split(&tensor_split_values);
+        }
+
         let model = LlamaModel::load_from_file(backend, &model_path, &params)
             .map_err(|e| ProviderError::ExecutionError(format!("Failed to load model: {}", e)))?;
 

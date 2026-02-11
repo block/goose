@@ -732,7 +732,19 @@ export type ModelSettings = {
     presence_penalty?: number;
     repeat_last_n?: number;
     repeat_penalty?: number;
+    /**
+     * RPC endpoints for distributed inference (e.g. ["192.168.1.10:50052", "192.168.1.11:50052"]).
+     * When set, these are registered as ggml backends before model load so llama.cpp
+     * distributes layers across local + remote devices.
+     */
+    rpc_endpoints?: Array<string>;
     sampling?: SamplingConfig;
+    /**
+     * Tensor split proportions across devices (e.g. "0.5,0.3,0.2").
+     * Forces a specific distribution of model layers across devices instead of
+     * letting llama.cpp auto-assign by free memory.
+     */
+    tensor_split?: string | null;
     use_mlock?: boolean;
 };
 

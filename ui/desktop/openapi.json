@@ -5920,8 +5920,20 @@
             "type": "number",
             "format": "float"
           },
+          "rpc_endpoints": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "RPC endpoints for distributed inference (e.g. [\"192.168.1.10:50052\", \"192.168.1.11:50052\"]).\nWhen set, these are registered as ggml backends before model load so llama.cpp\ndistributes layers across local + remote devices."
+          },
           "sampling": {
             "$ref": "#/components/schemas/SamplingConfig"
+          },
+          "tensor_split": {
+            "type": "string",
+            "description": "Tensor split proportions across devices (e.g. \"0.5,0.3,0.2\").\nForces a specific distribution of model layers across devices instead of\nletting llama.cpp auto-assign by free memory.",
+            "nullable": true
           },
           "use_mlock": {
             "type": "boolean"
