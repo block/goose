@@ -62,3 +62,9 @@ wiremock = "0.6"
 serial_test = "3.2.0"
 test-case = "3.3.1"
 url = "2.5.8"
+opentelemetry = "0.31"
+opentelemetry_sdk = { version = "0.31", features = ["metrics"] }
+opentelemetry-otlp = { version = "0.31", features = ["http-proto", "reqwest-client"] }
+opentelemetry-appender-tracing = "0.31"
+opentelemetry-stdout = { version = "0.31", features = ["trace", "metrics", "logs"] }
+tracing-opentelemetry = "0.32"

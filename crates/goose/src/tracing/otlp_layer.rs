@@ -2,10 +2,12 @@ use opentelemetry::trace::TracerProvider;
 use opentelemetry::{global, KeyValue};
 use opentelemetry_appender_tracing::layer::OpenTelemetryTracingBridge;
 use opentelemetry_otlp::WithExportConfig;
-use opentelemetry_sdk::logs::{Logger, LoggerProvider};
+use opentelemetry_sdk::logs::{SdkLogger, SdkLoggerProvider};
+use opentelemetry_sdk::metrics::SdkMeterProvider;
 use opentelemetry_sdk::propagation::TraceContextPropagator;
-use opentelemetry_sdk::trace;
-use opentelemetry_sdk::{runtime, Resource};
+use opentelemetry_sdk::resource::{EnvResourceDetector, TelemetryResourceDetector};
+use opentelemetry_sdk::trace::SdkTracerProvider;
+use opentelemetry_sdk::Resource;
 use std::sync::Mutex;
 use std::time::Duration;
 use tracing::{Level, Metadata};
@@ -16,14 +18,13 @@ use super::otel_config::{ExporterType, OtelConfig};
 
 pub type OtlpTracingLayer =
     OpenTelemetryLayer<tracing_subscriber::Registry, opentelemetry_sdk::trace::Tracer>;
-pub type OtlpMetricsLayer = MetricsLayer<tracing_subscriber::Registry>;
-pub type OtlpLogsLayer = OpenTelemetryTracingBridge<LoggerProvider, Logger>;
+pub type OtlpMetricsLayer = MetricsLayer<tracing_subscriber::Registry, SdkMeterProvider>;
+pub type OtlpLogsLayer = OpenTelemetryTracingBridge<SdkLoggerProvider, SdkLogger>;
 pub type OtlpResult<T> = Result<T, Box<dyn std::error::Error + Send + Sync>>;
 
-static TRACER_PROVIDER: Mutex<Option<trace::TracerProvider>> = Mutex::new(None);
-static METER_PROVIDER: Mutex<Option<opentelemetry_sdk::metrics::SdkMeterProvider>> =
-    Mutex::new(None);
-static LOGGER_PROVIDER: Mutex<Option<LoggerProvider>> = Mutex::new(None);
+static TRACER_PROVIDER: Mutex<Option<SdkTracerProvider>> = Mutex::new(None);
+static METER_PROVIDER: Mutex<Option<SdkMeterProvider>> = Mutex::new(None);
+static LOGGER_PROVIDER: Mutex<Option<SdkLoggerProvider>> = Mutex::new(None);
 
 #[derive(Debug, Clone)]
 pub struct OtlpConfig {
@@ -53,14 +54,23 @@ impl OtlpConfig {
 }
 
 fn create_resource() -> Resource {
-    let defaults = Resource::new(vec![
-        KeyValue::new("service.name", "goose"),
-        KeyValue::new("service.version", env!("CARGO_PKG_VERSION")),
-        KeyValue::new("service.namespace", "goose"),
-    ]);
-    // Resource::default() reads OTEL_SERVICE_NAME and OTEL_RESOURCE_ATTRIBUTES.
-    // merge() gives priority to `other`, so env vars override our defaults.
-    defaults.merge(&Resource::default())
+    let mut builder = Resource::builder_empty()
+        .with_attributes([
+            KeyValue::new("service.name", "goose"),
+            KeyValue::new("service.version", env!("CARGO_PKG_VERSION")),
+            KeyValue::new("service.namespace", "goose"),
+        ])
+        .with_detector(Box::new(EnvResourceDetector::new()))
+        .with_detector(Box::new(TelemetryResourceDetector));
+
+    // OTEL_SERVICE_NAME takes highest priority (skip SdkProvidedResourceDetector
+    // which would fall back to "unknown_service" when unset)
+    if let Ok(name) = std::env::var("OTEL_SERVICE_NAME") {
+        if !name.is_empty() {
+            builder = builder.with_service_name(name);
+        }
+    }
+    builder.build()
 }
 
 pub fn create_otlp_tracing_layer() -> OtlpResult<OtlpTracingLayer> {
@@ -81,14 +91,14 @@ pub fn create_otlp_tracing_layer() -> OtlpResult<OtlpTracingLayer> {
                 }
             }
             let exporter = builder.build()?;
-            trace::TracerProvider::builder()
-                .with_batch_exporter(exporter, runtime::Tokio)
+            SdkTracerProvider::builder()
+                .with_batch_exporter(exporter)
                 .with_resource(resource)
                 .build()
         }
         ExporterType::Console => {
             let exporter = opentelemetry_stdout::SpanExporter::default();
-            trace::TracerProvider::builder()
+            SdkTracerProvider::builder()
                 .with_simple_exporter(exporter)
                 .with_resource(resource)
                 .build()
@@ -97,7 +107,7 @@ pub fn create_otlp_tracing_layer() -> OtlpResult<OtlpTracingLayer> {
     };
 
     let tracer = tracer_provider.tracer("goose");
-    *TRACER_PROVIDER.lock().unwrap() = Some(tracer_provider);
+    *TRACER_PROVIDER.lock().unwrap_or_else(|e| e.into_inner()) = Some(tracer_provider);
 
     Ok(tracing_opentelemetry::layer().with_tracer(tracer))
 }
@@ -120,29 +130,23 @@ pub fn create_otlp_metrics_layer() -> OtlpResult<OtlpMetricsLayer> {
                 }
             }
             let exporter = builder.build()?;
-            opentelemetry_sdk::metrics::SdkMeterProvider::builder()
+            SdkMeterProvider::builder()
                 .with_resource(resource)
-                .with_reader(
-                    opentelemetry_sdk::metrics::PeriodicReader::builder(exporter, runtime::Tokio)
-                        .build(),
-                )
+                .with_periodic_exporter(exporter)
                 .build()
         }
         ExporterType::Console => {
             let exporter = opentelemetry_stdout::MetricExporter::default();
-            opentelemetry_sdk::metrics::SdkMeterProvider::builder()
+            SdkMeterProvider::builder()
                 .with_resource(resource)
-                .with_reader(
-                    opentelemetry_sdk::metrics::PeriodicReader::builder(exporter, runtime::Tokio)
-                        .build(),
-                )
+                .with_periodic_exporter(exporter)
                 .build()
         }
         ExporterType::None => return Err("Metrics exporter set to none".into()),
     };
 
     global::set_meter_provider(meter_provider.clone());
-    *METER_PROVIDER.lock().unwrap() = Some(meter_provider.clone());
+    *METER_PROVIDER.lock().unwrap_or_else(|e| e.into_inner()) = Some(meter_provider.clone());
 
     Ok(MetricsLayer::new(meter_provider))
 }
@@ -165,14 +169,14 @@ pub fn create_otlp_logs_layer() -> OtlpResult<OtlpLogsLayer> {
                 }
             }
             let exporter = builder.build()?;
-            LoggerProvider::builder()
-                .with_batch_exporter(exporter, runtime::Tokio)
+            SdkLoggerProvider::builder()
+                .with_batch_exporter(exporter)
                 .with_resource(resource)
                 .build()
         }
         ExporterType::Console => {
             let exporter = opentelemetry_stdout::LogExporter::default();
-            LoggerProvider::builder()
+            SdkLoggerProvider::builder()
                 .with_simple_exporter(exporter)
                 .with_resource(resource)
                 .build()
@@ -181,21 +185,28 @@ pub fn create_otlp_logs_layer() -> OtlpResult<OtlpLogsLayer> {
     };
 
     let bridge = OpenTelemetryTracingBridge::new(&logger_provider);
-    *LOGGER_PROVIDER.lock().unwrap() = Some(logger_provider);
+    *LOGGER_PROVIDER.lock().unwrap_or_else(|e| e.into_inner()) = Some(logger_provider);
 
     Ok(bridge)
 }
 
-/// Initializes the OTel W3C TraceContext propagator for distributed tracing.
 pub fn init_otel_propagation() {
     global::set_text_map_propagator(TraceContextPropagator::new());
 }
 
-/// Returns true if any OTel provider has been initialized.
 pub fn is_otlp_initialized() -> bool {
-    TRACER_PROVIDER.lock().unwrap().is_some()
-        || METER_PROVIDER.lock().unwrap().is_some()
-        || LOGGER_PROVIDER.lock().unwrap().is_some()
+    TRACER_PROVIDER
+        .lock()
+        .unwrap_or_else(|e| e.into_inner())
+        .is_some()
+        || METER_PROVIDER
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .is_some()
+        || LOGGER_PROVIDER
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .is_some()
 }
 
 /// Creates a custom filter for OTLP tracing that captures:
@@ -254,13 +265,25 @@ pub fn create_otlp_logs_filter() -> FilterFn<impl Fn(&Metadata<'_>) -> bool> {
 
 /// Shutdown OTLP providers gracefully
 pub fn shutdown_otlp() {
-    if let Some(provider) = TRACER_PROVIDER.lock().unwrap().take() {
+    if let Some(provider) = TRACER_PROVIDER
+        .lock()
+        .unwrap_or_else(|e| e.into_inner())
+        .take()
+    {
         let _ = provider.shutdown();
     }
-    if let Some(provider) = METER_PROVIDER.lock().unwrap().take() {
+    if let Some(provider) = METER_PROVIDER
+        .lock()
+        .unwrap_or_else(|e| e.into_inner())
+        .take()
+    {
         let _ = provider.shutdown();
     }
-    if let Some(provider) = LOGGER_PROVIDER.lock().unwrap().take() {
+    if let Some(provider) = LOGGER_PROVIDER
+        .lock()
+        .unwrap_or_else(|e| e.into_inner())
+        .take()
+    {
         let _ = provider.shutdown();
     }
 }
@@ -268,12 +291,11 @@ pub fn shutdown_otlp() {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use tempfile::NamedTempFile;
     use test_case::test_case;
 
     #[test]
     fn test_otlp_config_from_config() {
-        use tempfile::NamedTempFile;
-
         let _guard = env_lock::lock_env([
             ("OTEL_EXPORTER_OTLP_ENDPOINT", None::<&str>),
             ("OTEL_EXPORTER_OTLP_TIMEOUT", None::<&str>),
@@ -334,5 +356,47 @@ mod tests {
         assert!(create_otlp_tracing_layer().is_ok());
         assert!(create_otlp_metrics_layer().is_ok());
         assert!(create_otlp_logs_layer().is_ok());
+        shutdown_otlp();
+    }
+
+    #[test_case(
+        vec![("OTEL_SERVICE_NAME", None), ("OTEL_RESOURCE_ATTRIBUTES", None)],
+        Resource::builder_empty()
+            .with_attributes([KeyValue::new("service.name", "goose"), KeyValue::new("service.version", env!("CARGO_PKG_VERSION")), KeyValue::new("service.namespace", "goose")])
+            .with_detector(Box::new(TelemetryResourceDetector))
+            .build();
+        "no env vars uses goose defaults"
+    )]
+    #[test_case(
+        vec![("OTEL_SERVICE_NAME", Some("custom")), ("OTEL_RESOURCE_ATTRIBUTES", None)],
+        Resource::builder_empty()
+            .with_attributes([KeyValue::new("service.name", "goose"), KeyValue::new("service.version", env!("CARGO_PKG_VERSION")), KeyValue::new("service.namespace", "goose")])
+            .with_detector(Box::new(TelemetryResourceDetector))
+            .with_service_name("custom")
+            .build();
+        "OTEL_SERVICE_NAME overrides service.name"
+    )]
+    #[test_case(
+        vec![("OTEL_SERVICE_NAME", None), ("OTEL_RESOURCE_ATTRIBUTES", Some("deployment.environment=prod"))],
+        Resource::builder_empty()
+            .with_attributes([KeyValue::new("service.name", "goose"), KeyValue::new("service.version", env!("CARGO_PKG_VERSION")), KeyValue::new("service.namespace", "goose")])
+            .with_detector(Box::new(TelemetryResourceDetector))
+            .with_attribute(KeyValue::new("deployment.environment", "prod"))
+            .build();
+        "OTEL_RESOURCE_ATTRIBUTES adds custom attributes"
+    )]
+    #[test_case(
+        vec![("OTEL_SERVICE_NAME", Some("custom")), ("OTEL_RESOURCE_ATTRIBUTES", Some("deployment.environment=prod"))],
+        Resource::builder_empty()
+            .with_attributes([KeyValue::new("service.name", "goose"), KeyValue::new("service.version", env!("CARGO_PKG_VERSION")), KeyValue::new("service.namespace", "goose")])
+            .with_detector(Box::new(TelemetryResourceDetector))
+            .with_service_name("custom")
+            .with_attribute(KeyValue::new("deployment.environment", "prod"))
+            .build();
+        "OTEL_SERVICE_NAME and OTEL_RESOURCE_ATTRIBUTES combine"
+    )]
+    fn test_create_resource(env: Vec<(&str, Option<&str>)>, expected: Resource) {
+        let _guard = env_lock::lock_env(env);
+        assert_eq!(create_resource(), expected);
     }
 }

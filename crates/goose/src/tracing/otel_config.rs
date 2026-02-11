@@ -1,6 +1,5 @@
 use std::env;
 
-/// The type of exporter to use for a signal.
 #[derive(Debug, Clone, PartialEq)]
 pub enum ExporterType {
     Otlp,
@@ -9,8 +8,6 @@ pub enum ExporterType {
 }
 
 impl ExporterType {
-    /// Parses an OTel exporter env var value into an ExporterType.
-    /// Empty string defaults to Otlp (the OTel SDK default).
     pub fn from_env_value(value: &str) -> Self {
         match value.to_lowercase().as_str() {
             "" | "otlp" => ExporterType::Otlp,
@@ -20,14 +17,11 @@ impl ExporterType {
     }
 }
 
-/// Per-signal configuration. Only contains exporter type since
-/// endpoint/timeout/sampler are handled by the SDK automatically.
 #[derive(Debug, Clone)]
 pub struct SignalConfig {
     pub exporter: ExporterType,
 }
 
-/// Raw env var detection result before config-file fallback.
 #[derive(Debug, PartialEq)]
 pub struct OtelEnv {
     pub traces_enabled: bool,
@@ -39,10 +33,7 @@ pub struct OtelEnv {
 }
 
 impl OtelEnv {
-    /// Detects OTel configuration from environment variables only.
-    /// Returns None if SDK is disabled or no signals are enabled.
     pub fn detect() -> Option<Self> {
-        // OTEL_SDK_DISABLED=true disables everything
         if env::var("OTEL_SDK_DISABLED")
             .ok()
             .is_some_and(|v| v.eq_ignore_ascii_case("true"))
@@ -60,15 +51,20 @@ impl OtelEnv {
             .ok()
             .map(|v| ExporterType::from_env_value(&v));
 
+        let has_endpoint = env::var("OTEL_EXPORTER_OTLP_ENDPOINT").ok().is_some();
+
         let traces_enabled = traces_exporter
             .as_ref()
-            .is_some_and(|e| !matches!(e, ExporterType::None));
+            .is_some_and(|e| !matches!(e, ExporterType::None))
+            || (has_endpoint && traces_exporter.is_none());
         let metrics_enabled = metrics_exporter
             .as_ref()
-            .is_some_and(|e| !matches!(e, ExporterType::None));
+            .is_some_and(|e| !matches!(e, ExporterType::None))
+            || (has_endpoint && metrics_exporter.is_none());
         let logs_enabled = logs_exporter
             .as_ref()
-            .is_some_and(|e| !matches!(e, ExporterType::None));
+            .is_some_and(|e| !matches!(e, ExporterType::None))
+            || (has_endpoint && logs_exporter.is_none());
 
         if !traces_enabled && !metrics_enabled && !logs_enabled {
             return None;
@@ -85,7 +81,6 @@ impl OtelEnv {
     }
 }
 
-/// Resolved OTel configuration after env + config-file cascade.
 #[derive(Debug, Clone)]
 pub struct OtelConfig {
     pub traces: Option<SignalConfig>,
@@ -94,10 +89,8 @@ pub struct OtelConfig {
 }
 
 impl OtelConfig {
-    /// Detects OTel configuration with cascade: env vars → config file fallback.
     pub fn detect() -> Option<Self> {
         if let Some(env) = OtelEnv::detect() {
-            // Env vars are set — use them directly
             let traces = if env.traces_enabled {
                 Some(SignalConfig {
                     exporter: env.traces_exporter.unwrap_or(ExporterType::Otlp),
@@ -126,14 +119,11 @@ impl OtelConfig {
             });
         }
 
-        // Fall back to config file — if endpoint is present, enable all signals as OTLP
         Self::detect_from_config()
     }
 
-    /// Fallback: check goose config file for otel_exporter_otlp_endpoint.
     fn detect_from_config() -> Option<Self> {
         let config = crate::config::Config::global();
-        // If the config file has an endpoint, enable all three signals
         config
             .get_param::<String>("otel_exporter_otlp_endpoint")
             .ok()
@@ -176,33 +166,38 @@ mod tests {
         use super::*;
         use test_case::test_case;
 
-        #[test_case(Some("true"), Some("console"), None, None; "sdk disabled")]
-        #[test_case(None, None, None, None; "no vars")]
-        #[test_case(None, Some("none"), Some("none"), Some("none"); "all none")]
+        #[test_case(Some("true"), Some("console"), None, None, None; "sdk disabled")]
+        #[test_case(None, None, None, None, None; "no vars")]
+        #[test_case(None, Some("none"), Some("none"), Some("none"), None; "all none")]
         fn detect_returns_none(
             sdk_disabled: Option<&str>,
             traces: Option<&str>,
             metrics: Option<&str>,
             logs: Option<&str>,
+            endpoint: Option<&str>,
         ) {
             let _guard = env_lock::lock_env([
                 ("OTEL_SDK_DISABLED", sdk_disabled),
                 ("OTEL_TRACES_EXPORTER", traces),
                 ("OTEL_METRICS_EXPORTER", metrics),
                 ("OTEL_LOGS_EXPORTER", logs),
+                ("OTEL_EXPORTER_OTLP_ENDPOINT", endpoint),
             ]);
             assert!(OtelEnv::detect().is_none());
         }
 
-        #[test_case(Some("console"), None, None, true, false, false; "traces only")]
-        #[test_case(None, Some("otlp"), None, false, true, false; "metrics only")]
-        #[test_case(None, None, Some("console"), false, false, true; "logs only")]
-        #[test_case(Some("otlp"), Some("console"), Some("otlp"), true, true, true; "all enabled")]
-        #[test_case(Some("console"), Some("none"), Some("otlp"), true, false, true; "mixed")]
+        #[test_case(Some("console"), None, None, None, true, false, false; "traces only")]
+        #[test_case(None, Some("otlp"), None, None, false, true, false; "metrics only")]
+        #[test_case(None, None, Some("console"), None, false, false, true; "logs only")]
+        #[test_case(Some("otlp"), Some("console"), Some("otlp"), None, true, true, true; "all enabled")]
+        #[test_case(Some("console"), Some("none"), Some("otlp"), None, true, false, true; "mixed")]
+        #[test_case(None, None, None, Some("http://localhost:4318"), true, true, true; "endpoint enables all signals")]
+        #[test_case(Some("none"), None, None, Some("http://localhost:4318"), false, true, true; "endpoint with traces none")]
         fn detect(
             traces: Option<&str>,
             metrics: Option<&str>,
             logs: Option<&str>,
+            endpoint: Option<&str>,
             expect_traces: bool,
             expect_metrics: bool,
             expect_logs: bool,
@@ -212,6 +207,7 @@ mod tests {
                 ("OTEL_TRACES_EXPORTER", traces),
                 ("OTEL_METRICS_EXPORTER", metrics),
                 ("OTEL_LOGS_EXPORTER", logs),
+                ("OTEL_EXPORTER_OTLP_ENDPOINT", endpoint),
             ]);
             let env = OtelEnv::detect().unwrap();
             assert_eq!(env.traces_enabled, expect_traces);
