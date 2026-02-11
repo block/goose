@@ -1,10 +1,11 @@
 #!/bin/bash
 set -euo pipefail
 
-# VIBE CODED: AVERT YOUR EYES
-
-REPO="${GOOSE_REPO:-$(git remote get-url origin | sed 's|.*github.com[:/]||;s|\.git$||')}"
+REPO="${GOOSE_GITHUB_REPO:-$(git remote get-url origin | sed 's|.*github.com[:/]||;s|\.git$||')}"
 DEST="$HOME/Downloads"
+TMPDIR=$(mktemp -d)
+PLIST=$(mktemp /tmp/entitlements.XXXXXX.plist)
+trap "rm -rf '$TMPDIR' '$PLIST'" EXIT
 
 # Find release PR
 if [[ $# -gt 0 ]]; then
@@ -25,7 +26,7 @@ echo "Found PR #$PR_NUMBER - version $VERSION"
 
 # Grab the last nightly.link download URL from PR comments
 DOWNLOAD_URL=$(gh api "repos/$REPO/issues/$PR_NUMBER/comments" \
-    --jq '[.[].body | capture("(?<url>https://nightly\\.link/[^)]+\\.zip)") | .url] | last // empty')
+    --jq '[.[].body | select(test("https://nightly\\.link/[^)]+\\.zip")) | capture("(?<url>https://nightly\\.link/[^)]+\\.zip)") | .url] | last // empty')
 
 if [[ -z "$DOWNLOAD_URL" ]]; then
     echo "No download link found in PR comments."
@@ -33,28 +34,29 @@ if [[ -z "$DOWNLOAD_URL" ]]; then
 fi
 echo "Downloading $DOWNLOAD_URL"
 
-# Download, extract, prepare
-TMPDIR=$(mktemp -d)
+# Download and extract (nightly.link double-zips)
 curl -sL -o "$TMPDIR/goose.zip" "$DOWNLOAD_URL"
 unzip -o -q "$TMPDIR/goose.zip" -d "$TMPDIR/extracted"
 
-# nightly.link double-zips: if we got another zip, extract that too
 INNER_ZIP=$(find "$TMPDIR/extracted" -name "*.zip" | head -1)
 if [[ -n "$INNER_ZIP" ]]; then
     unzip -o -q "$INNER_ZIP" -d "$TMPDIR/extracted"
 fi
 
 APP=$(find "$TMPDIR/extracted" -name "*.app" -maxdepth 2 | head -1)
+if [[ -z "$APP" ]]; then
+    echo "No .app found in archive."
+    exit 1
+fi
+
 APP_NAME="Goose ${VERSION}.app"
 rm -rf "$DEST/$APP_NAME"
 cp -R "$APP" "$DEST/$APP_NAME"
 APP_PATH="$DEST/$APP_NAME"
 
-# Remove quarantine
+# Remove quarantine and sign with entitlements
 xattr -r -d com.apple.quarantine "$APP_PATH" 2>/dev/null || true
 
-# Sign with entitlements
-PLIST=$(mktemp /tmp/entitlements.XXXXXX.plist)
 cat > "$PLIST" << 'EOF'
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
