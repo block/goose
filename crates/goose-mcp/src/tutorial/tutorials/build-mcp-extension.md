@@ -388,7 +388,7 @@ When users encounter issues:
 
 3. Always use the reference implementations:
 
-   - Always clone the relevant SDK repo before starting with basic steup
+   - Always clone the relevant SDK repo before starting with basic setup
    - After cloning the relevant SDK, find and `cat` the `README.md` for context
    - Use ripgrep to find specific examples within the reference
    - Reference real implementations rather than making assumptions
