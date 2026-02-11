@@ -113,7 +113,7 @@ impl OllamaInterpreter {
         Ok(base_url.to_string())
     }
 
-    fn tool_structured_ouput_format_schema() -> Value {
+    fn tool_structured_output_format_schema() -> Value {
         json!({
             "type": "object",
             "properties": {
@@ -282,7 +282,7 @@ Otherwise, if no JSON tool requests are provided, use the no-op tool:
         let format_instruction = format!("{}\nRequest: {}\n\n", system_prompt, last_assistant_msg);
 
         // Define the JSON schema for tool call format
-        let format_schema = OllamaInterpreter::tool_structured_ouput_format_schema();
+        let format_schema = OllamaInterpreter::tool_structured_output_format_schema();
 
         // Determine which model to use for interpretation (from env var or default)
         let interpreter_model = std::env::var("GOOSE_TOOLSHIM_OLLAMA_MODEL")

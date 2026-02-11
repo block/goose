@@ -104,7 +104,7 @@ To test that MCP was working, I used the MCP inspector tool to send commands to 
 npx @modelcontextprotocol/inspector /path/to/java -jar /path/to/mbotmcp-0.0.1-SNAPSHOT.jar
 ```
 
-This starts up a local web server (the command line output will tell you which port to access in your browser, ie, loalhost:6274), where you can "connect" to the server, and request a list of tools, resources, prompts, from the MCP server. In this case, I see a list of tools available such as "mbotBeep" or "mbotExplore".
+This starts up a local web server (the command line output will tell you which port to access in your browser, i.e., localhost:6274), where you can "connect" to the server, and request a list of tools, resources, prompts, from the MCP server. In this case, I see a list of tools available such as "mbotBeep" or "mbotExplore".
 
 ![mcp tool list](mcp-tool-list.png)
 

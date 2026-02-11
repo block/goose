@@ -549,15 +549,10 @@ async fn configure_session_prompts(
         tracing::warn!("Failed to save extension state: {}", e);
     }
 
-    session
-        .agent
-        .extend_system_prompt(super::prompt::get_cli_prompt())
-        .await;
-
     if let Some(ref additional_prompt) = session_config.additional_system_prompt {
         session
             .agent
-            .extend_system_prompt(additional_prompt.clone())
+            .extend_system_prompt("additional".to_string(), additional_prompt.clone())
             .await;
     }
 

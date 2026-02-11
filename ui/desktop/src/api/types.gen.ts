@@ -1151,6 +1151,8 @@ export type SystemNotificationContent = {
 
 export type SystemNotificationType = 'thinkingMessage' | 'inlineMessage';
 
+export type TaskSupport = string;
+
 export type TelemetryEventRequest = {
     event_name: string;
     properties?: {
@@ -1201,6 +1203,9 @@ export type Tool = {
         [key: string]: unknown;
     };
     description?: string;
+    execution?: ToolExecution | {
+        [key: string]: unknown;
+    };
     icons?: Array<Icon>;
     inputSchema: {
         [key: string]: unknown;
@@ -1225,6 +1230,12 @@ export type ToolConfirmationRequest = {
     id: string;
     prompt?: string | null;
     toolName: string;
+};
+
+export type ToolExecution = {
+    taskSupport?: TaskSupport | {
+        [key: string]: unknown;
+    };
 };
 
 /**

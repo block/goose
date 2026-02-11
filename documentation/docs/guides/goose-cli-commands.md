@@ -187,7 +187,7 @@ Start or resume interactive chat sessions.
 - **`-n, --name <name>`**: Give the session a name
 - **`--path <path>`**: Legacy parameter for specifying session by file path
 - **`-r, --resume`**: Resume a previous session
-- **`--fork`**: Create a new duplicate session with copied history. Must be used with `--resume`. Provide `--name` or `--session-id` to fork a specific session. Otherwise forks the most recent session.
+- **`--fork`**: Create a new duplicate session with copied history. Must be used with `--resume`. Provide `--name` or `--session-id` to fork a specific session. Otherwise, forks the most recent session.
 - **`--history`**: Show previous messages when resuming a session
 - **`--container <container_id>`**: Run extensions inside a [Docker container](/docs/tutorials/goose-in-docker#running-extensions-in-docker-containers).
 - **`--debug`**: Enable debug mode to output complete tool responses, detailed parameter values, and full file paths

@@ -5,7 +5,6 @@ mod elicitation;
 mod export;
 mod input;
 mod output;
-mod prompt;
 mod task_execution_display;
 mod thinking;
 
@@ -198,7 +197,7 @@ pub enum PlannerResponseType {
     ClarifyingQuestions,
 }
 
-/// Decide if the planner's reponse is a plan or a clarifying question
+/// Decide if the planner's response is a plan or a clarifying question
 ///
 /// This function is called after the planner has generated a response
 /// to the user's message. The response is either a plan or a clarifying
@@ -1820,7 +1819,7 @@ async fn get_reasoner() -> Result<Arc<dyn Provider>, anyhow::Error> {
 
     let config = Config::global();
 
-    // Try planner-specific provider first, fallback to default provider
+    // Try planner-specific provider first, fall back to default provider
     let provider = if let Ok(provider) = config.get_param::<String>("GOOSE_PLANNER_PROVIDER") {
         provider
     } else {
@@ -1830,7 +1829,7 @@ async fn get_reasoner() -> Result<Arc<dyn Provider>, anyhow::Error> {
             .expect("No provider configured. Run 'goose configure' first")
     };
 
-    // Try planner-specific model first, fallback to default model
+    // Try planner-specific model first, fall back to default model
     let model = if let Ok(model) = config.get_param::<String>("GOOSE_PLANNER_MODEL") {
         model
     } else {

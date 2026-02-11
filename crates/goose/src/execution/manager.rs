@@ -339,7 +339,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_remove_nonexistent_session_error() {
-        // Test that removing a non-existent session returns an error
+        // Test that removing a nonexistent session returns an error
         let temp_dir = TempDir::new().unwrap();
         let manager = create_test_manager(&temp_dir).await;
         let session = String::from("never-created");

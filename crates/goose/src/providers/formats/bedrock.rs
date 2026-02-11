@@ -143,7 +143,7 @@ pub fn to_bedrock_tool_result_content_block(
                 bail!("Blob resource content is not supported by Bedrock provider yet")
             }
         },
-        RawContent::Audio(..) => bail!("Audio is not not supported by Bedrock provider"),
+        RawContent::Audio(..) => bail!("Audio is not supported by Bedrock provider"),
     })
 }
 

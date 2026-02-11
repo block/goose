@@ -11,7 +11,7 @@ export async function startOpenRouterSetup(): Promise<{ success: boolean; messag
   } catch (e) {
     return {
       success: false,
-      message: `Failed to start Openrouter setup ['${e}]`,
+      message: `Failed to start OpenRouter setup ['${e}]`,
     };
   }
 }

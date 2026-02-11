@@ -133,7 +133,7 @@
   --ifm-navbar-link-hover-color: var(--text-subtle);
   --ifm-link-color: var(--green-for-lightbg);
 
-  /* video adnomition */
+  /* video admonition */
   --ifm-color-video-alert-contrast-background: #edfbf8;
   --ifm-color-video-alert-contrast-foreground: #01523e;
   --ifm-color-video-alert-border: #25c2a0;
@@ -178,7 +178,7 @@
   --button-primary-background: var(--constant-white);
   --ifm-link-color: var(--green-for-darkbg);
 
-  /* video adnomition */
+  /* video admonition */
   --ifm-color-video-alert-contrast-background: #336e62;
   --ifm-color-video-alert-contrast-foreground: rgb(216 251 216);
   --ifm-color-video-alert-border: #99d5c5;

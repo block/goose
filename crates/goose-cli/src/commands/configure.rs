@@ -27,7 +27,7 @@ use goose::session::SessionType;
 use serde_json::Value;
 use std::collections::HashMap;
 
-// useful for light themes where there is no dicernible colour contrast between
+// useful for light themes where there is no discernible colour contrast between
 // cursor-selected and cursor-unselected items.
 const MULTISELECT_VISIBILITY_HINT: &str = "<";
 
@@ -1587,7 +1587,7 @@ fn configure_recipe_dialog() -> anyhow::Result<()> {
         .ok()
         .or_else(|| config.get_param(key_name).unwrap_or(None));
     let mut recipe_repo_input = cliclack::input(
-        "Enter your goose recipe Github repo (owner/repo): eg: my_org/goose-recipes",
+        "Enter your goose recipe GitHub repo (owner/repo): eg: my_org/goose-recipes",
     )
     .required(false);
     if let Some(recipe_repo) = default_recipe_repo {

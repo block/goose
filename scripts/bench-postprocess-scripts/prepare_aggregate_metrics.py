@@ -9,7 +9,7 @@ This script:
 3. Checks session files for server errors
 4. Extracts metrics from these files and combines them
 5. Creates an eval-results directory in each model folder
-6. Saves a aggregate_metrics.csv file with aggregated metrics
+6. Saves an aggregate_metrics.csv file with aggregated metrics
 
 Usage:
     python prepare_aggregate_metrics.py --benchmark-dir /path/to/benchmark-dir
