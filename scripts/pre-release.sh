@@ -1,6 +1,8 @@
 #!/bin/bash
 set -euo pipefail
 
+# VIBE CODED: AVERT YOUR EYES
+
 REPO="${GOOSE_REPO:-$(git remote get-url origin | sed 's|.*github.com[:/]||;s|\.git$||')}"
 DEST="$HOME/Downloads"
 
