@@ -177,7 +177,7 @@ Settings are applied in the following order of precedence:
 ## Security Considerations
 
 - Avoid storing sensitive information (API keys, tokens) in the config file
-- Use the system keyring (keychain) for storing secrets. When available, this is the recommended option.
+- Use the system keyring (keychain on macOS) for storing secrets. When available, this is the recommended option.
 - If goose is using file-based secret storage, secrets are stored in a separate `secrets.yaml` file (in plain text). This can happen when:
 
   - Your environment does not provide a desktop keyring service (for example: headless servers, CI/CD, containers)
