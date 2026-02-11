@@ -738,6 +738,8 @@ where
                             None
                         },
                     )
+                } else if usage.is_some() {
+                    yield (None, usage)
                 }
             } else if usage.is_some() {
                 yield (None, usage)
