@@ -1,4 +1,5 @@
 use crate::conversation::message::{Message, MessageContent, ProviderMetadata};
+use crate::mcp_utils::extract_text_from_resource;
 use crate::model::ModelConfig;
 use crate::providers::base::{ProviderUsage, Usage};
 use crate::providers::utils::{
@@ -10,8 +11,8 @@ use async_stream::try_stream;
 use chrono;
 use futures::Stream;
 use rmcp::model::{
-    object, AnnotateAble, CallToolRequestParams, Content, ErrorCode, ErrorData, RawContent,
-    ResourceContents, Role, Tool,
+    object, AnnotateAble, CallToolRequestParams, Content, ErrorCode, ErrorData, RawContent, Role,
+    Tool,
 };
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
@@ -173,12 +174,7 @@ pub fn format_messages(messages: &[Message], image_format: &ImageFormat) -> Vec<
                                         }));
                                     }
                                     RawContent::Resource(resource) => {
-                                        let text = match &resource.resource {
-                                            ResourceContents::TextResourceContents {
-                                                text, ..
-                                            } => text.clone(),
-                                            _ => String::new(),
-                                        };
+                                        let text = extract_text_from_resource(&resource.resource);
                                         tool_content.push(Content::text(text));
                                     }
                                     _ => {
