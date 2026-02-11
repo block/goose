@@ -1584,6 +1584,8 @@ impl Agent {
             }
         };
 
+        // Prefer extensions saved in the session; fall back to global config for new
+        // sessions or sessions created before extension state was persisted.
         let extensions = EnabledExtensionsState::from_extension_data(&session.extension_data)
             .map(|state| state.extensions)
             .unwrap_or_else(|| {

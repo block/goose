@@ -2038,17 +2038,6 @@ mod tests {
             }
         }
 
-        fn empty_name_config() -> ExtensionConfig {
-            ExtensionConfig::Builtin {
-                name: String::new(),
-                description: String::new(),
-                display_name: None,
-                timeout: None,
-                bundled: None,
-                available_tools: vec![],
-            }
-        }
-
         #[test_case(Some("kiwi-mcp-server"), None, "^kiwi-mcp-server$" ; "already normalized server name")]
         #[test_case(Some("Context7"), None, "^context7$" ; "mixed case normalized")]
         #[test_case(Some("@huggingface/mcp-services"), None, "^_huggingface_mcp-services$" ; "special chars normalized")]
@@ -2056,7 +2045,14 @@ mod tests {
         #[test_case(Some(""), None, "^unnamed$" ; "empty server name falls back")]
         #[test_case(Some("github-mcp-server"), Some("github-mcp-server"), r"^github-mcp-server_[A-Za-z0-9]{6}$" ; "duplicate adds suffix")]
         fn test_generate_name(server_name: Option<&str>, collision: Option<&str>, expected: &str) {
-            let config = empty_name_config();
+            let config = ExtensionConfig::Builtin {
+                name: String::new(),
+                description: String::new(),
+                display_name: None,
+                timeout: None,
+                bundled: None,
+                available_tools: vec![],
+            };
             let info = server_name.map(make_info);
             let result = generate_extension_name(&config, info.as_ref(), |n| collision == Some(n));
             let re = regex::Regex::new(expected).unwrap();

@@ -351,14 +351,10 @@ impl ProviderTester {
         self.test_model_listing().await?;
         self.test_basic_response(&self.session_id_for_test("basic_response"))
             .await?;
-        // CLI providers (claude-code, codex) call tools internally and return final
-        // text — the standard tool/image roundtrip tests don't apply.
-        if !self.is_cli_provider {
-            self.test_tool_usage(&self.session_id_for_test("tool_usage"))
-                .await?;
-            self.test_image_content_support(&self.session_id_for_test("image_content"))
-                .await?;
-        }
+        self.test_tool_usage(&self.session_id_for_test("tool_usage"))
+            .await?;
+        self.test_image_content_support(&self.session_id_for_test("image_content"))
+            .await?;
         if self.model_switch_name.is_some() {
             self.test_model_switch(&self.session_id_for_test("model_switch"))
                 .await?;
@@ -385,6 +381,7 @@ async fn test_provider(
     model_switch_name: Option<&str>,
     required_vars: &[&str],
     env_modifications: Option<HashMap<&str, Option<String>>>,
+    // CLI providers cannot propagate the agent-session-id header to MCP servers.
     is_cli_provider: bool,
 ) -> Result<()> {
     TEST_REPORT.record_fail(name);

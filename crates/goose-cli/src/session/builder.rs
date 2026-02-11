@@ -490,6 +490,8 @@ async fn handle_resumed_session_workdir(agent: &Agent, session_id: &str, interac
     }
 }
 
+// Resolve separately from loading so Agentic providers (claude-code, codex, etc.) can
+// parse MCP extensions for session initialization.
 async fn resolve_extension_configs(
     agent: &Agent,
     session_config: &SessionBuilderConfig,

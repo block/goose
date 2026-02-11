@@ -582,7 +582,7 @@ fn codex_mcp_config_overrides(extensions: &[ExtensionConfig]) -> Vec<String> {
                     hkeys.sort();
                     let entries: Vec<_> = hkeys
                         .iter()
-                        .map(|k| format!("{} = {}", k, toml_quote(&headers[*k])))
+                        .map(|k| format!("{} = {}", toml_quote(k), toml_quote(&headers[*k])))
                         .collect();
                     overrides.push(format!(
                         "mcp_servers.{}.http_headers={{{}}}",
@@ -606,7 +606,9 @@ fn codex_mcp_config_overrides(extensions: &[ExtensionConfig]) -> Vec<String> {
                     ekeys.sort();
                     let entries: Vec<_> = ekeys
                         .iter()
-                        .map(|k| format!("{} = {}", k, toml_quote(&env_map[k.as_str()])))
+                        .map(|k| {
+                            format!("{} = {}", toml_quote(k), toml_quote(&env_map[k.as_str()]))
+                        })
                         .collect();
                     overrides.push(format!(
                         "mcp_servers.{}.env={{{}}}",
@@ -790,7 +792,7 @@ mod tests {
         &[
             r#"mcp_servers.lookup.command="node""#,
             r#"mcp_servers.lookup.args=["server.js"]"#,
-            r#"mcp_servers.lookup.env={API_KEY = "secret"}"#,
+            r#"mcp_servers.lookup.env={"API_KEY" = "secret"}"#,
         ]
         ; "stdio_converts_to_mcp_overrides"
     )]
@@ -808,7 +810,7 @@ mod tests {
         },
         &[
             r#"mcp_servers.lookup.url="http://localhost/mcp""#,
-            r#"mcp_servers.lookup.http_headers={Authorization = "Bearer token"}"#,
+            r#"mcp_servers.lookup.http_headers={"Authorization" = "Bearer token"}"#,
         ]
         ; "streamable_http_converts_to_mcp_overrides"
     )]

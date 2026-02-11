@@ -554,6 +554,8 @@ async fn update_agent_provider(
         .with_context_limit(payload.context_limit)
         .with_request_params(payload.request_params);
 
+    // Prefer extensions saved in the session; fall back to global config for
+    // new sessions or sessions created before extension state was persisted.
     let extensions = state
         .session_manager()
         .get_session(&payload.session_id, false)
@@ -561,7 +563,7 @@ async fn update_agent_provider(
         .ok()
         .and_then(|session| EnabledExtensionsState::from_extension_data(&session.extension_data))
         .map(|state| state.extensions)
-        .unwrap_or_else(|| get_enabled_extensions_with_config(Config::global()));
+        .unwrap_or_else(|| get_enabled_extensions_with_config(config));
 
     let new_provider = create(&payload.provider, model_config, extensions)
         .await
