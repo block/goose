@@ -33,6 +33,8 @@ interface UseChatStreamProps {
   sessionId: string;
   onStreamFinish: () => void;
   onSessionLoaded?: () => void;
+  getExtraReplyBody?: () => Record<string, unknown> | undefined;
+  onSessionUiStateUpdate?: (state: unknown) => void;
 }
 
 interface UseChatStreamReturn {
@@ -206,7 +208,8 @@ async function streamFromResponse(
   initialMessages: Message[],
   dispatch: React.Dispatch<StreamAction>,
   onFinish: (error?: string) => void,
-  sessionId: string
+  sessionId: string,
+  onSessionUiStateUpdate?: (state: unknown) => void
 ): Promise<void> {
   let currentMessages = initialMessages;
   const reduceMotion = prefersReducedMotion();
@@ -251,6 +254,13 @@ async function streamFromResponse(
 
   try {
     for await (const event of stream) {
+      if ((event as { type?: string }).type === 'SessionUiStateUpdate') {
+        if (onSessionUiStateUpdate) {
+          onSessionUiStateUpdate((event as { state: unknown }).state);
+        }
+        continue;
+      }
+
       switch (event.type) {
         case 'Message': {
           const msg = event.message;
@@ -323,6 +333,8 @@ export function useChatStream({
   sessionId,
   onStreamFinish,
   onSessionLoaded,
+  getExtraReplyBody,
+  onSessionUiStateUpdate,
 }: UseChatStreamProps): UseChatStreamReturn {
   const [state, dispatch] = useReducer(streamReducer, initialState);
 
@@ -584,17 +596,26 @@ export function useChatStream({
       abortControllerRef.current = new AbortController();
 
       try {
+        const extraBody = getExtraReplyBody?.();
         const { stream } = await reply({
           body: {
             session_id: sessionId,
             user_message: newMessage,
             ...(hasExistingMessages && { conversation_so_far: currentState.messages }),
+            ...(extraBody ?? {}),
           },
           throwOnError: true,
           signal: abortControllerRef.current.signal,
         });
 
-        await streamFromResponse(stream, currentMessages, dispatch, onFinish, sessionId);
+        await streamFromResponse(
+          stream,
+          currentMessages,
+          dispatch,
+          onFinish,
+          sessionId,
+          onSessionUiStateUpdate
+        );
       } catch (error) {
         // AbortError is expected when user stops streaming
         if (error instanceof Error && error.name === 'AbortError') {
@@ -605,7 +626,7 @@ export function useChatStream({
         }
       }
     },
-    [sessionId, onFinish]
+    [sessionId, onFinish, getExtraReplyBody, onSessionUiStateUpdate]
   );
 
   const submitElicitationResponse = useCallback(
@@ -635,7 +656,14 @@ export function useChatStream({
           signal: abortControllerRef.current.signal,
         });
 
-        await streamFromResponse(stream, currentMessages, dispatch, onFinish, sessionId);
+        await streamFromResponse(
+          stream,
+          currentMessages,
+          dispatch,
+          onFinish,
+          sessionId,
+          onSessionUiStateUpdate
+        );
       } catch (error) {
         if (error instanceof Error && error.name === 'AbortError') {
           // Silently handle abort
@@ -644,7 +672,7 @@ export function useChatStream({
         }
       }
     },
-    [sessionId, onFinish]
+    [sessionId, onFinish, onSessionUiStateUpdate]
   );
 
   const setRecipeUserParams = useCallback(
@@ -775,7 +803,14 @@ export function useChatStream({
                 signal: abortControllerRef.current.signal,
               });
 
-              await streamFromResponse(stream, messagesForUI, dispatch, onFinish, targetSessionId);
+              await streamFromResponse(
+                stream,
+                messagesForUI,
+                dispatch,
+                onFinish,
+                targetSessionId,
+                onSessionUiStateUpdate
+              );
             } catch (error) {
               if (error instanceof Error && error.name === 'AbortError') {
                 dispatch({ type: 'SET_CHAT_STATE', payload: ChatState.Idle });
@@ -798,7 +833,7 @@ export function useChatStream({
         });
       }
     },
-    [sessionId, handleSubmit, onFinish]
+    [sessionId, handleSubmit, onFinish, onSessionUiStateUpdate]
   );
 
   const setChatState = useCallback((newState: ChatState) => {

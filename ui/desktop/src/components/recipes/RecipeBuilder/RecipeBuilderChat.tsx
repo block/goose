@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
-import { Message, startAgent, recipeToYaml } from '../../../api';
+import { Message, startAgent } from '../../../api';
+import { Recipe } from '../../../recipe';
 import { stripEmptyExtensions } from '../../../recipe';
 import { useChatStream } from '../../../hooks/useChatStream';
 import { ChatState } from '../../../types/chatState';
@@ -7,7 +8,6 @@ import { ScrollArea, ScrollAreaHandle } from '../../ui/scroll-area';
 import ProgressiveMessageList from '../../ProgressiveMessageList';
 import LoadingGoose from '../../LoadingGoose';
 import { recipeBuilderRecipe } from './recipeBuilderRecipe';
-import { extractYamlFromMessage, parseYamlToRecipe } from './recipeExtractor';
 import { getInitialWorkingDir } from '../../../utils/workingDir';
 import { UserInput } from '../../../types/message';
 import { Send } from '../../icons';
@@ -27,7 +27,6 @@ export default function RecipeBuilderChat({
   const [inputValue, setInputValue] = useState('');
   const scrollRef = useRef<ScrollAreaHandle>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
-  const lastExtractedYamlRef = useRef<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -71,28 +70,28 @@ export default function RecipeBuilderChat({
   } = useChatStream({
     sessionId: sessionId || '',
     onStreamFinish,
-  });
-
-  // Only extract recipe when streaming is complete to avoid parsing incomplete YAML
-  useEffect(() => {
-    if (messages.length === 0) return;
-    if (chatState !== ChatState.Idle) return; // Wait for streaming to complete
-
-    const lastMessage = messages[messages.length - 1];
-    if (lastMessage.role !== 'assistant') return;
-
-    const yamlString = extractYamlFromMessage(lastMessage);
-    if (!yamlString || yamlString === lastExtractedYamlRef.current) return;
-
-    lastExtractedYamlRef.current = yamlString;
-
-    (async () => {
-      const extractedRecipe = await parseYamlToRecipe(yamlString);
-      if (extractedRecipe) {
-        onRecipeChange(extractedRecipe);
+    getExtraReplyBody: () => {
+      if (recipeEditedInEditView && recipe) {
+        onRecipeEditSynced();
+        return {
+          ui_state: {
+            recipe_builder_draft: recipe,
+          },
+        };
       }
-    })();
-  }, [messages, chatState, onRecipeChange]);
+      return undefined;
+    },
+    onSessionUiStateUpdate: (state) => {
+      if (
+        state &&
+        typeof state === 'object' &&
+        'recipe_builder_draft' in state &&
+        state.recipe_builder_draft
+      ) {
+        onRecipeChange(state.recipe_builder_draft as Recipe);
+      }
+    },
+  });
 
   const isUserMessage = useCallback((message: Message) => message.role === 'user', []);
 
@@ -111,25 +110,10 @@ export default function RecipeBuilderChat({
   const handleSubmit = useCallback(async () => {
     if (!inputValue.trim() || isStreaming) return;
 
-    let messageText = inputValue;
-
-    // If the user edited the recipe in the Edit view, prepend the current YAML as context
-    if (recipeEditedInEditView && recipe) {
-      try {
-        const response = await recipeToYaml({ body: { recipe } });
-        if (response.data?.yaml) {
-          messageText = `I've updated the recipe in the editor. Here's the current version:\n\n\`\`\`yaml\n${response.data.yaml}\`\`\`\n\n${inputValue}`;
-        }
-      } catch (error) {
-        console.error('Failed to convert recipe to YAML:', error);
-      }
-      onRecipeEditSynced();
-    }
-
-    const input: UserInput = { msg: messageText, images: [] };
+    const input: UserInput = { msg: inputValue, images: [] };
     submitToChat(input);
     setInputValue('');
-  }, [inputValue, isStreaming, submitToChat, recipe, recipeEditedInEditView, onRecipeEditSynced]);
+  }, [inputValue, isStreaming, submitToChat]);
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {

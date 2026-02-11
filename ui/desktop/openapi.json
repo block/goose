@@ -3542,6 +3542,14 @@
           "session_id": {
             "type": "string"
           },
+          "ui_state": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/UiStatePayload"
+              }
+            ],
+            "nullable": true
+          },
           "user_message": {
             "$ref": "#/components/schemas/Message"
           }
@@ -5069,6 +5077,24 @@
                 "type": "string",
                 "enum": [
                   "Message"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "state",
+              "type"
+            ],
+            "properties": {
+              "state": {
+                "$ref": "#/components/schemas/UiStatePayload"
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "SessionUiStateUpdate"
                 ]
               }
             }
@@ -7138,6 +7164,19 @@
           "prefersBorder": {
             "type": "boolean",
             "description": "Whether the app prefers to have a border around it",
+            "nullable": true
+          }
+        }
+      },
+      "UiStatePayload": {
+        "type": "object",
+        "properties": {
+          "recipe_builder_draft": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Recipe"
+              }
+            ],
             "nullable": true
           }
         }

@@ -14,6 +14,9 @@ use futures::{stream::StreamExt, Stream};
 use goose::agents::{AgentEvent, SessionConfig};
 use goose::conversation::message::{Message, MessageContent, TokenState};
 use goose::conversation::Conversation;
+use goose::recipe::Recipe;
+use crate::routes::recipe_utils::validate_recipe;
+use rmcp::model::{CallToolResult, Content};
 use goose::session::SessionManager;
 use rmcp::model::ServerNotification;
 use serde::{Deserialize, Serialize};
@@ -84,6 +87,14 @@ pub struct ChatRequest {
     session_id: String,
     recipe_name: Option<String>,
     recipe_version: Option<String>,
+    #[serde(default)]
+    ui_state: Option<UiStatePayload>,
+}
+
+#[derive(Debug, Deserialize, Serialize, utoipa::ToSchema)]
+pub struct UiStatePayload {
+    #[serde(default)]
+    recipe_builder_draft: Option<Recipe>,
 }
 
 pub struct SseResponse {
@@ -127,6 +138,9 @@ pub enum MessageEvent {
         message: Message,
         token_state: TokenState,
     },
+    SessionUiStateUpdate {
+        state: UiStatePayload,
+    },
     Error {
         error: String,
     },
@@ -147,6 +161,25 @@ pub enum MessageEvent {
         conversation: Conversation,
     },
     Ping,
+}
+
+fn handle_update_session_ui_state(
+    tool_call: &rmcp::model::CallToolRequestParams,
+) -> Result<UiStatePayload, String> {
+    let draft_value = tool_call
+        .arguments
+        .as_ref()
+        .and_then(|args| args.get("recipe_builder_draft"))
+        .ok_or_else(|| "Missing recipe_builder_draft".to_string())?;
+
+    let recipe_builder_draft: Recipe =
+        serde_json::from_value(draft_value.clone()).map_err(|e| e.to_string())?;
+
+    validate_recipe(&recipe_builder_draft).map_err(|e| e.message)?;
+
+    Ok(UiStatePayload {
+        recipe_builder_draft: Some(recipe_builder_draft),
+    })
 }
 
 async fn get_token_state(session_manager: &SessionManager, session_id: &str) -> TokenState {
@@ -241,6 +274,7 @@ pub async fn reply(
 
     let user_message = request.user_message;
     let conversation_so_far = request.conversation_so_far;
+    let ui_state = request.ui_state;
 
     let task_cancel = cancel_token.clone();
     let task_tx = tx.clone();
@@ -303,6 +337,40 @@ pub async fn reply(
             }
             None => session.conversation.unwrap_or_default(),
         };
+
+        if let Some(ui_state) = ui_state {
+            if let Some(recipe_builder_draft) = ui_state.recipe_builder_draft {
+                match serde_json::to_string(&recipe_builder_draft) {
+                    Ok(recipe_json) => {
+                        let draft_message = Message::user()
+                            .with_text(format!(
+                                "Current recipe draft (JSON): {}",
+                                recipe_json
+                            ))
+                            .agent_only();
+                        if let Err(e) = state
+                            .session_manager()
+                            .add_message(&session_id, &draft_message)
+                            .await
+                        {
+                            tracing::warn!(
+                                "Failed to add UI state message for {}: {}",
+                                session_id,
+                                e
+                            );
+                        }
+                    }
+                    Err(e) => {
+                        tracing::warn!(
+                            "Failed to serialize recipe draft for {}: {}",
+                            session_id,
+                            e
+                        );
+                    }
+                }
+            }
+        }
+
         all_messages.push(user_message.clone());
 
         let mut stream = match agent
@@ -345,11 +413,67 @@ pub async fn reply(
                                 track_tool_telemetry(content, all_messages.messages());
                             }
 
-                            all_messages.push(message.clone());
+                            let mut filtered_message = message.clone();
+                            let mut ui_state_update: Option<UiStatePayload> = None;
+                            let mut tool_results: Vec<(
+                                String,
+                                Result<CallToolResult, rmcp::model::ErrorData>,
+                            )> = Vec::new();
+
+                            filtered_message.content.retain(|content| {
+                                if let MessageContent::FrontendToolRequest(req) = content {
+                                    if let Ok(tool_call) = &req.tool_call {
+                                        if tool_call.name == "update_session_ui_state" {
+                                            let result = handle_update_session_ui_state(tool_call);
+                                            match result {
+                                                Ok(state) => {
+                                                    ui_state_update = Some(state);
+                                                    tool_results.push((
+                                                        req.id.clone(),
+                                                        Ok(CallToolResult {
+                                                            content: vec![Content::text("ok".to_string())],
+                                                            structured_content: None,
+                                                            is_error: Some(false),
+                                                            meta: None,
+                                                        }),
+                                                    ));
+                                                }
+                                                Err(message) => {
+                                                    tool_results.push((
+                                                        req.id.clone(),
+                                                        Ok(CallToolResult {
+                                                            content: vec![Content::text(message)],
+                                                            structured_content: None,
+                                                            is_error: Some(true),
+                                                            meta: None,
+                                                        }),
+                                                    ));
+                                                }
+                                            }
+                                            return false;
+                                        }
+                                    }
+                                }
+                                true
+                            });
+
+                            for (id, result) in tool_results {
+                                agent.handle_tool_result(id, result).await;
+                            }
+
+                            if let Some(state) = ui_state_update {
+                                stream_event(MessageEvent::SessionUiStateUpdate { state }, &tx, &cancel_token).await;
+                            }
+
+                            if !filtered_message.content.is_empty() {
+                                all_messages.push(filtered_message.clone());
+                            }
 
                             let token_state = get_token_state(state.session_manager(), &session_id).await;
 
-                            stream_event(MessageEvent::Message { message, token_state }, &tx, &cancel_token).await;
+                            if !filtered_message.content.is_empty() {
+                                stream_event(MessageEvent::Message { message: filtered_message, token_state }, &tx, &cancel_token).await;
+                            }
                         }
                         Ok(Some(Ok(AgentEvent::HistoryReplaced(new_messages)))) => {
                             all_messages = new_messages.clone();

@@ -64,6 +64,7 @@ export type ChatRequest = {
     recipe_name?: string | null;
     recipe_version?: string | null;
     session_id: string;
+    ui_state?: UiStatePayload | null;
     user_message: Message;
 };
 
@@ -570,6 +571,9 @@ export type MessageEvent = {
     message: Message;
     token_state: TokenState;
     type: 'Message';
+} | {
+    state: UiStatePayload;
+    type: 'SessionUiStateUpdate';
 } | {
     error: string;
     type: 'Error';
@@ -1304,6 +1308,10 @@ export type UiMetadata = {
      * Whether the app prefers to have a border around it
      */
     prefersBorder?: boolean | null;
+};
+
+export type UiStatePayload = {
+    recipe_builder_draft?: Recipe | null;
 };
 
 export type UpdateCustomProviderRequest = {
