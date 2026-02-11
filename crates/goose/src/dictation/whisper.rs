@@ -203,15 +203,21 @@ impl WhisperTranscriber {
         model_path: P,
         bundled_tokenizer: &str,
     ) -> Result<Self> {
+        tracing::debug!(model_id, "initializing whisper transcriber");
+
         let device = if let Ok(device) = Device::new_cuda(0) {
+            tracing::debug!("using CUDA device");
             device
         } else if let Ok(device) = Device::new_metal(0) {
+            tracing::debug!("using Metal device");
             device
         } else {
+            tracing::debug!("using CPU device");
             Device::Cpu
         };
 
         let model_path_ref = model_path.as_ref();
+        tracing::debug!(path = %model_path_ref.display(), "loading model from path");
 
         if !model_path_ref.exists() {
             anyhow::bail!("Model file not found: {}", model_path_ref.display());
@@ -220,6 +226,11 @@ impl WhisperTranscriber {
         let model =
             get_model(model_id).ok_or_else(|| anyhow::anyhow!("Unknown model: {}", model_id))?;
         let config = model.config();
+        tracing::debug!(
+            num_mel_bins = config.num_mel_bins,
+            d_model = config.d_model,
+            "loaded model config"
+        );
 
         let mel_bytes = match config.num_mel_bins {
             80 => include_bytes!("whisper_data/melfilters.bytes").as_slice(),
@@ -231,14 +242,19 @@ impl WhisperTranscriber {
             &mut &mel_bytes[..],
             &mut mel_filters,
         )?;
+        tracing::debug!(mel_filters_len = mel_filters.len(), "loaded mel filters");
 
+        tracing::debug!("loading GGUF model weights");
         let vb = candle_transformers::quantized_var_builder::VarBuilder::from_gguf(
             model_path_ref,
             &device,
         )?;
         let model = m::quantized_model::Whisper::load(&vb, config.clone())?;
+        tracing::debug!("model weights loaded successfully");
 
+        tracing::debug!("loading tokenizer");
         let tokenizer = Self::load_tokenizer(model_path_ref, Some(bundled_tokenizer))?;
+        tracing::debug!("tokenizer loaded successfully");
 
         Ok(Self {
             model,
@@ -280,10 +296,37 @@ impl WhisperTranscriber {
     }
 
     pub fn transcribe(&mut self, audio_data: &[u8]) -> Result<String> {
-        let mel_tensor = self.prepare_audio_input(audio_data)?;
-        let (_, _, content_frames) = mel_tensor.dims3()?;
+        tracing::debug!(audio_bytes = audio_data.len(), "starting transcription");
+
+        if audio_data.is_empty() {
+            tracing::debug!("empty audio data received");
+            return Ok(String::new());
+        }
+
+        let (mel_tensor, actual_content_frames) = self.prepare_audio_input(audio_data)?;
+        let (_, _, padded_frames) = mel_tensor.dims3()?;
+        // Use actual content frames (from PCM length), not padded mel frames
+        let content_frames = actual_content_frames.min(padded_frames);
+        let audio_duration_secs = (content_frames * 160) as f32 / 16000.0;
+        tracing::debug!(
+            actual_content_frames,
+            padded_frames,
+            content_frames,
+            audio_duration_secs,
+            "prepared mel spectrogram"
+        );
+
+        if content_frames == 0 {
+            tracing::debug!("no content frames in mel spectrogram");
+            return Ok(String::new());
+        }
 
         let num_segments = content_frames.div_ceil(N_FRAMES);
+        tracing::debug!(
+            num_segments,
+            n_frames = N_FRAMES,
+            "processing audio segments"
+        );
 
         let mut all_text_tokens = Vec::new();
         let mut seek = 0;
@@ -292,21 +335,57 @@ impl WhisperTranscriber {
         while seek < content_frames {
             segment_num += 1;
             let segment_size = usize::min(content_frames - seek, N_FRAMES);
+            tracing::debug!(segment_num, segment_size, seek, "processing segment");
 
             let segment_text_tokens =
                 self.process_segment(&mel_tensor, seek, segment_size, segment_num, num_segments)?;
 
+            tracing::debug!(
+                tokens_in_segment = segment_text_tokens.len(),
+                "segment produced tokens"
+            );
             all_text_tokens.extend(segment_text_tokens);
             seek += segment_size;
         }
 
-        self.decode_tokens(&all_text_tokens)
+        tracing::debug!(
+            total_tokens = all_text_tokens.len(),
+            "decoding tokens to text"
+        );
+
+        if all_text_tokens.is_empty() {
+            tracing::warn!(
+                audio_bytes = audio_data.len(),
+                audio_duration_secs,
+                num_segments,
+                "no tokens produced from audio - possible silence or unrecognized speech"
+            );
+            return Ok(String::new());
+        }
+
+        let result = self.decode_tokens(&all_text_tokens)?;
+        tracing::debug!(result_len = result.len(), "transcription complete");
+        Ok(result)
     }
 
-    fn prepare_audio_input(&self, audio_data: &[u8]) -> Result<Tensor> {
+    fn prepare_audio_input(&self, audio_data: &[u8]) -> Result<(Tensor, usize)> {
+        tracing::debug!(audio_bytes = audio_data.len(), "decoding audio to PCM");
         let pcm_data = decode_audio_simple(audio_data)?;
+        let pcm_samples = pcm_data.len();
+        tracing::debug!(pcm_samples, "converting PCM to mel spectrogram");
+
+        // Calculate actual content frames from PCM length (HOP_LENGTH = 160)
+        // pcm_to_mel pads to 30 seconds, but we only want to process actual audio
+        let actual_content_frames = pcm_samples / 160;
+
         let mel = audio::pcm_to_mel(&self.config, &pcm_data, &self.mel_filters);
         let mel_len = mel.len();
+        tracing::debug!(
+            mel_len,
+            num_mel_bins = self.config.num_mel_bins,
+            actual_content_frames,
+            "creating mel tensor"
+        );
         let mel_tensor = Tensor::from_vec(
             mel,
             (
@@ -317,7 +396,7 @@ impl WhisperTranscriber {
             &self.device,
         )?;
 
-        Ok(mel_tensor)
+        Ok((mel_tensor, actual_content_frames))
     }
 
     fn process_segment(
@@ -331,8 +410,23 @@ impl WhisperTranscriber {
         let _time_offset = (seek * 160) as f32 / 16000.0; // HOP_LENGTH = 160
         let _segment_duration = (segment_size * 160) as f32 / 16000.0;
         let mel_segment = mel_tensor.narrow(2, seek, segment_size)?;
+
+        // Debug: check mel segment statistics
+        let mel_flat = mel_segment.flatten_all()?;
+        let mel_mean: f32 = mel_flat.mean(0)?.to_scalar()?;
+        let mel_max: f32 = mel_flat.max(0)?.to_scalar()?;
+        let mel_min: f32 = mel_flat.min(0)?.to_scalar()?;
+        tracing::debug!(mel_mean, mel_max, mel_min, "mel segment statistics");
+
         self.model.decoder.reset_kv_cache();
         let audio_features = self.model.encoder.forward(&mel_segment, true)?;
+
+        // Debug: check encoder output statistics
+        let af_flat = audio_features.flatten_all()?;
+        let af_mean: f32 = af_flat.mean(0)?.to_scalar()?;
+        let af_max: f32 = af_flat.max(0)?.to_scalar()?;
+        let af_min: f32 = af_flat.min(0)?.to_scalar()?;
+        tracing::debug!(af_mean, af_max, af_min, "audio features statistics");
         let suppress_tokens = {
             let mut suppress = vec![0f32; self.config.vocab_size];
             for &token_id in &self.config.suppress_tokens {
@@ -374,15 +468,35 @@ impl WhisperTranscriber {
 
             tokens.push(next_token);
 
-            if next_token == EOT_TOKEN || tokens.len() > self.config.max_target_positions {
+            if next_token == EOT_TOKEN {
+                tracing::debug!(tokens_generated = tokens.len() - 3, "EOT token received");
+                break;
+            }
+            if tokens.len() > self.config.max_target_positions {
+                tracing::debug!("max target positions reached");
                 break;
             }
         }
+
+        // Log all generated tokens for debugging
+        tracing::debug!(
+            all_tokens = ?&tokens[3..],
+            "all tokens generated in segment"
+        );
+
         let segment_text_tokens: Vec<u32> = tokens[3..]
             .iter()
             .filter(|&&t| t != EOT_TOKEN && t < TIMESTAMP_BEGIN)
             .copied()
             .collect();
+
+        if segment_text_tokens.is_empty() && tokens.len() > 3 {
+            tracing::debug!(
+                raw_tokens = ?&tokens[3..],
+                "no text tokens found after filtering (all were EOT or timestamps)"
+            );
+        }
+
         Ok(segment_text_tokens)
     }
 
@@ -445,7 +559,7 @@ impl WhisperTranscriber {
         let penultimate_was_timestamp = if sampled_tokens.len() >= 2 {
             sampled_tokens[sampled_tokens.len() - 2] >= TIMESTAMP_BEGIN
         } else {
-            false
+            true
         };
 
         if last_was_timestamp {
@@ -560,6 +674,12 @@ impl WhisperTranscriber {
 
         let max_text_token_logprob: f32 = text_log_probs.max(0)?.to_scalar::<f32>()?;
 
+        tracing::debug!(
+            timestamp_logprob,
+            max_text_token_logprob,
+            "timestamp vs text probability comparison"
+        );
+
         if timestamp_logprob > max_text_token_logprob {
             for i in 0..vocab_size {
                 mask_buffer[i as usize] = if i < TIMESTAMP_BEGIN {
@@ -583,6 +703,7 @@ impl WhisperTranscriber {
 }
 
 fn decode_audio_simple(audio_data: &[u8]) -> Result<Vec<f32>> {
+    tracing::debug!(input_bytes = audio_data.len(), "decoding audio");
     let audio_vec = audio_data.to_vec();
     let cursor = Cursor::new(audio_vec);
     let mss = MediaSourceStream::new(Box::new(cursor), Default::default());
@@ -621,11 +742,14 @@ fn decode_audio_simple(audio_data: &[u8]) -> Result<Vec<f32>> {
         anyhow::bail!("No channel information in audio track (neither channels nor channel_layout)")
     };
 
+    tracing::debug!(sample_rate, channels, "audio format detected");
+
     let mut decoder = symphonia::default::get_codecs()
         .make(&track.codec_params, &DecoderOptions::default())
         .context("Failed to create audio decoder - please ensure browser sends WAV format audio")?;
 
     let mut pcm_data = Vec::new();
+    let mut packet_count = 0;
 
     loop {
         let packet = match format.next_packet() {
@@ -641,6 +765,7 @@ fn decode_audio_simple(audio_data: &[u8]) -> Result<Vec<f32>> {
         match decoder.decode(&packet) {
             Ok(decoded) => {
                 pcm_data.extend(audio_buffer_to_f32(&decoded));
+                packet_count += 1;
             }
             Err(symphonia::core::errors::Error::DecodeError(_)) => {
                 continue;
@@ -649,17 +774,41 @@ fn decode_audio_simple(audio_data: &[u8]) -> Result<Vec<f32>> {
         }
     }
 
+    tracing::debug!(
+        packet_count,
+        pcm_samples = pcm_data.len(),
+        "decoded audio packets"
+    );
+
     let mono_data = if channels > 1 {
+        tracing::debug!(channels, "converting to mono");
         convert_to_mono(&pcm_data, channels)
     } else {
         pcm_data
     };
 
     let resampled = if sample_rate != 16000 {
+        tracing::debug!(from_rate = sample_rate, to_rate = 16000, "resampling audio");
         resample_audio(&mono_data, sample_rate, 16000)?
     } else {
         mono_data
     };
+
+    // Log PCM statistics to diagnose quiet/corrupt audio
+    if !resampled.is_empty() {
+        let max_abs = resampled.iter().map(|s| s.abs()).fold(0.0f32, f32::max);
+        let mean_abs = resampled.iter().map(|s| s.abs()).sum::<f32>() / resampled.len() as f32;
+        let rms = (resampled.iter().map(|s| s * s).sum::<f32>() / resampled.len() as f32).sqrt();
+        tracing::debug!(
+            output_samples = resampled.len(),
+            max_abs,
+            mean_abs,
+            rms,
+            "audio decoding complete with PCM stats"
+        );
+    } else {
+        tracing::debug!(output_samples = 0, "audio decoding complete (empty)");
+    }
 
     Ok(resampled)
 }
@@ -734,6 +883,13 @@ fn resample_audio(data: &[f32], from_rate: u32, to_rate: u32) -> Result<Vec<f32>
         return Ok(data.to_vec());
     }
 
+    tracing::debug!(
+        from_rate,
+        to_rate,
+        input_samples = data.len(),
+        "resampling audio"
+    );
+
     let params = SincInterpolationParameters {
         sinc_len: 256,
         f_cutoff: 0.95,
@@ -753,5 +909,6 @@ fn resample_audio(data: &[f32], from_rate: u32, to_rate: u32) -> Result<Vec<f32>
     let waves_in = vec![data.to_vec()];
     let waves_out = resampler.process(&waves_in, None)?;
 
+    tracing::debug!(output_samples = waves_out[0].len(), "resampling complete");
     Ok(waves_out[0].clone())
 }
