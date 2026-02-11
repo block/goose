@@ -459,7 +459,7 @@ let appConfig = {
   GOOSE_DEFAULT_PROVIDER: defaultProvider,
   GOOSE_DEFAULT_MODEL: defaultModel,
   GOOSE_PREDEFINED_MODELS: predefinedModels,
-  GOOSE_API_HOST: 'http://127.0.0.1',
+  GOOSE_API_HOST: 'http://localhost',
   GOOSE_WORKING_DIR: '',
   // If GOOSE_ALLOWLIST_WARNING env var is not set, defaults to false (strict blocking mode)
   GOOSE_ALLOWLIST_WARNING: process.env.GOOSE_ALLOWLIST_WARNING === 'true',
@@ -1667,6 +1667,8 @@ async function appMain() {
       "'self'",
       'http://127.0.0.1:*',
       'https://127.0.0.1:*',
+      'http://localhost:*',
+      'https://localhost:*',
       'https://api.github.com',
       'https://github.com',
       'https://objects.githubusercontent.com',

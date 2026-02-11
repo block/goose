@@ -2,10 +2,19 @@ use axum::{
     extract::Query,
     http::{header, StatusCode},
     response::{Html, IntoResponse, Response},
-    routing::get,
-    Router,
+    routing::{get, post},
+    Json, Router,
 };
 use serde::Deserialize;
+use std::collections::HashMap;
+use std::sync::Arc;
+use tokio::sync::RwLock;
+use uuid::Uuid;
+
+/// In-memory store for guest HTML content.
+/// Maps nonce -> (html_content, csp_string)
+/// Entries are consumed on first read (one-time use).
+type GuestHtmlStore = Arc<RwLock<HashMap<String, (String, String)>>>;
 
 #[derive(Deserialize)]
 struct ProxyQuery {
@@ -18,6 +27,22 @@ struct ProxyQuery {
     frame_domains: Option<String>,
     /// Comma-separated list of allowed base URIs (base-uri)
     base_uri_domains: Option<String>,
+    /// Comma-separated list of domains for script-src (external scripts like SDKs)
+    script_domains: Option<String>,
+}
+
+#[derive(Deserialize)]
+struct GuestQuery {
+    secret: String,
+    nonce: String,
+}
+
+#[derive(Deserialize)]
+struct StoreGuestBody {
+    secret: String,
+    html: String,
+    /// CSP string to apply to the guest page
+    csp: Option<String>,
 }
 
 const MCP_APP_PROXY_HTML: &str = include_str!("templates/mcp_app_proxy.html");
@@ -35,11 +60,18 @@ fn build_outer_csp(
     resource_domains: &[String],
     frame_domains: &[String],
     base_uri_domains: &[String],
+    script_domains: &[String],
 ) -> String {
     let resources = if resource_domains.is_empty() {
         String::new()
     } else {
         format!(" {}", resource_domains.join(" "))
+    };
+
+    let scripts = if script_domains.is_empty() {
+        String::new()
+    } else {
+        format!(" {}", script_domains.join(" "))
     };
 
     let connections = if connect_domains.is_empty() {
@@ -48,10 +80,11 @@ fn build_outer_csp(
         format!(" {}", connect_domains.join(" "))
     };
 
+    // frame-src needs 'self' so the proxy can load the guest iframe from /mcp-app-guest
     let frame_src = if frame_domains.is_empty() {
-        "frame-src 'none'".to_string()
+        "frame-src 'self'".to_string()
     } else {
-        format!("frame-src {}", frame_domains.join(" "))
+        format!("frame-src 'self' {}", frame_domains.join(" "))
     };
 
     let base_uris = if base_uri_domains.is_empty() {
@@ -62,8 +95,8 @@ fn build_outer_csp(
 
     format!(
         "default-src 'none'; \
-         script-src 'self' 'unsafe-inline'{resources}; \
-         script-src-elem 'self' 'unsafe-inline'{resources}; \
+         script-src 'self' 'unsafe-inline'{resources}{scripts}; \
+         script-src-elem 'self' 'unsafe-inline'{resources}{scripts}; \
          style-src 'self' 'unsafe-inline'{resources}; \
          style-src-elem 'self' 'unsafe-inline'{resources}; \
          connect-src 'self'{connections}; \
@@ -88,6 +121,12 @@ fn parse_domains(domains: Option<&String>) -> Vec<String> {
         .unwrap_or_default()
 }
 
+#[derive(Clone)]
+struct AppState {
+    secret_key: String,
+    guest_store: GuestHtmlStore,
+}
+
 #[utoipa::path(
     get,
     path = "/mcp-app-proxy",
@@ -96,7 +135,8 @@ fn parse_domains(domains: Option<&String>) -> Vec<String> {
         ("connect_domains" = Option<String>, Query, description = "Comma-separated domains for connect-src"),
         ("resource_domains" = Option<String>, Query, description = "Comma-separated domains for resource loading"),
         ("frame_domains" = Option<String>, Query, description = "Comma-separated origins for nested iframes (frame-src)"),
-        ("base_uri_domains" = Option<String>, Query, description = "Comma-separated allowed base URIs (base-uri)")
+        ("base_uri_domains" = Option<String>, Query, description = "Comma-separated allowed base URIs (base-uri)"),
+        ("script_domains" = Option<String>, Query, description = "Comma-separated domains for script-src")
     ),
     responses(
         (status = 200, description = "MCP App proxy HTML page", content_type = "text/html"),
@@ -104,10 +144,10 @@ fn parse_domains(domains: Option<&String>) -> Vec<String> {
     )
 )]
 async fn mcp_app_proxy(
-    axum::extract::State(secret_key): axum::extract::State<String>,
+    axum::extract::State(state): axum::extract::State<AppState>,
     Query(params): Query<ProxyQuery>,
 ) -> Response {
-    if params.secret != secret_key {
+    if params.secret != state.secret_key {
         return (StatusCode::UNAUTHORIZED, "Unauthorized").into_response();
     }
 
@@ -116,6 +156,7 @@ async fn mcp_app_proxy(
     let resource_domains = parse_domains(params.resource_domains.as_ref());
     let frame_domains = parse_domains(params.frame_domains.as_ref());
     let base_uri_domains = parse_domains(params.base_uri_domains.as_ref());
+    let script_domains = parse_domains(params.script_domains.as_ref());
 
     // Build the outer CSP based on declared domains
     let csp = build_outer_csp(
@@ -123,6 +164,7 @@ async fn mcp_app_proxy(
         &resource_domains,
         &frame_domains,
         &base_uri_domains,
+        &script_domains,
     );
 
     // Replace the CSP placeholder in the HTML template
@@ -141,8 +183,81 @@ async fn mcp_app_proxy(
         .into_response()
 }
 
+/// Store guest HTML and return a nonce for retrieval.
+/// The proxy page calls this via fetch, then sets the guest iframe src to /mcp-app-guest?nonce=...
+async fn store_guest_html(
+    axum::extract::State(state): axum::extract::State<AppState>,
+    Json(body): Json<StoreGuestBody>,
+) -> Response {
+    if body.secret != state.secret_key {
+        return (StatusCode::UNAUTHORIZED, "Unauthorized").into_response();
+    }
+
+    let nonce = Uuid::new_v4().to_string();
+    let csp = body.csp.unwrap_or_default();
+
+    {
+        let mut store = state.guest_store.write().await;
+        store.insert(nonce.clone(), (body.html, csp));
+    }
+
+    (
+        StatusCode::OK,
+        [(header::CONTENT_TYPE, "application/json")],
+        format!(r#"{{"nonce":"{}"}}"#, nonce),
+    )
+        .into_response()
+}
+
+/// Serve stored guest HTML with a real HTTPS URL.
+/// This gives the guest iframe `window.location.protocol === "https:"`,
+/// which is required by SDKs like Square Web Payments that check for secure context.
+async fn serve_guest_html(
+    axum::extract::State(state): axum::extract::State<AppState>,
+    Query(params): Query<GuestQuery>,
+) -> Response {
+    if params.secret != state.secret_key {
+        return (StatusCode::UNAUTHORIZED, "Unauthorized").into_response();
+    }
+
+    // Consume the entry (one-time use)
+    let entry = {
+        let mut store = state.guest_store.write().await;
+        store.remove(&params.nonce)
+    };
+
+    match entry {
+        Some((html, csp)) => {
+            let mut response = Html(html).into_response();
+            let headers = response.headers_mut();
+            // Use strict-origin so third-party SDKs (e.g. Square Web Payments)
+            // receive the origin in their requests, which they need for auth.
+            // no-referrer would cause 401s from SDK servers.
+            headers.insert(
+                header::HeaderName::from_static("referrer-policy"),
+                "strict-origin".parse().unwrap(),
+            );
+            if !csp.is_empty() {
+                headers.insert(
+                    header::CONTENT_SECURITY_POLICY,
+                    csp.parse().unwrap(),
+                );
+            }
+            response
+        }
+        None => (StatusCode::NOT_FOUND, "Guest content not found or already consumed").into_response(),
+    }
+}
+
 pub fn routes(secret_key: String) -> Router {
+    let state = AppState {
+        secret_key,
+        guest_store: Arc::new(RwLock::new(HashMap::new())),
+    };
+
     Router::new()
         .route("/mcp-app-proxy", get(mcp_app_proxy))
-        .with_state(secret_key)
+        .route("/mcp-app-guest", get(serve_guest_html))
+        .route("/mcp-app-guest", post(store_guest_html))
+        .with_state(state)
 }
