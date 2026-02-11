@@ -16,8 +16,9 @@ const MIN_SPEECH_MS = 200;
 // without clipping early speech onsets. Determined empirically for 16kHz mono input.
 const RMS_THRESHOLD = 0.015;
 
-// Import the worklet module - Vite will handle this correctly
-const WORKLET_URL = new URL('../audio-capture-worklet.js', import.meta.url).href;
+// Resolve worklet URL at runtime from window.location so it works under both
+// the dev server (http://localhost) and packaged builds (file://).
+const WORKLET_URL = new URL('audio-capture-worklet.js', window.location.href.split('#')[0]).href;
 
 function encodeWav(samples: Float32Array, sampleRate: number): ArrayBuffer {
   const buf = new ArrayBuffer(44 + samples.length * 2);

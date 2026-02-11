@@ -695,10 +695,10 @@ impl Provider for GcpVertexAIProvider {
         }))
     }
 
-    async fn fetch_supported_models(&self) -> Result<Option<Vec<String>>, ProviderError> {
+    async fn fetch_supported_models(&self) -> Result<Vec<String>, ProviderError> {
         let models: Vec<String> = KNOWN_MODELS.iter().map(|s| s.to_string()).collect();
         let filtered = self.filter_by_org_policy(models).await;
-        Ok(Some(filtered))
+        Ok(filtered)
     }
 }
 

@@ -247,6 +247,15 @@ pub fn format_messages(messages: &[Message], image_format: &ImageFormat) -> Vec<
             converted["content"] = json!(text_array.join("\n"));
         }
 
+        // Some strict OpenAI-compatible providers require "content" to be present
+        // (even as null) when tool_calls are provided. See #6717.
+        if message.role == Role::Assistant
+            && converted.get("tool_calls").is_some()
+            && converted.get("content").is_none()
+        {
+            converted["content"] = json!(null);
+        }
+
         if converted.get("content").is_some() || converted.get("tool_calls").is_some() {
             output.insert(0, converted);
         }

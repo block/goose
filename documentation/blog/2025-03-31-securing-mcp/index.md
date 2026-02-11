@@ -19,11 +19,11 @@ Block’s Information Security (InfoSec) team has been heavily involved in this 
 
 ## What is the Model Context Protocol (MCP)
 
-Model Context Protocol (MCP) is a protocol [developed by Anthropic](https://docs.anthropic.com/en/docs/agents-and-tools/mcp), with input from Block engineers, that makes it easier to build integrations for agents to connect and use other tooling. Put simply, if you want AI to connect to SaaS solutions (e.g. Github, Jira),  CLI tools (e.g. AWS CLI) or your own custom applications you can write an MCP server and "teach" it how to correctly interact.
+Model Context Protocol (MCP) is a protocol [developed by Anthropic](https://docs.anthropic.com/en/docs/agents-and-tools/mcp), with input from Block engineers, that makes it easier to build integrations for agents to connect and use other tooling. Put simply, if you want AI to connect to SaaS solutions (e.g. GitHub, Jira),  CLI tools (e.g. AWS CLI) or your own custom applications you can write an MCP server and "teach" it how to correctly interact.
 
 This has huge advantages as we can create deterministic, well defined interfaces that reduce the amount of "experimentation/brute force" required for agents to perform helpful tasks. 
 
-A use case like "read this ticket from Jira and then clone the relevant github repo and implement the feature" is more likely to succeed if the agent doesn’t have to work out how to interact with Jira, Github and the Git CLI.
+A use case like "read this ticket from Jira and then clone the relevant github repo and implement the feature" is more likely to succeed if the agent doesn’t have to work out how to interact with Jira, GitHub and the Git CLI.
 
 This helps agents to spend time solving novel problems rather than burning tokens understanding well defined API specifications.
 

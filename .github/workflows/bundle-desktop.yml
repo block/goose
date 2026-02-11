@@ -76,7 +76,6 @@ jobs:
         with:
           # Only pass ref if it's explicitly set, otherwise let checkout action use its default behavior
           ref: ${{ inputs.ref != '' && inputs.ref || '' }}
-          fetch-depth: 0
 
       - name: Debug git status
         run: |

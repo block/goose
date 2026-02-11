@@ -84,7 +84,7 @@ export default function ExtensionItem({
           <div className="flex items-center justify-end gap-2">
             {editable && (
               <button
-                className="text-textSubtle hover:text-textStandard"
+                className="text-text-muted hover:text-text-default"
                 aria-label={`Configure ${getFriendlyTitle(extension)} Extension`}
                 onClick={() => onConfigure?.(extension)}
               >

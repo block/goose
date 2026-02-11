@@ -2,8 +2,8 @@ use crate::action_required_manager::ActionRequiredManager;
 use crate::agents::types::SharedProvider;
 use crate::session_context::{SESSION_ID_HEADER, WORKING_DIR_HEADER};
 use rmcp::model::{
-    Content, CreateElicitationRequestParams, CreateElicitationResult, ElicitationAction, ErrorCode,
-    Extensions, JsonObject, Meta,
+    CreateElicitationRequestParams, CreateElicitationResult, ElicitationAction, ErrorCode,
+    ExtensionCapabilities, Extensions, JsonObject, Meta, SamplingMessageContent,
 };
 /// MCP client implementation for Goose
 use rmcp::{
@@ -223,9 +223,9 @@ impl ClientHandler for GooseClient {
                     Role::Assistant => crate::conversation::message::Message::assistant(),
                 };
 
-                match msg.content.as_text() {
+                match msg.content.first().and_then(|c| c.as_text()) {
                     Some(text) => base.with_text(&text.text),
-                    None => base.with_content(msg.content.clone().into()),
+                    None => base,
                 }
             })
             .collect();
@@ -255,29 +255,26 @@ impl ClientHandler for GooseClient {
         Ok(CreateMessageResult {
             model: usage.model,
             stop_reason: Some(CreateMessageResult::STOP_REASON_END_TURN.to_string()),
-            message: SamplingMessage {
-                role: Role::Assistant,
-                // TODO(alexhancock): MCP sampling currently only supports one content on each SamplingMessage
-                // https://modelcontextprotocol.io/specification/draft/client/sampling#messages
-                // This doesn't mesh well with goose's approach which has Vec<MessageContent>
-                // There is a proposal to MCP which is agreed to go in the next version to have SamplingMessages support multiple content parts
-                // https://github.com/modelcontextprotocol/modelcontextprotocol/pull/198
-                // Until that is formalized, we can take the first message content from the provider and use it
-                content: if let Some(content) = response.content.first() {
+            message: SamplingMessage::new(
+                Role::Assistant,
+                if let Some(content) = response.content.first() {
                     match content {
                         crate::conversation::message::MessageContent::Text(text) => {
-                            Content::text(&text.text)
+                            SamplingMessageContent::text(&text.text)
                         }
                         crate::conversation::message::MessageContent::Image(img) => {
-                            Content::image(&img.data, &img.mime_type)
+                            SamplingMessageContent::Image(rmcp::model::RawImageContent {
+                                data: img.data.clone(),
+                                mime_type: img.mime_type.clone(),
+                                meta: None,
+                            })
                         }
-                        // TODO(alexhancock) - Content::Audio? goose's messages don't currently have it
-                        _ => Content::text(""),
+                        _ => SamplingMessageContent::text(""),
                     }
                 } else {
-                    Content::text("")
+                    SamplingMessageContent::text("")
                 },
-            },
+            ),
         })
     }
 
@@ -286,20 +283,28 @@ impl ClientHandler for GooseClient {
         request: CreateElicitationRequestParams,
         _context: RequestContext<RoleClient>,
     ) -> Result<CreateElicitationResult, ErrorData> {
-        let schema_value = serde_json::to_value(&request.requested_schema).map_err(|e| {
-            ErrorData::new(
-                ErrorCode::INTERNAL_ERROR,
-                format!("Failed to serialize elicitation schema: {}", e),
-                None,
-            )
-        })?;
+        let (message, schema_value) = match &request {
+            CreateElicitationRequestParams::FormElicitationParams {
+                message,
+                requested_schema,
+                ..
+            } => {
+                let schema_value = serde_json::to_value(requested_schema).map_err(|e| {
+                    ErrorData::new(
+                        ErrorCode::INTERNAL_ERROR,
+                        format!("Failed to serialize elicitation schema: {}", e),
+                        None,
+                    )
+                })?;
+                (message.clone(), schema_value)
+            }
+            CreateElicitationRequestParams::UrlElicitationParams { message, url, .. } => {
+                (message.clone(), serde_json::json!({ "url": url }))
+            }
+        };
 
         ActionRequiredManager::global()
-            .request_and_wait(
-                request.message.clone(),
-                schema_value,
-                Duration::from_secs(300),
-            )
+            .request_and_wait(message, schema_value, Duration::from_secs(300))
             .await
             .map(|user_data| CreateElicitationResult {
                 action: ElicitationAction::Accept,
@@ -315,10 +320,25 @@ impl ClientHandler for GooseClient {
     }
 
     fn get_info(&self) -> ClientInfo {
+        // Build MCP Apps UI extension capability
+        // See: https://github.com/modelcontextprotocol/ext-apps/blob/main/specification/2026-01-26/apps.mdx
+        let mut ui_extension_settings = JsonObject::new();
+        ui_extension_settings.insert(
+            "mimeTypes".to_string(),
+            serde_json::json!(["text/html;profile=mcp-app"]),
+        );
+
+        let mut extensions = ExtensionCapabilities::new();
+        extensions.insert(
+            "io.modelcontextprotocol/ui".to_string(),
+            ui_extension_settings,
+        );
+
         ClientInfo {
             meta: None,
             protocol_version: ProtocolVersion::V_2025_03_26,
             capabilities: ClientCapabilities::builder()
+                .enable_extensions_with(extensions)
                 .enable_sampling()
                 .enable_elicitation()
                 .build(),
@@ -328,6 +348,7 @@ impl ClientHandler for GooseClient {
                     .unwrap_or(env!("CARGO_PKG_VERSION").to_owned()),
                 icons: None,
                 title: None,
+                description: None,
                 website_url: None,
             },
         }
@@ -944,5 +965,27 @@ mod tests {
         let mcp_meta = extensions.get::<Meta>().unwrap();
 
         assert_eq!(&mcp_meta.0, expected_meta.as_object().unwrap());
+    }
+
+    #[test]
+    fn test_client_info_advertises_mcp_apps_ui_extension() {
+        let client = new_client();
+        let info = ClientHandler::get_info(&client);
+
+        // Verify the client advertises the MCP Apps UI extension capability
+        let extensions = info
+            .capabilities
+            .extensions
+            .expect("capabilities should have extensions");
+
+        let ui_ext = extensions
+            .get("io.modelcontextprotocol/ui")
+            .expect("should have io.modelcontextprotocol/ui extension");
+
+        let mime_types = ui_ext
+            .get("mimeTypes")
+            .expect("ui extension should have mimeTypes");
+
+        assert_eq!(mime_types, &json!(["text/html;profile=mcp-app"]));
     }
 }

@@ -493,13 +493,9 @@ async fn check_provider(
     };
 
     let fetched_models = match provider.fetch_supported_models().await {
-        Ok(Some(models)) => {
+        Ok(models) => {
             println!("  ✓ Fetched {} models", models.len());
             models
-        }
-        Ok(None) => {
-            println!("  ⚠ Provider does not support model listing");
-            Vec::new()
         }
         Err(e) => {
             println!("  ⚠ Failed to fetch models: {}", e);
@@ -509,11 +505,10 @@ async fn check_provider(
     };
 
     let recommended_models = match provider.fetch_recommended_models().await {
-        Ok(Some(models)) => {
+        Ok(models) => {
             println!("  ✓ Found {} recommended models", models.len());
             models
         }
-        Ok(None) => Vec::new(),
         Err(e) => {
             println!("  ⚠ Failed to fetch recommended models: {}", e);
             Vec::new()

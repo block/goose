@@ -709,6 +709,7 @@ impl ComputerControllerServer {
                     .arg("-File")
                     .arg(&command)
                     .env("GOOSE_TERMINAL", "1")
+                    .env("AGENT", "goose")
                     .output()
                     .await
                     .map_err(|e| {
@@ -723,6 +724,7 @@ impl ComputerControllerServer {
                 .arg(shell_arg)
                 .arg(&command)
                 .env("GOOSE_TERMINAL", "1")
+                .env("AGENT", "goose")
                 .output()
                 .await
                 .map_err(|e| {
@@ -1299,6 +1301,7 @@ impl ServerHandler for ComputerControllerServer {
                 name: "goose-computercontroller".to_string(),
                 version: env!("CARGO_PKG_VERSION").to_owned(),
                 title: None,
+                description: None,
                 icons: None,
                 website_url: None,
             },

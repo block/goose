@@ -15,7 +15,6 @@ export const DictationSettings = () => {
   );
   const [apiKey, setApiKey] = useState('');
   const [isEditingKey, setIsEditingKey] = useState(false);
-  const [keyValidationError, setKeyValidationError] = useState('');
   const { read, upsert, remove } = useConfig();
 
   useEffect(() => {
@@ -59,24 +58,15 @@ export const DictationSettings = () => {
     if (!providerConfig || providerConfig.uses_provider_config) return;
 
     const trimmedKey = apiKey.trim();
-    if (!trimmedKey) {
-      setKeyValidationError('API key is required');
-      return;
-    }
+    if (!trimmedKey) return;
 
-    try {
-      const keyName = providerConfig.config_key!;
-      await upsert(keyName, trimmedKey, true);
-      setApiKey('');
-      setKeyValidationError('');
-      setIsEditingKey(false);
+    const keyName = providerConfig.config_key!;
+    await upsert(keyName, trimmedKey, true);
+    setApiKey('');
+    setIsEditingKey(false);
 
-      const audioConfig = await getDictationConfig();
-      setProviderStatuses(audioConfig.data || {});
-    } catch (error) {
-      console.error('Error saving API key:', error);
-      setKeyValidationError('Failed to save API key');
-    }
+    const audioConfig = await getDictationConfig();
+    setProviderStatuses(audioConfig.data || {});
   };
 
   const handleRemoveKey = async () => {
@@ -84,24 +74,17 @@ export const DictationSettings = () => {
     const providerConfig = providerStatuses[provider];
     if (!providerConfig || providerConfig.uses_provider_config) return;
 
-    try {
-      const keyName = providerConfig.config_key!;
-      await remove(keyName, true);
-      setApiKey('');
-      setKeyValidationError('');
-      setIsEditingKey(false);
+    const keyName = providerConfig.config_key!;
+    await remove(keyName, true);
+    setApiKey('');
+    setIsEditingKey(false);
 
-      const audioConfig = await getDictationConfig();
-      setProviderStatuses(audioConfig.data || {});
-    } catch (error) {
-      console.error('Error removing API key:', error);
-      setKeyValidationError('Failed to remove API key');
-    }
+    const audioConfig = await getDictationConfig();
+    setProviderStatuses(audioConfig.data || {});
   };
 
   const handleCancelEdit = () => {
     setApiKey('');
-    setKeyValidationError('');
     setIsEditingKey(false);
   };
 
@@ -122,7 +105,7 @@ export const DictationSettings = () => {
         <div className="relative">
           <button
             onClick={handleDropdownToggle}
-            className="flex items-center gap-2 px-3 py-1.5 text-sm border border-border-subtle rounded-md hover:border-border-default transition-colors text-text-default bg-background-default"
+            className="flex items-center gap-2 px-3 py-1.5 text-sm border border-border-default rounded-md hover:border-border-default transition-colors text-text-default bg-background-default"
           >
             {getProviderLabel(provider)}
             <ChevronDown className="w-4 h-4" />
@@ -132,7 +115,7 @@ export const DictationSettings = () => {
             <div className="absolute right-0 mt-1 w-max min-w-[250px] max-w-[350px] bg-background-default border border-border-default rounded-md shadow-lg z-50">
               <button
                 onClick={() => handleProviderChange(null)}
-                className="w-full px-3 py-2 text-left text-sm transition-colors hover:bg-background-subtle text-text-default whitespace-nowrap first:rounded-t-md"
+                className="w-full px-3 py-2 text-left text-sm transition-colors hover:bg-background-muted text-text-default whitespace-nowrap first:rounded-t-md"
               >
                 <span className="flex items-center justify-between gap-2">
                   <span>Disabled</span>
@@ -144,7 +127,7 @@ export const DictationSettings = () => {
                 <button
                   key={p}
                   onClick={() => handleProviderChange(p)}
-                  className="w-full px-3 py-2 text-left text-sm transition-colors hover:bg-background-subtle text-text-default whitespace-nowrap last:rounded-b-md"
+                  className="w-full px-3 py-2 text-left text-sm transition-colors hover:bg-background-muted text-text-default whitespace-nowrap last:rounded-b-md"
                 >
                   <span className="flex items-center justify-between gap-2">
                     <span>
@@ -169,7 +152,7 @@ export const DictationSettings = () => {
               <LocalModelManager />
             </div>
           ) : providerStatuses[provider].uses_provider_config ? (
-            <div className="py-2 px-2 bg-background-subtle rounded-lg">
+            <div className="py-2 px-2 bg-background-muted rounded-lg">
               {!providerStatuses[provider].configured ? (
                 <p className="text-xs text-text-muted">
                   Configure the API key in <b>{providerStatuses[provider].settings_path}</b>
@@ -181,7 +164,7 @@ export const DictationSettings = () => {
               )}
             </div>
           ) : (
-            <div className="py-2 px-2 bg-background-subtle rounded-lg">
+            <div className="py-2 px-2 bg-background-muted rounded-lg">
               <div className="mb-2">
                 <h4 className="text-text-default text-sm">API Key</h4>
                 <p className="text-xs text-text-muted mt-[2px]">
@@ -193,25 +176,26 @@ export const DictationSettings = () => {
               </div>
 
               {!isEditingKey ? (
-                <Button variant="outline" size="sm" onClick={() => setIsEditingKey(true)}>
-                  {providerStatuses[provider]?.configured ? 'Update API Key' : 'Add API Key'}
-                </Button>
+                <div className="flex gap-2 flex-wrap">
+                  <Button variant="outline" size="sm" onClick={() => setIsEditingKey(true)}>
+                    {providerStatuses[provider]?.configured ? 'Update API Key' : 'Add API Key'}
+                  </Button>
+                  {providerStatuses[provider]?.configured && (
+                    <Button variant="destructive" size="sm" onClick={handleRemoveKey}>
+                      Remove API Key
+                    </Button>
+                  )}
+                </div>
               ) : (
                 <div className="space-y-2">
                   <Input
                     type="password"
                     value={apiKey}
-                    onChange={(e) => {
-                      setApiKey(e.target.value);
-                      if (keyValidationError) setKeyValidationError('');
-                    }}
+                    onChange={(e) => setApiKey(e.target.value)}
                     placeholder="Enter your API key"
                     className="max-w-md"
                     autoFocus
                   />
-                  {keyValidationError && (
-                    <p className="text-xs text-red-600 mt-1">{keyValidationError}</p>
-                  )}
                   <div className="flex gap-2">
                     <Button size="sm" onClick={handleSaveKey}>
                       Save
@@ -219,11 +203,6 @@ export const DictationSettings = () => {
                     <Button variant="outline" size="sm" onClick={handleCancelEdit}>
                       Cancel
                     </Button>
-                    {providerStatuses[provider]?.configured && (
-                      <Button variant="destructive" size="sm" onClick={handleRemoveKey}>
-                        Remove
-                      </Button>
-                    )}
                   </div>
                 </div>
               )}
