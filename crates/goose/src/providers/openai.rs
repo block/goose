@@ -277,82 +277,6 @@ impl Provider for OpenAiProvider {
         self.model.clone()
     }
 
-    #[tracing::instrument(
-        skip(self, model_config, system, messages, tools),
-        fields(model_config, input, output, input_tokens, output_tokens, total_tokens)
-    )]
-    async fn complete_with_model(
-        &self,
-        session_id: Option<&str>,
-        model_config: &ModelConfig,
-        system: &str,
-        messages: &[Message],
-        tools: &[Tool],
-    ) -> Result<(Message, ProviderUsage), ProviderError> {
-        if Self::uses_responses_api(&model_config.model_name) {
-            let payload = create_responses_request(model_config, system, messages, tools)?;
-            let mut log = RequestLog::start(&self.model, &payload)?;
-
-            let json_response = self
-                .with_retry(|| async {
-                    let payload_clone = payload.clone();
-                    self.post_responses(session_id, &payload_clone).await
-                })
-                .await
-                .inspect_err(|e| {
-                    let _ = log.error(e);
-                })?;
-
-            let responses_api_response: ResponsesApiResponse =
-                serde_json::from_value(json_response.clone()).map_err(|e| {
-                    ProviderError::ExecutionError(format!(
-                        "Failed to parse responses API response: {}",
-                        e
-                    ))
-                })?;
-
-            let message = responses_api_to_message(&responses_api_response)?;
-            let usage = get_responses_usage(&responses_api_response);
-            let model = responses_api_response.model.clone();
-
-            log.write(&json_response, Some(&usage))?;
-            Ok((message, ProviderUsage::new(model, usage)))
-        } else {
-            let payload = create_request(
-                model_config,
-                system,
-                messages,
-                tools,
-                &ImageFormat::OpenAi,
-                false,
-            )?;
-
-            let mut log = RequestLog::start(&self.model, &payload)?;
-            let json_response = self
-                .with_retry(|| async {
-                    let payload_clone = payload.clone();
-                    self.post(session_id, &payload_clone).await
-                })
-                .await
-                .inspect_err(|e| {
-                    let _ = log.error(e);
-                })?;
-
-            let message = response_to_message(&json_response)?;
-            let usage = json_response
-                .get("usage")
-                .map(get_usage)
-                .unwrap_or_else(|| {
-                    tracing::debug!("Failed to get usage data");
-                    Usage::default()
-                });
-
-            let model = get_model(&json_response);
-            log.write(&json_response, Some(&usage))?;
-            Ok((message, ProviderUsage::new(model, usage)))
-        }
-    }
-
     async fn fetch_supported_models(&self) -> Result<Option<Vec<String>>, ProviderError> {
         let models_path = self.base_path.replace("v1/chat/completions", "v1/models");
         let response = self
@@ -394,22 +318,19 @@ impl Provider for OpenAiProvider {
             .map_err(|e| ProviderError::ExecutionError(e.to_string()))
     }
 
-    fn supports_streaming(&self) -> bool {
-        self.supports_streaming
-    }
-
     async fn stream(
         &self,
+        model_config: &ModelConfig,
         session_id: &str,
         system: &str,
         messages: &[Message],
         tools: &[Tool],
     ) -> Result<MessageStream, ProviderError> {
-        if Self::uses_responses_api(&self.model.model_name) {
-            let mut payload = create_responses_request(&self.model, system, messages, tools)?;
+        if Self::uses_responses_api(&model_config.model_name) {
+            let mut payload = create_responses_request(model_config, system, messages, tools)?;
             payload["stream"] = serde_json::Value::Bool(true);
 
-            let mut log = RequestLog::start(&self.model, &payload)?;
+            let mut log = RequestLog::start(model_config, &payload)?;
 
             let response = self
                 .with_retry(|| async {
@@ -441,14 +362,14 @@ impl Provider for OpenAiProvider {
             }))
         } else {
             let payload = create_request(
-                &self.model,
+                model_config,
                 system,
                 messages,
                 tools,
                 &ImageFormat::OpenAi,
                 true,
             )?;
-            let mut log = RequestLog::start(&self.model, &payload)?;
+            let mut log = RequestLog::start(model_config, &payload)?;
 
             let response = self
                 .with_retry(|| async {

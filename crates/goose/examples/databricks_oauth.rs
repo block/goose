@@ -19,9 +19,8 @@ async fn main() -> Result<()> {
 
     // Get a response
     let (response, usage) = provider
-        .complete_with_model(
-            None,
-            &provider.get_model_config(),
+        .complete(
+            "",  // Empty session ID for example
             "You are a helpful assistant.",
             &[message],
             &[],

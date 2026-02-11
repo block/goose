@@ -168,56 +168,17 @@ impl Provider for TetrateProvider {
         self.model.clone()
     }
 
-    #[tracing::instrument(
-        skip(self, model_config, system, messages, tools),
-        fields(model_config, input, output, input_tokens, output_tokens, total_tokens)
-    )]
-    async fn complete_with_model(
-        &self,
-        session_id: Option<&str>,
-        model_config: &ModelConfig,
-        system: &str,
-        messages: &[Message],
-        tools: &[Tool],
-    ) -> Result<(Message, ProviderUsage), ProviderError> {
-        let payload = create_request(
-            model_config,
-            system,
-            messages,
-            tools,
-            &super::utils::ImageFormat::OpenAi,
-            false,
-        )?;
-        let mut log = RequestLog::start(model_config, &payload)?;
-
-        // Make request
-        let response = self
-            .with_retry(|| async {
-                let payload_clone = payload.clone();
-                self.post(session_id, &payload_clone).await
-            })
-            .await?;
-
-        // Parse response
-        let message = response_to_message(&response)?;
-        let usage = response.get("usage").map(get_usage).unwrap_or_else(|| {
-            tracing::debug!("Failed to get usage data");
-            Usage::default()
-        });
-        let model = get_model(&response);
-        log.write(&response, Some(&usage))?;
-        Ok((message, ProviderUsage::new(model, usage)))
-    }
 
     async fn stream(
         &self,
+        model_config: &ModelConfig,
         session_id: &str,
         system: &str,
         messages: &[Message],
         tools: &[Tool],
     ) -> Result<MessageStream, ProviderError> {
         let payload = create_request(
-            &self.model,
+            model_config,
             system,
             messages,
             tools,
@@ -225,7 +186,7 @@ impl Provider for TetrateProvider {
             true,
         )?;
 
-        let mut log = RequestLog::start(&self.model, &payload)?;
+        let mut log = RequestLog::start(model_config, &payload)?;
 
         let response = self
             .with_retry(|| async {
@@ -321,7 +282,4 @@ impl Provider for TetrateProvider {
         Ok(Some(models))
     }
 
-    fn supports_streaming(&self) -> bool {
-        self.supports_streaming
-    }
 }

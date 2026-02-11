@@ -13,7 +13,7 @@ use crate::agents::skills_extension::EXTENSION_NAME as SKILLS_EXTENSION;
 use crate::agents::subagent_tool::SUBAGENT_TOOL_NAME;
 use crate::conversation::message::{Message, MessageContent, ToolRequest};
 use crate::conversation::Conversation;
-use crate::providers::base::{stream_from_single_message, MessageStream, Provider, ProviderUsage};
+use crate::providers::base::{MessageStream, Provider, ProviderUsage, stream_from_single_message};
 use crate::providers::errors::ProviderError;
 use crate::providers::toolshim::{
     augment_message_with_tool_calls, convert_tool_messages_to_text,
@@ -229,10 +229,12 @@ impl Agent {
 
         // Capture errors during stream creation and return them as part of the stream
         // so they can be handled by the existing error handling logic in the agent
+        let model_config = provider.get_model_config();
         let stream_result = if provider.supports_streaming() {
             debug!("WAITING_LLM_STREAM_START");
             let result = provider
                 .stream(
+                    &model_config,
                     session_id,
                     system_prompt.as_str(),
                     messages_for_provider.messages(),
@@ -245,6 +247,7 @@ impl Agent {
             debug!("WAITING_LLM_START");
             let complete_result = provider
                 .complete(
+                    &model_config,
                     session_id,
                     system_prompt.as_str(),
                     messages_for_provider.messages(),
@@ -470,10 +473,9 @@ mod tests {
             _messages: &[Message],
             _tools: &[Tool],
         ) -> anyhow::Result<(Message, ProviderUsage), ProviderError> {
-            Ok((
-                Message::assistant().with_text("ok"),
-                ProviderUsage::new("mock".to_string(), Usage::default()),
-            ))
+            let message = Message::assistant().with_text("ok");
+            let usage = ProviderUsage::new("mock".to_string(), Usage::default());
+            Ok((message, usage))
         }
     }
 

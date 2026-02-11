@@ -7,7 +7,7 @@ use std::fs;
 use std::path::Path;
 use std::sync::{Arc, Mutex};
 
-use super::base::{Provider, ProviderDef, ProviderMetadata, ProviderUsage};
+use super::base::{MessageStream, Provider, ProviderDef, ProviderMetadata, ProviderUsage};
 use super::errors::ProviderError;
 use crate::conversation::message::Message;
 use crate::model::ModelConfig;
@@ -130,21 +130,20 @@ impl Provider for TestProvider {
         &self.name
     }
 
-    async fn complete_with_model(
+    async fn stream(
         &self,
-        session_id: Option<&str>,
-        _model_config: &ModelConfig,
+        model_config: &ModelConfig,
+        session_id: &str,
         system: &str,
         messages: &[Message],
         tools: &[Tool],
-    ) -> Result<(Message, ProviderUsage), ProviderError> {
+    ) -> Result<MessageStream, ProviderError> {
         let hash = Self::hash_input(messages);
 
         if let Some(inner) = &self.inner {
-            let model_config = inner.get_model_config();
-            let (message, usage) = inner
-                .complete_with_model(session_id, &model_config, system, messages, tools)
-                .await?;
+            // Call inner provider's stream and collect it
+            let stream = inner.stream(model_config, session_id, system, messages, tools).await?;
+            let (message, usage) = super::base::collect_stream(stream).await?;
 
             let record = TestRecord {
                 input: TestInput {
@@ -163,11 +162,13 @@ impl Provider for TestProvider {
                 records.insert(hash, record);
             }
 
-            Ok((message, usage))
+            Ok(super::base::stream_from_single_message(message, usage))
         } else {
             let records = self.records.lock().unwrap();
             if let Some(record) = records.get(&hash) {
-                Ok((record.output.message.clone(), record.output.usage.clone()))
+                let message = record.output.message.clone();
+                let usage = record.output.usage.clone();
+                Ok(super::base::stream_from_single_message(message, usage))
             } else {
                 Err(ProviderError::ExecutionError(format!(
                     "No recorded response found for input hash: {}",

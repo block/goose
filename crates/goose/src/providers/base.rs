@@ -374,34 +374,33 @@ pub trait Provider: Send + Sync {
     /// Get the name of this provider instance
     fn get_name(&self) -> &str;
 
-    // Internal implementation of complete, used by complete_fast and complete
-    // Providers should override this to implement their actual completion logic
-    //
-    /// # Parameters
-    /// - `session_id`: Use `None` only for configuration or pre-session tasks.
-    async fn complete_with_model(
+    /// Primary streaming method that all providers must implement.
+    /// Takes an explicit model_config parameter for model routing.
+    async fn stream(
         &self,
-        session_id: Option<&str>,
         model_config: &ModelConfig,
+        session_id: &str,
         system: &str,
         messages: &[Message],
         tools: &[Tool],
-    ) -> Result<(Message, ProviderUsage), ProviderError>;
+    ) -> Result<MessageStream, ProviderError>;
 
-    // Default implementation: use the provider's configured model
+    /// Complete with a specific model config.
+    /// Default implementation collects the stream.
+    /// Providers can override this for non-streaming models or optimization.
     async fn complete(
         &self,
+        model_config: &ModelConfig,
         session_id: &str,
         system: &str,
         messages: &[Message],
         tools: &[Tool],
     ) -> Result<(Message, ProviderUsage), ProviderError> {
-        let model_config = self.get_model_config();
-        self.complete_with_model(Some(session_id), &model_config, system, messages, tools)
-            .await
+        let stream = self.stream(model_config, session_id, system, messages, tools).await?;
+        collect_stream(stream).await
     }
 
-    // Check if a fast model is configured, otherwise fall back to regular model
+    /// Try fast model first, fall back to regular model on failure.
     async fn complete_fast(
         &self,
         session_id: &str,
@@ -412,11 +411,13 @@ pub trait Provider: Send + Sync {
         let model_config = self.get_model_config();
         let fast_config = model_config.use_fast_model();
 
-        match self
-            .complete_with_model(Some(session_id), &fast_config, system, messages, tools)
-            .await
-        {
-            Ok(result) => Ok(result),
+        // Try with fast model
+        let result = self
+            .complete(&fast_config, session_id, system, messages, tools)
+            .await;
+
+        match result {
+            Ok(response) => Ok(response),
             Err(e) => {
                 if fast_config.model_name != model_config.model_name {
                     tracing::warn!(
@@ -425,14 +426,9 @@ pub trait Provider: Send + Sync {
                         e,
                         model_config.model_name
                     );
-                    self.complete_with_model(
-                        Some(session_id),
-                        &model_config,
-                        system,
-                        messages,
-                        tools,
-                    )
-                    .await
+                    // Fallback to regular model
+                    self.complete(&model_config, session_id, system, messages, tools)
+                        .await
                 } else {
                     Err(e)
                 }
@@ -547,20 +543,10 @@ pub trait Provider: Send + Sync {
         None
     }
 
-    async fn stream(
-        &self,
-        _session_id: &str,
-        _system: &str,
-        _messages: &[Message],
-        _tools: &[Tool],
-    ) -> Result<MessageStream, ProviderError> {
-        Err(ProviderError::NotImplemented(
-            "streaming not implemented".to_string(),
-        ))
-    }
-
+    /// Check if this provider supports streaming responses.
+    /// Used by reply_parts to decide whether to use stream() or complete().
     fn supports_streaming(&self) -> bool {
-        false
+        true // Default to true since stream() is now required
     }
 
     /// Get the currently active model name
@@ -656,6 +642,42 @@ pub type MessageStream = Pin<
 pub fn stream_from_single_message(message: Message, usage: ProviderUsage) -> MessageStream {
     let stream = futures::stream::once(async move { Ok((Some(message), Some(usage))) });
     Box::pin(stream)
+}
+
+/// Collect all chunks from a MessageStream into a single Message and ProviderUsage
+pub async fn collect_stream(
+    mut stream: MessageStream,
+) -> Result<(Message, ProviderUsage), ProviderError> {
+    use futures::StreamExt;
+
+    let mut final_message: Option<Message> = None;
+    let mut final_usage: Option<ProviderUsage> = None;
+
+    while let Some(result) = stream.next().await {
+        let (msg_opt, usage_opt) = result?;
+
+        if let Some(msg) = msg_opt {
+            final_message = Some(match final_message {
+                Some(mut prev) => {
+                    // Merge messages by appending content
+                    prev.content.extend(msg.content);
+                    prev
+                }
+                None => msg,
+            });
+        }
+
+        if let Some(usage) = usage_opt {
+            final_usage = Some(usage); // Use latest usage
+        }
+    }
+
+    match (final_message, final_usage) {
+        (Some(msg), Some(usage)) => Ok((msg, usage)),
+        _ => Err(ProviderError::ExecutionError(
+            "Stream yielded no message".to_string(),
+        )),
+    }
 }
 
 #[cfg(test)]

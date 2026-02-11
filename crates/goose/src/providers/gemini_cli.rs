@@ -6,7 +6,7 @@ use std::process::Stdio;
 use tokio::io::{AsyncBufReadExt, BufReader};
 use tokio::process::Command;
 
-use super::base::{Provider, ProviderDef, ProviderMetadata, ProviderUsage, Usage};
+use super::base::{stream_from_single_message, MessageStream, Provider, ProviderDef, ProviderMetadata, ProviderUsage, Usage};
 use super::errors::ProviderError;
 use super::utils::{filter_extensions_from_system_prompt, RequestLog};
 use crate::config::base::GeminiCliCommand;
@@ -186,7 +186,6 @@ impl GeminiCliProvider {
         );
 
         let usage = Usage::default(); // No usage info available for gemini CLI
-
         Ok((message, usage))
     }
 
@@ -194,7 +193,7 @@ impl GeminiCliProvider {
     fn generate_simple_session_description(
         &self,
         messages: &[Message],
-    ) -> Result<(Message, ProviderUsage), ProviderError> {
+    ) -> Result<MessageStream, ProviderError> {
         // Extract the first user message text
         let description = messages
             .iter()
@@ -228,11 +227,9 @@ impl GeminiCliProvider {
         );
 
         let usage = Usage::default();
+        let provider_usage = ProviderUsage::new(self.model.model_name.clone(), usage);
 
-        Ok((
-            message,
-            ProviderUsage::new(self.model.model_name.clone(), usage),
-        ))
+        Ok(stream_from_single_message(message, provider_usage))
     }
 }
 
@@ -268,17 +265,17 @@ impl Provider for GeminiCliProvider {
     }
 
     #[tracing::instrument(
-        skip(self, _model_config, system, messages, tools),
+        skip(self, model_config, system, messages, tools),
         fields(model_config, input, output, input_tokens, output_tokens, total_tokens)
     )]
-    async fn complete_with_model(
+    async fn stream(
         &self,
-        _session_id: Option<&str>, // CLI has no external session-id flag to propagate.
-        _model_config: &ModelConfig,
+        model_config: &ModelConfig,
+        _session_id: &str, // CLI has no external session-id flag to propagate.
         system: &str,
         messages: &[Message],
         tools: &[Tool],
-    ) -> Result<(Message, ProviderUsage), ProviderError> {
+    ) -> Result<MessageStream, ProviderError> {
         // Check if this is a session description request (short system prompt asking for 4 words or less)
         if system.contains("four words or less") || system.contains("4 words or less") {
             return self.generate_simple_session_description(messages);
@@ -309,9 +306,7 @@ impl Provider for GeminiCliProvider {
             ProviderError::RequestFailed(format!("Failed to write request log: {}", e))
         })?;
 
-        Ok((
-            message,
-            ProviderUsage::new(self.model.model_name.clone(), usage),
-        ))
+        let provider_usage = ProviderUsage::new(model_config.model_name.clone(), usage);
+        Ok(stream_from_single_message(message, provider_usage))
     }
 }

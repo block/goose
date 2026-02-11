@@ -1796,6 +1796,15 @@ impl Agent {
         );
 
         tracing::info!("Calling provider to generate recipe content");
+        let model_config = {
+            let provider_guard = self.provider.lock().await;
+            let provider = provider_guard.as_ref().ok_or_else(|| {
+                let error = anyhow!("Provider not available during recipe creation");
+                tracing::error!("{}", error);
+                error
+            })?;
+            provider.get_model_config()
+        };
         let (result, _usage) = self
             .provider
             .lock()
@@ -1806,7 +1815,7 @@ impl Agent {
                 tracing::error!("{}", error);
                 error
             })?
-            .complete(session_id, &system_prompt, messages.messages(), &tools)
+            .complete(&model_config, session_id, &system_prompt, messages.messages(), &tools)
             .await
             .map_err(|e| {
                 tracing::error!("Provider completion failed during recipe creation: {}", e);

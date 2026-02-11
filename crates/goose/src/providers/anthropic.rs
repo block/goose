@@ -220,42 +220,6 @@ impl Provider for AnthropicProvider {
         self.model.clone()
     }
 
-    #[tracing::instrument(
-        skip(self, model_config, system, messages, tools),
-        fields(model_config, input, output, input_tokens, output_tokens, total_tokens)
-    )]
-    async fn complete_with_model(
-        &self,
-        session_id: Option<&str>,
-        model_config: &ModelConfig,
-        system: &str,
-        messages: &[Message],
-        tools: &[Tool],
-    ) -> Result<(Message, ProviderUsage), ProviderError> {
-        let payload = create_request(model_config, system, messages, tools)?;
-
-        let response = self
-            .with_retry(|| async { self.post(session_id, &payload).await })
-            .await?;
-
-        let json_response = Self::anthropic_api_call_result(response)?;
-
-        let message = response_to_message(&json_response)?;
-        let usage = get_usage(&json_response)?;
-        tracing::debug!("🔍 Anthropic non-streaming parsed usage: input_tokens={:?}, output_tokens={:?}, total_tokens={:?}",
-                usage.input_tokens, usage.output_tokens, usage.total_tokens);
-
-        let response_model = get_model(&json_response);
-        let mut log = RequestLog::start(&self.model, &payload)?;
-        log.write(&json_response, Some(&usage))?;
-        let provider_usage = ProviderUsage::new(response_model, usage);
-        tracing::debug!(
-            "🔍 Anthropic non-streaming returning ProviderUsage: {:?}",
-            provider_usage
-        );
-        Ok((message, provider_usage))
-    }
-
     async fn fetch_supported_models(&self) -> Result<Option<Vec<String>>, ProviderError> {
         let response = self.api_client.request(None, "v1/models").api_get().await?;
 
@@ -282,19 +246,20 @@ impl Provider for AnthropicProvider {
 
     async fn stream(
         &self,
+        model_config: &ModelConfig,
         session_id: &str,
         system: &str,
         messages: &[Message],
         tools: &[Tool],
     ) -> Result<MessageStream, ProviderError> {
-        let mut payload = create_request(&self.model, system, messages, tools)?;
+        let mut payload = create_request(model_config, system, messages, tools)?;
         payload
             .as_object_mut()
             .unwrap()
             .insert("stream".to_string(), Value::Bool(true));
 
         let mut request = self.api_client.request(Some(session_id), "v1/messages");
-        let mut log = RequestLog::start(&self.model, &payload)?;
+        let mut log = RequestLog::start(model_config, &payload)?;
 
         for (key, value) in self.get_conditional_headers() {
             request = request.header(key, value)?;
@@ -321,9 +286,5 @@ impl Provider for AnthropicProvider {
                 yield (message, usage);
             }
         }))
-    }
-
-    fn supports_streaming(&self) -> bool {
-        self.supports_streaming
     }
 }

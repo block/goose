@@ -270,44 +270,6 @@ impl Provider for OpenRouterProvider {
         self.model.clone()
     }
 
-    #[tracing::instrument(
-        skip(self, model_config, system, messages, tools),
-        fields(model_config, input, output, input_tokens, output_tokens, total_tokens)
-    )]
-    async fn complete_with_model(
-        &self,
-        session_id: Option<&str>,
-        model_config: &ModelConfig,
-        system: &str,
-        messages: &[Message],
-        tools: &[Tool],
-    ) -> Result<(Message, ProviderUsage), ProviderError> {
-        let payload =
-            create_request_based_on_model(self, session_id, system, messages, tools).await?;
-        let mut log = RequestLog::start(model_config, &payload)?;
-
-        let response = self
-            .with_retry(|| async {
-                let payload_clone = payload.clone();
-                self.post(session_id, &payload_clone).await
-            })
-            .await?;
-
-        let response_model = get_model(&response);
-        let message = if is_gemini_model(&self.model.model_name) {
-            openrouter_format::response_to_message(&response)?
-        } else {
-            crate::providers::formats::openai::response_to_message(&response)?
-        };
-
-        let usage = response.get("usage").map(get_usage).unwrap_or_else(|| {
-            tracing::debug!("Failed to get usage data");
-            Usage::default()
-        });
-        log.write(&response, Some(&usage))?;
-        Ok((message, ProviderUsage::new(response_model, usage)))
-    }
-
     /// Fetch supported models from OpenRouter API (only models with tool support)
     async fn fetch_supported_models(&self) -> Result<Option<Vec<String>>, ProviderError> {
         // Handle request failures gracefully
@@ -396,19 +358,17 @@ impl Provider for OpenRouterProvider {
             .starts_with(OPENROUTER_MODEL_PREFIX_ANTHROPIC)
     }
 
-    fn supports_streaming(&self) -> bool {
-        self.supports_streaming
-    }
 
     async fn stream(
         &self,
+        model_config: &ModelConfig,
         session_id: &str,
         system: &str,
         messages: &[Message],
         tools: &[Tool],
     ) -> Result<MessageStream, ProviderError> {
         let mut payload = create_request(
-            &self.model,
+            model_config,
             system,
             messages,
             tools,
@@ -420,7 +380,7 @@ impl Provider for OpenRouterProvider {
             payload = update_request_for_anthropic(&payload);
         }
 
-        if is_gemini_model(&self.model.model_name) {
+        if is_gemini_model(&model_config.model_name) {
             openrouter_format::add_reasoning_details_to_request(&mut payload, messages);
         }
 
@@ -428,7 +388,7 @@ impl Provider for OpenRouterProvider {
             obj.insert("transforms".to_string(), json!(["middle-out"]));
         }
 
-        let mut log = RequestLog::start(&self.model, &payload)?;
+        let mut log = RequestLog::start(model_config, &payload)?;
 
         let response = self
             .with_retry(|| async {

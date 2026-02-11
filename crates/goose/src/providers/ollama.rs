@@ -183,57 +183,6 @@ impl Provider for OllamaProvider {
         self.model.clone()
     }
 
-    #[tracing::instrument(
-        skip(self, model_config, system, messages, tools),
-        fields(model_config, input, output, input_tokens, output_tokens, total_tokens)
-    )]
-    async fn complete_with_model(
-        &self,
-        session_id: Option<&str>,
-        model_config: &ModelConfig,
-        system: &str,
-        messages: &[Message],
-        tools: &[Tool],
-    ) -> Result<(Message, ProviderUsage), ProviderError> {
-        let config = crate::config::Config::global();
-        let goose_mode = config.get_goose_mode().unwrap_or(GooseMode::Auto);
-        let filtered_tools = if goose_mode == GooseMode::Chat {
-            &[]
-        } else {
-            tools
-        };
-
-        let payload = create_request(
-            model_config,
-            system,
-            messages,
-            filtered_tools,
-            &ImageFormat::OpenAi,
-            false,
-        )?;
-
-        let mut log = RequestLog::start(model_config, &payload)?;
-        let response = self
-            .with_retry(|| async {
-                let payload_clone = payload.clone();
-                self.post(session_id, &payload_clone).await
-            })
-            .await
-            .inspect_err(|e| {
-                let _ = log.error(e);
-            })?;
-
-        let message = response_to_message(&response)?;
-
-        let usage = response.get("usage").map(get_usage).unwrap_or_else(|| {
-            tracing::debug!("Failed to get usage data");
-            Usage::default()
-        });
-        let response_model = get_model(&response);
-        log.write(&response, Some(&usage))?;
-        Ok((message, ProviderUsage::new(response_model, usage)))
-    }
-
     async fn generate_session_name(
         &self,
         session_id: &str,
@@ -241,8 +190,10 @@ impl Provider for OllamaProvider {
     ) -> Result<String, ProviderError> {
         let context = self.get_initial_user_messages(messages);
         let message = Message::user().with_text(self.create_session_name_prompt(&context));
+        let model_config = self.get_model_config();
         let result = self
             .complete(
+                &model_config,
                 session_id,
                 "You are a title generator. Output only the requested title of 4 words or less, with no additional text, reasoning, or explanations.",
                 &[message],
@@ -256,12 +207,10 @@ impl Provider for OllamaProvider {
         Ok(safe_truncate(&description, 100))
     }
 
-    fn supports_streaming(&self) -> bool {
-        self.supports_streaming
-    }
 
     async fn stream(
         &self,
+        model_config: &ModelConfig,
         session_id: &str,
         system: &str,
         messages: &[Message],
@@ -276,14 +225,14 @@ impl Provider for OllamaProvider {
         };
 
         let payload = create_request(
-            &self.model,
+            model_config,
             system,
             messages,
             filtered_tools,
             &ImageFormat::OpenAi,
             true,
         )?;
-        let mut log = RequestLog::start(&self.model, &payload)?;
+        let mut log = RequestLog::start(model_config, &payload)?;
 
         let response = self
             .with_retry(|| async {

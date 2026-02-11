@@ -610,46 +610,15 @@ impl Provider for GcpVertexAIProvider {
     /// * `system` - System prompt or context
     /// * `messages` - Array of previous messages in the conversation
     /// * `tools` - Array of available tools for the model
-    #[tracing::instrument(
-        skip(self, model_config, system, messages, tools),
-        fields(model_config, input, output, input_tokens, output_tokens, total_tokens)
-    )]
-    async fn complete_with_model(
-        &self,
-        session_id: Option<&str>,
-        model_config: &ModelConfig,
-        system: &str,
-        messages: &[Message],
-        tools: &[Tool],
-    ) -> Result<(Message, ProviderUsage), ProviderError> {
-        // Create request and context
-        let (request, context) = create_request(model_config, system, messages, tools)?;
-
-        // Send request and process response
-        let response = self.post(session_id, &request, &context).await?;
-        let usage = get_usage(&response, &context)?;
-
-        let mut log = RequestLog::start(model_config, &request)?;
-        log.write(&response, Some(&usage))?;
-
-        // Convert response to message
-        let message = response_to_message(response, context)?;
-        let provider_usage = ProviderUsage::new(self.model.model_name.clone(), usage);
-
-        Ok((message, provider_usage))
-    }
-
     /// Returns the current model configuration.
     fn get_model_config(&self) -> ModelConfig {
         self.model.clone()
     }
 
-    fn supports_streaming(&self) -> bool {
-        true
-    }
 
     async fn stream(
         &self,
+        model_config: &ModelConfig,
         session_id: &str,
         system: &str,
         messages: &[Message],

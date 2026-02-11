@@ -273,67 +273,14 @@ impl Provider for DatabricksProvider {
         self.model.clone()
     }
 
-    #[tracing::instrument(
-        skip(self, model_config, system, messages, tools),
-        fields(model_config, input, output, input_tokens, output_tokens, total_tokens)
-    )]
-    async fn complete_with_model(
-        &self,
-        session_id: Option<&str>,
-        model_config: &ModelConfig,
-        system: &str,
-        messages: &[Message],
-        tools: &[Tool],
-    ) -> Result<(Message, ProviderUsage), ProviderError> {
-        let mut payload =
-            create_request(model_config, system, messages, tools, &self.image_format)?;
-        payload
-            .as_object_mut()
-            .expect("payload should have model key")
-            .remove("model");
-
-        let mut log = RequestLog::start(&self.model, &payload)?;
-
-        // Use fast retry config if this is the fast model
-        let is_fast_model = self
-            .model
-            .fast_model
-            .as_ref()
-            .map(|fast| fast == &model_config.model_name)
-            .unwrap_or(false);
-
-        let retry_config = if is_fast_model {
-            self.fast_retry_config.clone()
-        } else {
-            self.retry_config.clone()
-        };
-
-        let response = self
-            .with_retry_config(
-                || self.post(session_id, payload.clone(), Some(&model_config.model_name)),
-                retry_config,
-            )
-            .await?;
-
-        let message = response_to_message(&response)?;
-        let usage = response.get("usage").map(get_usage).unwrap_or_else(|| {
-            tracing::debug!("Failed to get usage data");
-            Usage::default()
-        });
-        let response_model = get_model(&response);
-        log.write(&response, Some(&usage))?;
-
-        Ok((message, ProviderUsage::new(response_model, usage)))
-    }
-
     async fn stream(
         &self,
+        model_config: &ModelConfig,
         session_id: &str,
         system: &str,
         messages: &[Message],
         tools: &[Tool],
     ) -> Result<MessageStream, ProviderError> {
-        let model_config = self.model.clone();
 
         let mut payload =
             create_request(&model_config, system, messages, tools, &self.image_format)?;
@@ -348,7 +295,7 @@ impl Provider for DatabricksProvider {
             .insert("stream".to_string(), Value::Bool(true));
 
         let path = self.get_endpoint_path(&model_config.model_name, false);
-        let mut log = RequestLog::start(&self.model, &payload)?;
+        let mut log = RequestLog::start(model_config, &payload)?;
         let response = self
             .with_retry(|| async {
                 let resp = self
@@ -373,9 +320,6 @@ impl Provider for DatabricksProvider {
         stream_openai_compat(response, log)
     }
 
-    fn supports_streaming(&self) -> bool {
-        true
-    }
 
     fn supports_embeddings(&self) -> bool {
         true

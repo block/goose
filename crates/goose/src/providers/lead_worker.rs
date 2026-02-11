@@ -5,7 +5,8 @@ use std::sync::Arc;
 use tokio::sync::Mutex;
 
 use super::base::{
-    LeadWorkerProviderTrait, Provider, ProviderDef, ProviderMetadata, ProviderUsage,
+    collect_stream, stream_from_single_message, LeadWorkerProviderTrait, MessageStream,
+    Provider, ProviderDef, ProviderMetadata, ProviderUsage,
 };
 use super::errors::ProviderError;
 use crate::conversation::message::{Message, MessageContent};
@@ -353,14 +354,14 @@ impl Provider for LeadWorkerProvider {
         self.lead_provider.get_model_config()
     }
 
-    async fn complete_with_model(
+    async fn stream(
         &self,
-        session_id: Option<&str>,
         _model_config: &ModelConfig,
+        session_id: &str,
         system: &str,
         messages: &[Message],
         tools: &[Tool],
-    ) -> Result<(Message, ProviderUsage), ProviderError> {
+    ) -> Result<MessageStream, ProviderError> {
         // Get the active provider
         let provider = self.get_active_provider().await;
 
@@ -407,9 +408,14 @@ impl Provider for LeadWorkerProvider {
 
         // Make the completion request
         let model_config = provider.get_model_config();
-        let result = provider
-            .complete_with_model(session_id, &model_config, system, messages, tools)
+        let session_opt = if session_id.is_empty() { None } else { Some(session_id) };
+        let stream_result = provider
+            .stream(&model_config, session_id, system, messages, tools)
             .await;
+        let result = match stream_result {
+            Ok(stream) => collect_stream(stream).await,
+            Err(e) => Err(e),
+        };
 
         // For technical failures, try with default model (lead provider) instead
         let final_result = match &result {
@@ -418,10 +424,14 @@ impl Provider for LeadWorkerProvider {
 
                 // Try with lead provider as the default/fallback for technical failures
                 let model_config = self.lead_provider.get_model_config();
-                let default_result = self
+                let default_stream_result = self
                     .lead_provider
-                    .complete_with_model(session_id, &model_config, system, messages, tools)
+                    .stream(&model_config, session_id, system, messages, tools)
                     .await;
+                let default_result = match default_stream_result {
+                    Ok(stream) => collect_stream(stream).await,
+                    Err(e) => Err(e),
+                };
 
                 match &default_result {
                     Ok(_) => {
@@ -442,7 +452,10 @@ impl Provider for LeadWorkerProvider {
         // Handle the result and update tracking (only for successful completions)
         self.handle_completion_result(&final_result).await;
 
-        final_result
+        match final_result {
+            Ok((message, usage)) => Ok(stream_from_single_message(message, usage)),
+            Err(e) => Err(e),
+        }
     }
 
     async fn fetch_supported_models(&self) -> Result<Option<Vec<String>>, ProviderError> {
@@ -519,7 +532,7 @@ mod tests {
             self.model_config.clone()
         }
 
-        async fn complete_with_model(
+        async fn stream(
             &self,
             _session_id: Option<&str>,
             _model_config: &ModelConfig,
@@ -701,7 +714,7 @@ mod tests {
             self.model_config.clone()
         }
 
-        async fn complete_with_model(
+        async fn stream(
             &self,
             _session_id: Option<&str>,
             _model_config: &ModelConfig,

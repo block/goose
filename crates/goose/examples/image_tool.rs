@@ -63,9 +63,8 @@ async fn main() -> Result<()> {
             }
         });
         let (response, usage) = provider
-            .complete_with_model(
-                None,
-                &provider.get_model_config(),
+            .complete(
+                "", // Empty session ID for example
                 "You are a helpful assistant. Please describe any text you see in the image.",
                 &messages,
                 &[Tool::new("view_image", "View an image", input_schema)],
