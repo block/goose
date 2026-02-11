@@ -3,7 +3,7 @@ import type { Message, ThreadChannel } from "discord.js";
 import { model } from "../../clients/ai";
 import { logger } from "../logger";
 import { chunkMarkdown } from "./chunk-markdown";
-import { SYSTEM_PROMPT } from "./system-prompt";
+import { MAX_STEPS, SYSTEM_PROMPT } from "./system-prompt";
 import { ToolTracker } from "./tool-tracker";
 import { aiTools } from "./tools";
 
@@ -48,8 +48,7 @@ export async function answerQuestion({
       system: SYSTEM_PROMPT,
       prompt,
       tools: aiTools,
-      maxOutputTokens: 2048,
-      stopWhen: stepCountIs(5),
+      stopWhen: stepCountIs(MAX_STEPS),
     });
 
     for await (const event of result.fullStream) {
