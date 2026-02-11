@@ -1311,7 +1311,8 @@ export type UiMetadata = {
 };
 
 export type UiStatePayload = {
-    recipe_builder_draft?: Recipe | null;
+    kind: string;
+    payload: unknown;
 };
 
 export type UpdateCustomProviderRequest = {

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
-import { Message, startAgent } from '../../../api';
+import { Message, agentAddExtension, startAgent } from '../../../api';
 import { Recipe } from '../../../recipe';
 import { stripEmptyExtensions } from '../../../recipe';
 import { useChatStream } from '../../../hooks/useChatStream';
@@ -7,7 +7,7 @@ import { ChatState } from '../../../types/chatState';
 import { ScrollArea, ScrollAreaHandle } from '../../ui/scroll-area';
 import ProgressiveMessageList from '../../ProgressiveMessageList';
 import LoadingGoose from '../../LoadingGoose';
-import { recipeBuilderRecipe } from './recipeBuilderRecipe';
+import { recipeBuilderRecipe, sessionUiStateExtension } from './recipeBuilderRecipe';
 import { getInitialWorkingDir } from '../../../utils/workingDir';
 import { UserInput } from '../../../types/message';
 import { Send } from '../../icons';
@@ -44,7 +44,23 @@ export default function RecipeBuilderChat({
 
         if (cancelled) return;
 
-        setSessionId(response.data.id);
+        const newSessionId = response.data.id;
+        setSessionId(newSessionId);
+
+        try {
+          await agentAddExtension({
+            body: {
+              session_id: newSessionId,
+              config: sessionUiStateExtension,
+            },
+            throwOnError: true,
+          });
+        } catch (error) {
+          console.error('Failed to add session UI state extension:', error);
+          setSessionError('Failed to enable recipe builder UI sync.');
+          setIsInitializing(false);
+          return;
+        }
         setIsInitializing(false);
       } catch (error) {
         if (cancelled) return;
@@ -75,7 +91,8 @@ export default function RecipeBuilderChat({
         onRecipeEditSynced();
         return {
           ui_state: {
-            recipe_builder_draft: recipe,
+            kind: 'recipe_builder',
+            payload: recipe,
           },
         };
       }
@@ -85,10 +102,12 @@ export default function RecipeBuilderChat({
       if (
         state &&
         typeof state === 'object' &&
-        'recipe_builder_draft' in state &&
-        state.recipe_builder_draft
+        'kind' in state &&
+        (state as { kind?: string }).kind === 'recipe_builder' &&
+        'payload' in state &&
+        (state as { payload?: unknown }).payload
       ) {
-        onRecipeChange(state.recipe_builder_draft as Recipe);
+        onRecipeChange((state as { payload: Recipe }).payload);
       }
     },
   });

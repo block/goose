@@ -17,6 +17,7 @@ use goose::conversation::Conversation;
 use goose::recipe::Recipe;
 use crate::routes::recipe_utils::validate_recipe;
 use rmcp::model::{CallToolResult, Content};
+use serde_json::Value;
 use goose::session::SessionManager;
 use rmcp::model::ServerNotification;
 use serde::{Deserialize, Serialize};
@@ -93,8 +94,8 @@ pub struct ChatRequest {
 
 #[derive(Debug, Deserialize, Serialize, utoipa::ToSchema)]
 pub struct UiStatePayload {
-    #[serde(default)]
-    recipe_builder_draft: Option<Recipe>,
+    kind: String,
+    payload: Value,
 }
 
 pub struct SseResponse {
@@ -166,19 +167,31 @@ pub enum MessageEvent {
 fn handle_update_session_ui_state(
     tool_call: &rmcp::model::CallToolRequestParams,
 ) -> Result<UiStatePayload, String> {
-    let draft_value = tool_call
+    let args = tool_call
         .arguments
         .as_ref()
-        .and_then(|args| args.get("recipe_builder_draft"))
-        .ok_or_else(|| "Missing recipe_builder_draft".to_string())?;
+        .ok_or_else(|| "Missing tool arguments".to_string())?;
 
-    let recipe_builder_draft: Recipe =
-        serde_json::from_value(draft_value.clone()).map_err(|e| e.to_string())?;
+    let kind = args
+        .get("kind")
+        .and_then(|value| value.as_str())
+        .ok_or_else(|| "Missing kind".to_string())?;
 
-    validate_recipe(&recipe_builder_draft).map_err(|e| e.message)?;
+    let payload = args
+        .get("payload")
+        .cloned()
+        .ok_or_else(|| "Missing payload".to_string())?;
+
+    if kind == "recipe_builder" {
+        let recipe: Recipe = serde_json::from_value(payload.clone()).map_err(|e| e.to_string())?;
+        validate_recipe(&recipe).map_err(|e| e.message)?;
+    } else {
+        return Err(format!("Unsupported UI state kind: {}", kind));
+    }
 
     Ok(UiStatePayload {
-        recipe_builder_draft: Some(recipe_builder_draft),
+        kind: kind.to_string(),
+        payload,
     })
 }
 
@@ -339,8 +352,8 @@ pub async fn reply(
         };
 
         if let Some(ui_state) = ui_state {
-            if let Some(recipe_builder_draft) = ui_state.recipe_builder_draft {
-                match serde_json::to_string(&recipe_builder_draft) {
+            if ui_state.kind == "recipe_builder" {
+                match serde_json::to_string(&ui_state.payload) {
                     Ok(recipe_json) => {
                         let draft_message = Message::user()
                             .with_text(format!(

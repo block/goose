@@ -7170,15 +7170,15 @@
       },
       "UiStatePayload": {
         "type": "object",
+        "required": [
+          "kind",
+          "payload"
+        ],
         "properties": {
-          "recipe_builder_draft": {
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/Recipe"
-              }
-            ],
-            "nullable": true
-          }
+          "kind": {
+            "type": "string"
+          },
+          "payload": {}
         }
       },
       "UpdateCustomProviderRequest": {
