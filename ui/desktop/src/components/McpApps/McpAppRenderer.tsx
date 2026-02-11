@@ -1,3 +1,20 @@
+/**
+ * McpAppRenderer — Renders interactive MCP App UIs inside a sandboxed iframe.
+ *
+ * This component implements the host side of the MCP Apps protocol using the
+ * @mcp-ui/client SDK's AppRenderer. It handles resource fetching, sandbox
+ * proxy setup, CSP enforcement, and bidirectional communication with guest apps.
+ *
+ * Protocol references:
+ * - MCP Apps Extension (ext-apps): https://github.com/modelcontextprotocol/ext-apps
+ * - MCP-UI Client SDK: https://github.com/idosal/mcp-ui
+ * - App Bridge types: @modelcontextprotocol/ext-apps/app-bridge
+ *
+ * Display modes:
+ * - "inline" | "fullscreen" | "pip" — standard MCP display modes
+ * - "standalone" — Goose-specific mode for dedicated Electron windows
+ */
+
 import { AppRenderer } from '@mcp-ui/client';
 import type {
   McpUiDisplayMode,
@@ -24,20 +41,10 @@ import {
   ToolResult,
 } from './types';
 
-/** Minimum height for the MCP app iframe in pixels */
 const DEFAULT_IFRAME_HEIGHT = 200;
 
-/** Display modes the host supports within a chat session.
- * Currently only inline is supported. Fullscreen (in-window takeover) and pip
- * are not yet implemented. Standalone (separate Electron window) is handled
- * outside of this component and is not an McpUiDisplayMode. */
 const AVAILABLE_DISPLAY_MODES: McpUiDisplayMode[] = ['inline'];
 
-/**
- * Builds the URL for the MCP app sandbox proxy.
- * The proxy handles CSP (Content Security Policy) enforcement for network requests
- * made by the sandboxed iframe, allowing controlled access to external domains.
- */
 async function fetchMcpAppProxyUrl(csp: McpUiResourceCsp | null): Promise<string | null> {
   try {
     const baseUrl = await window.electron.getGoosedHostPort();
@@ -72,28 +79,18 @@ async function fetchMcpAppProxyUrl(csp: McpUiResourceCsp | null): Promise<string
 }
 
 interface McpAppRendererProps {
-  /** MCP resource URI that identifies the app (e.g., "ui://my-extension/app") */
   resourceUri: string;
-  /** Name of the MCP extension providing this app */
   extensionName: string;
-  /** Active session ID for MCP communication */
   sessionId?: string | null;
-  /** Complete tool arguments when tool execution starts */
   toolInput?: ToolInput;
-  /** Partial/streaming tool input to send to the guest UI */
   toolInputPartial?: ToolInputPartial;
-  /** Complete tool result to send to the guest UI */
   toolResult?: ToolResult;
-  /** Set to true to notify the guest UI that the tool execution was cancelled */
   toolCancelled?: ToolCancelled;
-  /** Callback to append text to the chat (for onMessage handler) */
   append?: (text: string) => void;
   displayMode?: GooseDisplayMode;
-  /** Pre-cached HTML to show immediately while fetching fresh content */
   cachedHtml?: string;
 }
 
-/** Data fetched from the MCP resource endpoint */
 interface ResourceData {
   html: string | null;
   csp: McpUiResourceCsp | null;
@@ -113,7 +110,6 @@ export default function McpAppRenderer({
   displayMode = 'inline',
   cachedHtml,
 }: McpAppRendererProps) {
-  // Helper: true when app should fill its container (fullscreen or standalone window)
   const isExpandedView = displayMode === 'fullscreen' || displayMode === 'standalone';
 
   const { resolvedTheme } = useTheme();
@@ -160,7 +156,6 @@ export default function McpAppRenderer({
     });
   }, [resource.html, resource.csp, sandboxUrlFetched, sessionId, resourceFetched]);
 
-  // Fetch the MCP resource (HTML + metadata) from the extension.
   // If cachedHtml is provided, we show it immediately and only update if the
   // fetched content differs. Metadata (CSP, permissions, prefersBorder) is
   // always applied regardless of whether the HTML changed.
@@ -194,10 +189,7 @@ export default function McpAppRenderer({
           setResource({
             html: content.text ?? cachedHtml ?? null,
             csp: meta?.ui?.csp || null,
-            // Per the ext-apps spec, _meta.ui.permissions is McpUiResourcePermissions
-            // (camera, microphone, etc.) used to build the iframe Permission Policy
-            // `allow` attribute. The @mcp-ui/client SDK does not yet forward these
-            // via sendSandboxResourceReady — tracked in:
+            // todo: pass meta?.ui?.permissions to SDK once it supports sendSandboxResourceReady
             // https://github.com/MCP-UI-Org/mcp-ui/issues/180
             permissions: null,
             prefersBorder: meta?.ui?.prefersBorder ?? true,
@@ -218,7 +210,6 @@ export default function McpAppRenderer({
     fetchResource();
   }, [resourceUri, extensionName, sessionId, cachedHtml]);
 
-  /** Handles `ui/open-link` - opens external URLs with user confirmation for non-standard protocols */
   const handleOpenLink = useCallback(async ({ url }: { url: string }) => {
     if (isProtocolSafe(url)) {
       await window.electron.openExternal(url);
@@ -247,7 +238,6 @@ export default function McpAppRenderer({
     return { status: 'success' as const };
   }, []);
 
-  /** Handles `ui/message` - appends text content from the MCP app to the chat */
   const handleMessage = useCallback(
     async ({ content }: { content: Array<{ type: string; text?: string }> }) => {
       if (!append) {
@@ -267,7 +257,6 @@ export default function McpAppRenderer({
     [append]
   );
 
-  /** Handles `tools/call` - invokes an MCP tool and returns the result */
   const handleCallTool = useCallback(
     async ({
       name,
@@ -289,10 +278,8 @@ export default function McpAppRenderer({
         },
       });
 
-      // The server (rmcp) serializes Content with a `type` discriminator
-      // (e.g. "text", "image", "audio", "resource", "resource_link") via
-      // #[serde(tag = "type")]. Our generated TS types don't reflect this,
-      // but the wire format already matches CallToolResult.content.
+      // rmcp serializes Content with a `type` discriminator via #[serde(tag = "type")].
+      // Our generated TS types don't reflect this, but the wire format matches CallToolResult.content.
       return {
         content: (response.data?.content || []) as unknown as CallToolResult['content'],
         isError: response.data?.is_error || false,
@@ -302,7 +289,6 @@ export default function McpAppRenderer({
     [sessionId, extensionName]
   );
 
-  /** Handles `resources/read` - reads content from an MCP resource URI */
   const handleReadResource = useCallback(
     async ({ uri }: { uri: string }) => {
       if (!sessionId) {
@@ -326,7 +312,6 @@ export default function McpAppRenderer({
     [sessionId, extensionName]
   );
 
-  /** Handles `notifications/message` - logs messages from the MCP app */
   const handleLoggingMessage = useCallback(
     ({ level, logger, data }: { level?: string; logger?: string; data?: unknown }) => {
       console.log(
@@ -337,15 +322,16 @@ export default function McpAppRenderer({
     []
   );
 
-  /** Handles `ui/size-changed` - updates container dimensions when the MCP app resizes.
-   * - Height: non-positive values are ignored (keeps previous height)
-   * - Width: if provided, container uses that width (capped at 100%); if omitted or non-positive, container is fluid (100%) */
+  /**
+   * Height: non-positive values are ignored (keeps previous height).
+   * Width: if provided, container uses that width (capped at 100%);
+   * if omitted or non-positive, container is fluid (100%).
+   */
   const handleSizeChanged = useCallback(
     ({ height, width }: McpUiSizeChangedNotification['params']) => {
       if (height !== undefined && height > 0) {
         setIframeHeight(height);
       }
-      // Only update width if explicitly provided. null = fluid (100% width)
       if (width !== undefined) {
         setIframeWidth(width > 0 ? width : null);
       }
@@ -353,13 +339,11 @@ export default function McpAppRenderer({
     []
   );
 
-  /** Handles errors from the MCP app iframe */
   const handleError = useCallback((err: Error) => {
     console.error('[MCP App Error]:', err);
     setError(errorMessage(err));
   }, []);
 
-  // Forward CSP to the SDK. Uses sandboxCsp (captured at fetch time) to keep config stable.
   const mcpUiCsp = useMemo((): McpUiResourceCsp | undefined => {
     if (!sandboxCsp) return undefined;
     return {
@@ -370,8 +354,6 @@ export default function McpAppRenderer({
     };
   }, [sandboxCsp]);
 
-  // Configuration for the sandboxed iframe that runs the MCP app.
-  // Includes the proxy URL, sandbox permissions, and CSP settings.
   const sandboxConfig = useMemo(() => {
     if (!sandboxUrl) return null;
     return {
@@ -381,22 +363,18 @@ export default function McpAppRenderer({
     };
   }, [sandboxUrl, resource.permissions, mcpUiCsp]);
 
-  // Context passed to the MCP app describing the host environment.
-  // Apps can use this to adapt their UI (e.g., theme, display mode).
   const hostContext = useMemo((): McpUiHostContext => {
     const context: McpUiHostContext = {
       // todo: toolInfo: {}
       theme: resolvedTheme,
-      // todo:  styles: { variables: {}, styles: {}}
+      // todo: styles: { variables: {}, styles: {} }
       // 'standalone' is a Goose-specific display mode (dedicated Electron window)
-      // that extends the MCP spec's inline | fullscreen | pip modes.
-      // Apps in chat can only use inline (eventually fullscreen/pip).
-      // Apps in standalone windows cannot switch modes.
+      // that maps to the spec's inline | fullscreen | pip modes.
       displayMode: displayMode as McpUiDisplayMode,
       availableDisplayModes: displayMode === 'standalone'
         ? [displayMode as McpUiDisplayMode]
         : AVAILABLE_DISPLAY_MODES,
-      // todo:  containerDimensions: {} (depends on displayMode)
+      // todo: containerDimensions: {} (depends on displayMode)
       locale: navigator.language,
       timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
       userAgent: navigator.userAgent,
@@ -416,10 +394,10 @@ export default function McpAppRenderer({
     return context;
   }, [resolvedTheme, displayMode]);
 
-  // The server serializes content with a `type` discriminator that matches
-  // CallToolResult.content, so we pass through without re-mapping.
   const appToolResult = useMemo((): CallToolResult | undefined => {
     if (!toolResult) return undefined;
+    // rmcp serializes Content with a `type` discriminator via #[serde(tag = "type")].
+    // Our generated TS types don't reflect this, but the wire format matches CallToolResult.content.
     return {
       content: toolResult.content as unknown as CallToolResult['content'],
       structuredContent: toolResult.structuredContent as { [key: string]: unknown } | undefined,
@@ -429,7 +407,6 @@ export default function McpAppRenderer({
   const isToolCancelled = !!toolCancelled;
   const isLoading = !sandboxConfig || !resource.html;
 
-  // Render content based on state: error, loading, or app
   const renderContent = () => {
     if (error) {
       return (
@@ -474,9 +451,6 @@ export default function McpAppRenderer({
     );
   };
 
-  // Compute container classes based on state.
-  // When app declares explicit width (iframeWidth !== null), let SDK control iframe width.
-  // When app is fluid (iframeWidth === null), force iframe to fill container with [&_iframe]:!w-full.
   const containerClasses = cn(
     'bg-background-default overflow-hidden',
     iframeWidth === null && '[&_iframe]:!w-full',
@@ -485,10 +459,6 @@ export default function McpAppRenderer({
     !error && !isExpandedView && resource.prefersBorder && 'border border-border-default rounded-lg'
   );
 
-  // Compute container dimensions based on display mode.
-  // - Expanded views: fill the container (100% width and height)
-  // - Inline views with explicit width: use app-declared width (capped at 100% to prevent overflow)
-  // - Inline views without width (fluid): use 100% width
   const containerStyle = isExpandedView
     ? { width: '100%', height: '100%' }
     : {
