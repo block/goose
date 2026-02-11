@@ -99,6 +99,7 @@ pub fn create_otlp_tracing_layer() -> OtlpResult<OtlpTracingLayer> {
         ExporterType::None => return Err("Traces exporter set to none".into()),
     };
 
+    global::set_tracer_provider(tracer_provider.clone());
     let tracer = tracer_provider.tracer("goose");
     *TRACER_PROVIDER.lock().unwrap_or_else(|e| e.into_inner()) = Some(tracer_provider);
 
