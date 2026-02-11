@@ -1,7 +1,6 @@
 use opentelemetry::trace::TracerProvider;
 use opentelemetry::{global, KeyValue};
 use opentelemetry_appender_tracing::layer::OpenTelemetryTracingBridge;
-use opentelemetry_otlp::WithExportConfig;
 use opentelemetry_sdk::logs::{SdkLogger, SdkLoggerProvider};
 use opentelemetry_sdk::metrics::SdkMeterProvider;
 use opentelemetry_sdk::propagation::TraceContextPropagator;
@@ -9,12 +8,11 @@ use opentelemetry_sdk::resource::{EnvResourceDetector, TelemetryResourceDetector
 use opentelemetry_sdk::trace::SdkTracerProvider;
 use opentelemetry_sdk::Resource;
 use std::sync::Mutex;
-use std::time::Duration;
 use tracing::{Level, Metadata};
 use tracing_opentelemetry::{MetricsLayer, OpenTelemetryLayer};
 use tracing_subscriber::filter::FilterFn;
 
-use super::otel_config::{ExporterType, OtelConfig};
+use super::otel_config::{signal_exporter, ExporterType};
 
 pub type OtlpTracingLayer =
     OpenTelemetryLayer<tracing_subscriber::Registry, opentelemetry_sdk::trace::Tracer>;
@@ -26,30 +24,34 @@ static TRACER_PROVIDER: Mutex<Option<SdkTracerProvider>> = Mutex::new(None);
 static METER_PROVIDER: Mutex<Option<SdkMeterProvider>> = Mutex::new(None);
 static LOGGER_PROVIDER: Mutex<Option<SdkLoggerProvider>> = Mutex::new(None);
 
-#[derive(Debug, Clone)]
-pub struct OtlpConfig {
-    pub endpoint: Option<String>,
-    pub timeout: Option<Duration>,
+/// Promotes goose config-file OTel settings to env vars so the SDK handles
+/// endpoint resolution correctly (e.g. appending /v1/traces to the base URL).
+///
+/// This must be called before creating any exporters. The SDK reads env vars
+/// during exporter build, so we set them here rather than using programmatic
+/// `with_endpoint()` which bypasses the SDK's signal-path appending logic.
+pub fn promote_config_to_env() {
+    let config = crate::config::Config::global();
+    let endpoint = config
+        .get_param::<String>("otel_exporter_otlp_endpoint")
+        .ok();
+    let timeout = config
+        .get_param::<u64>("otel_exporter_otlp_timeout")
+        .ok()
+        .map(|t| t.to_string());
+    promote_to_env(endpoint.as_deref(), timeout.as_deref());
 }
 
-impl OtlpConfig {
-    pub fn from_config() -> Option<Self> {
-        let config = crate::config::Config::global();
-
-        let endpoint = config
-            .get_param::<String>("otel_exporter_otlp_endpoint")
-            .ok();
-
-        let timeout = config
-            .get_param::<u64>("otel_exporter_otlp_timeout")
-            .ok()
-            .map(Duration::from_millis);
-
-        if endpoint.is_none() && timeout.is_none() {
-            return None;
+fn promote_to_env(endpoint: Option<&str>, timeout: Option<&str>) {
+    if let Some(endpoint) = endpoint {
+        if std::env::var("OTEL_EXPORTER_OTLP_ENDPOINT").is_err() {
+            std::env::set_var("OTEL_EXPORTER_OTLP_ENDPOINT", endpoint);
         }
-
-        Some(Self { endpoint, timeout })
+    }
+    if let Some(timeout) = timeout {
+        if std::env::var("OTEL_EXPORTER_OTLP_TIMEOUT").is_err() {
+            std::env::set_var("OTEL_EXPORTER_OTLP_TIMEOUT", timeout);
+        }
     }
 }
 
@@ -74,23 +76,14 @@ fn create_resource() -> Resource {
 }
 
 pub fn create_otlp_tracing_layer() -> OtlpResult<OtlpTracingLayer> {
-    let otel_config = OtelConfig::detect().ok_or("OTel not configured")?;
-    let signal = otel_config.traces.ok_or("Traces not enabled")?;
+    let exporter = signal_exporter("traces").ok_or("Traces not enabled")?;
     let resource = create_resource();
-    let config_file = OtlpConfig::from_config();
 
-    let tracer_provider = match signal.exporter {
+    let tracer_provider = match exporter {
         ExporterType::Otlp => {
-            let mut builder = opentelemetry_otlp::SpanExporter::builder().with_http();
-            if let Some(ref cfg) = config_file {
-                if let Some(ref endpoint) = cfg.endpoint {
-                    builder = builder.with_endpoint(endpoint);
-                }
-                if let Some(timeout) = cfg.timeout {
-                    builder = builder.with_timeout(timeout);
-                }
-            }
-            let exporter = builder.build()?;
+            let exporter = opentelemetry_otlp::SpanExporter::builder()
+                .with_http()
+                .build()?;
             SdkTracerProvider::builder()
                 .with_batch_exporter(exporter)
                 .with_resource(resource)
@@ -113,23 +106,14 @@ pub fn create_otlp_tracing_layer() -> OtlpResult<OtlpTracingLayer> {
 }
 
 pub fn create_otlp_metrics_layer() -> OtlpResult<OtlpMetricsLayer> {
-    let otel_config = OtelConfig::detect().ok_or("OTel not configured")?;
-    let signal = otel_config.metrics.ok_or("Metrics not enabled")?;
+    let exporter = signal_exporter("metrics").ok_or("Metrics not enabled")?;
     let resource = create_resource();
-    let config_file = OtlpConfig::from_config();
 
-    let meter_provider = match signal.exporter {
+    let meter_provider = match exporter {
         ExporterType::Otlp => {
-            let mut builder = opentelemetry_otlp::MetricExporter::builder().with_http();
-            if let Some(ref cfg) = config_file {
-                if let Some(ref endpoint) = cfg.endpoint {
-                    builder = builder.with_endpoint(endpoint);
-                }
-                if let Some(timeout) = cfg.timeout {
-                    builder = builder.with_timeout(timeout);
-                }
-            }
-            let exporter = builder.build()?;
+            let exporter = opentelemetry_otlp::MetricExporter::builder()
+                .with_http()
+                .build()?;
             SdkMeterProvider::builder()
                 .with_resource(resource)
                 .with_periodic_exporter(exporter)
@@ -152,23 +136,14 @@ pub fn create_otlp_metrics_layer() -> OtlpResult<OtlpMetricsLayer> {
 }
 
 pub fn create_otlp_logs_layer() -> OtlpResult<OtlpLogsLayer> {
-    let otel_config = OtelConfig::detect().ok_or("OTel not configured")?;
-    let signal = otel_config.logs.ok_or("Logs not enabled")?;
+    let exporter = signal_exporter("logs").ok_or("Logs not enabled")?;
     let resource = create_resource();
-    let config_file = OtlpConfig::from_config();
 
-    let logger_provider = match signal.exporter {
+    let logger_provider = match exporter {
         ExporterType::Otlp => {
-            let mut builder = opentelemetry_otlp::LogExporter::builder().with_http();
-            if let Some(ref cfg) = config_file {
-                if let Some(ref endpoint) = cfg.endpoint {
-                    builder = builder.with_endpoint(endpoint);
-                }
-                if let Some(timeout) = cfg.timeout {
-                    builder = builder.with_timeout(timeout);
-                }
-            }
-            let exporter = builder.build()?;
+            let exporter = opentelemetry_otlp::LogExporter::builder()
+                .with_http()
+                .build()?;
             SdkLoggerProvider::builder()
                 .with_batch_exporter(exporter)
                 .with_resource(resource)
@@ -290,68 +265,20 @@ pub fn shutdown_otlp() {
 
 #[cfg(test)]
 mod tests {
+    use super::super::otel_config::clear_otel_env;
     use super::*;
-    use tempfile::NamedTempFile;
     use test_case::test_case;
-
-    #[test]
-    fn test_otlp_config_from_config() {
-        let _guard = env_lock::lock_env([
-            ("OTEL_EXPORTER_OTLP_ENDPOINT", None::<&str>),
-            ("OTEL_EXPORTER_OTLP_TIMEOUT", None::<&str>),
-        ]);
-
-        let temp_file = NamedTempFile::new().unwrap();
-        let test_config = crate::config::Config::new(temp_file.path(), "test-otlp").unwrap();
-
-        test_config
-            .set_param("otel_exporter_otlp_endpoint", "http://config:4318")
-            .unwrap();
-        test_config
-            .set_param("otel_exporter_otlp_timeout", 3000)
-            .unwrap();
-
-        let endpoint: String = test_config
-            .get_param("otel_exporter_otlp_endpoint")
-            .unwrap();
-        assert_eq!(endpoint, "http://config:4318");
-
-        let timeout: u64 = test_config.get_param("otel_exporter_otlp_timeout").unwrap();
-        assert_eq!(timeout, 3000);
-    }
-
-    #[test_case(Some("true"), None, None, None, None; "sdk disabled")]
-    #[test_case(None, Some("none"), Some("none"), Some("none"), None; "all none")]
-    fn test_all_layers_err(
-        sdk_disabled: Option<&str>,
-        traces: Option<&str>,
-        metrics: Option<&str>,
-        logs: Option<&str>,
-        _endpoint: Option<&str>,
-    ) {
-        let _guard = env_lock::lock_env([
-            ("OTEL_SDK_DISABLED", sdk_disabled),
-            ("OTEL_TRACES_EXPORTER", traces),
-            ("OTEL_METRICS_EXPORTER", metrics),
-            ("OTEL_LOGS_EXPORTER", logs),
-            ("OTEL_EXPORTER_OTLP_ENDPOINT", _endpoint),
-        ]);
-        assert!(create_otlp_tracing_layer().is_err());
-        assert!(create_otlp_metrics_layer().is_err());
-        assert!(create_otlp_logs_layer().is_err());
-    }
 
     #[test_case("console"; "console")]
     #[test_case("otlp"; "otlp")]
     fn test_all_layers_ok(exporter: &str) {
         let rt = tokio::runtime::Runtime::new().unwrap();
         let _guard = rt.enter();
-        let _env = env_lock::lock_env([
-            ("OTEL_SDK_DISABLED", None::<&str>),
-            ("OTEL_TRACES_EXPORTER", Some(exporter)),
-            ("OTEL_METRICS_EXPORTER", Some(exporter)),
-            ("OTEL_LOGS_EXPORTER", Some(exporter)),
-            ("OTEL_EXPORTER_OTLP_ENDPOINT", Some("http://localhost:4318")),
+        let _env = clear_otel_env(&[
+            ("OTEL_TRACES_EXPORTER", exporter),
+            ("OTEL_METRICS_EXPORTER", exporter),
+            ("OTEL_LOGS_EXPORTER", exporter),
+            ("OTEL_EXPORTER_OTLP_ENDPOINT", "http://localhost:4318"),
         ]);
         assert!(create_otlp_tracing_layer().is_ok());
         assert!(create_otlp_metrics_layer().is_ok());
@@ -360,7 +287,7 @@ mod tests {
     }
 
     #[test_case(
-        vec![("OTEL_SERVICE_NAME", None), ("OTEL_RESOURCE_ATTRIBUTES", None)],
+        &[],
         Resource::builder_empty()
             .with_attributes([KeyValue::new("service.name", "goose"), KeyValue::new("service.version", env!("CARGO_PKG_VERSION")), KeyValue::new("service.namespace", "goose")])
             .with_detector(Box::new(TelemetryResourceDetector))
@@ -368,7 +295,7 @@ mod tests {
         "no env vars uses goose defaults"
     )]
     #[test_case(
-        vec![("OTEL_SERVICE_NAME", Some("custom")), ("OTEL_RESOURCE_ATTRIBUTES", None)],
+        &[("OTEL_SERVICE_NAME", "custom")],
         Resource::builder_empty()
             .with_attributes([KeyValue::new("service.name", "goose"), KeyValue::new("service.version", env!("CARGO_PKG_VERSION")), KeyValue::new("service.namespace", "goose")])
             .with_detector(Box::new(TelemetryResourceDetector))
@@ -377,7 +304,7 @@ mod tests {
         "OTEL_SERVICE_NAME overrides service.name"
     )]
     #[test_case(
-        vec![("OTEL_SERVICE_NAME", None), ("OTEL_RESOURCE_ATTRIBUTES", Some("deployment.environment=prod"))],
+        &[("OTEL_RESOURCE_ATTRIBUTES", "deployment.environment=prod")],
         Resource::builder_empty()
             .with_attributes([KeyValue::new("service.name", "goose"), KeyValue::new("service.version", env!("CARGO_PKG_VERSION")), KeyValue::new("service.namespace", "goose")])
             .with_detector(Box::new(TelemetryResourceDetector))
@@ -386,7 +313,7 @@ mod tests {
         "OTEL_RESOURCE_ATTRIBUTES adds custom attributes"
     )]
     #[test_case(
-        vec![("OTEL_SERVICE_NAME", Some("custom")), ("OTEL_RESOURCE_ATTRIBUTES", Some("deployment.environment=prod"))],
+        &[("OTEL_SERVICE_NAME", "custom"), ("OTEL_RESOURCE_ATTRIBUTES", "deployment.environment=prod")],
         Resource::builder_empty()
             .with_attributes([KeyValue::new("service.name", "goose"), KeyValue::new("service.version", env!("CARGO_PKG_VERSION")), KeyValue::new("service.namespace", "goose")])
             .with_detector(Box::new(TelemetryResourceDetector))
@@ -395,8 +322,45 @@ mod tests {
             .build();
         "OTEL_SERVICE_NAME and OTEL_RESOURCE_ATTRIBUTES combine"
     )]
-    fn test_create_resource(env: Vec<(&str, Option<&str>)>, expected: Resource) {
-        let _guard = env_lock::lock_env(env);
+    fn test_create_resource(env: &[(&str, &str)], expected: Resource) {
+        let _guard = clear_otel_env(env);
         assert_eq!(create_resource(), expected);
+    }
+
+    #[test_case(
+        &[],
+        Some("http://config:4318"), Some("5000"),
+        Some("http://config:4318"), Some("5000");
+        "config promotes to env when unset"
+    )]
+    #[test_case(
+        &[("OTEL_EXPORTER_OTLP_ENDPOINT", "http://env:4318"), ("OTEL_EXPORTER_OTLP_TIMEOUT", "3000")],
+        Some("http://config:4318"), Some("5000"),
+        Some("http://env:4318"), Some("3000");
+        "env var takes precedence over config"
+    )]
+    #[test_case(
+        &[],
+        None, None,
+        None, None;
+        "no config leaves env unset"
+    )]
+    fn test_promote_to_env(
+        env: &[(&str, &str)],
+        cfg_endpoint: Option<&str>,
+        cfg_timeout: Option<&str>,
+        expect_endpoint: Option<&str>,
+        expect_timeout: Option<&str>,
+    ) {
+        let _guard = clear_otel_env(env);
+        promote_to_env(cfg_endpoint, cfg_timeout);
+        assert_eq!(
+            std::env::var("OTEL_EXPORTER_OTLP_ENDPOINT").ok().as_deref(),
+            expect_endpoint
+        );
+        assert_eq!(
+            std::env::var("OTEL_EXPORTER_OTLP_TIMEOUT").ok().as_deref(),
+            expect_timeout
+        );
     }
 }

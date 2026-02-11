@@ -54,6 +54,7 @@ pub fn setup_logging(name: Option<&str>) -> Result<()> {
         console_layer.with_filter(base_env_filter).boxed(),
     ];
 
+    otlp_layer::promote_config_to_env();
     otlp_layer::init_otel_propagation();
 
     if let Ok(otlp_tracing_layer) = otlp_layer::create_otlp_tracing_layer() {

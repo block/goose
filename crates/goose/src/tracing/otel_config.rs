@@ -17,132 +17,72 @@ impl ExporterType {
     }
 }
 
-#[derive(Debug, Clone)]
-pub struct SignalConfig {
-    pub exporter: ExporterType,
-}
-
-#[derive(Debug, PartialEq)]
-pub struct OtelEnv {
-    pub traces_enabled: bool,
-    pub metrics_enabled: bool,
-    pub logs_enabled: bool,
-    traces_exporter: Option<ExporterType>,
-    metrics_exporter: Option<ExporterType>,
-    logs_exporter: Option<ExporterType>,
-}
-
-impl OtelEnv {
-    pub fn detect() -> Option<Self> {
-        if env::var("OTEL_SDK_DISABLED")
-            .ok()
-            .is_some_and(|v| v.eq_ignore_ascii_case("true"))
-        {
-            return None;
-        }
-
-        let traces_exporter = env::var("OTEL_TRACES_EXPORTER")
-            .ok()
-            .map(|v| ExporterType::from_env_value(&v));
-        let metrics_exporter = env::var("OTEL_METRICS_EXPORTER")
-            .ok()
-            .map(|v| ExporterType::from_env_value(&v));
-        let logs_exporter = env::var("OTEL_LOGS_EXPORTER")
-            .ok()
-            .map(|v| ExporterType::from_env_value(&v));
-
-        let has_endpoint = env::var("OTEL_EXPORTER_OTLP_ENDPOINT").ok().is_some();
-
-        let traces_enabled = traces_exporter
-            .as_ref()
-            .is_some_and(|e| !matches!(e, ExporterType::None))
-            || (has_endpoint && traces_exporter.is_none());
-        let metrics_enabled = metrics_exporter
-            .as_ref()
-            .is_some_and(|e| !matches!(e, ExporterType::None))
-            || (has_endpoint && metrics_exporter.is_none());
-        let logs_enabled = logs_exporter
-            .as_ref()
-            .is_some_and(|e| !matches!(e, ExporterType::None))
-            || (has_endpoint && logs_exporter.is_none());
-
-        if !traces_enabled && !metrics_enabled && !logs_enabled {
-            return None;
-        }
-
-        Some(Self {
-            traces_enabled,
-            metrics_enabled,
-            logs_enabled,
-            traces_exporter,
-            metrics_exporter,
-            logs_exporter,
-        })
+/// Clears all OTel env vars, then applies only the given overrides.
+/// Returns an `EnvGuard` that restores everything on drop.
+#[cfg(test)]
+pub(crate) fn clear_otel_env(overrides: &[(&str, &str)]) -> env_lock::EnvGuard<'static> {
+    let guard = env_lock::lock_env([
+        ("OTEL_SDK_DISABLED", None::<&str>),
+        ("OTEL_TRACES_EXPORTER", None),
+        ("OTEL_METRICS_EXPORTER", None),
+        ("OTEL_LOGS_EXPORTER", None),
+        ("OTEL_EXPORTER_OTLP_ENDPOINT", None),
+        ("OTEL_EXPORTER_OTLP_TRACES_ENDPOINT", None),
+        ("OTEL_EXPORTER_OTLP_METRICS_ENDPOINT", None),
+        ("OTEL_EXPORTER_OTLP_LOGS_ENDPOINT", None),
+        ("OTEL_EXPORTER_OTLP_TIMEOUT", None),
+        ("OTEL_SERVICE_NAME", None),
+        ("OTEL_RESOURCE_ATTRIBUTES", None),
+    ]);
+    for &(k, v) in overrides {
+        std::env::set_var(k, v);
     }
+    guard
 }
 
-#[derive(Debug, Clone)]
-pub struct OtelConfig {
-    pub traces: Option<SignalConfig>,
-    pub metrics: Option<SignalConfig>,
-    pub logs: Option<SignalConfig>,
-}
-
-impl OtelConfig {
-    pub fn detect() -> Option<Self> {
-        if let Some(env) = OtelEnv::detect() {
-            let traces = if env.traces_enabled {
-                Some(SignalConfig {
-                    exporter: env.traces_exporter.unwrap_or(ExporterType::Otlp),
-                })
-            } else {
-                None
-            };
-            let metrics = if env.metrics_enabled {
-                Some(SignalConfig {
-                    exporter: env.metrics_exporter.unwrap_or(ExporterType::Otlp),
-                })
-            } else {
-                None
-            };
-            let logs = if env.logs_enabled {
-                Some(SignalConfig {
-                    exporter: env.logs_exporter.unwrap_or(ExporterType::Otlp),
-                })
-            } else {
-                None
-            };
-            return Some(Self {
-                traces,
-                metrics,
-                logs,
-            });
-        }
-
-        Self::detect_from_config()
+/// Returns the exporter type for a signal, or None if disabled.
+///
+/// Checks in order:
+/// 1. OTEL_SDK_DISABLED — disables everything
+/// 2. OTEL_{SIGNAL}_EXPORTER — explicit exporter selection ("none" disables)
+/// 3. OTEL_EXPORTER_OTLP_{SIGNAL}_ENDPOINT or OTEL_EXPORTER_OTLP_ENDPOINT — enables OTLP
+pub fn signal_exporter(signal: &str) -> Option<ExporterType> {
+    if env::var("OTEL_SDK_DISABLED")
+        .ok()
+        .is_some_and(|v| v.eq_ignore_ascii_case("true"))
+    {
+        return None;
     }
 
-    fn detect_from_config() -> Option<Self> {
-        let config = crate::config::Config::global();
-        config
-            .get_param::<String>("otel_exporter_otlp_endpoint")
+    let exporter_var = format!("OTEL_{}_EXPORTER", signal.to_uppercase());
+    if let Ok(val) = env::var(&exporter_var) {
+        let typ = ExporterType::from_env_value(&val);
+        return if matches!(typ, ExporterType::None) {
+            None
+        } else {
+            Some(typ)
+        };
+    }
+
+    let signal_endpoint = format!("OTEL_EXPORTER_OTLP_{}_ENDPOINT", signal.to_uppercase());
+    let has_endpoint = env::var(&signal_endpoint)
+        .ok()
+        .is_some_and(|v| !v.is_empty())
+        || env::var("OTEL_EXPORTER_OTLP_ENDPOINT")
             .ok()
-            .map(|_| {
-                let signal = SignalConfig {
-                    exporter: ExporterType::Otlp,
-                };
-                Self {
-                    traces: Some(signal.clone()),
-                    metrics: Some(signal.clone()),
-                    logs: Some(signal),
-                }
-            })
+            .is_some_and(|v| !v.is_empty());
+
+    if has_endpoint {
+        Some(ExporterType::Otlp)
+    } else {
+        None
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use test_case::test_case;
 
     #[test]
     fn exporter_type_from_env_value() {
@@ -162,57 +102,37 @@ mod tests {
         assert_eq!(ExporterType::from_env_value("unknown"), ExporterType::None);
     }
 
-    mod otel_env {
-        use super::*;
-        use test_case::test_case;
+    #[test_case(&[("OTEL_SDK_DISABLED", "true")]; "OTEL_SDK_DISABLED disables all signals")]
+    #[test_case(&[]; "no env vars returns None")]
+    fn signal_exporter_disabled(env: &[(&str, &str)]) {
+        let _guard = clear_otel_env(env);
+        assert!(signal_exporter("traces").is_none());
+        assert!(signal_exporter("metrics").is_none());
+        assert!(signal_exporter("logs").is_none());
+    }
 
-        #[test_case(Some("true"), Some("console"), None, None, None; "sdk disabled")]
-        #[test_case(None, None, None, None, None; "no vars")]
-        #[test_case(None, Some("none"), Some("none"), Some("none"), None; "all none")]
-        fn detect_returns_none(
-            sdk_disabled: Option<&str>,
-            traces: Option<&str>,
-            metrics: Option<&str>,
-            logs: Option<&str>,
-            endpoint: Option<&str>,
-        ) {
-            let _guard = env_lock::lock_env([
-                ("OTEL_SDK_DISABLED", sdk_disabled),
-                ("OTEL_TRACES_EXPORTER", traces),
-                ("OTEL_METRICS_EXPORTER", metrics),
-                ("OTEL_LOGS_EXPORTER", logs),
-                ("OTEL_EXPORTER_OTLP_ENDPOINT", endpoint),
-            ]);
-            assert!(OtelEnv::detect().is_none());
-        }
+    #[test_case("traces",  &[("OTEL_TRACES_EXPORTER", "console")], Some(ExporterType::Console); "OTEL_TRACES_EXPORTER=console")]
+    #[test_case("traces",  &[("OTEL_TRACES_EXPORTER", "none")],    None;                        "OTEL_TRACES_EXPORTER=none")]
+    #[test_case("traces",  &[("OTEL_TRACES_EXPORTER", "otlp")],    Some(ExporterType::Otlp);    "OTEL_TRACES_EXPORTER=otlp")]
+    #[test_case("metrics", &[("OTEL_METRICS_EXPORTER", "console")], Some(ExporterType::Console); "OTEL_METRICS_EXPORTER=console")]
+    #[test_case("logs",    &[("OTEL_LOGS_EXPORTER", "none")],       None;                        "OTEL_LOGS_EXPORTER=none")]
+    fn signal_exporter_by_var(signal: &str, env: &[(&str, &str)], expected: Option<ExporterType>) {
+        let _guard = clear_otel_env(env);
+        assert_eq!(signal_exporter(signal), expected);
+    }
 
-        #[test_case(Some("console"), None, None, None, true, false, false; "traces only")]
-        #[test_case(None, Some("otlp"), None, None, false, true, false; "metrics only")]
-        #[test_case(None, None, Some("console"), None, false, false, true; "logs only")]
-        #[test_case(Some("otlp"), Some("console"), Some("otlp"), None, true, true, true; "all enabled")]
-        #[test_case(Some("console"), Some("none"), Some("otlp"), None, true, false, true; "mixed")]
-        #[test_case(None, None, None, Some("http://localhost:4318"), true, true, true; "endpoint enables all signals")]
-        #[test_case(Some("none"), None, None, Some("http://localhost:4318"), false, true, true; "endpoint with traces none")]
-        fn detect(
-            traces: Option<&str>,
-            metrics: Option<&str>,
-            logs: Option<&str>,
-            endpoint: Option<&str>,
-            expect_traces: bool,
-            expect_metrics: bool,
-            expect_logs: bool,
-        ) {
-            let _guard = env_lock::lock_env([
-                ("OTEL_SDK_DISABLED", None::<&str>),
-                ("OTEL_TRACES_EXPORTER", traces),
-                ("OTEL_METRICS_EXPORTER", metrics),
-                ("OTEL_LOGS_EXPORTER", logs),
-                ("OTEL_EXPORTER_OTLP_ENDPOINT", endpoint),
-            ]);
-            let env = OtelEnv::detect().unwrap();
-            assert_eq!(env.traces_enabled, expect_traces);
-            assert_eq!(env.metrics_enabled, expect_metrics);
-            assert_eq!(env.logs_enabled, expect_logs);
-        }
+    #[test_case("traces",  &[("OTEL_EXPORTER_OTLP_ENDPOINT", "http://localhost:4318")],        Some(ExporterType::Otlp); "generic endpoint enables traces")]
+    #[test_case("traces",  &[("OTEL_EXPORTER_OTLP_TRACES_ENDPOINT", "http://localhost:4318")],  Some(ExporterType::Otlp); "signal-specific endpoint enables traces")]
+    #[test_case("metrics", &[("OTEL_EXPORTER_OTLP_METRICS_ENDPOINT", "http://localhost:4318")], Some(ExporterType::Otlp); "signal-specific endpoint enables metrics")]
+    #[test_case("traces",  &[("OTEL_EXPORTER_OTLP_METRICS_ENDPOINT", "http://localhost:4318")], None;                     "metrics endpoint does not enable traces")]
+    #[test_case("traces",  &[("OTEL_TRACES_EXPORTER", "none"), ("OTEL_EXPORTER_OTLP_ENDPOINT", "http://localhost:4318")], None; "OTEL_TRACES_EXPORTER=none overrides endpoint")]
+    #[test_case("traces",  &[("OTEL_EXPORTER_OTLP_ENDPOINT", "")],                              None;                     "empty endpoint returns None")]
+    fn signal_exporter_endpoints(
+        signal: &str,
+        env: &[(&str, &str)],
+        expected: Option<ExporterType>,
+    ) {
+        let _guard = clear_otel_env(env);
+        assert_eq!(signal_exporter(signal), expected);
     }
 }
