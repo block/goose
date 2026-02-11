@@ -12,15 +12,6 @@ import type { Content } from '../../api';
  */
 export type SandboxPermissions = string;
 
-/**
- * Display modes for MCP apps in Goose.
- *
- * Extends the SDK's McpUiDisplayMode with Goose-specific modes:
- * - `inline`: Embedded in chat flow (default)
- * - `fullscreen`: Takes over the current Goose window with close button
- * - `pip`: Picture-in-picture floating window
- * - `standalone`: Rendered in a separate Electron window
- */
 export type GooseDisplayMode = McpUiDisplayMode | 'standalone';
 
 /**

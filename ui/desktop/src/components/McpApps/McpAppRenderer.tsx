@@ -88,13 +88,6 @@ interface McpAppRendererProps {
   toolCancelled?: ToolCancelled;
   /** Callback to append text to the chat (for onMessage handler) */
   append?: (text: string) => void;
-  /**
-   * Display mode for the MCP app.
-   * - `inline`: Embedded in chat flow (default)
-   * - `fullscreen`: Takes over the current Goose window
-   * - `pip`: Picture-in-picture floating window
-   * - `standalone`: Rendered in a separate Electron window
-   */
   displayMode?: GooseDisplayMode;
   /** Pre-cached HTML to show immediately while fetching fresh content */
   cachedHtml?: string;
@@ -366,16 +359,6 @@ export default function McpAppRenderer({
     setError(errorMessage(err));
   }, []);
 
-  // TODO: Add onFallbackRequest handler when SDK supports it
-  //  https://github.com/MCP-UI-Org/mcp-ui/pull/176
-  // const handleFallbackRequest = useCallback(async (method: string, params: unknown) => {
-  //   switch (method) {
-  //     case 'sampling/createMessage':
-  //       // TODO: Call goosed sampling endpoint
-  //       break;
-  //   }
-  // }, []);
-
   // Forward CSP to the SDK. Uses sandboxCsp (captured at fetch time) to keep config stable.
   const mcpUiCsp = useMemo((): McpUiResourceCsp | undefined => {
     if (!sandboxCsp) return undefined;
@@ -487,10 +470,6 @@ export default function McpAppRenderer({
         onLoggingMessage={handleLoggingMessage}
         onSizeChanged={handleSizeChanged}
         onError={handleError}
-        // todo: add expected props from client SDK when available
-        // onFallbackRequest={handleFallbackRequest}
-        // hostInfo={hostInfo}
-        // hostCapabilities={hostCapabilities}
       />
     );
   };
