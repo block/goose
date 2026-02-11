@@ -128,15 +128,14 @@ impl AzureAuth {
         }
 
         // Get new token using Azure CLI credential
-        let mut cmd = tokio::process::Command::new("az");
-        cmd.args([
-            "account",
-            "get-access-token",
-            "--resource",
-            "https://cognitiveservices.azure.com",
-        ]);
-        cmd.set_no_window();
-        let output = cmd
+        let output = tokio::process::Command::new("az")
+            .args([
+                "account",
+                "get-access-token",
+                "--resource",
+                "https://cognitiveservices.azure.com",
+            ])
+            .set_no_window()
             .output()
             .await
             .map_err(|e| AuthError::TokenExchange(format!("Failed to execute Azure CLI: {}", e)))?;

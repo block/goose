@@ -704,37 +704,39 @@ impl ComputerControllerServer {
         let output = match language {
             ScriptLanguage::Powershell => {
                 // For PowerShell, we need to use -File instead of -Command
-                let mut cmd = Command::new("powershell");
-                cmd.arg("-NoProfile")
+                Command::new("powershell")
+                    .arg("-NoProfile")
                     .arg("-NonInteractive")
                     .arg("-File")
                     .arg(&command)
                     .env("GOOSE_TERMINAL", "1")
-                    .env("AGENT", "goose");
-                cmd.set_no_window();
-                cmd.output().await.map_err(|e| {
+                    .env("AGENT", "goose")
+                    .set_no_window()
+                    .output()
+                    .await
+                    .map_err(|e| {
+                        ErrorData::new(
+                            ErrorCode::INTERNAL_ERROR,
+                            format!("Failed to run script: {}", e),
+                            None,
+                        )
+                    })?
+            }
+            _ => Command::new(shell)
+                .arg(shell_arg)
+                .arg(&command)
+                .env("GOOSE_TERMINAL", "1")
+                .env("AGENT", "goose")
+                .set_no_window()
+                .output()
+                .await
+                .map_err(|e| {
                     ErrorData::new(
                         ErrorCode::INTERNAL_ERROR,
                         format!("Failed to run script: {}", e),
                         None,
                     )
-                })?
-            }
-            _ => {
-                let mut cmd = Command::new(shell);
-                cmd.arg(shell_arg)
-                    .arg(&command)
-                    .env("GOOSE_TERMINAL", "1")
-                    .env("AGENT", "goose");
-                cmd.set_no_window();
-                cmd.output().await.map_err(|e| {
-                    ErrorData::new(
-                        ErrorCode::INTERNAL_ERROR,
-                        format!("Failed to run script: {}", e),
-                        None,
-                    )
-                })?
-            }
+                })?,
         };
 
         let output_str = String::from_utf8_lossy(&output.stdout).into_owned();

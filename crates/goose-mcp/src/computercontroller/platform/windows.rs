@@ -7,15 +7,15 @@ pub struct WindowsAutomation;
 
 impl SystemAutomation for WindowsAutomation {
     fn execute_system_script(&self, script: &str) -> std::io::Result<String> {
-        let mut cmd = Command::new("powershell");
-        cmd.arg("-NoProfile")
+        let output = Command::new("powershell")
+            .arg("-NoProfile")
             .arg("-NonInteractive")
             .arg("-Command")
             .arg(script)
             .env("GOOSE_TERMINAL", "1")
-            .env("AGENT", "goose");
-        cmd.set_no_window();
-        let output = cmd.output()?;
+            .env("AGENT", "goose")
+            .set_no_window()
+            .output()?;
 
         Ok(String::from_utf8_lossy(&output.stdout).into_owned())
     }

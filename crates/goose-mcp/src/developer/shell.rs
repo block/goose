@@ -177,10 +177,11 @@ pub async fn kill_process_group(
     {
         if let Some(pid) = pid {
             // Use taskkill to kill the process tree on Windows
-            let mut kill_cmd = tokio::process::Command::new("taskkill");
-            kill_cmd.args(&["/F", "/T", "/PID", &pid.to_string()]);
-            kill_cmd.set_no_window();
-            let _kill_result = kill_cmd.output().await;
+            let _kill_result = tokio::process::Command::new("taskkill")
+                .args(&["/F", "/T", "/PID", &pid.to_string()])
+                .set_no_window()
+                .output()
+                .await;
         }
 
         // Return the result of tokio's kill

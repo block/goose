@@ -141,10 +141,10 @@ fn get_platform_version() -> Option<String> {
     }
     #[cfg(target_os = "windows")]
     {
-        let mut cmd = std::process::Command::new("cmd");
-        cmd.args(["/C", "ver"]);
-        cmd.set_no_window();
-        cmd.output()
+        std::process::Command::new("cmd")
+            .args(["/C", "ver"])
+            .set_no_window()
+            .output()
             .ok()
             .and_then(|o| String::from_utf8(o.stdout).ok())
             .map(|s| s.trim().to_string())

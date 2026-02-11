@@ -169,16 +169,14 @@ pub fn run_status_hook(status: &str) {
         let status = status.to_string();
         std::thread::spawn(move || {
             #[cfg(target_os = "windows")]
-            let result = {
-                let mut cmd = std::process::Command::new("cmd");
-                cmd.arg("/C")
-                    .arg(format!("{} {}", hook, status))
-                    .stdin(std::process::Stdio::null())
-                    .stdout(std::process::Stdio::null())
-                    .stderr(std::process::Stdio::null());
-                cmd.set_no_window();
-                cmd.status()
-            };
+            let result = std::process::Command::new("cmd")
+                .arg("/C")
+                .arg(format!("{} {}", hook, status))
+                .stdin(std::process::Stdio::null())
+                .stdout(std::process::Stdio::null())
+                .stderr(std::process::Stdio::null())
+                .set_no_window()
+                .status();
 
             #[cfg(not(target_os = "windows"))]
             let result = std::process::Command::new("sh")
