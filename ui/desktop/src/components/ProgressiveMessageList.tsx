@@ -19,6 +19,7 @@ import { Message } from '../api';
 import GooseMessage from './GooseMessage';
 import UserMessage from './UserMessage';
 import { SystemNotificationInline } from './context_management/SystemNotificationInline';
+import { CreditsExhaustedNotification } from './context_management/CreditsExhaustedNotification';
 import { NotificationEvent } from '../types/message';
 import LoadingGoose from './LoadingGoose';
 import { ChatType } from '../types/chat';
@@ -75,6 +76,13 @@ export default function ProgressiveMessageList({
     return message.content.some(
       (content) =>
         content.type === 'systemNotification' && content.notificationType === 'inlineMessage'
+    );
+  };
+
+  const hasCreditsExhaustedNotification = (message: Message): boolean => {
+    return message.content.some(
+      (content) =>
+        content.type === 'systemNotification' && content.notificationType === 'creditsExhausted'
     );
   };
 
@@ -189,6 +197,18 @@ export default function ProgressiveMessageList({
         }
 
         // System notifications are never user messages, handle them first
+        if (hasCreditsExhaustedNotification(message)) {
+          return (
+            <div
+              key={message.id ?? `msg-${index}-${message.created}`}
+              className={`relative ${index === 0 ? 'mt-0' : 'mt-4'} assistant`}
+              data-testid="message-container"
+            >
+              <CreditsExhaustedNotification message={message} />
+            </div>
+          );
+        }
+
         if (hasInlineSystemNotification(message)) {
           return (
             <div
