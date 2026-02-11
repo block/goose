@@ -2,6 +2,7 @@ use crate::agents::apps_extension;
 use crate::agents::chatrecall_extension;
 use crate::agents::code_execution_extension;
 use crate::agents::extension_manager_extension;
+use crate::agents::reader_extension;
 use crate::agents::summon_extension;
 use crate::agents::todo_extension;
 use crate::agents::tom_extension;
@@ -136,6 +137,21 @@ pub static PLATFORM_EXTENSIONS: Lazy<HashMap<&'static str, PlatformExtensionDef>
                 default_enabled: true,
                 unprefixed_tools: false,
                 client_factory: |ctx| Box::new(tom_extension::TomClient::new(ctx).unwrap()),
+            },
+        );
+
+        map.insert(
+            reader_extension::EXTENSION_NAME,
+            PlatformExtensionDef {
+                name: reader_extension::EXTENSION_NAME,
+                display_name: "Reader",
+                description:
+                    "Read-only filesystem access for sandboxed delegates. View files and list directories within the working directory.",
+                default_enabled: false,
+                unprefixed_tools: false,
+                client_factory: |ctx| {
+                    Box::new(reader_extension::ReaderClient::new(ctx).unwrap())
+                },
             },
         );
 
