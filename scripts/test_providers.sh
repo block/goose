@@ -203,7 +203,7 @@ if [ "$CODE_EXEC_MODE" = true ]; then
 else
   echo "Mode: normal (direct tool calls)"
   BUILTINS="developer,autovisualiser,computercontroller,tutorial,todo,extensionmanager"
-  SUCCESS_PATTERN="shell \| developer"
+  SUCCESS_PATTERN="(shell \| developer)|(▸.*shell.*developer)"
   SUCCESS_MSG="developer tool called"
   FAILURE_MSG="no developer tools called"
 fi
