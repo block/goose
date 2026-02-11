@@ -54,7 +54,7 @@ FRONTEND_CONFIG = {
     "name": "pythonclient",
     "type": "frontend",
     "tools": [CALCULATOR_TOOL, ENABLE_EXTENSION_TOOL],
-    "instructions": "A calculator extension that can perform basic arithmetic operations. Use enable extension tool to add extesions such as fetch, pdf reader, etc.",
+    "instructions": "A calculator extension that can perform basic arithmetic operations. Use enable extension tool to add extensions such as fetch, pdf reader, etc.",
 }
 
 

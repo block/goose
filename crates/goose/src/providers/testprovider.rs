@@ -72,9 +72,29 @@ impl TestProvider {
     }
 
     fn hash_input(messages: &[Message]) -> String {
+        use crate::conversation::message::MessageContent;
+
+        // Strip internal metadata (e.g. tool_meta/_meta) from content before hashing.
+        // This metadata is used for internal routing (like goose_extension ownership)
+        // and isn't part of the semantic input the LLM sees, so it shouldn't affect
+        // replay matching.
         let stable_messages: Vec<_> = messages
             .iter()
-            .map(|msg| (msg.role.clone(), msg.content.clone()))
+            .map(|msg| {
+                let cleaned_content: Vec<_> = msg
+                    .content
+                    .iter()
+                    .map(|c| match c {
+                        MessageContent::ToolRequest(req) => {
+                            let mut req = req.clone();
+                            req.tool_meta = None;
+                            MessageContent::ToolRequest(req)
+                        }
+                        other => other.clone(),
+                    })
+                    .collect();
+                (msg.role.clone(), cleaned_content)
+            })
             .collect();
         let serialized = serde_json::to_string(&stable_messages).unwrap_or_default();
         let mut hasher = Sha256::new();

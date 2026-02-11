@@ -196,7 +196,7 @@ impl ProviderDef for MockCompactionProvider {
     }
 }
 
-/// Helper: Setup a test session with initial messages and token counts
+/// Helper: Set up a test session with initial messages and token counts
 async fn setup_test_session(
     agent: &Agent,
     temp_dir: &TempDir,

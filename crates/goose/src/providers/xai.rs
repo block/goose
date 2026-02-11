@@ -65,6 +65,7 @@ impl ProviderDef for XaiProvider {
                 XAI_PROVIDER_NAME.to_string(),
                 api_client,
                 model,
+                String::new(),
             ))
         })
     }

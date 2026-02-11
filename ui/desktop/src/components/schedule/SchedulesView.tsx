@@ -480,14 +480,14 @@ const SchedulesView: React.FC<SchedulesViewProps> = ({ onClose: _onClose }) => {
             <ScrollArea className="h-full">
               <div className="h-full relative">
                 {apiError && (
-                  <div className="mb-4 p-4 bg-background-error border border-border-error rounded-md">
-                    <p className="text-text-error text-sm">Error: {apiError}</p>
+                  <div className="mb-4 p-4 bg-background-danger border border-border-danger rounded-md">
+                    <p className="text-text-danger text-sm">Error: {apiError}</p>
                   </div>
                 )}
 
                 {isLoading && schedules.length === 0 && (
                   <div className="flex justify-center items-center py-12">
-                    <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-text-default"></div>
+                    <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2"></div>
                   </div>
                 )}
 

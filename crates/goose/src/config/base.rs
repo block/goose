@@ -8,7 +8,6 @@ use serde_json::Value;
 use serde_yaml::Mapping;
 use std::collections::HashMap;
 use std::env;
-use std::ffi::OsString;
 use std::fs::OpenOptions;
 use std::io::Write;
 use std::path::{Path, PathBuf};
@@ -751,7 +750,7 @@ impl Config {
             .and_then(|v| Ok(serde_json::from_value(v.clone())?))
     }
 
-    /// Get secrets. If primary is in env, use env for all keys. Otherwise use secret storage.
+    /// Get secrets. If primary is in env, use env for all keys. Otherwise, use secret storage.
     pub fn get_secrets(
         &self,
         primary: &str,
@@ -877,7 +876,7 @@ impl Config {
         Paths::config_dir().join("secrets.yaml")
     }
 
-    /// Perform fallback to file storage when keyring is unavailable
+    /// Fall back to file storage when keyring is unavailable
     fn fallback_to_file_storage(&self) -> Result<HashMap<String, Value>, ConfigError> {
         let path = Self::secrets_file_path();
         self.read_secrets_from_file(&path)
@@ -954,10 +953,10 @@ impl Config {
     }
 }
 
-config_value!(CLAUDE_CODE_COMMAND, OsString, "claude");
-config_value!(GEMINI_CLI_COMMAND, OsString, "gemini");
-config_value!(CURSOR_AGENT_COMMAND, OsString, "cursor-agent");
-config_value!(CODEX_COMMAND, OsString, "codex");
+config_value!(CLAUDE_CODE_COMMAND, String, "claude");
+config_value!(GEMINI_CLI_COMMAND, String, "gemini");
+config_value!(CURSOR_AGENT_COMMAND, String, "cursor-agent");
+config_value!(CODEX_COMMAND, String, "codex");
 config_value!(CODEX_REASONING_EFFORT, String, "high");
 config_value!(CODEX_ENABLE_SKILLS, String, "true");
 config_value!(CODEX_SKIP_GIT_CHECK, String, "false");
@@ -968,6 +967,8 @@ config_value!(GOOSE_PROVIDER, String);
 config_value!(GOOSE_MODEL, String);
 config_value!(GOOSE_PROMPT_EDITOR, Option<String>);
 config_value!(GOOSE_MAX_ACTIVE_AGENTS, usize);
+config_value!(GOOSE_DISABLE_SESSION_NAMING, bool);
+config_value!(GEMINI3_THINKING_LEVEL, String);
 
 /// Load init-config.yaml from workspace root if it exists.
 /// This function is shared between the config recovery and the init_config endpoint.
