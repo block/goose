@@ -124,7 +124,7 @@ export function CostTracker({ inputTokens = 0, outputTokens = 0, sessionCosts }:
         <div className="flex items-center justify-center h-full text-text-secondary translate-y-[1px]">
           <span className="text-xs font-mono">...</span>
         </div>
-        <div className="w-px h-4 bg-border-default mx-2" />
+        <div className="w-px h-4 bg-border-primary mx-2" />
       </>
     );
   }
@@ -150,7 +150,7 @@ export function CostTracker({ inputTokens = 0, outputTokens = 0, sessionCosts }:
               {`Local model (${inputTokens.toLocaleString()} input, ${outputTokens.toLocaleString()} output tokens)`}
             </TooltipContent>
           </Tooltip>
-          <div className="w-px h-4 bg-border-default mx-2" />
+          <div className="w-px h-4 bg-border-primary mx-2" />
         </>
       );
     }
@@ -174,7 +174,7 @@ export function CostTracker({ inputTokens = 0, outputTokens = 0, sessionCosts }:
           </TooltipTrigger>
           <TooltipContent>{getUnavailableTooltip()}</TooltipContent>
         </Tooltip>
-        <div className="w-px h-4 bg-border-default mx-2" />
+        <div className="w-px h-4 bg-border-primary mx-2" />
       </>
     );
   }
@@ -227,7 +227,7 @@ export function CostTracker({ inputTokens = 0, outputTokens = 0, sessionCosts }:
         </TooltipTrigger>
         <TooltipContent>{getTooltipContent()}</TooltipContent>
       </Tooltip>
-      <div className="w-px h-4 bg-border-default mx-2" />
+      <div className="w-px h-4 bg-border-primary mx-2" />
     </>
   );
 }

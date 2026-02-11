@@ -46,19 +46,12 @@
   --color-yellow-100: #ffd966;
   --color-yellow-200: #fbcd44;
 
-  --color-accent: var(--color-neutral-900);
 }
 
 :root {
   /* fonts */
   --font-sans: 'Cash Sans', sans-serif;
   --font-mono: monospace;
-
-  /* theming accents */
-  --background-accent: var(--color-accent);
-  --border-accent: var(--color-accent);
-  --text-accent: var(--color-accent);
-  --text-on-accent: var(--color-white);
 
   /* MCP-compliant semantic colors */
   --color-background-primary: var(--color-white);
@@ -90,9 +83,10 @@
   --highlight-color: rgba(255, 213, 0, 0.5);
   --highlight-current: rgba(252, 213, 3, 0.6);
 
+  /* Sidebar app-specific aliases */
   --sidebar: var(--color-background-secondary);
   --sidebar-foreground: var(--color-text-primary);
-  --sidebar-primary: var(--background-accent);
+  --sidebar-primary: var(--color-background-inverse);
   --sidebar-primary-foreground: var(--color-text-inverse);
   --sidebar-accent: var(--color-background-secondary);
   --sidebar-accent-foreground: var(--color-text-primary);
@@ -107,12 +101,6 @@
 }
 
 .dark {
-  /* theming accents */
-  --background-accent: var(--color-white);
-  --border-accent: var(--color-white);
-  --text-accent: var(--color-white);
-  --text-on-accent: var(--color-black);
-
   /* MCP-compliant semantic colors */
   --color-background-primary: var(--color-neutral-950);
   --color-background-secondary: var(--color-neutral-800);
@@ -143,9 +131,10 @@
   --highlight-color: rgba(255, 213, 0, 0.5);
   --highlight-current: rgba(252, 213, 3, 0.6);
 
+  /* Sidebar app-specific aliases */
   --sidebar: var(--color-background-secondary);
   --sidebar-foreground: var(--color-text-primary);
-  --sidebar-primary: var(--background-accent);
+  --sidebar-primary: var(--color-background-inverse);
   --sidebar-primary-foreground: var(--color-text-inverse);
   --sidebar-accent: var(--color-background-secondary);
   --sidebar-accent-foreground: var(--color-text-primary);
@@ -183,11 +172,11 @@
 
   --color-ring-primary: var(--color-ring-primary);
 
-  /* App-specific aliases */
-  --color-background-accent: var(--background-accent);
-  --color-border-accent: var(--border-accent);
-  --color-text-accent: var(--text-accent);
-  --color-text-on-accent: var(--text-on-accent);
+  /* App-specific aliases for brand/accent colors (map to inverse for high contrast) */
+  --color-background-accent: var(--color-background-inverse);
+  --color-border-accent: var(--color-text-inverse);
+  --color-text-accent: var(--color-text-inverse);
+  --color-text-on-accent: var(--color-text-inverse);
 
   --font-serif: serif;
 

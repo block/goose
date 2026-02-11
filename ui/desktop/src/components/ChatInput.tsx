@@ -1511,7 +1511,7 @@ export default function ChatInput({
           onRestartStart={() => setChatState?.(ChatState.RestartingAgent)}
           onRestartEnd={() => setChatState?.(ChatState.Idle)}
         />
-        <div className="w-px h-4 bg-border-default mx-2" />
+        <div className="w-px h-4 bg-border-primary mx-2" />
         <Tooltip>
           <TooltipTrigger asChild>
             <Button
@@ -1527,7 +1527,7 @@ export default function ChatInput({
           </TooltipTrigger>
           <TooltipContent>Attach file</TooltipContent>
         </Tooltip>
-        <div className="w-px h-4 bg-border-default mx-2" />
+        <div className="w-px h-4 bg-border-primary mx-2" />
         {/* Model selector, mode selector, alerts, summarize button */}
         <div className="flex flex-row items-center">
           {/* Cost Tracker */}
@@ -1552,13 +1552,13 @@ export default function ChatInput({
               />
             </div>
           </Tooltip>
-          <div className="w-px h-4 bg-border-default mx-2" />
+          <div className="w-px h-4 bg-border-primary mx-2" />
           <BottomMenuModeSelection />
-          <div className="w-px h-4 bg-border-default mx-2" />
+          <div className="w-px h-4 bg-border-primary mx-2" />
           <BottomMenuExtensionSelection sessionId={sessionId} />
           {sessionId && messages.length > 0 && (
             <>
-              <div className="w-px h-4 bg-border-default mx-2" />
+              <div className="w-px h-4 bg-border-primary mx-2" />
               <div className="flex items-center h-full">
                 <Tooltip>
                   <TooltipTrigger asChild>

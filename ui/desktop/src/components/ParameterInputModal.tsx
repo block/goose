@@ -137,7 +137,7 @@ const ParameterInputModal: React.FC<ParameterInputModalProps> = ({
                       className={`w-full p-3 border rounded-lg bg-background-secondary text-text-primary focus:outline-none focus:ring-2 ${
                         validationErrors[param.key]
                           ? 'border-red-500 focus:ring-red-500'
-                          : 'border-border-primary focus:ring-border-strong'
+                          : 'border-border-primary focus:ring-border-secondary'
                       }`}
                     >
                       <option value="">Select an option...</option>
@@ -154,7 +154,7 @@ const ParameterInputModal: React.FC<ParameterInputModalProps> = ({
                       className={`w-full p-3 border rounded-lg bg-background-secondary text-text-primary focus:outline-none focus:ring-2 ${
                         validationErrors[param.key]
                           ? 'border-red-500 focus:ring-red-500'
-                          : 'border-border-primary focus:ring-border-strong'
+                          : 'border-border-primary focus:ring-border-secondary'
                       }`}
                     >
                       <option value="">Select...</option>
@@ -169,7 +169,7 @@ const ParameterInputModal: React.FC<ParameterInputModalProps> = ({
                       className={`w-full p-3 border rounded-lg bg-background-secondary text-text-primary focus:outline-none focus:ring-2 ${
                         validationErrors[param.key]
                           ? 'border-red-500 focus:ring-red-500'
-                          : 'border-border-primary focus:ring-border-strong'
+                          : 'border-border-primary focus:ring-border-secondary'
                       }`}
                       placeholder={param.default || `Enter value for ${param.key}...`}
                     />

@@ -978,6 +978,13 @@ export type SaveRecipeResponse = {
     id: string;
 };
 
+export type SaveThemeRequest = {
+    /**
+     * CSS content for theme.css file. If empty, deletes the theme file (reset).
+     */
+    css: string;
+};
+
 export type ScanRecipeRequest = {
     recipe: Recipe;
 };
@@ -1179,6 +1186,8 @@ export type TextContent = {
 export type ThemeVariablesResponse = {
     /**
      * MCP-compatible CSS variables with light-dark() format
+     * These variables use MCP standard naming (--color-*) and light-dark() format
+     * for seamless integration with both the main app and MCP apps.
      */
     variables: {
         [key: string]: string;
@@ -3891,28 +3900,28 @@ export type SendTelemetryEventResponses = {
     202: unknown;
 };
 
-export type ReadThemeCssData = {
-    body?: never;
+export type SaveThemeData = {
+    body: SaveThemeRequest;
     path?: never;
     query?: never;
-    url: '/theme.css';
+    url: '/theme/save';
 };
 
-export type ReadThemeCssErrors = {
+export type SaveThemeErrors = {
     /**
-     * No custom theme configured
+     * Failed to save theme
      */
-    404: unknown;
+    500: unknown;
 };
 
-export type ReadThemeCssResponses = {
+export type SaveThemeResponses = {
     /**
-     * Custom theme CSS
+     * Theme saved successfully
      */
     200: string;
 };
 
-export type ReadThemeCssResponse = ReadThemeCssResponses[keyof ReadThemeCssResponses];
+export type SaveThemeResponse = SaveThemeResponses[keyof SaveThemeResponses];
 
 export type GetThemeVariablesData = {
     body?: never;
@@ -3923,7 +3932,7 @@ export type GetThemeVariablesData = {
 
 export type GetThemeVariablesResponses = {
     /**
-     * MCP theme variables
+     * MCP theme variables with light-dark() format
      */
     200: ThemeVariablesResponse;
 };

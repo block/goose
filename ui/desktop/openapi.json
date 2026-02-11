@@ -3236,15 +3236,25 @@
         }
       }
     },
-    "/theme.css": {
-      "get": {
+    "/theme/save": {
+      "post": {
         "tags": [
           "super::routes::config_management"
         ],
-        "operationId": "read_theme_css",
+        "operationId": "save_theme",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SaveThemeRequest"
+              }
+            }
+          },
+          "required": true
+        },
         "responses": {
           "200": {
-            "description": "Custom theme CSS",
+            "description": "Theme saved successfully",
             "content": {
               "text/plain": {
                 "schema": {
@@ -3253,8 +3263,8 @@
               }
             }
           },
-          "404": {
-            "description": "No custom theme configured"
+          "500": {
+            "description": "Failed to save theme"
           }
         }
       }
@@ -3267,7 +3277,7 @@
         "operationId": "get_theme_variables",
         "responses": {
           "200": {
-            "description": "MCP theme variables",
+            "description": "MCP theme variables with light-dark() format",
             "content": {
               "application/json": {
                 "schema": {
@@ -6213,6 +6223,18 @@
           }
         }
       },
+      "SaveThemeRequest": {
+        "type": "object",
+        "required": [
+          "css"
+        ],
+        "properties": {
+          "css": {
+            "type": "string",
+            "description": "CSS content for theme.css file. If empty, deletes the theme file (reset)."
+          }
+        }
+      },
       "ScanRecipeRequest": {
         "type": "object",
         "required": [
@@ -6874,7 +6896,7 @@
         "properties": {
           "variables": {
             "type": "object",
-            "description": "MCP-compatible CSS variables with light-dark() format",
+            "description": "MCP-compatible CSS variables with light-dark() format\nThese variables use MCP standard naming (--color-*) and light-dark() format\nfor seamless integration with both the main app and MCP apps.",
             "additionalProperties": {
               "type": "string"
             }

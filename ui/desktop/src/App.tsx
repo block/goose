@@ -626,7 +626,7 @@ export function AppInner() {
         toastClassName={() =>
           `relative min-h-16 mb-4 p-2 rounded-lg
                flex justify-between overflow-hidden cursor-pointer
-               text-text-on-accent bg-background-inverse
+               text-text-inverse bg-background-inverse
               `
         }
         style={{ width: '450px' }}

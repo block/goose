@@ -97,7 +97,7 @@ const ParameterInput: React.FC<ParameterInputProps> = ({
                 type="text"
                 value={description || ''}
                 onChange={(e) => onChange(key, { description: e.target.value })}
-                className="w-full p-3 border rounded-lg bg-background-primary text-text-primary focus:outline-none focus:ring-2 focus:ring-border-strong"
+                className="w-full p-3 border rounded-lg bg-background-primary text-text-primary focus:outline-none focus:ring-2 focus:ring-border-secondary"
                 placeholder={`E.g., "Enter the name for the new component"`}
               />
               <p className="text-sm text-text-secondary mt-1">
@@ -177,7 +177,7 @@ const ParameterInput: React.FC<ParameterInputProps> = ({
                       e.stopPropagation();
                     }
                   }}
-                  className="w-full p-3 border rounded-lg bg-background-primary text-text-primary focus:outline-none focus:ring-2 focus:ring-border-strong"
+                  className="w-full p-3 border rounded-lg bg-background-primary text-text-primary focus:outline-none focus:ring-2 focus:ring-border-secondary"
                   placeholder="Option 1&#10;Option 2&#10;Option 3"
                   rows={4}
                 />

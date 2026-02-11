@@ -27,7 +27,7 @@ const ThemeSelector: React.FC<ThemeSelectorProps> = ({
           onClick={() => setUserThemePreference('light')}
           className={`flex items-center justify-center gap-1 p-2 rounded-md border transition-colors text-xs ${
             userThemePreference === 'light'
-              ? 'bg-background-accent text-text-on-accent border-border-accent hover:!bg-background-accent hover:!text-text-on-accent'
+              ? 'bg-background-inverse text-text-inverse border-text-inverse hover:!bg-background-inverse hover:!text-text-inverse'
               : 'border-border-primary hover:!bg-background-secondary text-text-secondary hover:text-text-primary'
           }`}
           variant="ghost"
@@ -42,7 +42,7 @@ const ThemeSelector: React.FC<ThemeSelectorProps> = ({
           onClick={() => setUserThemePreference('dark')}
           className={`flex items-center justify-center gap-1 p-2 rounded-md border transition-colors text-xs ${
             userThemePreference === 'dark'
-              ? 'bg-background-accent text-text-on-accent border-border-accent hover:!bg-background-accent hover:!text-text-on-accent'
+              ? 'bg-background-inverse text-text-inverse border-text-inverse hover:!bg-background-inverse hover:!text-text-inverse'
               : 'border-border-primary hover:!bg-background-secondary text-text-secondary hover:text-text-primary'
           }`}
           variant="ghost"
@@ -57,7 +57,7 @@ const ThemeSelector: React.FC<ThemeSelectorProps> = ({
           onClick={() => setUserThemePreference('system')}
           className={`flex items-center justify-center gap-1 p-2 rounded-md border transition-colors text-xs ${
             userThemePreference === 'system'
-              ? 'bg-background-accent text-text-on-accent border-border-accent hover:!bg-background-accent hover:!text-text-on-accent'
+              ? 'bg-background-inverse text-text-inverse border-text-inverse hover:!bg-background-inverse hover:!text-text-inverse'
               : 'border-border-primary hover:!bg-background-secondary text-text-secondary hover:text-text-primary'
           }`}
           variant="ghost"

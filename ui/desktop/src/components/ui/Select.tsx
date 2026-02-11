@@ -23,7 +23,7 @@ export const Select = (props: React.ComponentProps<typeof ReactSelect>) => {
           if (isDisabled) {
             classes += ' opacity-50 cursor-not-allowed pointer-events-none';
           } else if (isSelected) {
-            classes += ' bg-background-accent text-text-on-accent pointer-events-auto';
+            classes += ' bg-background-inverse text-text-inverse pointer-events-auto';
           } else if (isFocused) {
             classes += ' bg-background-secondary text-text-primary pointer-events-auto';
           } else {
