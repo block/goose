@@ -44,15 +44,45 @@
 
           cargoLock = {
             lockFile = ./Cargo.lock;
+            outputHashes = {
+              "llama-cpp-2-0.1.136" = "sha256-M4D0a8x9akN0Ep5RclRjmV3/YczkxvBLeTbL3QCCtME=";
+            };
+          };
+
+          LIBCLANG_PATH = "${pkgs.libclang.lib}/lib";
+
+          # Pre-fetch rusty_v8 binary to avoid network access during build
+          # Map Nix system to rusty_v8 target triple
+          RUSTY_V8_ARCHIVE = let
+            cargoLock = builtins.fromTOML (builtins.readFile ./Cargo.lock);
+            rustyV8Version = (builtins.head (builtins.filter (p: p.name == "v8") cargoLock.package)).version;
+            rustyV8Target = {
+              "x86_64-linux" = "x86_64-unknown-linux-gnu";
+              "aarch64-linux" = "aarch64-unknown-linux-gnu";
+              "x86_64-darwin" = "x86_64-apple-darwin";
+              "aarch64-darwin" = "aarch64-apple-darwin";
+            }.${system} or (throw "Unsupported system: ${system}");
+            rustyV8Sha256 = {
+              "x86_64-linux" = "sha256-chV1PAx40UH3Ute5k3lLrgfhih39Rm3KqE+mTna6ysE=";
+              "aarch64-linux" = "sha256-4IivYskhUSsMLZY97+g23UtUYh4p5jk7CzhMbMyqXyY=";
+              "x86_64-darwin" = "sha256-1jUuC+z7saQfPYILNyRJanD4+zOOhXU2ac/LFoytwho=";
+              "aarch64-darwin" = "sha256-yHa1eydVCrfYGgrZANbzgmmf25p7ui1VMas2A7BhG6k=";
+            }.${system};
+          in pkgs.fetchurl {
+            url = "https://github.com/denoland/rusty_v8/releases/download/v${rustyV8Version}/librusty_v8_release_${rustyV8Target}.a.gz";
+            sha256 = rustyV8Sha256;
           };
 
           nativeBuildInputs = with pkgs; [
             pkg-config
+            clang
+            cmake
           ];
 
           buildInputs = with pkgs; [
             openssl
-            xorg.libxcb  # Required for xcap screenshot functionality
+            cacert       # CA certificates for tests
+            libxcb       # Required for xcap screenshot functionality
             dbus         # Required for system integration features
           ] ++ pkgs.lib.optionals pkgs.stdenv.isDarwin darwinInputs;
 
@@ -82,7 +112,7 @@
           };
         };
 
-        devShell = pkgs.mkShell {
+        devShells.default = pkgs.mkShell {
           packages = buildInputs ++ (with pkgs; [
             cargo-watch
             cargo-edit
@@ -93,7 +123,7 @@
             nodejs_24 # 'just' run-ui
             ripgrep
             rustfmt
-            xorg.libxcb
+            libxcb
             dbus
             yarn # 'just' install-deps
           ]);
