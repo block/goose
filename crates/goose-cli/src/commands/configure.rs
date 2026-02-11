@@ -1911,11 +1911,7 @@ fn add_provider() -> anyhow::Result<()> {
         .interact()?;
 
     // Ask about custom headers for OpenAI compatible providers
-    let headers = if provider_type == "openai_compatible" {
-        collect_custom_headers()?
-    } else {
-        None
-    };
+    let headers = collect_custom_headers()?
 
     create_custom_provider(CreateCustomProviderParams {
         engine: provider_type.to_string(),
