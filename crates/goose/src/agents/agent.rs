@@ -1437,28 +1437,16 @@ impl Agent {
                             crate::posthog::emit_error(provider_err.telemetry_type(), &provider_err.to_string());
                             error!("Credits exhausted: {}", details);
 
-                            // Build a user-facing message. If the provider supplied a
-                            // top-up URL we try to open it in the default browser (uses
-                            // the `webbrowser` crate — the same cross-platform mechanism
-                            // used by the Tetrate OAuth sign-up flow in signup_tetrate).
-                            // If no URL was provided (generic 402 from an unknown
-                            // provider) we just tell the user what happened.
-                            let browser_msg = if let Some(url) = top_up_url.as_deref() {
-                                match webbrowser::open(url) {
-                                    Ok(_) => format!(
-                                        "Your credits have been exhausted: {details}\n\n\
-                                         Opening your browser to add more credits: {url}\n\n\
-                                         Once you've topped up, retry your last message to continue."
-                                    ),
-                                    Err(browser_err) => {
-                                        tracing::warn!("Failed to open browser: {}", browser_err);
-                                        format!(
-                                            "Your credits have been exhausted: {details}\n\n\
-                                             To add more credits, visit: {url}\n\n\
-                                             Once you've topped up, retry your last message to continue."
-                                        )
-                                    }
-                                }
+                            // Surface the error as a structured CreditsExhausted
+                            // notification so the UI layer (CLI, desktop app, API)
+                            // can decide how to present it — e.g. opening a browser,
+                            // showing a dialog, or returning it in a JSON response.
+                            let user_msg = if let Some(url) = top_up_url.as_deref() {
+                                format!(
+                                    "Your credits have been exhausted: {details}\n\n\
+                                     To add more credits, visit: {url}\n\n\
+                                     Once you've topped up, retry your last message to continue."
+                                )
                             } else {
                                 format!(
                                     "Your credits have been exhausted: {details}\n\n\
@@ -1467,8 +1455,16 @@ impl Agent {
                                 )
                             };
 
+                            let notification_data = serde_json::json!({
+                                "top_up_url": top_up_url,
+                            });
+
                             yield AgentEvent::Message(
-                                Message::assistant().with_text(browser_msg)
+                                Message::assistant().with_system_notification_with_data(
+                                    SystemNotificationType::CreditsExhausted,
+                                    user_msg,
+                                    notification_data,
+                                )
                             );
                             break;
                         }

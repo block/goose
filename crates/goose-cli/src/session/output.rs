@@ -259,6 +259,25 @@ pub fn render_message(message: &Message, debug: bool) {
                         hide_thinking();
                         println!("\n{}", style(&notification.msg).yellow());
                     }
+                    SystemNotificationType::CreditsExhausted => {
+                        hide_thinking();
+                        println!("\n{}", style(&notification.msg).yellow());
+
+                        // If the provider supplied a top-up URL, try to open
+                        // the user's browser so they can add credits. Uses the
+                        // `webbrowser` crate (same cross-platform mechanism as
+                        // the Tetrate OAuth sign-up flow).
+                        if let Some(url) = notification
+                            .data
+                            .as_ref()
+                            .and_then(|d| d.get("top_up_url"))
+                            .and_then(|v| v.as_str())
+                        {
+                            if let Err(e) = webbrowser::open(url) {
+                                tracing::warn!("Failed to open browser for credits top-up: {}", e);
+                            }
+                        }
+                    }
                 }
             }
             _ => {
