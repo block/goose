@@ -12,7 +12,7 @@ use goose::session::{Session, SessionInsights, SessionType, SystemInfo};
 use rmcp::model::{
     Annotations, Content, EmbeddedResource, Icon, ImageContent, JsonObject, RawAudioContent,
     RawEmbeddedResource, RawImageContent, RawResource, RawTextContent, ResourceContents, Role,
-    TextContent, Tool, ToolAnnotations,
+    TaskSupport, TextContent, Tool, ToolAnnotations, ToolExecution,
 };
 use utoipa::{OpenApi, ToSchema};
 
@@ -319,6 +319,8 @@ derive_utoipa!(RawEmbeddedResource as RawEmbeddedResourceSchema);
 derive_utoipa!(RawResource as RawResourceSchema);
 derive_utoipa!(Tool as ToolSchema);
 derive_utoipa!(ToolAnnotations as ToolAnnotationsSchema);
+derive_utoipa!(ToolExecution as ToolExecutionSchema);
+derive_utoipa!(TaskSupport as TaskSupportSchema);
 derive_utoipa!(Annotations as AnnotationsSchema);
 derive_utoipa!(ResourceContents as ResourceContentsSchema);
 derive_utoipa!(JsonObject as JsonObjectSchema);
@@ -497,6 +499,8 @@ derive_utoipa!(Icon as IconSchema);
         RecipeManifest,
         ToolSchema,
         ToolAnnotationsSchema,
+        ToolExecutionSchema,
+        TaskSupportSchema,
         ToolInfo,
         PermissionLevel,
         Permission,

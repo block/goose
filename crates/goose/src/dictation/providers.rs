@@ -222,6 +222,8 @@ pub async fn transcribe_with_provider(
             anyhow::bail!("Invalid API key");
         } else if status == 429 || error_text.contains("quota") {
             anyhow::bail!("Rate limit exceeded");
+        } else if error_text.contains("too short") {
+            return Ok(String::new());
         } else {
             anyhow::bail!("API error: {}", error_text);
         }

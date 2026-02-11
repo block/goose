@@ -194,22 +194,25 @@ pub async fn spawn_acp_server_in_process(
     builtins: &[String],
     data_root: &Path,
     goose_mode: GooseMode,
+    provider_factory: Option<ProviderConstructor>,
 ) -> (DuplexTransport, JoinHandle<()>, Arc<PermissionManager>) {
     fs::create_dir_all(data_root).unwrap();
-    // ensure_provider reads the model from config lazily, so tests need a config.yaml.
     let config_path = data_root.join(goose::config::base::CONFIG_YAML_NAME);
     if !config_path.exists() {
         fs::write(&config_path, format!("GOOSE_MODEL: {TEST_MODEL}\n")).unwrap();
     }
-    let base_url = openai_base_url.to_string();
-    let provider_factory: ProviderConstructor = Arc::new(move |model_config| {
-        let base_url = base_url.clone();
-        Box::pin(async move {
-            let api_client =
-                ApiClient::new(base_url, AuthMethod::BearerToken("test-key".to_string())).unwrap();
-            let provider: Arc<dyn Provider> =
-                Arc::new(OpenAiProvider::new(api_client, model_config));
-            Ok(provider)
+    let provider_factory = provider_factory.unwrap_or_else(|| {
+        let base_url = openai_base_url.to_string();
+        Arc::new(move |model_config| {
+            let base_url = base_url.clone();
+            Box::pin(async move {
+                let api_client =
+                    ApiClient::new(base_url, AuthMethod::BearerToken("test-key".to_string()))
+                        .unwrap();
+                let provider: Arc<dyn Provider> =
+                    Arc::new(OpenAiProvider::new(api_client, model_config));
+                Ok(provider)
+            })
         })
     });
 
@@ -236,33 +239,43 @@ pub struct TestOutput {
     pub tool_status: Option<ToolCallStatus>,
 }
 
-pub struct TestSessionConfig {
+pub struct TestConnectionConfig {
     pub mcp_servers: Vec<McpServer>,
     pub builtins: Vec<String>,
     pub goose_mode: GooseMode,
     pub data_root: PathBuf,
+    pub provider_factory: Option<ProviderConstructor>,
 }
 
-impl Default for TestSessionConfig {
+impl Default for TestConnectionConfig {
     fn default() -> Self {
         Self {
             mcp_servers: Vec::new(),
             builtins: Vec::new(),
             goose_mode: GooseMode::Auto,
             data_root: PathBuf::new(),
+            provider_factory: None,
         }
     }
 }
 
 #[async_trait]
-pub trait Session {
-    async fn new(config: TestSessionConfig, openai: OpenAiFixture) -> Self
-    where
-        Self: Sized;
-    fn id(&self) -> &sacp::schema::SessionId;
-    fn models(&self) -> Option<&SessionModelState>;
+pub trait Connection: Sized {
+    type Session: Session;
+
+    async fn new(config: TestConnectionConfig, openai: OpenAiFixture) -> Self;
+    async fn new_session(&mut self) -> (Self::Session, Option<SessionModelState>);
+    async fn load_session(
+        &mut self,
+        session_id: &str,
+    ) -> (Self::Session, Option<SessionModelState>);
     fn reset_openai(&self);
     fn reset_permissions(&self);
+}
+
+#[async_trait]
+pub trait Session {
+    fn session_id(&self) -> &sacp::schema::SessionId;
     async fn prompt(&mut self, text: &str, decision: PermissionDecision) -> TestOutput;
     async fn set_model(&self, model_id: &str);
 }

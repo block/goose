@@ -417,6 +417,7 @@ impl ServerHandler for AutoVisualiserRouter {
                 name: "goose-autovisualiser".to_string(),
                 version: env!("CARGO_PKG_VERSION").to_owned(),
                 title: None,
+                description: None,
                 icons: None,
                 website_url: None,
             },

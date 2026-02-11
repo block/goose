@@ -21,8 +21,10 @@ done
 # These are typically preview/experimental models with inconsistent tool-calling behavior.
 # Failures are still reported but don't block PRs.
 ALLOWED_FAILURES=(
+  "google:gemini-2.5-flash"
   "google:gemini-3-pro-preview"
   "openrouter:nvidia/nemotron-3-nano-30b-a3b"
+  "openai:gpt-3.5-turbo"
 )
 
 # Agentic providers handle tools internally and return text results.

@@ -1,4 +1,5 @@
 use crate::agents::extension::PlatformExtensionContext;
+use crate::agents::extension_manager::get_tool_owner;
 use crate::agents::mcp_client::{Error, McpClientTrait};
 use anyhow::Result;
 use async_trait::async_trait;
@@ -55,11 +56,12 @@ impl CodeExecutionClient {
         let info = InitializeResult {
             protocol_version: ProtocolVersion::V_2025_03_26,
             capabilities: ServerCapabilities {
-                tasks: None,
                 tools: Some(ToolsCapability {
                     list_changed: Some(false),
                 }),
+                tasks: None,
                 resources: None,
+                extensions: None,
                 prompts: None,
                 completions: None,
                 experimental: None,
@@ -67,6 +69,7 @@ impl CodeExecutionClient {
             },
             server_info: Implementation {
                 name: EXTENSION_NAME.to_string(),
+                description: None,
                 title: Some("Code Mode".to_string()),
                 version: "1.0.0".to_string(),
                 icons: None,
@@ -111,10 +114,16 @@ impl CodeExecutionClient {
         let mut cfgs = vec![];
         for tool in tools {
             let full_name = tool.name.to_string();
-            let (server_name, tool_name) = full_name.split_once("__")?;
+            let (namespace, name) = if let Some((server, tool_name)) = full_name.split_once("__") {
+                (server.to_string(), tool_name.to_string())
+            } else if let Some(owner) = get_tool_owner(&tool) {
+                (owner, full_name)
+            } else {
+                continue;
+            };
             cfgs.push(CallbackConfig {
-                name: tool_name.into(),
-                namespace: server_name.into(),
+                name,
+                namespace,
                 description: tool.description.as_ref().map(|d| d.to_string()),
                 input_schema: Some(json!(tool.input_schema)),
                 output_schema: tool.output_schema.as_ref().map(|s| json!(s)),

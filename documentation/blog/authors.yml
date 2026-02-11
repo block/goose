@@ -1,3 +1,14 @@
+amanda:
+  name: Amanda Martin
+  title: Staff Developer Advocate
+  image_url: https://avatars.githubusercontent.com/u/97615019?v=4
+  page: true
+  socials:
+    linkedin: amandamartin-dev
+    x: hey_amandam
+    github: amandamartin-dev
+
+
 ebony:
   name: Ebony Louis
   title: Developer Advocate
@@ -37,6 +48,16 @@ adewale:
   socials:
     x: ace_kyd
     github: acekyd
+
+debbie:
+  name: Debbie O'Brien
+  title: Staff Developer Advocate
+  image_url: https://avatars.githubusercontent.com/u/13063165?v=4
+  page: true
+  socials:
+    x: debs_obrien
+    linkedin: debbie-obrien
+    github: debs-obrien
 
 dalton:
   name: Dalton Turner
@@ -80,8 +101,8 @@ tania:
   page: true
   socials:
     linkedin: taniachakraborty
-    x: taniandjerry
-    github: taniandjerry
+    x: taniacryptid
+    github: taniacryptid
     bluesky: taniachakraborty.com
 
 angie:
@@ -211,6 +232,6 @@ matt:
 
 dakota:
   name: Dakota Fabro
-  description: Software Engineer, Engineering Fellowship
-  avatar: https://avatars.githubusercontent.com/u/148207179?v=4
+  title: Software Engineer, Engineering Fellowship
+  image_url: https://avatars.githubusercontent.com/u/80979850?v=4
 

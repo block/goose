@@ -708,7 +708,8 @@ impl ComputerControllerServer {
                     .arg("-NonInteractive")
                     .arg("-File")
                     .arg(&command)
-                    .env("GOOSE_TERMINAL", "1");
+                    .env("GOOSE_TERMINAL", "1")
+                    .env("AGENT", "goose");
                 #[cfg(windows)]
                 cmd.creation_flags(0x08000000 /* CREATE_NO_WINDOW */);
                 cmd.output().await.map_err(|e| {
@@ -721,7 +722,10 @@ impl ComputerControllerServer {
             }
             _ => {
                 let mut cmd = Command::new(shell);
-                cmd.arg(shell_arg).arg(&command).env("GOOSE_TERMINAL", "1");
+                cmd.arg(shell_arg)
+                    .arg(&command)
+                    .env("GOOSE_TERMINAL", "1")
+                    .env("AGENT", "goose");
                 #[cfg(windows)]
                 cmd.creation_flags(0x08000000 /* CREATE_NO_WINDOW */);
                 cmd.output().await.map_err(|e| {
@@ -1299,6 +1303,7 @@ impl ServerHandler for ComputerControllerServer {
                 name: "goose-computercontroller".to_string(),
                 version: env!("CARGO_PKG_VERSION").to_owned(),
                 title: None,
+                description: None,
                 icons: None,
                 website_url: None,
             },
