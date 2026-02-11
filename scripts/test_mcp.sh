@@ -57,7 +57,7 @@ TMPFILE=$(mktemp)
 (cd "$TESTDIR" && GOOSE_PROVIDER="$TEST_PROVIDER" GOOSE_MODEL="$TEST_MODEL" \
     "$GOOSE_BIN" run --recipe recipe.yaml 2>&1) | tee "$TMPFILE"
 
-if grep -q "add | test_mcp" "$TMPFILE" && grep -q "100" "$TMPFILE"; then
+if grep -qE "(add \| test_mcp)|(▸.*add.*test_mcp)" "$TMPFILE" && grep -q "100" "$TMPFILE"; then
     echo "✓ FastMCP stderr test passed"
     RESULTS+=("✓ FastMCP stderr")
 else
@@ -76,7 +76,7 @@ TMPFILE=$(mktemp)
     "$GOOSE_BIN" run --text "Use the sampleLLM tool to ask for a quote from The Great Gatsby" \
     --with-extension "npx -y @modelcontextprotocol/server-everything@2026.1.14" 2>&1) | tee "$TMPFILE"
 
-if grep -q "$MCP_SAMPLING_TOOL | " "$TMPFILE"; then
+if grep -qE "($MCP_SAMPLING_TOOL \| )|(▸.*$MCP_SAMPLING_TOOL)" "$TMPFILE"; then
     JUDGE_PROMPT=$(cat <<EOF
 You are a validator. You will be given a transcript of a CLI run that used an MCP tool to initiate MCP sampling.
 The MCP server requests a quote from The Great Gatsby from the model via sampling.
