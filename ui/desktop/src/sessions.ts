@@ -84,9 +84,6 @@ export async function startNewSession(
 ): Promise<Session> {
   const session = await createSession(workingDir, options);
   window.dispatchEvent(new CustomEvent(AppEvents.SESSION_CREATED, { detail: { session } }));
-  window.dispatchEvent(
-    new CustomEvent(AppEvents.SESSION_EXTENSIONS_LOADED, { detail: { session } })
-  );
 
   const initialMessage = initialText ? { msg: initialText, images: [] } : undefined;
 
