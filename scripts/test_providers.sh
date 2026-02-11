@@ -197,7 +197,7 @@ if [ "$CODE_EXEC_MODE" = true ]; then
   # Match code_execution tool usage:
   # - "execute | code_execution" or "get_function_details | code_execution" (fallback format)
   # - "tool call | execute" or "tool calls | execute" (new format with tool_graph)
-  SUCCESS_PATTERN="(execute \| code_execution)|(get_function_details \| code_execution)|(tool calls? \| execute)|(▸.*execute.*code_execution)|(▸.*get_function_details.*code_execution)"
+  SUCCESS_PATTERN="(execute \| code_execution)|(get_function_details \| code_execution)|(tool calls? \| execute)|(▸.*execute.*tool call)"
   SUCCESS_MSG="code_execution tool called"
   FAILURE_MSG="no code_execution tools called"
 else
