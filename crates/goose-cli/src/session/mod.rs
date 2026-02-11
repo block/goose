@@ -198,7 +198,7 @@ pub enum PlannerResponseType {
     ClarifyingQuestions,
 }
 
-/// Decide if the planner's reponse is a plan or a clarifying question
+/// Decide if the planner's response is a plan or a clarifying question
 ///
 /// This function is called after the planner has generated a response
 /// to the user's message. The response is either a plan or a clarifying
