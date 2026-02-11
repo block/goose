@@ -91,7 +91,7 @@ The future of software development is mixed teams where AI agents are autonomous
 
 ---
 
-Want the tweak the base recipe for your own needs? Check out [Clean up feature flag](/recipes/detail/?id=clean-up-feature-flag) in our Recipe Cookbook!
+Want to tweak the base recipe for your own needs? Check out [Clean up feature flag](/recipes/detail/?id=clean-up-feature-flag) in our Recipe Cookbook!
 
 <head>
   <meta property="og:title" content="When AI Becomes Your New Team Member: The Story of Goose Janitor" />
