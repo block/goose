@@ -3,9 +3,7 @@ use super::base::{
     ConfigKey, MessageStream, Provider, ProviderDef, ProviderMetadata, ProviderUsage, Usage,
 };
 use super::errors::ProviderError;
-use super::openai_compatible::{
-    handle_response_openai_compat, handle_status_openai_compat, stream_openai_compat,
-};
+use super::openai_compatible::{handle_response_openai_compat, handle_status_openai_compat};
 use super::retry::ProviderRetry;
 use super::utils::{get_model, ImageFormat, RequestLog};
 use crate::config::declarative_providers::DeclarativeProviderConfig;
@@ -13,15 +11,24 @@ use crate::config::GooseMode;
 use crate::conversation::message::Message;
 use crate::conversation::Conversation;
 use crate::model::ModelConfig;
-use crate::providers::formats::openai::{create_request, get_usage, response_to_message};
+use crate::providers::formats::ollama::{
+    create_request, get_usage, response_to_message, response_to_streaming_message_ollama,
+};
 use crate::utils::safe_truncate;
-use anyhow::Result;
+use anyhow::{Error, Result};
+use async_stream::try_stream;
 use async_trait::async_trait;
 use futures::future::BoxFuture;
+use futures::TryStreamExt;
 use regex::Regex;
+use reqwest::Response;
 use rmcp::model::Tool;
 use serde_json::Value;
 use std::time::Duration;
+use tokio::pin;
+use tokio_stream::StreamExt;
+use tokio_util::codec::{FramedRead, LinesCodec};
+use tokio_util::io::StreamReader;
 use url::Url;
 
 const OLLAMA_PROVIDER_NAME: &str = "ollama";
@@ -31,6 +38,7 @@ pub const OLLAMA_DEFAULT_PORT: u16 = 11434;
 pub const OLLAMA_DEFAULT_MODEL: &str = "qwen3";
 pub const OLLAMA_KNOWN_MODELS: &[&str] = &[
     OLLAMA_DEFAULT_MODEL,
+    "qwen3-vl",
     "qwen3-coder:30b",
     "qwen3-coder:480b-cloud",
 ];
@@ -297,10 +305,10 @@ impl Provider for OllamaProvider {
             .inspect_err(|e| {
                 let _ = log.error(e);
             })?;
-        stream_openai_compat(response, log)
+        stream_ollama(response, log)
     }
 
-    async fn fetch_supported_models(&self) -> Result<Option<Vec<String>>, ProviderError> {
+    async fn fetch_supported_models(&self) -> Result<Vec<String>, ProviderError> {
         let response = self
             .api_client
             .request(None, "api/tags")
@@ -333,7 +341,7 @@ impl Provider for OllamaProvider {
 
         model_names.sort();
 
-        Ok(Some(model_names))
+        Ok(model_names)
     }
 }
 
@@ -375,4 +383,27 @@ impl OllamaProvider {
 
         filtered
     }
+}
+
+/// Ollama-specific streaming handler with XML tool call fallback.
+/// Uses the Ollama format module which buffers text when XML tool calls are detected,
+/// preventing duplicate content from being emitted to the UI.
+fn stream_ollama(response: Response, mut log: RequestLog) -> Result<MessageStream, ProviderError> {
+    let stream = response.bytes_stream().map_err(std::io::Error::other);
+
+    Ok(Box::pin(try_stream! {
+        let stream_reader = StreamReader::new(stream);
+        let framed = FramedRead::new(stream_reader, LinesCodec::new())
+            .map_err(Error::from);
+
+        let message_stream = response_to_streaming_message_ollama(framed);
+        pin!(message_stream);
+        while let Some(message) = message_stream.next().await {
+            let (message, usage) = message.map_err(|e|
+                ProviderError::RequestFailed(format!("Stream decode error: {}", e))
+            )?;
+            log.write(&message, usage.as_ref().map(|f| f.usage).as_ref())?;
+            yield (message, usage);
+        }
+    }))
 }

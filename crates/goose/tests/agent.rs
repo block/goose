@@ -128,6 +128,7 @@ mod tests {
                 permission_manager,
                 Some(mock_scheduler),
                 GooseMode::Auto,
+                false,
             );
             let agent = Agent::with_config(config);
 
@@ -168,6 +169,7 @@ mod tests {
                 permission_manager,
                 Some(mock_scheduler),
                 GooseMode::Auto,
+                false,
             );
             let agent = Agent::with_config(config);
 
@@ -221,6 +223,7 @@ mod tests {
                 permission_manager,
                 Some(mock_scheduler),
                 GooseMode::Auto,
+                false,
             );
             let agent = Agent::with_config(config);
 
@@ -541,6 +544,7 @@ mod tests {
                 PermissionManager::instance(),
                 None,
                 GooseMode::Auto,
+                false,
             );
 
             let agent = Agent::with_config(config);

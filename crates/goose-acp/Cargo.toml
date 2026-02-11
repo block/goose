@@ -19,6 +19,7 @@ goose = { path = "../goose" }
 goose-mcp = { path = "../goose-mcp" }
 rmcp = { workspace = true }
 sacp = "10.1.0"
+agent-client-protocol-schema = { version = "0.10", features = ["unstable_session_model"] }
 anyhow = { workspace = true }
 tokio = { workspace = true }
 tokio-util = { version = "0.7.15", features = ["compat", "rt"] }
@@ -43,6 +44,7 @@ uuid = { version = "1.11", features = ["v7"] }
 [dev-dependencies]
 assert-json-diff = "2.0.2"
 async-trait = "0.1.89"
+goose-test-support = { path = "../goose-test-support" }
 wiremock = { workspace = true }
 tempfile = "3"
 test-case = { workspace = true }

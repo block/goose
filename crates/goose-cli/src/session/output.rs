@@ -314,8 +314,9 @@ fn render_tool_request(req: &ToolRequest, theme: Theme, debug: bool) {
         Ok(call) => match call.name.to_string().as_str() {
             "developer__text_editor" => render_text_editor_request(call, debug),
             "developer__shell" => render_shell_request(call, debug),
-            "code_execution__execute" => render_execute_code_request(call, debug),
-            "subagent" => render_subagent_request(call, debug),
+            "execute" | "execute_code" => render_execute_code_request(call, debug),
+            "delegate" => render_delegate_request(call, debug),
+            "subagent" => render_delegate_request(call, debug),
             "todo__write" => render_todo_request(call, debug),
             _ => render_default_request(call, debug),
         },
@@ -555,12 +556,12 @@ fn render_execute_code_request(call: &CallToolRequestParams, debug: bool) {
     println!();
 }
 
-fn render_subagent_request(call: &CallToolRequestParams, debug: bool) {
+fn render_delegate_request(call: &CallToolRequestParams, debug: bool) {
     print_tool_header(call);
 
     if let Some(args) = &call.arguments {
-        if let Some(Value::String(subrecipe)) = args.get("subrecipe") {
-            println!("{}: {}", style("subrecipe").dim(), style(subrecipe).cyan());
+        if let Some(Value::String(source)) = args.get("source") {
+            println!("{}: {}", style("source").dim(), style(source).cyan());
         }
 
         if let Some(Value::String(instructions)) = args.get("instructions") {
@@ -581,7 +582,7 @@ fn render_subagent_request(call: &CallToolRequestParams, debug: bool) {
             print_params(&Some(params.clone()), 1, debug);
         }
 
-        let skip_keys = ["subrecipe", "instructions", "parameters"];
+        let skip_keys = ["source", "instructions", "parameters"];
         let mut other_args = serde_json::Map::new();
         for (k, v) in args {
             if !skip_keys.contains(&k.as_str()) {
@@ -613,21 +614,108 @@ fn render_default_request(call: &CallToolRequestParams, debug: bool) {
     println!();
 }
 
+fn split_tool_name(tool_name: &str) -> (String, String) {
+    let parts: Vec<_> = tool_name.rsplit("__").collect();
+    let tool = parts.first().copied().unwrap_or("unknown");
+    let extension = parts
+        .split_first()
+        .map(|(_, s)| s.iter().rev().copied().collect::<Vec<_>>().join("__"))
+        .unwrap_or_default();
+    (tool.to_string(), extension)
+}
+
+pub fn format_subagent_tool_call_message(subagent_id: &str, tool_name: &str) -> String {
+    let short_id = subagent_id.rsplit('_').next().unwrap_or(subagent_id);
+    let (tool, extension) = split_tool_name(tool_name);
+
+    if extension.is_empty() {
+        format!("[subagent:{}] {}", short_id, tool)
+    } else {
+        format!("[subagent:{}] {} | {}", short_id, tool, extension)
+    }
+}
+
+pub fn render_subagent_tool_call(
+    subagent_id: &str,
+    tool_name: &str,
+    arguments: Option<&JsonObject>,
+    debug: bool,
+) {
+    if tool_name == "code_execution__execute_code" {
+        let tool_graph = arguments
+            .and_then(|args| args.get("tool_graph"))
+            .and_then(Value::as_array)
+            .filter(|arr| !arr.is_empty());
+        if let Some(tool_graph) = tool_graph {
+            return render_subagent_tool_graph(subagent_id, tool_graph);
+        }
+    }
+    let tool_header = format!(
+        "─── {} ──────────────────────────",
+        style(format_subagent_tool_call_message(subagent_id, tool_name))
+            .magenta()
+            .dim()
+    );
+    println!();
+    println!("{}", tool_header);
+    print_params(&arguments.cloned(), 0, debug);
+    println!();
+}
+
+fn render_subagent_tool_graph(subagent_id: &str, tool_graph: &[Value]) {
+    let short_id = subagent_id.rsplit('_').next().unwrap_or(subagent_id);
+    let count = tool_graph.len();
+    let plural = if count == 1 { "" } else { "s" };
+    println!();
+    println!(
+        "─── {} {} tool call{} | {} ──────────────────────────",
+        style(format!("[subagent:{}]", short_id)).cyan(),
+        style(count).cyan(),
+        plural,
+        style("execute_code").magenta().dim()
+    );
+
+    for (i, node) in tool_graph.iter().filter_map(Value::as_object).enumerate() {
+        let tool = node
+            .get("tool")
+            .and_then(Value::as_str)
+            .unwrap_or("unknown");
+        let desc = node
+            .get("description")
+            .and_then(Value::as_str)
+            .unwrap_or("");
+        let deps: Vec<_> = node
+            .get("depends_on")
+            .and_then(Value::as_array)
+            .into_iter()
+            .flatten()
+            .filter_map(Value::as_u64)
+            .map(|d| (d + 1).to_string())
+            .collect();
+        let deps_str = if deps.is_empty() {
+            String::new()
+        } else {
+            format!(" (uses {})", deps.join(", "))
+        };
+        println!(
+            "  {}. {}: {}{}",
+            style(i + 1).dim(),
+            style(tool).cyan(),
+            style(desc).green(),
+            style(deps_str).dim()
+        );
+    }
+    println!();
+}
+
 // Helper functions
 
 fn print_tool_header(call: &CallToolRequestParams) {
-    let parts: Vec<_> = call.name.rsplit("__").collect();
+    let (tool, extension) = split_tool_name(&call.name);
     let tool_header = format!(
         "─── {} | {} ──────────────────────────",
-        style(parts.first().unwrap_or(&"unknown")),
-        style(
-            parts
-                .split_first()
-                .map(|(_, s)| s.iter().rev().copied().collect::<Vec<_>>().join("__"))
-                .unwrap_or_else(|| "unknown".to_string())
-        )
-        .magenta()
-        .dim(),
+        style(tool),
+        style(extension).magenta().dim(),
     );
     println!();
     println!("{}", tool_header);

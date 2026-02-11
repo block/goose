@@ -386,10 +386,8 @@ pub fn from_bedrock_json(document: &Document) -> Result<Value> {
 mod tests {
     use super::*;
     use anyhow::Result;
+    use goose_test_support::TEST_IMAGE_B64;
     use rmcp::model::{AnnotateAble, RawImageContent};
-
-    // Base64 encoded 1x1 PNG image for testing
-    const TEST_IMAGE_BASE64: &str = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/PchI7wAAAABJRU5ErkJggg==";
 
     #[test]
     fn test_to_bedrock_image_supported_formats() -> Result<()> {
@@ -403,7 +401,7 @@ mod tests {
 
         for mime_type in supported_formats {
             let image = RawImageContent {
-                data: TEST_IMAGE_BASE64.to_string(),
+                data: TEST_IMAGE_B64.to_string(),
                 mime_type: mime_type.to_string(),
                 meta: None,
             }
@@ -419,7 +417,7 @@ mod tests {
     #[test]
     fn test_to_bedrock_image_unsupported_format() {
         let image = RawImageContent {
-            data: TEST_IMAGE_BASE64.to_string(),
+            data: TEST_IMAGE_B64.to_string(),
             mime_type: "image/bmp".to_string(),
             meta: None,
         }
@@ -450,7 +448,7 @@ mod tests {
     #[test]
     fn test_to_bedrock_message_content_image() -> Result<()> {
         let image = RawImageContent {
-            data: TEST_IMAGE_BASE64.to_string(),
+            data: TEST_IMAGE_B64.to_string(),
             mime_type: "image/png".to_string(),
             meta: None,
         }
@@ -467,7 +465,7 @@ mod tests {
 
     #[test]
     fn test_to_bedrock_tool_result_content_block_image() -> Result<()> {
-        let content = Content::image(TEST_IMAGE_BASE64.to_string(), "image/png".to_string());
+        let content = Content::image(TEST_IMAGE_B64.to_string(), "image/png".to_string());
         let result = to_bedrock_tool_result_content_block("test_id", content)?;
 
         // Verify the wrapper correctly converts Content::Image to ToolResultContentBlock::Image

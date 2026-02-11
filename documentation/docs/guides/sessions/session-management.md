@@ -53,7 +53,15 @@ In your first session, goose prompts you to [set up an LLM (Large Language Model
         | Focus goose Window | `Cmd+Option+G` | `Ctrl+Alt+G` |
         | Keep goose Window Always on Top | `Cmd+Shift+T` | `Ctrl+Shift+T` |
         
-        <br />
+        #### Customize Keyboard Shortcuts
+        
+        You can customize these keyboard shortcuts in the **Settings** menu:
+        1. Click the <PanelLeft className="inline" size={16} /> button in the top-left to open the sidebar
+        2. Click `Settings`
+        3. Click the `Keyboard` tab
+        
+        Changes to global shortcuts (Focus Window, Quick Launcher) take effect immediately. Changes to application shortcuts (New Chat, Settings, etc.) require restarting goose.
+        
         #### Quick Launcher
         Start a new session by typing your prompt into a popup:
         1. Press `Cmd+Option+Shift+G` (macOS) or `Ctrl+Alt+Shift+G` (Windows/Linux) to open the popup
@@ -142,6 +150,10 @@ Search allows you to find specific content within sessions or find specific sess
     | Use Selection for Find | `Cmd+E` | n/a |
     | Toggle Case-Sensitivity | `Aa` | `Aa` |
     | Close Search | `Esc` or `X` | `Esc` or `X` |
+
+    :::tip Customize Search Shortcuts
+    You can [customize](#keyboard-shortcuts) the Find, Find Next, and Find Previous keyboard shortcuts in **Settings** → **Keyboard** tab.
+    :::
 
     :::info No Regex or operator support
     Using regular expressions or search operators in search text isn't supported.

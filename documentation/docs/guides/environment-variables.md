@@ -55,6 +55,71 @@ export GOOSE_PROVIDER__HOST="https://api.anthropic.com"
 export GOOSE_PROVIDER__API_KEY="your-api-key-here"
 ```
 
+### Custom Model Definitions
+
+Define custom model configurations with provider-specific parameters and context limits. This is useful for enabling provider beta features (like extended context windows) or configuring models with specific settings.
+
+| Variable | Purpose | Values | Default |
+|----------|---------|---------|---------|
+| `GOOSE_PREDEFINED_MODELS` | Define custom model configurations | JSON array of model objects | None |
+
+**Model Configuration Fields:**
+
+| Field | Required | Type | Description |
+|-------|----------|------|-------------|
+| `id` | No | number | Optional numeric identifier |
+| `name` | Yes | string | Model name used to reference this configuration |
+| `provider` | Yes | string | Provider name (e.g., "databricks", "openai", "anthropic") |
+| `alias` | No | string | Display name for the model |
+| `subtext` | No | string | Additional descriptive text |
+| `context_limit` | No | number | Override the default context window size in tokens |
+| `request_params` | No | object | Provider-specific parameters included in API requests |
+
+:::info
+The `id`, `alias`, and `subtext` fields are currently not used.
+:::
+
+When a custom model's `context_limit` is specified, it takes precedence over pattern-matching but can still be overridden by explicit environment variables like [`GOOSE_CONTEXT_LIMIT`](#model-context-limit-overrides).
+
+**Examples**
+
+```bash
+# Enable Anthropic's 1M context window with beta header
+export GOOSE_PREDEFINED_MODELS='[
+  {
+    "id": 1,
+    "name": "claude-sonnet-4-1m",
+    "provider": "anthropic",
+    "alias": "Claude Sonnet 4 (1M context)",
+    "subtext": "Anthropic",
+    "context_limit": 1000000,
+    "request_params": {
+      "anthropic_beta": ["context-1m-2025-08-07"]
+    }
+  }
+]'
+
+# Define multiple custom models
+export GOOSE_PREDEFINED_MODELS='[
+  {
+    "id": 1,
+    "name": "gpt-4-custom",
+    "provider": "openai",
+    "alias": "GPT-4 (200k)",
+    "context_limit": 200000
+  },
+  {
+    "id": 2,
+    "name": "internal-model",
+    "provider": "databricks",
+    "alias": "Internal Model (500k)",
+    "context_limit": 500000
+  }
+]'
+```
+
+Custom context limits and request parameters are applied when the model is used. Custom context limits are displayed in goose CLI's [token usage indicator](/docs/guides/sessions/smart-context-management#token-usage).
+
 ### Lead/Worker Model Configuration
 
 These variables configure a [lead/worker model pattern](/docs/tutorials/lead-worker) where a powerful lead model handles initial planning and complex reasoning, then switches to a faster/cheaper worker model for execution. The switch happens automatically based on your settings.
@@ -155,7 +220,7 @@ These variables control how goose manages conversation sessions and context.
 |----------|---------|---------|---------|
 | `GOOSE_CONTEXT_STRATEGY` | Controls how goose handles context limit exceeded situations | "summarize", "truncate", "clear", "prompt" | "prompt" (interactive), "summarize" (headless) |
 | `GOOSE_MAX_TURNS` | [Maximum number of turns](/docs/guides/sessions/smart-context-management#maximum-turns) allowed without user input | Integer (e.g., 10, 50, 100) | 1000 |
-| `GOOSE_SUBAGENT_MAX_TURNS` | Sets the maximum turns allowed for a [subagent](/docs/guides/subagents) to complete before timeout | Integer (e.g., 25) | 25 |
+| `GOOSE_SUBAGENT_MAX_TURNS` | Sets the maximum turns allowed for a [subagent](/docs/guides/subagents) to complete before timeout. Can be overridden by [`settings.max_turns`](/docs/guides/recipes/recipe-reference#settings) in recipes or subagent tool calls. | Integer (e.g., 25) | 25 |
 | `CONTEXT_FILE_NAMES` | Specifies custom filenames for [hint/context files](/docs/guides/context-engineering/using-goosehints#custom-context-files) | JSON array of strings (e.g., `["CLAUDE.md", ".goosehints"]`) | `[".goosehints"]` |
 | `GOOSE_PROMPT_EDITOR` | [External editor](/docs/guides/goose-cli-commands#external-editor-mode) to use for composing prompts instead of CLI input | Editor command (e.g., "vim", "code --wait") | Unset (uses CLI input) |
 | `GOOSE_CLI_THEME` | [Theme](/docs/guides/goose-cli-commands#themes) for CLI response  markdown | "light", "dark", "ansi" | "dark" |
@@ -163,6 +228,7 @@ These variables control how goose manages conversation sessions and context.
 | `GOOSE_RANDOM_THINKING_MESSAGES` | Controls whether to show amusing random messages during processing | "true", "false" | "true" |
 | `GOOSE_CLI_SHOW_COST` | Toggles display of model cost estimates in CLI output | "true", "1" (case insensitive) to enable | false |
 | `GOOSE_AUTO_COMPACT_THRESHOLD` | Set the percentage threshold at which goose [automatically summarizes your session](/docs/guides/sessions/smart-context-management#automatic-compaction). | Float between 0.0 and 1.0 (disabled at 0.0) | 0.8 |
+| `GOOSE_TOOL_CALL_CUTOFF` | Number of tool calls to keep in full detail before summarizing older tool outputs to help maintain efficient context usage  | Integer (e.g., 5, 10, 20) | 10 |
 
 **Examples**
 
@@ -182,7 +248,8 @@ export GOOSE_MAX_TURNS=25
 # Set a reasonable limit for production
 export GOOSE_MAX_TURNS=100
 
-# Customize subagent turn limit
+# Customize the default subagent turn limit
+# Note: This can be overridden per-recipe or per-subagent using the max_turns setting
 export GOOSE_SUBAGENT_MAX_TURNS=50
 
 # Use multiple context files
@@ -205,6 +272,9 @@ export GOOSE_CLI_SHOW_COST=true
 
 # Automatically compact sessions when 60% of available tokens are used
 export GOOSE_AUTO_COMPACT_THRESHOLD=0.6
+
+# Keep more tool calls in full detail (useful for debugging or verbose workflows)
+export GOOSE_TOOL_CALL_CUTOFF=20
 ```
 
 ### Model Context Limit Overrides

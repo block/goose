@@ -1,4 +1,5 @@
 use crate::agents::extension::PlatformExtensionContext;
+use crate::agents::extension_manager::get_tool_owner;
 use crate::agents::mcp_client::{Error, McpClientTrait};
 use anyhow::Result;
 use async_trait::async_trait;
@@ -7,7 +8,7 @@ use pctx_code_mode::model::{CallbackConfig, ExecuteInput, GetFunctionDetailsInpu
 use pctx_code_mode::{CallbackRegistry, CodeMode};
 use rmcp::model::{
     CallToolRequestParams, CallToolResult, Content, Implementation, InitializeResult, JsonObject,
-    ListToolsResult, ProtocolVersion, RawContent, ServerCapabilities, Tool as McpTool,
+    ListToolsResult, ProtocolVersion, RawContent, Role, ServerCapabilities, Tool as McpTool,
     ToolAnnotations, ToolsCapability,
 };
 use schemars::{schema_for, JsonSchema};
@@ -113,10 +114,16 @@ impl CodeExecutionClient {
         let mut cfgs = vec![];
         for tool in tools {
             let full_name = tool.name.to_string();
-            let (server_name, tool_name) = full_name.split_once("__")?;
+            let (namespace, name) = if let Some((server, tool_name)) = full_name.split_once("__") {
+                (server.to_string(), tool_name.to_string())
+            } else if let Some(owner) = get_tool_owner(&tool) {
+                (owner, full_name)
+            } else {
+                continue;
+            };
             cfgs.push(CallbackConfig {
-                name: tool_name.into(),
-                namespace: server_name.into(),
+                name,
+                namespace,
                 description: tool.description.as_ref().map(|d| d.to_string()),
                 input_schema: Some(json!(tool.input_schema)),
                 output_schema: tool.output_schema.as_ref().map(|s| json!(s)),
@@ -272,9 +279,16 @@ fn create_tool_callback(
                         if let Some(sc) = &result.structured_content {
                             Ok(serde_json::to_value(sc).unwrap_or(Value::Null))
                         } else {
+                            // Filter to assistant-audience or no-audience content,
+                            // skipping user-only content to avoid duplicated output
                             let text: String = result
                                 .content
                                 .iter()
+                                .filter(|c| {
+                                    c.audience().is_none_or(|audiences| {
+                                        audiences.is_empty() || audiences.contains(&Role::Assistant)
+                                    })
+                                })
                                 .filter_map(|c| match &c.raw {
                                     RawContent::Text(t) => Some(t.text.clone()),
                                     _ => None,
@@ -344,7 +358,7 @@ impl McpClientTrait for CodeExecutionClient {
                         Get detailed type information for specific functions.
 
                         Provide a list of function identifiers in the format "Namespace.functionName"
-                        (e.g., "Developer.shell", "Github.create_issue").
+                        (e.g., "Developer.shell", "Github.createIssue").
 
                         Returns full TypeScript interface definitions with parameter types,
                         return types, and descriptions for the requested functions.
@@ -367,9 +381,9 @@ impl McpClientTrait for CodeExecutionClient {
                         SYNTAX - TypeScript with async run() function:
                         ```typescript
                         async function run() {
-                            // Access functions via Namespace.functionName({ params })
+                            // Access functions via Namespace.functionName({ params }) — always camelCase
                             const files = await Developer.shell({ command: "ls -la" });
-                            const readme = await Developer.text_editor({ path: "./README.md", command: "view" });
+                            const readme = await Developer.textEditor({ path: "./README.md", command: "view" });
                             return { files, readme };
                         }
                         ```
@@ -386,13 +400,16 @@ impl McpClientTrait for CodeExecutionClient {
                         KEY RULES:
                         - Code MUST define an async function named `run()`
                         - All function calls are async - use `await`
-                        - Access functions as Namespace.functionName() (e.g., Developer.shell, Github.create_issue)
+                        - Function names are always camelCase (e.g., Developer.textEditor, Github.listIssues, Github.createIssue)
                         - Return value from `run()` is the result, all `console.log()` output will be returned as well.
-                        - Only functions from `list_functions()` are available - no `fetch()`, fs, or other Node/Deno APIs
+                        - Only functions from `list_functions()` and `console` methods are available — no `fetch()`, `fs`, or other Node/Deno APIs
                         - Variables don't persist between `execute()` calls - return or log anything you need later
-                        - Add console.log() statements between API calls to track progress if errors occur
-                        - Code runs in an isolated Deno sandbox with restricted network access
-                        - If a function returns `any` do not assume it has any particular fields
+                        - Code runs in an isolated sandbox with restricted network access
+
+                        HANDLING RETURN VALUES:
+                        - If a function returns `any`, do NOT assume its shape - log it first: `console.log(JSON.stringify(result))`
+                        - Many functions return wrapper objects, not raw arrays - check the response structure before calling .filter(), .map(), etc.
+                        - Always inspect unfamiliar return values with console.log() before processing them
 
                         TOKEN USAGE WARNING: This tool could return LARGE responses if your code returns big objects.
                         To minimize tokens:

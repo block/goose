@@ -9,16 +9,10 @@ description.workspace = true
 
 [features]
 default = []
+cuda = ["candle-core/cuda", "candle-nn/cuda"]
 
 [lints]
 workspace = true
-
-[build-dependencies]
-tokio = { workspace = true }
-reqwest = { workspace = true, features = [
-    "json",
-    "rustls-tls-native-roots",
-], default-features = false }
 
 [dependencies]
 lru = "0.16"
@@ -33,7 +27,7 @@ anyhow = { workspace = true }
 thiserror = "1.0"
 futures = { workspace = true }
 dirs = "5.0"
-reqwest = { workspace = true, features = ["rustls-tls-native-roots", "json", "cookies", "gzip", "brotli", "deflate", "zstd", "charset", "http2", "stream", "blocking", "multipart"], default-features = false }
+reqwest = { workspace = true, features = ["rustls-tls-native-roots", "json", "cookies", "gzip", "brotli", "deflate", "zstd", "charset", "http2", "stream", "blocking", "multipart", "system-proxy"], default-features = false }
 tokio = { workspace = true }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = { workspace = true }
@@ -80,11 +74,13 @@ utoipa = { version = "4.1", features = ["chrono"] }
 tokio-cron-scheduler = "0.14.0"
 urlencoding = "2.1"
 v_htmlescape = "0.15"
-sqlx = { version = "0.8", features = [
+sqlx = { version = "0.8", default-features = false, features = [
     "runtime-tokio-rustls",
     "sqlite",
     "chrono",
     "json",
+    "macros",
+    "migrate",
 ] }
 
 # For Bedrock provider
@@ -130,7 +126,7 @@ shellexpand = "3.1.1"
 indexmap = "2.12.0"
 ignore = { workspace = true }
 which = { workspace = true }
-pctx_code_mode = "^0.2.2"
+pctx_code_mode = "^0.2.3"
 unbinder = "0.1.7"
 
 [target.'cfg(target_os = "windows")'.dependencies]
@@ -152,6 +148,7 @@ ctor = "0.2.9"
 test-case = { workspace = true }
 env-lock = { workspace = true }
 rmcp = { workspace = true, features = ["transport-streamable-http-server"] }
+goose-test-support = { path = "../goose-test-support" }
 
 [[example]]
 name = "agent"

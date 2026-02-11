@@ -42,27 +42,27 @@ Now that the recipes are imported, to quickly invoke them in-session [add custom
 
 | Recipe | Slash Command |
 |--------|---------------|
-| RPI Research Codebase | `research` |
-| RPI Create Plan | `plan` |
-| RPI Implement Plan | `implement` |
-| RPI Iterate | `iterate` |
+| RPI Research Codebase | `research_codebase`|
+| RPI Create Plan | `create_plan` |
+| RPI Implement Plan | `implement_plan` |
+| RPI Iterate | `iterate_plan` |
 </details>
 
 ## RPI Workflow
 
 In goose, we use a structured RPI workflow using recipes to systematically tackle complex codebase changes. The workflow consists of slash commands that guide goose through disciplined phases of work:
 
-1. `research` – Document what exists today. No opinions.
-2. `plan` - Design the change with clear phases and success criteria.
-3. `implement` - Execute the plan step by step with verification.
-4. `iterate` – (optional) Adjust the plan if necessary.
+1. `research_codebase` – Document what exists today. No opinions.
+2. `create_plan` - Design the change with clear phases and success criteria.
+3. `implement_plan` - Execute the plan step by step with verification.
+4. `iterate_plan` – (optional) Adjust the plan if necessary.
 
 ```md
 ┌─────────────────────────────────────────────────────────────────────────────-┐
 │                           RPI WORKFLOW                                       │
 ├─────────────────────────────────────────────────────────────────────────────-┤
 │                                                                              │
-│  /research "topic"                                                           │
+│  /research_codebase "topic"                                                  │
 │       │                                                                      │
 │       ├──► Spawns parallel sub-agents:                                       │
 │       │    • find_files (rpi-codebase-locator)                               │
@@ -71,7 +71,7 @@ In goose, we use a structured RPI workflow using recipes to systematically tackl
 │       │                                                                      │
 │       └──► Output: thoughts/research/YYYY-MM-DD-HHmm-topic.md                │
 │                                                                              │
-│  /plan "feature/task"                                                        │
+│  /create_plan "feature/task"                                                 │
 │       │                                                                      │
 │       ├──► Reads research docs                                               │
 │       ├──► Asks clarifying questions                                         │
@@ -79,7 +79,7 @@ In goose, we use a structured RPI workflow using recipes to systematically tackl
 │       │                                                                      │
 │       └──► Output: thoughts/plans/YYYY-MM-DD-HHmm-description.md             │
 │                                                                              │
-│  /implement "plan path"                                                      │
+│  /implement_plan "plan path"                                                 │
 │       │                                                                      │
 │       ├──► Executes phase by phase                                           │
 │       ├──► Runs verification after each phase                                │
@@ -87,7 +87,7 @@ In goose, we use a structured RPI workflow using recipes to systematically tackl
 │       │                                                                      │
 │       └──► Working code                                                      │
 │                                                                              │
-│  /iterate "plan path" + feedback                                             │
+│  /iterate_plan "plan path" + feedback                                        │
 │       │                                                                      │
 │       ├──► Researches only what changed                                      │
 │       ├──► Updates the plan surgically                                       │
@@ -127,10 +127,10 @@ So instead of jumping to implementation, we'll use RPI.
 
 The concept of planning before implementation has become a widely accepted practice. However, planning without research can lead to assumptions that come back to bite you. So, in RPI, we begin with research.
 
-I start the prompt with the `/research` command followed by a topic written in natural language
+I start the prompt with the `/research_codebase` command followed by a topic written in natural language
 
 ```
-/research "look through the cloned goose repo and research how the LLM Tool Discovery is implemented"
+/research_codebase "look through the cloned goose repo and research how the LLM Tool Discovery is implemented"
 ```
 
 
@@ -155,7 +155,7 @@ After goose began researching, I noticed that it was researching "tool discovery
 That wasn't a failure. In fact, this is exactly why research exists. Had I told goose to "remove the LLM Tool Discovery feature", it may have removed our other tool discovery methods as well. Fortunately, catching these types of mistakes early is cheap and easy to recover from.
 :::
 
-The output from the `/research` session was a detailed research document:
+The output from the `/research_codebase` session was a detailed research document:
 
 <details>
 <summary>./thoughts/research/2025-12-22-llm-tool-selection-strategy.md</summary>
@@ -186,7 +186,7 @@ It's important to do each phase in a new session to keep the LLM laser focused o
 :::
 
 ```
-/plan a removal of the Tool Selection Strategy feature
+/create_plan a removal of the Tool Selection Strategy feature
 ```
 
 The **[RPI Create Plan](https://raw.githubusercontent.com/block/goose/refs/heads/main/documentation/src/pages/recipes/data/recipes/rpi-plan.yaml)** recipe starts by reading the research document goose created.
@@ -231,14 +231,14 @@ At this point, the plan became the source of truth. The key shift here is that w
 
 The plan is explicit enough that someone else could execute it. That's not an accident. Remember that the implementation will be in a fresh new session, so the plan must have enough context to actually execute it.
 
-Again, you as the human need to step in here to review the plan and make sure it's solid. If there's anything amiss, instead of starting over you can run the **[RPI Iterate Plan](https://raw.githubusercontent.com/block/goose/refs/heads/main/documentation/src/pages/recipes/data/recipes/rpi-iterate.yaml)** plan (`/iterate`) with details on what's wrong. goose will then read the existing plan, research only what needs rethinking, propose targeted updates, and edit the plan accordingly.
+Again, you as the human need to step in here to review the plan and make sure it's solid. If there's anything amiss, instead of starting over you can run the **[RPI Iterate Plan](https://raw.githubusercontent.com/block/goose/refs/heads/main/documentation/src/pages/recipes/data/recipes/rpi-iterate.yaml)** plan (`/iterate_plan`) with details on what's wrong. goose will then read the existing plan, research only what needs rethinking, propose targeted updates, and edit the plan accordingly.
 
 ## Session 3: Implement
 
 Only after research and planning are complete should you move to implementation. Pass in the plan document.
 
 ```
-/implement thoughts/plans/2025-12-23-remove-tool-selection-strategy.md
+/implement_plan thoughts/plans/2025-12-23-remove-tool-selection-strategy.md
 ```
 
 The **[RPI Implement Plan](https://raw.githubusercontent.com/block/goose/refs/heads/main/documentation/src/pages/recipes/data/recipes/rpi-implement.yaml)** recipe is intentionally boring. In fact, I fell asleep while goose was running it. Implementation should feel mechanical. If it feels creative, something upstream is missing. But knowing that you have a rock solid plan, I advise you to go do something else with your time while goose works (unless there are manual steps in the plan).

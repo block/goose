@@ -445,22 +445,14 @@ impl Provider for LeadWorkerProvider {
         final_result
     }
 
-    async fn fetch_supported_models(&self) -> Result<Option<Vec<String>>, ProviderError> {
+    async fn fetch_supported_models(&self) -> Result<Vec<String>, ProviderError> {
         // Combine models from both providers
-        let lead_models = self.lead_provider.fetch_supported_models().await?;
+        let mut all_models = self.lead_provider.fetch_supported_models().await?;
         let worker_models = self.worker_provider.fetch_supported_models().await?;
-
-        match (lead_models, worker_models) {
-            (Some(lead), Some(worker)) => {
-                let mut all_models = lead;
-                all_models.extend(worker);
-                all_models.sort();
-                all_models.dedup();
-                Ok(Some(all_models))
-            }
-            (Some(models), None) | (None, Some(models)) => Ok(Some(models)),
-            (None, None) => Ok(None),
-        }
+        all_models.extend(worker_models);
+        all_models.sort();
+        all_models.dedup();
+        Ok(all_models)
     }
 
     fn supports_embeddings(&self) -> bool {
