@@ -12,6 +12,15 @@ pub const DEFAULT_EXTENSION_DESCRIPTION: &str = "";
 pub const DEFAULT_DISPLAY_NAME: &str = "Developer";
 const EXTENSIONS_CONFIG_KEY: &str = "extensions";
 
+/// Extensions that have been removed but may still exist in user configs.
+/// These are silently filtered out to avoid confusing error messages.
+const DEPRECATED_EXTENSIONS: &[&str] = &["skills"];
+
+fn is_deprecated_extension(name: &str) -> bool {
+    let key = name_to_key(name);
+    DEPRECATED_EXTENSIONS.iter().any(|&d| name_to_key(d) == key)
+}
+
 #[derive(Debug, Deserialize, Serialize, Clone, ToSchema)]
 pub struct ExtensionEntry {
     pub enabled: bool,
@@ -120,7 +129,7 @@ pub fn is_extension_enabled(key: &str) -> bool {
 pub fn get_enabled_extensions() -> Vec<ExtensionConfig> {
     get_all_extensions()
         .into_iter()
-        .filter(|ext| ext.enabled)
+        .filter(|ext| ext.enabled && !is_deprecated_extension(&ext.config.name()))
         .map(|ext| ext.config)
         .collect()
 }
@@ -128,7 +137,7 @@ pub fn get_enabled_extensions() -> Vec<ExtensionConfig> {
 pub fn get_enabled_extensions_with_config(config: &Config) -> Vec<ExtensionConfig> {
     get_extensions_map_with_config(config)
         .into_values()
-        .filter(|ext| ext.enabled)
+        .filter(|ext| ext.enabled && !is_deprecated_extension(&ext.config.name()))
         .map(|ext| ext.config)
         .collect()
 }
