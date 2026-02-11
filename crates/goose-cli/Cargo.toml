@@ -49,6 +49,9 @@ async-trait = "0.1.89"
 base64 = { workspace = true }
 regex = "1.11.1"
 tar = "0.4"
+reqwest = { workspace = true, features = ["blocking", "rustls-tls-native-roots"] }
+zip = { version = "7.4", default-features = false, features = ["deflate"] }
+bzip2 = "0.5"
 # Web server dependencies
 axum = { version = "0.8.1", features = ["ws", "macros"] }
 tower-http = { workspace = true, features = ["cors", "fs", "auth"] }

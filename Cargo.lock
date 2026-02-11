@@ -1524,6 +1524,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "bzip2"
+version = "0.5.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "49ecfb22d906f800d4fe833b6282cf4dc1c298f5057ca0b5445e5c209735ca47"
+dependencies = [
+ "bzip2-sys",
+]
+
+[[package]]
 name = "bzip2-sys"
 version = "0.1.13+1.0.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3483,6 +3492,7 @@ checksum = "843fba2746e448b37e26a819579957415c8cef339bf08564fe8b7ddbd959573c"
 dependencies = [
  "crc32fast",
  "miniz_oxide",
+ "zlib-rs",
 ]
 
 [[package]]
@@ -4260,6 +4270,7 @@ dependencies = [
  "axum 0.8.8",
  "base64 0.22.1",
  "bat",
+ "bzip2 0.5.2",
  "chrono",
  "clap",
  "clap_complete",
@@ -4277,6 +4288,7 @@ dependencies = [
  "open",
  "rand 0.8.5",
  "regex",
+ "reqwest 0.12.28",
  "rmcp 0.14.0",
  "rustyline",
  "serde",
@@ -4295,6 +4307,7 @@ dependencies = [
  "uuid",
  "webbrowser",
  "winapi",
+ "zip 7.4.0",
 ]
 
 [[package]]
@@ -12368,7 +12381,7 @@ checksum = "760394e246e4c28189f19d488c058bf16f564016aefac5d32bb1f3b51d5e9261"
 dependencies = [
  "aes",
  "byteorder",
- "bzip2",
+ "bzip2 0.4.4",
  "constant_time_eq 0.1.5",
  "crc32fast",
  "crossbeam-utils",
@@ -12404,10 +12417,18 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "cc12baa6db2b15a140161ce53d72209dacea594230798c24774139b54ecaa980"
 dependencies = [
  "crc32fast",
+ "flate2",
  "indexmap 2.13.0",
  "memchr",
  "typed-path",
+ "zopfli",
 ]
+
+[[package]]
+name = "zlib-rs"
+version = "0.6.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a7948af682ccbc3342b6e9420e8c51c1fe5d7bf7756002b4a3c6cabfe96a7e3c"
 
 [[package]]
 name = "zmij"
