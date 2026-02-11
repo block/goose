@@ -6755,6 +6755,19 @@
           "inlineMessage"
         ]
       },
+      "TaskSupport": {
+        "oneOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "string"
+          },
+          {
+            "type": "string"
+          }
+        ]
+      },
       "TelemetryEventRequest": {
         "type": "object",
         "required": [
@@ -6899,6 +6912,16 @@
           "description": {
             "type": "string"
           },
+          "execution": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ToolExecution"
+              },
+              {
+                "type": "object"
+              }
+            ]
+          },
           "icons": {
             "type": "array",
             "items": {
@@ -6961,6 +6984,21 @@
           },
           "toolName": {
             "type": "string"
+          }
+        }
+      },
+      "ToolExecution": {
+        "type": "object",
+        "properties": {
+          "taskSupport": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TaskSupport"
+              },
+              {
+                "type": "object"
+              }
+            ]
           }
         }
       },
