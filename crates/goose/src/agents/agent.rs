@@ -1657,7 +1657,8 @@ impl Agent {
             None => {
                 let model_name = config
                     .get_goose_model()
-                    .map_err(|_| anyhow!("Could not configure agent: missing model"))?;
+                    .ok()
+                    .ok_or_else(|| anyhow!("Could not configure agent: missing model"))?;
                 crate::model::ModelConfig::new(&model_name)
                     .map_err(|e| anyhow!("Could not configure agent: invalid model {}", e))?
             }
