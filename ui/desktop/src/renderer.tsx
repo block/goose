@@ -6,6 +6,7 @@ import SuspenseLoader from './suspense-loader';
 import { client } from './api/client.gen';
 import { setTelemetryEnabled } from './utils/analytics';
 import { readConfig } from './api';
+import { safeJsonFetch } from './utils/safeJsonFetch';
 
 const App = lazy(() => import('./App'));
 
@@ -25,6 +26,7 @@ const TELEMETRY_CONFIG_KEY = 'GOOSE_TELEMETRY_ENABLED';
     console.log('connecting at', gooseApiHost);
     client.setConfig({
       baseUrl: gooseApiHost,
+      fetch: safeJsonFetch,
       headers: {
         'Content-Type': 'application/json',
         'X-Secret-Key': await window.electron.getSecretKey(),
