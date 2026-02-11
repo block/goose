@@ -39,7 +39,7 @@ goose was helping me resolve what felt like an age-old problem, and made it so s
 2. **Review** the site and ask goose to edit or create any pages I needed
 3. **Write content** to fill the different pages of my website (my favorite part)
 
-Then boom, my website was done. No wrestling ancient memories from my mind to relearn CSS, no debugging issues caused by a responsive hover effect I thought was cool at 2 AM, no troubles at all. Goose handled everything. It started with a simple structure, used the styling it came up with from the 404 day challenge, and made changes as I asked for them in conversation. My website went from being embarrasingly empty to being wonderfully designed and easy to edit in *minutes*.
+Then boom, my website was done. No wrestling ancient memories from my mind to relearn CSS, no debugging issues caused by a responsive hover effect I thought was cool at 2 AM, no troubles at all. Goose handled everything. It started with a simple structure, used the styling it came up with from the 404 day challenge, and made changes as I asked for them in conversation. My website went from being embarrassingly empty to being wonderfully designed and easy to edit in *minutes*.
 
 ## Always Use Git
 
