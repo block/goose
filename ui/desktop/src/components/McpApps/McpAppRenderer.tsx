@@ -480,9 +480,11 @@ export default function McpAppRenderer({
       );
     }
 
+    if (!sandboxConfig) return null;
+
     return (
       <AppRenderer
-        sandbox={sandboxConfig!}
+        sandbox={sandboxConfig}
         toolName={resourceUri}
         html={html ?? undefined}
         toolInput={toolInput?.arguments}
