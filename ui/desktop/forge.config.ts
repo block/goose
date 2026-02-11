@@ -104,7 +104,7 @@ module.exports = {
           categories: ['Development'],
           icon: {
             'scalable': 'src/images/icon.svg',
-            '1024x1024': 'src/images/icon.png',
+            '512x512': 'src/images/icon-512.png',
           },
           homepage: 'https://block.github.io/goose/',
           runtimeVersion: '25.08',
