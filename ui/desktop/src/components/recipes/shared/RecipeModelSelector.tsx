@@ -24,10 +24,12 @@ export const RecipeModelSelector = ({
   >([]);
   const [loadingModels, setLoadingModels] = useState(false);
   const [isCustomModel, setIsCustomModel] = useState(false);
+  const [fetchError, setFetchError] = useState<string | null>(null);
 
   useEffect(() => {
     (async () => {
       try {
+        setFetchError(null);
         const providersResponse = await getProviders(false);
         const activeProviders = providersResponse.filter((provider) => provider.is_configured);
 
@@ -74,6 +76,7 @@ export const RecipeModelSelector = ({
         setModelOptions(groupedOptions);
       } catch (error) {
         console.error('Failed to load providers:', error);
+        setFetchError('Failed to fetch models. Please try again later.');
       } finally {
         setLoadingModels(false);
       }
@@ -123,6 +126,11 @@ export const RecipeModelSelector = ({
 
   return (
     <div className="space-y-4">
+      {fetchError && (
+        <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
+          {fetchError}
+        </div>
+      )}
       <div>
         <label className="block text-sm font-medium text-textStandard mb-2">
           Provider (Optional)

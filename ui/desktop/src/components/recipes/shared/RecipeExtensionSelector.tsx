@@ -89,7 +89,7 @@ export const RecipeExtensionSelector = ({
           className="mb-3"
         />
 
-        <p className="text-xs text-textSubtle mb-3">
+        <p className="text-xs text-textSubtle mb-3 text-right">
           {activeCount} extension{activeCount !== 1 ? 's' : ''} selected
         </p>
       </div>
