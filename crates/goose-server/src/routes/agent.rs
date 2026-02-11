@@ -15,16 +15,14 @@ use goose::goose_apps::{fetch_mcp_apps, GooseApp, McpAppCache};
 
 use base64::Engine;
 use goose::agents::ExtensionConfig;
-use goose::config::extensions::get_enabled_extensions_with_config;
 use goose::config::resolve_extensions_for_new_session;
 use goose::config::{Config, GooseMode};
 use goose::model::ModelConfig;
 use goose::providers::create;
 use goose::recipe::Recipe;
 use goose::recipe_deeplink;
-use goose::session::extension_data::ExtensionState;
 use goose::session::session_manager::SessionType;
-use goose::session::{EnabledExtensionsState, Session};
+use goose::session::{EnabledExtensionsState, ExtensionState, Session};
 use goose::{
     agents::{extension::ToolInfo, extension_manager::get_parameter_names},
     config::permission::PermissionLevel,
@@ -554,16 +552,9 @@ async fn update_agent_provider(
         .with_context_limit(payload.context_limit)
         .with_request_params(payload.request_params);
 
-    // Prefer extensions saved in the session; fall back to global config for
-    // new sessions or sessions created before extension state was persisted.
-    let extensions = state
-        .session_manager()
-        .get_session(&payload.session_id, false)
-        .await
-        .ok()
-        .and_then(|session| EnabledExtensionsState::from_extension_data(&session.extension_data))
-        .map(|state| state.extensions)
-        .unwrap_or_else(|| get_enabled_extensions_with_config(config));
+    let extensions =
+        EnabledExtensionsState::for_session(state.session_manager(), &payload.session_id, config)
+            .await;
 
     let new_provider = create(&payload.provider, model_config, extensions)
         .await

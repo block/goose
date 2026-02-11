@@ -4,13 +4,12 @@ use super::output;
 use super::CliSession;
 use console::style;
 use goose::agents::{Agent, Container, ExtensionError};
-use goose::config::get_enabled_extensions;
 use goose::config::resolve_extensions_for_new_session;
 use goose::config::{get_all_extensions, Config, ExtensionConfig};
 use goose::providers::create;
 use goose::recipe::Recipe;
 use goose::session::session_manager::SessionType;
-use goose::session::{EnabledExtensionsState, ExtensionState};
+use goose::session::EnabledExtensionsState;
 use rustyline::EditMode;
 use std::collections::BTreeSet;
 use std::process;
@@ -497,15 +496,12 @@ async fn collect_extension_configs(
     session_id: &str,
 ) -> Result<Vec<ExtensionConfig>, ExtensionError> {
     let configured_extensions: Vec<ExtensionConfig> = if session_config.resume {
-        agent
-            .config
-            .session_manager
-            .get_session(session_id, false)
-            .await
-            .ok()
-            .and_then(|s| EnabledExtensionsState::from_extension_data(&s.extension_data))
-            .map(|state| state.extensions)
-            .unwrap_or_else(get_enabled_extensions)
+        EnabledExtensionsState::for_session(
+            &agent.config.session_manager,
+            session_id,
+            Config::global(),
+        )
+        .await
     } else if session_config.no_profile {
         Vec::new()
     } else {

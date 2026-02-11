@@ -1584,13 +1584,8 @@ impl Agent {
             }
         };
 
-        // Prefer extensions saved in the session; fall back to global config for new
-        // sessions or sessions created before extension state was persisted.
-        let extensions = EnabledExtensionsState::from_extension_data(&session.extension_data)
-            .map(|state| state.extensions)
-            .unwrap_or_else(|| {
-                crate::config::extensions::get_enabled_extensions_with_config(config)
-            });
+        let extensions =
+            EnabledExtensionsState::extensions_or_default(Some(&session.extension_data), config);
 
         let provider = crate::providers::create(&provider_name, model_config, extensions)
             .await
