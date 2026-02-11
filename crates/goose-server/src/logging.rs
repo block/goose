@@ -54,17 +54,25 @@ pub fn setup_logging(name: Option<&str>) -> Result<()> {
         console_layer.with_filter(base_env_filter).boxed(),
     ];
 
-    if let Ok((otlp_tracing_layer, otlp_metrics_layer, otlp_logs_layer)) = otlp_layer::init_otlp() {
+    otlp_layer::init_otel_propagation();
+
+    if let Ok(otlp_tracing_layer) = otlp_layer::create_otlp_tracing_layer() {
         layers.push(
             otlp_tracing_layer
                 .with_filter(otlp_layer::create_otlp_tracing_filter())
                 .boxed(),
         );
+    }
+
+    if let Ok(otlp_metrics_layer) = otlp_layer::create_otlp_metrics_layer() {
         layers.push(
             otlp_metrics_layer
                 .with_filter(otlp_layer::create_otlp_metrics_filter())
                 .boxed(),
         );
+    }
+
+    if let Ok(otlp_logs_layer) = otlp_layer::create_otlp_logs_layer() {
         layers.push(
             otlp_logs_layer
                 .with_filter(otlp_layer::create_otlp_logs_filter())

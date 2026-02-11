@@ -60,6 +60,7 @@ opentelemetry-otlp = { version = "0.27", features = [
     "http-proto",
     "reqwest-client",
 ] }
+opentelemetry-stdout = { version = "0.27", features = ["trace", "metrics", "logs"] }
 keyring = { version = "3.6.2", features = [
     "apple-native",
     "windows-native",
