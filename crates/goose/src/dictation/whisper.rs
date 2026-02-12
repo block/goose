@@ -439,9 +439,6 @@ impl WhisperTranscriber {
         };
         let mut tokens = vec![SOT_TOKEN, self.language_token, TRANSCRIBE_TOKEN];
         let sample_len = self.config.max_target_positions / 2;
-        let max_token_repeat = 3; // Stop if same token repeats this many times
-        let mut last_text_phrase: Vec<u32> = Vec::new();
-        let mut phrase_repeat_count = 0;
 
         for i in 0..sample_len {
             let tokens_tensor = Tensor::new(tokens.as_slice(), &self.device)?.unsqueeze(0)?;
@@ -480,60 +477,16 @@ impl WhisperTranscriber {
                 break;
             }
 
-            // Detect single token repetition
-            if next_token < TIMESTAMP_BEGIN && tokens.len() >= max_token_repeat + 3 {
-                let recent = &tokens[tokens.len() - max_token_repeat..];
-                if recent.iter().all(|&t| t == next_token) {
-                    tracing::debug!(
-                        repeated_token = next_token,
-                        times = max_token_repeat,
-                        "token repetition detected, stopping"
-                    );
-                    tokens.truncate(tokens.len() - max_token_repeat + 1);
-                    break;
-                }
-            }
-
-            // Detect phrase repetition: when we see a timestamp pair (end, start), check if the
-            // text phrase before it matches the previous phrase
-            if next_token >= TIMESTAMP_BEGIN && tokens.len() > 4 {
-                // Look for pattern: [text...], ts, ts where we just added the second ts
-                let prev_token = tokens[tokens.len() - 2];
-                if prev_token >= TIMESTAMP_BEGIN {
-                    // We have two consecutive timestamps - extract the text phrase before them
-                    let phrase_end = tokens.len() - 2;
-                    let mut phrase_start = phrase_end;
-                    while phrase_start > 3
-                        && tokens[phrase_start - 1] < TIMESTAMP_BEGIN
-                        && tokens[phrase_start - 1] != EOT_TOKEN
-                    {
-                        phrase_start -= 1;
-                    }
-
-                    if phrase_start < phrase_end {
-                        let current_phrase: Vec<u32> =
-                            tokens[phrase_start..phrase_end].iter().copied().collect();
-
-                        if !last_text_phrase.is_empty() && current_phrase == last_text_phrase {
-                            phrase_repeat_count += 1;
-                            if phrase_repeat_count >= 2 {
-                                tracing::debug!(
-                                    phrase = ?current_phrase,
-                                    repeat_count = phrase_repeat_count,
-                                    "phrase repetition detected, stopping"
-                                );
-                                // Remove repeated phrases, keep only the first occurrence
-                                let keep_until =
-                                    phrase_start + (phrase_end - phrase_start); // first phrase end
-                                tokens.truncate(keep_until);
-                                break;
-                            }
-                        } else {
-                            phrase_repeat_count = 0;
-                        }
-                        last_text_phrase = current_phrase;
-                    }
-                }
+            // Detect repeating patterns by looking for the current token earlier in the sequence
+            // and checking if the preceding tokens also match (i.e., a repeated phrase)
+            if let Some(truncate_at) = self.detect_repetition(&tokens) {
+                tracing::debug!(
+                    truncate_at,
+                    tokens_before = tokens.len(),
+                    "repetition detected, truncating"
+                );
+                tokens.truncate(truncate_at);
+                break;
             }
         }
 
@@ -757,6 +710,72 @@ impl WhisperTranscriber {
         self.tokenizer
             .decode(tokens, true)
             .map_err(|e| anyhow::anyhow!("Failed to decode tokens: {}", e))
+    }
+
+    fn detect_repetition(&self, tokens: &[u32]) -> Option<usize> {
+        // Skip the initial SOT, language, transcribe tokens
+        if tokens.len() <= SAMPLE_BEGIN + 3 {
+            return None;
+        }
+
+        let sampled = &tokens[SAMPLE_BEGIN..];
+        let current_pos = sampled.len() - 1;
+        let current_token = sampled[current_pos];
+
+        // Look for the most recent previous occurrence of the current token
+        // We only care about adjacent repetitions, so start from right before current
+        for prev_pos in (0..current_pos).rev() {
+            if sampled[prev_pos] != current_token {
+                continue;
+            }
+
+            // Found a match - check how many preceding tokens also match
+            let mut match_len = 1;
+            while prev_pos >= match_len
+                && current_pos >= match_len
+                && sampled[prev_pos - match_len] == sampled[current_pos - match_len]
+            {
+                match_len += 1;
+            }
+
+            let pattern_len = match_len;
+            let gap = current_pos - prev_pos;
+
+            // Only consider adjacent repetitions (gap equals pattern length)
+            // This ensures "I saw a dog. I liked the dog." doesn't trigger
+            if gap != pattern_len {
+                continue;
+            }
+
+            // Count how many times this pattern repeats consecutively
+            let mut repeat_count = 2; // We found at least 2 (prev and current)
+            let mut check_pos = prev_pos;
+
+            while check_pos >= pattern_len {
+                let earlier_pos = check_pos - pattern_len;
+                let matches =
+                    (0..pattern_len).all(|i| sampled[earlier_pos + i] == sampled[prev_pos + i]);
+                if matches {
+                    repeat_count += 1;
+                    check_pos = earlier_pos;
+                } else {
+                    break;
+                }
+            }
+
+            // Trigger on: 3+ adjacent repeats of anything, or 2 adjacent repeats of 5+ token patterns
+            if repeat_count >= 3 || (repeat_count >= 2 && pattern_len >= 5) {
+                // Return the position to truncate to (keep first occurrence only)
+                let first_pattern_start = check_pos;
+                let first_pattern_end = first_pattern_start + pattern_len;
+                return Some(SAMPLE_BEGIN + first_pattern_end);
+            }
+
+            // Only check the first (most recent) match since we want adjacent patterns
+            break;
+        }
+
+        None
     }
 }
 
