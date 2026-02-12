@@ -1308,7 +1308,7 @@ impl SessionStorage {
             let messages = sqlx::query_as::<_, (i64, String, String, i64)>(
                 "SELECT id, role, content_json, created_timestamp
                  FROM messages WHERE session_id = ?
-                 ORDER BY created_timestamp ASC",
+                 ORDER BY id ASC",
             )
             .bind(&session_id)
             .fetch_all(&mut *tx)

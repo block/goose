@@ -9,9 +9,11 @@ use rmcp::model::Tool;
 use rmcp::object;
 
 fn has_bedrock_credentials() -> bool {
-    std::env::var("AWS_ACCESS_KEY_ID").is_ok()
-        || std::env::var("AWS_PROFILE").is_ok()
-        || std::env::var("AWS_SESSION_TOKEN").is_ok()
+    // AWS_PROFILE alone is sufficient, or we need both ACCESS_KEY_ID and SECRET_ACCESS_KEY
+    let has_profile = std::env::var("AWS_PROFILE").is_ok();
+    let has_access_keys = std::env::var("AWS_ACCESS_KEY_ID").is_ok()
+        && std::env::var("AWS_SECRET_ACCESS_KEY").is_ok();
+    has_profile || has_access_keys
 }
 
 #[tokio::test]
