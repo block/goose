@@ -49,63 +49,16 @@ test.afterEach(async () => {
 async function selectProvider(mainWindow: any, provider: Provider) {
   console.log(`Selecting provider: ${provider.name}`);
 
-  // If we're already in the chat interface, we need to reset providers
-  const chatTextarea = await mainWindow.waitForSelector('[data-testid="chat-input"]', {
-    timeout: 2000
-  }).catch(() => null);
-
-  if (chatTextarea) {
-    // Navigate to Settings via sidebar to reset providers
-    console.log('Opening settings to reset providers...');
-    const settingsButton = await mainWindow.waitForSelector('[data-testid="sidebar-settings-button"]', {
-      timeout: 5000,
-      state: 'visible'
-    });
-    await settingsButton.click();
-
-    // Wait for settings page to load and navigate to Models tab
-    await mainWindow.waitForSelector('[data-testid="settings-models-tab"]', {
-      timeout: 5000,
-      state: 'visible'
-    });
-
-    const modelsTab = await mainWindow.waitForSelector('[data-testid="settings-models-tab"]');
-    await modelsTab.click();
-
-    // Wait for models section to load
-    await mainWindow.waitForTimeout(1000);
-
-    // Click Reset Provider and Model button
-    console.log('Clicking Reset provider and model...');
-    const resetButton = await mainWindow.waitForSelector('button:has-text("Reset provider and model")', {
-      timeout: 5000,
-      state: 'visible'
-    });
-    await resetButton.click();
-
-    // Wait for the reset to complete
-    await mainWindow.waitForTimeout(1000);
-  }
-
-  // Wait for React app to be ready and animations to complete
-  await mainWindow.waitForFunction(() => {
-    const root = document.getElementById('root');
-    return root && root.children.length > 0;
-  });
-  await mainWindow.waitForTimeout(10000);
-
-  // Take a screenshot before proceeding
-  await mainWindow.screenshot({ path: `test-results/before-provider-${provider.name.toLowerCase()}-check.png` });
-
-  // Check if we're already at the chat interface (provider already configured)
-  const chatInputAfterReset = await mainWindow.waitForSelector('[data-testid="chat-input"]', {
-    timeout: 2000,
+  // Each test gets a fresh app with an isolated config (via GOOSE_PATH_ROOT in fixtures).
+  // The config is seeded with GOOSE_PROVIDER, so the chat interface should be available.
+  const chatInput = await mainWindow.waitForSelector('[data-testid="chat-input"]', {
+    timeout: 10000,
     state: 'visible'
   }).catch(() => null);
 
-  if (chatInputAfterReset) {
+  if (chatInput) {
     console.log('Provider already configured, chat interface is available');
-    return; // Provider is already selected, no need to do anything
+    return;
   }
 
   // Check if we're on the welcome screen with "Other Providers" section
@@ -501,19 +454,22 @@ test.describe('Goose App', () => {
             console.log('Clicked Add Extension button');
 
             // Wait for the Running Quotes extension to appear in the list
+            // ExtensionItem renders <Card id="extension-running-quotes">
             console.log('Waiting for Running Quotes extension to appear...');
             try {
-              const extensionCard = await mainWindow.waitForSelector(
-                'div.flex:has-text("Running Quotes")',
+              await mainWindow.waitForSelector(
+                '#extension-running-quotes',
                 {
                   timeout: 30000,
                   state: 'visible'
                 }
               );
 
-              // Verify the extension is enabled
-              await mainWindow.waitForTimeout(1000);
-              const toggleButton = await extensionCard.$('button[role="switch"][data-state="checked"]');
+              // Wait for the extension toggle to become checked (MCP server may take time to start)
+              const toggleButton = await mainWindow.waitForSelector(
+                '#extension-running-quotes button[role="switch"][data-state="checked"]',
+                { timeout: 10000, state: 'visible' }
+              ).catch(() => null);
               const isEnabled = !!toggleButton;
               console.log('Extension enabled:', isEnabled);
 
