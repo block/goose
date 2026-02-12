@@ -1,6 +1,6 @@
 #!/bin/bash
 
-PROVIDER_CONFIG='
+PROVIDER_CONFIG="
 openrouter -> google/gemini-2.5-pro|anthropic/claude-sonnet-4.5|qwen/qwen3-coder:exacto|z-ai/glm-4.6:exacto|nvidia/nemotron-3-nano-30b-a3b
 xai -> grok-3
 openai -> gpt-4o|gpt-4o-mini|gpt-3.5-turbo|gpt-5
@@ -22,7 +22,7 @@ codex -> gpt-5.2-codex
 gemini-cli -> gemini-2.5-pro
 cursor-agent -> auto
 ollama -> qwen3
-'
+"
 
 # Flaky models allowed to fail without blocking PRs.
 ALLOWED_FAILURES=(
@@ -117,7 +117,7 @@ build_test_cases() {
     [[ "$line" =~ ^#.*$ || -z "$line" ]] && continue
     local provider="${line%% -> *}"
     if is_provider_available "$provider"; then
-      providers+=("$(eval echo "\"$line\"")")
+      providers+=("$line")
       echo "✓ Including $provider"
     else
       echo "⚠️  Skipping $provider (prerequisites not met)"
@@ -154,7 +154,7 @@ run_test_cases() {
   local test_fn="$1"
 
   RESULTS_DIR=$(mktemp -d)
-  trap "rm -rf $RESULTS_DIR ${CLEANUP_DIR:-}" EXIT
+  trap 'if [ -n "${RESULTS_DIR:-}" ]; then rm -rf -- "$RESULTS_DIR"; fi; if [ -n "${CLEANUP_DIR:-}" ]; then rm -rf -- "$CLEANUP_DIR"; fi' EXIT
   MAX_PARALLEL=${MAX_PARALLEL:-$(nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 8)}
   echo "Running ${#TEST_CASES[@]} tests (max $MAX_PARALLEL parallel)"
   echo ""
