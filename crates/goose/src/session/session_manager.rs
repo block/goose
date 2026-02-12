@@ -1144,8 +1144,34 @@ impl SessionStorage {
 
     async fn add_message(&self, session_id: &str, message: &Message) -> Result<()> {
         let pool = self.pool().await?;
-        let mut tx = pool.begin().await?;
+        // Use BEGIN IMMEDIATE to acquire a write lock upfront. The read-then-write
+        // pattern (SELECT last message, then UPDATE or INSERT) causes lock escalation
+        // failures under concurrent writers when using a default deferred transaction.
+        let mut conn = pool.acquire().await?;
+        sqlx::query("BEGIN IMMEDIATE")
+            .execute(&mut *conn)
+            .await?;
 
+        let result =
+            Self::add_message_inner(&mut conn, session_id, message).await;
+
+        match result {
+            Ok(()) => {
+                sqlx::query("COMMIT").execute(&mut *conn).await?;
+                Ok(())
+            }
+            Err(e) => {
+                sqlx::query("ROLLBACK").execute(&mut *conn).await.ok();
+                Err(e)
+            }
+        }
+    }
+
+    async fn add_message_inner(
+        conn: &mut sqlx::SqliteConnection,
+        session_id: &str,
+        message: &Message,
+    ) -> Result<()> {
         // Check if we should merge with the last message to prevent fragmentation.
         // This handles streaming responses that create multiple assistant text chunks.
         let should_merge = if Self::is_simple_assistant_text(message) {
@@ -1156,7 +1182,7 @@ impl SessionStorage {
                 "SELECT role, content_json FROM messages WHERE session_id = ? ORDER BY id DESC LIMIT 1",
             )
             .bind(session_id)
-            .fetch_optional(&mut *tx)
+            .fetch_optional(&mut *conn)
             .await?;
 
             if let Some((last_role, last_content_json)) = last_msg {
@@ -1193,7 +1219,7 @@ impl SessionStorage {
                 "SELECT id, content_json FROM messages WHERE session_id = ? ORDER BY id DESC LIMIT 1"
             )
             .bind(session_id)
-            .fetch_one(&mut *tx)
+            .fetch_one(&mut *conn)
             .await?;
 
             let (last_id, last_content_json) = last_msg;
@@ -1208,7 +1234,7 @@ impl SessionStorage {
                 sqlx::query("UPDATE messages SET content_json = ? WHERE id = ?")
                     .bind(serde_json::to_string(&last_content)?)
                     .bind(last_id)
-                    .execute(&mut *tx)
+                    .execute(&mut *conn)
                     .await?;
             }
         } else {
@@ -1230,16 +1256,15 @@ impl SessionStorage {
             .bind(serde_json::to_string(&message.content)?)
             .bind(message.created)
             .bind(metadata_json)
-            .execute(&mut *tx)
+            .execute(&mut *conn)
             .await?;
         }
 
         sqlx::query("UPDATE sessions SET updated_at = datetime('now') WHERE id = ?")
             .bind(session_id)
-            .execute(&mut *tx)
+            .execute(&mut *conn)
             .await?;
 
-        tx.commit().await?;
         Ok(())
     }
 
