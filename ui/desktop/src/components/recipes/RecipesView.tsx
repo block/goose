@@ -32,7 +32,7 @@ import {
 } from '../../api';
 import ImportRecipeForm, { ImportRecipeButton } from './ImportRecipeForm';
 import CreateEditRecipeModal from './CreateEditRecipeModal';
-import { generateDeepLink, Recipe } from '../../recipe';
+import { generateDeepLink, encodeRecipe, Recipe, stripEmptyExtensions } from '../../recipe';
 import { useNavigation } from '../../hooks/useNavigation';
 import { CronPicker } from '../schedule/CronPicker';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../ui/dialog';
@@ -57,6 +57,8 @@ import {
   DropdownMenuSeparator,
 } from '../ui/dropdown-menu';
 import { getSearchShortcutText } from '../../utils/keyboardShortcuts';
+import { errorMessage } from '../../utils/conversionUtils';
+import { AppEvents } from '../../constants/events';
 
 export default function RecipesView() {
   const setView = useNavigation();
@@ -130,45 +132,49 @@ export default function RecipesView() {
       const recipeManifestResponses = await listSavedRecipes();
       setSavedRecipes(recipeManifestResponses);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load recipes');
+      setError(errorMessage(err, 'Failed to load recipes'));
       console.error('Failed to load saved recipes:', err);
     } finally {
       setLoading(false);
     }
   };
 
-  const handleStartRecipeChat = async (recipe: Recipe, _recipeId: string) => {
+  const handleStartRecipeChat = async (recipe: Recipe) => {
     try {
       const newAgent = await startAgent({
         body: {
           working_dir: getInitialWorkingDir(),
-          recipe,
+          recipe: stripEmptyExtensions(recipe) as Recipe,
         },
         throwOnError: true,
       });
       const session = newAgent.data;
       trackRecipeStarted(true, undefined, false);
+
+      window.dispatchEvent(new CustomEvent(AppEvents.SESSION_CREATED, { detail: { session } }));
+
       setView('pair', {
         disableAnimation: true,
         resumeSessionId: session.id,
       });
     } catch (error) {
       console.error('Failed to load recipe:', error);
-      const errorMsg = error instanceof Error ? error.message : 'Failed to load recipe';
+      const errorMsg = errorMessage(error, 'Failed to load recipe');
       trackRecipeStarted(false, getErrorType(error), false);
       setError(errorMsg);
     }
   };
 
-  const handleStartRecipeChatInNewWindow = (recipeId: string) => {
+  const handleStartRecipeChatInNewWindow = async (recipe: Recipe) => {
     try {
+      const encodedRecipe = await encodeRecipe(stripEmptyExtensions(recipe) as Recipe);
       window.electron.createChatWindow(
         undefined,
         getInitialWorkingDir(),
         undefined,
         undefined,
         'pair',
-        recipeId
+        encodedRecipe
       );
       trackRecipeStarted(true, undefined, true);
     } catch (error) {
@@ -201,7 +207,7 @@ export default function RecipesView() {
       });
     } catch (err) {
       console.error('Failed to delete recipe:', err);
-      const errorMsg = err instanceof Error ? err.message : 'Failed to delete recipe';
+      const errorMsg = errorMessage(err, 'Failed to delete recipe');
       trackRecipeDeleted(false, getErrorType(err));
       setError(errorMsg);
     }
@@ -341,7 +347,7 @@ export default function RecipesView() {
       await loadSavedRecipes();
     } catch (error) {
       console.error('Failed to save schedule:', error);
-      const errorMsg = error instanceof Error ? error.message : 'Failed to save schedule';
+      const errorMsg = errorMessage(error, 'Failed to save schedule');
       trackRecipeScheduled(false, action, getErrorType(error));
       setError(errorMsg);
     }
@@ -369,7 +375,7 @@ export default function RecipesView() {
       await loadSavedRecipes();
     } catch (error) {
       console.error('Failed to remove schedule:', error);
-      const errorMsg = error instanceof Error ? error.message : 'Failed to remove schedule';
+      const errorMsg = errorMessage(error, 'Failed to remove schedule');
       trackRecipeScheduled(false, 'remove', getErrorType(error));
       setError(errorMsg);
     }
@@ -409,7 +415,7 @@ export default function RecipesView() {
       await loadSavedRecipes();
     } catch (error) {
       console.error('Failed to save slash command:', error);
-      const errorMsg = error instanceof Error ? error.message : 'Failed to save slash command';
+      const errorMsg = errorMessage(error, 'Failed to save slash command');
       trackRecipeSlashCommandSet(false, action, getErrorType(error));
       setError(errorMsg);
     }
@@ -437,7 +443,7 @@ export default function RecipesView() {
       await loadSavedRecipes();
     } catch (error) {
       console.error('Failed to remove slash command:', error);
-      const errorMsg = error instanceof Error ? error.message : 'Failed to remove slash command';
+      const errorMsg = errorMessage(error, 'Failed to remove slash command');
       trackRecipeSlashCommandSet(false, 'remove', getErrorType(error));
       setError(errorMsg);
     }
@@ -505,7 +511,7 @@ export default function RecipesView() {
           <Button
             onClick={(e) => {
               e.stopPropagation();
-              handleStartRecipeChat(recipe, recipeManifestResponse.id);
+              handleStartRecipeChat(recipe);
             }}
             size="sm"
             className="h-8 w-8 p-0"
@@ -516,7 +522,7 @@ export default function RecipesView() {
           <Button
             onClick={(e) => {
               e.stopPropagation();
-              handleStartRecipeChatInNewWindow(recipeManifestResponse.id);
+              handleStartRecipeChatInNewWindow(recipe);
             }}
             variant="outline"
             size="sm"

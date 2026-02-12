@@ -73,16 +73,20 @@ Forking sessions is useful to:
 
 <Tabs groupId="interface">
     <TabItem value="ui" label="goose Desktop" default>
-
         1. Hover over any of your previous messages
         2. Click the <Edit2 className="inline" size={16} /> `Edit` button that appears
         3. Make your changes in the inline editor
         4. Click `Fork Session` to save your changes and start a new session (or use `Cmd+Enter` (macOS) or `Ctrl+Enter` (Windows/Linux))
 
-        goose copies the conversation history from the original session to the new session. The new session is named "(edited)" and the original session is unchanged.
-    </TabItem>
+        goose creates a new session with conversation history up to and including your edited message. The new session is named "(edited)" and the original session remains unchanged.
+
+        :::tip Fork vs Duplicate
+        - **Fork Session** (Edit button on a message): Creates a new session with history up to a specific edited message. Use this to explore different approaches from a particular point in the conversation.
+        - **[Duplicate Session](/docs/guides/sessions/session-management#duplicate-sessions)** (Copy button in session list): Creates a complete copy of the entire session. Use this to preserve a working session or reuse its configuration.
+        :::
+</TabItem>
     <TabItem value="cli" label="goose CLI">
-        Message editing options are not available in the goose CLI.
+    Message editing is not available in the goose CLI, but you can [duplicate entire sessions](/docs/guides/sessions/session-management#duplicate-sessions) using the `--fork` flag.
     </TabItem>
 </Tabs>
 
@@ -232,13 +236,13 @@ Speak to goose directly instead of typing your prompts.
     To enable voice dictation:
         1. Click the <PanelLeft className="inline" size={16} /> button in the top-left to open the sidebar
         2. Click `Settings` in the sidebar
-        3. Click `Chat`
+        3. Click the `Chat` tab
         4. Under `Voice Dictation`, toggle `Enable Voice Dictation` on
         5. Choose between `OpenAI Whisper` or `ElevenLabs` as your dictation provider
         6. Enter your API key for the provider you chose 
 
     To use voice dictation:
-        1. Return to the chat interface (click `Chat` in the sidebar)
+        1. Return to your chat (click your chat session under `Chat` in the sidebar)
         2. Click the microphone on the right of the chat box and begin speaking
         
         The first time you use voice dictation, goose will request access to your microphone. While recording, you'll see a live waveform of your audio in the input field, a timer, and the current size of your recording. Click the microphone button again to finish recording. 
@@ -254,6 +258,25 @@ Speak to goose directly instead of typing your prompts.
   </TabItem>
     <TabItem value="cli" label="goose CLI">
         Voice dictation is not available in the goose CLI. 
+    </TabItem>
+</Tabs>
+
+## Spellcheck
+
+Spellcheck is enabled by default in the goose Desktop chat input field.
+
+<Tabs groupId="interface">
+    <TabItem value="ui" label="goose Desktop" default>
+    To disable or re-enable spellcheck:
+        1. Click the <PanelLeft className="inline" size={16} /> button in the top-left to open the sidebar
+        2. Click `Settings` in the sidebar
+        3. Click `Chat`
+        4. Scroll down to `Enable Spellcheck` and toggle it on or off
+        5. Restart goose for the change to take effect
+        
+    </TabItem>
+    <TabItem value="cli" label="goose CLI">
+        Spellcheck is not available in the goose CLI.
     </TabItem>
 </Tabs>
 

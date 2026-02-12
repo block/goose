@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Button } from '../../ui/button';
 import { Loader2, Download, CheckCircle, AlertCircle } from 'lucide-react';
+import { errorMessage } from '../../../utils/conversionUtils';
 
 type UpdateStatus =
   | 'idle'
@@ -154,7 +155,7 @@ export default function UpdateSection() {
       console.error('Error checking for updates:', error);
       setUpdateInfo((prev) => ({
         ...prev,
-        error: error instanceof Error ? error.message : 'Failed to check for updates',
+        error: errorMessage(error, 'Failed to check for updates'),
       }));
       setUpdateStatus('error');
       setTimeout(() => setUpdateStatus('idle'), 5000);
@@ -213,7 +214,7 @@ export default function UpdateSection() {
           <div className="text-xs text-text-muted">Current version</div>
         </div>
         {updateInfo.latestVersion && updateInfo.isUpdateAvailable && (
-          <span className="text-textSubtle"> → {updateInfo.latestVersion} available</span>
+          <span className="text-text-muted"> → {updateInfo.latestVersion} available</span>
         )}
         {updateInfo.currentVersion && updateInfo.isUpdateAvailable === false && (
           <span className="text-text-default"> (up to date)</span>

@@ -187,7 +187,12 @@ where
 
         let original_env = setup_environment(config)?;
 
-        let inner_provider = create(&factory_name, ModelConfig::new(config.model_name)?).await?;
+        let inner_provider = create(
+            &factory_name,
+            ModelConfig::new(config.model_name)?,
+            Vec::new(),
+        )
+        .await?;
 
         let test_provider = Arc::new(TestProvider::new_recording(inner_provider, &file_path));
         (
@@ -204,7 +209,13 @@ where
     let temp_dir = TempDir::new()?;
     let session_manager = Arc::new(SessionManager::new(temp_dir.path().to_path_buf()));
     let permission_manager = Arc::new(PermissionManager::new(temp_dir.path().to_path_buf()));
-    let agent_config = AgentConfig::new(session_manager, permission_manager, None, GooseMode::Auto); // no scheduler needed for scenario tests
+    let agent_config = AgentConfig::new(
+        session_manager,
+        permission_manager,
+        None,
+        GooseMode::Auto,
+        true,
+    );
     let agent = Agent::with_config(agent_config);
     agent
         .extension_manager

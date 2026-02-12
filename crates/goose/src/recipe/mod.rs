@@ -28,6 +28,16 @@ fn default_version() -> String {
     "1.0.0".to_string()
 }
 
+/// Strips location information (e.g., "at line X column Y") from error messages
+/// to make them more user-friendly for UI display.
+pub fn strip_error_location(error_msg: &str) -> String {
+    error_msg
+        .split(" at line")
+        .next()
+        .unwrap_or_default()
+        .to_string()
+}
+
 #[derive(Serialize, Deserialize, Debug, Clone, ToSchema)]
 pub struct Recipe {
     // Required fields
@@ -94,6 +104,9 @@ pub struct Settings {
 
     #[serde(skip_serializing_if = "Option::is_none")]
     pub temperature: Option<f32>,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub max_turns: Option<usize>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, ToSchema)]
@@ -213,6 +226,24 @@ pub struct RecipeBuilder {
 }
 
 impl Recipe {
+    fn ensure_summon_for_subrecipes(&mut self) {
+        if self.sub_recipes.is_none() {
+            return;
+        }
+        let summon = ExtensionConfig::Platform {
+            name: "summon".to_string(),
+            description: String::new(),
+            display_name: None,
+            bundled: None,
+            available_tools: vec![],
+        };
+        match &mut self.extensions {
+            Some(exts) if !exts.iter().any(|e| e.name() == "summon") => exts.push(summon),
+            None => self.extensions = Some(vec![summon]),
+            _ => {}
+        }
+    }
+
     /// Returns true if harmful content is detected in instructions, prompt, or activities fields
     pub fn check_for_security_warnings(&self) -> bool {
         if [self.instructions.as_deref(), self.prompt.as_deref()]
@@ -264,29 +295,21 @@ impl Recipe {
     }
 
     pub fn from_content(content: &str) -> Result<Self> {
-        let recipe: Recipe = match serde_yaml::from_str::<serde_yaml::Value>(content) {
+        let mut recipe: Recipe = match serde_yaml::from_str::<serde_yaml::Value>(content) {
             Ok(yaml_value) => {
                 if let Some(nested_recipe) = yaml_value.get("recipe") {
                     serde_yaml::from_value(nested_recipe.clone())
-                        .map_err(|e| anyhow::anyhow!("Failed to parse nested recipe: {}", e))?
+                        .map_err(|e| anyhow::anyhow!("{}", strip_error_location(&e.to_string())))?
                 } else {
                     serde_yaml::from_str(content)
-                        .map_err(|e| anyhow::anyhow!("Failed to parse recipe: {}", e))?
+                        .map_err(|e| anyhow::anyhow!("{}", strip_error_location(&e.to_string())))?
                 }
             }
             Err(_) => serde_yaml::from_str(content)
-                .map_err(|e| anyhow::anyhow!("Failed to parse recipe: {}", e))?,
+                .map_err(|e| anyhow::anyhow!("{}", strip_error_location(&e.to_string())))?,
         };
 
-        if let Some(ref retry_config) = recipe.retry {
-            if let Err(validation_error) = retry_config.validate() {
-                return Err(anyhow::anyhow!(
-                    "Invalid retry configuration: {}",
-                    validation_error
-                ));
-            }
-        }
-
+        recipe.ensure_summon_for_subrecipes();
         Ok(recipe)
     }
 }
@@ -446,8 +469,10 @@ mod tests {
         assert_eq!(recipe.prompt, Some("Test prompt".to_string()));
 
         assert!(recipe.extensions.is_some());
-        let extensions = recipe.extensions.unwrap();
-        assert_eq!(extensions.len(), 1);
+        let extensions = recipe.extensions.as_ref().unwrap();
+        assert_eq!(extensions.len(), 2);
+        assert!(extensions.iter().any(|e| e.name() == "test_extension"));
+        assert!(extensions.iter().any(|e| e.name() == "summon"));
 
         assert!(recipe.parameters.is_some());
         let parameters = recipe.parameters.unwrap();
@@ -529,8 +554,10 @@ sub_recipes:
         assert_eq!(recipe.prompt, Some("Test prompt".to_string()));
 
         assert!(recipe.extensions.is_some());
-        let extensions = recipe.extensions.unwrap();
-        assert_eq!(extensions.len(), 1);
+        let extensions = recipe.extensions.as_ref().unwrap();
+        assert_eq!(extensions.len(), 2);
+        assert!(extensions.iter().any(|e| e.name() == "test_extension"));
+        assert!(extensions.iter().any(|e| e.name() == "summon"));
 
         assert!(recipe.parameters.is_some());
         let parameters = recipe.parameters.unwrap();
@@ -771,5 +798,53 @@ isGlobal: true"#;
         } else {
             panic!("Expected Stdio extension");
         }
+    }
+
+    #[test]
+    fn test_format_serde_error_removes_location() {
+        let content = r#"{"version": "1.0.0"}"#;
+
+        let result = Recipe::from_content(content);
+        assert!(result.is_err());
+
+        let error_msg = result.unwrap_err().to_string();
+        assert_eq!(error_msg, "missing field `title`");
+    }
+
+    #[test]
+    fn test_format_serde_error_missing_title() {
+        let content = r#"{
+            "version": "1.0.0",
+            "description": "A test recipe",
+            "instructions": "Test instructions"
+        }"#;
+
+        let result = Recipe::from_content(content);
+        assert!(result.is_err());
+
+        let error_msg = result.unwrap_err().to_string();
+        assert_eq!(error_msg, "missing field `title`");
+    }
+
+    #[test]
+    fn test_format_serde_error_invalid_type() {
+        let content = r#"{
+            "version": "1.0.0",
+            "title": "Test",
+            "description": "Test",
+            "instructions": "Test",
+            "settings": {
+                "temperature": "not_a_number"
+            }
+        }"#;
+
+        let result = Recipe::from_content(content);
+        assert!(result.is_err());
+
+        let error_msg = result.unwrap_err().to_string();
+        assert_eq!(
+            error_msg,
+            "settings.temperature: invalid type: string \"not_a_number\", expected f32"
+        );
     }
 }

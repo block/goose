@@ -10,7 +10,7 @@ use axum::{
     routing::{get, post},
     Json, Router,
 };
-use goose::agents::ExtensionLoadResult;
+use goose::agents::{Container, ExtensionLoadResult};
 use goose::goose_apps::{fetch_mcp_apps, GooseApp, McpAppCache};
 
 use base64::Engine;
@@ -18,13 +18,11 @@ use goose::agents::ExtensionConfig;
 use goose::config::resolve_extensions_for_new_session;
 use goose::config::{Config, GooseMode};
 use goose::model::ModelConfig;
-use goose::prompt_template::render_template;
 use goose::providers::create;
 use goose::recipe::Recipe;
 use goose::recipe_deeplink;
-use goose::session::extension_data::ExtensionState;
 use goose::session::session_manager::SessionType;
-use goose::session::{EnabledExtensionsState, Session};
+use goose::session::{EnabledExtensionsState, ExtensionState, Session};
 use goose::{
     agents::{extension::ToolInfo, extension_manager::get_parameter_names},
     config::permission::PermissionLevel,
@@ -32,7 +30,7 @@ use goose::{
 use rmcp::model::{CallToolRequestParams, Content};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use std::collections::{HashMap, HashSet};
+use std::collections::HashSet;
 use std::path::PathBuf;
 use std::sync::Arc;
 use tokio_util::sync::CancellationToken;
@@ -103,6 +101,12 @@ pub struct AddExtensionRequest {
 pub struct RemoveExtensionRequest {
     name: String,
     session_id: String,
+}
+
+#[derive(Deserialize, utoipa::ToSchema)]
+pub struct SetContainerRequest {
+    session_id: String,
+    container_id: Option<String>,
 }
 
 #[derive(Deserialize, utoipa::ToSchema)]
@@ -249,18 +253,27 @@ async fn start_agent(
     }
 
     if let Some(recipe) = original_recipe {
-        manager
-            .update(&session.id)
-            .recipe(Some(recipe))
-            .apply()
-            .await
-            .map_err(|err| {
-                error!("Failed to update session with recipe: {}", err);
-                ErrorResponse {
-                    message: format!("Failed to update session with recipe: {}", err),
-                    status: StatusCode::INTERNAL_SERVER_ERROR,
+        let mut update = manager.update(&session.id).recipe(Some(recipe.clone()));
+
+        if let Some(ref settings) = recipe.settings {
+            if let Some(ref provider) = settings.goose_provider {
+                update = update.provider_name(provider);
+
+                if let Some(ref model) = settings.goose_model {
+                    if let Ok(model_config) = ModelConfig::new(model) {
+                        update = update.model_config(model_config);
+                    }
                 }
-            })?;
+            }
+        }
+
+        update.apply().await.map_err(|err| {
+            error!("Failed to update session with recipe: {}", err);
+            ErrorResponse {
+                message: format!("Failed to update session with recipe: {}", err),
+                status: StatusCode::INTERNAL_SERVER_ERROR,
+            }
+        })?;
     }
 
     // Refetch session to get all updates
@@ -414,10 +427,6 @@ async fn update_from_session(
             message: format!("Failed to get session: {}", err),
             status: StatusCode::INTERNAL_SERVER_ERROR,
         })?;
-    let context: HashMap<&str, Value> = HashMap::new();
-    let desktop_prompt =
-        render_template("desktop_prompt.md", &context).expect("Prompt should render");
-    let mut update_prompt = desktop_prompt;
     if let Some(recipe) = session.recipe {
         match build_recipe_with_parameter_values(
             &recipe,
@@ -427,11 +436,13 @@ async fn update_from_session(
         {
             Ok(Some(recipe)) => {
                 if let Some(prompt) = apply_recipe_to_agent(&agent, &recipe, true).await {
-                    update_prompt = prompt;
+                    agent
+                        .extend_system_prompt("recipe".to_string(), prompt)
+                        .await;
                 }
             }
             Ok(None) => {
-                // Recipe has missing parameters - use default prompt
+                // Recipe has missing parameters
             }
             Err(e) => {
                 return Err(ErrorResponse {
@@ -441,7 +452,6 @@ async fn update_from_session(
             }
         }
     }
-    agent.extend_system_prompt(update_prompt).await;
 
     Ok(StatusCode::OK)
 }
@@ -542,12 +552,18 @@ async fn update_agent_provider(
         .with_context_limit(payload.context_limit)
         .with_request_params(payload.request_params);
 
-    let new_provider = create(&payload.provider, model_config).await.map_err(|e| {
-        (
-            StatusCode::BAD_REQUEST,
-            format!("Failed to create {} provider: {}", &payload.provider, e),
-        )
-    })?;
+    let extensions =
+        EnabledExtensionsState::for_session(state.session_manager(), &payload.session_id, config)
+            .await;
+
+    let new_provider = create(&payload.provider, model_config, extensions)
+        .await
+        .map_err(|e| {
+            (
+                StatusCode::BAD_REQUEST,
+                format!("Failed to create {} provider: {}", &payload.provider, e),
+            )
+        })?;
 
     agent
         .update_provider(new_provider, &payload.session_id)
@@ -580,23 +596,15 @@ async fn agent_add_extension(
     let extension_name = request.config.name();
     let agent = state.get_agent(request.session_id.clone()).await?;
 
-    agent.add_extension(request.config).await.map_err(|e| {
-        goose::posthog::emit_error(
-            "extension_add_failed",
-            &format!("{}: {}", extension_name, e),
-        );
-        ErrorResponse::internal(format!("Failed to add extension: {}", e))
-    })?;
-
-    // Persist here rather than in add_extension to ensure we only save state
-    // after the extension successfully loads. This prevents failed extensions
-    // from being persisted as enabled in the session.
     agent
-        .persist_extension_state(&request.session_id)
+        .add_extension(request.config, &request.session_id)
         .await
         .map_err(|e| {
-            error!("Failed to persist extension state: {}", e);
-            ErrorResponse::internal(format!("Failed to persist extension state: {}", e))
+            goose::posthog::emit_error(
+                "extension_add_failed",
+                &format!("{}: {}", extension_name, e),
+            );
+            ErrorResponse::internal(format!("Failed to add extension: {}", e))
         })?;
 
     Ok(StatusCode::OK)
@@ -618,18 +626,40 @@ async fn agent_remove_extension(
     Json(request): Json<RemoveExtensionRequest>,
 ) -> Result<StatusCode, ErrorResponse> {
     let agent = state.get_agent(request.session_id.clone()).await?;
-    agent.remove_extension(&request.name).await?;
 
     agent
-        .persist_extension_state(&request.session_id)
+        .remove_extension(&request.name, &request.session_id)
         .await
         .map_err(|e| {
-            error!("Failed to persist extension state: {}", e);
+            error!("Failed to remove extension: {}", e);
             ErrorResponse {
-                message: format!("Failed to persist extension state: {}", e),
+                message: format!("Failed to remove extension: {}", e),
                 status: StatusCode::INTERNAL_SERVER_ERROR,
             }
         })?;
+
+    Ok(StatusCode::OK)
+}
+
+#[utoipa::path(
+    post,
+    path = "/agent/set_container",
+    request_body = SetContainerRequest,
+    responses(
+        (status = 200, description = "Container set successfully"),
+        (status = 401, description = "Unauthorized - invalid secret key"),
+        (status = 424, description = "Agent not initialized"),
+        (status = 500, description = "Internal server error")
+    )
+)]
+async fn set_container(
+    State(state): State<Arc<AppState>>,
+    Json(request): Json<SetContainerRequest>,
+) -> Result<StatusCode, ErrorResponse> {
+    let agent = state.get_agent(request.session_id.clone()).await?;
+
+    let container = request.container_id.map(Container::new);
+    agent.set_container(container).await;
 
     Ok(StatusCode::OK)
 }
@@ -687,11 +717,6 @@ async fn restart_agent_internal(
         status: StatusCode::INTERNAL_SERVER_ERROR,
     })?;
 
-    let context: HashMap<&str, Value> = HashMap::new();
-    let desktop_prompt =
-        render_template("desktop_prompt.md", &context).expect("Prompt should render");
-    let mut update_prompt = desktop_prompt;
-
     if let Some(ref recipe) = session.recipe {
         match build_recipe_with_parameter_values(
             recipe,
@@ -701,11 +726,13 @@ async fn restart_agent_internal(
         {
             Ok(Some(recipe)) => {
                 if let Some(prompt) = apply_recipe_to_agent(&agent, &recipe, true).await {
-                    update_prompt = prompt;
+                    agent
+                        .extend_system_prompt("recipe".to_string(), prompt)
+                        .await;
                 }
             }
             Ok(None) => {
-                // Recipe has missing parameters - use default prompt
+                // Recipe has missing parameters
             }
             Err(e) => {
                 return Err(ErrorResponse {
@@ -715,7 +742,6 @@ async fn restart_agent_internal(
             }
         }
     }
-    agent.extend_system_prompt(update_prompt).await;
 
     Ok(extension_results)
 }
@@ -927,7 +953,12 @@ async fn call_tool(
 
     let tool_result = agent
         .extension_manager
-        .dispatch_tool_call(&payload.session_id, tool_call, CancellationToken::default())
+        .dispatch_tool_call(
+            &payload.session_id,
+            tool_call,
+            None,
+            CancellationToken::default(),
+        )
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
@@ -1157,6 +1188,7 @@ pub fn routes(state: Arc<AppState>) -> Router {
         .route("/agent/update_from_session", post(update_from_session))
         .route("/agent/add_extension", post(agent_add_extension))
         .route("/agent/remove_extension", post(agent_remove_extension))
+        .route("/agent/set_container", post(set_container))
         .route("/agent/stop", post(stop_agent))
         .with_state(state)
 }

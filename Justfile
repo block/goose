@@ -10,7 +10,9 @@ check-everything:
     @echo "  → Formatting Rust code..."
     cargo fmt --all
     @echo "  → Running clippy linting..."
-    ./scripts/clippy-lint.sh
+    cargo clippy --all-targets -- -D warnings
+    @echo "  → Checking for banned TLS crates..."
+    ./scripts/check-no-native-tls.sh
     @echo "  → Checking UI code formatting..."
     cd ui/desktop && npm run lint:check
     @echo "  → Validating OpenAPI schema..."
@@ -142,7 +144,6 @@ debug-ui *alpha:
     @echo "🚀 Starting goose frontend in external backend mode{{ if alpha == "alpha" { " with alpha features enabled" } else { "" } }}"
     cd ui/desktop && \
     export GOOSE_EXTERNAL_BACKEND=true && \
-    export GOOSE_EXTERNAL_PORT=3000 && \
     {{ if alpha == "alpha" { "export ALPHA=true &&" } else { "" } }} \
     npm install && \
     npm run {{ if alpha == "alpha" { "start-alpha-gui" } else { "start-gui" } }}
@@ -160,6 +161,16 @@ debug-ui-main-process:
 	cd ui/desktop && \
 	npm install && \
 	npm run start-gui-debug
+
+# Package the desktop app locally for testing (macOS)
+# Applies ad-hoc code signing with entitlements (needed for mic access, etc.)
+package-ui:
+    @just release-binary
+    @echo "Packaging desktop app..."
+    cd ui/desktop && npm install && npm run package
+    @echo "Signing with entitlements..."
+    codesign --force --deep --sign - --entitlements ui/desktop/entitlements.plist ui/desktop/out/Goose-darwin-arm64/Goose.app
+    @echo "Done! Launch with: open ui/desktop/out/Goose-darwin-arm64/Goose.app"
 
 # Run UI with alpha changes
 run-ui-alpha:
@@ -194,6 +205,12 @@ generate-openapi:
     cargo run -p goose-server --bin generate_schema
     @echo "Generating frontend API..."
     cd ui/desktop && npx @hey-api/openapi-ts
+
+# Generate manpages for the CLI
+generate-manpages:
+    @echo "Generating manpages..."
+    cargo run -p goose-cli --bin generate_manpages
+    @echo "Manpages generated at target/man/"
 
 # make GUI with latest binary
 lint-ui:

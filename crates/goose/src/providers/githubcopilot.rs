@@ -1,6 +1,6 @@
 use crate::config::paths::Paths;
 use crate::providers::api_client::{ApiClient, AuthMethod};
-use crate::providers::utils::{handle_status_openai_compat, stream_openai_compat};
+use crate::providers::openai_compatible::{handle_status_openai_compat, stream_openai_compat};
 use anyhow::{anyhow, Context, Result};
 use async_trait::async_trait;
 use axum::http;
@@ -13,19 +13,22 @@ use std::collections::HashMap;
 use std::path::PathBuf;
 use std::time::Duration;
 
-use super::base::{Provider, ProviderMetadata, ProviderUsage, Usage};
+use super::base::{Provider, ProviderDef, ProviderMetadata, ProviderUsage, Usage};
 use super::errors::ProviderError;
 use super::formats::openai::{create_request, get_usage, response_to_message};
+use super::openai_compatible::handle_response_openai_compat;
 use super::retry::ProviderRetry;
-use super::utils::{get_model, handle_response_openai_compat, ImageFormat, RequestLog};
+use super::utils::{get_model, ImageFormat, RequestLog};
 
 use crate::config::{Config, ConfigError};
 use crate::conversation::message::Message;
 
 use crate::model::ModelConfig;
 use crate::providers::base::{ConfigKey, MessageStream};
+use futures::future::BoxFuture;
 use rmcp::model::Tool;
 
+const GITHUB_COPILOT_PROVIDER_NAME: &str = "github_copilot";
 pub const GITHUB_COPILOT_DEFAULT_MODEL: &str = "gpt-4.1";
 pub const GITHUB_COPILOT_KNOWN_MODELS: &[&str] = &[
     "gpt-4.1",
@@ -165,11 +168,15 @@ impl GithubCopilotProvider {
             cache,
             mu,
             model,
-            name: Self::metadata().name,
+            name: GITHUB_COPILOT_PROVIDER_NAME.to_string(),
         })
     }
 
-    async fn post(&self, session_id: &str, payload: &mut Value) -> Result<Response, ProviderError> {
+    async fn post(
+        &self,
+        session_id: Option<&str>,
+        payload: &mut Value,
+    ) -> Result<Response, ProviderError> {
         let (endpoint, token) = self.get_api_info().await?;
         let auth = AuthMethod::BearerToken(token);
         let mut headers = self.get_github_headers();
@@ -372,11 +379,12 @@ impl GithubCopilotProvider {
     }
 }
 
-#[async_trait]
-impl Provider for GithubCopilotProvider {
+impl ProviderDef for GithubCopilotProvider {
+    type Provider = Self;
+
     fn metadata() -> ProviderMetadata {
         ProviderMetadata::new(
-            "github_copilot",
+            GITHUB_COPILOT_PROVIDER_NAME,
             "GitHub Copilot",
             "GitHub Copilot. Run `goose configure` and select copilot to set up.",
             GITHUB_COPILOT_DEFAULT_MODEL,
@@ -391,6 +399,16 @@ impl Provider for GithubCopilotProvider {
         )
     }
 
+    fn from_env(
+        model: ModelConfig,
+        _extensions: Vec<crate::config::ExtensionConfig>,
+    ) -> BoxFuture<'static, Result<Self::Provider>> {
+        Box::pin(Self::from_env(model))
+    }
+}
+
+#[async_trait]
+impl Provider for GithubCopilotProvider {
     fn get_name(&self) -> &str {
         &self.name
     }
@@ -411,7 +429,7 @@ impl Provider for GithubCopilotProvider {
     )]
     async fn complete_with_model(
         &self,
-        session_id: &str,
+        session_id: Option<&str>,
         model_config: &ModelConfig,
         system: &str,
         messages: &[Message],
@@ -469,7 +487,7 @@ impl Provider for GithubCopilotProvider {
         let response = self
             .with_retry(|| async {
                 let mut payload_clone = payload.clone();
-                let resp = self.post(session_id, &mut payload_clone).await?;
+                let resp = self.post(Some(session_id), &mut payload_clone).await?;
                 handle_status_openai_compat(resp).await
             })
             .await
@@ -480,10 +498,7 @@ impl Provider for GithubCopilotProvider {
         stream_openai_compat(response, log)
     }
 
-    async fn fetch_supported_models(
-        &self,
-        _session_id: &str,
-    ) -> Result<Option<Vec<String>>, ProviderError> {
+    async fn fetch_supported_models(&self) -> Result<Vec<String>, ProviderError> {
         let (endpoint, token) = self.get_api_info().await?;
         let url = format!("{}/models", endpoint);
 
@@ -503,10 +518,11 @@ impl Provider for GithubCopilotProvider {
 
         let json: serde_json::Value = response.json().await?;
 
-        let arr = match json.get("data").and_then(|v| v.as_array()) {
-            Some(arr) => arr,
-            None => return Ok(None),
-        };
+        let arr = json.get("data").and_then(|v| v.as_array()).ok_or_else(|| {
+            ProviderError::RequestFailed(
+                "Missing 'data' array in GitHub Copilot models response".to_string(),
+            )
+        })?;
         let mut models: Vec<String> = arr
             .iter()
             .filter_map(|m| {
@@ -520,7 +536,7 @@ impl Provider for GithubCopilotProvider {
             })
             .collect();
         models.sort();
-        Ok(Some(models))
+        Ok(models)
     }
 
     async fn configure_oauth(&self) -> Result<(), ProviderError> {

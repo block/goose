@@ -3,15 +3,13 @@ import { toastError, toastSuccess } from '../toasts';
 import Model, { getProviderMetadata } from './settings/models/modelInterface';
 import { ProviderMetadata, setConfigProvider, updateAgentProvider } from '../api';
 import { useConfig } from './ConfigContext';
+import { errorMessage } from '../utils/conversionUtils';
 import {
   getModelDisplayName,
   getProviderDisplayName,
 } from './settings/models/predefinedModelsUtils';
 
-// titles
 export const UNKNOWN_PROVIDER_TITLE = 'Provider name lookup';
-
-// errors
 export const UNKNOWN_PROVIDER_MSG = 'Unknown provider in config -- please inspect your config.yaml';
 
 // success
@@ -30,6 +28,7 @@ interface ModelAndProviderContextType {
   getCurrentModelDisplayName: () => Promise<string>;
   getCurrentProviderDisplayName: () => Promise<string>; // Gets provider display name from subtext
   refreshCurrentModelAndProvider: () => Promise<void>;
+  setProviderAndModel: (provider: string, model: string) => void;
 }
 
 interface ModelAndProviderProviderProps {
@@ -82,7 +81,7 @@ export const ModelAndProviderProvider: React.FC<ModelAndProviderProviderProps> =
       toastError({
         title: `${providerName}/${modelName} failed`,
         msg: `${error}`,
-        traceback: error instanceof Error ? error.message : String(error),
+        traceback: errorMessage(error),
       });
     }
   }, []);
@@ -177,6 +176,11 @@ export const ModelAndProviderProvider: React.FC<ModelAndProviderProviderProps> =
     }
   }, [getCurrentModelAndProvider]);
 
+  const setProviderAndModel = useCallback((provider: string, model: string) => {
+    setCurrentProvider(provider);
+    setCurrentModel(model);
+  }, []);
+
   // Load initial model and provider on mount
   useEffect(() => {
     refreshCurrentModelAndProvider();
@@ -195,6 +199,7 @@ export const ModelAndProviderProvider: React.FC<ModelAndProviderProviderProps> =
       getCurrentModelDisplayName,
       getCurrentProviderDisplayName,
       refreshCurrentModelAndProvider,
+      setProviderAndModel,
     }),
     [
       currentModel,
@@ -208,6 +213,7 @@ export const ModelAndProviderProvider: React.FC<ModelAndProviderProviderProps> =
       getCurrentModelDisplayName,
       getCurrentProviderDisplayName,
       refreshCurrentModelAndProvider,
+      setProviderAndModel,
     ]
   );
 

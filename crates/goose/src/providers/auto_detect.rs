@@ -1,10 +1,7 @@
 use crate::model::ModelConfig;
 use crate::providers::retry::{retry_operation, RetryConfig};
 
-pub async fn detect_provider_from_api_key(
-    session_id: &str,
-    api_key: &str,
-) -> Option<(String, Vec<String>)> {
+pub async fn detect_provider_from_api_key(api_key: &str) -> Option<(String, Vec<String>)> {
     let provider_tests = vec![
         ("anthropic", "ANTHROPIC_API_KEY"),
         ("openai", "OPENAI_API_KEY"),
@@ -18,7 +15,6 @@ pub async fn detect_provider_from_api_key(
         .into_iter()
         .map(|(provider_name, env_key)| {
             let api_key = api_key.to_string();
-            let session_id = session_id.to_string();
             tokio::spawn(async move {
                 let original_value = std::env::var(env_key).ok();
                 std::env::set_var(env_key, &api_key);
@@ -26,16 +22,19 @@ pub async fn detect_provider_from_api_key(
                 let result = match crate::providers::create(
                     provider_name,
                     ModelConfig::new_or_fail("default"),
+                    Vec::new(),
                 )
                 .await
                 {
                     Ok(provider) => {
                         match retry_operation(&RetryConfig::default(), || async {
-                            provider.fetch_supported_models(&session_id).await
+                            provider.fetch_supported_models().await
                         })
                         .await
                         {
-                            Ok(Some(models)) => Some((provider_name.to_string(), models)),
+                            Ok(models) if !models.is_empty() => {
+                                Some((provider_name.to_string(), models))
+                            }
                             _ => None,
                         }
                     }

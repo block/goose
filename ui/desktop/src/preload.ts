@@ -1,6 +1,7 @@
 import Electron, { contextBridge, ipcRenderer, webUtils } from 'electron';
 import { Recipe } from './recipe';
 import { GooseApp } from './api';
+import type { Settings } from './utils/settings';
 
 interface NotificationData {
   title: string;
@@ -43,12 +44,6 @@ interface FileResponse {
   found: boolean;
 }
 
-interface SaveDataUrlResponse {
-  id: string;
-  filePath?: string;
-  error?: string;
-}
-
 const config = JSON.parse(process.argv.find((arg) => arg.startsWith('{')) || '{}');
 
 interface UpdaterEvent {
@@ -69,7 +64,7 @@ type ElectronAPI = {
     version?: string,
     resumeSessionId?: string,
     viewType?: string,
-    recipeId?: string
+    recipeDeeplink?: string
   ) => void;
   logInfo: (txt: string) => void;
   showNotification: (data: NotificationData) => void;
@@ -91,8 +86,8 @@ type ElectronAPI = {
   getMenuBarIconState: () => Promise<boolean>;
   setDockIcon: (show: boolean) => Promise<boolean>;
   getDockIconState: () => Promise<boolean>;
-  getSettings: () => Promise<unknown | null>;
-  saveSettings: (settings: unknown) => Promise<boolean>;
+  getSettings: () => Promise<Settings>;
+  saveSettings: (settings: Settings) => Promise<boolean>;
   getSecretKey: () => Promise<string>;
   getGoosedHostPort: () => Promise<string | null>;
   setWakelock: (enable: boolean) => Promise<boolean>;
@@ -116,10 +111,6 @@ type ElectronAPI = {
     useSystemTheme: boolean;
     theme: string;
   }) => void;
-  // Functions for image pasting
-  saveDataUrlToTemp: (dataUrl: string, uniqueId: string) => Promise<SaveDataUrlResponse>;
-  deleteTempFile: (filePath: string) => void;
-  // Function for opening external URLs securely
   openExternal: (url: string) => Promise<void>;
   // Update-related functions
   getVersion: () => string;
@@ -165,7 +156,7 @@ const electronAPI: ElectronAPI = {
     version?: string,
     resumeSessionId?: string,
     viewType?: string,
-    recipeId?: string
+    recipeDeeplink?: string
   ) =>
     ipcRenderer.send(
       'create-chat-window',
@@ -174,7 +165,7 @@ const electronAPI: ElectronAPI = {
       version,
       resumeSessionId,
       viewType,
-      recipeId
+      recipeDeeplink
     ),
   logInfo: (txt: string) => ipcRenderer.send('logInfo', txt),
   showNotification: (data: NotificationData) => ipcRenderer.send('notify', data),
@@ -234,12 +225,6 @@ const electronAPI: ElectronAPI = {
   },
   broadcastThemeChange: (themeData: { mode: string; useSystemTheme: boolean; theme: string }) => {
     ipcRenderer.send('broadcast-theme-change', themeData);
-  },
-  saveDataUrlToTemp: (dataUrl: string, uniqueId: string): Promise<SaveDataUrlResponse> => {
-    return ipcRenderer.invoke('save-data-url-to-temp', dataUrl, uniqueId);
-  },
-  deleteTempFile: (filePath: string): void => {
-    ipcRenderer.send('delete-temp-file', filePath);
   },
   openExternal: (url: string): Promise<void> => {
     return ipcRenderer.invoke('open-external', url);

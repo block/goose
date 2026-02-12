@@ -9,16 +9,19 @@ use aws_sdk_sagemakerruntime::Client as SageMakerClient;
 use rmcp::model::Tool;
 use serde_json::{json, Value};
 
-use super::base::{ConfigKey, Provider, ProviderMetadata, ProviderUsage, Usage};
+use super::base::{ConfigKey, Provider, ProviderDef, ProviderMetadata, ProviderUsage, Usage};
 use super::errors::ProviderError;
 use super::retry::ProviderRetry;
 use super::utils::RequestLog;
 use crate::conversation::message::{Message, MessageContent};
+use crate::session_context::SESSION_ID_HEADER;
 
 use crate::model::ModelConfig;
 use chrono::Utc;
+use futures::future::BoxFuture;
 use rmcp::model::Role;
 
+const SAGEMAKER_TGI_PROVIDER_NAME: &str = "sagemaker_tgi";
 pub const SAGEMAKER_TGI_DOC_LINK: &str =
     "https://docs.aws.amazon.com/sagemaker/latest/dg/realtime-endpoints.html";
 
@@ -81,7 +84,7 @@ impl SageMakerTgiProvider {
             sagemaker_client,
             endpoint_name,
             model,
-            name: Self::metadata().name,
+            name: SAGEMAKER_TGI_PROVIDER_NAME.to_string(),
         })
     }
 
@@ -154,17 +157,27 @@ impl SageMakerTgiProvider {
         Ok(request)
     }
 
-    async fn invoke_endpoint(&self, payload: Value) -> Result<Value, ProviderError> {
+    async fn invoke_endpoint(
+        &self,
+        session_id: Option<&str>,
+        payload: Value,
+    ) -> Result<Value, ProviderError> {
         let body = serde_json::to_string(&payload).map_err(|e| {
             ProviderError::RequestFailed(format!("Failed to serialize request: {}", e))
         })?;
 
-        let response = self
+        let mut request = self
             .sagemaker_client
             .invoke_endpoint()
             .endpoint_name(&self.endpoint_name)
             .content_type("application/json")
-            .body(body.into_bytes().into())
+            .body(body.into_bytes().into());
+
+        if let Some(session_id) = session_id.filter(|id| !id.is_empty()) {
+            request = request.custom_attributes(format!("{SESSION_ID_HEADER}={session_id}"));
+        }
+
+        let response = request
             .send()
             .await
             .map_err(|e| ProviderError::RequestFailed(format!("SageMaker invoke failed: {}", e)))?;
@@ -257,11 +270,12 @@ impl SageMakerTgiProvider {
     }
 }
 
-#[async_trait]
-impl Provider for SageMakerTgiProvider {
+impl ProviderDef for SageMakerTgiProvider {
+    type Provider = Self;
+
     fn metadata() -> ProviderMetadata {
         ProviderMetadata::new(
-            "sagemaker_tgi",
+            SAGEMAKER_TGI_PROVIDER_NAME,
             "Amazon SageMaker TGI",
             "Run Text Generation Inference models through Amazon SageMaker endpoints. Requires AWS credentials and a SageMaker endpoint URL.",
             SAGEMAKER_TGI_DEFAULT_MODEL,
@@ -275,6 +289,16 @@ impl Provider for SageMakerTgiProvider {
         )
     }
 
+    fn from_env(
+        model: ModelConfig,
+        _extensions: Vec<crate::config::ExtensionConfig>,
+    ) -> BoxFuture<'static, Result<Self::Provider>> {
+        Box::pin(Self::from_env(model))
+    }
+}
+
+#[async_trait]
+impl Provider for SageMakerTgiProvider {
     fn get_name(&self) -> &str {
         &self.name
     }
@@ -289,7 +313,7 @@ impl Provider for SageMakerTgiProvider {
     )]
     async fn complete_with_model(
         &self,
-        _session_id: &str,
+        session_id: Option<&str>,
         model_config: &ModelConfig,
         system: &str,
         messages: &[Message],
@@ -302,7 +326,7 @@ impl Provider for SageMakerTgiProvider {
         })?;
 
         let response = self
-            .with_retry(|| self.invoke_endpoint(request_payload.clone()))
+            .with_retry(|| self.invoke_endpoint(session_id, request_payload.clone()))
             .await?;
 
         let message = self.parse_tgi_response(response)?;

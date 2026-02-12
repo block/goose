@@ -1,10 +1,10 @@
 mod builder;
 mod completion;
+mod editor;
 mod elicitation;
 mod export;
 mod input;
 mod output;
-mod prompt;
 mod task_execution_display;
 mod thinking;
 
@@ -21,6 +21,7 @@ pub use self::export::message_to_markdown;
 pub use builder::{build_session, SessionBuilderConfig};
 use console::Color;
 use goose::agents::AgentEvent;
+use goose::agents::SUBAGENT_TOOL_REQUEST_TYPE;
 use goose::permission::permission_confirmation::PrincipalType;
 use goose::permission::Permission;
 use goose::permission::PermissionConfirmation;
@@ -165,11 +166,19 @@ pub struct CliSession {
     output_format: String,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum HintStatus {
+    Default,
+    Interrupted,
+    MaybeExit,
+}
+
 // Cache structure for completion data
-struct CompletionCache {
-    prompts: HashMap<String, Vec<String>>,
-    prompt_info: HashMap<String, output::PromptInfo>,
-    last_updated: Instant,
+pub struct CompletionCache {
+    pub prompts: HashMap<String, Vec<String>>,
+    pub prompt_info: HashMap<String, output::PromptInfo>,
+    pub last_updated: Instant,
+    pub hint_status: HintStatus,
 }
 
 impl CompletionCache {
@@ -178,6 +187,7 @@ impl CompletionCache {
             prompts: HashMap::new(),
             prompt_info: HashMap::new(),
             last_updated: Instant::now(),
+            hint_status: HintStatus::Default,
         }
     }
 }
@@ -187,7 +197,7 @@ pub enum PlannerResponseType {
     ClarifyingQuestions,
 }
 
-/// Decide if the planner's reponse is a plan or a clarifying question
+/// Decide if the planner's response is a plan or a clarifying question
 ///
 /// This function is called after the planner has generated a response
 /// to the user's message. The response is either a plan or a clarifying
@@ -276,9 +286,14 @@ impl CliSession {
         }
 
         let cmd = parts.remove(0).to_string();
+        let name = std::path::Path::new(&cmd)
+            .file_name()
+            .and_then(|f| f.to_str())
+            .unwrap_or("unnamed")
+            .to_string();
 
         Ok(ExtensionConfig::Stdio {
-            name: String::new(),
+            name,
             cmd,
             args: parts.iter().map(|s| s.to_string()).collect(),
             envs: Envs::new(envs),
@@ -290,15 +305,36 @@ impl CliSession {
         })
     }
 
-    pub fn parse_streamable_http_extension(extension_url: &str) -> ExtensionConfig {
+    pub fn parse_streamable_http_extension(extension_url: &str, timeout: u64) -> ExtensionConfig {
+        let name = url::Url::parse(extension_url)
+            .ok()
+            .map(|u| {
+                let mut s = String::new();
+                if let Some(host) = u.host_str() {
+                    s.push_str(host);
+                }
+                if let Some(port) = u.port() {
+                    s.push('_');
+                    s.push_str(&port.to_string());
+                }
+                let path = u.path().trim_matches('/');
+                if !path.is_empty() {
+                    s.push('_');
+                    s.push_str(path);
+                }
+                s
+            })
+            .filter(|s| !s.is_empty())
+            .unwrap_or_else(|| "unnamed".to_string());
+
         ExtensionConfig::StreamableHttp {
-            name: String::new(),
+            name,
             uri: extension_url.to_string(),
             envs: Envs::new(HashMap::new()),
             env_keys: Vec::new(),
             headers: HashMap::new(),
             description: goose::config::DEFAULT_EXTENSION_DESCRIPTION.to_string(),
-            timeout: Some(goose::config::DEFAULT_EXTENSION_TIMEOUT),
+            timeout: Some(timeout),
             bundled: None,
             available_tools: Vec::new(),
         }
@@ -313,8 +349,9 @@ impl CliSession {
                 if PLATFORM_EXTENSIONS.contains_key(extension_name) {
                     ExtensionConfig::Platform {
                         name: extension_name.to_string(),
-                        bundled: None,
                         description: extension_name.to_string(),
+                        display_name: None,
+                        bundled: None,
                         available_tools: Vec::new(),
                     }
                 } else {
@@ -334,15 +371,10 @@ impl CliSession {
     async fn add_and_persist_extensions(&mut self, configs: Vec<ExtensionConfig>) -> Result<()> {
         for config in configs {
             self.agent
-                .add_extension(config)
+                .add_extension(config, &self.session_id)
                 .await
                 .map_err(|e| anyhow::anyhow!("Failed to start extension: {}", e))?;
         }
-
-        self.agent
-            .persist_extension_state(&self.session_id)
-            .await
-            .map_err(|e| anyhow::anyhow!("Failed to save extension state: {}", e))?;
 
         self.invalidate_completion_cache().await;
 
@@ -355,7 +387,10 @@ impl CliSession {
     }
 
     pub async fn add_streamable_http_extension(&mut self, extension_url: String) -> Result<()> {
-        let config = Self::parse_streamable_http_extension(&extension_url);
+        let config = Self::parse_streamable_http_extension(
+            &extension_url,
+            goose::config::DEFAULT_EXTENSION_TIMEOUT,
+        );
         self.add_and_persist_extensions(vec![config]).await
     }
 
@@ -444,7 +479,21 @@ impl CliSession {
         loop {
             self.display_context_usage().await?;
 
-            let input = input::get_input(&mut editor)?;
+            // Convert conversation messages to strings for editor mode
+            let conversation_strings: Vec<String> = self
+                .messages
+                .iter()
+                .map(|msg| {
+                    let role = match msg.role {
+                        rmcp::model::Role::User => "User",
+                        rmcp::model::Role::Assistant => "Assistant",
+                    };
+                    format!("## {}: {}", role, msg.as_concat_text())
+                })
+                .collect();
+
+            output::run_status_hook("waiting");
+            let input = input::get_input(&mut editor, Some(&conversation_strings))?;
             if matches!(input, InputResult::Exit) {
                 break;
             }
@@ -578,6 +627,7 @@ impl CliSession {
 
                 let _provider = self.agent.provider().await?;
 
+                output::run_status_hook("thinking");
                 output::show_thinking();
                 let start_time = Instant::now();
                 self.process_agent_response(true, CancellationToken::default())
@@ -1080,7 +1130,11 @@ impl CliSession {
     }
 
     async fn handle_interrupted_messages(&mut self, interrupt: bool) -> Result<()> {
-        // First, get any tool requests from the last message if it exists
+        if interrupt {
+            let mut cache = self.completion_cache.write().unwrap();
+            cache.hint_status = HintStatus::Interrupted;
+        }
+
         let tool_requests = self
             .messages
             .last()
@@ -1101,6 +1155,7 @@ impl CliSession {
         if !tool_requests.is_empty() {
             // Interrupted during a tool request
             // Create tool responses for all interrupted tool requests
+            // TODO(Douwe): if we need this, it should happen in agent reply
             let mut response_message = Message::user();
             let last_tool_name = tool_requests
                 .last()
@@ -1127,7 +1182,6 @@ impl CliSession {
                     }),
                 ));
             }
-            // TODO(Douwe): update also db
             self.push_message(response_message);
             let prompt = format!(
                 "The existing call to {} was interrupted. How would you like to proceed?",
@@ -1509,6 +1563,49 @@ fn handle_mcp_notification(
 ) {
     match notification {
         ServerNotification::LoggingMessageNotification(log_notif) => {
+            if let Some(obj) = log_notif.params.data.as_object() {
+                if obj.get("type").and_then(|v| v.as_str()) == Some(SUBAGENT_TOOL_REQUEST_TYPE) {
+                    if let (Some(subagent_id), Some(tool_call)) = (
+                        obj.get("subagent_id").and_then(|v| v.as_str()),
+                        obj.get("tool_call").and_then(|v| v.as_object()),
+                    ) {
+                        let tool_name = tool_call
+                            .get("name")
+                            .and_then(|v| v.as_str())
+                            .unwrap_or("unknown");
+                        let arguments = tool_call
+                            .get("arguments")
+                            .and_then(|v| v.as_object())
+                            .cloned();
+
+                        if interactive {
+                            let _ = progress_bars.hide();
+                        }
+                        if is_stream_json_mode {
+                            emit_stream_event(&StreamEvent::Notification {
+                                extension_id: extension_id.to_string(),
+                                data: NotificationData::Log {
+                                    message: output::format_subagent_tool_call_message(
+                                        subagent_id,
+                                        tool_name,
+                                    ),
+                                },
+                            });
+                            return;
+                        }
+                        if !is_json_mode {
+                            output::render_subagent_tool_call(
+                                subagent_id,
+                                tool_name,
+                                arguments.as_ref(),
+                                debug,
+                            );
+                            return;
+                        }
+                    }
+                }
+            }
+
             let (formatted, subagent_id, notif_type) =
                 format_logging_notification(&log_notif.params.data, debug);
 
@@ -1580,7 +1677,7 @@ fn format_logging_notification(
                         let min_priority = config
                             .get_param::<f32>("GOOSE_CLI_MIN_PRIORITY")
                             .ok()
-                            .unwrap_or(0.5);
+                            .unwrap_or(output::DEFAULT_MIN_PRIORITY);
 
                         if min_priority > 0.1 && !debug {
                             if let Some(response_content) = msg.strip_prefix("Responded: ") {
@@ -1640,11 +1737,19 @@ fn display_log_notification(
                 std::io::stdout().flush().unwrap();
             }
         } else if ntype == "shell_output" {
-            if interactive {
-                let _ = progress_bars.hide();
-            }
-            if !is_json_mode {
-                println!("{}", formatted_message);
+            let config = Config::global();
+            let min_priority = config
+                .get_param::<f32>("GOOSE_CLI_MIN_PRIORITY")
+                .ok()
+                .unwrap_or(output::DEFAULT_MIN_PRIORITY);
+
+            if min_priority < 0.1 {
+                if interactive {
+                    let _ = progress_bars.hide();
+                }
+                if !is_json_mode {
+                    println!("{}", formatted_message);
+                }
             }
         }
     } else if output::is_showing_thinking() {
@@ -1740,7 +1845,7 @@ async fn get_reasoner() -> Result<Arc<dyn Provider>, anyhow::Error> {
 
     let config = Config::global();
 
-    // Try planner-specific provider first, fallback to default provider
+    // Try planner-specific provider first, fall back to default provider
     let provider = if let Ok(provider) = config.get_param::<String>("GOOSE_PLANNER_PROVIDER") {
         provider
     } else {
@@ -1750,7 +1855,7 @@ async fn get_reasoner() -> Result<Arc<dyn Provider>, anyhow::Error> {
             .expect("No provider configured. Run 'goose configure' first")
     };
 
-    // Try planner-specific model first, fallback to default model
+    // Try planner-specific model first, fall back to default model
     let model = if let Ok(model) = config.get_param::<String>("GOOSE_PLANNER_MODEL") {
         model
     } else {
@@ -1762,7 +1867,8 @@ async fn get_reasoner() -> Result<Arc<dyn Provider>, anyhow::Error> {
 
     let model_config =
         ModelConfig::new_with_context_env(model, Some("GOOSE_PLANNER_CONTEXT_LIMIT"))?;
-    let reasoner = create(&provider, model_config).await?;
+    let extensions = goose::config::extensions::get_enabled_extensions_with_config(config);
+    let reasoner = create(&provider, model_config, extensions).await?;
 
     Ok(reasoner)
 }
@@ -1783,7 +1889,10 @@ fn format_elapsed_time(duration: std::time::Duration) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use goose::agents::extension::Envs;
+    use goose::config::ExtensionConfig;
     use std::time::Duration;
+    use test_case::test_case;
 
     #[test]
     fn test_format_elapsed_time_under_60_seconds() {
@@ -1849,5 +1958,96 @@ mod tests {
         // 60.5 seconds should still show as 1m 00s (not 1m 00.5s)
         let duration = Duration::from_millis(60500);
         assert_eq!(format_elapsed_time(duration), "1m 00s");
+    }
+
+    #[test_case(
+        "/usr/bin/my-server",
+        ExtensionConfig::Stdio {
+            name: "my-server".into(),
+            cmd: "/usr/bin/my-server".into(),
+            args: vec![],
+            envs: Envs::default(),
+            env_keys: vec![],
+            description: goose::config::DEFAULT_EXTENSION_DESCRIPTION.to_string(),
+            timeout: Some(goose::config::DEFAULT_EXTENSION_TIMEOUT),
+            bundled: None,
+            available_tools: vec![],
+        }
+        ; "name_from_cmd_basename"
+    )]
+    #[test_case(
+        "MY_SECRET=s3cret npx -y @modelcontextprotocol/server-everything",
+        ExtensionConfig::Stdio {
+            name: "npx".into(),
+            cmd: "npx".into(),
+            args: vec!["-y".into(), "@modelcontextprotocol/server-everything".into()],
+            envs: Envs::new([("MY_SECRET".into(), "s3cret".into())].into()),
+            env_keys: vec![],
+            description: goose::config::DEFAULT_EXTENSION_DESCRIPTION.to_string(),
+            timeout: Some(goose::config::DEFAULT_EXTENSION_TIMEOUT),
+            bundled: None,
+            available_tools: vec![],
+        }
+        ; "env_prefix_name_from_cmd"
+    )]
+    fn test_parse_stdio_extension(input: &str, expected: ExtensionConfig) {
+        assert_eq!(CliSession::parse_stdio_extension(input).unwrap(), expected);
+    }
+
+    #[test]
+    fn test_parse_stdio_extension_no_command() {
+        assert!(CliSession::parse_stdio_extension("").is_err());
+    }
+
+    #[test_case(
+        "https://mcp.kiwi.com", 300,
+        ExtensionConfig::StreamableHttp {
+            name: "mcp.kiwi.com".into(),
+            uri: "https://mcp.kiwi.com".into(),
+            envs: Envs::default(),
+            env_keys: vec![],
+            headers: HashMap::new(),
+            description: goose::config::DEFAULT_EXTENSION_DESCRIPTION.to_string(),
+            timeout: Some(300),
+            bundled: None,
+            available_tools: vec![],
+        }
+        ; "name_from_host"
+    )]
+    #[test_case(
+        "http://localhost:8080/api", 300,
+        ExtensionConfig::StreamableHttp {
+            name: "localhost_8080_api".into(),
+            uri: "http://localhost:8080/api".into(),
+            envs: Envs::default(),
+            env_keys: vec![],
+            headers: HashMap::new(),
+            description: goose::config::DEFAULT_EXTENSION_DESCRIPTION.to_string(),
+            timeout: Some(300),
+            bundled: None,
+            available_tools: vec![],
+        }
+        ; "port_and_path"
+    )]
+    #[test_case(
+        "http://localhost:9090/other", 300,
+        ExtensionConfig::StreamableHttp {
+            name: "localhost_9090_other".into(),
+            uri: "http://localhost:9090/other".into(),
+            envs: Envs::default(),
+            env_keys: vec![],
+            headers: HashMap::new(),
+            description: goose::config::DEFAULT_EXTENSION_DESCRIPTION.to_string(),
+            timeout: Some(300),
+            bundled: None,
+            available_tools: vec![],
+        }
+        ; "different_port_and_path"
+    )]
+    fn test_parse_streamable_http_extension(url: &str, timeout: u64, expected: ExtensionConfig) {
+        assert_eq!(
+            CliSession::parse_streamable_http_extension(url, timeout),
+            expected
+        );
     }
 }

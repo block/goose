@@ -86,7 +86,7 @@ impl Agent {
             .conversation
             .ok_or_else(|| anyhow!("Session has no conversation"))?;
 
-        let (compacted_conversation, _usage) = compact_messages(
+        let (compacted_conversation, usage) = compact_messages(
             self.provider().await?.as_ref(),
             session_id,
             &conversation,
@@ -96,6 +96,9 @@ impl Agent {
 
         manager
             .replace_conversation(session_id, &compacted_conversation)
+            .await?;
+
+        self.update_session_metrics(session_id, session.schedule_id, &usage, true)
             .await?;
 
         Ok(Some(Message::assistant().with_system_notification(
@@ -375,7 +378,7 @@ impl Agent {
             Err(e) => return Err(anyhow!("Failed to build recipe: {}", e)),
         };
 
-        self.apply_recipe_components(recipe.sub_recipes.clone(), recipe.response.clone(), true)
+        self.apply_recipe_components(recipe.response.clone(), true)
             .await;
 
         let prompt = [recipe.instructions.as_deref(), recipe.prompt.as_deref()]

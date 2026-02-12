@@ -12,7 +12,8 @@ use std::path::PathBuf;
 async fn main() -> anyhow::Result<()> {
     let _ = dotenv();
 
-    let provider = create_with_named_model("databricks", DATABRICKS_DEFAULT_MODEL).await?;
+    let provider =
+        create_with_named_model("databricks", DATABRICKS_DEFAULT_MODEL, Vec::new()).await?;
 
     let agent = Agent::new();
 
@@ -35,7 +36,7 @@ async fn main() -> anyhow::Result<()> {
         DEFAULT_EXTENSION_TIMEOUT,
     )
     .with_args(vec!["mcp", "developer"]);
-    agent.add_extension(config).await?;
+    agent.add_extension(config, &session.id).await?;
 
     println!("Extensions:");
     for extension in agent.list_extensions().await {

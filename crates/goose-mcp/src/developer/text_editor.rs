@@ -1,15 +1,13 @@
 use anyhow::Result;
 use indoc::formatdoc;
 use mpatch::{apply_patch, parse_diffs, PatchError};
+use rmcp::model::{Content, ErrorCode, ErrorData, Role};
 use std::{
     collections::HashMap,
     fs::File,
     io::Read,
     path::{Path, PathBuf},
 };
-use url::Url;
-
-use rmcp::model::{Content, ErrorCode, ErrorData, Role};
 
 use super::editor_models::EditorModel;
 use super::lang;
@@ -660,16 +658,6 @@ pub async fn text_editor_view(
     // Ensure we never read over that limit even if the file is being concurrently mutated
     let mut f = f.take(MAX_FILE_SIZE);
 
-    let uri = Url::from_file_path(path)
-        .map_err(|_| {
-            ErrorData::new(
-                ErrorCode::INTERNAL_ERROR,
-                "Invalid file path".to_string(),
-                None,
-            )
-        })?
-        .to_string();
-
     let mut content = String::new();
     f.read_to_string(&mut content).map_err(|e| {
         ErrorData::new(
@@ -691,10 +679,8 @@ pub async fn text_editor_view(
     let (start_idx, end_idx) = calculate_view_range(view_range, total_lines)?;
     let formatted = format_file_content(path, &lines, start_idx, end_idx, view_range);
 
-    // The LLM gets just a quick update as we expect the file to view in the status
-    // but we send a low priority message for the human
     Ok(vec![
-        Content::embedded_text(uri, content).with_audience(vec![Role::Assistant]),
+        Content::text(formatted.clone()).with_audience(vec![Role::Assistant]),
         Content::text(formatted)
             .with_audience(vec![Role::User])
             .with_priority(0.0),

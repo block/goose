@@ -17,6 +17,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '../../ui/dialog';
+import { errorMessage } from '../../../utils/conversionUtils';
 
 export default function ConfigSettings() {
   const { config, upsert } = useConfig();
@@ -84,7 +85,7 @@ export default function ConfigSettings() {
       toastError({
         title: 'Save Failed',
         msg: `Failed to save "${getUiNames(key)}"`,
-        traceback: error instanceof Error ? error.message : String(error),
+        traceback: errorMessage(error),
       });
     } finally {
       setSaving(null);
@@ -170,18 +171,18 @@ export default function ConfigSettings() {
             <div className="flex-1 max-h-[60vh] overflow-auto pr-4">
               <div className="space-y-4">
                 {configEntries.length === 0 ? (
-                  <p className="text-textSubtle">No configuration settings found.</p>
+                  <p className="text-text-muted">No configuration settings found.</p>
                 ) : (
                   configEntries.map(([key, _value]) => (
                     <div key={key} className="grid grid-cols-[200px_1fr_auto] gap-3 items-center">
-                      <label className="text-sm font-medium text-textStandard" title={key}>
+                      <label className="text-sm font-medium text-text-default" title={key}>
                         {getUiNames(key)}
                       </label>
                       <Input
                         value={String(configValues[key] || '')}
                         onChange={(e) => handleChange(key, e.target.value)}
                         className={cn(
-                          'text-textStandard border-borderSubtle hover:border-borderStandard transition-colors',
+                          'text-text-default border-border-default hover:border-border-default transition-colors',
                           modifiedKeys.has(key) && 'border-blue-500 focus:ring-blue-500/20'
                         )}
                         placeholder={`Enter ${getUiNames(key)}`}

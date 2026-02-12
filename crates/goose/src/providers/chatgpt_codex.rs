@@ -2,20 +2,25 @@ use crate::config::paths::Paths;
 use crate::conversation::message::{Message, MessageContent};
 use crate::model::ModelConfig;
 use crate::providers::api_client::AuthProvider;
-use crate::providers::base::{ConfigKey, MessageStream, Provider, ProviderMetadata, ProviderUsage};
+use crate::providers::base::{
+    ConfigKey, MessageStream, Provider, ProviderDef, ProviderMetadata, ProviderUsage,
+};
 use crate::providers::errors::ProviderError;
 use crate::providers::formats::openai_responses::responses_api_to_streaming_message;
+use crate::providers::openai_compatible::handle_status_openai_compat;
 use crate::providers::retry::ProviderRetry;
-use crate::providers::utils::handle_status_openai_compat;
+use crate::session_context::SESSION_ID_HEADER;
 use anyhow::{anyhow, Result};
 use async_stream::try_stream;
 use async_trait::async_trait;
 use axum::{extract::Query, response::Html, routing::get, Router};
 use base64::Engine;
 use chrono::{DateTime, Utc};
+use futures::future::BoxFuture;
 use futures::{StreamExt, TryStreamExt};
 use jsonwebtoken::jwk::JwkSet;
 use jsonwebtoken::{decode, decode_header, DecodingKey, Validation};
+use reqwest::header::{HeaderName, HeaderValue};
 use rmcp::model::{RawContent, Role, Tool};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
@@ -41,6 +46,7 @@ const OAUTH_PORT: u16 = 1455;
 const OAUTH_TIMEOUT_SECS: u64 = 300;
 const HTML_AUTO_CLOSE_TIMEOUT_MS: u64 = 2000;
 
+const CHATGPT_CODEX_PROVIDER_NAME: &str = "chatgpt_codex";
 pub const CHATGPT_CODEX_DEFAULT_MODEL: &str = "gpt-5.1-codex";
 pub const CHATGPT_CODEX_KNOWN_MODELS: &[&str] = &[
     "gpt-5.2-codex",
@@ -76,7 +82,7 @@ static CHATGPT_CODEX_AUTH_STATE: LazyLock<Arc<ChatGptCodexAuthState>> =
 fn build_input_items(messages: &[Message]) -> Result<Vec<Value>> {
     let mut items = Vec::new();
 
-    for message in messages.iter().filter(|m| m.is_agent_visible()) {
+    for message in messages {
         let role = match message.role {
             Role::User => Some("user"),
             Role::Assistant => Some("assistant"),
@@ -104,6 +110,12 @@ fn build_input_items(messages: &[Message]) -> Result<Vec<Value>> {
                         };
                         content_items.push(json!({ "type": content_type, "text": text.text }));
                     }
+                }
+                MessageContent::Image(img) => {
+                    content_items.push(json!({
+                        "type": "input_image",
+                        "image_url": format!("data:{};base64,{}", img.mime_type, img.data),
+                    }));
                 }
                 MessageContent::ToolRequest(request) => {
                     flush_text(&mut items, role, &mut content_items);
@@ -785,11 +797,15 @@ impl ChatGptCodexProvider {
         Ok(Self {
             auth_provider,
             model,
-            name: Self::metadata().name,
+            name: CHATGPT_CODEX_PROVIDER_NAME.to_string(),
         })
     }
 
-    async fn post_streaming(&self, payload: &Value) -> Result<reqwest::Response, ProviderError> {
+    async fn post_streaming(
+        &self,
+        session_id: Option<&str>,
+        payload: &Value,
+    ) -> Result<reqwest::Response, ProviderError> {
         let token_data = self
             .auth_provider
             .get_valid_token()
@@ -801,6 +817,14 @@ impl ChatGptCodexProvider {
             headers.insert(
                 reqwest::header::HeaderName::from_static("chatgpt-account-id"),
                 reqwest::header::HeaderValue::from_str(account_id)
+                    .map_err(|e| ProviderError::ExecutionError(e.to_string()))?,
+            );
+        }
+
+        if let Some(session_id) = session_id.filter(|id| !id.is_empty()) {
+            headers.insert(
+                HeaderName::from_static(SESSION_ID_HEADER),
+                HeaderValue::from_str(session_id)
                     .map_err(|e| ProviderError::ExecutionError(e.to_string()))?,
             );
         }
@@ -823,11 +847,12 @@ impl ChatGptCodexProvider {
     }
 }
 
-#[async_trait]
-impl Provider for ChatGptCodexProvider {
+impl ProviderDef for ChatGptCodexProvider {
+    type Provider = Self;
+
     fn metadata() -> ProviderMetadata {
         ProviderMetadata::new(
-            "chatgpt_codex",
+            CHATGPT_CODEX_PROVIDER_NAME,
             "ChatGPT Codex",
             "Use your ChatGPT Plus/Pro subscription for GPT-5 Codex models via OAuth",
             CHATGPT_CODEX_DEFAULT_MODEL,
@@ -840,8 +865,19 @@ impl Provider for ChatGptCodexProvider {
                 None,
             )],
         )
+        .with_unlisted_models()
     }
 
+    fn from_env(
+        model: ModelConfig,
+        _extensions: Vec<crate::config::ExtensionConfig>,
+    ) -> BoxFuture<'static, Result<Self::Provider>> {
+        Box::pin(Self::from_env(model))
+    }
+}
+
+#[async_trait]
+impl Provider for ChatGptCodexProvider {
     fn get_name(&self) -> &str {
         &self.name
     }
@@ -856,7 +892,7 @@ impl Provider for ChatGptCodexProvider {
     )]
     async fn complete_with_model(
         &self,
-        _session_id: &str,
+        session_id: Option<&str>,
         model_config: &ModelConfig,
         system: &str,
         messages: &[Message],
@@ -870,7 +906,7 @@ impl Provider for ChatGptCodexProvider {
         let response = self
             .with_retry(|| async {
                 let payload_clone = payload.clone();
-                self.post_streaming(&payload_clone).await
+                self.post_streaming(session_id, &payload_clone).await
             })
             .await?;
 
@@ -914,7 +950,7 @@ impl Provider for ChatGptCodexProvider {
 
     async fn stream(
         &self,
-        _session_id: &str,
+        session_id: &str,
         system: &str,
         messages: &[Message],
         tools: &[Tool],
@@ -926,7 +962,7 @@ impl Provider for ChatGptCodexProvider {
         let response = self
             .with_retry(|| async {
                 let payload_clone = payload.clone();
-                self.post_streaming(&payload_clone).await
+                self.post_streaming(Some(session_id), &payload_clone).await
             })
             .await?;
 
@@ -953,16 +989,11 @@ impl Provider for ChatGptCodexProvider {
         Ok(())
     }
 
-    async fn fetch_supported_models(
-        &self,
-        _session_id: &str,
-    ) -> Result<Option<Vec<String>>, ProviderError> {
-        Ok(Some(
-            CHATGPT_CODEX_KNOWN_MODELS
-                .iter()
-                .map(|s| s.to_string())
-                .collect(),
-        ))
+    async fn fetch_supported_models(&self) -> Result<Vec<String>, ProviderError> {
+        Ok(CHATGPT_CODEX_KNOWN_MODELS
+            .iter()
+            .map(|s| s.to_string())
+            .collect())
     }
 }
 
@@ -970,6 +1001,7 @@ impl Provider for ChatGptCodexProvider {
 mod tests {
     use super::*;
     use crate::conversation::message::Message;
+    use goose_test_support::TEST_IMAGE_B64;
     use jsonwebtoken::{Algorithm, EncodingKey, Header};
     use rmcp::model::{CallToolRequestParams, CallToolResult, Content, ErrorCode, ErrorData};
     use rmcp::object;
@@ -1072,11 +1104,38 @@ mod tests {
         ];
         "includes tool error output"
     )]
+    #[test_case(
+        vec![
+            Message::user()
+                .with_text("describe this")
+                .with_image(TEST_IMAGE_B64, "image/png"),
+        ],
+        vec![
+            "message:user".to_string(),
+        ];
+        "image content included in user message"
+    )]
     fn test_codex_input_order(messages: Vec<Message>, expected: Vec<String>) {
         let items = build_input_items(&messages).unwrap();
         let payload = json!({ "input": items });
         let kinds = input_kinds(&payload);
         assert_eq!(kinds, expected);
+    }
+
+    #[test]
+    fn test_image_url_format() {
+        let messages = vec![Message::user().with_image(TEST_IMAGE_B64, "image/png")];
+        let items = build_input_items(&messages).unwrap();
+        // The image is inside the content array of the user message
+        let content = items[0]["content"].as_array().unwrap();
+        let image_item = &content[0];
+        assert_eq!(image_item["type"], "input_image");
+        let url = image_item["image_url"].as_str().unwrap();
+        assert!(
+            url.starts_with("data:image/png;base64,"),
+            "image_url should start with data:image/png;base64, but was: {}",
+            url
+        );
     }
 
     #[test_case(

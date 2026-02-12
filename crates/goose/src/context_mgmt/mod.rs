@@ -6,9 +6,13 @@ use crate::providers::base::{Provider, ProviderUsage};
 use crate::providers::errors::ProviderError;
 use crate::{config::Config, token_counter::create_token_counter};
 use anyhow::Result;
+use indoc::indoc;
 use rmcp::model::Role;
 use serde::Serialize;
-use tracing::{debug, info};
+use std::sync::Arc;
+use tokio::task::JoinHandle;
+use tracing::info;
+use tracing::log::warn;
 
 pub const DEFAULT_COMPACTION_THRESHOLD: f64 = 0.8;
 
@@ -184,7 +188,7 @@ pub async fn check_if_compaction_needed(
 
     let context_limit = provider.get_model_config().context_limit();
 
-    let (current_tokens, token_source) = match session.total_tokens {
+    let (current_tokens, _token_source) = match session.total_tokens {
         Some(tokens) => (tokens as usize, "session metadata"),
         None => {
             let token_counter = create_token_counter()
@@ -208,17 +212,6 @@ pub async fn check_if_compaction_needed(
     } else {
         usage_ratio > threshold
     };
-
-    debug!(
-        "Compaction check: {} / {} tokens ({:.1}%), threshold: {:.1}%, needs compaction: {}, source: {}",
-        current_tokens,
-        context_limit,
-        usage_ratio * 100.0,
-        threshold * 100.0,
-        needs_compaction,
-        token_source
-    );
-
     Ok(needs_compaction)
 }
 
@@ -418,15 +411,122 @@ fn format_message_for_compacting(msg: &Message) -> String {
     }
 }
 
+/// Find the id of a tool call to summarize. We only do this if we have more than
+/// cutoff tool calls that aren't summarized yet
+pub fn tool_id_to_summarize(conversation: &Conversation, cutoff: usize) -> Option<String> {
+    let messages = conversation.messages();
+
+    let mut tool_call_count = 0;
+    let mut first_tool_call_id = None;
+
+    for msg in messages.iter() {
+        if !msg.is_agent_visible() {
+            continue;
+        }
+
+        for content in &msg.content {
+            if let MessageContent::ToolRequest(req) = content {
+                if first_tool_call_id.is_none() {
+                    first_tool_call_id = Some(req.id.clone());
+                }
+                tool_call_count += 1;
+                if tool_call_count > cutoff {
+                    return first_tool_call_id;
+                }
+            }
+        }
+    }
+    None
+}
+
+pub async fn summarize_tool_call(
+    provider: &dyn Provider,
+    session_id: &str,
+    conversation: &Conversation,
+    tool_id: &str,
+) -> Result<Message> {
+    let messages = conversation.messages();
+
+    let matching_messages: Vec<&Message> = messages
+        .iter()
+        .filter(|m| {
+            m.content.iter().any(|c| match c {
+                MessageContent::ToolRequest(req) => req.id == tool_id,
+                MessageContent::ToolResponse(resp) => resp.id == tool_id,
+                _ => false,
+            })
+        })
+        .collect();
+
+    if matching_messages.is_empty() {
+        return Err(anyhow::anyhow!(
+            "No messages found for tool id: {}",
+            tool_id
+        ));
+    }
+
+    let formatted = matching_messages
+        .iter()
+        .map(|msg| format_message_for_compacting(msg))
+        .collect::<Vec<_>>()
+        .join("\n");
+
+    let user_message = Message::user().with_text(formatted);
+    let summarization_request = vec![user_message];
+
+    let system_prompt = indoc! {r#"
+                Your task is to summarize a tool call & response pair to save tokens
+
+                reply with a single message that describe what happened. Typically a toolcall
+                is asks for something using a bunch of parameters and then the result is also some
+                structured output. So the tool might ask to look up something on github and the
+                reply might be a json document. So you could reply with something like:
+
+                "A call to github was made to get the project status"
+
+                if that is what it was.
+
+            "#};
+
+    let (mut response, _) = provider
+        .complete_fast(session_id, system_prompt, &summarization_request, &[])
+        .await?;
+
+    response.role = Role::User;
+    response.created = matching_messages.last().unwrap().created;
+    response.metadata = MessageMetadata::agent_only();
+
+    Ok(response.with_generated_id())
+}
+
+pub fn maybe_summarize_tool_pair(
+    provider: Arc<dyn Provider>,
+    session_id: String,
+    conversation: Conversation,
+    cutoff: usize,
+) -> JoinHandle<Option<(Message, String)>> {
+    tokio::spawn(async move {
+        if let Some(tool_id) = tool_id_to_summarize(&conversation, cutoff) {
+            match summarize_tool_call(provider.as_ref(), &session_id, &conversation, &tool_id).await
+            {
+                Ok(summary) => Some((summary, tool_id)),
+                Err(e) => {
+                    warn!("Failed to summarize tool pair: {}", e);
+                    None
+                }
+            }
+        } else {
+            None
+        }
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::{
         model::ModelConfig,
-        providers::{
-            base::{ProviderMetadata, Usage},
-            errors::ProviderError,
-        },
+        providers::{base::Usage, errors::ProviderError},
     };
     use async_trait::async_trait;
     use rmcp::model::{AnnotateAble, CallToolRequestParams, RawContent, Tool};
@@ -463,17 +563,13 @@ mod tests {
 
     #[async_trait]
     impl Provider for MockProvider {
-        fn metadata() -> ProviderMetadata {
-            ProviderMetadata::new("mock", "", "", "", vec![""], "", vec![])
-        }
-
         fn get_name(&self) -> &str {
             "mock"
         }
 
         async fn complete_with_model(
             &self,
-            _session_id: &str,
+            _session_id: Option<&str>,
             _model_config: &ModelConfig,
             _system: &str,
             messages: &[Message],
@@ -579,11 +675,140 @@ mod tests {
         let conversation = Conversation::new_unvalidated(messages);
         let result = compact_messages(&provider, "test-session-id", &conversation, false).await;
 
-        // Should succeed after progressive removal
         assert!(
             result.is_ok(),
             "Should succeed with progressive removal: {:?}",
             result.err()
         );
+    }
+
+    #[tokio::test]
+    async fn test_tool_pair_summarization_workflow() {
+        fn create_tool_pair(
+            call_id: &str,
+            response_id: &str,
+            tool_name: &str,
+            response_text: &str,
+        ) -> Vec<Message> {
+            vec![
+                Message::assistant()
+                    .with_tool_request(
+                        call_id,
+                        Ok(CallToolRequestParams {
+                            task: None,
+                            name: tool_name.to_string().into(),
+                            arguments: None,
+                            meta: None,
+                        }),
+                    )
+                    .with_id(call_id),
+                Message::user()
+                    .with_tool_response(
+                        call_id,
+                        Ok(rmcp::model::CallToolResult {
+                            content: vec![RawContent::text(response_text).no_annotation()],
+                            structured_content: None,
+                            is_error: Some(false),
+                            meta: None,
+                        }),
+                    )
+                    .with_id(response_id),
+            ]
+        }
+
+        let summary_response = Message::assistant()
+            .with_text("Tool call to list files and response with file listing");
+        let provider = MockProvider::new(summary_response, 1000);
+
+        let mut messages = vec![Message::user().with_text("list files").with_id("msg_1")];
+        messages.extend(create_tool_pair(
+            "call1",
+            "response1",
+            "shell",
+            "file1.txt\nfile2.txt",
+        ));
+        messages.extend(create_tool_pair(
+            "call2",
+            "response2",
+            "read_file",
+            "content of file1",
+        ));
+        messages.extend(create_tool_pair(
+            "call3",
+            "response3",
+            "read_file",
+            "content of file2",
+        ));
+
+        let conversation = Conversation::new_unvalidated(messages);
+
+        let result = tool_id_to_summarize(&conversation, 2);
+        assert!(
+            result.is_some(),
+            "Should return a pair to summarize when tool calls exceed cutoff"
+        );
+
+        let tool_call_id = result.unwrap();
+        assert_eq!(tool_call_id, "call1");
+
+        let summary = summarize_tool_call(&provider, "test-session", &conversation, &tool_call_id)
+            .await
+            .unwrap();
+
+        assert_eq!(summary.role, Role::User);
+        assert!(summary.metadata.agent_visible);
+        assert!(!summary.metadata.user_visible);
+
+        let mut updated_messages = conversation.messages().clone();
+        for msg in updated_messages.iter_mut() {
+            let has_matching_content = msg.content.iter().any(|c| match c {
+                MessageContent::ToolRequest(req) => req.id == tool_call_id,
+                MessageContent::ToolResponse(resp) => resp.id == tool_call_id,
+                _ => false,
+            });
+
+            if has_matching_content {
+                msg.metadata = msg.metadata.with_agent_invisible();
+            }
+        }
+
+        updated_messages.push(summary);
+
+        let updated_conversation = Conversation::new_unvalidated(updated_messages);
+        let messages = updated_conversation.messages();
+
+        let call1_msg = messages
+            .iter()
+            .find(|m| m.id.as_deref() == Some("call1"))
+            .unwrap();
+        assert!(
+            !call1_msg.is_agent_visible(),
+            "Original call should not be agent visible"
+        );
+
+        let response1_msg = messages
+            .iter()
+            .find(|m| m.id.as_deref() == Some("response1"))
+            .unwrap();
+        assert!(
+            !response1_msg.is_agent_visible(),
+            "Original response should not be agent visible"
+        );
+
+        let summary_msg = messages
+            .iter()
+            .find(|m| {
+                m.metadata.agent_visible
+                    && !m.metadata.user_visible
+                    && m.as_concat_text().contains("Tool call")
+            })
+            .unwrap();
+        assert!(
+            !summary_msg.is_user_visible(),
+            "Summary should not be user visible"
+        );
+
+        let result = tool_id_to_summarize(&updated_conversation, 3);
+        assert!(result.is_none(), "Nothing left to summarize");
     }
 }

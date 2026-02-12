@@ -23,6 +23,7 @@ type ClassificationResponse = Vec<Vec<ClassificationLabel>>;
 #[derive(Debug, Deserialize, Clone)]
 pub struct ModelEndpointInfo {
     pub endpoint: String,
+    pub model_type: Option<String>,
     #[serde(flatten)]
     pub extra_params: HashMap<String, serde_json::Value>,
 }
@@ -75,12 +76,36 @@ impl ClassificationClient {
             model_name
         ))?;
 
-        tracing::info!(
+        tracing::debug!(
             model_name = %model_name,
             endpoint = %model_info.endpoint,
             extra_params = ?model_info.extra_params,
             "Creating classification client from model mapping"
         );
+
+        Self::new(
+            model_info.endpoint.clone(),
+            timeout_ms,
+            None,
+            Some(model_info.extra_params.clone()),
+        )
+    }
+
+    pub fn from_model_type(model_type: &str, timeout_ms: Option<u64>) -> Result<Self> {
+        let mapping = serde_json::from_str::<ModelMappingConfig>(
+            &std::env::var("SECURITY_ML_MODEL_MAPPING")
+                .context("SECURITY_ML_MODEL_MAPPING environment variable not set")?,
+        )
+        .context("Failed to parse SECURITY_ML_MODEL_MAPPING JSON")?;
+
+        let (_, model_info) = mapping
+            .models
+            .iter()
+            .find(|(_, info)| info.model_type.as_deref() == Some(model_type))
+            .context(format!(
+                "No model with type '{}' found in SECURITY_ML_MODEL_MAPPING",
+                model_type
+            ))?;
 
         Self::new(
             model_info.endpoint.clone(),
@@ -104,7 +129,7 @@ impl ClassificationClient {
             .map(|t| t.trim().to_string())
             .filter(|t| !t.is_empty());
 
-        tracing::info!(
+        tracing::debug!(
             endpoint = %endpoint_url,
             has_token = auth_token.is_some(),
             "Creating classification client from endpoint"
@@ -114,12 +139,6 @@ impl ClassificationClient {
     }
 
     pub async fn classify(&self, text: &str) -> Result<f32> {
-        tracing::debug!(
-            endpoint = %self.endpoint_url,
-            text_length = text.len(),
-            "Sending classification request"
-        );
-
         let parameters = self
             .extra_params
             .as_ref()
@@ -196,14 +215,6 @@ impl ClassificationClient {
                 0.0
             }
         };
-
-        tracing::info!(
-            injection_score = %injection_score,
-            top_label = %top_label.label,
-            top_score = %top_label.score,
-            normalized = !is_probabilities,
-            "Classification complete"
-        );
 
         Ok(injection_score)
     }

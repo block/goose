@@ -1,5 +1,7 @@
 use super::api_client::{ApiClient, AuthMethod};
-use super::base::{ConfigKey, ModelInfo, Provider, ProviderMetadata, ProviderUsage, Usage};
+use super::base::{
+    ConfigKey, ModelInfo, Provider, ProviderDef, ProviderMetadata, ProviderUsage, Usage,
+};
 use super::embedding::{EmbeddingCapable, EmbeddingRequest, EmbeddingResponse};
 use super::errors::ProviderError;
 use super::formats::openai::{create_request, get_usage, response_to_message};
@@ -7,16 +9,17 @@ use super::formats::openai_responses::{
     create_responses_request, get_responses_usage, responses_api_to_message,
     responses_api_to_streaming_message, ResponsesApiResponse,
 };
-use super::retry::ProviderRetry;
-use super::utils::{
-    get_model, handle_response_openai_compat, handle_status_openai_compat, stream_openai_compat,
-    ImageFormat,
+use super::openai_compatible::{
+    handle_response_openai_compat, handle_status_openai_compat, stream_openai_compat,
 };
+use super::retry::ProviderRetry;
+use super::utils::{get_model, ImageFormat};
 use crate::config::declarative_providers::DeclarativeProviderConfig;
 use crate::conversation::message::Message;
 use anyhow::Result;
 use async_stream::try_stream;
 use async_trait::async_trait;
+use futures::future::BoxFuture;
 use futures::{StreamExt, TryStreamExt};
 use reqwest::StatusCode;
 use serde_json::Value;
@@ -31,6 +34,7 @@ use crate::providers::base::MessageStream;
 use crate::providers::utils::RequestLog;
 use rmcp::model::Tool;
 
+const OPEN_AI_PROVIDER_NAME: &str = "openai";
 pub const OPEN_AI_DEFAULT_MODEL: &str = "gpt-4o";
 pub const OPEN_AI_DEFAULT_FAST_MODEL: &str = "gpt-4o-mini";
 pub const OPEN_AI_KNOWN_MODELS: &[(&str, usize)] = &[
@@ -43,6 +47,7 @@ pub const OPEN_AI_KNOWN_MODELS: &[(&str, usize)] = &[
     ("gpt-3.5-turbo", 16_385),
     ("gpt-4-turbo", 128_000),
     ("o4-mini", 128_000),
+    ("gpt-5-nano", 400_000),
     ("gpt-5.1-codex", 400_000),
     ("gpt-5-codex", 400_000),
 ];
@@ -67,23 +72,30 @@ impl OpenAiProvider {
         let model = model.with_fast(OPEN_AI_DEFAULT_FAST_MODEL.to_string());
 
         let config = crate::config::Config::global();
-        let secrets = config.get_secrets("OPENAI_API_KEY", &["OPENAI_CUSTOM_HEADERS"])?;
-        let api_key = secrets.get("OPENAI_API_KEY").unwrap().clone();
         let host: String = config
             .get_param("OPENAI_HOST")
             .unwrap_or_else(|_| "https://api.openai.com".to_string());
+
+        let secrets = config
+            .get_secrets("OPENAI_API_KEY", &["OPENAI_CUSTOM_HEADERS"])
+            .unwrap_or_default();
+        let api_key: Option<String> = secrets.get("OPENAI_API_KEY").cloned();
+        let custom_headers: Option<HashMap<String, String>> = secrets
+            .get("OPENAI_CUSTOM_HEADERS")
+            .cloned()
+            .map(parse_custom_headers);
+
         let base_path: String = config
             .get_param("OPENAI_BASE_PATH")
             .unwrap_or_else(|_| "v1/chat/completions".to_string());
         let organization: Option<String> = config.get_param("OPENAI_ORGANIZATION").ok();
         let project: Option<String> = config.get_param("OPENAI_PROJECT").ok();
-        let custom_headers: Option<HashMap<String, String>> = secrets
-            .get("OPENAI_CUSTOM_HEADERS")
-            .cloned()
-            .map(parse_custom_headers);
         let timeout_secs: u64 = config.get_param("OPENAI_TIMEOUT").unwrap_or(600);
 
-        let auth = AuthMethod::BearerToken(api_key);
+        let auth = match api_key {
+            Some(key) if !key.is_empty() => AuthMethod::BearerToken(key),
+            _ => AuthMethod::NoAuth,
+        };
         let mut api_client =
             ApiClient::with_timeout(host, auth, std::time::Duration::from_secs(timeout_secs))?;
 
@@ -113,7 +125,7 @@ impl OpenAiProvider {
             model,
             custom_headers,
             supports_streaming: true,
-            name: Self::metadata().name,
+            name: OPEN_AI_PROVIDER_NAME.to_string(),
         })
     }
 
@@ -127,7 +139,7 @@ impl OpenAiProvider {
             model,
             custom_headers: None,
             supports_streaming: true,
-            name: Self::metadata().name,
+            name: OPEN_AI_PROVIDER_NAME.to_string(),
         }
     }
 
@@ -136,9 +148,12 @@ impl OpenAiProvider {
         config: DeclarativeProviderConfig,
     ) -> Result<Self> {
         let global_config = crate::config::Config::global();
-        let api_key: String = global_config
-            .get_secret(&config.api_key_env)
-            .map_err(|_e| anyhow::anyhow!("Missing API key: {}", config.api_key_env))?;
+
+        let api_key: Option<String> = if config.requires_auth && !config.api_key_env.is_empty() {
+            global_config.get_secret(&config.api_key_env).ok()
+        } else {
+            None
+        };
 
         let url = url::Url::parse(&config.base_url)
             .map_err(|e| anyhow::anyhow!("Invalid base URL '{}': {}", config.base_url, e))?;
@@ -161,7 +176,11 @@ impl OpenAiProvider {
         };
 
         let timeout_secs = config.timeout_seconds.unwrap_or(600);
-        let auth = AuthMethod::BearerToken(api_key);
+
+        let auth = match api_key {
+            Some(key) if !key.is_empty() => AuthMethod::BearerToken(key),
+            _ => AuthMethod::NoAuth,
+        };
         let mut api_client =
             ApiClient::with_timeout(host, auth, std::time::Duration::from_secs(timeout_secs))?;
 
@@ -192,7 +211,11 @@ impl OpenAiProvider {
         model_name.starts_with("gpt-5-codex") || model_name.starts_with("gpt-5.1-codex")
     }
 
-    async fn post(&self, session_id: &str, payload: &Value) -> Result<Value, ProviderError> {
+    async fn post(
+        &self,
+        session_id: Option<&str>,
+        payload: &Value,
+    ) -> Result<Value, ProviderError> {
         let response = self
             .api_client
             .response_post(session_id, &self.base_path, payload)
@@ -202,7 +225,7 @@ impl OpenAiProvider {
 
     async fn post_responses(
         &self,
-        session_id: &str,
+        session_id: Option<&str>,
         payload: &Value,
     ) -> Result<Value, ProviderError> {
         let response = self
@@ -213,22 +236,23 @@ impl OpenAiProvider {
     }
 }
 
-#[async_trait]
-impl Provider for OpenAiProvider {
+impl ProviderDef for OpenAiProvider {
+    type Provider = Self;
+
     fn metadata() -> ProviderMetadata {
         let models = OPEN_AI_KNOWN_MODELS
             .iter()
             .map(|(name, limit)| ModelInfo::new(*name, *limit))
             .collect();
         ProviderMetadata::with_models(
-            "openai",
+            OPEN_AI_PROVIDER_NAME,
             "OpenAI",
             "GPT-4 and other OpenAI models, including OpenAI compatible ones",
             OPEN_AI_DEFAULT_MODEL,
             models,
             OPEN_AI_DOC_URL,
             vec![
-                ConfigKey::new("OPENAI_API_KEY", true, true, None),
+                ConfigKey::new("OPENAI_API_KEY", false, true, None),
                 ConfigKey::new("OPENAI_HOST", true, false, Some("https://api.openai.com")),
                 ConfigKey::new("OPENAI_BASE_PATH", true, false, Some("v1/chat/completions")),
                 ConfigKey::new("OPENAI_ORGANIZATION", false, false, None),
@@ -239,6 +263,16 @@ impl Provider for OpenAiProvider {
         )
     }
 
+    fn from_env(
+        model: ModelConfig,
+        _extensions: Vec<crate::config::ExtensionConfig>,
+    ) -> BoxFuture<'static, Result<Self::Provider>> {
+        Box::pin(Self::from_env(model))
+    }
+}
+
+#[async_trait]
+impl Provider for OpenAiProvider {
     fn get_name(&self) -> &str {
         &self.name
     }
@@ -253,7 +287,7 @@ impl Provider for OpenAiProvider {
     )]
     async fn complete_with_model(
         &self,
-        session_id: &str,
+        session_id: Option<&str>,
         model_config: &ModelConfig,
         system: &str,
         messages: &[Message],
@@ -323,14 +357,12 @@ impl Provider for OpenAiProvider {
         }
     }
 
-    async fn fetch_supported_models(
-        &self,
-        session_id: &str,
-    ) -> Result<Option<Vec<String>>, ProviderError> {
+    async fn fetch_supported_models(&self) -> Result<Vec<String>, ProviderError> {
         let models_path = self.base_path.replace("v1/chat/completions", "v1/models");
         let response = self
             .api_client
-            .response_get(session_id, &models_path)
+            .request(None, &models_path)
+            .response_get()
             .await?;
         let json = handle_response_openai_compat(response).await?;
         if let Some(err_obj) = json.get("error") {
@@ -349,7 +381,7 @@ impl Provider for OpenAiProvider {
             .filter_map(|m| m.get("id").and_then(|v| v.as_str()).map(str::to_string))
             .collect();
         models.sort();
-        Ok(Some(models))
+        Ok(models)
     }
 
     fn supports_embeddings(&self) -> bool {
@@ -388,7 +420,7 @@ impl Provider for OpenAiProvider {
                     let payload_clone = payload.clone();
                     let resp = self
                         .api_client
-                        .response_post(session_id, "v1/responses", &payload_clone)
+                        .response_post(Some(session_id), "v1/responses", &payload_clone)
                         .await?;
                     handle_status_openai_compat(resp).await
                 })
@@ -426,7 +458,7 @@ impl Provider for OpenAiProvider {
                 .with_retry(|| async {
                     let resp = self
                         .api_client
-                        .response_post(session_id, &self.base_path, &payload)
+                        .response_post(Some(session_id), &self.base_path, &payload)
                         .await?;
                     handle_status_openai_compat(resp).await
                 })
@@ -479,7 +511,7 @@ impl EmbeddingCapable for OpenAiProvider {
                 let request_value = serde_json::to_value(request_clone)
                     .map_err(|e| ProviderError::ExecutionError(e.to_string()))?;
                 self.api_client
-                    .api_post(session_id, "v1/embeddings", &request_value)
+                    .api_post(Some(session_id), "v1/embeddings", &request_value)
                     .await
                     .map_err(|e| ProviderError::ExecutionError(e.to_string()))
             })

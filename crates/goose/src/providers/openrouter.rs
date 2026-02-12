@@ -1,22 +1,25 @@
 use anyhow::Result;
 use async_trait::async_trait;
+use futures::future::BoxFuture;
 use serde_json::{json, Value};
 
 use super::api_client::{ApiClient, AuthMethod};
-use super::base::{ConfigKey, MessageStream, Provider, ProviderMetadata, ProviderUsage, Usage};
-use super::errors::ProviderError;
-use super::retry::ProviderRetry;
-use super::utils::{
-    get_model, handle_response_openai_compat, handle_status_openai_compat, stream_openai_compat,
-    RequestLog,
+use super::base::{
+    ConfigKey, MessageStream, Provider, ProviderDef, ProviderMetadata, ProviderUsage, Usage,
 };
+use super::errors::ProviderError;
+use super::openai_compatible::{
+    handle_response_openai_compat, handle_status_openai_compat, stream_openai_compat,
+};
+use super::retry::ProviderRetry;
+use super::utils::{get_model, ImageFormat, RequestLog};
 use crate::conversation::message::Message;
-
 use crate::model::ModelConfig;
 use crate::providers::formats::openai::{create_request, get_usage};
 use crate::providers::formats::openrouter as openrouter_format;
 use rmcp::model::Tool;
 
+const OPENROUTER_PROVIDER_NAME: &str = "openrouter";
 pub const OPENROUTER_DEFAULT_MODEL: &str = "anthropic/claude-sonnet-4";
 pub const OPENROUTER_DEFAULT_FAST_MODEL: &str = "google/gemini-2.5-flash";
 pub const OPENROUTER_MODEL_PREFIX_ANTHROPIC: &str = "anthropic";
@@ -65,11 +68,15 @@ impl OpenRouterProvider {
             api_client,
             model,
             supports_streaming: true,
-            name: Self::metadata().name,
+            name: OPENROUTER_PROVIDER_NAME.to_string(),
         })
     }
 
-    async fn post(&self, session_id: &str, payload: &Value) -> Result<Value, ProviderError> {
+    async fn post(
+        &self,
+        session_id: Option<&str>,
+        payload: &Value,
+    ) -> Result<Value, ProviderError> {
         let response = self
             .api_client
             .response_post(session_id, "api/v1/chat/completions", payload)
@@ -189,7 +196,7 @@ fn is_gemini_model(model_name: &str) -> bool {
 
 async fn create_request_based_on_model(
     provider: &OpenRouterProvider,
-    session_id: &str,
+    session_id: Option<&str>,
     system: &str,
     messages: &[Message],
     tools: &[Tool],
@@ -199,11 +206,17 @@ async fn create_request_based_on_model(
         system,
         messages,
         tools,
-        &super::utils::ImageFormat::OpenAi,
+        &ImageFormat::OpenAi,
         false,
     )?;
 
-    if provider.supports_cache_control(session_id).await {
+    if let Some(session_id) = session_id.filter(|id| !id.is_empty()) {
+        if let Some(obj) = payload.as_object_mut() {
+            obj.insert("user".to_string(), Value::String(session_id.to_string()));
+        }
+    }
+
+    if provider.supports_cache_control().await {
         payload = update_request_for_anthropic(&payload);
     }
 
@@ -218,11 +231,12 @@ async fn create_request_based_on_model(
     Ok(payload)
 }
 
-#[async_trait]
-impl Provider for OpenRouterProvider {
+impl ProviderDef for OpenRouterProvider {
+    type Provider = Self;
+
     fn metadata() -> ProviderMetadata {
         ProviderMetadata::new(
-            "openrouter",
+            OPENROUTER_PROVIDER_NAME,
             "OpenRouter",
             "Router for many model providers",
             OPENROUTER_DEFAULT_MODEL,
@@ -238,8 +252,19 @@ impl Provider for OpenRouterProvider {
                 ),
             ],
         )
+        .with_unlisted_models()
     }
 
+    fn from_env(
+        model: ModelConfig,
+        _extensions: Vec<crate::config::ExtensionConfig>,
+    ) -> BoxFuture<'static, Result<Self::Provider>> {
+        Box::pin(Self::from_env(model))
+    }
+}
+
+#[async_trait]
+impl Provider for OpenRouterProvider {
     fn get_name(&self) -> &str {
         &self.name
     }
@@ -254,7 +279,7 @@ impl Provider for OpenRouterProvider {
     )]
     async fn complete_with_model(
         &self,
-        session_id: &str,
+        session_id: Option<&str>,
         model_config: &ModelConfig,
         system: &str,
         messages: &[Message],
@@ -287,41 +312,35 @@ impl Provider for OpenRouterProvider {
     }
 
     /// Fetch supported models from OpenRouter API (only models with tool support)
-    async fn fetch_supported_models(
-        &self,
-        session_id: &str,
-    ) -> Result<Option<Vec<String>>, ProviderError> {
-        // Handle request failures gracefully
-        // If the request fails, fall back to manual entry
-        let response = match self
+    async fn fetch_supported_models(&self) -> Result<Vec<String>, ProviderError> {
+        let response = self
             .api_client
-            .response_get(session_id, "api/v1/models")
+            .request(None, "api/v1/models")
+            .response_get()
             .await
-        {
-            Ok(response) => response,
-            Err(e) => {
-                tracing::warn!("Failed to fetch models from OpenRouter API: {}, falling back to manual model entry", e);
-                return Ok(None);
-            }
-        };
+            .map_err(|e| {
+                ProviderError::RequestFailed(format!(
+                    "Failed to fetch models from OpenRouter API: {}",
+                    e
+                ))
+            })?;
 
-        // Handle JSON parsing failures gracefully
-        let json: serde_json::Value = match response.json().await {
-            Ok(json) => json,
-            Err(e) => {
-                tracing::warn!("Failed to parse OpenRouter API response as JSON: {}, falling back to manual model entry", e);
-                return Ok(None);
-            }
-        };
+        let json: serde_json::Value = response.json().await.map_err(|e| {
+            ProviderError::RequestFailed(format!(
+                "Failed to parse OpenRouter API response as JSON: {}",
+                e
+            ))
+        })?;
 
-        // Check for error in response
         if let Some(err_obj) = json.get("error") {
             let msg = err_obj
                 .get("message")
                 .and_then(|v| v.as_str())
                 .unwrap_or("unknown error");
-            tracing::warn!("OpenRouter API returned an error: {}", msg);
-            return Ok(None);
+            return Err(ProviderError::RequestFailed(format!(
+                "OpenRouter API returned an error: {}",
+                msg
+            )));
         }
 
         let data = json.get("data").and_then(|v| v.as_array()).ok_or_else(|| {
@@ -360,17 +379,11 @@ impl Provider for OpenRouterProvider {
             })
             .collect();
 
-        // If no models with tool support were found, fall back to manual entry
-        if models.is_empty() {
-            tracing::warn!("No models with tool support found in OpenRouter API response, falling back to manual model entry");
-            return Ok(None);
-        }
-
         models.sort();
-        Ok(Some(models))
+        Ok(models)
     }
 
-    async fn supports_cache_control(&self, _session_id: &str) -> bool {
+    async fn supports_cache_control(&self) -> bool {
         self.model
             .model_name
             .starts_with(OPENROUTER_MODEL_PREFIX_ANTHROPIC)
@@ -392,11 +405,11 @@ impl Provider for OpenRouterProvider {
             system,
             messages,
             tools,
-            &super::utils::ImageFormat::OpenAi,
+            &ImageFormat::OpenAi,
             true,
         )?;
 
-        if self.supports_cache_control(session_id).await {
+        if self.supports_cache_control().await {
             payload = update_request_for_anthropic(&payload);
         }
 
@@ -414,7 +427,7 @@ impl Provider for OpenRouterProvider {
             .with_retry(|| async {
                 let resp = self
                     .api_client
-                    .response_post(session_id, "api/v1/chat/completions", &payload)
+                    .response_post(Some(session_id), "api/v1/chat/completions", &payload)
                     .await?;
                 handle_status_openai_compat(resp).await
             })

@@ -4,7 +4,7 @@ import * as fs from 'fs/promises';
 import * as path from 'path';
 import * as os from 'os';
 import log from './logger';
-import { safeJsonParse } from './conversionUtils';
+import { safeJsonParse, errorMessage } from './conversionUtils';
 
 interface GitHubRelease {
   tag_name: string;
@@ -27,8 +27,8 @@ interface UpdateCheckResult {
 }
 
 export class GitHubUpdater {
-  private readonly owner = 'block';
-  private readonly repo = 'goose';
+  private readonly owner = process.env.GITHUB_OWNER || 'block';
+  private readonly repo = process.env.GITHUB_REPO || 'goose';
   private readonly apiUrl = `https://api.github.com/repos/${this.owner}/${this.repo}/releases/latest`;
 
   async checkForUpdates(): Promise<UpdateCheckResult> {
@@ -118,7 +118,7 @@ export class GitHubUpdater {
       log.info(`GitHubUpdater: Looking for asset named: ${assetName}`);
       log.info(`GitHubUpdater: Available assets: ${release.assets.map((a) => a.name).join(', ')}`);
 
-      const asset = release.assets.find((a) => a.name.toLowerCase() === assetName.toLowerCase()); // keeping comparison to lower case becasue Goose vs goose
+      const asset = release.assets.find((a) => a.name.toLowerCase() === assetName.toLowerCase()); // keeping comparison to lowercase because Goose vs goose
       if (asset) {
         downloadUrl = asset.browser_download_url;
         log.info(`GitHubUpdater: Found matching asset: ${asset.name} (${asset.size} bytes)`);
@@ -142,7 +142,7 @@ export class GitHubUpdater {
     } catch (error) {
       log.error('GitHubUpdater: Error checking for updates:', error);
       log.error('GitHubUpdater: Error details:', {
-        message: error instanceof Error ? error.message : 'Unknown error',
+        message: errorMessage(error, 'Unknown error'),
         stack: error instanceof Error ? error.stack : 'No stack',
         name: error instanceof Error ? error.name : 'Unknown',
         code:
@@ -152,7 +152,7 @@ export class GitHubUpdater {
       });
       return {
         updateAvailable: false,
-        error: error instanceof Error ? error.message : 'Unknown error',
+        error: errorMessage(error, 'Unknown error'),
       };
     }
   }
@@ -271,13 +271,13 @@ export class GitHubUpdater {
       log.error(`=== GitHubUpdater: DOWNLOAD FAILED after ${duration}ms ===`);
       log.error('GitHubUpdater: Error downloading update:', error);
       log.error('GitHubUpdater: Download error details:', {
-        message: error instanceof Error ? error.message : 'Unknown error',
+        message: errorMessage(error, 'Unknown error'),
         stack: error instanceof Error ? error.stack : 'No stack',
         name: error instanceof Error ? error.name : 'Unknown',
       });
       return {
         success: false,
-        error: error instanceof Error ? error.message : 'Unknown error',
+        error: errorMessage(error, 'Unknown error'),
       };
     }
   }

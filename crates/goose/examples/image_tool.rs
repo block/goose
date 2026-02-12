@@ -10,7 +10,6 @@ use rmcp::model::{CallToolRequestParams, Content, Tool};
 use rmcp::object;
 use std::fs;
 use std::sync::Arc;
-use uuid::Uuid;
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -19,9 +18,9 @@ async fn main() -> Result<()> {
 
     // Create providers
     let providers: Vec<Arc<dyn goose::providers::base::Provider>> = vec![
-        create_with_named_model("databricks", DATABRICKS_DEFAULT_MODEL).await?,
-        create_with_named_model("openai", OPEN_AI_DEFAULT_MODEL).await?,
-        create_with_named_model("anthropic", ANTHROPIC_DEFAULT_MODEL).await?,
+        create_with_named_model("databricks", DATABRICKS_DEFAULT_MODEL, Vec::new()).await?,
+        create_with_named_model("openai", OPEN_AI_DEFAULT_MODEL, Vec::new()).await?,
+        create_with_named_model("anthropic", ANTHROPIC_DEFAULT_MODEL, Vec::new()).await?,
     ];
     for provider in providers {
         // Read and encode test image
@@ -63,10 +62,10 @@ async fn main() -> Result<()> {
                 },
             }
         });
-        let session_id = Uuid::new_v4().to_string();
         let (response, usage) = provider
-            .complete(
-                &session_id,
+            .complete_with_model(
+                None,
+                &provider.get_model_config(),
                 "You are a helpful assistant. Please describe any text you see in the image.",
                 &messages,
                 &[Tool::new("view_image", "View an image", input_schema)],

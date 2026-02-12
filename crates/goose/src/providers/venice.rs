@@ -5,14 +5,15 @@ use serde::Serialize;
 use serde_json::{json, Value};
 
 use super::api_client::{ApiClient, AuthMethod};
-use super::base::{ConfigKey, Provider, ProviderMetadata, ProviderUsage, Usage};
+use super::base::{ConfigKey, Provider, ProviderDef, ProviderMetadata, ProviderUsage, Usage};
 use super::errors::ProviderError;
+use super::openai_compatible::map_http_error_to_provider_error;
 use super::retry::ProviderRetry;
-use super::utils::map_http_error_to_provider_error;
 use crate::conversation::message::{Message, MessageContent};
 
 use crate::mcp_utils::ToolResult;
 use crate::model::ModelConfig;
+use futures::future::BoxFuture;
 use rmcp::model::{object, CallToolRequestParams, Role, Tool};
 
 // ---------- Capability Flags ----------
@@ -58,6 +59,7 @@ fn strip_flags(model: &str) -> &str {
 }
 // ---------- END Helpers ----------
 
+const VENICE_PROVIDER_NAME: &str = "venice";
 pub const VENICE_DOC_URL: &str = "https://docs.venice.ai/";
 pub const VENICE_DEFAULT_MODEL: &str = "llama-3.3-70b";
 pub const VENICE_DEFAULT_HOST: &str = "https://api.venice.ai";
@@ -107,7 +109,7 @@ impl VeniceProvider {
             base_path,
             models_path,
             model,
-            name: Self::metadata().name,
+            name: VENICE_PROVIDER_NAME.to_string(),
         };
 
         Ok(instance)
@@ -115,7 +117,7 @@ impl VeniceProvider {
 
     async fn post(
         &self,
-        session_id: &str,
+        session_id: Option<&str>,
         path: &str,
         payload: &Value,
     ) -> Result<Value, ProviderError> {
@@ -192,11 +194,12 @@ impl VeniceProvider {
     }
 }
 
-#[async_trait]
-impl Provider for VeniceProvider {
+impl ProviderDef for VeniceProvider {
+    type Provider = Self;
+
     fn metadata() -> ProviderMetadata {
         ProviderMetadata::new(
-            "venice",
+            VENICE_PROVIDER_NAME,
             "Venice.ai",
             "Venice.ai models (Llama, DeepSeek, Mistral) with function calling",
             VENICE_DEFAULT_MODEL,
@@ -221,6 +224,16 @@ impl Provider for VeniceProvider {
         )
     }
 
+    fn from_env(
+        model: ModelConfig,
+        _extensions: Vec<crate::config::ExtensionConfig>,
+    ) -> BoxFuture<'static, Result<Self::Provider>> {
+        Box::pin(Self::from_env(model))
+    }
+}
+
+#[async_trait]
+impl Provider for VeniceProvider {
     fn get_name(&self) -> &str {
         &self.name
     }
@@ -229,13 +242,11 @@ impl Provider for VeniceProvider {
         self.model.clone()
     }
 
-    async fn fetch_supported_models(
-        &self,
-        session_id: &str,
-    ) -> Result<Option<Vec<String>>, ProviderError> {
+    async fn fetch_supported_models(&self) -> Result<Vec<String>, ProviderError> {
         let response = self
             .api_client
-            .response_get(session_id, &self.models_path)
+            .request(None, &self.models_path)
+            .response_get()
             .await?;
         let json: serde_json::Value = response.json().await?;
 
@@ -256,7 +267,7 @@ impl Provider for VeniceProvider {
             })
             .collect::<Vec<String>>();
         models.sort();
-        Ok(Some(models))
+        Ok(models)
     }
 
     #[tracing::instrument(
@@ -265,7 +276,7 @@ impl Provider for VeniceProvider {
     )]
     async fn complete_with_model(
         &self,
-        session_id: &str,
+        session_id: Option<&str>,
         model_config: &ModelConfig,
         system: &str,
         messages: &[Message],

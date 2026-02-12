@@ -25,7 +25,7 @@ async fn test_bedrock_streaming_basic() -> Result<()> {
 
     // Check if streaming is supported
     // Note: Provider is registered as "aws_bedrock", not "bedrock"
-    let provider = create_with_named_model("aws_bedrock", BEDROCK_DEFAULT_MODEL).await?;
+    let provider = create_with_named_model("aws_bedrock", BEDROCK_DEFAULT_MODEL, vec![]).await?;
 
     assert!(
         provider.supports_streaming(),
@@ -114,7 +114,7 @@ async fn test_bedrock_streaming_with_tools() -> Result<()> {
         return Ok(());
     }
 
-    let provider = create_with_named_model("aws_bedrock", BEDROCK_DEFAULT_MODEL).await?;
+    let provider = create_with_named_model("aws_bedrock", BEDROCK_DEFAULT_MODEL, vec![]).await?;
 
     // Create a simple tool
     let weather_tool = Tool::new(
@@ -199,7 +199,7 @@ async fn test_bedrock_streaming_vs_non_streaming_consistency() -> Result<()> {
         return Ok(());
     }
 
-    let provider = create_with_named_model("aws_bedrock", BEDROCK_DEFAULT_MODEL).await?;
+    let provider = create_with_named_model("aws_bedrock", BEDROCK_DEFAULT_MODEL, vec![]).await?;
 
     let message = Message::user().with_text("What is 2+2?");
     let system_prompt = "Answer very briefly.";

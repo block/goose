@@ -1,4 +1,5 @@
 use anyhow::Result;
+use regex::Regex;
 use std::sync::Arc;
 
 use async_stream::try_stream;
@@ -8,7 +9,6 @@ use tracing::debug;
 
 use super::super::agents::Agent;
 use crate::agents::code_execution_extension::EXTENSION_NAME as CODE_EXECUTION_EXTENSION;
-use crate::agents::subagent_tool::SUBAGENT_TOOL_NAME;
 use crate::conversation::message::{Message, MessageContent, ToolRequest};
 use crate::conversation::Conversation;
 use crate::providers::base::{stream_from_single_message, MessageStream, Provider, ProviderUsage};
@@ -18,6 +18,30 @@ use crate::providers::toolshim::{
     modify_system_prompt_for_tool_json, OllamaInterpreter,
 };
 use rmcp::model::Tool;
+
+async fn enhance_model_error(error: ProviderError, provider: &Arc<dyn Provider>) -> ProviderError {
+    let ProviderError::RequestFailed(ref msg) = error else {
+        return error;
+    };
+
+    let re = Regex::new(r"(?i)\b4\d{2}\b.*model|model.*\b4\d{2}\b").unwrap();
+    if !re.is_match(msg) {
+        return error;
+    }
+
+    let Ok(models) = provider.fetch_recommended_models().await else {
+        return error;
+    };
+    if models.is_empty() {
+        return error;
+    }
+
+    ProviderError::RequestFailed(format!(
+        "{}. Available models for this provider: {}",
+        msg,
+        models.join(", ")
+    ))
+}
 
 fn coerce_value(s: &str, schema: &Value) -> Value {
     let type_str = schema.get("type");
@@ -125,9 +149,12 @@ impl Agent {
             .is_extension_enabled(CODE_EXECUTION_EXTENSION)
             .await;
         if code_execution_active {
-            let code_exec_prefix = format!("{CODE_EXECUTION_EXTENSION}__");
             tools.retain(|tool| {
-                tool.name.starts_with(&code_exec_prefix) || tool.name == SUBAGENT_TOOL_NAME
+                if let Some(owner) = crate::agents::extension_manager::get_tool_owner(tool) {
+                    crate::agents::extension_manager::is_first_class_extension(&owner)
+                } else {
+                    false
+                }
             });
         }
 
@@ -153,7 +180,6 @@ impl Agent {
             .with_extension_and_tool_counts(extension_count, tool_count)
             .with_code_execution_mode(code_execution_active)
             .with_hints(working_dir)
-            .with_enable_subagents(self.subagents_enabled(session_id).await)
             .build();
 
         // Handle toolshim if enabled
@@ -182,11 +208,17 @@ impl Agent {
     ) -> Result<MessageStream, ProviderError> {
         let config = provider.get_model_config();
 
+        let filtered_messages: Vec<Message> = messages
+            .iter()
+            .filter(|m| m.is_agent_visible())
+            .map(|m| m.agent_visible_content())
+            .collect();
+
         // Convert tool messages to text if toolshim is enabled
         let messages_for_provider = if config.toolshim {
-            convert_tool_messages_to_text(messages)
+            convert_tool_messages_to_text(&filtered_messages)
         } else {
-            Conversation::new_unvalidated(messages.to_vec())
+            Conversation::new_unvalidated(filtered_messages)
         };
 
         // Clone owned data to move into the async stream
@@ -231,10 +263,11 @@ impl Agent {
         let mut stream = match stream_result {
             Ok(s) => s,
             Err(e) => {
+                let enhanced_error = enhance_model_error(e, &provider).await;
                 // Return a stream that immediately yields the error
                 // This allows the error to be caught by existing error handling in agent.rs
                 return Ok(Box::pin(try_stream! {
-                    yield Err(e)?;
+                    yield Err(enhanced_error)?;
                 }));
             }
         };
@@ -353,11 +386,11 @@ impl Agent {
 
     pub(crate) async fn update_session_metrics(
         &self,
-        session_config: &crate::agents::types::SessionConfig,
+        session_id: &str,
+        schedule_id: Option<String>,
         usage: &ProviderUsage,
         is_compaction_usage: bool,
     ) -> Result<()> {
-        let session_id = session_config.id.as_str();
         let manager = self.config.session_manager.clone();
         let session = manager.get_session(session_id, false).await?;
 
@@ -389,7 +422,7 @@ impl Agent {
 
         manager
             .update(session_id)
-            .schedule_id(session_config.schedule_id.clone())
+            .schedule_id(schedule_id)
             .total_tokens(current_total)
             .input_tokens(current_input)
             .output_tokens(current_output)
@@ -421,10 +454,6 @@ mod tests {
 
     #[async_trait]
     impl Provider for MockProvider {
-        fn metadata() -> crate::providers::base::ProviderMetadata {
-            crate::providers::base::ProviderMetadata::empty()
-        }
-
         fn get_name(&self) -> &str {
             "mock"
         }
@@ -435,7 +464,7 @@ mod tests {
 
         async fn complete_with_model(
             &self,
-            _session_id: &str,
+            _session_id: Option<&str>,
             _model_config: &ModelConfig,
             _system: &str,
             _messages: &[Message],
@@ -481,14 +510,17 @@ mod tests {
         ];
 
         agent
-            .add_extension(crate::agents::extension::ExtensionConfig::Frontend {
-                name: "frontend".to_string(),
-                description: "desc".to_string(),
-                tools: frontend_tools,
-                instructions: None,
-                bundled: None,
-                available_tools: vec![],
-            })
+            .add_extension(
+                crate::agents::extension::ExtensionConfig::Frontend {
+                    name: "frontend".to_string(),
+                    description: "desc".to_string(),
+                    tools: frontend_tools,
+                    instructions: None,
+                    bundled: None,
+                    available_tools: vec![],
+                },
+                &session.id,
+            )
             .await
             .unwrap();
 

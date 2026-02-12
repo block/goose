@@ -8,7 +8,6 @@ import {
   addExtension as apiAddExtension,
   removeExtension as apiRemoveExtension,
   providers,
-  getProviderModels as apiGetProviderModels,
 } from '../api';
 import { syncBundledExtensions } from './settings/extensions';
 import type {
@@ -41,7 +40,6 @@ interface ConfigContextType {
   removeExtension: (name: string) => Promise<void>;
   getProviders: (b: boolean) => Promise<ProviderDetails[]>;
   getExtensions: (b: boolean) => Promise<FixedExtensionEntry[]>;
-  getProviderModels: (providerName: string) => Promise<string[]>;
   disableAllExtensions: () => Promise<void>;
   enableBotExtensions: (extensions: ExtensionConfig[]) => Promise<void>;
 }
@@ -187,19 +185,6 @@ export const ConfigProvider: React.FC<ConfigProviderProps> = ({ children }) => {
     return providersListRef.current;
   }, []);
 
-  const getProviderModels = useCallback(async (providerName: string): Promise<string[]> => {
-    try {
-      const response = await apiGetProviderModels({
-        path: { name: providerName },
-        throwOnError: true,
-      });
-      return response.data || [];
-    } catch (error) {
-      console.error(`Failed to fetch models for provider ${providerName}:`, error);
-      return [];
-    }
-  }, []);
-
   useEffect(() => {
     // Load all configuration data and providers on mount
     (async () => {
@@ -222,28 +207,24 @@ export const ConfigProvider: React.FC<ConfigProviderProps> = ({ children }) => {
         const extensionsResponse = await apiGetExtensions();
         let extensions = extensionsResponse.data?.extensions || [];
 
-        // If no bundled MCP extensions exist, seed config from bundled-extensions.json
-        // This ensures fresh installs get the default extensions (developer, computercontroller, etc.)
+        // Always sync bundled extensions from bundled-extensions.json
+        // This ensures:
+        // 1. Fresh installs get the default extensions (developer, computercontroller, etc.)
+        // 2. Existing users get NEW bundled extensions added in subsequent releases
+        // The syncBundledExtensions function skips extensions that already exist and are marked as bundled
         // Platform extensions (code_execution, todo, etc.) are handled by the backend
-        const hasBundledExtensions = extensions.some(
-          (ext) => ext.type === 'builtin' && 'bundled' in ext && ext.bundled
-        );
-
-        if (!hasBundledExtensions) {
-          console.log('No bundled extensions found, syncing from bundled-extensions.json');
-          const addExtensionForSync = async (
-            name: string,
-            config: ExtensionConfig,
-            enabled: boolean
-          ) => {
-            const query: ExtensionQuery = { name, config, enabled };
-            await apiAddExtension({ body: query });
-          };
-          await syncBundledExtensions(extensions, addExtensionForSync);
-          // Reload extensions after sync
-          const refreshedResponse = await apiGetExtensions();
-          extensions = refreshedResponse.data?.extensions || [];
-        }
+        const addExtensionForSync = async (
+          name: string,
+          config: ExtensionConfig,
+          enabled: boolean
+        ) => {
+          const query: ExtensionQuery = { name, config, enabled };
+          await apiAddExtension({ body: query });
+        };
+        await syncBundledExtensions(extensions, addExtensionForSync);
+        // Reload extensions after sync
+        const refreshedResponse = await apiGetExtensions();
+        extensions = refreshedResponse.data?.extensions || [];
 
         setExtensionsList(extensions);
         setExtensionWarnings(extensionsResponse.data?.warnings || []);
@@ -284,7 +265,6 @@ export const ConfigProvider: React.FC<ConfigProviderProps> = ({ children }) => {
       toggleExtension,
       getProviders,
       getExtensions,
-      getProviderModels,
       disableAllExtensions,
       enableBotExtensions,
     };
@@ -301,7 +281,6 @@ export const ConfigProvider: React.FC<ConfigProviderProps> = ({ children }) => {
     toggleExtension,
     getProviders,
     getExtensions,
-    getProviderModels,
     reloadConfig,
   ]);
 

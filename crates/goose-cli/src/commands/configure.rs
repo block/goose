@@ -5,7 +5,9 @@ use goose::agents::extension::ToolInfo;
 use goose::agents::extension_manager::get_parameter_names;
 use goose::agents::Agent;
 use goose::agents::{extension::Envs, ExtensionConfig};
-use goose::config::declarative_providers::{create_custom_provider, remove_custom_provider};
+use goose::config::declarative_providers::{
+    create_custom_provider, remove_custom_provider, CreateCustomProviderParams,
+};
 use goose::config::extensions::{
     get_all_extension_names, get_all_extensions, get_enabled_extensions, get_extension_by_name,
     name_to_key, remove_extension, set_extension, set_extension_enabled,
@@ -17,7 +19,6 @@ use goose::config::{
     configure_tetrate, Config, ConfigError, ExperimentManager, ExtensionEntry, GooseMode,
     PermissionManager,
 };
-use goose::conversation::message::Message;
 use goose::model::ModelConfig;
 use goose::posthog::{get_telemetry_choice, TELEMETRY_ENABLED_KEY};
 use goose::providers::provider_test::test_provider_configuration;
@@ -25,9 +26,8 @@ use goose::providers::{create, providers, retry_operation, RetryConfig};
 use goose::session::SessionType;
 use serde_json::Value;
 use std::collections::HashMap;
-use uuid::Uuid;
 
-// useful for light themes where there is no dicernible colour contrast between
+// useful for light themes where there is no discernible colour contrast between
 // cursor-selected and cursor-unselected items.
 const MULTISELECT_VISIBILITY_HINT: &str = "<";
 
@@ -328,7 +328,7 @@ async fn handle_oauth_configuration(provider_name: &str, key_name: &str) -> anyh
 
     // Create a temporary provider instance to handle OAuth
     let temp_model = ModelConfig::new("temp")?;
-    match create(provider_name, temp_model).await {
+    match create(provider_name, temp_model, Vec::new()).await {
         Ok(provider) => match provider.configure_oauth().await {
             Ok(_) => {
                 let _ = cliclack::log::success("OAuth authentication completed successfully!");
@@ -565,6 +565,7 @@ pub async fn configure_provider_dialog() -> anyhow::Result<bool> {
     let provider_name = cliclack::select("Which model provider should we use?")
         .initial_value(&default_provider)
         .items(&provider_items)
+        .filter_mode()
         .interact()?;
 
     // Get the selected provider's metadata
@@ -682,25 +683,23 @@ pub async fn configure_provider_dialog() -> anyhow::Result<bool> {
     spin.start("Attempting to fetch supported models...");
     let models_res = {
         let temp_model_config = ModelConfig::new(&provider_meta.default_model)?;
-        let temp_provider = create(provider_name, temp_model_config).await?;
-        // Provider setup runs before any user session exists; use an ephemeral id.
-        let session_id = Uuid::new_v4().to_string();
+        let temp_provider = create(provider_name, temp_model_config, Vec::new()).await?;
         retry_operation(&RetryConfig::default(), || async {
-            temp_provider.fetch_recommended_models(&session_id).await
+            temp_provider.fetch_recommended_models().await
         })
         .await
     };
     spin.stop(style("Model fetch complete").green());
 
-    // Select a model: on fetch error show styled error and abort; if Some(models), show list; if None, free-text input
+    // Select a model: on fetch error show styled error and abort; if models available, show list; otherwise free-text input
     let model: String = match models_res {
         Err(e) => {
             // Provider hook error
             cliclack::outro(style(e.to_string()).on_red().white())?;
             return Ok(false);
         }
-        Ok(Some(models)) => select_model_from_list(&models, provider_meta)?,
-        Ok(None) => {
+        Ok(models) if !models.is_empty() => select_model_from_list(&models, provider_meta)?,
+        Ok(_) => {
             let default_model =
                 std::env::var("GOOSE_MODEL").unwrap_or(provider_meta.default_model.clone());
             cliclack::input("Enter a model from that provider:")
@@ -708,6 +707,14 @@ pub async fn configure_provider_dialog() -> anyhow::Result<bool> {
                 .interact()?
         }
     };
+
+    if model.to_lowercase().starts_with("gemini-3") {
+        let thinking_level: &str = cliclack::select("Select thinking level for Gemini 3:")
+            .item("low", "Low - Better latency, lighter reasoning", "")
+            .item("high", "High - Deeper reasoning, higher latency", "")
+            .interact()?;
+        config.set_gemini3_thinking_level(thinking_level)?;
+    }
 
     // Test the configuration
     let spin = spinner();
@@ -778,6 +785,7 @@ pub fn toggle_extensions_dialog() -> anyhow::Result<()> {
             .collect::<Vec<_>>(),
     )
     .initial_values(enabled_extensions)
+    .filter_mode()
     .interact()?;
 
     // Update enabled status for each extension
@@ -1116,6 +1124,7 @@ pub fn remove_extension_dialog() -> anyhow::Result<()> {
                 .map(|(name, _)| (name, name.as_str(), MULTISELECT_VISIBILITY_HINT))
                 .collect::<Vec<_>>(),
         )
+        .filter_mode()
         .interact()?;
 
     for name in selected {
@@ -1421,6 +1430,7 @@ pub async fn configure_tool_permissions_dialog() -> anyhow::Result<()> {
                 .map(|ext| (ext.clone(), ext.clone(), ""))
                 .collect::<Vec<_>>(),
         )
+        .filter_mode()
         .interact()?;
 
     let config = Config::global();
@@ -1435,7 +1445,6 @@ pub async fn configure_tool_permissions_dialog() -> anyhow::Result<()> {
     let model_config = ModelConfig::new(&model)?;
 
     let agent = Agent::new();
-    let new_provider = create(&provider_name, model_config).await?;
 
     let session = agent
         .config
@@ -1447,10 +1456,10 @@ pub async fn configure_tool_permissions_dialog() -> anyhow::Result<()> {
         )
         .await?;
 
-    agent.update_provider(new_provider, &session.id).await?;
-    if let Some(config) = get_extension_by_name(&selected_extension_name) {
+    let extension_config = get_extension_by_name(&selected_extension_name);
+    if let Some(config) = extension_config.as_ref() {
         agent
-            .add_extension(config.clone())
+            .add_extension(config.clone(), &session.id)
             .await
             .unwrap_or_else(|_| {
                 println!(
@@ -1467,6 +1476,10 @@ pub async fn configure_tool_permissions_dialog() -> anyhow::Result<()> {
         );
         return Ok(());
     }
+
+    let extensions = extension_config.into_iter().collect::<Vec<_>>();
+    let new_provider = create(&provider_name, model_config, extensions).await?;
+    agent.update_provider(new_provider, &session.id).await?;
 
     let permission_manager = PermissionManager::instance();
     let selected_tools = agent
@@ -1501,6 +1514,7 @@ pub async fn configure_tool_permissions_dialog() -> anyhow::Result<()> {
                 })
                 .collect::<Vec<_>>(),
         )
+        .filter_mode()
         .interact()?;
 
     // Find the selected tool
@@ -1576,7 +1590,7 @@ fn configure_recipe_dialog() -> anyhow::Result<()> {
         .ok()
         .or_else(|| config.get_param(key_name).unwrap_or(None));
     let mut recipe_repo_input = cliclack::input(
-        "Enter your goose recipe Github repo (owner/repo): eg: my_org/goose-recipes",
+        "Enter your goose recipe GitHub repo (owner/repo): eg: my_org/goose-recipes",
     )
     .required(false);
     if let Some(recipe_repo) = default_recipe_repo {
@@ -1656,13 +1670,13 @@ pub async fn handle_openrouter_auth() -> anyhow::Result<()> {
         }
     };
 
-    match create("openrouter", model_config).await {
+    match create("openrouter", model_config, Vec::new()).await {
         Ok(provider) => {
-            // Config verification runs before any user session exists; use an ephemeral id.
-            let session_id = Uuid::new_v4().to_string();
+            let model_config = provider.get_model_config();
             let test_result = provider
-                .complete(
-                    &session_id,
+                .complete_with_model(
+                    None,
+                    &model_config,
                     "You are goose, an AI assistant.",
                     &[Message::user().with_text("Say 'Configuration test successful!'")],
                     &[],
@@ -1736,18 +1750,9 @@ pub async fn handle_tetrate_auth() -> anyhow::Result<()> {
         }
     };
 
-    match create("tetrate", model_config).await {
+    match create("tetrate", model_config, Vec::new()).await {
         Ok(provider) => {
-            // Config verification runs before any user session exists; use an ephemeral id.
-            let session_id = Uuid::new_v4().to_string();
-            let test_result = provider
-                .complete(
-                    &session_id,
-                    "You are goose, an AI assistant.",
-                    &[Message::user().with_text("Say 'Configuration test successful!'")],
-                    &[],
-                )
-                .await;
+            let test_result = provider.fetch_supported_models().await;
 
             match test_result {
                 Ok(_) => {
@@ -1877,10 +1882,15 @@ fn add_provider() -> anyhow::Result<()> {
         })
         .interact()?;
 
-    let api_key: String = cliclack::password("API key:")
-        .allow_empty()
-        .mask('▪')
+    let requires_auth = cliclack::confirm("Does this provider require authentication?")
+        .initial_value(true)
         .interact()?;
+
+    let api_key: String = if requires_auth {
+        cliclack::password("API key:").mask('▪').interact()?
+    } else {
+        String::new()
+    };
 
     let models_input: String = cliclack::input("Available models (separate with commas):")
         .placeholder("model-a, model-b, model-c")
@@ -1903,22 +1913,18 @@ fn add_provider() -> anyhow::Result<()> {
         .initial_value(true)
         .interact()?;
 
-    // Ask about custom headers for OpenAI compatible providers
-    let headers = if provider_type == "openai_compatible" {
-        collect_custom_headers()?
-    } else {
-        None
-    };
+    let headers = collect_custom_headers()?;
 
-    create_custom_provider(
-        provider_type,
-        display_name.clone(),
+    create_custom_provider(CreateCustomProviderParams {
+        engine: provider_type.to_string(),
+        display_name: display_name.clone(),
         api_url,
         api_key,
         models,
-        Some(supports_streaming),
+        supports_streaming: Some(supports_streaming),
         headers,
-    )?;
+        requires_auth,
+    })?;
 
     cliclack::outro(format!("Custom provider added: {}", display_name))?;
     Ok(())
@@ -1944,6 +1950,7 @@ fn remove_provider() -> anyhow::Result<()> {
 
     let selected_id = cliclack::select("Which custom provider would you like to remove?")
         .items(&provider_items)
+        .filter_mode()
         .interact()?;
 
     remove_custom_provider(selected_id)?;

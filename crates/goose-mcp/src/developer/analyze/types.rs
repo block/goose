@@ -78,7 +78,7 @@ pub struct ReferenceInfo {
     pub ref_type: ReferenceType,
     pub line: usize,
     pub context: String,
-    /// For method definitions, this stores the type the method belongs to
+    /// For method definitions, this stores the type to which the method belongs
     /// For type usage, this is None
     pub associated_type: Option<String>,
 }

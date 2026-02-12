@@ -1,6 +1,5 @@
 use crate::conversation::message::{Message, MessageContent};
 use crate::model::ModelConfig;
-use crate::providers::formats::google as gemini_schema;
 use crate::providers::utils::{
     convert_image, detect_image_path, is_valid_function_name, load_image_file, safely_parse_json,
     sanitize_function_name, ImageFormat,
@@ -45,12 +44,7 @@ fn format_tool_response(
 
     match &response.tool_result {
         Ok(call_result) => {
-            let abridged: Vec<_> = call_result
-                .content
-                .iter()
-                .filter(|c| c.audience().is_none_or(|a| a.contains(&Role::Assistant)))
-                .map(|c| c.raw.clone())
-                .collect();
+            let abridged: Vec<_> = call_result.content.iter().map(|c| c.raw.clone()).collect();
 
             let mut tool_content = Vec::new();
             let mut image_messages = Vec::new();
@@ -112,7 +106,7 @@ fn format_tool_response(
 ///   even though the message structure is otherwise following openai, the enum switches this
 fn format_messages(messages: &[Message], image_format: &ImageFormat) -> Vec<DatabricksMessage> {
     let mut result = Vec::new();
-    for message in messages.iter().filter(|m| m.is_agent_visible()) {
+    for message in messages {
         let mut converted = DatabricksMessage {
             content: Value::Null,
             role: match message.role {
@@ -167,11 +161,23 @@ fn format_messages(messages: &[Message], image_format: &ImageFormat) -> Vec<Data
                                 })
                                 .unwrap_or_else(|| "{}".to_string());
 
-                            converted.tool_calls.get_or_insert_default().push(json!({
+                            let tool_calls = converted.tool_calls.get_or_insert_default();
+                            let mut tool_call_json = json!({
                                 "id": request.id,
                                 "type": "function",
-                                "function": {"name": sanitized_name, "arguments": arguments_str}
-                            }));
+                                "function": {
+                                    "name": sanitized_name,
+                                    "arguments": arguments_str,
+                                }
+                            });
+
+                            if let Some(metadata) = &request.metadata {
+                                for (key, value) in metadata {
+                                    tool_call_json[key] = value.clone();
+                                }
+                            }
+
+                            tool_calls.push(tool_call_json);
                         }
                         Err(e) => {
                             content_array
@@ -232,19 +238,35 @@ pub fn format_tools(tools: &[Tool], model_name: &str) -> anyhow::Result<Vec<Valu
             return Err(anyhow!("Duplicate tool name: {}", tool.name));
         }
 
-        let parameters = if is_gemini {
-            gemini_schema::process_map(tool.input_schema.as_ref(), None)
+        let has_properties = tool
+            .input_schema
+            .get("properties")
+            .and_then(|v| v.as_object())
+            .is_some_and(|p| !p.is_empty());
+
+        let function_def = if is_gemini {
+            let mut def = json!({
+                "name": tool.name,
+                "description": tool.description,
+            });
+            if has_properties {
+                def["parametersJsonSchema"] = json!(tool.input_schema);
+            }
+            def
         } else {
-            json!(tool.input_schema)
+            let mut def = json!({
+                "name": tool.name,
+                "description": tool.description,
+            });
+            if has_properties {
+                def["parameters"] = json!(tool.input_schema);
+            }
+            def
         };
 
         result.push(json!({
             "type": "function",
-            "function": {
-                "name": tool.name,
-                "description": tool.description,
-                "parameters": parameters,
-            }
+            "function": function_def,
         }));
     }
 
@@ -719,12 +741,18 @@ mod tests {
         );
 
         let spec = format_tools(std::slice::from_ref(&tool), "gemini-2-5-flash")?;
-        assert!(spec[0]["function"]["parameters"].get("$schema").is_none());
-        assert_eq!(spec[0]["function"]["parameters"]["type"], "object");
+        assert!(spec[0]["function"].get("parametersJsonSchema").is_some());
+        assert_eq!(
+            spec[0]["function"]["parametersJsonSchema"]["type"],
+            "object"
+        );
 
         let spec = format_tools(&[tool], "databricks-gemini-3-pro")?;
-        assert!(spec[0]["function"]["parameters"].get("$schema").is_none());
-        assert_eq!(spec[0]["function"]["parameters"]["type"], "object");
+        assert!(spec[0]["function"].get("parametersJsonSchema").is_some());
+        assert_eq!(
+            spec[0]["function"]["parametersJsonSchema"]["type"],
+            "object"
+        );
 
         Ok(())
     }
@@ -1367,6 +1395,39 @@ mod tests {
     }
 
     #[test]
+    fn test_format_messages_with_thought_signature_metadata() -> anyhow::Result<()> {
+        let mut metadata = serde_json::Map::new();
+        metadata.insert(
+            "thoughtSignature".to_string(),
+            json!("sig_abc123_test_signature"),
+        );
+
+        let message = Message::assistant().with_tool_request_with_metadata(
+            "tool1",
+            Ok(CallToolRequestParams {
+                meta: None,
+                task: None,
+                name: "test_tool".into(),
+                arguments: Some(object!({"param": "value"})),
+            }),
+            Some(&metadata),
+            None,
+        );
+
+        let spec = format_messages(&[message], &ImageFormat::OpenAi);
+        let as_value = serde_json::to_value(spec)?;
+        let spec_array = as_value.as_array().unwrap();
+
+        assert_eq!(spec_array.len(), 1);
+        let tool_call = &spec_array[0]["tool_calls"][0];
+        assert_eq!(tool_call["id"], "tool1");
+        assert_eq!(tool_call["function"]["name"], "test_tool");
+        assert_eq!(tool_call["thoughtSignature"], "sig_abc123_test_signature");
+
+        Ok(())
+    }
+
+    #[test]
     fn test_create_request_claude_has_cache_control() -> anyhow::Result<()> {
         let model_config = ModelConfig {
             model_name: "databricks-claude-sonnet-4".to_string(),
@@ -1458,6 +1519,47 @@ mod tests {
         // Verify tool does NOT have cache_control
         let tools = request["tools"].as_array().unwrap();
         assert!(tools[0]["function"].get("cache_control").is_none());
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_format_messages_with_multiple_metadata_fields() -> anyhow::Result<()> {
+        let mut metadata = serde_json::Map::new();
+        metadata.insert("thoughtSignature".to_string(), json!("sig_top_level"));
+        metadata.insert(
+            "extra_content".to_string(),
+            json!({
+                "google": {
+                    "thought_signature": "sig_nested"
+                }
+            }),
+        );
+        metadata.insert("custom_field".to_string(), json!("custom_value"));
+
+        let message = Message::assistant().with_tool_request_with_metadata(
+            "tool1",
+            Ok(CallToolRequestParams {
+                meta: None,
+                task: None,
+                name: "test_tool".into(),
+                arguments: None,
+            }),
+            Some(&metadata),
+            None,
+        );
+
+        let spec = format_messages(&[message], &ImageFormat::OpenAi);
+        let as_value = serde_json::to_value(spec)?;
+        let spec_array = as_value.as_array().unwrap();
+
+        let tool_call = &spec_array[0]["tool_calls"][0];
+        assert_eq!(tool_call["thoughtSignature"], "sig_top_level");
+        assert_eq!(
+            tool_call["extra_content"]["google"]["thought_signature"],
+            "sig_nested"
+        );
+        assert_eq!(tool_call["custom_field"], "custom_value");
 
         Ok(())
     }

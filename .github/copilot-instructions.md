@@ -34,7 +34,8 @@
 - Async/await misuse or blocking operations in async contexts
 - Improper trait implementations
 
-
+### No Prerelease Docs
+- If the PR contains both code changes to features/functionality AND updates in `/documentation`: Documentation updates must be separated to keep public docs in sync with released versions. Either mark new topics with `unlisted: true` or remove/hide the documentation.
 
 ## Project-Specific Context
 
@@ -45,7 +46,6 @@
 - See HOWTOAI.md for AI-assisted code standards
 - MCP protocol implementations require extra scrutiny
 - Naming convention: In `documentation/docs` and `documentation/blog`, always refer to the project as "goose" (lowercase), never "Goose" (even at the start of sentences)
-- No prerelease docs: PRs should not contain updates in `/documentation` that correspond to code changes in the PR so that the public docs stay in sync with the latest released version. New topics should be marked with `unlisted: true`; other content should be removed or hidden from public view.
 
 ## CI Pipeline Context
 
@@ -56,7 +56,7 @@
 **Rust checks:**
 - `cargo fmt --check` - Code formatting (rustfmt)
 - `cargo test --jobs 2` - All tests
-- `./scripts/clippy-lint.sh` - Linting (clippy)
+- `cargo clippy --all-targets -- -D warnings` - Linting (clippy)
 - `just check-openapi-schema` - OpenAPI schema validation
 
 **Desktop app checks:**
@@ -76,7 +76,7 @@
 
 Do not comment on:
 - **Style/formatting** - CI handles this (rustfmt, prettier)
-- **Clippy warnings** - CI handles this (clippy-lint.sh)
+- **Clippy warnings** - CI handles this (clippy)
 - **Test failures** - CI handles this (full test suite)
 - **Missing dependencies** - CI handles this (npm ci will fail)
 - **Minor naming suggestions** - unless truly confusing

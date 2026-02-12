@@ -30,11 +30,12 @@ impl TodoClient {
         let info = InitializeResult {
             protocol_version: ProtocolVersion::V_2025_03_26,
             capabilities: ServerCapabilities {
-                tasks: None,
                 tools: Some(ToolsCapability {
                     list_changed: Some(false),
                 }),
+                tasks: None,
                 resources: None,
+                extensions: None,
                 prompts: None,
                 completions: None,
                 experimental: None,
@@ -42,6 +43,7 @@ impl TodoClient {
             },
             server_info: Implementation {
                 name: EXTENSION_NAME.to_string(),
+                description: None,
                 title: Some("Todo".to_string()),
                 version: "1.0.0".to_string(),
                 icons: None,
@@ -174,6 +176,7 @@ impl McpClientTrait for TodoClient {
         session_id: &str,
         name: &str,
         arguments: Option<JsonObject>,
+        _working_dir: Option<&str>,
         _cancellation_token: CancellationToken,
     ) -> Result<CallToolResult, Error> {
         let content = match name {

@@ -1,4 +1,4 @@
-use anyhow::Result;
+use anyhow::{anyhow, Result};
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
@@ -7,10 +7,11 @@ use std::fs;
 use std::path::Path;
 use std::sync::{Arc, Mutex};
 
-use super::base::{Provider, ProviderMetadata, ProviderUsage};
+use super::base::{Provider, ProviderDef, ProviderMetadata, ProviderUsage};
 use super::errors::ProviderError;
 use crate::conversation::message::Message;
 use crate::model::ModelConfig;
+use futures::future::BoxFuture;
 use rmcp::model::Tool;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -40,12 +41,14 @@ pub struct TestProvider {
 }
 
 impl TestProvider {
+    const PROVIDER_NAME: &str = "test";
+
     pub fn new_recording(inner: Arc<dyn Provider>, file_path: impl Into<String>) -> Self {
         Self {
             inner: Some(inner),
             records: Arc::new(Mutex::new(HashMap::new())),
             file_path: file_path.into(),
-            name: Self::metadata().name,
+            name: Self::PROVIDER_NAME.to_string(),
         }
     }
 
@@ -57,7 +60,7 @@ impl TestProvider {
             inner: None,
             records: Arc::new(Mutex::new(records)),
             file_path,
-            name: Self::metadata().name,
+            name: Self::PROVIDER_NAME.to_string(),
         })
     }
 
@@ -69,9 +72,29 @@ impl TestProvider {
     }
 
     fn hash_input(messages: &[Message]) -> String {
+        use crate::conversation::message::MessageContent;
+
+        // Strip internal metadata (e.g. tool_meta/_meta) from content before hashing.
+        // This metadata is used for internal routing (like goose_extension ownership)
+        // and isn't part of the semantic input the LLM sees, so it shouldn't affect
+        // replay matching.
         let stable_messages: Vec<_> = messages
             .iter()
-            .map(|msg| (msg.role.clone(), msg.content.clone()))
+            .map(|msg| {
+                let cleaned_content: Vec<_> = msg
+                    .content
+                    .iter()
+                    .map(|c| match c {
+                        MessageContent::ToolRequest(req) => {
+                            let mut req = req.clone();
+                            req.tool_meta = None;
+                            MessageContent::ToolRequest(req)
+                        }
+                        other => other.clone(),
+                    })
+                    .collect();
+                (msg.role.clone(), cleaned_content)
+            })
             .collect();
         let serialized = serde_json::to_string(&stable_messages).unwrap_or_default();
         let mut hasher = Sha256::new();
@@ -101,11 +124,12 @@ impl TestProvider {
     }
 }
 
-#[async_trait]
-impl Provider for TestProvider {
+impl ProviderDef for TestProvider {
+    type Provider = Self;
+
     fn metadata() -> ProviderMetadata {
         ProviderMetadata::new(
-            "test",
+            Self::PROVIDER_NAME,
             "Test Provider",
             "Provider for testing that can record/replay interactions",
             "test-model",
@@ -115,13 +139,23 @@ impl Provider for TestProvider {
         )
     }
 
+    fn from_env(
+        _model: ModelConfig,
+        _extensions: Vec<crate::config::ExtensionConfig>,
+    ) -> BoxFuture<'static, Result<Self::Provider>> {
+        Box::pin(async { Err(anyhow!("TestProvider must be constructed explicitly")) })
+    }
+}
+
+#[async_trait]
+impl Provider for TestProvider {
     fn get_name(&self) -> &str {
         &self.name
     }
 
     async fn complete_with_model(
         &self,
-        session_id: &str,
+        session_id: Option<&str>,
         _model_config: &ModelConfig,
         system: &str,
         messages: &[Message],
@@ -130,7 +164,10 @@ impl Provider for TestProvider {
         let hash = Self::hash_input(messages);
 
         if let Some(inner) = &self.inner {
-            let (message, usage) = inner.complete(session_id, system, messages, tools).await?;
+            let model_config = inner.get_model_config();
+            let (message, usage) = inner
+                .complete_with_model(session_id, &model_config, system, messages, tools)
+                .await?;
 
             let record = TestRecord {
                 input: TestInput {
@@ -185,25 +222,13 @@ mod tests {
 
     #[async_trait]
     impl Provider for MockProvider {
-        fn metadata() -> ProviderMetadata {
-            ProviderMetadata::new(
-                "mock",
-                "Mock Provider",
-                "Mock provider for testing",
-                "mock-model",
-                vec!["mock-model"],
-                "",
-                vec![],
-            )
-        }
-
         fn get_name(&self) -> &str {
             "mock-testprovider"
         }
 
         async fn complete_with_model(
             &self,
-            _session_id: &str,
+            _session_id: Option<&str>,
             _model_config: &ModelConfig,
             _system: &str,
             _messages: &[Message],
