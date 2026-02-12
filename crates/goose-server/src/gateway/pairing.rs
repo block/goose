@@ -233,6 +233,7 @@ impl PairingStore {
         Ok(Some(row.gateway_type))
     }
 
+    #[allow(dead_code)]
     pub async fn cleanup_expired_codes(&self) -> anyhow::Result<()> {
         let pool = self.ensure_initialized().await?;
         let now = chrono::Utc::now().timestamp();

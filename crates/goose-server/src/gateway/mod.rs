@@ -18,6 +18,7 @@ pub struct PlatformUser {
 }
 
 #[derive(Debug, Clone)]
+#[allow(dead_code)]
 pub struct IncomingMessage {
     pub user: PlatformUser,
     pub text: String,
@@ -26,6 +27,7 @@ pub struct IncomingMessage {
 }
 
 #[derive(Debug, Clone)]
+#[allow(dead_code)]
 pub struct Attachment {
     pub filename: String,
     pub mime_type: String,
@@ -58,6 +60,7 @@ pub struct GatewayConfig {
 }
 
 #[async_trait]
+#[allow(dead_code)]
 pub trait Gateway: Send + Sync + 'static {
     fn gateway_type(&self) -> &str;
 

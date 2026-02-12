@@ -13,6 +13,7 @@ use super::handler::GatewayHandler;
 use super::pairing::PairingStore;
 use super::{Gateway, GatewayConfig, PairingState, PlatformUser};
 
+#[allow(dead_code)]
 pub struct GatewayInstance {
     pub config: GatewayConfig,
     pub gateway: Arc<dyn Gateway>,
@@ -54,6 +55,7 @@ impl GatewayManager {
         }
     }
 
+    #[allow(dead_code)]
     pub fn pairing_store(&self) -> &Arc<PairingStore> {
         &self.pairing_store
     }
@@ -115,6 +117,7 @@ impl GatewayManager {
         Ok(())
     }
 
+    #[allow(dead_code)]
     pub async fn stop_all(&self) {
         let instances: Vec<(String, GatewayInstance)> =
             self.gateways.write().await.drain().collect();
@@ -125,10 +128,12 @@ impl GatewayManager {
         }
     }
 
+    #[allow(dead_code)]
     pub async fn is_running(&self, gateway_type: &str) -> bool {
         self.gateways.read().await.contains_key(gateway_type)
     }
 
+    #[allow(dead_code)]
     pub async fn list_running(&self) -> Vec<String> {
         self.gateways.read().await.keys().cloned().collect()
     }
