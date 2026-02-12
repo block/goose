@@ -128,6 +128,17 @@ export async function startGoosed({
   );
 
   const cleanup = async (): Promise<void> => {
+    // dump all logs from tempDir/state/logs/server/*/*-goosed.log to console.log
+    const logDirs = await fs.promises.readdir(`${tempDir}/state/logs/server`);
+    for (const logDir of logDirs) {
+      const logFiles = await fs.promises.readdir(`${tempDir}/state/logs/server/${logDir}`);
+      for (const logFile of logFiles) {
+        const logPath = `${tempDir}/state/logs/server/${logDir}/${logFile}`;
+        const logContent = await fs.promises.readFile(logPath, 'utf8');
+        console.log(logContent);
+      }
+    }
+
     await fs.promises.rm(tempDir, { recursive: true, force: true });
 
     return new Promise((resolve) => {
