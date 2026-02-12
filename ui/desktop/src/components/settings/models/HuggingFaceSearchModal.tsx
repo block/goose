@@ -329,14 +329,40 @@ export function HuggingFaceSearchModal({ isOpen, onClose, onDownloadStarted }: H
               <p className="text-sm text-text-muted mb-4">{error}</p>
             )}
 
-            {/* Empty State */}
-            {!query && results.length === 0 && (
-              <div className="flex flex-col items-center justify-center h-full text-center">
-                <Search className="w-16 h-16 text-text-muted mb-4 opacity-30" />
-                <p className="text-lg font-medium text-text-default mb-2">Search for models</p>
-                <p className="text-sm text-text-muted max-w-md">
-                  Use the search bar or select a popular model from the left to browse available GGUF models on HuggingFace.
-                </p>
+            {/* Empty State - Show Featured Models */}
+            {!query && results.length === 0 && !searching && (
+              <div className="space-y-4">
+                <div>
+                  <h3 className="text-sm font-medium text-text-default mb-1">Featured Models</h3>
+                  <p className="text-xs text-text-muted mb-4">Popular models ready to download</p>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  {popularSearches.map((item) => (
+                    <button
+                      key={item.query}
+                      onClick={() => handleSuggestionClick(item.query)}
+                      className="flex items-start gap-3 p-4 text-left rounded-lg border border-border-subtle bg-background-default hover:border-blue-500/50 hover:bg-blue-500/5 transition-colors"
+                    >
+                      <img
+                        src={PROVIDER_AVATARS[item.provider]}
+                        alt={item.provider}
+                        className="w-10 h-10 rounded-full object-cover flex-shrink-0"
+                      />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-text-default">{item.label}</p>
+                        <p className="text-xs text-text-muted mt-0.5">
+                          {item.provider === 'meta' && 'Meta AI'}
+                          {item.provider === 'mistral' && 'Mistral AI'}
+                          {item.provider === 'microsoft' && 'Microsoft'}
+                          {item.provider === 'qwen' && 'Alibaba Cloud'}
+                          {item.provider === 'google' && 'Google'}
+                          {item.provider === 'deepseek' && 'DeepSeek AI'}
+                        </p>
+                        <p className="text-xs text-blue-500 mt-1">Browse models →</p>
+                      </div>
+                    </button>
+                  ))}
+                </div>
               </div>
             )}
 
