@@ -264,7 +264,7 @@ export const startGoosed = async (options: StartGoosedOptions): Promise<GoosedRe
   };
   logger.info('Spawn options:', JSON.stringify(safeSpawnOptions, null, 2));
 
-  const goosedProcess = spawn(goosedPath, [], spawnOptions);
+  const goosedProcess = spawn(goosedPath, ['agent'], spawnOptions);
 
   goosedProcess.stdout?.on('data', (data: Buffer) => {
     logger.info(`goosed stdout for port ${port} and dir ${workingDir}: ${data.toString()}`);
