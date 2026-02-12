@@ -257,30 +257,51 @@ export function HuggingFaceSearchModal({ isOpen, onClose, onDownloadStarted }: H
               </div>
             </div>
 
-            {/* Browse by Category */}
+            {/* Tasks */}
             <div>
-              <h3 className="text-sm font-medium text-text-default mb-3">Browse by Category</h3>
-              <div className="flex flex-col gap-2">
+              <h3 className="text-sm font-medium text-text-default mb-3">Tasks</h3>
+              <div className="flex flex-col gap-1">
                 <button
-                  onClick={() => handleSuggestionClick('instruct')}
-                  className="p-3 text-left rounded-lg border border-border-subtle bg-background-default hover:border-blue-500/50 transition-colors"
+                  onClick={() => handleSuggestionClick('text-generation')}
+                  className="flex items-center gap-2 px-2 py-2 text-sm rounded-lg text-text-default hover:bg-blue-500/10 hover:text-blue-600 transition-colors text-left"
                 >
-                  <p className="text-sm font-medium text-text-default">Instruct Models</p>
-                  <p className="text-xs text-text-muted mt-0.5">Fine-tuned for following instructions</p>
+                  <span className="text-base">💬</span>
+                  Text Generation
                 </button>
                 <button
                   onClick={() => handleSuggestionClick('code')}
-                  className="p-3 text-left rounded-lg border border-border-subtle bg-background-default hover:border-blue-500/50 transition-colors"
+                  className="flex items-center gap-2 px-2 py-2 text-sm rounded-lg text-text-default hover:bg-blue-500/10 hover:text-blue-600 transition-colors text-left"
                 >
-                  <p className="text-sm font-medium text-text-default">Code Models</p>
-                  <p className="text-xs text-text-muted mt-0.5">Optimized for programming tasks</p>
+                  <span className="text-base">💻</span>
+                  Code
+                </button>
+                <button
+                  onClick={() => handleSuggestionClick('chat')}
+                  className="flex items-center gap-2 px-2 py-2 text-sm rounded-lg text-text-default hover:bg-blue-500/10 hover:text-blue-600 transition-colors text-left"
+                >
+                  <span className="text-base">🗣️</span>
+                  Chat
+                </button>
+                <button
+                  onClick={() => handleSuggestionClick('instruct')}
+                  className="flex items-center gap-2 px-2 py-2 text-sm rounded-lg text-text-default hover:bg-blue-500/10 hover:text-blue-600 transition-colors text-left"
+                >
+                  <span className="text-base">📝</span>
+                  Instruct
+                </button>
+                <button
+                  onClick={() => handleSuggestionClick('reasoning')}
+                  className="flex items-center gap-2 px-2 py-2 text-sm rounded-lg text-text-default hover:bg-blue-500/10 hover:text-blue-600 transition-colors text-left"
+                >
+                  <span className="text-base">🧠</span>
+                  Reasoning
                 </button>
                 <button
                   onClick={() => handleSuggestionClick('small')}
-                  className="p-3 text-left rounded-lg border border-border-subtle bg-background-default hover:border-blue-500/50 transition-colors"
+                  className="flex items-center gap-2 px-2 py-2 text-sm rounded-lg text-text-default hover:bg-blue-500/10 hover:text-blue-600 transition-colors text-left"
                 >
-                  <p className="text-sm font-medium text-text-default">Small Models</p>
-                  <p className="text-xs text-text-muted mt-0.5">Lightweight, fast inference</p>
+                  <span className="text-base">⚡</span>
+                  Small & Fast
                 </button>
               </div>
             </div>
