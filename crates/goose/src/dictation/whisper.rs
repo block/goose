@@ -419,22 +419,24 @@ impl WhisperTranscriber {
         let _segment_duration = (segment_size * 160) as f32 / 16000.0;
         let mel_segment = mel_tensor.narrow(2, seek, segment_size)?;
 
-        // Debug: check mel segment statistics
-        let mel_flat = mel_segment.flatten_all()?;
-        let mel_mean: f32 = mel_flat.mean(0)?.to_scalar()?;
-        let mel_max: f32 = mel_flat.max(0)?.to_scalar()?;
-        let mel_min: f32 = mel_flat.min(0)?.to_scalar()?;
-        tracing::debug!(mel_mean, mel_max, mel_min, "mel segment statistics");
+        if tracing::enabled!(tracing::Level::DEBUG) {
+            let mel_flat = mel_segment.flatten_all()?;
+            let mel_mean: f32 = mel_flat.mean(0)?.to_scalar()?;
+            let mel_max: f32 = mel_flat.max(0)?.to_scalar()?;
+            let mel_min: f32 = mel_flat.min(0)?.to_scalar()?;
+            tracing::debug!(mel_mean, mel_max, mel_min, "mel segment statistics");
+        }
 
         self.model.decoder.reset_kv_cache();
         let audio_features = self.model.encoder.forward(&mel_segment, true)?;
 
-        // Debug: check encoder output statistics
-        let af_flat = audio_features.flatten_all()?;
-        let af_mean: f32 = af_flat.mean(0)?.to_scalar()?;
-        let af_max: f32 = af_flat.max(0)?.to_scalar()?;
-        let af_min: f32 = af_flat.min(0)?.to_scalar()?;
-        tracing::debug!(af_mean, af_max, af_min, "audio features statistics");
+        if tracing::enabled!(tracing::Level::DEBUG) {
+            let af_flat = audio_features.flatten_all()?;
+            let af_mean: f32 = af_flat.mean(0)?.to_scalar()?;
+            let af_max: f32 = af_flat.max(0)?.to_scalar()?;
+            let af_min: f32 = af_flat.min(0)?.to_scalar()?;
+            tracing::debug!(af_mean, af_max, af_min, "audio features statistics");
+        }
         let suppress_tokens = {
             let mut suppress = vec![0f32; self.config.vocab_size];
             for &token_id in &self.config.suppress_tokens {
@@ -981,20 +983,22 @@ fn decode_audio_simple(audio_data: &[u8]) -> Result<Vec<f32>> {
         mono_data
     };
 
-    // Log PCM statistics to diagnose quiet/corrupt audio
-    if !resampled.is_empty() {
-        let max_abs = resampled.iter().map(|s| s.abs()).fold(0.0f32, f32::max);
-        let mean_abs = resampled.iter().map(|s| s.abs()).sum::<f32>() / resampled.len() as f32;
-        let rms = (resampled.iter().map(|s| s * s).sum::<f32>() / resampled.len() as f32).sqrt();
-        tracing::debug!(
-            output_samples = resampled.len(),
-            max_abs,
-            mean_abs,
-            rms,
-            "audio decoding complete with PCM stats"
-        );
-    } else {
-        tracing::debug!(output_samples = 0, "audio decoding complete (empty)");
+    if tracing::enabled!(tracing::Level::DEBUG) {
+        if !resampled.is_empty() {
+            let max_abs = resampled.iter().map(|s| s.abs()).fold(0.0f32, f32::max);
+            let mean_abs = resampled.iter().map(|s| s.abs()).sum::<f32>() / resampled.len() as f32;
+            let rms =
+                (resampled.iter().map(|s| s * s).sum::<f32>() / resampled.len() as f32).sqrt();
+            tracing::debug!(
+                output_samples = resampled.len(),
+                max_abs,
+                mean_abs,
+                rms,
+                "audio decoding complete with PCM stats"
+            );
+        } else {
+            tracing::debug!(output_samples = 0, "audio decoding complete (empty)");
+        }
     }
 
     Ok(resampled)
