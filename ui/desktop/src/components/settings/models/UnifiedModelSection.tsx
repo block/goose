@@ -227,11 +227,19 @@ export default function UnifiedModelSection({ setView }: UnifiedModelSectionProp
             </div>
           )}
           <div 
-            className={`border rounded-lg p-4 flex flex-col h-full transition-all ${
+            className={`border rounded-lg p-4 flex flex-col h-full transition-all cursor-pointer ${
               activeProvider === 'cloud'
                 ? 'border-blue-500 bg-blue-500/5'
                 : 'border-border-subtle bg-background-default hover:border-border-default'
             }`}
+            onClick={async () => {
+              // Activate cloud model if we have one configured
+              if (cloudModel && cloudProvider && activeProvider !== 'cloud') {
+                await upsert('GOOSE_PROVIDER', cloudProvider, false);
+                await upsert('GOOSE_MODEL', cloudModel, false);
+                setActiveProvider('cloud');
+              }
+            }}
           >
             {/* Row 1: Icon left, Settings button right */}
             <div className="flex items-center justify-between mb-3">
@@ -241,7 +249,10 @@ export default function UnifiedModelSection({ setView }: UnifiedModelSectionProp
               <Button
                 variant="ghost"
                 size="sm"
-                onClick={() => setView('ConfigureProviders')}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setView('ConfigureProviders');
+                }}
                 className="h-8 w-8 p-0"
                 title="Configure cloud model"
               >
