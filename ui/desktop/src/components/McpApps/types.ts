@@ -18,13 +18,13 @@ export type GooseDisplayMode = McpUiDisplayMode | 'standalone';
  * Tool input from the message stream.
  * McpAppRenderer extracts `.arguments` when passing to the SDK's AppRenderer.
  */
-export type ToolInput = McpUiToolInputNotification['params'];
+export type McpAppToolInput = McpUiToolInputNotification['params'];
 
-export type ToolInputPartial = McpUiToolInputPartialNotification['params'];
+export type McpAppToolInputPartial = McpUiToolInputPartialNotification['params'];
 
-export type ToolCancelled = McpUiToolCancelledNotification['params'];
+export type McpAppToolCancelled = McpUiToolCancelledNotification['params'];
 
-export type ToolResult = {
+export type McpAppToolResult = {
   content: Content[];
   structuredContent?: unknown;
 };

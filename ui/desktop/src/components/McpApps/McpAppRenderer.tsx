@@ -35,10 +35,10 @@ import FlyingBird from '../FlyingBird';
 import {
   GooseDisplayMode,
   SandboxPermissions,
-  ToolCancelled,
-  ToolInput,
-  ToolInputPartial,
-  ToolResult,
+  McpAppToolCancelled,
+  McpAppToolInput,
+  McpAppToolInputPartial,
+  McpAppToolResult,
 } from './types';
 
 const DEFAULT_IFRAME_HEIGHT = 200;
@@ -82,10 +82,10 @@ interface McpAppRendererProps {
   resourceUri: string;
   extensionName: string;
   sessionId?: string | null;
-  toolInput?: ToolInput;
-  toolInputPartial?: ToolInputPartial;
-  toolResult?: ToolResult;
-  toolCancelled?: ToolCancelled;
+  toolInput?: McpAppToolInput;
+  toolInputPartial?: McpAppToolInputPartial;
+  toolResult?: McpAppToolResult;
+  toolCancelled?: McpAppToolCancelled;
   append?: (text: string) => void;
   displayMode?: GooseDisplayMode;
   cachedHtml?: string;
@@ -106,7 +106,13 @@ type AppState =
   | { status: 'idle' }
   | { status: 'loading_resource'; html: string | null; meta: ResourceMeta }
   | { status: 'loading_sandbox'; html: string; meta: ResourceMeta }
-  | { status: 'ready'; html: string; meta: ResourceMeta; sandboxUrl: URL; sandboxCsp: McpUiResourceCsp | null }
+  | {
+      status: 'ready';
+      html: string;
+      meta: ResourceMeta;
+      sandboxUrl: URL;
+      sandboxCsp: McpUiResourceCsp | null;
+    }
   | { status: 'error'; message: string; html: string | null; meta: ResourceMeta };
 
 type AppAction =
@@ -151,7 +157,13 @@ function appReducer(state: AppState, action: AppAction): AppState {
 
     case 'SANDBOX_READY':
       if (!html) return state;
-      return { status: 'ready', html, meta, sandboxUrl: new URL(action.sandboxUrl), sandboxCsp: action.sandboxCsp };
+      return {
+        status: 'ready',
+        html,
+        meta,
+        sandboxUrl: new URL(action.sandboxUrl),
+        sandboxCsp: action.sandboxCsp,
+      };
 
     case 'SANDBOX_FAILED':
       return { status: 'error', message: action.message, html, meta };
@@ -232,7 +244,10 @@ export default function McpAppRenderer({
         if (cachedHtml) {
           console.warn('Failed to fetch fresh resource, using cached version:', err);
         }
-        dispatch({ type: 'RESOURCE_FAILED', message: errorMessage(err, 'Failed to load resource') });
+        dispatch({
+          type: 'RESOURCE_FAILED',
+          message: errorMessage(err, 'Failed to load resource'),
+        });
       }
     };
 
@@ -327,7 +342,9 @@ export default function McpAppRenderer({
       return {
         content: (response.data?.content || []) as unknown as CallToolResult['content'],
         isError: response.data?.is_error || false,
-        structuredContent: response.data?.structured_content as { [key: string]: unknown } | undefined,
+        structuredContent: response.data?.structured_content as
+          | { [key: string]: unknown }
+          | undefined,
       };
     },
     [sessionId, extensionName]
@@ -420,9 +437,8 @@ export default function McpAppRenderer({
       // 'standalone' is a Goose-specific display mode (dedicated Electron window)
       // that maps to the spec's inline | fullscreen | pip modes.
       displayMode: displayMode as McpUiDisplayMode,
-      availableDisplayModes: displayMode === 'standalone'
-        ? [displayMode as McpUiDisplayMode]
-        : AVAILABLE_DISPLAY_MODES,
+      availableDisplayModes:
+        displayMode === 'standalone' ? [displayMode as McpUiDisplayMode] : AVAILABLE_DISPLAY_MODES,
       // todo: containerDimensions: {} (depends on displayMode)
       locale: navigator.language,
       timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
@@ -460,7 +476,9 @@ export default function McpAppRenderer({
   const renderContent = () => {
     if (isError) {
       return (
-        <div className="p-4 text-red-700 dark:text-red-300">Failed to load MCP app: {state.message}</div>
+        <div className="p-4 text-red-700 dark:text-red-300">
+          Failed to load MCP app: {state.message}
+        </div>
       );
     }
 
