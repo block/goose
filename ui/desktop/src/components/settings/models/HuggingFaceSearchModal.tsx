@@ -210,7 +210,7 @@ export function HuggingFaceSearchModal({ isOpen, onClose, onDownloadStarted }: H
           <DialogHeader className="p-0 space-y-0">
             <DialogTitle className="flex items-center gap-2">
               <Search size={24} className="text-blue-500" />
-              Search HuggingFace
+              Search Local Models
             </DialogTitle>
           </DialogHeader>
         </div>
