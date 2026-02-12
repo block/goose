@@ -25,7 +25,7 @@ Since traditional observability tools don't quite cut it when it comes to AI age
 Each interaction with goose creates a trace to capture the full story of what happened. These traces include key information, from the initial prompt and user messages to tool calls and their responses. They also store valuable metadata about model outputs and timing information, giving developers a complete picture of each interaction.
 
 ### Timeline View
-The timeline view takes these complex interactions and transforms it into a digestible format. Developers can see parallel task execution in real-time, understand the dependencies between different actions, and measure the actual duration of each opersation. This can be super helpful when debugging a complex sequence of actions taken by goose, or to help optimize performance.
+The timeline view takes these complex interactions and transforms it into a digestible format. Developers can see parallel task execution in real-time, understand the dependencies between different actions, and measure the actual duration of each operation. This can be super helpful when debugging a complex sequence of actions taken by goose, or to help optimize performance.
 
 ### Structured Data
 Alice explained, "goose sessions can be really long... we have log files, but you'll just see a massive log of JSON."

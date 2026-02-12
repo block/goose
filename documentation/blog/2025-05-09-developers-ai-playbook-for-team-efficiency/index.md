@@ -141,7 +141,7 @@ instructions: |
 
   8. For each category, sort entries by date (newest first).
 
-  9. Look for an existing CHANGELOG.md file and understand its format; create the file if it doesn't exist. Then, output the new changlog content at the top of the file, maintaining the same markdown format, and not changing any existing content.
+  9. Look for an existing CHANGELOG.md file and understand its format; create the file if it doesn't exist. Then, output the new changelog content at the top of the file, maintaining the same markdown format, and not changing any existing content.
 
 extensions:
 - type: builtin

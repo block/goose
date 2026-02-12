@@ -181,21 +181,11 @@ jobs:
       - name: Make Binary Executable
         run: chmod +x target/debug/goose
 
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '22'
-
-      - name: Install agentic providers
-        run: npm install -g @anthropic-ai/claude-code @openai/codex @google/gemini-cli
-
       - name: Run Provider Tests (Code Execution Mode)
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-          CODEX_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
-          GEMINI_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
           DATABRICKS_HOST: ${{ secrets.DATABRICKS_HOST }}
           DATABRICKS_TOKEN: ${{ secrets.DATABRICKS_TOKEN }}
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
@@ -208,7 +198,7 @@ jobs:
         run: |
           mkdir -p $HOME/.local/share/goose/sessions
           mkdir -p $HOME/.config/goose
-          bash scripts/test_providers.sh --code-exec
+          bash scripts/test_providers_code_exec.sh
 
   compaction-tests:
     name: Compaction Tests

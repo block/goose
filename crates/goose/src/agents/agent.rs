@@ -443,7 +443,8 @@ impl Agent {
         let created_final_output_tool = FinalOutputTool::new(response);
         let final_output_system_prompt = created_final_output_tool.system_prompt();
         *final_output_tool = Some(created_final_output_tool);
-        self.extend_system_prompt(final_output_system_prompt).await;
+        self.extend_system_prompt("final_output".to_string(), final_output_system_prompt)
+            .await;
     }
 
     pub async fn apply_recipe_components(
@@ -1533,9 +1534,9 @@ impl Agent {
         }))
     }
 
-    pub async fn extend_system_prompt(&self, instruction: String) {
+    pub async fn extend_system_prompt(&self, key: String, instruction: String) {
         let mut prompt_manager = self.prompt_manager.lock().await;
-        prompt_manager.add_system_prompt_extra(instruction);
+        prompt_manager.add_system_prompt_extra(key, instruction);
     }
 
     pub async fn update_provider(
@@ -1576,13 +1577,17 @@ impl Agent {
             None => {
                 let model_name = config
                     .get_goose_model()
-                    .map_err(|_| anyhow!("Could not configure agent: missing model"))?;
+                    .ok()
+                    .ok_or_else(|| anyhow!("Could not configure agent: missing model"))?;
                 crate::model::ModelConfig::new(&model_name)
                     .map_err(|e| anyhow!("Could not configure agent: invalid model {}", e))?
             }
         };
 
-        let provider = crate::providers::create(&provider_name, model_config)
+        let extensions =
+            EnabledExtensionsState::extensions_or_default(Some(&session.extension_data), config);
+
+        let provider = crate::providers::create(&provider_name, model_config, extensions)
             .await
             .map_err(|e| anyhow!("Could not create provider: {}", e))?;
 

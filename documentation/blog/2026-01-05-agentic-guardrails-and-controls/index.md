@@ -100,7 +100,7 @@ Common mitigation techniques for indirect content injection recommend additional
 
 Another mitigation technique involves performing some analysis on returned content prior to execution to identify potential injection attempts. A simple string match approach (regex, etc.) or a more complex classification approach (such as [Prompt Guard](https://www.llama.com/docs/model-cards-and-prompt-formats/prompt-guard/)) may be used to achieve this goal. However, these detection methods (while useful), are not infallible and may still result in untrusted instructions being processed by the LLM.
 
-Another mitigation is sandboxing. Ensuring the agent runs within a limited environment such as a well-hardened docker-container can limit the actions the agent and associated tools can perform on the underlying host (i.e. cannot delete all files unless that volume is mounted). This mitigation does not protect against attacks targeting other MCP available to the agent (i.e. using a poisoned email payload to commit malicious code)
+Another mitigation is sandboxing. Ensuring the agent runs within a limited environment such as a well-hardened docker-container can limit the actions that the agent and associated tools can perform on the underlying host (i.e. cannot delete all files unless that volume is mounted). This mitigation does not protect against attacks targeting other MCP available to the agent (i.e. using a poisoned email payload to commit malicious code)
 
 ## Proposed design
 
@@ -247,7 +247,7 @@ In this post we have contextualised the risks associated with LLM Content Inject
 We’re working on a proof of concept and benchmarking for goose in the background. Once released we will update this blog with the results (either good or bad) outlining the effectiveness of the mitigation.  
 Another area we intend to explore is the application to multi-agent systems. Our application of this is intended for human facing agentic systems. However, it likely has applications in fully autonomous player-coach systems (similar to what is described in [Anthropic’s Multi-Agent Research Systems](https://www.anthropic.com/engineering/multi-agent-research-system) or [Block’s Adversarial Cooperation in Code Synthesis](https://block.xyz/documents/adversarial-cooperation-in-code-synthesis.pdf)) where the orchestrating Agent takes the role of the human providing initial prompts, but also defining allowable tool-calls or interactions.
 
-We also welcome any and all feedback and suggestions on improving the concept. [Hit us up on the goose Github discussion](https://github.com/block/goose/discussions/6328)
+We also welcome any and all feedback and suggestions on improving the concept. [Hit us up on the goose GitHub discussion](https://github.com/block/goose/discussions/6328)
 
 <head>
   <meta property="og:title" content="Agent Guardrails and Controls: Applying the CORS Model to Agents" />

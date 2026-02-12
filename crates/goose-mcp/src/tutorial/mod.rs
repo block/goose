@@ -186,7 +186,7 @@ mod tests {
         let server = TutorialServer::new();
 
         let params = LoadTutorialParams {
-            name: "non-existent-tutorial".to_string(),
+            name: "nonexistent-tutorial".to_string(),
         };
 
         let result = server.load_tutorial(Parameters(params)).await;
