@@ -249,7 +249,7 @@ export function HuggingFaceSearchModal({ isOpen, onClose, onDownloadStarted }: H
                     <img
                       src={PROVIDER_AVATARS[item.provider]}
                       alt={item.provider}
-                      className="w-6 h-6 rounded-full object-cover"
+                      className={`w-6 h-6 object-cover ${item.provider === 'microsoft' ? '' : 'rounded-full'}`}
                     />
                     {item.label}
                   </button>
@@ -367,7 +367,7 @@ export function HuggingFaceSearchModal({ isOpen, onClose, onDownloadStarted }: H
                       <img
                         src={PROVIDER_AVATARS[item.provider]}
                         alt={item.provider}
-                        className="w-10 h-10 rounded-full object-cover flex-shrink-0"
+                        className={`w-10 h-10 object-cover flex-shrink-0 ${item.provider === 'microsoft' ? '' : 'rounded-full'}`}
                       />
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-medium text-text-default">{item.label}</p>
