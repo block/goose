@@ -958,10 +958,7 @@ pub fn set_terminal_title() {
         .and_then(|p| p.file_name().map(|n| n.to_string_lossy().into_owned()))
         .unwrap_or_default();
     // Sanitize: strip control characters (ESC, BEL, etc.) to prevent terminal escape injection
-    let sanitized: String = dir_name
-        .chars()
-        .filter(|c| !c.is_control())
-        .collect();
+    let sanitized: String = dir_name.chars().filter(|c| !c.is_control()).collect();
     // OSC 0 sets the terminal window/tab title
     print!("\x1b]0;🪿 {}\x07", sanitized);
     let _ = std::io::stdout().flush();
