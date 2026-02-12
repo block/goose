@@ -1756,6 +1756,34 @@
     }
   },
   {
+    "id": "amazon-bedrock/minimax.minimax-m2.1",
+    "name": "MiniMax M2.1",
+    "family": "minimax",
+    "attachment": false,
+    "reasoning": true,
+    "tool_call": true,
+    "temperature": true,
+    "release_date": "2025-12-23",
+    "last_updated": "2025-12-23",
+    "modalities": {
+      "input": [
+        "text"
+      ],
+      "output": [
+        "text"
+      ]
+    },
+    "open_weights": true,
+    "cost": {
+      "input": 0.3,
+      "output": 1.2
+    },
+    "limit": {
+      "context": 204800,
+      "output": 131072
+    }
+  },
+  {
     "id": "amazon-bedrock/mistral.ministral-3-14b-instruct",
     "name": "Ministral 14B 3.0",
     "family": "ministral",
@@ -1974,6 +2002,34 @@
     "cost": {
       "input": 0.6,
       "output": 2.5
+    },
+    "limit": {
+      "context": 256000,
+      "output": 256000
+    }
+  },
+  {
+    "id": "amazon-bedrock/moonshotai.kimi-k2.5",
+    "name": "Kimi K2.5",
+    "attachment": false,
+    "reasoning": true,
+    "tool_call": true,
+    "temperature": true,
+    "release_date": "2026-02-06",
+    "last_updated": "2026-02-06",
+    "modalities": {
+      "input": [
+        "text",
+        "image"
+      ],
+      "output": [
+        "text"
+      ]
+    },
+    "open_weights": true,
+    "cost": {
+      "input": 0.6,
+      "output": 3.0
     },
     "limit": {
       "context": 256000,
@@ -2551,6 +2607,64 @@
     "limit": {
       "context": 200000,
       "output": 64000
+    }
+  },
+  {
+    "id": "amazon-bedrock/zai.glm-4.7",
+    "name": "GLM-4.7",
+    "family": "glm",
+    "attachment": false,
+    "reasoning": true,
+    "tool_call": true,
+    "temperature": true,
+    "knowledge": "2025-04",
+    "release_date": "2025-12-22",
+    "last_updated": "2025-12-22",
+    "modalities": {
+      "input": [
+        "text"
+      ],
+      "output": [
+        "text"
+      ]
+    },
+    "open_weights": true,
+    "cost": {
+      "input": 0.6,
+      "output": 2.2
+    },
+    "limit": {
+      "context": 204800,
+      "output": 131072
+    }
+  },
+  {
+    "id": "amazon-bedrock/zai.glm-4.7-flash",
+    "name": "GLM-4.7-Flash",
+    "family": "glm-flash",
+    "attachment": false,
+    "reasoning": true,
+    "tool_call": true,
+    "temperature": true,
+    "knowledge": "2025-04",
+    "release_date": "2026-01-19",
+    "last_updated": "2026-01-19",
+    "modalities": {
+      "input": [
+        "text"
+      ],
+      "output": [
+        "text"
+      ]
+    },
+    "open_weights": true,
+    "cost": {
+      "input": 0.07,
+      "output": 0.4
+    },
+    "limit": {
+      "context": 200000,
+      "output": 131072
     }
   },
   {
@@ -9028,6 +9142,38 @@
     }
   },
   {
+    "id": "openai/gpt-5.3-codex-spark",
+    "name": "GPT-5.3 Codex Spark",
+    "family": "gpt-codex-spark",
+    "attachment": true,
+    "reasoning": true,
+    "tool_call": true,
+    "temperature": false,
+    "knowledge": "2025-08-31",
+    "release_date": "2026-02-05",
+    "last_updated": "2026-02-05",
+    "modalities": {
+      "input": [
+        "text",
+        "image",
+        "pdf"
+      ],
+      "output": [
+        "text"
+      ]
+    },
+    "open_weights": false,
+    "cost": {
+      "input": 1.75,
+      "output": 14.0,
+      "cache_read": 0.175
+    },
+    "limit": {
+      "context": 128000,
+      "output": 32000
+    }
+  },
+  {
     "id": "openai/o1",
     "name": "o1",
     "family": "o",
@@ -13046,34 +13192,6 @@
     }
   },
   {
-    "id": "openrouter/openrouter/pony-alpha",
-    "name": "Pony Alpha",
-    "family": "pony",
-    "attachment": false,
-    "reasoning": true,
-    "tool_call": true,
-    "temperature": true,
-    "release_date": "2026-02-06",
-    "last_updated": "2026-02-06",
-    "modalities": {
-      "input": [
-        "text"
-      ],
-      "output": [
-        "text"
-      ]
-    },
-    "open_weights": false,
-    "cost": {
-      "input": 0.0,
-      "output": 0.0
-    },
-    "limit": {
-      "context": 200000,
-      "output": 131000
-    }
-  },
-  {
     "id": "openrouter/openrouter/sherlock-dash-alpha",
     "name": "Sherlock Dash Alpha",
     "family": "sherlock",
@@ -14040,6 +14158,65 @@
     }
   },
   {
+    "id": "openrouter/stepfun/step-3.5-flash",
+    "name": "Step 3.5 Flash",
+    "family": "step",
+    "attachment": false,
+    "reasoning": true,
+    "tool_call": true,
+    "temperature": true,
+    "knowledge": "2025-01",
+    "release_date": "2026-01-29",
+    "last_updated": "2026-01-29",
+    "modalities": {
+      "input": [
+        "text"
+      ],
+      "output": [
+        "text"
+      ]
+    },
+    "open_weights": true,
+    "cost": {
+      "input": 0.1,
+      "output": 0.3,
+      "cache_read": 0.02
+    },
+    "limit": {
+      "context": 256000,
+      "output": 256000
+    }
+  },
+  {
+    "id": "openrouter/stepfun/step-3.5-flash:free",
+    "name": "Step 3.5 Flash (free)",
+    "family": "step",
+    "attachment": false,
+    "reasoning": true,
+    "tool_call": true,
+    "temperature": true,
+    "knowledge": "2025-01",
+    "release_date": "2026-01-29",
+    "last_updated": "2026-01-29",
+    "modalities": {
+      "input": [
+        "text"
+      ],
+      "output": [
+        "text"
+      ]
+    },
+    "open_weights": true,
+    "cost": {
+      "input": 0.0,
+      "output": 0.0
+    },
+    "limit": {
+      "context": 256000,
+      "output": 256000
+    }
+  },
+  {
     "id": "openrouter/thudm/glm-z1-32b:free",
     "name": "GLM Z1 32B (free)",
     "family": "glm-z",
@@ -14639,6 +14816,35 @@
     "limit": {
       "context": 200000,
       "output": 65535
+    }
+  },
+  {
+    "id": "openrouter/z-ai/glm-5",
+    "name": "GLM-5",
+    "family": "glm",
+    "attachment": false,
+    "reasoning": true,
+    "tool_call": true,
+    "temperature": true,
+    "release_date": "2026-02-12",
+    "last_updated": "2026-02-12",
+    "modalities": {
+      "input": [
+        "text"
+      ],
+      "output": [
+        "text"
+      ]
+    },
+    "open_weights": true,
+    "cost": {
+      "input": 1.0,
+      "output": 3.2,
+      "cache_read": 0.2
+    },
+    "limit": {
+      "context": 202752,
+      "output": 131000
     }
   },
   {
@@ -15459,11 +15665,11 @@
     "name": "GLM 4.7 Flash",
     "family": "glm-flash",
     "attachment": false,
-    "reasoning": false,
+    "reasoning": true,
     "tool_call": true,
     "temperature": true,
     "release_date": "2026-01-29",
-    "last_updated": "2026-01-30",
+    "last_updated": "2026-02-10",
     "modalities": {
       "input": [
         "text"
@@ -15480,6 +15686,35 @@
     "limit": {
       "context": 128000,
       "output": 32000
+    }
+  },
+  {
+    "id": "venice/zai-org-glm-5",
+    "name": "GLM 5",
+    "family": "glm",
+    "attachment": false,
+    "reasoning": true,
+    "tool_call": true,
+    "temperature": true,
+    "release_date": "2026-02-11",
+    "last_updated": "2026-02-11",
+    "modalities": {
+      "input": [
+        "text"
+      ],
+      "output": [
+        "text"
+      ]
+    },
+    "open_weights": true,
+    "cost": {
+      "input": 1.0,
+      "output": 3.2,
+      "cache_read": 0.2
+    },
+    "limit": {
+      "context": 198000,
+      "output": 49500
     }
   },
   {
