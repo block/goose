@@ -350,6 +350,15 @@ impl PromptInjectionScanner {
     }
 
     fn extract_tool_content(&self, tool_call: &CallToolRequestParams) -> String {
+        if let Some(cmd_str) = tool_call
+            .arguments
+            .as_ref()
+            .and_then(|args| args.get("command"))
+            .and_then(|v| v.as_str())
+        {
+            return cmd_str.to_string();
+        }
+
         let mut s = format!("Tool: {}", tool_call.name);
         if let Some(args) = &tool_call.arguments {
             if let Ok(json) = serde_json::to_string(args) {

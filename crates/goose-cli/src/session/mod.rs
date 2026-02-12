@@ -5,7 +5,6 @@ mod elicitation;
 mod export;
 mod input;
 mod output;
-mod prompt;
 mod task_execution_display;
 mod thinking;
 
@@ -21,8 +20,8 @@ use tokio_util::task::AbortOnDropHandle;
 pub use self::export::message_to_markdown;
 pub use builder::{build_session, SessionBuilderConfig};
 use console::Color;
-use goose::agents::subagent_handler::SUBAGENT_TOOL_REQUEST_TYPE;
 use goose::agents::AgentEvent;
+use goose::agents::SUBAGENT_TOOL_REQUEST_TYPE;
 use goose::permission::permission_confirmation::PrincipalType;
 use goose::permission::Permission;
 use goose::permission::PermissionConfirmation;
@@ -198,7 +197,7 @@ pub enum PlannerResponseType {
     ClarifyingQuestions,
 }
 
-/// Decide if the planner's reponse is a plan or a clarifying question
+/// Decide if the planner's response is a plan or a clarifying question
 ///
 /// This function is called after the planner has generated a response
 /// to the user's message. The response is either a plan or a clarifying
@@ -287,9 +286,14 @@ impl CliSession {
         }
 
         let cmd = parts.remove(0).to_string();
+        let name = std::path::Path::new(&cmd)
+            .file_name()
+            .and_then(|f| f.to_str())
+            .unwrap_or("unnamed")
+            .to_string();
 
         Ok(ExtensionConfig::Stdio {
-            name: String::new(),
+            name,
             cmd,
             args: parts.iter().map(|s| s.to_string()).collect(),
             envs: Envs::new(envs),
@@ -302,8 +306,29 @@ impl CliSession {
     }
 
     pub fn parse_streamable_http_extension(extension_url: &str, timeout: u64) -> ExtensionConfig {
+        let name = url::Url::parse(extension_url)
+            .ok()
+            .map(|u| {
+                let mut s = String::new();
+                if let Some(host) = u.host_str() {
+                    s.push_str(host);
+                }
+                if let Some(port) = u.port() {
+                    s.push('_');
+                    s.push_str(&port.to_string());
+                }
+                let path = u.path().trim_matches('/');
+                if !path.is_empty() {
+                    s.push('_');
+                    s.push_str(path);
+                }
+                s
+            })
+            .filter(|s| !s.is_empty())
+            .unwrap_or_else(|| "unnamed".to_string());
+
         ExtensionConfig::StreamableHttp {
-            name: String::new(),
+            name,
             uri: extension_url.to_string(),
             envs: Envs::new(HashMap::new()),
             env_keys: Vec::new(),
@@ -1820,7 +1845,7 @@ async fn get_reasoner() -> Result<Arc<dyn Provider>, anyhow::Error> {
 
     let config = Config::global();
 
-    // Try planner-specific provider first, fallback to default provider
+    // Try planner-specific provider first, fall back to default provider
     let provider = if let Ok(provider) = config.get_param::<String>("GOOSE_PLANNER_PROVIDER") {
         provider
     } else {
@@ -1830,7 +1855,7 @@ async fn get_reasoner() -> Result<Arc<dyn Provider>, anyhow::Error> {
             .expect("No provider configured. Run 'goose configure' first")
     };
 
-    // Try planner-specific model first, fallback to default model
+    // Try planner-specific model first, fall back to default model
     let model = if let Ok(model) = config.get_param::<String>("GOOSE_PLANNER_MODEL") {
         model
     } else {
@@ -1842,7 +1867,8 @@ async fn get_reasoner() -> Result<Arc<dyn Provider>, anyhow::Error> {
 
     let model_config =
         ModelConfig::new_with_context_env(model, Some("GOOSE_PLANNER_CONTEXT_LIMIT"))?;
-    let reasoner = create(&provider, model_config).await?;
+    let extensions = goose::config::extensions::get_enabled_extensions_with_config(config);
+    let reasoner = create(&provider, model_config, extensions).await?;
 
     Ok(reasoner)
 }
@@ -1863,7 +1889,10 @@ fn format_elapsed_time(duration: std::time::Duration) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use goose::agents::extension::Envs;
+    use goose::config::ExtensionConfig;
     use std::time::Duration;
+    use test_case::test_case;
 
     #[test]
     fn test_format_elapsed_time_under_60_seconds() {
@@ -1929,5 +1958,96 @@ mod tests {
         // 60.5 seconds should still show as 1m 00s (not 1m 00.5s)
         let duration = Duration::from_millis(60500);
         assert_eq!(format_elapsed_time(duration), "1m 00s");
+    }
+
+    #[test_case(
+        "/usr/bin/my-server",
+        ExtensionConfig::Stdio {
+            name: "my-server".into(),
+            cmd: "/usr/bin/my-server".into(),
+            args: vec![],
+            envs: Envs::default(),
+            env_keys: vec![],
+            description: goose::config::DEFAULT_EXTENSION_DESCRIPTION.to_string(),
+            timeout: Some(goose::config::DEFAULT_EXTENSION_TIMEOUT),
+            bundled: None,
+            available_tools: vec![],
+        }
+        ; "name_from_cmd_basename"
+    )]
+    #[test_case(
+        "MY_SECRET=s3cret npx -y @modelcontextprotocol/server-everything",
+        ExtensionConfig::Stdio {
+            name: "npx".into(),
+            cmd: "npx".into(),
+            args: vec!["-y".into(), "@modelcontextprotocol/server-everything".into()],
+            envs: Envs::new([("MY_SECRET".into(), "s3cret".into())].into()),
+            env_keys: vec![],
+            description: goose::config::DEFAULT_EXTENSION_DESCRIPTION.to_string(),
+            timeout: Some(goose::config::DEFAULT_EXTENSION_TIMEOUT),
+            bundled: None,
+            available_tools: vec![],
+        }
+        ; "env_prefix_name_from_cmd"
+    )]
+    fn test_parse_stdio_extension(input: &str, expected: ExtensionConfig) {
+        assert_eq!(CliSession::parse_stdio_extension(input).unwrap(), expected);
+    }
+
+    #[test]
+    fn test_parse_stdio_extension_no_command() {
+        assert!(CliSession::parse_stdio_extension("").is_err());
+    }
+
+    #[test_case(
+        "https://mcp.kiwi.com", 300,
+        ExtensionConfig::StreamableHttp {
+            name: "mcp.kiwi.com".into(),
+            uri: "https://mcp.kiwi.com".into(),
+            envs: Envs::default(),
+            env_keys: vec![],
+            headers: HashMap::new(),
+            description: goose::config::DEFAULT_EXTENSION_DESCRIPTION.to_string(),
+            timeout: Some(300),
+            bundled: None,
+            available_tools: vec![],
+        }
+        ; "name_from_host"
+    )]
+    #[test_case(
+        "http://localhost:8080/api", 300,
+        ExtensionConfig::StreamableHttp {
+            name: "localhost_8080_api".into(),
+            uri: "http://localhost:8080/api".into(),
+            envs: Envs::default(),
+            env_keys: vec![],
+            headers: HashMap::new(),
+            description: goose::config::DEFAULT_EXTENSION_DESCRIPTION.to_string(),
+            timeout: Some(300),
+            bundled: None,
+            available_tools: vec![],
+        }
+        ; "port_and_path"
+    )]
+    #[test_case(
+        "http://localhost:9090/other", 300,
+        ExtensionConfig::StreamableHttp {
+            name: "localhost_9090_other".into(),
+            uri: "http://localhost:9090/other".into(),
+            envs: Envs::default(),
+            env_keys: vec![],
+            headers: HashMap::new(),
+            description: goose::config::DEFAULT_EXTENSION_DESCRIPTION.to_string(),
+            timeout: Some(300),
+            bundled: None,
+            available_tools: vec![],
+        }
+        ; "different_port_and_path"
+    )]
+    fn test_parse_streamable_http_extension(url: &str, timeout: u64, expected: ExtensionConfig) {
+        assert_eq!(
+            CliSession::parse_streamable_http_extension(url, timeout),
+            expected
+        );
     }
 }

@@ -161,7 +161,7 @@ impl CursorAgentProvider {
             }
         }
 
-        // If no valid result line found, fallback to joining all lines
+        // If no valid result line found, fall back to joining all lines
         let response_text = lines.join("\n");
 
         let message_content = vec![MessageContent::text(response_text)];
@@ -340,7 +340,10 @@ impl ProviderDef for CursorAgentProvider {
         .with_unlisted_models()
     }
 
-    fn from_env(model: ModelConfig) -> BoxFuture<'static, Result<Self::Provider>> {
+    fn from_env(
+        model: ModelConfig,
+        _extensions: Vec<crate::config::ExtensionConfig>,
+    ) -> BoxFuture<'static, Result<Self::Provider>> {
         Box::pin(Self::from_env(model))
     }
 }

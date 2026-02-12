@@ -113,6 +113,11 @@ pub fn to_bedrock_message_content(content: &MessageContent) -> Result<bedrock::C
                     .build()?,
             )
         }
+        MessageContent::Reasoning(_reasoning) => {
+            // Reasoning content is for OpenAI-compatible APIs (e.g., DeepSeek)
+            // Bedrock doesn't use this format, so skip
+            bedrock::ContentBlock::Text("".to_string())
+        }
     })
 }
 
@@ -143,7 +148,7 @@ pub fn to_bedrock_tool_result_content_block(
                 bail!("Blob resource content is not supported by Bedrock provider yet")
             }
         },
-        RawContent::Audio(..) => bail!("Audio is not not supported by Bedrock provider"),
+        RawContent::Audio(..) => bail!("Audio is not supported by Bedrock provider"),
     })
 }
 
