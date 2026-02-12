@@ -18,7 +18,6 @@ import {
   updateAgentProvider,
 } from '../../src/api';
 import { execSync } from 'child_process';
-import fs from 'fs';
 
 function getUserPath(): string[] {
   try {

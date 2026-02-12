@@ -276,5 +276,7 @@ jobs:
           GOOSED_BINARY: ../../target/debug/goosed
           GOOSE_PROVIDER: anthropic
           GOOSE_MODEL: claude-sonnet-4-5-20250929
-        run: source ../../bin/activate-hermit && npm run test:integration
+        run: |
+            echo 'export PATH=/some/fake/path:$PATH' >> $HOME/.bashrc
+            source ../../bin/activate-hermit && npm run test:integration
         working-directory: ui/desktop
