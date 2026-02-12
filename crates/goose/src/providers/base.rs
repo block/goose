@@ -1,4 +1,5 @@
 use anyhow::Result;
+use async_trait::async_trait;
 use futures::future::BoxFuture;
 use futures::Stream;
 use serde::{Deserialize, Serialize};
@@ -7,6 +8,7 @@ use super::canonical::{map_to_canonical_model, CanonicalModelRegistry};
 use super::errors::ProviderError;
 use super::retry::RetryConfig;
 use crate::config::base::ConfigValue;
+use crate::config::ExtensionConfig;
 use crate::conversation::message::Message;
 use crate::conversation::Conversation;
 use crate::model::ModelConfig;
@@ -401,8 +403,6 @@ impl Usage {
     }
 }
 
-use async_trait::async_trait;
-
 pub trait ProviderDef: Send + Sync {
     type Provider: Provider + 'static;
 
@@ -410,7 +410,10 @@ pub trait ProviderDef: Send + Sync {
     where
         Self: Sized;
 
-    fn from_env(model: ModelConfig) -> BoxFuture<'static, Result<Self::Provider>>
+    fn from_env(
+        model: ModelConfig,
+        extensions: Vec<ExtensionConfig>,
+    ) -> BoxFuture<'static, Result<Self::Provider>>
     where
         Self: Sized;
 }

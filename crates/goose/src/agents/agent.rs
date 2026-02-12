@@ -443,7 +443,8 @@ impl Agent {
         let created_final_output_tool = FinalOutputTool::new(response);
         let final_output_system_prompt = created_final_output_tool.system_prompt();
         *final_output_tool = Some(created_final_output_tool);
-        self.extend_system_prompt(final_output_system_prompt).await;
+        self.extend_system_prompt("final_output".to_string(), final_output_system_prompt)
+            .await;
     }
 
     pub async fn apply_recipe_components(
@@ -467,6 +468,12 @@ impl Agent {
         cancellation_token: Option<CancellationToken>,
         session: &Session,
     ) -> (String, Result<ToolCallResult, ErrorData>) {
+        let input_summary = serde_json::json!({
+            "tool": tool_call.name,
+            "arguments": tool_call.arguments,
+        });
+        tracing::Span::current().record("input", tracing::field::display(&input_summary));
+
         if tool_call.name == PLATFORM_MANAGE_SCHEDULE_TOOL_NAME {
             let arguments = tool_call
                 .arguments
@@ -793,7 +800,10 @@ impl Agent {
         }
     }
 
-    #[instrument(skip(self, user_message, session_config), fields(user_message))]
+    #[instrument(
+        skip(self, user_message, session_config),
+        fields(user_message, trace_input)
+    )]
     pub async fn reply(
         &self,
         user_message: Message,
@@ -801,6 +811,10 @@ impl Agent {
         cancel_token: Option<CancellationToken>,
     ) -> Result<BoxStream<'_, Result<AgentEvent>>> {
         let session_manager = self.config.session_manager.clone();
+
+        let message_text_for_trace = user_message.as_concat_text();
+        tracing::Span::current().record("user_message", message_text_for_trace.as_str());
+        tracing::Span::current().record("trace_input", message_text_for_trace.as_str());
 
         for content in &user_message.content {
             if let MessageContent::ActionRequired(action_required) = content {
@@ -1014,7 +1028,6 @@ impl Agent {
             goose_mode,
             initial_messages,
         } = context;
-        let reply_span = tracing::Span::current();
         self.reset_retry_attempts().await;
 
         let provider = self.provider().await?;
@@ -1034,10 +1047,12 @@ impl Agent {
 
         let working_dir = session.working_dir.clone();
         Ok(Box::pin(async_stream::try_stream! {
-            let _ = reply_span.enter();
+            let reply_stream_span = tracing::info_span!(target: "goose::agents::agent", "reply_stream");
+            let _stream_guard = reply_stream_span.enter();
             let mut turns_taken = 0u32;
             let max_turns = session_config.max_turns.unwrap_or(DEFAULT_MAX_TURNS);
             let mut compaction_attempts = 0;
+            let mut last_assistant_text = String::new();
 
             loop {
                 if is_token_cancelled(&cancel_token) {
@@ -1138,6 +1153,10 @@ impl Agent {
 
                                 let num_tool_requests = frontend_requests.len() + remaining_requests.len();
                                 if num_tool_requests == 0 {
+                                    let text = filtered_response.as_concat_text();
+                                    if !text.is_empty() {
+                                        last_assistant_text = text;
+                                    }
                                     messages_to_add.push(response.clone());
                                     continue;
                                 }
@@ -1508,12 +1527,16 @@ impl Agent {
 
                 tokio::task::yield_now().await;
             }
+
+            if !last_assistant_text.is_empty() {
+                tracing::info!(target: "goose::agents::agent", trace_output = last_assistant_text.as_str());
+            }
         }))
     }
 
-    pub async fn extend_system_prompt(&self, instruction: String) {
+    pub async fn extend_system_prompt(&self, key: String, instruction: String) {
         let mut prompt_manager = self.prompt_manager.lock().await;
-        prompt_manager.add_system_prompt_extra(instruction);
+        prompt_manager.add_system_prompt_extra(key, instruction);
     }
 
     pub async fn update_provider(
@@ -1554,13 +1577,17 @@ impl Agent {
             None => {
                 let model_name = config
                     .get_goose_model()
-                    .map_err(|_| anyhow!("Could not configure agent: missing model"))?;
+                    .ok()
+                    .ok_or_else(|| anyhow!("Could not configure agent: missing model"))?;
                 crate::model::ModelConfig::new(&model_name)
                     .map_err(|e| anyhow!("Could not configure agent: invalid model {}", e))?
             }
         };
 
-        let provider = crate::providers::create(&provider_name, model_config)
+        let extensions =
+            EnabledExtensionsState::extensions_or_default(Some(&session.extension_data), config);
+
+        let provider = crate::providers::create(&provider_name, model_config, extensions)
             .await
             .map_err(|e| anyhow!("Could not create provider: {}", e))?;
 

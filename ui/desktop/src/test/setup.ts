@@ -20,7 +20,7 @@ vi.mock('electron', () => ({
   },
 }));
 
-// This is the standard setup to ensure that React Testing Library's
+// This is the standard set up to ensure that React Testing Library's
 // automatic cleanup runs after each test.
 afterEach(() => {
   cleanup();

@@ -20,7 +20,7 @@ posts. Since the approach and the benefits are clearly laid out in those posts I
 
 ### Summary
 
-* Instead of exposing the tools directly to the model an MCP client application can:
+* Instead of exposing the tools directly to the model, an MCP client application can:
     * Generate a programmatic interface to these same tools (typically JS or TS powered)
     * Provide a limited set of tools to the model (search available modules/tool source code, read the source code for a tool, and then a tool to execute some code)
     * Run the code the model generates to call the programmatic API in a sandboxed environment for safety
@@ -35,7 +35,7 @@ posts. Since the approach and the benefits are clearly laid out in those posts I
 
 In v1.17.0 of goose, we've introduced an open source implementation of this idea in a new platform extension called: Code Execution.
 Our implementation generates a JavaScript interface representing the connected MCP tools and then lets the model write code to run
-against it in [boa](https://github.com/boa-dev/boa) which is an embeddable Javascript engine. One neat feature of boa we were able
+against it in [boa](https://github.com/boa-dev/boa) which is an embeddable JavaScript engine. One neat feature of boa we were able
 to take advantage of was the concept of [NativeFunction](https://docs.rs/boa_engine/latest/boa_engine/native_function/struct.NativeFunction.html).
 
 In boa, a `NativeFunction` is something which exposes a function in the embedded JavaScript environment which calls back into a
@@ -47,9 +47,8 @@ MCP server with ease!
 Our hope is that we improve tool calling performance and handling of large numbers of tools in goose, but
 also provide an open source implementation of this emerging approach.
 
-* Try out the feature by enabling the "Code Execution" extension in v1.17.0 or later of goose by clicking extensions on the left side of the desktop app or running `goose configure` on cli
+* Try out the feature by enabling the ["Code Execution" extension](https://github.com/block/goose/blob/main/crates/goose/src/agents/code_execution_extension.rs) in v1.17.0 or later of goose by clicking extensions on the left side of the desktop app or running `goose configure` on cli
 * Please give us feedback on how it works for you by joining our [discord](https://discord.gg/goose-oss).
-* The source code is [here](https://github.com/block/goose/blob/main/crates/goose/src/agents/code_execution_extension.rs)
 
 Kudos to my colleague [Mic Neale](https://github.com/michaelneale) for collaborating with me on the implementation!
 

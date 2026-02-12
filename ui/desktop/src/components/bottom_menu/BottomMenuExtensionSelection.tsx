@@ -34,24 +34,14 @@ export const BottomMenuExtensionSelection = ({ sessionId }: BottomMenuExtensionS
   const isHubView = !sessionId;
 
   useEffect(() => {
-    const handleSessionLoaded = () => {
-      setTimeout(() => {
-        setRefreshTrigger((prev) => prev + 1);
-      }, 500);
-    };
-
     const handleExtensionsLoaded = () => {
       setRefreshTrigger((prev) => prev + 1);
     };
 
-    window.addEventListener(AppEvents.SESSION_CREATED, handleSessionLoaded);
     window.addEventListener(AppEvents.SESSION_EXTENSIONS_LOADED, handleExtensionsLoaded);
-    window.addEventListener(AppEvents.MESSAGE_STREAM_FINISHED, handleSessionLoaded);
 
     return () => {
-      window.removeEventListener(AppEvents.SESSION_CREATED, handleSessionLoaded);
       window.removeEventListener(AppEvents.SESSION_EXTENSIONS_LOADED, handleExtensionsLoaded);
-      window.removeEventListener(AppEvents.MESSAGE_STREAM_FINISHED, handleSessionLoaded);
     };
   }, []);
 

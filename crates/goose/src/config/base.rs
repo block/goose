@@ -750,7 +750,7 @@ impl Config {
             .and_then(|v| Ok(serde_json::from_value(v.clone())?))
     }
 
-    /// Get secrets. If primary is in env, use env for all keys. Otherwise use secret storage.
+    /// Get secrets. If primary is in env, use env for all keys. Otherwise, use secret storage.
     pub fn get_secrets(
         &self,
         primary: &str,
@@ -876,7 +876,7 @@ impl Config {
         Paths::config_dir().join("secrets.yaml")
     }
 
-    /// Perform fallback to file storage when keyring is unavailable
+    /// Fall back to file storage when keyring is unavailable
     fn fallback_to_file_storage(&self) -> Result<HashMap<String, Value>, ConfigError> {
         let path = Self::secrets_file_path();
         self.read_secrets_from_file(&path)

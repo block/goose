@@ -710,7 +710,7 @@ enum Command {
             short,
             long,
             help = "Resume a previous session (last used or specified by --name/--session-id)",
-            long_help = "Continue from a previous session. If --name or --session-id is provided, resumes that specific session. Otherwise resumes the most recently used session."
+            long_help = "Continue from a previous session. If --name or --session-id is provided, resumes that specific session. Otherwise, resumes the most recently used session."
         )]
         resume: bool,
 
@@ -719,7 +719,7 @@ enum Command {
             long,
             requires = "resume",
             help = "Fork a previous session (creates new session with copied history)",
-            long_help = "Create a new session by copying all messages from a previous session. Must be used with --resume. If --name or --session-id is provided, forks that specific session. Otherwise forks the most recently used session."
+            long_help = "Create a new session by copying all messages from a previous session. Must be used with --resume. If --name or --session-id is provided, forks that specific session. Otherwise, forks the most recently used session."
         )]
         fork: bool,
 

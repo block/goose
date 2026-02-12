@@ -92,6 +92,7 @@ struct ProviderTester {
     name: String,
     extension_manager: Arc<ExtensionManager>,
     is_cli_provider: bool,
+    model_switch_name: Option<String>,
 }
 
 impl ProviderTester {
@@ -100,12 +101,14 @@ impl ProviderTester {
         name: String,
         extension_manager: Arc<ExtensionManager>,
         is_cli_provider: bool,
+        model_switch_name: Option<String>,
     ) -> Self {
         Self {
             provider,
             name,
             extension_manager,
             is_cli_provider,
+            model_switch_name,
         }
     }
 
@@ -220,17 +223,7 @@ impl ProviderTester {
             "hello ".repeat(300_000)
         };
 
-        let messages = vec![
-            Message::user().with_text("hi there. what is 2 + 2?"),
-            Message::assistant().with_text("hey! I think it's 4."),
-            Message::user().with_text(&large_message_content),
-            Message::assistant().with_text("heyy!!"),
-            Message::user().with_text("what's the meaning of life?"),
-            Message::assistant().with_text("the meaning of life is 42"),
-            Message::user().with_text(
-                "did I ask you what's 2+2 in this message history? just respond with 'yes' or 'no'",
-            ),
-        ];
+        let messages = vec![Message::user().with_text(&large_message_content)];
 
         let result = self
             .provider
@@ -281,6 +274,40 @@ impl ProviderTester {
         Ok(())
     }
 
+    async fn test_model_switch(&self, session_id: &str) -> Result<()> {
+        let default = &self.provider.get_model_config().model_name;
+        let alt = self
+            .model_switch_name
+            .as_deref()
+            .expect("model_switch_name required for test_model_switch");
+        let alt_config = goose::model::ModelConfig::new(alt)?;
+
+        let message = Message::user().with_text("Just say hello!");
+        let (response, _) = self
+            .provider
+            .complete_with_model(
+                Some(session_id),
+                &alt_config,
+                "You are a helpful assistant.",
+                &[message],
+                &[],
+            )
+            .await?;
+
+        assert!(
+            matches!(response.content.first(), Some(MessageContent::Text(_))),
+            "Expected text response after model switch"
+        );
+        println!(
+            "=== {}::model_switch ({} -> {}) === {}",
+            self.name,
+            default,
+            alt,
+            response.as_concat_text()
+        );
+        Ok(())
+    }
+
     async fn test_model_listing(&self) -> Result<()> {
         let models = self.provider.fetch_supported_models().await?;
 
@@ -300,6 +327,15 @@ impl ProviderTester {
             "Expected model '{}' in supported models",
             model_name
         );
+        if let Some(alt) = &self.model_switch_name {
+            assert!(
+                models
+                    .iter()
+                    .any(|m| m == alt || m.contains(alt.as_str()) || alt.contains(m.as_str())),
+                "Expected model_switch_name '{}' in supported models",
+                alt
+            );
+        }
         Ok(())
     }
 
@@ -315,15 +351,20 @@ impl ProviderTester {
         self.test_model_listing().await?;
         self.test_basic_response(&self.session_id_for_test("basic_response"))
             .await?;
-        // TODO: remove skip in https://github.com/block/goose/pull/6972
-        if !self.is_cli_provider {
-            self.test_tool_usage(&self.session_id_for_test("tool_usage"))
-                .await?;
-            self.test_image_content_support(&self.session_id_for_test("image_content"))
+        self.test_tool_usage(&self.session_id_for_test("tool_usage"))
+            .await?;
+        self.test_image_content_support(&self.session_id_for_test("image_content"))
+            .await?;
+        if self.model_switch_name.is_some() {
+            self.test_model_switch(&self.session_id_for_test("model_switch"))
                 .await?;
         }
-        self.test_context_length_exceeded_error(&self.session_id_for_test("context_length"))
-            .await?;
+        // claude-code responds unpredictably to oversized context:
+        // sometimes "no", sometimes "Prompt is too long".
+        if self.name != "claude-code" {
+            self.test_context_length_exceeded_error(&self.session_id_for_test("context_length"))
+                .await?;
+        }
         Ok(())
     }
 }
@@ -337,6 +378,7 @@ fn load_env() {
 async fn test_provider(
     name: &str,
     model_name: &str,
+    model_switch_name: Option<&str>,
     required_vars: &[&str],
     env_modifications: Option<HashMap<&str, Option<String>>>,
     // CLI providers cannot propagate the agent-session-id header to MCP servers.
@@ -398,7 +440,13 @@ async fn test_provider(
     let mcp_extension =
         ExtensionConfig::streamable_http("mcp-fixture", &mcp.url, "MCP fixture", 30_u64);
 
-    let provider = match create_with_named_model(&provider_name, model_name).await {
+    let provider = match create_with_named_model(
+        &provider_name,
+        model_name,
+        vec![mcp_extension.clone()],
+    )
+    .await
+    {
         Ok(p) => p,
         Err(e) => {
             println!("Skipping {} tests - failed to create provider: {}", name, e);
@@ -435,6 +483,7 @@ async fn test_provider(
         name.to_string(),
         extension_manager,
         is_cli_provider,
+        model_switch_name.map(String::from),
     );
     let _mcp = mcp;
     let result = tester.run_test_suite().await;
@@ -457,6 +506,7 @@ async fn test_openai_provider() -> Result<()> {
     test_provider(
         "openai",
         OPEN_AI_DEFAULT_MODEL,
+        None,
         &["OPENAI_API_KEY"],
         None,
         false,
@@ -469,6 +519,7 @@ async fn test_azure_provider() -> Result<()> {
     test_provider(
         "Azure",
         AZURE_DEFAULT_MODEL,
+        None,
         &[
             "AZURE_OPENAI_API_KEY",
             "AZURE_OPENAI_ENDPOINT",
@@ -485,6 +536,7 @@ async fn test_bedrock_provider_long_term_credentials() -> Result<()> {
     test_provider(
         "aws_bedrock",
         BEDROCK_DEFAULT_MODEL,
+        None,
         &["AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY"],
         None,
         false,
@@ -500,6 +552,7 @@ async fn test_bedrock_provider_aws_profile_credentials() -> Result<()> {
     test_provider(
         "aws_bedrock",
         BEDROCK_DEFAULT_MODEL,
+        None,
         &["AWS_PROFILE"],
         Some(env_mods),
         false,
@@ -519,6 +572,7 @@ async fn test_bedrock_provider_bearer_token() -> Result<()> {
     test_provider(
         "aws_bedrock",
         BEDROCK_DEFAULT_MODEL,
+        None,
         &["AWS_BEARER_TOKEN_BEDROCK", "AWS_REGION"],
         Some(env_mods),
         false,
@@ -531,6 +585,7 @@ async fn test_databricks_provider() -> Result<()> {
     test_provider(
         "Databricks",
         DATABRICKS_DEFAULT_MODEL,
+        None,
         &["DATABRICKS_HOST", "DATABRICKS_TOKEN"],
         None,
         false,
@@ -541,7 +596,15 @@ async fn test_databricks_provider() -> Result<()> {
 #[tokio::test]
 async fn test_ollama_provider() -> Result<()> {
     // qwen3-vl supports text, tools, and vision (needed for image test)
-    test_provider("Ollama", "qwen3-vl", &["OLLAMA_HOST"], None, false).await
+    test_provider(
+        "Ollama",
+        "qwen3-vl",
+        Some("qwen3"),
+        &["OLLAMA_HOST"],
+        None,
+        false,
+    )
+    .await
 }
 
 #[tokio::test]
@@ -549,6 +612,7 @@ async fn test_anthropic_provider() -> Result<()> {
     test_provider(
         "Anthropic",
         ANTHROPIC_DEFAULT_MODEL,
+        None,
         &["ANTHROPIC_API_KEY"],
         None,
         false,
@@ -561,6 +625,7 @@ async fn test_openrouter_provider() -> Result<()> {
     test_provider(
         "OpenRouter",
         OPEN_AI_DEFAULT_MODEL,
+        None,
         &["OPENROUTER_API_KEY"],
         None,
         false,
@@ -573,6 +638,7 @@ async fn test_google_provider() -> Result<()> {
     test_provider(
         "Google",
         GOOGLE_DEFAULT_MODEL,
+        None,
         &["GOOGLE_API_KEY"],
         None,
         false,
@@ -585,6 +651,7 @@ async fn test_snowflake_provider() -> Result<()> {
     test_provider(
         "Snowflake",
         SNOWFLAKE_DEFAULT_MODEL,
+        None,
         &["SNOWFLAKE_HOST", "SNOWFLAKE_TOKEN"],
         None,
         false,
@@ -597,6 +664,7 @@ async fn test_sagemaker_tgi_provider() -> Result<()> {
     test_provider(
         "SageMakerTgi",
         SAGEMAKER_TGI_DEFAULT_MODEL,
+        None,
         &["SAGEMAKER_ENDPOINT_NAME"],
         None,
         false,
@@ -617,12 +685,28 @@ async fn test_litellm_provider() -> Result<()> {
         ("LITELLM_API_KEY", Some("".to_string())),
     ]);
 
-    test_provider("LiteLLM", LITELLM_DEFAULT_MODEL, &[], Some(env_mods), false).await
+    test_provider(
+        "LiteLLM",
+        LITELLM_DEFAULT_MODEL,
+        None,
+        &[],
+        Some(env_mods),
+        false,
+    )
+    .await
 }
 
 #[tokio::test]
 async fn test_xai_provider() -> Result<()> {
-    test_provider("Xai", XAI_DEFAULT_MODEL, &["XAI_API_KEY"], None, false).await
+    test_provider(
+        "Xai",
+        XAI_DEFAULT_MODEL,
+        None,
+        &["XAI_API_KEY"],
+        None,
+        false,
+    )
+    .await
 }
 
 #[tokio::test]
@@ -632,7 +716,15 @@ async fn test_claude_code_provider() -> Result<()> {
         TEST_REPORT.record_skip("claude-code");
         return Ok(());
     }
-    test_provider("claude-code", CLAUDE_CODE_DEFAULT_MODEL, &[], None, true).await
+    test_provider(
+        "claude-code",
+        CLAUDE_CODE_DEFAULT_MODEL,
+        Some("sonnet"),
+        &[],
+        None,
+        true,
+    )
+    .await
 }
 
 #[tokio::test]
@@ -642,7 +734,7 @@ async fn test_codex_provider() -> Result<()> {
         TEST_REPORT.record_skip("codex");
         return Ok(());
     }
-    test_provider("codex", CODEX_DEFAULT_MODEL, &[], None, true).await
+    test_provider("codex", CODEX_DEFAULT_MODEL, None, &[], None, true).await
 }
 
 #[ctor::dtor]

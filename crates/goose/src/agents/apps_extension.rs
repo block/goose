@@ -154,11 +154,13 @@ impl AppsManagerClient {
                 experimental: None,
                 tasks: None,
                 logging: None,
+                extensions: None,
             },
             server_info: Implementation {
                 name: EXTENSION_NAME.to_string(),
                 title: Some("Apps Manager".to_string()),
                 version: "1.0.0".to_string(),
+                description: None,
                 icons: None,
                 website_url: None,
             },
@@ -170,7 +172,7 @@ impl AppsManagerClient {
     }
 
     fn ensure_default_apps(&self) -> Result<(), String> {
-        // TODO(Douwe): we have the same check in cache, consider unfiying that
+        // TODO(Douwe): we have the same check in cache, consider unifying that
         const CLOCK_HTML: &str = include_str!("../goose_apps/clock.html");
 
         // Check if clock app exists

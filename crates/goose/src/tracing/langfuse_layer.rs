@@ -166,7 +166,10 @@ pub fn create_langfuse_observer() -> Option<ObservationLayer> {
         return None;
     }
 
-    let base_url = env::var("LANGFUSE_URL").unwrap_or_else(|_| DEFAULT_LANGFUSE_URL.to_string());
+    let base_url = env::var("LANGFUSE_URL")
+        .or_else(|_| env::var("LANGFUSE_BASE_URL"))
+        .or_else(|_| env::var("LANGFUSE_HOST"))
+        .unwrap_or_else(|_| DEFAULT_LANGFUSE_URL.to_string());
 
     let batch_manager = Arc::new(Mutex::new(LangfuseBatchManager::new(
         public_key, secret_key, base_url,
