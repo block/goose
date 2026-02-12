@@ -1,13 +1,5 @@
 #!/bin/bash
 # Provider smoke tests - code execution mode (JS batching)
-#
-# For each provider, asks goose to run 'ls' via shell.
-# Verifies the code_execution tool was invoked.
-# Agentic providers are skipped (they don't use goose's code_execution system).
-#
-# Environment variables:
-#   SKIP_PROVIDERS  Comma-separated list of providers to skip
-#   SKIP_BUILD      Skip the cargo build step if set
 
 LIB_DIR="$(cd "$(dirname "$0")" && pwd)"
 source "$LIB_DIR/test_providers_lib.sh"
