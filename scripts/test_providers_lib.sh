@@ -4,7 +4,7 @@ PROVIDER_CONFIG='
 openrouter -> google/gemini-2.5-pro|anthropic/claude-sonnet-4.5|qwen/qwen3-coder:exacto|z-ai/glm-4.6:exacto|nvidia/nemotron-3-nano-30b-a3b
 xai -> grok-3
 openai -> gpt-4o|gpt-4o-mini|gpt-3.5-turbo|gpt-5
-anthropic -> claude-sonnet-4-5-20250929|claude-opus-4-1-20250805
+anthropic -> claude-sonnet-4-5-20250929|claude-opus-4-5-20251101
 google -> gemini-2.5-pro|gemini-2.5-flash|gemini-3-pro-preview|gemini-3-flash-preview
 tetrate -> claude-sonnet-4-20250514
 databricks -> databricks-claude-sonnet-4|gemini-2-5-flash|gpt-4o

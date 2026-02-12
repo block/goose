@@ -31,7 +31,6 @@ run_test() {
   (
     export GOOSE_PROVIDER="$provider"
     export GOOSE_MODEL="$model"
-    export PATH=""
     cd "$testdir" && "$GOOSE_BIN" run --text "$prompt" --with-builtin "$BUILTINS" 2>&1
   ) > "$output_file" 2>&1
 
