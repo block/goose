@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { HardDrive, Download, Check, X } from 'lucide-react';
+import { HardDrive, Download, Check, X, Search } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -18,7 +18,7 @@ import {
   type LocalModelResponse,
   type ModelListItem,
 } from '../../../api';
-import { HuggingFaceModelSearch } from '../localInference/HuggingFaceModelSearch';
+import { HuggingFaceSearchModal } from './HuggingFaceSearchModal';
 
 // Original provider avatar URLs from HuggingFace organizations
 const PROVIDER_AVATARS: Record<string, string> = {
@@ -60,6 +60,7 @@ interface LocalModelModalProps {
 export function LocalModelModal({ isOpen, onClose, onModelSelected }: LocalModelModalProps) {
   const [featuredModels, setFeaturedModels] = useState<(LocalModelResponse & { featured?: boolean })[]>([]);
   const [downloads, setDownloads] = useState<Map<string, DownloadProgress>>(new Map());
+  const [showHuggingFaceModal, setShowHuggingFaceModal] = useState(false);
   const { upsert } = useConfig();
 
   // Load local models
@@ -316,16 +317,29 @@ export function LocalModelModal({ isOpen, onClose, onModelSelected }: LocalModel
             </div>
           )}
 
-          {/* Search HuggingFace Section - Always visible */}
+          {/* Search HuggingFace Button */}
           <div className="border-t border-border-subtle pt-4">
-            <HuggingFaceModelSearch 
-              onDownloadStarted={(modelId) => {
-                pollDownloadProgress(modelId);
-              }} 
-            />
+            <Button
+              variant="outline"
+              className="w-full"
+              onClick={() => setShowHuggingFaceModal(true)}
+            >
+              <Search className="w-4 h-4 mr-2" />
+              Search HuggingFace
+            </Button>
           </div>
         </div>
       </DialogContent>
+
+      {/* HuggingFace Search Modal */}
+      <HuggingFaceSearchModal
+        isOpen={showHuggingFaceModal}
+        onClose={() => setShowHuggingFaceModal(false)}
+        onDownloadStarted={(modelId) => {
+          pollDownloadProgress(modelId);
+          setShowHuggingFaceModal(false);
+        }}
+      />
     </Dialog>
   );
 }
