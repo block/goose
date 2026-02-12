@@ -208,7 +208,7 @@ export function HuggingFaceSearchModal({ isOpen, onClose, onDownloadStarted }: H
         {/* Header - extra top padding to avoid macOS stoplight buttons */}
         <div className="flex items-center justify-between px-6 pt-10 pb-4 border-b border-border-subtle bg-background-default">
           <DialogHeader className="p-0 space-y-0">
-            <DialogTitle className="flex flex-col items-center gap-1">
+            <DialogTitle className="flex flex-col items-start gap-1">
               <Search size={24} className="text-blue-500" />
               <span>Search Local Models</span>
             </DialogTitle>
