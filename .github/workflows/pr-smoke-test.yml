@@ -239,3 +239,34 @@ jobs:
           mkdir -p $HOME/.local/share/goose/sessions
           mkdir -p $HOME/.config/goose
           bash scripts/test_compaction.sh
+
+  goosed-integration-tests:
+    name: goose server HTTP integration tests
+    runs-on: ubuntu-latest
+    needs: build-binary
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8  # v6.0.1
+        with:
+          ref: ${{ github.event.inputs.branch || github.ref }}
+
+      - name: Download Binary
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131  # v7.0.0
+        with:
+          name: goose-binary
+          path: target/debug
+
+      - name: Make Binary Executable
+        run: chmod +x target/debug/goose
+
+      - name: Install Node.js Dependencies
+        run: source ../../bin/activate-hermit && npm ci
+        working-directory: ui/desktop
+
+      - name: Run Integration Tests
+        env:
+          GOOSED_BINARY: ../../target/debug/goosed
+          GOOSE_PROVIDER: anthropic
+          GOOSE_MODEL: claude-sonnet-4-5-20250929
+        run: source ../../bin/activate-hermit && npm run test:integration
+        working-directory: ui/desktop
