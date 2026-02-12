@@ -1,5 +1,5 @@
 import { useState, useCallback, useRef } from 'react';
-import { Search, Download, ChevronDown, ChevronUp, Loader2, Star, X } from 'lucide-react';
+import { Search, Download, ChevronDown, ChevronUp, Loader2, Star, X, MessageSquare, Code, MessagesSquare, FileText, Brain, Zap } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -265,42 +265,42 @@ export function HuggingFaceSearchModal({ isOpen, onClose, onDownloadStarted }: H
                   onClick={() => handleSuggestionClick('text-generation')}
                   className="flex items-center gap-2 px-2 py-2 text-sm rounded-lg text-text-default hover:bg-blue-500/10 hover:text-blue-600 transition-colors text-left"
                 >
-                  <span className="text-base">💬</span>
+                  <MessageSquare className="w-4 h-4" />
                   Text Generation
                 </button>
                 <button
                   onClick={() => handleSuggestionClick('code')}
                   className="flex items-center gap-2 px-2 py-2 text-sm rounded-lg text-text-default hover:bg-blue-500/10 hover:text-blue-600 transition-colors text-left"
                 >
-                  <span className="text-base">💻</span>
+                  <Code className="w-4 h-4" />
                   Code
                 </button>
                 <button
                   onClick={() => handleSuggestionClick('chat')}
                   className="flex items-center gap-2 px-2 py-2 text-sm rounded-lg text-text-default hover:bg-blue-500/10 hover:text-blue-600 transition-colors text-left"
                 >
-                  <span className="text-base">🗣️</span>
+                  <MessagesSquare className="w-4 h-4" />
                   Chat
                 </button>
                 <button
                   onClick={() => handleSuggestionClick('instruct')}
                   className="flex items-center gap-2 px-2 py-2 text-sm rounded-lg text-text-default hover:bg-blue-500/10 hover:text-blue-600 transition-colors text-left"
                 >
-                  <span className="text-base">📝</span>
+                  <FileText className="w-4 h-4" />
                   Instruct
                 </button>
                 <button
                   onClick={() => handleSuggestionClick('reasoning')}
                   className="flex items-center gap-2 px-2 py-2 text-sm rounded-lg text-text-default hover:bg-blue-500/10 hover:text-blue-600 transition-colors text-left"
                 >
-                  <span className="text-base">🧠</span>
+                  <Brain className="w-4 h-4" />
                   Reasoning
                 </button>
                 <button
                   onClick={() => handleSuggestionClick('small')}
                   className="flex items-center gap-2 px-2 py-2 text-sm rounded-lg text-text-default hover:bg-blue-500/10 hover:text-blue-600 transition-colors text-left"
                 >
-                  <span className="text-base">⚡</span>
+                  <Zap className="w-4 h-4" />
                   Small & Fast
                 </button>
               </div>
