@@ -193,7 +193,7 @@ export function HuggingFaceSearchModal({ isOpen, onClose, onDownloadStarted }: H
     { label: 'Mistral', query: 'mistral', provider: 'mistral' },
     { label: 'Phi', query: 'phi', provider: 'microsoft' },
     { label: 'Qwen', query: 'qwen', provider: 'qwen' },
-    { label: 'Gemma', query: 'gemma', provider: 'google' },
+    { label: 'Gemini', query: 'gemma', provider: 'google' },
     { label: 'DeepSeek', query: 'deepseek', provider: 'deepseek' },
   ];
 
