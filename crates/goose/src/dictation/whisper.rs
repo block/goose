@@ -363,7 +363,15 @@ impl WhisperTranscriber {
             return Ok(String::new());
         }
 
-        let result = self.decode_tokens(&all_text_tokens)?;
+        let raw_result = self.decode_tokens(&all_text_tokens)?;
+        let result = deduplicate_text(&raw_result);
+        if result != raw_result {
+            tracing::debug!(
+                before_len = raw_result.len(),
+                after_len = result.len(),
+                "text-level deduplication removed repeated phrases"
+            );
+        }
         tracing::debug!(result_len = result.len(), "transcription complete");
         Ok(result)
     }
@@ -713,70 +721,172 @@ impl WhisperTranscriber {
     }
 
     fn detect_repetition(&self, tokens: &[u32]) -> Option<usize> {
-        // Skip the initial SOT, language, transcribe tokens
-        if tokens.len() <= SAMPLE_BEGIN + 3 {
-            return None;
-        }
+        detect_repetition_impl(tokens, SAMPLE_BEGIN, TIMESTAMP_BEGIN)
+    }
+}
 
-        let sampled = &tokens[SAMPLE_BEGIN..];
-        let current_pos = sampled.len() - 1;
-        let current_token = sampled[current_pos];
+/// Remove repeated phrases from transcribed text.
+///
+/// Whisper models (especially smaller/quantized ones) tend to loop, producing output like
+/// "I could build a record mode. I could build a record mode. I could build a record mode."
+/// This function collapses adjacent duplicate sentences/phrases down to a single occurrence.
+fn deduplicate_text(text: &str) -> String {
+    let trimmed = text.trim();
+    if trimmed.is_empty() {
+        return String::new();
+    }
 
-        // Look for the most recent previous occurrence of the current token
-        // We only care about adjacent repetitions, so start from right before current
-        for prev_pos in (0..current_pos).rev() {
-            if sampled[prev_pos] != current_token {
-                continue;
-            }
+    // Split into sentences on common boundaries (. ! ? and also comma for shorter phrases)
+    let sentences = split_into_sentences(trimmed);
+    if sentences.len() <= 1 {
+        return trimmed.to_string();
+    }
 
-            // Found a match - check how many preceding tokens also match
-            let mut match_len = 1;
-            while prev_pos >= match_len
-                && current_pos >= match_len
-                && sampled[prev_pos - match_len] == sampled[current_pos - match_len]
-            {
-                match_len += 1;
-            }
+    let mut result: Vec<&str> = Vec::new();
 
-            let pattern_len = match_len;
-            let gap = current_pos - prev_pos;
+    let mut i = 0;
+    while i < sentences.len() {
+        // Try to find a repeating pattern starting at position i.
+        // Check pattern lengths from 1 sentence up to half the remaining sentences.
+        let remaining = sentences.len() - i;
+        let max_pattern_len = remaining / 2;
+        let mut best_pattern_len = 0;
+        let mut best_repeat_count = 0;
+        let mut best_total_consumed = 0;
 
-            // Only consider adjacent repetitions (gap equals pattern length)
-            // This ensures "I saw a dog. I liked the dog." doesn't trigger
-            if gap != pattern_len {
-                continue;
-            }
-
-            // Count how many times this pattern repeats consecutively
-            let mut repeat_count = 2; // We found at least 2 (prev and current)
-            let mut check_pos = prev_pos;
-
-            while check_pos >= pattern_len {
-                let earlier_pos = check_pos - pattern_len;
-                let matches =
-                    (0..pattern_len).all(|i| sampled[earlier_pos + i] == sampled[prev_pos + i]);
-                if matches {
-                    repeat_count += 1;
-                    check_pos = earlier_pos;
+        for pattern_len in 1..=max_pattern_len {
+            let pattern = &sentences[i..i + pattern_len];
+            let mut count = 1;
+            let mut pos = i + pattern_len;
+            while pos + pattern_len <= sentences.len() {
+                let candidate = &sentences[pos..pos + pattern_len];
+                if pattern
+                    .iter()
+                    .zip(candidate.iter())
+                    .all(|(a, b)| a.trim() == b.trim())
+                {
+                    count += 1;
+                    pos += pattern_len;
                 } else {
                     break;
                 }
             }
-
-            // Trigger on: 3+ adjacent repeats of anything, or 2 adjacent repeats of 5+ token patterns
-            if repeat_count >= 3 || (repeat_count >= 2 && pattern_len >= 5) {
-                // Return the position to truncate to (keep first occurrence only)
-                let first_pattern_start = check_pos;
-                let first_pattern_end = first_pattern_start + pattern_len;
-                return Some(SAMPLE_BEGIN + first_pattern_end);
+            // Prefer the pattern that removes the most repeated sentences
+            let total_consumed = pattern_len * count;
+            if count >= 2 && total_consumed > best_total_consumed {
+                best_pattern_len = pattern_len;
+                best_repeat_count = count;
+                best_total_consumed = total_consumed;
             }
-
-            // Only check the first (most recent) match since we want adjacent patterns
-            break;
         }
 
-        None
+        if best_repeat_count >= 2 {
+            // Keep only the first occurrence of the repeated pattern
+            for j in 0..best_pattern_len {
+                result.push(sentences[i + j]);
+            }
+            i += best_pattern_len * best_repeat_count;
+        } else {
+            result.push(sentences[i]);
+            i += 1;
+        }
     }
+
+    result.join("").trim_end().to_string()
+}
+
+#[allow(clippy::string_slice)] // Splitting on ASCII punctuation; indices are always valid UTF-8 boundaries
+fn split_into_sentences(text: &str) -> Vec<&str> {
+    let mut sentences = Vec::new();
+    let mut last = 0;
+    let bytes = text.as_bytes();
+
+    for (i, &b) in bytes.iter().enumerate() {
+        if b == b'.' || b == b'!' || b == b'?' {
+            // Include trailing whitespace with the sentence
+            let mut end = i + 1;
+            while end < bytes.len() && bytes[end] == b' ' {
+                end += 1;
+            }
+            sentences.push(&text[last..end]);
+            last = end;
+        }
+    }
+
+    // Don't forget the trailing fragment (if any)
+    if last < text.len() {
+        sentences.push(&text[last..]);
+    }
+
+    sentences
+}
+
+/// Detect repetition in token sequence, returning the index to truncate to if repetition found.
+/// Filters out timestamp tokens (>= timestamp_begin) when looking for patterns.
+/// Returns Some(truncate_index) if repetition detected, None otherwise.
+fn detect_repetition_impl(
+    tokens: &[u32],
+    sample_begin: usize,
+    timestamp_begin: u32,
+) -> Option<usize> {
+    if tokens.len() <= sample_begin {
+        return None;
+    }
+
+    // Filter out timestamp tokens to get just text tokens, but remember original positions
+    let text_tokens: Vec<(usize, u32)> = tokens[sample_begin..]
+        .iter()
+        .enumerate()
+        .filter(|(_, &t)| t < timestamp_begin)
+        .map(|(i, &t)| (i + sample_begin, t))
+        .collect();
+
+    // Need at least 3 tokens to detect any repetition (e.g., [A, A, A])
+    if text_tokens.len() < 3 {
+        return None;
+    }
+
+    let n = text_tokens.len();
+
+    // Try different pattern lengths, starting from 1
+    for pattern_len in 1..=(n / 2) {
+        // Check if the last `pattern_len` tokens match the preceding `pattern_len` tokens
+        let pattern_start = n - pattern_len;
+        let prev_pattern_start = n - 2 * pattern_len;
+
+        let matches = (0..pattern_len)
+            .all(|i| text_tokens[prev_pattern_start + i].1 == text_tokens[pattern_start + i].1);
+
+        if !matches {
+            continue;
+        }
+
+        // Found adjacent repeated pattern - count total repetitions
+        let mut repeat_count = 2;
+        let mut check_start = prev_pattern_start;
+
+        while check_start >= pattern_len {
+            let earlier_start = check_start - pattern_len;
+            let still_matches = (0..pattern_len)
+                .all(|i| text_tokens[earlier_start + i].1 == text_tokens[pattern_start + i].1);
+            if still_matches {
+                repeat_count += 1;
+                check_start = earlier_start;
+            } else {
+                break;
+            }
+        }
+
+        // Trigger on: 3+ repeats of anything, or 2 repeats of 5+ token patterns
+        if repeat_count >= 3 || (repeat_count >= 2 && pattern_len >= 5) {
+            // Return the original token position after the first pattern
+            let first_pattern_end_text_idx = check_start + pattern_len;
+            let truncate_pos = text_tokens[first_pattern_end_text_idx].0;
+            return Some(truncate_pos);
+        }
+    }
+
+    None
 }
 
 fn decode_audio_simple(audio_data: &[u8]) -> Result<Vec<f32>> {
@@ -988,4 +1098,108 @@ fn resample_audio(data: &[f32], from_rate: u32, to_rate: u32) -> Result<Vec<f32>
 
     tracing::debug!(output_samples = waves_out[0].len(), "resampling complete");
     Ok(waves_out[0].clone())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    use test_case::test_case;
+
+    const TS: u32 = 50364; // A timestamp token for tests
+
+    // detect_repetition_impl tests
+    // sample_begin=3 means tokens[0..3] are SOT, language, transcribe
+    // timestamp_begin=50364 means tokens >= 50364 are timestamps
+
+    #[test_case(&[0, 1, 2, 10, 10, 10], Some(4) ; "single token repeated 3x")]
+    #[test_case(&[0, 1, 2, 10, 10], None ; "single token repeated 2x not enough")]
+    #[test_case(&[0, 1, 2, 10, 20, 30, 10, 20, 30], None ; "3-token pattern repeated 2x not enough")]
+    #[test_case(&[0, 1, 2, 10, 20, 30, 40, 50, 10, 20, 30, 40, 50], Some(8) ; "5-token pattern repeated 2x")]
+    #[test_case(&[0, 1, 2, 10, 20, 10, 20, 10, 20], Some(5) ; "2-token pattern repeated 3x")]
+    #[test_case(&[0, 1, 2, 10, 20, 30, 40, 10, 20, 30, 40], None ; "4-token pattern repeated 2x not enough")]
+    #[test_case(&[0, 1, 2, 10, 99, 20, 10, 99, 20], None ; "non-adjacent same tokens no trigger")]
+    fn test_detect_repetition_no_timestamps(tokens: &[u32], expected: Option<usize>) {
+        assert_eq!(detect_repetition_impl(tokens, 3, 50364), expected);
+    }
+
+    #[test_case(
+        &[0, 1, 2, TS, 10, 20, 30, TS+1, TS+2, 10, 20, 30, TS+3],
+        None ;
+        "phrase 3 tokens with timestamps 2x not enough"
+    )]
+    #[test_case(
+        &[0, 1, 2, TS, 10, 10, 10, TS+1],
+        Some(5) ;
+        "single token 3x with surrounding timestamps"
+    )]
+    #[test_case(
+        &[0, 1, 2, TS, 10, 20, TS+1, TS+2, 10, 20, TS+3, TS+4, 10, 20, TS+5],
+        Some(8) ;
+        "2-token pattern 3x with timestamps interleaved"
+    )]
+    fn test_detect_repetition_with_timestamps(tokens: &[u32], expected: Option<usize>) {
+        assert_eq!(detect_repetition_impl(tokens, 3, 50364), expected);
+    }
+
+    // Real example from logs: phrase repeated 3x with timestamps
+    #[test]
+    fn test_detect_repetition_real_example() {
+        let tokens: Vec<u32> = vec![
+            0, 1, 2, // SOT, lang, transcribe (indices 0-2)
+            50364, 286, 500, 380, 458, 983, 309, 311, 18617, 2564, 13, // first phrase + ts
+            50450, 50475, 286, 500, 380, 458, 983, 309, 311, 18617, 2564,
+            13, // second phrase + ts
+            50550, 50551, 286, 500, 380, 458, 983, 309, 311, 18617, 2564,
+            13, // third phrase + ts
+        ];
+        // Text tokens are: 286, 500, 380, 458, 983, 309, 311, 18617, 2564, 13 (10 tokens)
+        // Repeated 3 times, should trigger
+        let result = detect_repetition_impl(&tokens, 3, 50364);
+        assert!(result.is_some(), "Should detect repetition in real example");
+    }
+
+    #[test]
+    fn test_no_false_positive_on_dog_sentences() {
+        // "I saw a dog. I liked the dog. I gave the dog food."
+        // dog=100, other tokens are different
+        let tokens: Vec<u32> = vec![
+            0, 1, 2, 10, 11, 12, 100, 13, // I saw a dog.
+            20, 21, 22, 100, 23, // I liked the dog.
+            30, 31, 32, 100, 33, // I gave the dog food.
+        ];
+        assert_eq!(detect_repetition_impl(&tokens, 3, 50364), None);
+    }
+
+    // deduplicate_text tests
+    #[test_case("", "" ; "empty")]
+    #[test_case("   ", "" ; "whitespace")]
+    #[test_case("I went to the store. Then I came home.", "I went to the store. Then I came home." ; "no repetition")]
+    #[test_case(
+        "I could build a record mode. I could build a record mode. I could build a record mode.",
+        "I could build a record mode." ;
+        "single sentence 3x"
+    )]
+    #[test_case(
+        "Yeah I was thinking about that. Yeah I was thinking about that.",
+        "Yeah I was thinking about that." ;
+        "single sentence 2x"
+    )]
+    #[test_case(
+        "Who works for Flux? Who works for Flux? Who works for Flux?",
+        "Who works for Flux?" ;
+        "question marks"
+    )]
+    #[test_case("Stop! Stop! Stop!", "Stop!" ; "exclamation marks")]
+    #[test_case("hello hello hello hello", "hello hello hello hello" ; "no sentence boundaries")]
+    fn test_deduplicate_text(input: &str, expected: &str) {
+        assert_eq!(deduplicate_text(input), expected);
+    }
+
+    #[test_case("Hello. World. Foo.", vec!["Hello. ", "World. ", "Foo."] ; "basic")]
+    #[test_case("Hello. World", vec!["Hello. ", "World"] ; "trailing fragment")]
+    #[test_case("Really? Yes! Ok.", vec!["Really? ", "Yes! ", "Ok."] ; "mixed punctuation")]
+    fn test_split_into_sentences(input: &str, expected: Vec<&str>) {
+        assert_eq!(split_into_sentences(input), expected);
+    }
 }
