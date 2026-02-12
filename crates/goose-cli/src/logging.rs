@@ -6,7 +6,8 @@ use tracing_subscriber::{
     Registry,
 };
 
-use goose::tracing::{langfuse_layer, otlp_layer};
+use goose::otel::otlp;
+use goose::tracing::langfuse_layer;
 
 // Used to ensure we only set up tracing once
 static INIT: Once = Once::new();
@@ -68,41 +69,7 @@ fn setup_logging_internal(name: Option<&str>, force: bool) -> Result<()> {
             ];
 
             if !force {
-                otlp_layer::promote_config_to_env();
-                otlp_layer::init_otel_propagation();
-
-                match otlp_layer::create_otlp_tracing_layer() {
-                    Ok(otlp_tracing_layer) => {
-                        layers.push(
-                            otlp_tracing_layer
-                                .with_filter(otlp_layer::create_otlp_tracing_filter())
-                                .boxed(),
-                        );
-                    }
-                    Err(e) => eprintln!("OTLP traces layer failed: {e}"),
-                }
-
-                match otlp_layer::create_otlp_metrics_layer() {
-                    Ok(otlp_metrics_layer) => {
-                        layers.push(
-                            otlp_metrics_layer
-                                .with_filter(otlp_layer::create_otlp_metrics_filter())
-                                .boxed(),
-                        );
-                    }
-                    Err(e) => eprintln!("OTLP metrics layer failed: {e}"),
-                }
-
-                match otlp_layer::create_otlp_logs_layer() {
-                    Ok(otlp_logs_layer) => {
-                        layers.push(
-                            otlp_logs_layer
-                                .with_filter(otlp_layer::create_otlp_logs_filter())
-                                .boxed(),
-                        );
-                    }
-                    Err(e) => eprintln!("OTLP logs layer failed: {e}"),
-                }
+                layers.extend(otlp::init_otlp_layers(goose::config::Config::global()));
             }
 
             if let Some(langfuse) = langfuse_layer::create_langfuse_observer() {

@@ -7,12 +7,12 @@ use opentelemetry_sdk::propagation::TraceContextPropagator;
 use opentelemetry_sdk::resource::{EnvResourceDetector, TelemetryResourceDetector};
 use opentelemetry_sdk::trace::SdkTracerProvider;
 use opentelemetry_sdk::Resource;
+use std::env;
 use std::sync::Mutex;
 use tracing::{Level, Metadata};
 use tracing_opentelemetry::{MetricsLayer, OpenTelemetryLayer};
 use tracing_subscriber::filter::FilterFn;
-
-use super::otel_config::{signal_exporter, ExporterType};
+use tracing_subscriber::Layer as _;
 
 pub type OtlpTracingLayer =
     OpenTelemetryLayer<tracing_subscriber::Registry, opentelemetry_sdk::trace::Tracer>;
@@ -24,33 +24,72 @@ static TRACER_PROVIDER: Mutex<Option<SdkTracerProvider>> = Mutex::new(None);
 static METER_PROVIDER: Mutex<Option<SdkMeterProvider>> = Mutex::new(None);
 static LOGGER_PROVIDER: Mutex<Option<SdkLoggerProvider>> = Mutex::new(None);
 
-/// Promotes goose config-file OTel settings to env vars so the SDK handles
-/// endpoint resolution correctly (e.g. appending /v1/traces to the base URL).
-///
-/// This must be called before creating any exporters. The SDK reads env vars
-/// during exporter build, so we set them here rather than using programmatic
-/// `with_endpoint()` which bypasses the SDK's signal-path appending logic.
-pub fn promote_config_to_env() {
-    let config = crate::config::Config::global();
-    let endpoint = config
-        .get_param::<String>("otel_exporter_otlp_endpoint")
-        .ok();
-    let timeout = config
-        .get_param::<u64>("otel_exporter_otlp_timeout")
-        .ok()
-        .map(|t| t.to_string());
-    promote_to_env(endpoint.as_deref(), timeout.as_deref());
+#[derive(Debug, Clone, PartialEq)]
+pub enum ExporterType {
+    Otlp,
+    Console,
+    None,
 }
 
-fn promote_to_env(endpoint: Option<&str>, timeout: Option<&str>) {
-    if let Some(endpoint) = endpoint {
-        if std::env::var("OTEL_EXPORTER_OTLP_ENDPOINT").is_err() {
-            std::env::set_var("OTEL_EXPORTER_OTLP_ENDPOINT", endpoint);
+impl ExporterType {
+    pub fn from_env_value(value: &str) -> Self {
+        match value.to_lowercase().as_str() {
+            "" | "otlp" => ExporterType::Otlp,
+            "console" | "stdout" => ExporterType::Console,
+            _ => ExporterType::None,
         }
     }
-    if let Some(timeout) = timeout {
-        if std::env::var("OTEL_EXPORTER_OTLP_TIMEOUT").is_err() {
-            std::env::set_var("OTEL_EXPORTER_OTLP_TIMEOUT", timeout);
+}
+
+/// Returns the exporter type for a signal, or None if disabled.
+///
+/// Checks in order:
+/// 1. OTEL_SDK_DISABLED — disables everything
+/// 2. OTEL_{SIGNAL}_EXPORTER — explicit exporter selection ("none" disables)
+/// 3. OTEL_EXPORTER_OTLP_{SIGNAL}_ENDPOINT or OTEL_EXPORTER_OTLP_ENDPOINT — enables OTLP
+pub fn signal_exporter(signal: &str) -> Option<ExporterType> {
+    if env::var("OTEL_SDK_DISABLED")
+        .ok()
+        .is_some_and(|v| v.eq_ignore_ascii_case("true"))
+    {
+        return None;
+    }
+
+    let exporter_var = format!("OTEL_{}_EXPORTER", signal.to_uppercase());
+    if let Ok(val) = env::var(&exporter_var) {
+        let typ = ExporterType::from_env_value(&val);
+        return if matches!(typ, ExporterType::None) {
+            None
+        } else {
+            Some(typ)
+        };
+    }
+
+    let signal_endpoint = format!("OTEL_EXPORTER_OTLP_{}_ENDPOINT", signal.to_uppercase());
+    let has_endpoint = env::var(&signal_endpoint)
+        .ok()
+        .is_some_and(|v| !v.is_empty())
+        || env::var("OTEL_EXPORTER_OTLP_ENDPOINT")
+            .ok()
+            .is_some_and(|v| !v.is_empty());
+
+    if has_endpoint {
+        Some(ExporterType::Otlp)
+    } else {
+        None
+    }
+}
+
+/// Promotes goose config-file OTel settings to env vars before exporter build.
+pub fn promote_config_to_env(config: &crate::config::Config) {
+    if env::var("OTEL_EXPORTER_OTLP_ENDPOINT").is_err() {
+        if let Ok(endpoint) = config.get_param::<String>("otel_exporter_otlp_endpoint") {
+            env::set_var("OTEL_EXPORTER_OTLP_ENDPOINT", endpoint);
+        }
+    }
+    if env::var("OTEL_EXPORTER_OTLP_TIMEOUT").is_err() {
+        if let Ok(timeout) = config.get_param::<u64>("otel_exporter_otlp_timeout") {
+            env::set_var("OTEL_EXPORTER_OTLP_TIMEOUT", timeout.to_string());
         }
     }
 }
@@ -75,7 +114,35 @@ fn create_resource() -> Resource {
     builder.build()
 }
 
-pub fn create_otlp_tracing_layer() -> OtlpResult<OtlpTracingLayer> {
+/// Initializes all OTLP signal layers (traces, metrics, logs) and propagation.
+/// Returns boxed layers ready to add to a subscriber.
+pub fn init_otlp_layers(
+    config: &crate::config::Config,
+) -> Vec<Box<dyn tracing_subscriber::Layer<tracing_subscriber::Registry> + Send + Sync>> {
+    promote_config_to_env(config);
+
+    let mut layers: Vec<
+        Box<dyn tracing_subscriber::Layer<tracing_subscriber::Registry> + Send + Sync>,
+    > = Vec::new();
+
+    if let Ok(layer) = create_otlp_tracing_layer() {
+        layers.push(layer.with_filter(create_otlp_tracing_filter()).boxed());
+    }
+    if let Ok(layer) = create_otlp_metrics_layer() {
+        layers.push(layer.with_filter(create_otlp_metrics_filter()).boxed());
+    }
+    if let Ok(layer) = create_otlp_logs_layer() {
+        layers.push(layer.with_filter(create_otlp_logs_filter()).boxed());
+    }
+
+    if !layers.is_empty() {
+        global::set_text_map_propagator(TraceContextPropagator::new());
+    }
+
+    layers
+}
+
+fn create_otlp_tracing_layer() -> OtlpResult<OtlpTracingLayer> {
     let exporter = signal_exporter("traces").ok_or("Traces not enabled")?;
     let resource = create_resource();
 
@@ -106,7 +173,7 @@ pub fn create_otlp_tracing_layer() -> OtlpResult<OtlpTracingLayer> {
     Ok(tracing_opentelemetry::layer().with_tracer(tracer))
 }
 
-pub fn create_otlp_metrics_layer() -> OtlpResult<OtlpMetricsLayer> {
+fn create_otlp_metrics_layer() -> OtlpResult<OtlpMetricsLayer> {
     let exporter = signal_exporter("metrics").ok_or("Metrics not enabled")?;
     let resource = create_resource();
 
@@ -136,7 +203,7 @@ pub fn create_otlp_metrics_layer() -> OtlpResult<OtlpMetricsLayer> {
     Ok(MetricsLayer::new(meter_provider))
 }
 
-pub fn create_otlp_logs_layer() -> OtlpResult<OtlpLogsLayer> {
+fn create_otlp_logs_layer() -> OtlpResult<OtlpLogsLayer> {
     let exporter = signal_exporter("logs").ok_or("Logs not enabled")?;
     let resource = create_resource();
 
@@ -166,10 +233,6 @@ pub fn create_otlp_logs_layer() -> OtlpResult<OtlpLogsLayer> {
     Ok(bridge)
 }
 
-pub fn init_otel_propagation() {
-    global::set_text_map_propagator(TraceContextPropagator::new());
-}
-
 pub fn is_otlp_initialized() -> bool {
     TRACER_PROVIDER
         .lock()
@@ -189,7 +252,7 @@ pub fn is_otlp_initialized() -> bool {
 /// - All spans at INFO level and above
 /// - Specific spans marked with "otel.trace" field
 /// - Events from specific modules related to telemetry
-pub fn create_otlp_tracing_filter() -> FilterFn<impl Fn(&Metadata<'_>) -> bool> {
+fn create_otlp_tracing_filter() -> FilterFn<impl Fn(&Metadata<'_>) -> bool> {
     FilterFn::new(|metadata: &Metadata<'_>| {
         if metadata.level() <= &Level::INFO {
             return true;
@@ -213,7 +276,7 @@ pub fn create_otlp_tracing_filter() -> FilterFn<impl Fn(&Metadata<'_>) -> bool> 
 /// - All events at INFO level and above
 /// - Specific events marked with "otel.metric" field
 /// - Events that should be converted to metrics
-pub fn create_otlp_metrics_filter() -> FilterFn<impl Fn(&Metadata<'_>) -> bool> {
+fn create_otlp_metrics_filter() -> FilterFn<impl Fn(&Metadata<'_>) -> bool> {
     FilterFn::new(|metadata: &Metadata<'_>| {
         if metadata.level() <= &Level::INFO {
             return true;
@@ -235,7 +298,7 @@ pub fn create_otlp_metrics_filter() -> FilterFn<impl Fn(&Metadata<'_>) -> bool> 
 
 /// Creates a custom filter for OTLP logs that captures:
 /// - All events at WARN level and above
-pub fn create_otlp_logs_filter() -> FilterFn<impl Fn(&Metadata<'_>) -> bool> {
+fn create_otlp_logs_filter() -> FilterFn<impl Fn(&Metadata<'_>) -> bool> {
     FilterFn::new(|metadata: &Metadata<'_>| metadata.level() <= &Level::WARN)
 }
 
@@ -266,9 +329,111 @@ pub fn shutdown_otlp() {
 
 #[cfg(test)]
 mod tests {
-    use super::super::otel_config::clear_otel_env;
     use super::*;
+    use opentelemetry::metrics::{Meter, MeterProvider};
+    use opentelemetry::InstrumentationScope;
+    use std::sync::Arc;
     use test_case::test_case;
+
+    // set_meter_provider requires P: MeterProvider, not Arc<dyn MeterProvider>
+    struct SavedMeterProvider(Arc<dyn MeterProvider + Send + Sync>);
+
+    impl MeterProvider for SavedMeterProvider {
+        fn meter_with_scope(&self, scope: InstrumentationScope) -> Meter {
+            self.0.meter_with_scope(scope)
+        }
+    }
+
+    struct OtelTestGuard {
+        _env: env_lock::EnvGuard<'static>,
+        prev_tracer: global::GlobalTracerProvider,
+        prev_meter: Arc<dyn MeterProvider + Send + Sync>,
+    }
+
+    impl Drop for OtelTestGuard {
+        fn drop(&mut self) {
+            global::set_tracer_provider(self.prev_tracer.clone());
+            global::set_meter_provider(SavedMeterProvider(self.prev_meter.clone()));
+        }
+    }
+
+    fn clear_otel_env(overrides: &[(&str, &str)]) -> OtelTestGuard {
+        let prev_tracer = global::tracer_provider();
+        let prev_meter = global::meter_provider();
+        let guard = env_lock::lock_env([
+            ("OTEL_SDK_DISABLED", None::<&str>),
+            ("OTEL_TRACES_EXPORTER", None),
+            ("OTEL_METRICS_EXPORTER", None),
+            ("OTEL_LOGS_EXPORTER", None),
+            ("OTEL_EXPORTER_OTLP_ENDPOINT", None),
+            ("OTEL_EXPORTER_OTLP_TRACES_ENDPOINT", None),
+            ("OTEL_EXPORTER_OTLP_METRICS_ENDPOINT", None),
+            ("OTEL_EXPORTER_OTLP_LOGS_ENDPOINT", None),
+            ("OTEL_EXPORTER_OTLP_TIMEOUT", None),
+            ("OTEL_SERVICE_NAME", None),
+            ("OTEL_RESOURCE_ATTRIBUTES", None),
+        ]);
+        for &(k, v) in overrides {
+            env::set_var(k, v);
+        }
+        OtelTestGuard {
+            _env: guard,
+            prev_tracer,
+            prev_meter,
+        }
+    }
+
+    #[test]
+    fn exporter_type_from_env_value() {
+        assert_eq!(ExporterType::from_env_value("otlp"), ExporterType::Otlp);
+        assert_eq!(ExporterType::from_env_value("OTLP"), ExporterType::Otlp);
+        assert_eq!(ExporterType::from_env_value(""), ExporterType::Otlp);
+        assert_eq!(
+            ExporterType::from_env_value("console"),
+            ExporterType::Console
+        );
+        assert_eq!(
+            ExporterType::from_env_value("stdout"),
+            ExporterType::Console
+        );
+        assert_eq!(ExporterType::from_env_value("none"), ExporterType::None);
+        assert_eq!(ExporterType::from_env_value("NONE"), ExporterType::None);
+        assert_eq!(ExporterType::from_env_value("unknown"), ExporterType::None);
+    }
+
+    #[test_case(&[("OTEL_SDK_DISABLED", "true")]; "OTEL_SDK_DISABLED disables all signals")]
+    #[test_case(&[]; "no env vars returns None")]
+    fn signal_exporter_disabled(env: &[(&str, &str)]) {
+        let _guard = clear_otel_env(env);
+        assert!(signal_exporter("traces").is_none());
+        assert!(signal_exporter("metrics").is_none());
+        assert!(signal_exporter("logs").is_none());
+    }
+
+    #[test_case("traces",  &[("OTEL_TRACES_EXPORTER", "console")], Some(ExporterType::Console); "OTEL_TRACES_EXPORTER=console")]
+    #[test_case("traces",  &[("OTEL_TRACES_EXPORTER", "none")],    None;                        "OTEL_TRACES_EXPORTER=none")]
+    #[test_case("traces",  &[("OTEL_TRACES_EXPORTER", "otlp")],    Some(ExporterType::Otlp);    "OTEL_TRACES_EXPORTER=otlp")]
+    #[test_case("metrics", &[("OTEL_METRICS_EXPORTER", "console")], Some(ExporterType::Console); "OTEL_METRICS_EXPORTER=console")]
+    #[test_case("logs",    &[("OTEL_LOGS_EXPORTER", "none")],       None;                        "OTEL_LOGS_EXPORTER=none")]
+    fn signal_exporter_by_var(signal: &str, env: &[(&str, &str)], expected: Option<ExporterType>) {
+        let _guard = clear_otel_env(env);
+        assert_eq!(signal_exporter(signal), expected);
+    }
+
+    #[test_case("traces",  &[("OTEL_EXPORTER_OTLP_ENDPOINT", "http://localhost:4318")],        Some(ExporterType::Otlp); "generic endpoint enables traces")]
+    #[test_case("traces",  &[("OTEL_EXPORTER_OTLP_TRACES_ENDPOINT", "http://localhost:4318")],  Some(ExporterType::Otlp); "signal-specific endpoint enables traces")]
+    #[test_case("metrics", &[("OTEL_EXPORTER_OTLP_METRICS_ENDPOINT", "http://localhost:4318")], Some(ExporterType::Otlp); "signal-specific endpoint enables metrics")]
+    #[test_case("traces",  &[("OTEL_EXPORTER_OTLP_METRICS_ENDPOINT", "http://localhost:4318")], None;                     "metrics endpoint does not enable traces")]
+    #[test_case("traces",  &[("OTEL_TRACES_EXPORTER", "none"), ("OTEL_EXPORTER_OTLP_ENDPOINT", "http://localhost:4318")], None; "OTEL_TRACES_EXPORTER=none overrides endpoint")]
+    #[test_case("traces",  &[("OTEL_EXPORTER_OTLP_ENDPOINT", "")],                              None;                     "empty endpoint returns None")]
+    fn signal_exporter_endpoints(
+        signal: &str,
+        env: &[(&str, &str)],
+        expected: Option<ExporterType>,
+    ) {
+        let _guard = clear_otel_env(env);
+        assert_eq!(signal_exporter(signal), expected);
+    }
 
     #[test_case("console"; "console")]
     #[test_case("otlp"; "otlp")]
@@ -328,39 +493,58 @@ mod tests {
         assert_eq!(create_resource(), expected);
     }
 
+    fn test_config(
+        params: &[(&str, &str)],
+    ) -> (
+        crate::config::Config,
+        tempfile::NamedTempFile,
+        tempfile::NamedTempFile,
+    ) {
+        let config_file = tempfile::NamedTempFile::new().unwrap();
+        let secrets_file = tempfile::NamedTempFile::new().unwrap();
+        let yaml: String = params.iter().map(|(k, v)| format!("{k}: {v}\n")).collect();
+        std::fs::write(config_file.path(), yaml).unwrap();
+        let config =
+            crate::config::Config::new_with_file_secrets(config_file.path(), secrets_file.path())
+                .unwrap();
+        (config, config_file, secrets_file)
+    }
+
     #[test_case(
         &[],
-        Some("http://config:4318"), Some("5000"),
+        &[("otel_exporter_otlp_endpoint", "http://config:4318"), ("otel_exporter_otlp_timeout", "5000")],
         Some("http://config:4318"), Some("5000");
         "config promotes to env when unset"
     )]
     #[test_case(
         &[("OTEL_EXPORTER_OTLP_ENDPOINT", "http://env:4318"), ("OTEL_EXPORTER_OTLP_TIMEOUT", "3000")],
-        Some("http://config:4318"), Some("5000"),
+        &[("otel_exporter_otlp_endpoint", "http://config:4318"), ("otel_exporter_otlp_timeout", "5000")],
         Some("http://env:4318"), Some("3000");
         "env var takes precedence over config"
     )]
     #[test_case(
         &[],
-        None, None,
+        &[],
         None, None;
         "no config leaves env unset"
     )]
-    fn test_promote_to_env(
-        env: &[(&str, &str)],
-        cfg_endpoint: Option<&str>,
-        cfg_timeout: Option<&str>,
+    fn test_promote_config_to_env(
+        env_overrides: &[(&str, &str)],
+        cfg: &[(&str, &str)],
         expect_endpoint: Option<&str>,
         expect_timeout: Option<&str>,
     ) {
-        let _guard = clear_otel_env(env);
-        promote_to_env(cfg_endpoint, cfg_timeout);
+        let _guard = clear_otel_env(env_overrides);
+        let (config, _cf, _sf) = test_config(cfg);
+
+        promote_config_to_env(&config);
+
         assert_eq!(
-            std::env::var("OTEL_EXPORTER_OTLP_ENDPOINT").ok().as_deref(),
+            env::var("OTEL_EXPORTER_OTLP_ENDPOINT").ok().as_deref(),
             expect_endpoint
         );
         assert_eq!(
-            std::env::var("OTEL_EXPORTER_OTLP_TIMEOUT").ok().as_deref(),
+            env::var("OTEL_EXPORTER_OTLP_TIMEOUT").ok().as_deref(),
             expect_timeout
         );
     }

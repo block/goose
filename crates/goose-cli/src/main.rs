@@ -9,9 +9,9 @@ async fn main() -> Result<()> {
 
     let result = cli().await;
 
-    if goose::tracing::is_otlp_initialized() {
+    if goose::otel::otlp::is_otlp_initialized() {
         tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
-        goose::tracing::shutdown_otlp();
+        goose::otel::otlp::shutdown_otlp();
     }
 
     result
