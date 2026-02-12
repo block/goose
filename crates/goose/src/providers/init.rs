@@ -26,6 +26,7 @@ use super::{
     venice::VeniceProvider,
     xai::XaiProvider,
 };
+use crate::config::ExtensionConfig;
 use crate::model::ModelConfig;
 use crate::providers::base::ProviderType;
 use crate::{
@@ -109,37 +110,46 @@ async fn get_from_registry(name: &str) -> Result<ProviderEntry> {
         .cloned()
 }
 
-pub async fn create(name: &str, model: ModelConfig) -> Result<Arc<dyn Provider>> {
+pub async fn create(
+    name: &str,
+    model: ModelConfig,
+    extensions: Vec<ExtensionConfig>,
+) -> Result<Arc<dyn Provider>> {
     let config = crate::config::Config::global();
 
     if let Ok(lead_model_name) = config.get_param::<String>("GOOSE_LEAD_MODEL") {
         tracing::info!("Creating lead/worker provider from environment variables");
-        return create_lead_worker_from_env(name, &model, &lead_model_name).await;
+        return create_lead_worker_from_env(name, &model, &lead_model_name, extensions).await;
     }
 
     let constructor = get_from_registry(name).await?.constructor.clone();
-    constructor(model).await
+    constructor(model, extensions).await
 }
 
-pub async fn create_with_default_model(name: impl AsRef<str>) -> Result<Arc<dyn Provider>> {
+pub async fn create_with_default_model(
+    name: impl AsRef<str>,
+    extensions: Vec<ExtensionConfig>,
+) -> Result<Arc<dyn Provider>> {
     get_from_registry(name.as_ref())
         .await?
-        .create_with_default_model()
+        .create_with_default_model(extensions)
         .await
 }
 
 pub async fn create_with_named_model(
     provider_name: &str,
     model_name: &str,
+    extensions: Vec<ExtensionConfig>,
 ) -> Result<Arc<dyn Provider>> {
     let config = ModelConfig::new(model_name)?.with_canonical_limits(provider_name);
-    create(provider_name, config).await
+    create(provider_name, config, extensions).await
 }
 
 async fn create_lead_worker_from_env(
     default_provider_name: &str,
     default_model: &ModelConfig,
     lead_model_name: &str,
+    extensions: Vec<ExtensionConfig>,
 ) -> Result<Arc<dyn Provider>> {
     let config = crate::config::Config::global();
 
@@ -187,8 +197,8 @@ async fn create_lead_worker_from_env(
             .clone()
     };
 
-    let lead_provider = lead_constructor(lead_model_config).await?;
-    let worker_provider = worker_constructor(worker_model_config).await?;
+    let lead_provider = lead_constructor(lead_model_config, extensions.clone()).await?;
+    let worker_provider = worker_constructor(worker_model_config, extensions).await?;
 
     Ok(Arc::new(LeadWorkerProvider::new_with_settings(
         lead_provider,
@@ -250,6 +260,7 @@ mod tests {
         let provider = create(
             "openai",
             ModelConfig::new_or_fail("gpt-4o-mini").with_canonical_limits("openai"),
+            Vec::new(),
         )
         .await
         .unwrap();
@@ -278,6 +289,7 @@ mod tests {
         let provider = create(
             "openai",
             ModelConfig::new_or_fail("gpt-4o-mini").with_canonical_limits("openai"),
+            Vec::new(),
         )
         .await
         .unwrap();

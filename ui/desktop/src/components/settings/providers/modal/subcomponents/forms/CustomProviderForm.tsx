@@ -4,7 +4,8 @@ import { Select } from '../../../../../ui/Select';
 import { Button } from '../../../../../ui/button';
 import { SecureStorageNotice } from '../SecureStorageNotice';
 import { UpdateCustomProviderRequest } from '../../../../../../api';
-import { Trash2, AlertTriangle } from 'lucide-react';
+import { Plus, X, Trash2, AlertTriangle } from 'lucide-react';
+import { cn } from '../../../../../../utils';
 
 interface CustomProviderFormProps {
   onSubmit: (data: UpdateCustomProviderRequest) => void;
@@ -30,6 +31,14 @@ export default function CustomProviderForm({
   const [models, setModels] = useState('');
   const [requiresApiKey, setRequiresApiKey] = useState(false);
   const [supportsStreaming, setSupportsStreaming] = useState(true);
+  const [headers, setHeaders] = useState<{ key: string; value: string }[]>([]);
+  const [newHeaderKey, setNewHeaderKey] = useState('');
+  const [newHeaderValue, setNewHeaderValue] = useState('');
+  const [headerValidationError, setHeaderValidationError] = useState<string | null>(null);
+  const [invalidHeaderFields, setInvalidHeaderFields] = useState<{ key: boolean; value: boolean }>({
+    key: false,
+    value: false,
+  });
   const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
   const [showDeleteConfirmation, setShowDeleteConfirmation] = useState(false);
 
@@ -46,6 +55,14 @@ export default function CustomProviderForm({
       setModels(initialData.models.join(', '));
       setSupportsStreaming(initialData.supports_streaming ?? true);
       setRequiresApiKey(initialData.requires_auth ?? true);
+
+      if (initialData.headers) {
+        const headerList = Object.entries(initialData.headers).map(([key, value]) => ({
+          key,
+          value,
+        }));
+        setHeaders(headerList);
+      }
     }
   }, [initialData]);
 
@@ -53,6 +70,85 @@ export default function CustomProviderForm({
     setRequiresApiKey(checked);
     if (!checked) {
       setApiKey('');
+    }
+  };
+
+  const handleAddHeader = () => {
+    const keyEmpty = !newHeaderKey.trim();
+    const valueEmpty = !newHeaderValue.trim();
+    const keyHasSpaces = newHeaderKey.includes(' ');
+    const normalizedNewKey = newHeaderKey.trim().toLowerCase();
+    const isDuplicate = headers.some((h) => h.key.trim().toLowerCase() === normalizedNewKey);
+
+    if (keyEmpty || valueEmpty) {
+      setInvalidHeaderFields({
+        key: keyEmpty,
+        value: valueEmpty,
+      });
+      setHeaderValidationError('Both header name and value must be entered');
+      return;
+    }
+
+    if (keyHasSpaces) {
+      setInvalidHeaderFields({
+        key: true,
+        value: false,
+      });
+      setHeaderValidationError('Header name cannot contain spaces');
+      return;
+    }
+
+    if (isDuplicate) {
+      setInvalidHeaderFields({
+        key: true,
+        value: false,
+      });
+      setHeaderValidationError('A header with this name already exists');
+      return;
+    }
+
+    setHeaderValidationError(null);
+    setInvalidHeaderFields({ key: false, value: false });
+    setHeaders([...headers, { key: newHeaderKey, value: newHeaderValue }]);
+    setNewHeaderKey('');
+    setNewHeaderValue('');
+  };
+
+  const handleRemoveHeader = (index: number) => {
+    setHeaders(headers.filter((_, i) => i !== index));
+  };
+
+  const handleHeaderChange = (index: number, field: 'key' | 'value', value: string) => {
+    if (field === 'key') {
+      if (value.includes(' ')) {
+        return;
+      }
+      const normalizedValue = value.trim().toLowerCase();
+      const isDuplicate = headers.some(
+        (h, i) => i !== index && h.key.trim().toLowerCase() === normalizedValue
+      );
+      if (isDuplicate && normalizedValue !== '') {
+        return;
+      }
+      const updatedHeaders = [...headers];
+      updatedHeaders[index].key = value;
+      setHeaders(updatedHeaders);
+      return;
+    }
+    const updatedHeaders = [...headers];
+    updatedHeaders[index][field] = value;
+    setHeaders(updatedHeaders);
+  };
+
+  const clearHeaderValidation = () => {
+    setHeaderValidationError(null);
+    setInvalidHeaderFields({ key: false, value: false });
+  };
+
+  const handleHeaderKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      handleAddHeader();
     }
   };
 
@@ -76,6 +172,28 @@ export default function CustomProviderForm({
       .map((m) => m.trim())
       .filter((m) => m);
 
+    let allHeaders = [...headers];
+
+    if (newHeaderKey.trim() && newHeaderValue.trim()) {
+      const keyHasSpaces = newHeaderKey.includes(' ');
+      const normalizedPendingKey = newHeaderKey.trim().toLowerCase();
+      const isDuplicate = headers.some((h) => h.key.trim().toLowerCase() === normalizedPendingKey);
+
+      if (!keyHasSpaces && !isDuplicate) {
+        allHeaders.push({ key: newHeaderKey, value: newHeaderValue });
+      }
+    }
+
+    const headersObject = allHeaders.reduce(
+      (acc, header) => {
+        if (header.key.trim() && header.value.trim()) {
+          acc[header.key.trim()] = header.value.trim();
+        }
+        return acc;
+      },
+      {} as Record<string, string>
+    );
+
     onSubmit({
       engine,
       display_name: displayName,
@@ -84,6 +202,7 @@ export default function CustomProviderForm({
       models: modelList,
       supports_streaming: supportsStreaming,
       requires_auth: requiresApiKey,
+      headers: headersObject,
     });
   };
 
@@ -259,6 +378,80 @@ export default function CustomProviderForm({
             <label htmlFor="supports-streaming" className="text-sm text-text-muted">
               Provider supports streaming responses
             </label>
+          </div>
+
+          <div>
+            <label className="text-sm font-medium text-textStandard mb-2 block">
+              Custom Headers
+            </label>
+            <p className="text-xs text-textSubtle mb-4">
+              Add custom HTTP headers to include in requests to the provider. Click the "+" button
+              to add after filling both fields.
+            </p>
+            <div className="grid grid-cols-[1fr_1fr_auto] gap-2 items-center">
+              {headers.map((header, index) => (
+                <React.Fragment key={index}>
+                  <Input
+                    value={header.key}
+                    onChange={(e) => handleHeaderChange(index, 'key', e.target.value)}
+                    placeholder="Header name"
+                    className="w-full text-textStandard border-borderSubtle hover:border-borderStandard"
+                  />
+                  <Input
+                    value={header.value}
+                    onChange={(e) => handleHeaderChange(index, 'value', e.target.value)}
+                    placeholder="Value"
+                    className="w-full text-textStandard border-borderSubtle hover:border-borderStandard"
+                  />
+                  <Button
+                    onClick={() => handleRemoveHeader(index)}
+                    variant="ghost"
+                    type="button"
+                    className="group p-2 h-auto text-iconSubtle hover:bg-transparent"
+                  >
+                    <X className="h-3 w-3 text-gray-400 group-hover:text-white group-hover:drop-shadow-sm transition-all" />
+                  </Button>
+                </React.Fragment>
+              ))}
+
+              <Input
+                value={newHeaderKey}
+                onChange={(e) => {
+                  setNewHeaderKey(e.target.value);
+                  clearHeaderValidation();
+                }}
+                onKeyDown={handleHeaderKeyDown}
+                placeholder="Header name"
+                className={cn(
+                  'w-full text-textStandard border-borderSubtle hover:border-borderStandard',
+                  invalidHeaderFields.key && 'border-red-500 focus:border-red-500'
+                )}
+              />
+              <Input
+                value={newHeaderValue}
+                onChange={(e) => {
+                  setNewHeaderValue(e.target.value);
+                  clearHeaderValidation();
+                }}
+                onKeyDown={handleHeaderKeyDown}
+                placeholder="Value"
+                className={cn(
+                  'w-full text-textStandard border-borderSubtle hover:border-borderStandard',
+                  invalidHeaderFields.value && 'border-red-500 focus:border-red-500'
+                )}
+              />
+              <Button
+                onClick={handleAddHeader}
+                variant="ghost"
+                type="button"
+                className="flex items-center justify-start gap-1 px-2 pr-4 text-sm rounded-full text-textStandard bg-background-default border border-borderSubtle hover:border-borderStandard transition-colors min-w-[60px] h-9 [&>svg]:!size-4"
+              >
+                <Plus /> Add
+              </Button>
+            </div>
+            {headerValidationError && (
+              <div className="mt-2 text-red-500 text-sm">{headerValidationError}</div>
+            )}
           </div>
         </>
       )}

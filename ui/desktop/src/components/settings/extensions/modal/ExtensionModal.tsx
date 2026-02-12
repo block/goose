@@ -156,6 +156,19 @@ export default function ExtensionModal({
   };
 
   const handleHeaderChange = (index: number, field: 'key' | 'value', value: string) => {
+    if (field === 'key') {
+      if (value.includes(' ')) {
+        return;
+      }
+      const trimmedNewKey = value.trim();
+      const normalizedNewKey = trimmedNewKey.toLowerCase();
+      const isDuplicate = formData.headers.some(
+        (h, i) => i !== index && h.key.trim().toLowerCase() === normalizedNewKey
+      );
+      if (isDuplicate && trimmedNewKey !== '') {
+        return;
+      }
+    }
     const newHeaders = [...formData.headers];
     newHeaders[index][field] = value;
 

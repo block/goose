@@ -39,7 +39,8 @@
     "start-alpha-gui": "ALPHA=true npm run start-gui"
   },
   "dependencies": {
-    "@mcp-ui/client": "^5.17.3",
+    "@mcp-ui/client": "^6.0.0",
+    "@modelcontextprotocol/ext-apps": "^1.0.1",
     "@radix-ui/react-accordion": "^1.2.12",
     "@radix-ui/react-avatar": "^1.1.11",
     "@radix-ui/react-dialog": "^1.1.15",

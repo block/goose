@@ -190,6 +190,7 @@ where
         let inner_provider = create(
             &factory_name,
             ModelConfig::new(config.model_name)?.with_canonical_limits(&factory_name),
+            Vec::new(),
         )
         .await?;
 

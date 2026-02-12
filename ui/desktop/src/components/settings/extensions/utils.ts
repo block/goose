@@ -155,7 +155,7 @@ export function createExtensionConfig(formData: ExtensionFormData): ExtensionCon
       timeout: formData.timeout,
       uri: formData.endpoint || '',
       ...(env_keys.length > 0 ? { env_keys } : {}),
-      ...(Object.keys(headers).length > 0 ? { headers } : {}),
+      headers,
     };
   } else {
     // For other types

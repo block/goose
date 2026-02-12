@@ -1,13 +1,16 @@
 use super::base::{ModelInfo, Provider, ProviderDef, ProviderMetadata, ProviderType};
-use crate::config::DeclarativeProviderConfig;
+use crate::config::{DeclarativeProviderConfig, ExtensionConfig};
 use crate::model::ModelConfig;
 use anyhow::Result;
 use futures::future::BoxFuture;
 use std::collections::HashMap;
 use std::sync::Arc;
 
-pub type ProviderConstructor =
-    Arc<dyn Fn(ModelConfig) -> BoxFuture<'static, Result<Arc<dyn Provider>>> + Send + Sync>;
+pub type ProviderConstructor = Arc<
+    dyn Fn(ModelConfig, Vec<ExtensionConfig>) -> BoxFuture<'static, Result<Arc<dyn Provider>>>
+        + Send
+        + Sync,
+>;
 
 #[derive(Clone)]
 pub struct ProviderEntry {
@@ -17,12 +20,15 @@ pub struct ProviderEntry {
 }
 
 impl ProviderEntry {
-    pub async fn create_with_default_model(&self) -> Result<Arc<dyn Provider>> {
+    pub async fn create_with_default_model(
+        &self,
+        extensions: Vec<ExtensionConfig>,
+    ) -> Result<Arc<dyn Provider>> {
         let default_model = &self.metadata.default_model;
         let provider_name = &self.metadata.name;
         let model_config =
             ModelConfig::new(default_model.as_str())?.with_canonical_limits(provider_name);
-        (self.constructor)(model_config).await
+        (self.constructor)(model_config, extensions).await
     }
 }
 
@@ -49,9 +55,9 @@ impl ProviderRegistry {
             name,
             ProviderEntry {
                 metadata,
-                constructor: Arc::new(|model| {
+                constructor: Arc::new(|model, extensions| {
                     Box::pin(async move {
-                        let provider = F::from_env(model).await?;
+                        let provider = F::from_env(model, extensions).await?;
                         Ok(Arc::new(provider) as Arc<dyn Provider>)
                     })
                 }),
@@ -123,7 +129,7 @@ impl ProviderRegistry {
             config.name.clone(),
             ProviderEntry {
                 metadata: custom_metadata,
-                constructor: Arc::new(move |model| {
+                constructor: Arc::new(move |model, _extensions| {
                     let result = constructor(model);
                     Box::pin(async move {
                         let provider = result?;
@@ -143,13 +149,18 @@ impl ProviderRegistry {
         self
     }
 
-    pub async fn create(&self, name: &str, model: ModelConfig) -> Result<Arc<dyn Provider>> {
+    pub async fn create(
+        &self,
+        name: &str,
+        model: ModelConfig,
+        extensions: Vec<ExtensionConfig>,
+    ) -> Result<Arc<dyn Provider>> {
         let entry = self
             .entries
             .get(name)
             .ok_or_else(|| anyhow::anyhow!("Unknown provider: {}", name))?;
 
-        (entry.constructor)(model).await
+        (entry.constructor)(model, extensions).await
     }
 
     pub fn all_metadata_with_types(&self) -> Vec<(ProviderMetadata, ProviderType)> {

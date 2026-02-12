@@ -328,7 +328,7 @@ async fn handle_oauth_configuration(provider_name: &str, key_name: &str) -> anyh
 
     // Create a temporary provider instance to handle OAuth
     let temp_model = ModelConfig::new("temp")?.with_canonical_limits(provider_name);
-    match create(provider_name, temp_model).await {
+    match create(provider_name, temp_model, Vec::new()).await {
         Ok(provider) => match provider.configure_oauth().await {
             Ok(_) => {
                 let _ = cliclack::log::success("OAuth authentication completed successfully!");
@@ -684,7 +684,7 @@ pub async fn configure_provider_dialog() -> anyhow::Result<bool> {
     let models_res = {
         let temp_model_config =
             ModelConfig::new(&provider_meta.default_model)?.with_canonical_limits(provider_name);
-        let temp_provider = create(provider_name, temp_model_config).await?;
+        let temp_provider = create(provider_name, temp_model_config, Vec::new()).await?;
         retry_operation(&RetryConfig::default(), || async {
             temp_provider.fetch_recommended_models().await
         })
@@ -1446,7 +1446,6 @@ pub async fn configure_tool_permissions_dialog() -> anyhow::Result<()> {
     let model_config = ModelConfig::new(&model)?.with_canonical_limits(&provider_name);
 
     let agent = Agent::new();
-    let new_provider = create(&provider_name, model_config).await?;
 
     let session = agent
         .config
@@ -1458,8 +1457,8 @@ pub async fn configure_tool_permissions_dialog() -> anyhow::Result<()> {
         )
         .await?;
 
-    agent.update_provider(new_provider, &session.id).await?;
-    if let Some(config) = get_extension_by_name(&selected_extension_name) {
+    let extension_config = get_extension_by_name(&selected_extension_name);
+    if let Some(config) = extension_config.as_ref() {
         agent
             .add_extension(config.clone(), &session.id)
             .await
@@ -1478,6 +1477,10 @@ pub async fn configure_tool_permissions_dialog() -> anyhow::Result<()> {
         );
         return Ok(());
     }
+
+    let extensions = extension_config.into_iter().collect::<Vec<_>>();
+    let new_provider = create(&provider_name, model_config, extensions).await?;
+    agent.update_provider(new_provider, &session.id).await?;
 
     let permission_manager = PermissionManager::instance();
     let selected_tools = agent
@@ -1668,7 +1671,7 @@ pub async fn handle_openrouter_auth() -> anyhow::Result<()> {
         }
     };
 
-    match create("openrouter", model_config).await {
+    match create("openrouter", model_config, Vec::new()).await {
         Ok(provider) => {
             let model_config = provider.get_model_config();
             let test_result = provider
@@ -1748,7 +1751,7 @@ pub async fn handle_tetrate_auth() -> anyhow::Result<()> {
         }
     };
 
-    match create("tetrate", model_config).await {
+    match create("tetrate", model_config, Vec::new()).await {
         Ok(provider) => {
             let test_result = provider.fetch_supported_models().await;
 
@@ -1911,12 +1914,7 @@ fn add_provider() -> anyhow::Result<()> {
         .initial_value(true)
         .interact()?;
 
-    // Ask about custom headers for OpenAI compatible providers
-    let headers = if provider_type == "openai_compatible" {
-        collect_custom_headers()?
-    } else {
-        None
-    };
+    let headers = collect_custom_headers()?;
 
     create_custom_provider(CreateCustomProviderParams {
         engine: provider_type.to_string(),

@@ -743,7 +743,7 @@ impl GooseAcpAgent {
                 goose::model::ModelConfig::new(&model_id)?.with_canonical_limits(&provider_name)
             }
         };
-        let provider = (self.provider_factory)(model_config).await?;
+        let provider = (self.provider_factory)(model_config, Vec::new()).await?;
         agent.update_provider(provider.clone(), &session.id).await?;
         Ok(provider)
     }
@@ -970,9 +970,11 @@ impl GooseAcpAgent {
                 sacp::Error::invalid_params().data(format!("Invalid model config: {}", e))
             })?
             .with_canonical_limits(&provider_name);
-        let provider = (self.provider_factory)(model_config).await.map_err(|e| {
-            sacp::Error::internal_error().data(format!("Failed to create provider: {}", e))
-        })?;
+        let provider = (self.provider_factory)(model_config, Vec::new())
+            .await
+            .map_err(|e| {
+                sacp::Error::internal_error().data(format!("Failed to create provider: {}", e))
+            })?;
 
         let agent = {
             let sessions = self.sessions.lock().await;

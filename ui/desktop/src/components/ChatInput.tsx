@@ -122,6 +122,7 @@ export default function ChatInput({
   const [displayValue, setDisplayValue] = useState(initialValue); // For immediate visual feedback
   const [isFocused, setIsFocused] = useState(false);
   const [pastedImages, setPastedImages] = useState<PastedImage[]>([]);
+  const [isFilePickerOpen, setIsFilePickerOpen] = useState(false);
 
   // Derived state - chatState != Idle means we're in some form of loading state
   const isLoading = chatState !== ChatState.Idle;
@@ -144,7 +145,6 @@ export default function ChatInput({
   const [diagnosticsOpen, setDiagnosticsOpen] = useState(false);
   const [showCreateRecipeModal, setShowCreateRecipeModal] = useState(false);
   const [showEditRecipeModal, setShowEditRecipeModal] = useState(false);
-  const [isFilePickerOpen, setIsFilePickerOpen] = useState(false);
   const [sessionWorkingDir, setSessionWorkingDir] = useState<string | null>(null);
 
   useEffect(() => {

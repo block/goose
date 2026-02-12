@@ -65,6 +65,10 @@ pub fn format_messages(messages: &[Message]) -> Vec<Value> {
                 MessageContent::FrontendToolRequest(_tool_request) => {
                     // Skip frontend tool requests
                 }
+                MessageContent::Reasoning(_reasoning) => {
+                    // Reasoning content is for OpenAI-compatible APIs (e.g., DeepSeek)
+                    // Snowflake doesn't use this format, so skip
+                }
             }
         }
 

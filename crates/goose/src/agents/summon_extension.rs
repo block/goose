@@ -13,11 +13,12 @@ use crate::agents::subagent_handler::{
 use crate::agents::subagent_task_config::{TaskConfig, DEFAULT_SUBAGENT_MAX_TURNS};
 use crate::agents::AgentConfig;
 use crate::config::paths::Paths;
+use crate::config::Config;
 use crate::providers;
 use crate::recipe::build_recipe::build_recipe_from_template;
 use crate::recipe::local_recipes::load_local_recipe_file;
 use crate::recipe::{Recipe, Settings, RECIPE_FILE_EXTENSIONS};
-use crate::session::extension_data::{EnabledExtensionsState, ExtensionState};
+use crate::session::extension_data::EnabledExtensionsState;
 use crate::session::SessionType;
 use anyhow::Result;
 use async_trait::async_trait;
@@ -1290,7 +1291,10 @@ impl SummonClient {
     ) -> Result<TaskConfig, anyhow::Error> {
         let provider = self.resolve_provider(params, recipe, session).await?;
 
-        let mut extensions = self.resolve_extensions(session)?;
+        let mut extensions = EnabledExtensionsState::extensions_or_default(
+            Some(&session.extension_data),
+            Config::global(),
+        );
 
         if let Some(filter) = &params.extensions {
             if filter.is_empty() {
@@ -1348,18 +1352,7 @@ impl SummonClient {
             model_config = model_config.with_temperature(Some(temp));
         }
 
-        providers::create(&provider_name, model_config).await
-    }
-
-    fn resolve_extensions(
-        &self,
-        session: &crate::session::Session,
-    ) -> Result<Vec<crate::agents::ExtensionConfig>, anyhow::Error> {
-        let extensions = EnabledExtensionsState::from_extension_data(&session.extension_data)
-            .map(|s| s.extensions)
-            .unwrap_or_else(crate::config::get_enabled_extensions);
-
-        Ok(extensions)
+        providers::create(&provider_name, model_config, Vec::new()).await
     }
 
     fn resolve_max_turns(&self, session: &crate::session::Session) -> usize {
