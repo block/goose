@@ -249,9 +249,13 @@ impl ProviderDef for GeminiCliProvider {
             GEMINI_CLI_DOC_URL,
             vec![ConfigKey::from_value_type::<GeminiCliCommand>(true, false)],
         )
+        .with_unlisted_models()
     }
 
-    fn from_env(model: ModelConfig) -> BoxFuture<'static, Result<Self::Provider>> {
+    fn from_env(
+        model: ModelConfig,
+        _extensions: Vec<crate::config::ExtensionConfig>,
+    ) -> BoxFuture<'static, Result<Self::Provider>> {
         Box::pin(Self::from_env(model))
     }
 }

@@ -9,6 +9,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '../../ui/dialog';
+import { errorMessage } from '../../../utils/conversionUtils';
 
 const HelpText = () => (
   <div className="text-sm flex-col space-y-4 text-text-secondary">
@@ -38,8 +39,8 @@ const HelpText = () => (
 );
 
 const ErrorDisplay = ({ error }: { error: Error }) => (
-  <div className="text-sm text-text-secondary">
-    <div className="text-red-600">Error reading .goosehints file: {JSON.stringify(error)}</div>
+  <div className="text-sm text-text-muted">
+    <div className="text-red-600">Error reading .goosehints file: {errorMessage(error)}</div>
   </div>
 );
 

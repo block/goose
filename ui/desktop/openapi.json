@@ -3804,12 +3804,28 @@
         "type": "object",
         "description": "Content Security Policy metadata for MCP Apps\nSpecifies allowed domains for network connections and resource loading",
         "properties": {
+          "baseUriDomains": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Domains allowed for base-uri",
+            "nullable": true
+          },
           "connectDomains": {
             "type": "array",
             "items": {
               "type": "string"
             },
             "description": "Domains allowed for connect-src (fetch, XHR, WebSocket)",
+            "nullable": true
+          },
+          "frameDomains": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Domains allowed for frame-src (nested iframes)",
             "nullable": true
           },
           "resourceDomains": {
@@ -5095,6 +5111,27 @@
                 }
               }
             ]
+          },
+          {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ReasoningContent"
+              },
+              {
+                "type": "object",
+                "required": [
+                  "type"
+                ],
+                "properties": {
+                  "type": {
+                    "type": "string",
+                    "enum": [
+                      "reasoning"
+                    ]
+                  }
+                }
+              }
+            ]
           }
         ],
         "description": "Content passed inside a message, which can be both simple content and tool content",
@@ -5773,6 +5810,17 @@
             "type": "string"
           },
           "uri": {
+            "type": "string"
+          }
+        }
+      },
+      "ReasoningContent": {
+        "type": "object",
+        "required": [
+          "text"
+        ],
+        "properties": {
+          "text": {
             "type": "string"
           }
         }
@@ -6820,6 +6868,19 @@
           "inlineMessage"
         ]
       },
+      "TaskSupport": {
+        "oneOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "string"
+          },
+          {
+            "type": "string"
+          }
+        ]
+      },
       "TelemetryEventRequest": {
         "type": "object",
         "required": [
@@ -6979,6 +7040,16 @@
           "description": {
             "type": "string"
           },
+          "execution": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ToolExecution"
+              },
+              {
+                "type": "object"
+              }
+            ]
+          },
           "icons": {
             "type": "array",
             "items": {
@@ -7041,6 +7112,21 @@
           },
           "toolName": {
             "type": "string"
+          }
+        }
+      },
+      "ToolExecution": {
+        "type": "object",
+        "properties": {
+          "taskSupport": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TaskSupport"
+              },
+              {
+                "type": "object"
+              }
+            ]
           }
         }
       },

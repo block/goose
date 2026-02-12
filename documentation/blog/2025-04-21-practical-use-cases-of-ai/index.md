@@ -9,7 +9,7 @@ authors:
 
 "Stop using AI," reads yet another viral post. I get it. It's frustrating to review a colleague's auto-generated work, filled with AI's classic giveaways like generic code comments and phrases like "In today's fast-paced world..."
 
-Still, AI plays a pivotal role in my career. I don't rely on AI to do my work, but I use it to help me brainstorm and work more effciently. 
+Still, AI plays a pivotal role in my career. I don't rely on AI to do my work, but I use it to help me brainstorm and work more efficiently. 
 The introduction of [Model Context Protocol (MCP)](https://modelcontextprotocol.io) has made this even easier. MCP is an open standard that gives AI tools the context they need to be useful in the real world. It enables AI agents to interact with APIs, apps, and systems in a structured way. I use [Codename goose](/), an open source AI agent built on MCP.
 
 Here are 11 real ways I use AI Agents without sacrificing authenticity, creativity, or quality:

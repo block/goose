@@ -76,6 +76,14 @@
 
   --color-ring-primary: var(--color-border-secondary);
 
+  --text-default: var(--color-neutral-800);
+  --text-muted: var(--color-neutral-600);
+  --text-inverse: var(--color-white);
+  --text-danger: var(--color-red-200);
+  --text-success: var(--color-green-200);
+  --text-warning: var(--color-yellow-200);
+  --text-info: var(--color-blue-200);
+
   /* App-specific aliases (derived from MCP colors) */
   --placeholder: var(--color-text-secondary);
 
@@ -123,6 +131,14 @@
   --color-text-info: var(--color-blue-100);
 
   --color-ring-primary: var(--color-border-secondary);
+
+  --text-default: var(--color-white);
+  --text-muted: var(--color-neutral-300);
+  --text-inverse: var(--color-black);
+  --text-danger: var(--color-red-100);
+  --text-success: var(--color-green-100);
+  --text-warning: var(--color-yellow-100);
+  --text-info: var(--color-blue-100);
 
   /* App-specific aliases (derived from MCP colors) */
   --placeholder: var(--color-text-secondary);

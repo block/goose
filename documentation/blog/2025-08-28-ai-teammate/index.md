@@ -54,7 +54,7 @@ The recipe:
 - Runs completely autonomously (no human intervention needed)
 - Handles different flag implementations, ranging in complexity
 - Attempts refactoring for outdated code paths
-- Can automatically create draft pull requests, via the Github CLI
+- Can automatically create draft pull requests, via the GitHub CLI
 - Integrates with [Xcode Index MCP](https://github.com/block/xcode-index-mcp) for deep iOS project understanding
 - Plans, implements, builds and tests locally to improve the accuracy of the flag removal result
 
@@ -91,7 +91,7 @@ The future of software development is mixed teams where AI agents are autonomous
 
 ---
 
-Want the tweak the base recipe for your own needs? Check out [Clean up feature flag](/recipes/detail/?id=clean-up-feature-flag) in our Recipe Cookbook!
+Want to tweak the base recipe for your own needs? Check out [Clean up feature flag](/recipes/detail/?id=clean-up-feature-flag) in our Recipe Cookbook!
 
 <head>
   <meta property="og:title" content="When AI Becomes Your New Team Member: The Story of Goose Janitor" />

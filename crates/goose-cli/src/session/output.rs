@@ -6,6 +6,8 @@ use goose::conversation::message::{
     ActionRequiredData, Message, MessageContent, ToolRequest, ToolResponse,
 };
 use goose::providers::canonical::maybe_get_canonical_model;
+#[cfg(target_os = "windows")]
+use goose::subprocess::SubprocessExt;
 use goose::utils::safe_truncate;
 use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
 use rmcp::model::{CallToolRequestParams, JsonObject, PromptArgument};
@@ -18,6 +20,8 @@ use std::sync::Arc;
 use std::time::Duration;
 
 pub const DEFAULT_MIN_PRIORITY: f32 = 0.0;
+pub const DEFAULT_CLI_LIGHT_THEME: &str = "GitHub";
+pub const DEFAULT_CLI_DARK_THEME: &str = "zenburn";
 
 // Re-export theme for use in main
 #[derive(Clone, Copy)]
@@ -28,11 +32,15 @@ pub enum Theme {
 }
 
 impl Theme {
-    fn as_str(&self) -> &'static str {
+    fn as_str(&self) -> String {
         match self {
-            Theme::Light => "GitHub",
-            Theme::Dark => "zenburn",
-            Theme::Ansi => "base16",
+            Theme::Light => Config::global()
+                .get_param::<String>("GOOSE_CLI_LIGHT_THEME")
+                .unwrap_or(DEFAULT_CLI_LIGHT_THEME.to_string()),
+            Theme::Dark => Config::global()
+                .get_param::<String>("GOOSE_CLI_DARK_THEME")
+                .unwrap_or(DEFAULT_CLI_DARK_THEME.to_string()),
+            Theme::Ansi => "base16".to_string(),
         }
     }
 
@@ -173,6 +181,7 @@ pub fn run_status_hook(status: &str) {
                 .stdin(std::process::Stdio::null())
                 .stdout(std::process::Stdio::null())
                 .stderr(std::process::Stdio::null())
+                .set_no_window()
                 .status();
 
             #[cfg(not(target_os = "windows"))]
@@ -314,8 +323,9 @@ fn render_tool_request(req: &ToolRequest, theme: Theme, debug: bool) {
         Ok(call) => match call.name.to_string().as_str() {
             "developer__text_editor" => render_text_editor_request(call, debug),
             "developer__shell" => render_shell_request(call, debug),
-            "code_execution__execute" => render_execute_code_request(call, debug),
-            "subagent" => render_subagent_request(call, debug),
+            "execute" | "execute_code" => render_execute_code_request(call, debug),
+            "delegate" => render_delegate_request(call, debug),
+            "subagent" => render_delegate_request(call, debug),
             "todo__write" => render_todo_request(call, debug),
             _ => render_default_request(call, debug),
         },
@@ -555,12 +565,12 @@ fn render_execute_code_request(call: &CallToolRequestParams, debug: bool) {
     println!();
 }
 
-fn render_subagent_request(call: &CallToolRequestParams, debug: bool) {
+fn render_delegate_request(call: &CallToolRequestParams, debug: bool) {
     print_tool_header(call);
 
     if let Some(args) = &call.arguments {
-        if let Some(Value::String(subrecipe)) = args.get("subrecipe") {
-            println!("{}: {}", style("subrecipe").dim(), style(subrecipe).cyan());
+        if let Some(Value::String(source)) = args.get("source") {
+            println!("{}: {}", style("source").dim(), style(source).cyan());
         }
 
         if let Some(Value::String(instructions)) = args.get("instructions") {
@@ -581,7 +591,7 @@ fn render_subagent_request(call: &CallToolRequestParams, debug: bool) {
             print_params(&Some(params.clone()), 1, debug);
         }
 
-        let skip_keys = ["subrecipe", "instructions", "parameters"];
+        let skip_keys = ["source", "instructions", "parameters"];
         let mut other_args = serde_json::Map::new();
         for (k, v) in args {
             if !skip_keys.contains(&k.as_str()) {

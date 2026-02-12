@@ -83,23 +83,17 @@ const PairRouteWrapper = ({
   const [isCreatingSession, setIsCreatingSession] = useState(false);
 
   const resumeSessionId = searchParams.get('resumeSessionId') ?? undefined;
-  const recipeId = searchParams.get('recipeId') ?? undefined;
   const recipeDeeplinkFromConfig = window.appConfig?.get('recipeDeeplink') as string | undefined;
   const initialMessage = routeState.initialMessage;
 
-  // Create session if we have an initialMessage, recipeId, or recipeDeeplink but no sessionId
+  // Create session if we have an initialMessage or recipeDeeplink but no sessionId
   useEffect(() => {
-    if (
-      (initialMessage || recipeId || recipeDeeplinkFromConfig) &&
-      !resumeSessionId &&
-      !isCreatingSession
-    ) {
+    if ((initialMessage || recipeDeeplinkFromConfig) && !resumeSessionId && !isCreatingSession) {
       setIsCreatingSession(true);
 
       (async () => {
         try {
           const newSession = await createSession(getInitialWorkingDir(), {
-            recipeId,
             recipeDeeplink: recipeDeeplinkFromConfig,
             allExtensions: extensionsList,
           });
@@ -115,7 +109,6 @@ const PairRouteWrapper = ({
 
           setSearchParams((prev) => {
             prev.set('resumeSessionId', newSession.id);
-            prev.delete('recipeId');
             return prev;
           });
         } catch (error) {
@@ -133,14 +126,7 @@ const PairRouteWrapper = ({
     // Note: isCreatingSession is intentionally NOT in the dependency array
     // It's only used as a guard to prevent concurrent session creation
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [
-    initialMessage,
-    recipeId,
-    recipeDeeplinkFromConfig,
-    resumeSessionId,
-    setSearchParams,
-    extensionsList,
-  ]);
+  }, [initialMessage, recipeDeeplinkFromConfig, resumeSessionId, setSearchParams, extensionsList]);
 
   // Add resumed session to active sessions if not already there
   useEffect(() => {
@@ -593,7 +579,7 @@ export function AppInner() {
         console.log('[App] Processing initial message from launcher:', initialMessage);
         navigate('/pair', {
           state: {
-            initialMessage,
+            initialMessage: { msg: initialMessage, images: [] },
           },
         });
         setTimeout(() => {
