@@ -67,13 +67,20 @@ jobs:
 
       - name: Build Binary for Smoke Tests
         run: |
-          cargo build --bin goose
+          cargo build --bin goose --bin goosed
 
-      - name: Upload Binary for Smoke Tests
+      - name: Upload goose binary
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f  # v6.0.0
         with:
           name: goose-binary
           path: target/debug/goose
+          retention-days: 1
+
+      - name: Upload goosed binary
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f  # v6.0.0
+        with:
+          name: goosed-binary
+          path: target/debug/goosed
           retention-days: 1
 
   smoke-tests:
@@ -253,11 +260,11 @@ jobs:
       - name: Download Binary
         uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131  # v7.0.0
         with:
-          name: goose-binary
+          name: goosed-binary
           path: target/debug
 
       - name: Make Binary Executable
-        run: chmod +x target/debug/goose
+        run: chmod +x target/debug/goosed
 
       - name: Install Node.js Dependencies
         run: source ../../bin/activate-hermit && npm ci
