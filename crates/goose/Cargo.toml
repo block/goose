@@ -101,6 +101,7 @@ tempfile = { workspace = true }
 dashmap = "6.1"
 ahash = "0.8"
 tokio-util = { workspace = true, features = ["compat"] }
+sacp = { workspace = true }
 unicode-normalization = "0.1"
 goose-mcp = { path = "../goose-mcp" }
 

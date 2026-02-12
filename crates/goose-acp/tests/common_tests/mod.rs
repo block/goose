@@ -59,6 +59,7 @@ pub async fn run_config_mcp<C: Connection>() {
     expected_session_id.assert_matches(&session.session_id().0);
 }
 
+#[allow(dead_code)]
 pub async fn run_initialize_without_provider() {
     let temp_dir = tempfile::tempdir().unwrap();
 
@@ -86,6 +87,7 @@ pub async fn run_initialize_without_provider() {
         .any(|m| &*m.id.0 == "goose-provider"));
 }
 
+#[allow(dead_code)]
 pub async fn run_load_model<C: Connection>() {
     let expected_session_id = ExpectedSessionId::default();
     let openai = OpenAiFixture::new(

@@ -7,7 +7,9 @@ use super::{
     bedrock::BedrockProvider,
     chatgpt_codex::ChatGptCodexProvider,
     claude_code::ClaudeCodeProvider,
+    claude_code_acp::ClaudeCodeAcpProvider,
     codex::CodexProvider,
+    codex_acp::CodexAcpProvider,
     cursor_agent::CursorAgentProvider,
     databricks::DatabricksProvider,
     gcpvertexai::GcpVertexAIProvider,
@@ -48,7 +50,9 @@ async fn init_registry() -> RwLock<ProviderRegistry> {
         registry.register::<AzureProvider>(false);
         registry.register::<BedrockProvider>(false);
         registry.register::<ChatGptCodexProvider>(true);
+        registry.register::<ClaudeCodeAcpProvider>(false);
         registry.register::<ClaudeCodeProvider>(true);
+        registry.register::<CodexAcpProvider>(false);
         registry.register::<CodexProvider>(true);
         registry.register::<CursorAgentProvider>(false);
         registry.register::<DatabricksProvider>(true);

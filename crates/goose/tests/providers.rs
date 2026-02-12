@@ -8,7 +8,9 @@ use goose::providers::azure::AZURE_DEFAULT_MODEL;
 use goose::providers::base::Provider;
 use goose::providers::bedrock::BEDROCK_DEFAULT_MODEL;
 use goose::providers::claude_code::CLAUDE_CODE_DEFAULT_MODEL;
+use goose::providers::claude_code_acp::CLAUDE_CODE_ACP_DEFAULT_MODEL;
 use goose::providers::codex::CODEX_DEFAULT_MODEL;
+use goose::providers::codex_acp::CODEX_ACP_DEFAULT_MODEL;
 use goose::providers::create_with_named_model;
 use goose::providers::databricks::DATABRICKS_DEFAULT_MODEL;
 use goose::providers::errors::ProviderError;
@@ -317,16 +319,20 @@ impl ProviderTester {
 
         assert!(!models.is_empty(), "Expected non-empty model list");
         let model_name = &self.provider.get_model_config().model_name;
-        // Model names may not match exactly: Ollama adds tags like "qwen3:latest",
-        // and CLI providers like claude-code use aliases (e.g. "sonnet") that are
-        // substrings of full model names (e.g. "claude-sonnet-4-5-20250929").
-        assert!(
-            models
-                .iter()
-                .any(|m| m == model_name || m.contains(model_name) || model_name.contains(m)),
-            "Expected model '{}' in supported models",
-            model_name
-        );
+        // "default" is a virtual model resolved by the agent — it won't appear in
+        // the available model list returned by ACP agents like codex-acp.
+        if model_name != "default" {
+            // Model names may not match exactly: Ollama adds tags like "qwen3:latest",
+            // and CLI providers like claude-code use aliases (e.g. "sonnet") that are
+            // substrings of full model names (e.g. "claude-sonnet-4-5-20250929").
+            assert!(
+                models
+                    .iter()
+                    .any(|m| m == model_name || m.contains(model_name) || model_name.contains(m)),
+                "Expected model '{}' in supported models",
+                model_name
+            );
+        }
         if let Some(alt) = &self.model_switch_name {
             assert!(
                 models
@@ -735,6 +741,34 @@ async fn test_codex_provider() -> Result<()> {
         return Ok(());
     }
     test_provider("codex", CODEX_DEFAULT_MODEL, None, &[], None, true).await
+}
+
+#[tokio::test]
+async fn test_claude_code_acp_provider() -> Result<()> {
+    if which::which("claude-code-acp").is_err() {
+        println!("'claude-code-acp' CLI not found, skipping test");
+        TEST_REPORT.record_skip("claude-code-acp");
+        return Ok(());
+    }
+    test_provider(
+        "claude-code-acp",
+        CLAUDE_CODE_ACP_DEFAULT_MODEL,
+        Some("sonnet"),
+        &[],
+        None,
+        true,
+    )
+    .await
+}
+
+#[tokio::test]
+async fn test_codex_acp_provider() -> Result<()> {
+    if which::which("codex-acp").is_err() {
+        println!("'codex-acp' CLI not found, skipping test");
+        TEST_REPORT.record_skip("codex-acp");
+        return Ok(());
+    }
+    test_provider("codex-acp", CODEX_ACP_DEFAULT_MODEL, None, &[], None, true).await
 }
 
 #[ctor::dtor]

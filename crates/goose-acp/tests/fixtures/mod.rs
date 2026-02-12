@@ -265,6 +265,7 @@ pub trait Connection: Sized {
 
     async fn new(config: TestConnectionConfig, openai: OpenAiFixture) -> Self;
     async fn new_session(&mut self) -> (Self::Session, Option<SessionModelState>);
+    #[allow(dead_code)]
     async fn load_session(
         &mut self,
         session_id: &str,
@@ -328,4 +329,5 @@ pub async fn initialize_agent(agent: Arc<GooseAcpAgent>) -> sacp::schema::Initia
         .unwrap()
 }
 
+pub mod provider;
 pub mod server;
