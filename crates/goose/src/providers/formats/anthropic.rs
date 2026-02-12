@@ -137,30 +137,44 @@ pub fn format_messages(messages: &[Message]) -> Vec<Value> {
                         }
                     }
                 }
-                MessageContent::ToolResponse(tool_response) => match &tool_response.tool_result {
-                    Ok(result) => {
-                        let text = result
+                MessageContent::ToolResponse(tool_response) => {
+                    match &tool_response.tool_result {
+                        Ok(result) => {
+                            let text = result
                             .content
                             .iter()
-                            .filter_map(|c| c.as_text().map(|t| t.text.clone()))
+                            .filter_map(|c| {
+                                // Extract text from Text content
+                                if let Some(t) = c.as_text() {
+                                    return Some(t.text.clone());
+                                }
+                                // Extract text from Resource content (embedded text resources)
+                                if let Some(r) = c.as_resource() {
+                                    if let rmcp::model::ResourceContents::TextResourceContents { text, .. } = &r.resource {
+                                        return Some(text.clone());
+                                    }
+                                }
+                                None
+                            })
                             .collect::<Vec<_>>()
                             .join("\n");
 
-                        content.push(json!({
-                            TYPE_FIELD: TOOL_RESULT_TYPE,
-                            TOOL_USE_ID_FIELD: tool_response.id,
-                            CONTENT_FIELD: text
-                        }));
+                            content.push(json!({
+                                TYPE_FIELD: TOOL_RESULT_TYPE,
+                                TOOL_USE_ID_FIELD: tool_response.id,
+                                CONTENT_FIELD: text
+                            }));
+                        }
+                        Err(tool_error) => {
+                            content.push(json!({
+                                TYPE_FIELD: TOOL_RESULT_TYPE,
+                                TOOL_USE_ID_FIELD: tool_response.id,
+                                CONTENT_FIELD: format!("Error: {}", tool_error),
+                                IS_ERROR_FIELD: true
+                            }));
+                        }
                     }
-                    Err(tool_error) => {
-                        content.push(json!({
-                            TYPE_FIELD: TOOL_RESULT_TYPE,
-                            TOOL_USE_ID_FIELD: tool_response.id,
-                            CONTENT_FIELD: format!("Error: {}", tool_error),
-                            IS_ERROR_FIELD: true
-                        }));
-                    }
-                },
+                }
                 MessageContent::ToolConfirmationRequest(_tool_confirmation_request) => {
                     // Skip tool confirmation requests
                 }
@@ -1169,6 +1183,70 @@ mod tests {
         let assistant_content = spec[1]["content"].as_array().unwrap();
         assert_eq!(assistant_content.len(), 1);
         assert_eq!(assistant_content[0]["type"], "tool_use");
+    }
+
+    #[test]
+    fn test_tool_response_with_resource_content() {
+        use rmcp::model::{CallToolResult, Content};
+
+        let resource_content = Content::embedded_text(
+            "file:///test/file.txt",
+            "This is the file content from a resource",
+        );
+
+        let messages = vec![
+            Message::assistant().with_tool_request(
+                "tool_1",
+                Ok(CallToolRequestParams::new("view_file")
+                    .with_arguments(object!({"path": "/test/file.txt"}))),
+            ),
+            Message::user().with_tool_response(
+                "tool_1",
+                Ok(CallToolResult::success(vec![resource_content])),
+            ),
+        ];
+
+        let spec = format_messages(&messages);
+
+        assert_eq!(spec.len(), 2);
+        assert_eq!(spec[1]["role"], "user");
+        assert_eq!(spec[1]["content"][0]["type"], "tool_result");
+        assert_eq!(spec[1]["content"][0]["tool_use_id"], "tool_1");
+        assert_eq!(
+            spec[1]["content"][0]["content"],
+            "This is the file content from a resource"
+        );
+    }
+
+    #[test]
+    fn test_tool_response_with_mixed_content() {
+        use rmcp::model::{CallToolResult, Content};
+
+        let text_content = Content::text("Summary: file loaded");
+        let resource_content = Content::embedded_text("file:///test/file.txt", "File content here");
+
+        let messages = vec![
+            Message::assistant().with_tool_request(
+                "tool_1",
+                Ok(CallToolRequestParams::new("view_file")
+                    .with_arguments(object!({"path": "/test/file.txt"}))),
+            ),
+            Message::user().with_tool_response(
+                "tool_1",
+                Ok(CallToolResult::success(vec![
+                    text_content,
+                    resource_content,
+                ])),
+            ),
+        ];
+
+        let spec = format_messages(&messages);
+
+        assert_eq!(spec[1]["content"][0]["type"], "tool_result");
+        assert_eq!(
+            spec[1]["content"][0]["content"],
+            "Summary: file loaded\nFile content here"
+        );
     }
 
     fn cfg(name: &str) -> ModelConfig {
