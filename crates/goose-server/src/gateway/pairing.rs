@@ -257,14 +257,18 @@ impl PairingStore {
     pub async fn list_paired_users(
         &self,
         gateway_type: &str,
-    ) -> anyhow::Result<Vec<(PlatformUser, String)>> {
+    ) -> anyhow::Result<Vec<(PlatformUser, String, i64)>> {
         self.ensure_initialized().await?;
         let pairings = self.pairings.read().await;
         let mut result = Vec::new();
         for (user, state) in pairings.iter() {
             if user.platform == gateway_type {
-                if let PairingState::Paired { session_id, .. } = state {
-                    result.push((user.clone(), session_id.clone()));
+                if let PairingState::Paired {
+                    session_id,
+                    paired_at,
+                } = state
+                {
+                    result.push((user.clone(), session_id.clone(), *paired_at));
                 }
             }
         }

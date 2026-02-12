@@ -17,6 +17,7 @@ use super::{Gateway, GatewayConfig, IncomingMessage, OutgoingMessage, PairingSta
 pub struct GatewayHandler {
     agent_manager: Arc<AgentManager>,
     pairing_store: Arc<PairingStore>,
+    gateway: Arc<dyn Gateway>,
     config: GatewayConfig,
 }
 
@@ -24,29 +25,27 @@ impl GatewayHandler {
     pub fn new(
         agent_manager: Arc<AgentManager>,
         pairing_store: Arc<PairingStore>,
+        gateway: Arc<dyn Gateway>,
         config: GatewayConfig,
     ) -> Self {
         Self {
             agent_manager,
             pairing_store,
+            gateway,
             config,
         }
     }
 
-    pub async fn handle_message(
-        &self,
-        gateway: &dyn Gateway,
-        message: IncomingMessage,
-    ) -> anyhow::Result<()> {
+    pub async fn handle_message(&self, message: IncomingMessage) -> anyhow::Result<()> {
         let pairing = self.pairing_store.get(&message.user).await?;
 
         match pairing {
             PairingState::Unpaired => {
                 if let Some(gateway_type) = self.try_consume_code(message.text.trim()).await? {
                     if gateway_type == self.config.gateway_type {
-                        self.complete_pairing(gateway, &message.user).await?;
+                        self.complete_pairing(&message.user).await?;
                     } else {
-                        gateway
+                        self.gateway
                             .send_message(
                                 &message.user,
                                 OutgoingMessage::Error {
@@ -56,7 +55,7 @@ impl GatewayHandler {
                             .await?;
                     }
                 } else {
-                    gateway
+                    self.gateway
                         .send_message(
                             &message.user,
                             OutgoingMessage::Text {
@@ -73,7 +72,7 @@ impl GatewayHandler {
                     self.pairing_store
                         .set(&message.user, PairingState::Unpaired)
                         .await?;
-                    gateway
+                    self.gateway
                         .send_message(
                             &message.user,
                             OutgoingMessage::Text {
@@ -82,9 +81,9 @@ impl GatewayHandler {
                         )
                         .await?;
                 } else if message.text.trim().eq_ignore_ascii_case(&code) {
-                    self.complete_pairing(gateway, &message.user).await?;
+                    self.complete_pairing(&message.user).await?;
                 } else {
-                    gateway
+                    self.gateway
                         .send_message(
                             &message.user,
                             OutgoingMessage::Text {
@@ -95,8 +94,7 @@ impl GatewayHandler {
                 }
             }
             PairingState::Paired { session_id, .. } => {
-                self.relay_to_session(gateway, &message, &session_id)
-                    .await?;
+                self.relay_to_session(&message, &session_id).await?;
             }
         }
 
@@ -115,11 +113,7 @@ impl GatewayHandler {
         Ok(None)
     }
 
-    async fn complete_pairing(
-        &self,
-        gateway: &dyn Gateway,
-        user: &PlatformUser,
-    ) -> anyhow::Result<()> {
+    async fn complete_pairing(&self, user: &PlatformUser) -> anyhow::Result<()> {
         let working_dir = gateway_working_dir(&user.platform, &user.user_id);
         std::fs::create_dir_all(&working_dir)?;
 
@@ -146,7 +140,7 @@ impl GatewayHandler {
             )
             .await?;
 
-        gateway
+        self.gateway
             .send_message(
                 user,
                 OutgoingMessage::Text {
@@ -160,11 +154,10 @@ impl GatewayHandler {
 
     async fn relay_to_session(
         &self,
-        gateway: &dyn Gateway,
         message: &IncomingMessage,
         session_id: &str,
     ) -> anyhow::Result<()> {
-        gateway
+        self.gateway
             .send_message(&message.user, OutgoingMessage::Typing)
             .await?;
 
@@ -189,7 +182,7 @@ impl GatewayHandler {
         {
             Ok(s) => s,
             Err(e) => {
-                gateway
+                self.gateway
                     .send_message(
                         &message.user,
                         OutgoingMessage::Error {
@@ -221,8 +214,8 @@ impl GatewayHandler {
                 Ok(AgentEvent::ModelChange { .. }) => {}
                 Ok(AgentEvent::HistoryReplaced(_)) => {}
                 Err(e) => {
-                    tracing::error!(error = %e, "Error in agent stream");
-                    gateway
+                    tracing::error!(error = %e, "agent stream error");
+                    self.gateway
                         .send_message(
                             &message.user,
                             OutgoingMessage::Error {
@@ -239,7 +232,7 @@ impl GatewayHandler {
             response_text = "(No response)".to_string();
         }
 
-        gateway
+        self.gateway
             .send_message(
                 &message.user,
                 OutgoingMessage::Text {

@@ -1,6 +1,7 @@
 pub mod handler;
 pub mod manager;
 pub mod pairing;
+pub mod telegram;
 
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
@@ -70,4 +71,11 @@ pub trait Gateway: Send + Sync + 'static {
     ) -> anyhow::Result<()>;
 
     async fn validate_config(&self) -> anyhow::Result<()>;
+}
+
+pub fn create_gateway(config: &GatewayConfig) -> anyhow::Result<std::sync::Arc<dyn Gateway>> {
+    match config.gateway_type.as_str() {
+        "telegram" => Ok(std::sync::Arc::new(telegram::TelegramGateway::new(config)?)),
+        other => anyhow::bail!("Unknown gateway type: {}", other),
+    }
 }
