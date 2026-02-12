@@ -154,12 +154,25 @@ pub fn get_warnings() -> Vec<String> {
     warnings
 }
 
+pub fn find_global_extension_by_key(key: &str) -> Option<ExtensionConfig> {
+    let extensions = get_extensions_map();
+    extensions.get(key).map(|e| e.config.clone())
+}
+
+fn resolve_recipe_extension(recipe_ext: &ExtensionConfig) -> ExtensionConfig {
+    let key = recipe_ext.key();
+    if let Some(global_ext) = find_global_extension_by_key(&key) {
+        return global_ext;
+    }
+    recipe_ext.clone()
+}
+
 pub fn resolve_extensions_for_new_session(
     recipe_extensions: Option<&[ExtensionConfig]>,
     override_extensions: Option<Vec<ExtensionConfig>>,
 ) -> Vec<ExtensionConfig> {
     if let Some(exts) = recipe_extensions {
-        return exts.to_vec();
+        return exts.iter().map(resolve_recipe_extension).collect();
     }
 
     if let Some(exts) = override_extensions {

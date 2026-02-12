@@ -602,7 +602,7 @@ impl Agent {
 
     /// Load extensions from session into the agent
     /// Skips extensions that are already loaded
-    /// Uses the session's working_dir for extension initialization
+    /// On failure, attempts to fall back to the user's global extension config by key
     pub async fn load_extensions_from_session(
         self: &Arc<Self>,
         session: &Session,
@@ -631,6 +631,7 @@ impl Agent {
 
                 async move {
                     let name = config_clone.name().to_string();
+                    let key = config_clone.key();
 
                     if agent_ref
                         .extension_manager
@@ -646,7 +647,7 @@ impl Agent {
                     }
 
                     match agent_ref
-                        .add_extension(config_clone, &session_id_clone)
+                        .add_extension(config_clone.clone(), &session_id_clone)
                         .await
                     {
                         Ok(_) => ExtensionLoadResult {
@@ -655,12 +656,43 @@ impl Agent {
                             error: None,
                         },
                         Err(e) => {
-                            let error_msg = e.to_string();
-                            warn!("Failed to load extension {}: {}", name, error_msg);
+                            let original_error = e.to_string();
+                            warn!(
+                                "Failed to load extension '{}' (key: '{}'): {}",
+                                name, key, original_error
+                            );
+
+                            // Fallback: try the user's global extension config by key
+                            if let Some(global_config) =
+                                crate::config::find_global_extension_by_key(&key)
+                            {
+                                if global_config != config_clone {
+                                    let global_name = global_config.name();
+                                    match agent_ref
+                                        .add_extension(global_config, &session_id_clone)
+                                        .await
+                                    {
+                                        Ok(_) => {
+                                            return ExtensionLoadResult {
+                                                name: global_name,
+                                                success: true,
+                                                error: None,
+                                            };
+                                        }
+                                        Err(fallback_err) => {
+                                            warn!(
+                                                "Fallback also failed for extension '{}' (key: '{}'): {}",
+                                                global_name, key, fallback_err
+                                            );
+                                        }
+                                    }
+                                }
+                            }
+
                             ExtensionLoadResult {
                                 name,
                                 success: false,
-                                error: Some(error_msg),
+                                error: Some(original_error),
                             }
                         }
                     }
