@@ -924,7 +924,7 @@ pub struct LocalInferenceProvider {
 }
 
 impl LocalInferenceProvider {
-    pub async fn from_env(model: ModelConfig) -> Result<Self> {
+    pub async fn from_env(model: ModelConfig, _extensions: Vec<ExtensionConfig>) -> Result<Self> {
         let runtime = InferenceRuntime::get_or_init();
         let model_slot = runtime.get_or_create_model_slot(&model.model_name);
         Ok(Self {
@@ -1029,7 +1029,7 @@ impl ProviderDef for LocalInferenceProvider {
     where
         Self: Sized,
     {
-        Box::pin(Self::from_env(model))
+        Box::pin(Self::from_env(model, extensions))
     }
 }
 

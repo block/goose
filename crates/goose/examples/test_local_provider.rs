@@ -13,7 +13,7 @@ async fn main() -> anyhow::Result<()> {
     let config = ModelConfig::new("Llama-3.2-1B-Instruct")?;
 
     println!("Creating provider...");
-    let provider = LocalInferenceProvider::from_env(config.clone()).await?;
+    let provider = LocalInferenceProvider::from_env(config.clone(), vec![]).await?;
 
     // Test 1: First run (cold - includes model loading)
     println!("\n=== Test 1: Cold start (includes model loading) ===");
