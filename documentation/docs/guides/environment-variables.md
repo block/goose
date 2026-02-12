@@ -444,7 +444,7 @@ Configure goose to export traces, metrics, and logs to any
 [OpenTelemetry](https://opentelemetry.io/docs/) compatible platform.
 When configured, goose exports telemetry asynchronously and flushes on exit.
 
-Goose respects standard [OTel SDK environment variables][otel-env]. The
+goose respects standard [OTel SDK environment variables][otel-env]. The
 simplest way to enable export is to set a collector endpoint:
 
 ```bash
