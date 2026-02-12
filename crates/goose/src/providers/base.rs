@@ -481,6 +481,10 @@ pub trait Provider: Send + Sync {
                     return None;
                 }
 
+                if !canonical_model.tool_call && !self.get_model_config().toolshim {
+                    return None;
+                }
+
                 let release_date = canonical_model.release_date.clone();
 
                 Some((model.clone(), release_date))
