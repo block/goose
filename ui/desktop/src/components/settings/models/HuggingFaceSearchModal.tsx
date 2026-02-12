@@ -194,9 +194,9 @@ export function HuggingFaceSearchModal({ isOpen, onClose, onDownloadStarted }: H
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="w-screen h-screen max-w-none max-h-none m-0 p-0 rounded-none border-none flex flex-col">
+      <DialogContent className="!fixed !inset-0 !top-0 !left-0 !translate-x-0 !translate-y-0 !w-screen !h-screen !max-w-none !max-h-none !m-0 !p-0 !rounded-none !border-none flex flex-col z-[100]">
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-border-subtle">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-border-subtle bg-background-default">
           <DialogHeader className="p-0 space-y-0">
             <DialogTitle className="flex items-center gap-2">
               <Search size={24} className="text-blue-500" />
