@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { substituteParameters } from '../parameterSubstitution';
 
-describe('providerUtils', () => {
+describe('parameterSubstitution', () => {
   describe('substituteParameters', () => {
     it('should substitute simple parameters', () => {
       const text = 'Hello {{name}}, welcome to {{app}}!';

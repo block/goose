@@ -6,7 +6,6 @@ import { toastService } from '../toasts';
 
 // Mock dependencies
 vi.mock('../utils/ollamaDetection');
-vi.mock('../utils/providerUtils');
 vi.mock('../toasts');
 
 // Mock useConfig hook

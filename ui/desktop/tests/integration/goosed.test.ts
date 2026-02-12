@@ -18,6 +18,7 @@ import {
   updateAgentProvider,
 } from '../../src/api';
 import { execSync } from 'child_process';
+import fs from 'fs';
 
 function getUserPath(): string[] {
   try {
@@ -41,7 +42,20 @@ describe('goosed API integration tests', () => {
   let ctx: GoosedTestContext;
 
   beforeAll(async () => {
-    ctx = await startGoosed(CONSTRAINED_PATH);
+    const configYaml = `
+extensions:
+  developer:
+    enabled: true
+    type: builtin
+    name: developer
+    description: General development tools useful for software engineering.
+    display_name: Developer
+    timeout: 300
+    bundled: true
+    available_tools: []
+`;
+
+    ctx = await startGoosed({ pathOverride: '/usr/bin:/bin', configYaml });
   });
 
   afterAll(async () => {
@@ -171,7 +185,9 @@ describe('goosed API integration tests', () => {
         },
       });
     });
+  });
 
+  describe('the developer tool', () => {
     it('should see the full PATH when calling the developer tool', async () => {
       const currentPath = getUserPath();
 

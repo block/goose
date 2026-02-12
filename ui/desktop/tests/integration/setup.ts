@@ -15,6 +15,7 @@ import {
   buildGoosedEnv,
 } from '../../src/goosed';
 import { expect } from 'vitest';
+import fs from 'node:fs';
 
 function stringifyResponse(response: Response) {
   const details = {
@@ -51,18 +52,34 @@ export interface GoosedTestContext {
   cleanup: () => Promise<void>;
 }
 
-export async function startGoosed(pathOverride?: string): Promise<GoosedTestContext> {
+export async function startGoosed({
+  pathOverride,
+  configYaml,
+}: {
+  pathOverride?: string;
+  configYaml?: string;
+}): Promise<GoosedTestContext> {
   const port = await findAvailablePort();
   const baseUrl = `http://127.0.0.1:${port}`;
   const goosedPath = findGoosedBinaryPath({
     envOverride: process.env.GOOSED_BINARY,
   });
 
+  // mk temp dir for app root
+  const tempDir = await fs.promises.mkdtemp('/tmp/goose-app-root-');
+
+  if (configYaml) {
+    await fs.promises.mkdir(`${tempDir}/config`, { recursive: true });
+    await fs.promises.writeFile(`${tempDir}/config/config.yaml`, configYaml);
+  }
+
   const env = {
     ...buildGoosedEnv(port, TEST_SECRET_KEY),
     ...(pathOverride && { PATH: pathOverride }),
+    GOOSE_PATH_ROOT: tempDir,
   };
 
+  console.log('spawning goosed with env:', env);
   const goosedProcess = spawn(goosedPath, ['agent'], {
     env: { ...process.env, ...env },
     stdio: ['pipe', 'pipe', 'pipe'],
@@ -111,6 +128,8 @@ export async function startGoosed(pathOverride?: string): Promise<GoosedTestCont
   );
 
   const cleanup = async (): Promise<void> => {
+    await fs.promises.rm(tempDir, { recursive: true, force: true });
+
     return new Promise((resolve) => {
       if (goosedProcess.killed) {
         resolve();
@@ -140,20 +159,4 @@ export async function startGoosed(pathOverride?: string): Promise<GoosedTestCont
     process: goosedProcess,
     cleanup,
   };
-}
-
-let sharedContext: GoosedTestContext | null = null;
-
-export async function getSharedGoosed(): Promise<GoosedTestContext> {
-  if (!sharedContext) {
-    sharedContext = await startGoosed();
-  }
-  return sharedContext;
-}
-
-export async function cleanupSharedGoosed(): Promise<void> {
-  if (sharedContext) {
-    await sharedContext.cleanup();
-    sharedContext = null;
-  }
 }
