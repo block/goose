@@ -1161,12 +1161,13 @@ impl CliSession {
                     }
                     Some(_) => {
                         self.messages.pop();
-                        output::render_message(
-                            &Message::assistant().with_text(interrupt_prompt),
-                            self.debug,
-                        );
+                        let assistant_msg = Message::assistant().with_text(interrupt_prompt);
+                        self.push_message(assistant_msg.clone());
+                        output::render_message(&assistant_msg, self.debug);
                     }
-                    None => panic!("No content in last message"),
+                    None => {
+                        // Empty message content — nothing to do, just continue gracefully
+                    }
                 }
             }
         }

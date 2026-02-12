@@ -928,12 +928,23 @@ pub fn display_session_info(
         style(&model_display).cyan(),
     );
 
+    let cwd_display = std::env::current_dir()
+        .ok()
+        .map(|p| p.display().to_string())
+        .unwrap_or_else(|| "unknown".to_string());
+
     if let Some(id) = session_id {
         println!(
             "  {} {} {}",
             style(" ").dim(),
             style(id).dim(),
-            style(format!("· {}", std::env::current_dir().unwrap().display())).dim(),
+            style(format!("· {}", cwd_display)).dim(),
+        );
+    } else {
+        println!(
+            "  {} {}",
+            style(" ").dim(),
+            style(format!("  {}", cwd_display)).dim(),
         );
     }
 }
@@ -946,8 +957,13 @@ pub fn set_terminal_title() {
         .ok()
         .and_then(|p| p.file_name().map(|n| n.to_string_lossy().into_owned()))
         .unwrap_or_default();
+    // Sanitize: strip control characters (ESC, BEL, etc.) to prevent terminal escape injection
+    let sanitized: String = dir_name
+        .chars()
+        .filter(|c| !c.is_control())
+        .collect();
     // OSC 0 sets the terminal window/tab title
-    print!("\x1b]0;🪿 {}\x07", dir_name);
+    print!("\x1b]0;🪿 {}\x07", sanitized);
     let _ = std::io::stdout().flush();
 }
 
@@ -964,6 +980,10 @@ pub fn display_context_usage(total_tokens: usize, context_limit: usize) {
     use console::style;
 
     if context_limit == 0 {
+        println!(
+            "  {}",
+            style("context usage unavailable (context limit is 0)").dim()
+        );
         return;
     }
 
