@@ -181,10 +181,10 @@ export function HuggingFaceSearchModal({ isOpen, onClose, onDownloadStarted }: H
   const PROVIDER_AVATARS: Record<string, string> = {
     'meta': 'https://cdn-avatars.huggingface.co/v1/production/uploads/646cf8084eefb026fb8fd8bc/oCTqufkdTkjyGodsx1vo1.png',
     'mistral': 'https://cdn-avatars.huggingface.co/v1/production/uploads/634c17653d11eaedd88b314d/9OgyfKstSZtbmsmuG8MbU.png',
-    'microsoft': 'https://cdn-avatars.huggingface.co/v1/production/uploads/1583858935574-5e64858ec6a10959a7acfb21.png',
-    'qwen': 'https://cdn-avatars.huggingface.co/v1/production/uploads/6234d6a8e6e4888ac6a4a3fc/5dqmhLxuwbACZJm8xMJB-.png',
+    'microsoft': 'https://cdn-avatars.huggingface.co/v1/production/uploads/1583646260758-5e64858c87403103f9f1055d.png',
+    'qwen': 'https://cdn-avatars.huggingface.co/v1/production/uploads/620760a26e3b7210c2ff1943/-s1gyJfvbE1RgO5iBeNOi.png',
     'google': 'https://cdn-avatars.huggingface.co/v1/production/uploads/5dd96eb166059660ed1ee413/WtA3YYitedOr9n02eHfJe.png',
-    'deepseek': 'https://cdn-avatars.huggingface.co/v1/production/uploads/64c14f6b02e1f8f67c73bd05/ShLosJr1wQEOXmUI2d8tK.png',
+    'deepseek': 'https://cdn-avatars.huggingface.co/v1/production/uploads/6538815d1bdb3c40db94fbfa/xMBly9PUMphrFVMxLX4kq.png',
   };
 
   // Popular search suggestions
