@@ -25,14 +25,18 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '../ui/colla
 import { Gear } from '../icons';
 import { View, ViewOptions } from '../../utils/navigationUtils';
 import { DEFAULT_CHAT_TITLE, useChatContext } from '../../contexts/ChatContext';
-import { listSessions, Session, updateSessionName } from '../../api';
-import { resumeSession, startNewSession, shouldShowNewChatTitle } from '../../sessions';
+import { listSessions, Session, updateSessionName, deleteSession } from '../../api';
+import { resumeSession, shouldShowNewChatTitle } from '../../sessions';
 import { useNavigation } from '../../hooks/useNavigation';
 import { SessionIndicators } from '../SessionIndicators';
 import { useSidebarSessionStatus } from '../../hooks/useSidebarSessionStatus';
-import { getInitialWorkingDir } from '../../utils/workingDir';
 import { useConfig } from '../ConfigContext';
 import { InlineEditText } from '../common/InlineEditText';
+import { ContextMenu, ContextMenuItem } from '../ui/context-menu';
+import { ConfirmationModal } from '../ui/ConfirmationModal';
+import { Edit2, Trash2 } from 'lucide-react';
+import { toast } from 'react-toastify';
+import { errorMessage } from '../../utils/conversionUtils';
 
 interface SidebarProps {
   onSelectSession: (sessionId: string) => void;
@@ -113,8 +117,9 @@ const SessionList = React.memo<{
     sessionId: string
   ) => { streamState: string; hasUnreadActivity: boolean } | undefined;
   onSessionClick: (session: Session) => void;
+  onDeleteSession: (session: Session) => void;
 }>(
-  ({ sessions, activeSessionId, getSessionStatus, onSessionClick }) => {
+  ({ sessions, activeSessionId, getSessionStatus, onSessionClick, onDeleteSession }) => {
     const sortedSessions = React.useMemo(() => {
       return [...sessions].sort((a, b) => {
         const aIsEmptyNew = shouldShowNewChatTitle(a);
@@ -124,6 +129,9 @@ const SessionList = React.memo<{
         return 0;
       });
     }, [sessions]);
+
+    // Counter to programmatically trigger rename from context menu
+    const [renameTriggers, setRenameTriggers] = React.useState<Record<string, number>>({});
 
     const handleRenameSession = async (sessionId: string, newName: string) => {
       await updateSessionName({
@@ -140,8 +148,15 @@ const SessionList = React.memo<{
       );
     };
 
+    const handleContextRename = React.useCallback((sessionId: string) => {
+      setRenameTriggers((prev) => ({
+        ...prev,
+        [sessionId]: (prev[sessionId] || 0) + 1,
+      }));
+    }, []);
+
     return (
-      <div className="relative ml-3">
+      <div className="relative ml-3" data-testid="sidebar-session-list">
         {sortedSessions.map((session, index) => {
           const status = getSessionStatus(session.id);
           const isStreaming = status?.streamState === 'streaming';
@@ -161,35 +176,67 @@ const SessionList = React.memo<{
               />
               {/* Horizontal branch line */}
               <div className="absolute left-0 w-2 h-px bg-border-strong top-1/2" />
-              <button
-                onClick={() => onSessionClick(session)}
-                className={`w-full text-left ml-3 px-1.5 py-1.5 pr-2 rounded-md text-sm transition-colors flex items-center gap-1 min-w-0 ${
-                  activeSessionId === session.id
-                    ? 'bg-background-medium text-text-default'
-                    : 'text-text-muted hover:bg-background-medium/50 hover:text-text-default'
-                }`}
-                title={displayName}
+              <ContextMenu
+                content={
+                  <>
+                    {canRename && (
+                      <ContextMenuItem
+                        onSelect={() => handleContextRename(session.id)}
+                        dataTestId="sidebar-session-rename"
+                      >
+                        <Edit2 className="w-3.5 h-3.5" />
+                        Rename
+                      </ContextMenuItem>
+                    )}
+                    <ContextMenuItem
+                      variant="destructive"
+                      onSelect={() => onDeleteSession(session)}
+                      dataTestId="sidebar-session-delete"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                      Delete
+                    </ContextMenuItem>
+                  </>
+                }
               >
-                {session.recipe && <ChefHat className="w-3.5 h-3.5 flex-shrink-0" />}
-                <div className="flex-1 min-w-0">
-                  {canRename ? (
-                    <InlineEditText
-                      value={displayName}
-                      onSave={(newName) => handleRenameSession(session.id, newName)}
-                      className="text-sm -mx-2 -my-1"
-                      editClassName="text-sm"
-                      singleClickEdit={false}
-                    />
-                  ) : (
-                    <span className="truncate block">{displayName}</span>
-                  )}
-                </div>
-                <SessionIndicators
-                  isStreaming={isStreaming}
-                  hasUnread={hasUnread}
-                  hasError={hasError}
-                />
-              </button>
+                <button
+                  onClick={() => onSessionClick(session)}
+                  data-testid={`sidebar-session-item-${session.id}`}
+                  className={`w-full text-left ml-3 px-1.5 py-1.5 pr-2 rounded-md text-sm transition-colors flex items-center gap-1 min-w-0 ${
+                    activeSessionId === session.id
+                      ? 'bg-background-medium text-text-default'
+                      : 'text-text-muted hover:bg-background-medium/50 hover:text-text-default'
+                  }`}
+                  title={displayName}
+                >
+                  {session.recipe && <ChefHat className="w-3.5 h-3.5 flex-shrink-0" />}
+                  <div className="flex-1 min-w-0">
+                    {canRename ? (
+                      <InlineEditText
+                        value={displayName}
+                        onSave={(newName) => handleRenameSession(session.id, newName)}
+                        editTrigger={renameTriggers[session.id] || 0}
+                        testId={`sidebar-session-name-${session.id}`}
+                        className="text-sm -mx-2 -my-1"
+                        editClassName="text-sm"
+                        singleClickEdit={false}
+                      />
+                    ) : (
+                      <span
+                        className="truncate block"
+                        data-testid={`sidebar-session-name-${session.id}`}
+                      >
+                        {displayName}
+                      </span>
+                    )}
+                  </div>
+                  <SessionIndicators
+                    isStreaming={isStreaming}
+                    hasUnread={hasUnread}
+                    hasError={hasError}
+                  />
+                </button>
+              </ContextMenu>
             </div>
           );
         })}
@@ -219,6 +266,7 @@ const SessionList = React.memo<{
       if (prevStatus?.streamState !== nextStatus?.streamState) return false;
     }
 
+    // onDeleteSession is stable (useCallback in parent), skip checking
     return true;
   }
 );
@@ -237,6 +285,11 @@ const AppSidebar: React.FC<SidebarProps> = ({ currentPath }) => {
   const [recentSessions, setRecentSessions] = useState<Session[]>([]);
   const [isChatExpanded, setIsChatExpanded] = useState(true);
   const activeSessionId = searchParams.get('resumeSessionId') ?? undefined;
+
+  // Delete confirmation state
+  const [sessionToDelete, setSessionToDelete] = useState<Session | null>(null);
+  const [showDeleteConfirmation, setShowDeleteConfirmation] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
   const { getSessionStatus, clearUnread } = useSidebarSessionStatus(activeSessionId);
 
   // When activeSessionId changes, ensure it's in the recent sessions list
@@ -421,32 +474,11 @@ const AppSidebar: React.FC<SidebarProps> = ({ currentPath }) => {
     recentSessionsRef.current = recentSessions;
   }, [recentSessions]);
 
-  // Guard ref to prevent duplicate session creation from key commands
-  const isCreatingSessionRef = React.useRef(false);
-
-  const handleNewChat = React.useCallback(async () => {
-    if (isCreatingSessionRef.current) {
-      return;
+  const handleNewChat = React.useCallback(() => {
+    if (currentPath !== '/') {
+      navigate('/');
     }
-
-    const emptyNewSession = recentSessionsRef.current.find((s) => shouldShowNewChatTitle(s));
-
-    if (emptyNewSession) {
-      clearUnread(emptyNewSession.id);
-      resumeSession(emptyNewSession, setView);
-    } else {
-      isCreatingSessionRef.current = true;
-      try {
-        await startNewSession('', setView, getInitialWorkingDir(), {
-          allExtensions: configContext.extensionsList,
-        });
-      } finally {
-        setTimeout(() => {
-          isCreatingSessionRef.current = false;
-        }, 1000);
-      }
-    }
-  }, [setView, clearUnread, configContext.extensionsList]);
+  }, [currentPath, navigate]);
 
   useEffect(() => {
     const handleTriggerNewChat = () => {
@@ -458,6 +490,58 @@ const AppSidebar: React.FC<SidebarProps> = ({ currentPath }) => {
       window.removeEventListener(AppEvents.TRIGGER_NEW_CHAT, handleTriggerNewChat);
     };
   }, [handleNewChat]);
+
+  const handleDeleteSession = React.useCallback((session: Session) => {
+    setSessionToDelete(session);
+    setShowDeleteConfirmation(true);
+  }, []);
+
+  const handleConfirmDelete = React.useCallback(async () => {
+    if (!sessionToDelete) return;
+    setIsDeleting(true);
+
+    const deletedId = sessionToDelete.id;
+    const deletedName = sessionToDelete.name;
+
+    try {
+      await deleteSession({
+        path: { session_id: deletedId },
+        throwOnError: true,
+      });
+
+      setShowDeleteConfirmation(false);
+      setSessionToDelete(null);
+      toast.success('Session deleted');
+
+      window.dispatchEvent(
+        new CustomEvent(AppEvents.SESSION_DELETED, {
+          detail: { sessionId: deletedId },
+        })
+      );
+
+      if (activeSessionId === deletedId) {
+        const remaining = recentSessionsRef.current.filter((s) => s.id !== deletedId);
+        if (remaining.length > 0) {
+          clearUnread(remaining[0].id);
+          resumeSession(remaining[0], setView);
+        } else {
+          // No remaining sessions — navigate to home (Hub).
+          // Hub has its own chat interface and doesn't depend on activeSessions
+          // or ChatSessionsContainer, so it always renders cleanly.
+          navigate('/');
+        }
+      }
+    } catch (error) {
+      toast.error(`Failed to delete "${deletedName}": ${errorMessage(error, 'Unknown error')}`);
+    } finally {
+      setIsDeleting(false);
+    }
+  }, [sessionToDelete, activeSessionId, clearUnread, setView, navigate]);
+
+  const handleCancelDelete = React.useCallback(() => {
+    setShowDeleteConfirmation(false);
+    setSessionToDelete(null);
+  }, []);
 
   const handleSessionClick = React.useCallback(
     async (session: Session) => {
@@ -533,7 +617,7 @@ const AppSidebar: React.FC<SidebarProps> = ({ currentPath }) => {
           </SidebarGroup>
 
           {/* Chat with Collapsible Sessions */}
-          <SidebarGroup className="px-2">
+          <SidebarGroup className="px-2" data-testid="sidebar-chat-section">
             <SidebarGroupContent className="space-y-1">
               <Collapsible open={isChatExpanded} onOpenChange={setIsChatExpanded}>
                 <div className="sidebar-item">
@@ -575,6 +659,7 @@ const AppSidebar: React.FC<SidebarProps> = ({ currentPath }) => {
                         activeSessionId={activeSessionId}
                         getSessionStatus={getSessionStatus}
                         onSessionClick={handleSessionClick}
+                        onDeleteSession={handleDeleteSession}
                       />
                       {/* View All Link */}
                       <button
@@ -596,6 +681,21 @@ const AppSidebar: React.FC<SidebarProps> = ({ currentPath }) => {
           {visibleMenuItems.map((entry, index) => renderMenuItem(entry, index))}
         </SidebarMenu>
       </SidebarContent>
+
+      <ConfirmationModal
+        isOpen={showDeleteConfirmation}
+        title="Delete Session"
+        message={`Are you sure you want to delete "${sessionToDelete?.name ?? 'this session'}"? This action cannot be undone.`}
+        confirmLabel="Delete"
+        cancelLabel="Cancel"
+        confirmVariant="destructive"
+        isSubmitting={isDeleting}
+        onConfirm={handleConfirmDelete}
+        onCancel={handleCancelDelete}
+        messageTestId="delete-confirmation-message"
+        confirmButtonTestId="confirm-delete-session"
+        cancelButtonTestId="cancel-delete-session"
+      />
     </>
   );
 };
