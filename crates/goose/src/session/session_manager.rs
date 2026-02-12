@@ -1148,12 +1148,9 @@ impl SessionStorage {
         // pattern (SELECT last message, then UPDATE or INSERT) causes lock escalation
         // failures under concurrent writers when using a default deferred transaction.
         let mut conn = pool.acquire().await?;
-        sqlx::query("BEGIN IMMEDIATE")
-            .execute(&mut *conn)
-            .await?;
+        sqlx::query("BEGIN IMMEDIATE").execute(&mut *conn).await?;
 
-        let result =
-            Self::add_message_inner(&mut conn, session_id, message).await;
+        let result = Self::add_message_inner(&mut conn, session_id, message).await;
 
         match result {
             Ok(()) => {
