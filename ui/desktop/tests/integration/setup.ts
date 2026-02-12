@@ -6,12 +6,15 @@
  */
 
 import { spawn, type ChildProcess } from 'node:child_process';
-import * as path from 'node:path';
-import * as fs from 'node:fs';
 import { createClient, createConfig } from '../../src/api/client';
 import type { Client } from '../../src/api/client';
+import {
+  findAvailablePort,
+  findGoosedBinaryPath,
+  waitForServer,
+  buildGoosedEnv,
+} from '../../src/goosed';
 
-// Secret key for authenticating with goosed (must match GOOSE_SERVER__SECRET_KEY env var)
 const TEST_SECRET_KEY = 'test';
 
 export interface GoosedTestContext {
@@ -23,65 +26,20 @@ export interface GoosedTestContext {
   cleanup: () => Promise<void>;
 }
 
-let portCounter = 13100;
-
-function getNextPort(): number {
-  return portCounter++;
-}
-
-function findGoosedBinary(): string {
-  const goosedBinaryEnv = process.env.GOOSED_BINARY;
-  if (goosedBinaryEnv) {
-    return goosedBinaryEnv;
-  }
-
-  const possiblePaths = [
-    path.join(process.cwd(), 'src', 'bin', 'goosed'),
-    path.join(process.cwd(), 'bin', 'goosed'),
-    path.join(process.cwd(), '..', '..', 'target', 'debug', 'goosed'),
-    path.join(process.cwd(), '..', '..', 'target', 'release', 'goosed'),
-  ];
-
-  for (const binPath of possiblePaths) {
-    const resolvedPath = path.resolve(binPath);
-    if (fs.existsSync(resolvedPath)) {
-      return resolvedPath;
-    }
-  }
-
-  throw new Error(
-    `Could not find goosed binary in any of the expected locations: ${possiblePaths.join(', ')}`
-  );
-}
-
-async function waitForServer(baseUrl: string, timeoutMs = 10000): Promise<void> {
-  const start = Date.now();
-  while (Date.now() - start < timeoutMs) {
-    try {
-      const response = await fetch(`${baseUrl}/status`);
-      if (response.ok) {
-        return;
-      }
-    } catch {
-      // Server not ready yet
-    }
-    await new Promise((resolve) => setTimeout(resolve, 100));
-  }
-  throw new Error(`Server at ${baseUrl} did not become ready within ${timeoutMs}ms`);
-}
-
-export async function startGoosed(path?: string): Promise<GoosedTestContext> {
-  const port = getNextPort();
+export async function startGoosed(pathOverride?: string): Promise<GoosedTestContext> {
+  const port = await findAvailablePort();
   const baseUrl = `http://127.0.0.1:${port}`;
-  const goosedPath = findGoosedBinary();
+  const goosedPath = findGoosedBinaryPath({
+    envOverride: process.env.GOOSED_BINARY,
+  });
+
+  const env = {
+    ...buildGoosedEnv(port, TEST_SECRET_KEY),
+    ...(pathOverride && { PATH: pathOverride }),
+  };
 
   const goosedProcess = spawn(goosedPath, ['agent'], {
-    env: {
-      ...process.env,
-      ...(path && { PATH: path }),
-      GOOSE_PORT: port.toString(),
-      GOOSE_SERVER__SECRET_KEY: TEST_SECRET_KEY,
-    },
+    env: { ...process.env, ...env },
     stdio: ['pipe', 'pipe', 'pipe'],
   });
 
@@ -111,14 +69,13 @@ export async function startGoosed(path?: string): Promise<GoosedTestContext> {
   });
 
   try {
-    await waitForServer(baseUrl);
+    await waitForServer(baseUrl, { errorLog: stderrLines });
   } catch (error) {
     goosedProcess.kill();
     console.error('Server stderr:', stderrLines.join('\n'));
     throw error;
   }
 
-  // Create client with authentication header
   const client = createClient(
     createConfig({
       baseUrl,
@@ -141,7 +98,6 @@ export async function startGoosed(path?: string): Promise<GoosedTestContext> {
 
       goosedProcess.kill('SIGTERM');
 
-      // Force kill after timeout
       setTimeout(() => {
         if (!goosedProcess.killed) {
           goosedProcess.kill('SIGKILL');
@@ -161,7 +117,6 @@ export async function startGoosed(path?: string): Promise<GoosedTestContext> {
   };
 }
 
-// Global test context for shared server instance
 let sharedContext: GoosedTestContext | null = null;
 
 export async function getSharedGoosed(): Promise<GoosedTestContext> {

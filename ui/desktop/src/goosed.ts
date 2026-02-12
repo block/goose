@@ -1,262 +1,318 @@
-import Electron from 'electron';
-import fs from 'node:fs';
+/**
+ * Goosed process management utilities.
+ * These utilities are designed to work in both the main Electron process
+ * and in Node.js test environments.
+ */
+
 import { spawn, ChildProcess } from 'child_process';
-import { createServer } from 'net';
+import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import log from './utils/logger';
-import { App } from 'electron';
+import { createServer } from 'net';
 import { Buffer } from 'node:buffer';
 
-import { status } from './api';
-import { Client } from './api/client';
-import { ExternalGoosedConfig } from './utils/settings';
+// Simple logger interface - can be console or electron-log
+export interface Logger {
+  info: (...args: unknown[]) => void;
+  error: (...args: unknown[]) => void;
+}
 
+// Default to console logging
+export const defaultLogger: Logger = {
+  info: (...args) => console.log('[goosed]', ...args),
+  error: (...args) => console.error('[goosed]', ...args),
+};
+
+/**
+ * Find an available port by binding to port 0 and letting the OS assign one.
+ */
 export const findAvailablePort = (): Promise<number> => {
-  return new Promise((resolve, _reject) => {
+  return new Promise((resolve, reject) => {
     const server = createServer();
 
+    server.on('error', reject);
+
     server.listen(0, '127.0.0.1', () => {
-      const { port } = server.address() as { port: number };
-      server.close(() => {
-        log.info(`Found available port: ${port}`);
-        resolve(port);
-      });
+      const address = server.address();
+      if (address && typeof address === 'object') {
+        const { port } = address;
+        server.close(() => resolve(port));
+      } else {
+        server.close();
+        reject(new Error('Failed to get port from server address'));
+      }
     });
   });
 };
 
-// Check if goosed server is ready by polling the status endpoint
-export const checkServerStatus = async (client: Client, errorLog: string[]): Promise<boolean> => {
-  const interval = 100; // ms
-  const maxAttempts = 100; // 10s
+export interface FindBinaryOptions {
+  isPackaged?: boolean;
+  resourcesPath?: string;
+}
 
-  const fatal = (line: string) => {
-    const trimmed = line.trim().toLowerCase();
-    return trimmed.startsWith("thread 'main' panicked at") || trimmed.startsWith('error:');
-  };
+/**
+ * Find the goosed binary path, checking multiple possible locations.
+ */
+export const findGoosedBinaryPath = (options: FindBinaryOptions = {}): string | null => {
+  const { isPackaged = false, resourcesPath } = options;
+  const binaryName = process.platform === 'win32' ? 'goosed.exe' : 'goosed';
+
+  const possiblePaths: string[] = [];
+
+  // Packaged app paths
+  if (isPackaged && resourcesPath) {
+    possiblePaths.push(path.join(resourcesPath, 'bin', binaryName));
+    possiblePaths.push(path.join(resourcesPath, binaryName));
+  }
+
+  // Development paths
+  possiblePaths.push(
+    path.join(process.cwd(), 'src', 'bin', binaryName),
+    path.join(process.cwd(), '..', '..', 'target', 'release', binaryName),
+    path.join(process.cwd(), '..', '..', 'target', 'debug', binaryName)
+  );
+
+  for (const p of possiblePaths) {
+    try {
+      if (fs.existsSync(p) && fs.statSync(p).isFile()) {
+        return p;
+      }
+    } catch {
+      // Continue to next path
+    }
+  }
+
+  return null;
+};
+
+export interface WaitForServerOptions {
+  timeout?: number;
+  interval?: number;
+  logger?: Logger;
+}
+
+/**
+ * Wait for the goosed server to be ready by polling the status endpoint.
+ */
+export const waitForServer = async (
+  baseUrl: string,
+  options: WaitForServerOptions = {}
+): Promise<boolean> => {
+  const { timeout = 10000, interval = 100, logger = defaultLogger } = options;
+  const maxAttempts = Math.ceil(timeout / interval);
 
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-    if (errorLog.some(fatal)) {
-      log.error('Detected fatal error in server logs');
-      return false;
-    }
     try {
-      await status({ client, throwOnError: true });
-      return true;
-    } catch {
-      if (attempt === maxAttempts) {
-        log.error(`Server failed to respond after ${(interval * maxAttempts) / 1000} seconds`);
+      const response = await fetch(`${baseUrl}/status`);
+      if (response.ok) {
+        return true;
       }
+    } catch {
+      // Server not ready yet
     }
     await new Promise((resolve) => setTimeout(resolve, interval));
   }
+
+  logger.error(`Server failed to respond after ${timeout / 1000} seconds`);
   return false;
 };
+
+/**
+ * Check if a log line indicates a fatal error.
+ */
+export const isFatalError = (line: string): boolean => {
+  const fatalPatterns = [/panicked at/, /RUST_BACKTRACE/, /fatal error/i, /^error\[E\d+\]/];
+  return fatalPatterns.some((pattern) => pattern.test(line));
+};
+
+/**
+ * Build environment variables for the goosed process.
+ */
+export const buildGoosedEnv = (port: number, secretKey: string): Record<string, string> => {
+  // Note: Only returns the goosed-specific env vars. Caller should spread with process.env.
+  // Environment variable naming follows the config crate convention:
+  // - GOOSE_ prefix with _ separator for top-level fields (GOOSE_PORT, GOOSE_HOST)
+  // - __ separator for nested fields (GOOSE_SERVER__SECRET_KEY)
+  const env: Record<string, string> = {
+    GOOSE_PORT: port.toString(),
+    GOOSE_SERVER__SECRET_KEY: secretKey,
+    HOME: process.env.HOME || os.homedir(),
+  };
+
+  // Handle PATH for different platforms
+  const pathKey = process.platform === 'win32' ? 'Path' : 'PATH';
+  if (process.env[pathKey]) {
+    env[pathKey] = process.env[pathKey];
+  }
+
+  return env;
+};
+
+// Configuration for external goosed server
+export interface ExternalGoosedConfig {
+  enabled: boolean;
+  url?: string;
+  secret?: string;
+}
+
+export interface StartGoosedOptions {
+  dir?: string;
+  isPackaged?: boolean;
+  resourcesPath?: string;
+  serverSecret: string;
+  env?: Record<string, string | undefined>;
+  externalGoosed?: ExternalGoosedConfig;
+  logger?: Logger;
+}
 
 export interface GoosedResult {
   baseUrl: string;
   workingDir: string;
-  process: ChildProcess;
+  process: ChildProcess | null;
   errorLog: string[];
+  cleanup: () => void;
 }
 
-const connectToExternalBackend = (workingDir: string, url: string): GoosedResult => {
-  log.info(`Using external goosed backend at ${url}`);
-
-  const mockProcess = {
-    pid: undefined,
-    kill: () => {
-      log.info(`Not killing external process that is managed externally`);
-    },
-  } as ChildProcess;
-
-  return { baseUrl: url, workingDir, process: mockProcess, errorLog: [] };
-};
-
-interface GooseProcessEnv {
-  [key: string]: string | undefined;
-
-  HOME: string;
-  USERPROFILE: string;
-  APPDATA: string;
-  LOCALAPPDATA: string;
-  PATH: string;
-  GOOSE_PORT: string;
-  GOOSE_SERVER__SECRET_KEY?: string;
-}
-
-export interface StartGoosedOptions {
-  app: App;
-  serverSecret: string;
-  dir: string;
-  env?: Partial<GooseProcessEnv>;
-  externalGoosed?: ExternalGoosedConfig;
-}
-
+/**
+ * Start or connect to a goosed server.
+ */
 export const startGoosed = async (options: StartGoosedOptions): Promise<GoosedResult> => {
-  const { app, serverSecret, dir: inputDir, env = {}, externalGoosed } = options;
-  const isWindows = process.platform === 'win32';
-  const homeDir = os.homedir();
-  const dir = path.resolve(path.normalize(inputDir));
+  const {
+    dir,
+    isPackaged = false,
+    resourcesPath,
+    serverSecret,
+    env: additionalEnv = {},
+    externalGoosed,
+    logger = defaultLogger,
+  } = options;
 
+  const errorLog: string[] = [];
+  const workingDir = dir || os.homedir();
+
+  // Handle external backend
   if (externalGoosed?.enabled && externalGoosed.url) {
-    return connectToExternalBackend(dir, externalGoosed.url);
+    const url = externalGoosed.url.replace(/\/$/, '');
+    logger.info(`Using external goosed backend at ${url}`);
+
+    return {
+      baseUrl: url,
+      workingDir,
+      process: null,
+      errorLog,
+      cleanup: () => {
+        logger.info('Not killing external process that is managed externally');
+      },
+    };
   }
 
-  if (process.env.GOOSE_EXTERNAL_BACKEND) {
-    const port = process.env.GOOSE_PORT || '3000';
-    return connectToExternalBackend(dir, `http://127.0.0.1:${port}`);
+  // Support for GOOSE_EXTERNAL_BACKEND env var (for testing)
+  const externalBackendUrl = process.env.GOOSE_EXTERNAL_BACKEND;
+  if (externalBackendUrl) {
+    const url = externalBackendUrl.replace(/\/$/, '');
+    logger.info(`Using external goosed backend from env at ${url}`);
+
+    return {
+      baseUrl: url,
+      workingDir,
+      process: null,
+      errorLog,
+      cleanup: () => {
+        logger.info('Not killing external process that is managed externally');
+      },
+    };
   }
 
-  let goosedPath = getGoosedBinaryPath(app);
-
-  const resolvedGoosedPath = path.resolve(goosedPath);
+  // Find binary and start local server
+  const goosedPath = findGoosedBinaryPath({ isPackaged, resourcesPath });
+  if (!goosedPath) {
+    throw new Error('Could not find goosed binary');
+  }
 
   const port = await findAvailablePort();
-  const stderrLines: string[] = [];
+  logger.info(`Starting goosed from: ${goosedPath} on port ${port} in dir ${workingDir}`);
 
-  log.info(`Starting goosed from: ${resolvedGoosedPath} on port ${port} in dir ${dir}`);
+  const baseUrl = `http://127.0.0.1:${port}`;
 
-  const additionalEnv: GooseProcessEnv = {
-    HOME: homeDir,
-    USERPROFILE: homeDir,
-    APPDATA: process.env.APPDATA || path.join(homeDir, 'AppData', 'Roaming'),
-    LOCALAPPDATA: process.env.LOCALAPPDATA || path.join(homeDir, 'AppData', 'Local'),
-    PATH: `${path.dirname(resolvedGoosedPath)}${path.delimiter}${process.env.PATH || ''}`,
-    GOOSE_PORT: String(port),
-    GOOSE_SERVER__SECRET_KEY: serverSecret,
-    ...env,
-  } as GooseProcessEnv;
+  // Build environment
+  const spawnEnv = buildGoosedEnv(port, serverSecret);
 
-  const processEnv: GooseProcessEnv = { ...process.env, ...additionalEnv } as GooseProcessEnv;
-
-  if (isWindows && !resolvedGoosedPath.toLowerCase().endsWith('.exe')) {
-    goosedPath = resolvedGoosedPath + '.exe';
-  } else {
-    goosedPath = resolvedGoosedPath;
+  // Add any additional env vars (like GOOSE_PATH_ROOT)
+  for (const [key, value] of Object.entries(additionalEnv)) {
+    if (value !== undefined) {
+      spawnEnv[key] = value;
+    }
   }
-  log.info(`Binary path resolved to: ${goosedPath}`);
 
+  // Spawn options
   const spawnOptions = {
-    cwd: dir,
-    env: processEnv,
-    stdio: ['ignore', 'pipe', 'pipe'] as ['ignore', 'pipe', 'pipe'],
+    env: spawnEnv,
+    cwd: workingDir,
     windowsHide: true,
-    detached: isWindows,
-    shell: false,
   };
 
+  // Log spawn options (without secrets)
   const safeSpawnOptions = {
     ...spawnOptions,
-    env: Object.keys(spawnOptions.env || {}).reduce(
-      (acc, key) => {
-        if (key.includes('SECRET') || key.includes('PASSWORD') || key.includes('TOKEN')) {
-          acc[key] = '[REDACTED]';
-        } else {
-          acc[key] = spawnOptions.env![key] || '';
-        }
-        return acc;
-      },
-      {} as Record<string, string>
+    env: Object.fromEntries(
+      Object.entries(spawnOptions.env).map(([k, v]) =>
+        k.toLowerCase().includes('secret') || k.toLowerCase().includes('key')
+          ? [k, '[REDACTED]']
+          : [k, v]
+      )
     ),
   };
-  log.info('Spawn options:', JSON.stringify(safeSpawnOptions, null, 2));
+  logger.info('Spawn options:', JSON.stringify(safeSpawnOptions, null, 2));
 
-  const safeArgs = ['agent'];
-
-  const goosedProcess: ChildProcess = spawn(goosedPath, safeArgs, spawnOptions);
-
-  if (isWindows && goosedProcess.unref) {
-    goosedProcess.unref();
-  }
+  const goosedProcess = spawn(goosedPath, [], spawnOptions);
 
   goosedProcess.stdout?.on('data', (data: Buffer) => {
-    log.info(`goosed stdout for port ${port} and dir ${dir}: ${data.toString()}`);
+    logger.info(`goosed stdout for port ${port} and dir ${workingDir}: ${data.toString()}`);
   });
 
   goosedProcess.stderr?.on('data', (data: Buffer) => {
-    const lines = data
-      .toString()
-      .split('\n')
-      .filter((l) => l.trim());
-    lines.forEach((line) => {
-      log.error(`goosed stderr for port ${port} and dir ${dir}: ${line}`);
-      stderrLines.push(line);
-    });
-  });
-
-  goosedProcess.on('close', (code: number | null) => {
-    log.info(`goosed process exited with code ${code} for port ${port} and dir ${dir}`);
-  });
-
-  goosedProcess.on('error', (err: Error) => {
-    log.error(`Failed to start goosed on port ${port} and dir ${dir}`, err);
-    throw err;
-  });
-
-  const try_kill_goose = () => {
-    try {
-      if (isWindows) {
-        const pid = goosedProcess.pid?.toString() || '0';
-        spawn('taskkill', ['/pid', pid, '/T', '/F'], { shell: false });
-      } else {
-        goosedProcess.kill?.();
-      }
-    } catch (error) {
-      log.error('Error while terminating goosed process:', error);
-    }
-  };
-
-  app.on('will-quit', () => {
-    log.info('App quitting, terminating goosed server');
-    try_kill_goose();
-  });
-
-  log.info(`Goosed server successfully started on port ${port}`);
-  return {
-    baseUrl: `http://127.0.0.1:${port}`,
-    workingDir: dir,
-    process: goosedProcess,
-    errorLog: stderrLines,
-  };
-};
-
-const getGoosedBinaryPath = (app: Electron.App): string => {
-  let executableName = process.platform === 'win32' ? 'goosed.exe' : 'goosed';
-
-  let possiblePaths: string[];
-  if (!app.isPackaged) {
-    possiblePaths = [
-      path.join(process.cwd(), 'src', 'bin', executableName),
-      path.join(process.cwd(), 'bin', executableName),
-      path.join(process.cwd(), '..', '..', 'target', 'debug', executableName),
-      path.join(process.cwd(), '..', '..', 'target', 'release', executableName),
-    ];
-  } else {
-    possiblePaths = [path.join(process.resourcesPath, 'bin', executableName)];
-  }
-
-  for (const binPath of possiblePaths) {
-    try {
-      const resolvedPath = path.resolve(binPath);
-
-      if (fs.existsSync(resolvedPath)) {
-        const stats = fs.statSync(resolvedPath);
-        if (stats.isFile()) {
-          return resolvedPath;
-        } else {
-          log.error(`Path exists but is not a regular file: ${resolvedPath}`);
+    const lines = data.toString().split('\n');
+    for (const line of lines) {
+      if (line.trim()) {
+        errorLog.push(line);
+        if (isFatalError(line)) {
+          logger.error(`goosed stderr for port ${port} and dir ${workingDir}: ${line}`);
         }
       }
-    } catch (error) {
-      log.error(`Error checking path ${binPath}:`, error);
     }
-  }
+  });
 
-  throw new Error(
-    `Could not find ${executableName} binary in any of the expected locations: ${possiblePaths.join(
-      ', '
-    )}`
-  );
+  goosedProcess.on('exit', (code) => {
+    logger.info(`goosed process exited with code ${code} for port ${port} and dir ${workingDir}`);
+  });
+
+  goosedProcess.on('error', (err) => {
+    logger.error(`Failed to start goosed on port ${port} and dir ${workingDir}`, err);
+    errorLog.push(err.message);
+  });
+
+  const cleanup = () => {
+    if (goosedProcess && !goosedProcess.killed) {
+      logger.info('Terminating goosed server');
+      try {
+        if (process.platform === 'win32') {
+          spawn('taskkill', ['/pid', goosedProcess.pid!.toString(), '/f', '/t']);
+        } else {
+          goosedProcess.kill('SIGTERM');
+        }
+      } catch (error) {
+        logger.error('Error while terminating goosed process:', error);
+      }
+    }
+  };
+
+  logger.info(`Goosed server successfully started on port ${port}`);
+
+  return {
+    baseUrl,
+    workingDir,
+    process: goosedProcess,
+    errorLog,
+    cleanup,
+  };
 };

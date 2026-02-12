@@ -23,7 +23,7 @@ import path from 'node:path';
 import os from 'node:os';
 import { spawn } from 'child_process';
 import 'dotenv/config';
-import { checkServerStatus, startGoosed } from './goosed';
+import { checkServerStatus, startGoosed } from './goosed-app';
 import { expandTilde } from './utils/pathUtils';
 import log from './utils/logger';
 import { ensureWinShims } from './utils/winShims';
@@ -483,7 +483,6 @@ const createChat = async (
   const serverSecret = getServerSecret(settings);
 
   const goosedResult = await startGoosed({
-    app,
     serverSecret,
     dir: dir || os.homedir(),
     env: { GOOSE_PATH_ROOT: process.env.GOOSE_PATH_ROOT },
