@@ -1,8 +1,8 @@
 pub mod hf_models;
 pub mod local_model_registry;
 
-use crate::config::ExtensionConfig;
 use crate::config::paths::Paths;
+use crate::config::ExtensionConfig;
 use crate::conversation::message::{Message, MessageContent};
 use crate::model::ModelConfig;
 use crate::providers::base::{
@@ -1022,7 +1022,10 @@ impl ProviderDef for LocalInferenceProvider {
         )
     }
 
-    fn from_env(model: ModelConfig, extensions: Vec<ExtensionConfig>) -> BoxFuture<'static, Result<Self::Provider>>
+    fn from_env(
+        model: ModelConfig,
+        extensions: Vec<ExtensionConfig>,
+    ) -> BoxFuture<'static, Result<Self::Provider>>
     where
         Self: Sized,
     {
