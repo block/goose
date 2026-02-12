@@ -120,16 +120,18 @@ pub struct ThinkingIndicator {
 impl ThinkingIndicator {
     pub fn show(&mut self) {
         let spinner = cliclack::spinner();
+        let hint = style("(Ctrl+C to interrupt)").dim();
         if Config::global()
             .get_param("RANDOM_THINKING_MESSAGES")
             .unwrap_or(true)
         {
             spinner.start(format!(
-                "{}...",
-                super::thinking::get_random_thinking_message()
+                "{}...  {}",
+                super::thinking::get_random_thinking_message(),
+                hint,
             ));
         } else {
-            spinner.start("Thinking...");
+            spinner.start(format!("Thinking...  {}", hint));
         }
         self.spinner = Some(spinner);
     }
