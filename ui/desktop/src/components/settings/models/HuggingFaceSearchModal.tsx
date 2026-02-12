@@ -177,14 +177,24 @@ export function HuggingFaceSearchModal({ isOpen, onClose, onDownloadStarted }: H
     }
   };
 
+  // Provider avatar URLs
+  const PROVIDER_AVATARS: Record<string, string> = {
+    'meta': 'https://cdn-avatars.huggingface.co/v1/production/uploads/646cf8084eefb026fb8fd8bc/oCTqufkdTkjyGodsx1vo1.png',
+    'mistral': 'https://cdn-avatars.huggingface.co/v1/production/uploads/634c17653d11eaedd88b314d/9OgyfKstSZtbmsmuG8MbU.png',
+    'microsoft': 'https://cdn-avatars.huggingface.co/v1/production/uploads/1583858935574-5e64858ec6a10959a7acfb21.png',
+    'qwen': 'https://cdn-avatars.huggingface.co/v1/production/uploads/6234d6a8e6e4888ac6a4a3fc/5dqmhLxuwbACZJm8xMJB-.png',
+    'google': 'https://cdn-avatars.huggingface.co/v1/production/uploads/5dd96eb166059660ed1ee413/WtA3YYitedOr9n02eHfJe.png',
+    'deepseek': 'https://cdn-avatars.huggingface.co/v1/production/uploads/64c14f6b02e1f8f67c73bd05/ShLosJr1wQEOXmUI2d8tK.png',
+  };
+
   // Popular search suggestions
   const popularSearches = [
-    { label: 'Llama 3.2', query: 'llama-3.2' },
-    { label: 'Mistral', query: 'mistral' },
-    { label: 'Phi', query: 'phi' },
-    { label: 'Qwen', query: 'qwen' },
-    { label: 'Gemma', query: 'gemma' },
-    { label: 'DeepSeek', query: 'deepseek' },
+    { label: 'Llama 3.2', query: 'llama-3.2', provider: 'meta' },
+    { label: 'Mistral', query: 'mistral', provider: 'mistral' },
+    { label: 'Phi', query: 'phi', provider: 'microsoft' },
+    { label: 'Qwen', query: 'qwen', provider: 'qwen' },
+    { label: 'Gemma', query: 'gemma', provider: 'google' },
+    { label: 'DeepSeek', query: 'deepseek', provider: 'deepseek' },
   ];
 
   const handleSuggestionClick = (searchQuery: string) => {
@@ -235,8 +245,13 @@ export function HuggingFaceSearchModal({ isOpen, onClose, onDownloadStarted }: H
                       <button
                         key={item.query}
                         onClick={() => handleSuggestionClick(item.query)}
-                        className="px-4 py-2 text-sm font-medium rounded-full bg-background-subtle text-text-default hover:bg-blue-500/10 hover:text-blue-600 transition-colors"
+                        className="flex items-center gap-2 pl-2 pr-4 py-1.5 text-sm font-medium rounded-full bg-background-subtle text-text-default hover:bg-blue-500/10 hover:text-blue-600 transition-colors"
                       >
+                        <img
+                          src={PROVIDER_AVATARS[item.provider]}
+                          alt={item.provider}
+                          className="w-6 h-6 rounded-full object-cover"
+                        />
                         {item.label}
                       </button>
                     ))}
