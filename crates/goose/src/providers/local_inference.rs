@@ -1039,14 +1039,6 @@ impl Provider for LocalInferenceProvider {
         self.model_config.clone()
     }
 
-    async fn generate_session_name(
-        &self,
-        _session_id: &str,
-        _messages: &crate::conversation::Conversation,
-    ) -> Result<String, ProviderError> {
-        Ok("Local conversation".to_string())
-    }
-
     async fn fetch_supported_models(&self) -> Result<Vec<String>, ProviderError> {
         use crate::providers::local_inference::local_model_registry::get_registry;
 

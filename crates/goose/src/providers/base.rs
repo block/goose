@@ -19,6 +19,65 @@ use std::ops::{Add, AddAssign};
 use std::pin::Pin;
 use std::sync::Mutex;
 
+fn strip_xml_tags(text: &str) -> String {
+    let mut result = String::with_capacity(text.len());
+    let mut chars = text.char_indices().peekable();
+
+    while let Some((i, ch)) = chars.next() {
+        if ch != '<' {
+            result.push(ch);
+            continue;
+        }
+
+        let mut tag_name = String::new();
+        let tag_start = i;
+        let mut found_close = false;
+        let mut bad_char = None;
+
+        for (_, tc) in chars.by_ref() {
+            if tc == '>' {
+                found_close = true;
+                break;
+            }
+            if tc.is_ascii_alphanumeric() || tc == '_' {
+                tag_name.push(tc);
+            } else {
+                bad_char = Some(tc);
+                break;
+            }
+        }
+
+        if !found_close || tag_name.is_empty() {
+            result.push('<');
+            result.push_str(&tag_name);
+            if found_close {
+                result.push('>');
+            } else if let Some(bc) = bad_char {
+                result.push(bc);
+            }
+            continue;
+        }
+
+        let close_tag = format!("</{tag_name}>");
+        let after_open_tag = text.get(tag_start..).unwrap_or("");
+        let content_start = after_open_tag.find('>').map(|p| p + 1).unwrap_or(0);
+        let after_content = after_open_tag.get(content_start..).unwrap_or("");
+
+        if let Some(close_pos) = after_content.find(&close_tag) {
+            let skip_to = tag_start + content_start + close_pos + close_tag.len();
+            while chars.peek().is_some_and(|(idx, _)| *idx < skip_to) {
+                chars.next();
+            }
+        } else {
+            result.push('<');
+            result.push_str(&tag_name);
+            result.push('>');
+        }
+    }
+
+    result
+}
+
 /// A global store for the current model being used, we use this as when a provider returns, it tells us the real model, not an alias
 pub static CURRENT_MODEL: Lazy<Mutex<Option<String>>> = Lazy::new(|| Mutex::new(None));
 
@@ -589,40 +648,33 @@ pub trait Provider: Send + Sync {
         messages: &Conversation,
     ) -> Result<String, ProviderError> {
         let context = self.get_initial_user_messages(messages);
-        let prompt = self.create_session_name_prompt(&context);
-        let message = Message::user().with_text(&prompt);
+        let system = crate::prompt_template::render_template(
+            "session_name.md",
+            &std::collections::HashMap::<String, String>::new(),
+        )
+        .map_err(|e| ProviderError::ContextLengthExceeded(e.to_string()))?;
+
+        let user_text = format!(
+            "---BEGIN USER MESSAGES---\n{}\n---END USER MESSAGES---\n\nGenerate a short title for the above messages.",
+            context.join("\n")
+        );
+        let message = Message::user().with_text(&user_text);
         let result = self
-            .complete_fast(
-                session_id,
-                "Reply with only a description in four words or less",
-                &[message],
-                &[],
-            )
+            .complete_fast(session_id, &system, &[message], &[])
             .await?;
 
-        let description = result
+        let raw: String = result
             .0
-            .as_concat_text()
+            .content
+            .iter()
+            .filter_map(|c| c.as_text())
+            .collect();
+        let description = strip_xml_tags(&raw)
             .split_whitespace()
             .collect::<Vec<_>>()
             .join(" ");
 
         Ok(safe_truncate(&description, 100))
-    }
-
-    // Generate a prompt for a session name based on the conversation history
-    fn create_session_name_prompt(&self, context: &[String]) -> String {
-        // Create a prompt for a concise description
-        let mut prompt = "Based on the conversation so far, provide a concise description of this session in 4 words or less. This will be used for finding the session later in a UI with limited space - reply *ONLY* with the description".to_string();
-
-        if !context.is_empty() {
-            prompt = format!(
-                "Here are the first few user messages:\n{}\n\n{}",
-                context.join("\n"),
-                prompt
-            );
-        }
-        prompt
     }
 
     /// Configure OAuth authentication for this provider
@@ -661,6 +713,20 @@ mod tests {
     use std::collections::HashMap;
 
     use serde_json::json;
+
+    #[test]
+    fn test_strip_xml_tags() {
+        assert_eq!(strip_xml_tags("<think>reasoning</think>answer"), "answer");
+        assert_eq!(strip_xml_tags("before<t>mid</t>after"), "beforeafter");
+        assert_eq!(strip_xml_tags("<a>x</a><b>y</b>z"), "z");
+        assert_eq!(strip_xml_tags("no tags here"), "no tags here");
+        assert_eq!(strip_xml_tags("<unclosed>content"), "<unclosed>content");
+        assert_eq!(strip_xml_tags("a < b > c"), "a < b > c");
+        assert_eq!(strip_xml_tags("<think>über</think>ok"), "ok");
+        assert_eq!(strip_xml_tags(""), "");
+        assert_eq!(strip_xml_tags("<>stuff</>"), "<>stuff</>");
+    }
+
     #[test]
     fn test_usage_creation() {
         let usage = Usage::new(Some(10), Some(20), Some(30));

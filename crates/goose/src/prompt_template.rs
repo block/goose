@@ -51,6 +51,10 @@ static TEMPLATE_REGISTRY: &[(&str, &str)] = &[
         "tiny_model_system.md",
         "System prompt for tiny local models using shell command emulation",
     ),
+    (
+        "session_name.md",
+        "System prompt for generating short session names from conversation history",
+    ),
 ];
 
 /// Information about a template including its content and customization status
