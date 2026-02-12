@@ -17,5 +17,6 @@ export default defineConfig({
     hookTimeout: 30000,
     pool: 'forks',
     singleFork: true,
+    silent: 'passed-only',
   },
 });

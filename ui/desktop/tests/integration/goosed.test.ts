@@ -265,6 +265,7 @@ describe('goosed API integration tests', () => {
             if (done) break;
 
             const chunk = decoder.decode(value, { stream: true });
+            console.log('stream: ', chunk);
 
             try {
               const data = JSON.parse(chunk.replace(/^data:/, ''));
@@ -280,8 +281,9 @@ describe('goosed API integration tests', () => {
               // incomplete, so we expect parsing errors.
             }
           }
-        } catch {
+        } catch (error) {
           // Reader cancelled or error
+          console.log('Reader cancelled or error: ', error);
         }
         clearTimeout(timeout);
       }
