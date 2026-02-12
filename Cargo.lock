@@ -4366,6 +4366,7 @@ name = "goose-server"
 version = "1.23.0"
 dependencies = [
  "anyhow",
+ "async-trait",
  "axum 0.8.8",
  "base64 0.22.1",
  "bytes",
@@ -4390,6 +4391,8 @@ dependencies = [
  "serde_path_to_error",
  "serde_yaml",
  "socket2 0.6.2",
+ "sqlx",
+ "tempfile",
  "thiserror 1.0.69",
  "tokio",
  "tokio-stream",

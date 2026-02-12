@@ -1,0 +1,73 @@
+pub mod handler;
+pub mod manager;
+pub mod pairing;
+
+use async_trait::async_trait;
+use serde::{Deserialize, Serialize};
+use tokio_util::sync::CancellationToken;
+use utoipa::ToSchema;
+
+use handler::GatewayHandler;
+
+#[derive(Debug, Clone, Hash, Eq, PartialEq, Serialize, Deserialize)]
+pub struct PlatformUser {
+    pub platform: String,
+    pub user_id: String,
+    pub display_name: Option<String>,
+}
+
+#[derive(Debug, Clone)]
+pub struct IncomingMessage {
+    pub user: PlatformUser,
+    pub text: String,
+    pub platform_message_id: Option<String>,
+    pub attachments: Vec<Attachment>,
+}
+
+#[derive(Debug, Clone)]
+pub struct Attachment {
+    pub filename: String,
+    pub mime_type: String,
+    pub data: Vec<u8>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+#[serde(tag = "type", rename_all = "snake_case")]
+pub enum OutgoingMessage {
+    Text { body: String },
+    Typing,
+    Error { message: String },
+    ToolStarted { tool_name: String },
+    ToolCompleted { tool_name: String, success: bool },
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(tag = "state", rename_all = "snake_case")]
+pub enum PairingState {
+    Unpaired,
+    PendingCode { code: String, expires_at: i64 },
+    Paired { session_id: String, paired_at: i64 },
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+pub struct GatewayConfig {
+    pub gateway_type: String,
+    pub platform_config: serde_json::Value,
+    pub max_sessions: usize,
+}
+
+#[async_trait]
+pub trait Gateway: Send + Sync + 'static {
+    fn gateway_type(&self) -> &str;
+
+    async fn start(&self, handler: GatewayHandler, cancel: CancellationToken)
+        -> anyhow::Result<()>;
+
+    async fn send_message(
+        &self,
+        user: &PlatformUser,
+        message: OutgoingMessage,
+    ) -> anyhow::Result<()>;
+
+    async fn validate_config(&self) -> anyhow::Result<()>;
+}

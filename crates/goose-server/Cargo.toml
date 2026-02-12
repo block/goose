@@ -51,6 +51,8 @@ rustls = { version = "0.23", features = ["ring"] }
 uuid = { workspace = true }
 once_cell = { workspace = true }
 dirs = { workspace = true }
+sqlx = { version = "0.8.6", features = ["runtime-tokio", "sqlite"] }
+async-trait.workspace = true
 
 [target.'cfg(windows)'.dependencies]
 winreg = { version = "0.55.0" }
@@ -67,3 +69,4 @@ path = "src/bin/generate_schema.rs"
 tower = "0.5.2"
 env-lock = { workspace = true }
 wiremock = { workspace = true }
+tempfile.workspace = true
