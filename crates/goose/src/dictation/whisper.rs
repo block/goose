@@ -736,7 +736,7 @@ fn deduplicate_text(text: &str) -> String {
         return String::new();
     }
 
-    // Split into sentences on common boundaries (. ! ? and also comma for shorter phrases)
+    // Split into sentences on common boundaries (. ! ?)
     let sentences = split_into_sentences(trimmed);
     if sentences.len() <= 1 {
         return trimmed.to_string();
