@@ -92,7 +92,7 @@ aws-sdk-bedrockruntime = "=1.120.0"
 aws-sdk-sagemakerruntime = "1.62.0"
 
 # For GCP Vertex AI provider auth
-jsonwebtoken = { version = "10.3.0", features = ["rust_crypto"] }
+jsonwebtoken = { version = "10.3.0", features = ["aws_lc_rs"] }
 
 blake3 = "1.5"
 fs2 = { workspace = true }
