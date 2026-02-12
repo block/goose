@@ -8,6 +8,7 @@ import {
   ipcMain,
   Menu,
   MenuItem,
+  net,
   Notification,
   powerSaveBlocker,
   screen,
@@ -23,11 +24,6 @@ import path from 'node:path';
 import os from 'node:os';
 import { spawn } from 'child_process';
 import 'dotenv/config';
-// Allow Node.js fetch to connect to the local goosed HTTPS server which uses
-// a self-signed certificate. This only affects Node.js-level networking in the
-// main process (health checks); all renderer/webContents requests go through
-// Chromium's network stack and are handled by the certificate-error event.
-process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
 import { checkServerStatus, startGoosed } from './goosed';
 import { expandTilde } from './utils/pathUtils';
 import log from './utils/logger';
@@ -551,6 +547,7 @@ const createChat = async (
   const goosedClient = createClient(
     createConfig({
       baseUrl,
+      fetch: net.fetch as unknown as typeof globalThis.fetch,
       headers: {
         'Content-Type': 'application/json',
         'X-Secret-Key': serverSecret,
