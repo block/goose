@@ -215,86 +215,143 @@ export function HuggingFaceSearchModal({ isOpen, onClose, onDownloadStarted }: H
           </DialogHeader>
         </div>
 
-        <div className="flex-1 overflow-y-auto px-6 py-6">
-          <div className="w-full space-y-6">
+        <div className="flex-1 overflow-hidden flex">
+          {/* Left Sidebar - Popular Models, Categories, Direct Download */}
+          <div className="w-80 flex-shrink-0 border-r border-border-subtle overflow-y-auto p-6 space-y-6">
             {/* Search Input */}
             <div>
               <div className="relative">
-                <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-text-muted" />
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-text-muted" />
                 <input
                   type="text"
                   value={query}
                   onChange={(e) => handleQueryChange(e.target.value)}
                   placeholder="Search for GGUF models..."
-                  className="w-full pl-12 pr-4 py-3 text-base border border-border-subtle rounded-xl bg-background-default text-text-default placeholder:text-text-muted focus:outline-none focus:border-accent-primary"
+                  className="w-full pl-9 pr-4 py-2 text-sm border border-border-subtle rounded-lg bg-background-default text-text-default placeholder:text-text-muted focus:outline-none focus:border-accent-primary"
                   autoFocus
                 />
                 {searching && (
-                  <Loader2 className="absolute right-4 top-1/2 -translate-y-1/2 w-5 h-5 text-text-muted animate-spin" />
+                  <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-text-muted animate-spin" />
                 )}
               </div>
             </div>
 
-            {/* Popular Searches - show when no query */}
-            {!query && results.length === 0 && (
-              <div className="space-y-4">
-                <div>
-                  <h3 className="text-sm font-medium text-text-default mb-3">Popular Models</h3>
-                  <div className="flex flex-wrap gap-2">
-                    {popularSearches.map((item) => (
-                      <button
-                        key={item.query}
-                        onClick={() => handleSuggestionClick(item.query)}
-                        className="flex items-center gap-2 pl-2 pr-4 py-1.5 text-sm font-medium rounded-full bg-background-subtle text-text-default hover:bg-blue-500/10 hover:text-blue-600 transition-colors"
-                      >
-                        <img
-                          src={PROVIDER_AVATARS[item.provider]}
-                          alt={item.provider}
-                          className="w-6 h-6 rounded-full object-cover"
-                        />
-                        {item.label}
-                      </button>
-                    ))}
-                  </div>
-                </div>
+            {/* Popular Models */}
+            <div>
+              <h3 className="text-sm font-medium text-text-default mb-3">Popular Models</h3>
+              <div className="flex flex-col gap-1">
+                {popularSearches.map((item) => (
+                  <button
+                    key={item.query}
+                    onClick={() => handleSuggestionClick(item.query)}
+                    className="flex items-center gap-2 px-2 py-2 text-sm font-medium rounded-lg text-text-default hover:bg-blue-500/10 hover:text-blue-600 transition-colors text-left"
+                  >
+                    <img
+                      src={PROVIDER_AVATARS[item.provider]}
+                      alt={item.provider}
+                      className="w-6 h-6 rounded-full object-cover"
+                    />
+                    {item.label}
+                  </button>
+                ))}
+              </div>
+            </div>
 
-                <div className="pt-4 border-t border-border-subtle">
-                  <h3 className="text-sm font-medium text-text-default mb-3">Browse by Category</h3>
-                  <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-                    <button
-                      onClick={() => handleSuggestionClick('instruct')}
-                      className="p-4 text-left rounded-lg border border-border-subtle bg-background-default hover:border-blue-500/50 transition-colors"
-                    >
-                      <p className="text-sm font-medium text-text-default">Instruct Models</p>
-                      <p className="text-xs text-text-muted mt-1">Fine-tuned for following instructions</p>
-                    </button>
-                    <button
-                      onClick={() => handleSuggestionClick('code')}
-                      className="p-4 text-left rounded-lg border border-border-subtle bg-background-default hover:border-blue-500/50 transition-colors"
-                    >
-                      <p className="text-sm font-medium text-text-default">Code Models</p>
-                      <p className="text-xs text-text-muted mt-1">Optimized for programming tasks</p>
-                    </button>
-                    <button
-                      onClick={() => handleSuggestionClick('small')}
-                      className="p-4 text-left rounded-lg border border-border-subtle bg-background-default hover:border-blue-500/50 transition-colors"
-                    >
-                      <p className="text-sm font-medium text-text-default">Small Models</p>
-                      <p className="text-xs text-text-muted mt-1">Lightweight, fast inference</p>
-                    </button>
-                  </div>
-                </div>
+            {/* Browse by Category */}
+            <div>
+              <h3 className="text-sm font-medium text-text-default mb-3">Browse by Category</h3>
+              <div className="flex flex-col gap-2">
+                <button
+                  onClick={() => handleSuggestionClick('instruct')}
+                  className="p-3 text-left rounded-lg border border-border-subtle bg-background-default hover:border-blue-500/50 transition-colors"
+                >
+                  <p className="text-sm font-medium text-text-default">Instruct Models</p>
+                  <p className="text-xs text-text-muted mt-0.5">Fine-tuned for following instructions</p>
+                </button>
+                <button
+                  onClick={() => handleSuggestionClick('code')}
+                  className="p-3 text-left rounded-lg border border-border-subtle bg-background-default hover:border-blue-500/50 transition-colors"
+                >
+                  <p className="text-sm font-medium text-text-default">Code Models</p>
+                  <p className="text-xs text-text-muted mt-0.5">Optimized for programming tasks</p>
+                </button>
+                <button
+                  onClick={() => handleSuggestionClick('small')}
+                  className="p-3 text-left rounded-lg border border-border-subtle bg-background-default hover:border-blue-500/50 transition-colors"
+                >
+                  <p className="text-sm font-medium text-text-default">Small Models</p>
+                  <p className="text-xs text-text-muted mt-0.5">Lightweight, fast inference</p>
+                </button>
+              </div>
+            </div>
+
+            {/* Direct Download Section */}
+            <div className="border-t border-border-subtle pt-4">
+              <h4 className="text-sm font-medium text-text-default mb-2">Direct Download</h4>
+              <p className="text-xs text-text-muted mb-2">
+                Specify a model directly:
+              </p>
+              <div className="space-y-2">
+                <input
+                  type="text"
+                  value={directSpec}
+                  onChange={(e) => setDirectSpec(e.target.value)}
+                  placeholder="user/repo:quantization"
+                  className="w-full px-3 py-2 text-sm border border-border-subtle rounded-lg bg-background-default text-text-default placeholder:text-text-muted focus:outline-none focus:border-accent-primary"
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') startDirectDownload();
+                  }}
+                />
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="w-full"
+                  disabled={!directSpec.trim() || downloading.has(`direct:${directSpec}`)}
+                  onClick={startDirectDownload}
+                >
+                  {downloading.has(`direct:${directSpec}`) ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <>
+                      <Download className="w-4 h-4 mr-1" />
+                      Download
+                    </>
+                  )}
+                </Button>
+              </div>
+            </div>
+          </div>
+
+          {/* Right Side - Search Results */}
+          <div className="flex-1 overflow-y-auto p-6">
+            {/* Error Message */}
+            {error && !searching && (
+              <p className="text-sm text-text-muted mb-4">{error}</p>
+            )}
+
+            {/* Empty State */}
+            {!query && results.length === 0 && (
+              <div className="flex flex-col items-center justify-center h-full text-center">
+                <Search className="w-16 h-16 text-text-muted mb-4 opacity-30" />
+                <p className="text-lg font-medium text-text-default mb-2">Search for models</p>
+                <p className="text-sm text-text-muted max-w-md">
+                  Use the search bar or select a popular model from the left to browse available GGUF models on HuggingFace.
+                </p>
               </div>
             )}
 
-            {/* Error Message */}
-            {error && !searching && (
-              <p className="text-sm text-text-muted">{error}</p>
+            {/* Searching State */}
+            {searching && results.length === 0 && (
+              <div className="flex flex-col items-center justify-center h-full text-center">
+                <Loader2 className="w-8 h-8 text-text-muted mb-4 animate-spin" />
+                <p className="text-sm text-text-muted">Searching HuggingFace...</p>
+              </div>
             )}
 
             {/* Search Results */}
             {results.length > 0 && (
               <div className="space-y-2">
+                <p className="text-xs text-text-muted mb-3">{results.length} models found</p>
                 {results.map((model) => {
                   const isExpanded = expandedRepo === model.repo_id;
                   const data = repoData[model.repo_id];
@@ -399,41 +456,6 @@ export function HuggingFaceSearchModal({ isOpen, onClose, onDownloadStarted }: H
                 })}
               </div>
             )}
-
-            {/* Direct Download Section */}
-            <div className="border-t border-border-subtle pt-4 mt-6">
-              <h4 className="text-sm font-medium text-text-default mb-2">Direct Download</h4>
-              <p className="text-xs text-text-muted mb-2">
-                Specify a model directly: <code className="bg-background-subtle px-1 rounded">user/repo:quantization</code>
-              </p>
-              <div className="flex gap-2">
-                <input
-                  type="text"
-                  value={directSpec}
-                  onChange={(e) => setDirectSpec(e.target.value)}
-                  placeholder="bartowski/Llama-3.2-1B-Instruct-GGUF:Q4_K_M"
-                  className="flex-1 px-3 py-2 text-sm border border-border-subtle rounded-lg bg-background-default text-text-default placeholder:text-text-muted focus:outline-none focus:border-accent-primary"
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') startDirectDownload();
-                  }}
-                />
-                <Button
-                  variant="outline"
-                  size="sm"
-                  disabled={!directSpec.trim() || downloading.has(`direct:${directSpec}`)}
-                  onClick={startDirectDownload}
-                >
-                  {downloading.has(`direct:${directSpec}`) ? (
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                  ) : (
-                    <>
-                      <Download className="w-4 h-4 mr-1" />
-                      Download
-                    </>
-                  )}
-                </Button>
-              </div>
-            </div>
           </div>
         </div>
       </DialogContent>
