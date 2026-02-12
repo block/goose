@@ -305,7 +305,7 @@ impl WhisperTranscriber {
 
         let (mel_tensor, actual_content_frames) = self.prepare_audio_input(audio_data)?;
         let (_, _, padded_frames) = mel_tensor.dims3()?;
-        // Use actual content frames (from PCM length), not padded mel frames
+
         let content_frames = actual_content_frames.min(padded_frames);
         let audio_duration_secs = (content_frames * 160) as f32 / 16000.0;
         tracing::debug!(
@@ -382,8 +382,6 @@ impl WhisperTranscriber {
         let pcm_samples = pcm_data.len();
         tracing::debug!(pcm_samples, "converting PCM to mel spectrogram");
 
-        // Calculate actual content frames from PCM length (HOP_LENGTH = 160)
-        // pcm_to_mel pads to 30 seconds, but we only want to process actual audio
         let actual_content_frames = pcm_samples / 160;
 
         let mel = audio::pcm_to_mel(&self.config, &pcm_data, &self.mel_filters);
@@ -487,8 +485,6 @@ impl WhisperTranscriber {
                 break;
             }
 
-            // Detect repeating patterns by looking for the current token earlier in the sequence
-            // and checking if the preceding tokens also match (i.e., a repeated phrase)
             if let Some(truncate_at) = self.detect_repetition(&tokens) {
                 tracing::debug!(
                     truncate_at,
@@ -500,7 +496,6 @@ impl WhisperTranscriber {
             }
         }
 
-        // Log all generated tokens for debugging
         tracing::debug!(
             all_tokens = ?&tokens[3..],
             "all tokens generated in segment"
@@ -613,9 +608,6 @@ impl WhisperTranscriber {
             .collect();
 
         if !timestamp_tokens.is_empty() {
-            // Timestamps shouldn't decrease; forbid timestamp tokens smaller than or equal to the last.
-            // When last_was_timestamp && !penultimate_was_timestamp, we just output an "end" timestamp
-            // after text, so we need to advance past it to prevent repeating.
             let timestamp_last = timestamp_tokens.last().unwrap() + 1;
 
             for i in 0..vocab_size {
