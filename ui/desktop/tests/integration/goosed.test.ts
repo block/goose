@@ -16,14 +16,27 @@ import {
   listSessions,
   getSession,
   updateAgentProvider,
-  upsertConfig,
 } from '../../src/api';
+
+function getPathEntries(): string[] {
+  const path = process.env.PATH;
+
+  if (!path) {
+    return [];
+  }
+
+  const delimiter = process.platform === 'win32' ? ';' : ':';
+
+  return path.split(delimiter).filter((entry) => entry.length > 0);
+}
+
+const CONSTRAINED_PATH = '/usr/bin:/bin:/usr/sbin:/sbin';
 
 describe('goosed API integration tests', () => {
   let ctx: GoosedTestContext;
 
   beforeAll(async () => {
-    ctx = await startGoosed();
+    ctx = await startGoosed(CONSTRAINED_PATH);
   });
 
   afterAll(async () => {
@@ -162,7 +175,15 @@ describe('goosed API integration tests', () => {
       });
     });
 
-    it('should execute a tool and return results', async () => {
+    it('should see the full PATH when calling the developer tool', async () => {
+      const currentPath = getPathEntries();
+
+      // find a part of current path that is not in CONSTRAINED_PATH
+      const pathEntry = currentPath.find((entry) => !CONSTRAINED_PATH.includes(entry));
+      if (!pathEntry) {
+        expect.fail(`Could not find a path entry not in ${CONSTRAINED_PATH}`);
+      }
+
       // This test requires a configured provider
       // Check if GOOSE_PROVIDER is set in config, or use env var to configure it
       let configResponse = await readConfig({
@@ -241,11 +262,10 @@ describe('goosed API integration tests', () => {
 
       expect(sseResponse.status).toBe(200);
 
-      // Collect SSE events until the stream ends or timeout
-      const events: string[] = [];
       const reader = sseResponse.body?.getReader();
       const decoder = new TextDecoder();
 
+      let returnedPath: string = undefined;
       if (reader) {
         const timeout = setTimeout(() => reader.cancel(), 60000); // 60s timeout
 
@@ -255,15 +275,21 @@ describe('goosed API integration tests', () => {
             if (done) break;
 
             const chunk = decoder.decode(value, { stream: true });
-            events.push(chunk);
 
-            // Check if we got a complete response (look for assistant message with text)
-            const fullResponse = events.join('');
-            if (fullResponse.includes('"role":"assistant"') && fullResponse.includes('/usr')) {
-              // Got a response that includes PATH content
-              clearTimeout(timeout);
-              reader.cancel();
-              break;
+            try {
+              // remove data: prefix
+              const data = JSON.parse(chunk.replace(/^data:/, ''));
+              const output = data?.message?.content?.[0]?.toolResult?.value?.content?.[0]?.text;
+              if (output && output.includes('/usr')) {
+                // Got a response that includes PATH content
+                clearTimeout(timeout);
+                reader.cancel();
+                returnedPath = output;
+                break;
+              }
+            } catch {
+              // The response we care about is always a complete JSON object. Others will be
+              // incomplete, so we expect parsing errors.
             }
           }
         } catch {
@@ -272,30 +298,15 @@ describe('goosed API integration tests', () => {
         clearTimeout(timeout);
       }
 
-      // Verify we received events
-      expect(events.length).toBeGreaterThan(0);
-
-      // The response should contain PATH-like content (directories separated by colons)
-      const fullResponse = events.join('');
-      console.log(fullResponse);
-
-      // Should have received some SSE data events
-      expect(fullResponse).toContain('data:');
-
-      // If provider worked, we should see tool usage or response
-      // The response might contain the PATH or an error about the tool
-      const hasPathContent = fullResponse.includes('/usr') || fullResponse.includes('/bin');
-
-      // At minimum, we should have gotten some meaningful response
-      expect(hasPathContent).toBe(true);
-
-      // Cleanup
       await stopAgent({
         client: ctx.client,
         body: {
           session_id: sessionId,
         },
       });
+
+      expect(returnedPath, 'the agent should return a value for $PATH').toBeDefined();
+      expect(returnedPath, '$PATH should contain the expected entry').toContain(pathEntry);
     });
   });
 });

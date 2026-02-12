@@ -70,7 +70,7 @@ async function waitForServer(baseUrl: string, timeoutMs = 10000): Promise<void> 
   throw new Error(`Server at ${baseUrl} did not become ready within ${timeoutMs}ms`);
 }
 
-export async function startGoosed(): Promise<GoosedTestContext> {
+export async function startGoosed(path?: string): Promise<GoosedTestContext> {
   const port = getNextPort();
   const baseUrl = `http://127.0.0.1:${port}`;
   const goosedPath = findGoosedBinary();
@@ -78,6 +78,7 @@ export async function startGoosed(): Promise<GoosedTestContext> {
   const goosedProcess = spawn(goosedPath, ['agent'], {
     env: {
       ...process.env,
+      ...(path && { PATH: path }),
       GOOSE_PORT: port.toString(),
       GOOSE_SERVER__SECRET_KEY: TEST_SECRET_KEY,
     },
