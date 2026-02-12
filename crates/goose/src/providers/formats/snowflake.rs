@@ -38,7 +38,23 @@ pub fn format_messages(messages: &[Message]) -> Vec<Value> {
                         let text = result
                             .content
                             .iter()
-                            .filter_map(|c| c.as_text().map(|t| t.text.clone()))
+                            .filter_map(|c| {
+                                // Extract text from Text content
+                                if let Some(t) = c.as_text() {
+                                    return Some(t.text.clone());
+                                }
+                                // Extract text from Resource content (embedded text resources)
+                                if let Some(r) = c.as_resource() {
+                                    if let rmcp::model::ResourceContents::TextResourceContents {
+                                        text,
+                                        ..
+                                    } = &r.resource
+                                    {
+                                        return Some(text.clone());
+                                    }
+                                }
+                                None
+                            })
                             .collect::<Vec<_>>()
                             .join("\n");
 
