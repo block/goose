@@ -98,6 +98,20 @@ async function configureProxy() {
 
 if (started) app.quit();
 
+// Accept self-signed certificates from the local goosed server (127.0.0.1).
+// goosed generates a fresh self-signed TLS cert on every launch so that
+// MCP app iframes are served over HTTPS and get a secure context.
+// Registered at the top level so it's active before any createChat() call.
+app.on('certificate-error', (event, _webContents, url, _error, _certificate, callback) => {
+  const parsed = new URL(url);
+  if (parsed.hostname === '127.0.0.1' || parsed.hostname === 'localhost') {
+    event.preventDefault();
+    callback(true);
+  } else {
+    callback(false);
+  }
+});
+
 if (process.env.ENABLE_PLAYWRIGHT) {
   const debugPort = process.env.PLAYWRIGHT_DEBUG_PORT || '9222';
   console.log(`[Main] Enabling Playwright remote debugging on port ${debugPort}`);
@@ -1633,19 +1647,6 @@ async function appMain() {
   await ensureWinShims();
 
   registerUpdateIpcHandlers();
-
-  // Accept self-signed certificates from the local goosed server (127.0.0.1).
-  // goosed generates a fresh self-signed TLS cert on every launch so that
-  // MCP app iframes are served over HTTPS and get a secure context.
-  app.on('certificate-error', (event, _webContents, url, _error, _certificate, callback) => {
-    const parsed = new URL(url);
-    if (parsed.hostname === '127.0.0.1' || parsed.hostname === 'localhost') {
-      event.preventDefault();
-      callback(true);
-    } else {
-      callback(false);
-    }
-  });
 
   // Handle microphone permission requests
   session.defaultSession.setPermissionRequestHandler((_webContents, permission, callback) => {
