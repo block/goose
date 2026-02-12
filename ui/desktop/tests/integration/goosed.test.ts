@@ -17,17 +17,22 @@ import {
   getSession,
   updateAgentProvider,
 } from '../../src/api';
+import { execSync } from 'child_process';
 
-function getPathEntries(): string[] {
-  const path = process.env.PATH;
+function getUserPath(): string[] {
+  try {
+    const userShell = process.env.SHELL || '/bin/bash';
+    const path = execSync(`${userShell} -i -c 'echo $PATH'`, {
+      encoding: 'utf-8',
+      timeout: 5000,
+    }).trim();
 
-  if (!path) {
-    return [];
+    const delimiter = process.platform === 'win32' ? ';' : ':';
+    return path.split(delimiter).filter((entry: string) => entry.length > 0);
+  } catch (error) {
+    console.error('Error executing shell:', error);
+    throw error;
   }
-
-  const delimiter = process.platform === 'win32' ? ';' : ':';
-
-  return path.split(delimiter).filter((entry) => entry.length > 0);
 }
 
 const CONSTRAINED_PATH = '/usr/bin:/bin:/usr/sbin:/sbin';
@@ -88,8 +93,6 @@ describe('goosed API integration tests', () => {
       expect(session.id).toBeDefined();
       expect(session.name).toBeDefined();
 
-      // Verify we can retrieve the session by ID
-      // Note: path parameter is 'session_id' not 'id'
       const getResponse = await getSession({
         client: ctx.client,
         path: {
@@ -148,25 +151,19 @@ describe('goosed API integration tests', () => {
         }),
       });
 
-      // The endpoint should accept the request format
-      // 200 = success, the SSE stream will contain the response or error
       expect(sseResponse.status).toBe(200);
 
-      // Read just enough to verify the stream works
       const reader = sseResponse.body?.getReader();
       if (reader) {
-        // Cancel after a short read - we just want to verify the endpoint works
         setTimeout(() => reader.cancel(), 1000);
         try {
           const { value } = await reader.read();
-          // We should get some data back (either response or error about provider)
           expect(value).toBeDefined();
         } catch {
           // Reader was cancelled, that's fine
         }
       }
 
-      // Cleanup - may fail if agent wasn't fully instantiated
       await stopAgent({
         client: ctx.client,
         body: {
@@ -176,7 +173,7 @@ describe('goosed API integration tests', () => {
     });
 
     it('should see the full PATH when calling the developer tool', async () => {
-      const currentPath = getPathEntries();
+      const currentPath = getUserPath();
 
       // find a part of current path that is not in CONSTRAINED_PATH
       const pathEntry = currentPath.find((entry) => !CONSTRAINED_PATH.includes(entry));
@@ -184,8 +181,6 @@ describe('goosed API integration tests', () => {
         expect.fail(`Could not find a path entry not in ${CONSTRAINED_PATH}`);
       }
 
-      // This test requires a configured provider
-      // Check if GOOSE_PROVIDER is set in config, or use env var to configure it
       let configResponse = await readConfig({
         client: ctx.client,
         body: {
@@ -194,7 +189,6 @@ describe('goosed API integration tests', () => {
         },
       });
 
-      // response.data is the config value directly (or null/undefined if not set)
       let providerName = configResponse.data as string | null | undefined;
 
       if (!providerName) {
@@ -202,7 +196,6 @@ describe('goosed API integration tests', () => {
         return;
       }
 
-      // Read model from config (or use default)
       const modelResponse = await readConfig({
         client: ctx.client,
         body: {
@@ -212,7 +205,6 @@ describe('goosed API integration tests', () => {
       });
       const modelName = (modelResponse.data as string | null) || undefined;
 
-      // Start a session
       const startResponse = await startAgent({
         client: ctx.client,
         body: {
@@ -222,7 +214,6 @@ describe('goosed API integration tests', () => {
       expect(startResponse.response.ok).toBe(true);
       const sessionId = startResponse.data!.id;
 
-      // Configure the provider (and optionally model) for this session
       const providerResponse = await updateAgentProvider({
         client: ctx.client,
         body: {
@@ -233,7 +224,6 @@ describe('goosed API integration tests', () => {
       });
       expect(providerResponse.response.ok).toBe(true);
 
-      // Send a message that requires tool use
       const sseResponse = await fetch(`${ctx.baseUrl}/reply`, {
         method: 'POST',
         headers: {
@@ -265,7 +255,7 @@ describe('goosed API integration tests', () => {
       const reader = sseResponse.body?.getReader();
       const decoder = new TextDecoder();
 
-      let returnedPath: string = undefined;
+      let returnedPath: string | undefined = undefined;
       if (reader) {
         const timeout = setTimeout(() => reader.cancel(), 60000); // 60s timeout
 
@@ -277,11 +267,9 @@ describe('goosed API integration tests', () => {
             const chunk = decoder.decode(value, { stream: true });
 
             try {
-              // remove data: prefix
               const data = JSON.parse(chunk.replace(/^data:/, ''));
               const output = data?.message?.content?.[0]?.toolResult?.value?.content?.[0]?.text;
               if (output && output.includes('/usr')) {
-                // Got a response that includes PATH content
                 clearTimeout(timeout);
                 reader.cancel();
                 returnedPath = output;
