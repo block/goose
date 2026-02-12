@@ -54,6 +54,13 @@ import { usePageViewTracking } from './hooks/useAnalytics';
 import { trackOnboardingCompleted, trackErrorWithContext } from './utils/analytics';
 import { AppEvents } from './constants/events';
 import { registerPlatformEventHandlers } from './utils/platform_events';
+import {
+  addActiveSession,
+  clearDeletedSessionFromCreatedDetail,
+  clearInitialMessage,
+  markSessionDeleted,
+  removeActiveSession,
+} from './utils/activeSessions';
 
 function PageViewTracker() {
   usePageViewTracking();
@@ -98,6 +105,9 @@ const PairRouteWrapper = ({
             allExtensions: extensionsList,
           });
 
+          window.dispatchEvent(
+            new CustomEvent(AppEvents.SESSION_CREATED, { detail: { session: newSession } })
+          );
           window.dispatchEvent(
             new CustomEvent(AppEvents.ADD_ACTIVE_SESSION, {
               detail: {
@@ -347,6 +357,9 @@ export function AppInner() {
     Array<{ sessionId: string; initialMessage?: UserInput }>
   >([]);
 
+  // Track deleted session IDs to prevent resurrection from stale URL params or PairRouteWrapper
+  const deletedSessionIdsRef = useRef<Set<string>>(new Set());
+
   useEffect(() => {
     const handleAddActiveSession = (event: Event) => {
       const { sessionId, initialMessage } = (
@@ -356,43 +369,43 @@ export function AppInner() {
         }>
       ).detail;
 
-      setActiveSessions((prev) => {
-        const existingIndex = prev.findIndex((s) => s.sessionId === sessionId);
-
-        if (existingIndex !== -1) {
-          // Session exists - move to end of LRU list (most recently used)
-          const existing = prev[existingIndex];
-          return [...prev.slice(0, existingIndex), ...prev.slice(existingIndex + 1), existing];
-        }
-
-        // New session - add to end with LRU eviction if needed
-        const newSession = { sessionId, initialMessage };
-        const updated = [...prev, newSession];
-        if (updated.length > MAX_ACTIVE_SESSIONS) {
-          return updated.slice(updated.length - MAX_ACTIVE_SESSIONS);
-        }
-        return updated;
-      });
+      setActiveSessions((prev) =>
+        addActiveSession(
+          prev,
+          { sessionId, initialMessage },
+          deletedSessionIdsRef.current,
+          MAX_ACTIVE_SESSIONS
+        )
+      );
     };
 
     const handleClearInitialMessage = (event: Event) => {
       const { sessionId } = (event as CustomEvent<{ sessionId: string }>).detail;
 
-      setActiveSessions((prev) => {
-        return prev.map((session) => {
-          if (session.sessionId === sessionId) {
-            return { ...session, initialMessage: undefined };
-          }
-          return session;
-        });
-      });
+      setActiveSessions((prev) => clearInitialMessage(prev, sessionId));
+    };
+
+    const handleSessionDeleted = (event: Event) => {
+      const { sessionId } = (event as CustomEvent<{ sessionId: string }>).detail;
+      markSessionDeleted(deletedSessionIdsRef.current, sessionId);
+      setActiveSessions((prev) => removeActiveSession(prev, sessionId));
+    };
+
+    const handleSessionCreated = (event: Event) => {
+      const detail = (event as CustomEvent<{ session?: { id?: string }; sessionId?: string }>)
+        .detail;
+      clearDeletedSessionFromCreatedDetail(deletedSessionIdsRef.current, detail);
     };
 
     window.addEventListener(AppEvents.ADD_ACTIVE_SESSION, handleAddActiveSession);
     window.addEventListener(AppEvents.CLEAR_INITIAL_MESSAGE, handleClearInitialMessage);
+    window.addEventListener(AppEvents.SESSION_DELETED, handleSessionDeleted);
+    window.addEventListener(AppEvents.SESSION_CREATED, handleSessionCreated);
     return () => {
       window.removeEventListener(AppEvents.ADD_ACTIVE_SESSION, handleAddActiveSession);
       window.removeEventListener(AppEvents.CLEAR_INITIAL_MESSAGE, handleClearInitialMessage);
+      window.removeEventListener(AppEvents.SESSION_DELETED, handleSessionDeleted);
+      window.removeEventListener(AppEvents.SESSION_CREATED, handleSessionCreated);
     };
   }, []);
 
