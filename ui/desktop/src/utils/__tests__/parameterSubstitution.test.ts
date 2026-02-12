@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { substituteParameters } from '../parameterSubtitution';
+import { substituteParameters } from '../parameterSubstitution';
 
 describe('providerUtils', () => {
   describe('substituteParameters', () => {
