@@ -6,7 +6,7 @@ sidebar_label: Custom Distributions
 
 # Custom Distributions
 
-goose is designed to be forked and customized. You can create your own "distro" of goose — preconfigured with specific providers, bundled extensions, custom branding, and tailored workflows for your organization or audience.
+goose is designed to be forked and customized. You can create your own "distro" of goose preconfigured with specific providers, bundled extensions, custom branding, and tailored workflows for your organization or audience.
 
 ## What you can customize
 
