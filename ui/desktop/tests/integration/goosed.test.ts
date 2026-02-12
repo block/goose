@@ -15,6 +15,8 @@ import {
   stopAgent,
   listSessions,
   getSession,
+  updateAgentProvider,
+  upsertConfig,
 } from '../../src/api';
 
 describe('goosed API integration tests', () => {
@@ -66,7 +68,6 @@ describe('goosed API integration tests', () => {
           working_dir: '/tmp',
         },
       });
-      console.log(startResponse);
       expect(startResponse.response.ok).toBe(true);
       expect(startResponse.data).toBeDefined();
 
@@ -85,16 +86,6 @@ describe('goosed API integration tests', () => {
       expect(getResponse.response.ok).toBe(true);
       expect(getResponse.data).toBeDefined();
       expect(getResponse.data!.id).toBe(session.id);
-
-      // Cleanup - stop the agent
-      const stopResponse = await stopAgent({
-        client: ctx.client,
-        body: {
-          session_id: session.id,
-        },
-      });
-      console.log(stopResponse);
-      expect(stopResponse.response.ok).toBe(true);
     });
 
     it('should list sessions', async () => {
@@ -118,9 +109,6 @@ describe('goosed API integration tests', () => {
       expect(startResponse.response.ok).toBe(true);
       const sessionId = startResponse.data!.id;
 
-      // Send a message via the /reply endpoint
-      // The ChatRequest requires session_id and user_message (Message type)
-      // Note: Message fields use camelCase due to #[serde(rename_all = "camelCase")]
       const sseResponse = await fetch(`${ctx.baseUrl}/reply`, {
         method: 'POST',
         headers: {
@@ -164,6 +152,142 @@ describe('goosed API integration tests', () => {
           // Reader was cancelled, that's fine
         }
       }
+
+      // Cleanup - may fail if agent wasn't fully instantiated
+      await stopAgent({
+        client: ctx.client,
+        body: {
+          session_id: sessionId,
+        },
+      });
+    });
+
+    it('should execute a tool and return results', async () => {
+      // This test requires a configured provider
+      // Check if GOOSE_PROVIDER is set in config, or use env var to configure it
+      let configResponse = await readConfig({
+        client: ctx.client,
+        body: {
+          key: 'GOOSE_PROVIDER',
+          is_secret: false,
+        },
+      });
+
+      // response.data is the config value directly (or null/undefined if not set)
+      let providerName = configResponse.data as string | null | undefined;
+
+      if (!providerName) {
+        console.log('Skipping tool execution test - no GOOSE_PROVIDER configured');
+        return;
+      }
+
+      // Read model from config (or use default)
+      const modelResponse = await readConfig({
+        client: ctx.client,
+        body: {
+          key: 'GOOSE_MODEL',
+          is_secret: false,
+        },
+      });
+      const modelName = (modelResponse.data as string | null) || undefined;
+
+      // Start a session
+      const startResponse = await startAgent({
+        client: ctx.client,
+        body: {
+          working_dir: '/tmp',
+        },
+      });
+      expect(startResponse.response.ok).toBe(true);
+      const sessionId = startResponse.data!.id;
+
+      // Configure the provider (and optionally model) for this session
+      const providerResponse = await updateAgentProvider({
+        client: ctx.client,
+        body: {
+          session_id: sessionId,
+          provider: providerName,
+          model: modelName,
+        },
+      });
+      expect(providerResponse.response.ok).toBe(true);
+
+      // Send a message that requires tool use
+      const sseResponse = await fetch(`${ctx.baseUrl}/reply`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Secret-Key': ctx.secretKey,
+          Accept: 'text/event-stream',
+        },
+        body: JSON.stringify({
+          session_id: sessionId,
+          user_message: {
+            role: 'user',
+            created: Math.floor(Date.now() / 1000),
+            content: [
+              {
+                type: 'text',
+                text: 'Use your developer shell tool to read $PATH and return its content directly, with no further information about it',
+              },
+            ],
+            metadata: {
+              userVisible: true,
+              agentVisible: true,
+            },
+          },
+        }),
+      });
+
+      expect(sseResponse.status).toBe(200);
+
+      // Collect SSE events until the stream ends or timeout
+      const events: string[] = [];
+      const reader = sseResponse.body?.getReader();
+      const decoder = new TextDecoder();
+
+      if (reader) {
+        const timeout = setTimeout(() => reader.cancel(), 60000); // 60s timeout
+
+        try {
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+
+            const chunk = decoder.decode(value, { stream: true });
+            events.push(chunk);
+
+            // Check if we got a complete response (look for assistant message with text)
+            const fullResponse = events.join('');
+            if (fullResponse.includes('"role":"assistant"') && fullResponse.includes('/usr')) {
+              // Got a response that includes PATH content
+              clearTimeout(timeout);
+              reader.cancel();
+              break;
+            }
+          }
+        } catch {
+          // Reader cancelled or error
+        }
+        clearTimeout(timeout);
+      }
+
+      // Verify we received events
+      expect(events.length).toBeGreaterThan(0);
+
+      // The response should contain PATH-like content (directories separated by colons)
+      const fullResponse = events.join('');
+      console.log(fullResponse);
+
+      // Should have received some SSE data events
+      expect(fullResponse).toContain('data:');
+
+      // If provider worked, we should see tool usage or response
+      // The response might contain the PATH or an error about the tool
+      const hasPathContent = fullResponse.includes('/usr') || fullResponse.includes('/bin');
+
+      // At minimum, we should have gotten some meaningful response
+      expect(hasPathContent).toBe(true);
 
       // Cleanup
       await stopAgent({

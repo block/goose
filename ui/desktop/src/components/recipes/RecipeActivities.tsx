@@ -1,7 +1,7 @@
 import { Card } from '../ui/card';
 import GooseLogo from '../GooseLogo';
 import MarkdownContent from '../MarkdownContent';
-import { substituteParameters } from '../../utils/providerUtils';
+import { substituteParameters } from '../../utils/parameterSubtitution';
 
 interface RecipeActivitiesProps {
   append: (text: string) => void;
