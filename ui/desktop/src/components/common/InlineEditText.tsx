@@ -14,6 +14,9 @@ interface InlineEditTextProps {
   onEditEnd?: () => void;
   allowEmpty?: boolean;
   singleClickEdit?: boolean;
+  /** Increment this value to programmatically trigger edit mode */
+  editTrigger?: number;
+  testId?: string;
 }
 
 export const InlineEditText: React.FC<InlineEditTextProps> = ({
@@ -28,6 +31,8 @@ export const InlineEditText: React.FC<InlineEditTextProps> = ({
   onEditEnd,
   allowEmpty = false,
   singleClickEdit = true,
+  editTrigger = 0,
+  testId,
 }) => {
   const [isEditing, setIsEditing] = useState(false);
   const [editValue, setEditValue] = useState(value);
@@ -48,6 +53,17 @@ export const InlineEditText: React.FC<InlineEditTextProps> = ({
       inputRef.current.select();
     }
   }, [isEditing]);
+
+  // Allow external triggers to enter edit mode (e.g., from a context menu)
+  useEffect(() => {
+    if (editTrigger > 0 && !isEditing && !disabled && !isSaving) {
+      setIsEditing(true);
+      setEditValue(value);
+      onEditStart?.();
+    }
+    // Only react to editTrigger changes, not other deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [editTrigger]);
 
   const handleStartEdit = useCallback(() => {
     if (disabled || isSaving) return;
@@ -115,12 +131,9 @@ export const InlineEditText: React.FC<InlineEditTextProps> = ({
     }
   }, [handleSave, isSaving]);
 
-  const handleChange = useCallback(
-    (e: React.ChangeEvent<HTMLInputElement>) => {
-      setEditValue(e.target.value);
-    },
-    []
-  );
+  const handleChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    setEditValue(e.target.value);
+  }, []);
 
   const handleClick = useCallback(
     (e: React.MouseEvent) => {
@@ -146,6 +159,7 @@ export const InlineEditText: React.FC<InlineEditTextProps> = ({
     return (
       <input
         ref={inputRef}
+        data-testid={testId ? `${testId}-input` : undefined}
         type="text"
         value={editValue}
         onChange={handleChange}
@@ -169,6 +183,7 @@ export const InlineEditText: React.FC<InlineEditTextProps> = ({
 
   return (
     <div
+      data-testid={testId}
       className={`
         cursor-pointer px-2 py-1 rounded
         hover:bg-background-hover
