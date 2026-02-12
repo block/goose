@@ -307,247 +307,48 @@ test.describe('Goose App', () => {
         });
       });
 
-      test.describe('MCP Integration', () => {
-        test('running quotes MCP server integration', async () => {
-          console.log(`Testing Running Quotes MCP server integration with ${provider.name}...`);
+      test('MCP integration - add extension and use tool', async () => {
+          // Navigate to Extensions via sidebar
+          await mainWindow.getByTestId('sidebar-extensions-button').click();
 
-          // Create test-results directory if it doesn't exist
-          const fs = require('fs');
-          if (!fs.existsSync('test-results')) {
-            fs.mkdirSync('test-results', { recursive: true });
-          }
+          // Add custom extension
+          await mainWindow.getByRole('button', { name: 'Add custom extension' }).click();
 
-          try {
-            // Reload the page to ensure settings are fresh
-            await mainWindow.reload();
-            // Try to wait for networkidle, but don't fail if it times out due to MCP activity
-            try {
-              await mainWindow.waitForLoadState('networkidle', { timeout: 10000 });
-            } catch (error) {
-              console.log('NetworkIdle timeout (likely due to MCP activity), continuing with test...');
-            }
-            await mainWindow.waitForLoadState('domcontentloaded');
+          // Fill the extension form
+          await mainWindow.getByPlaceholder('Enter extension name...').fill('Running Quotes');
+          await mainWindow.getByPlaceholder('Optional description...').fill('Inspirational running quotes MCP server');
+          const mcpScriptPath = join(__dirname, 'basic-mcp.ts');
+          await mainWindow.getByPlaceholder('e.g. npx -y @modelcontextprotocol/my-extension <filepath>').fill(`node ${mcpScriptPath}`);
 
-            // Wait for React app to be ready
-            await mainWindow.waitForFunction(() => {
-              const root = document.getElementById('root');
-              return root && root.children.length > 0;
-            });
+          // Submit
+          await mainWindow.getByTestId('extension-submit-btn').click();
 
-            // Take screenshot of initial state
-            await mainWindow.screenshot({ path: `test-results/${provider.name.toLowerCase()}-initial-state.png` });
+          // Wait for the extension to appear and be enabled
+          await mainWindow.locator('#extension-running-quotes').waitFor({ timeout: 30000 });
+          await expect(
+            mainWindow.locator('#extension-running-quotes button[role="switch"][data-state="checked"]')
+          ).toBeVisible({ timeout: 10000 });
 
-            // Navigate to Extensions via sidebar
-            console.log('Navigating to Extensions...');
-            const extensionsButton = await mainWindow.waitForSelector('[data-testid="sidebar-extensions-button"]', {
-              timeout: 5000,
-              state: 'visible'
-            });
-            await extensionsButton.click();
+          // Navigate back to home
+          await mainWindow.getByTestId('sidebar-home-button').click();
 
-            // Wait for extensions page to load
-            await mainWindow.waitForTimeout(1000);
-
-            // Look for Running Quotes extension card
-            console.log('Looking for existing Running Quotes extension...');
-            const existingExtension = await mainWindow.$('div.flex:has-text("Running Quotes")');
-
-            if (existingExtension) {
-              console.log('Found existing Running Quotes extension, removing it...');
-
-              // Find and click the settings gear icon next to Running Quotes
-              const settingsButton = await existingExtension.$('button[aria-label="Extension settings"]');
-              if (settingsButton) {
-                await settingsButton.click();
-
-                // Wait for modal to appear
-                await mainWindow.waitForTimeout(500);
-
-                // Click the Remove Extension button
-                const removeButton = await mainWindow.waitForSelector('button:has-text("Remove Extension")', {
-                  timeout: 2000,
-                  state: 'visible'
-                });
-                await removeButton.click();
-
-                // Wait for confirmation modal
-                await mainWindow.waitForTimeout(500);
-
-                // Click the Remove button in confirmation dialog
-                const confirmButton = await mainWindow.waitForSelector('button:has-text("Remove")', {
-                  timeout: 2000,
-                  state: 'visible'
-                });
-                await confirmButton.click();
-
-                // Wait for extension to be removed
-                await mainWindow.waitForTimeout(1000);
-              }
-            }
-
-            // Now proceed with adding the extension
-            console.log('Proceeding with adding Running Quotes extension...');
-
-            // Click "Add custom extension" button
-            console.log('Looking for Add custom extension button...');
-            const addExtensionButton = await mainWindow.waitForSelector('button:has-text("Add custom extension")', {
-              timeout: 2000,
-              state: 'visible'
-            });
-
-            // Verify add extension button is visible
-            const isAddExtensionVisible = await addExtensionButton.isVisible();
-            console.log('Add custom extension button visible:', isAddExtensionVisible);
-
-            await addExtensionButton.click();
-            console.log('Clicked Add custom extension');
-
-            // Wait for modal and take screenshot
-            await mainWindow.waitForTimeout(1000);
-            await mainWindow.screenshot({ path: `test-results/${provider.name.toLowerCase()}-modal.png` });
-
-            // Fill the form
-            console.log('Filling form fields...');
-
-            // Fill Extension Name
-            const nameInput = await mainWindow.waitForSelector('input[placeholder="Enter extension name..."]', {
-              timeout: 2000,
-              state: 'visible'
-            });
-            await nameInput.fill('Running Quotes');
-
-            // Fill Description
-            const descriptionInput = await mainWindow.waitForSelector('input[placeholder="Optional description..."]', {
-              timeout: 2000,
-              state: 'visible'
-            });
-            await descriptionInput.fill('Inspirational running quotes MCP server');
-
-            // Fill Command
-            const mcpScriptPath = join(__dirname, 'basic-mcp.ts');
-            const commandInput = await mainWindow.waitForSelector('input[placeholder="e.g. npx -y @modelcontextprotocol/my-extension <filepath>"]', {
-              timeout: 2000,
-              state: 'visible'
-            });
-            await commandInput.fill(`node ${mcpScriptPath}`);
-
-            // Take screenshot of filled form
-            await mainWindow.screenshot({ path: `test-results/${provider.name.toLowerCase()}-filled-form.png` });
-
-            // Wait for any animations to complete
-            await mainWindow.waitForTimeout(1000);
-
-            // Click Add Extension button in modal footer
-            console.log('Looking for Add Extension button in modal...');
-            const modalAddButton = await mainWindow.waitForSelector('[data-testid="extension-submit-btn"]', {
-              timeout: 2000,
-              state: 'visible'
-            });
-
-            // Verify button is visible
-            const isModalAddButtonVisible = await modalAddButton.isVisible();
-            console.log('Add Extension button visible:', isModalAddButtonVisible);
-
-            // Click the button
-            await modalAddButton.click();
-
-            console.log('Clicked Add Extension button');
-
-            // Wait for the Running Quotes extension to appear in the list
-            // ExtensionItem renders <Card id="extension-running-quotes">
-            console.log('Waiting for Running Quotes extension to appear...');
-            try {
-              await mainWindow.waitForSelector(
-                '#extension-running-quotes',
-                {
-                  timeout: 30000,
-                  state: 'visible'
-                }
-              );
-
-              // Wait for the extension toggle to become checked (MCP server may take time to start)
-              const toggleButton = await mainWindow.waitForSelector(
-                '#extension-running-quotes button[role="switch"][data-state="checked"]',
-                { timeout: 10000, state: 'visible' }
-              ).catch(() => null);
-              const isEnabled = !!toggleButton;
-              console.log('Extension enabled:', isEnabled);
-
-              if (!isEnabled) {
-                throw new Error('Running Quotes extension was added but not enabled');
-              }
-
-              await mainWindow.screenshot({ path: `test-results/${provider.name.toLowerCase()}-extension-added.png` });
-              console.log('Extension added successfully');
-            } catch (error) {
-              console.error('Error verifying extension:', error);
-
-              // Get any error messages that might be visible
-              const errorElements = await mainWindow.$$eval('.text-red-500, .text-error',
-                elements => elements.map(el => el.textContent)
-              );
-              if (errorElements.length > 0) {
-                console.log('Found error messages:', errorElements);
-              }
-
-              throw error;
-            }
-
-            // Navigate back to home
-            const homeButton = await mainWindow.waitForSelector('[data-testid="sidebar-home-button"]');
-            await homeButton.click();
-            console.log('Navigated back to home');
-
-          } catch (error) {
-            // Take error screenshot and log details
-            await mainWindow.screenshot({ path: `test-results/${provider.name.toLowerCase()}-error.png` });
-
-            // Get page content
-            const pageContent = await mainWindow.evaluate(() => document.body.innerHTML);
-            console.log('Page content at error:', pageContent);
-
-            console.error('Test failed:', error);
-            throw error;
-          }
-        });
-
-        test('test running quotes functionality', async () => {
-          console.log(`Testing running quotes functionality with ${provider.name}...`);
-
-          // Find the chat input
-          const chatInput = await mainWindow.waitForSelector('[data-testid="chat-input"]');
-          expect(await chatInput.isVisible()).toBe(true);
-
-          // Type a message requesting a running quote
-          await chatInput.fill('Can you give me an inspirational running quote using the runningQuotes tool?');
-
-          // Take screenshot before sending
-          await mainWindow.screenshot({ path: `test-results/${provider.name.toLowerCase()}-before-quote-request.png` });
-
-          // Send message
+          // Send a message requesting a running quote
+          const chatInput = mainWindow.getByTestId('chat-input');
+          await chatInput.fill('Can you give me an inspirational running quote using the runningQuote tool?');
           await chatInput.press('Enter');
 
-          // Get the latest response
-          const response = await mainWindow.waitForSelector('.goose-message-tool', { timeout: 5000 });
-          expect(await response.isVisible()).toBe(true);
+          // Wait for goose to finish responding
+          await expect(mainWindow.getByTestId('loading-indicator')).toBeVisible({ timeout: 30000 });
+          await expect(mainWindow.getByTestId('loading-indicator')).toBeHidden({ timeout: 30000 });
 
-          // Click the Output dropdown to reveal the actual quote
-          await mainWindow.screenshot({ path: `test-results/${provider.name.toLowerCase()}-quote-response-debug.png` });
+          // Verify the response contains a known quote
+          const lastMessage = mainWindow.locator('.goose-message').last();
+          const outputText = await lastMessage.textContent();
 
-          // Now try to get the output content
-          const outputContent = await mainWindow.waitForSelector('.whitespace-pre-wrap', { timeout: 5000 });
-          const outputText = await outputContent.textContent();
-          console.log('Output text:', outputText);
-
-          // Take screenshot of expanded response
-          await mainWindow.screenshot({ path: `test-results/${provider.name.toLowerCase()}-quote-response.png` });
-
-          // Check if the output contains one of our known quotes
           const containsKnownQuote = runningQuotes.some(({ quote, author }) =>
             outputText.includes(`"${quote}" - ${author}`)
           );
           expect(containsKnownQuote).toBe(true);
-        });
       });
     });
   }
