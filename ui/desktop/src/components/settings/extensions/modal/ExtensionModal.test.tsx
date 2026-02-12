@@ -243,11 +243,8 @@ describe('ExtensionModal', () => {
     ]);
   });
 
-  it('masks header values by default (type=password)', async () => {
-    const mockOnSubmit = vi.fn();
-    const mockOnClose = vi.fn();
-
-    const initialData: ExtensionFormData = {
+  describe('header value masking', () => {
+    const headerMaskingData: ExtensionFormData = {
       name: 'Test Extension',
       description: 'An extension',
       type: 'streamable_http',
@@ -259,91 +256,49 @@ describe('ExtensionModal', () => {
       headers: [{ key: 'Authorization', value: 'Bearer secret123', isEdited: false }],
     };
 
-    render(
-      <ExtensionModal
-        title="Edit Extension"
-        initialData={initialData}
-        onClose={mockOnClose}
-        onSubmit={mockOnSubmit}
-        submitLabel="Save"
-        modalType="edit"
-      />
-    );
+    function renderWithHeaders() {
+      return render(
+        <ExtensionModal
+          title="Edit Extension"
+          initialData={headerMaskingData}
+          onClose={vi.fn()}
+          onSubmit={vi.fn()}
+          submitLabel="Save"
+          modalType="edit"
+        />
+      );
+    }
 
-    const headerValueInputs = screen.getAllByPlaceholderText('Value');
-    expect(headerValueInputs[0]).toHaveAttribute('type', 'password');
-  });
+    it('masks header values by default (type=password)', () => {
+      renderWithHeaders();
 
-  it('reveals header value when toggle is clicked', async () => {
-    const user = userEvent.setup();
-    const mockOnSubmit = vi.fn();
-    const mockOnClose = vi.fn();
+      const headerValueInputs = screen.getAllByPlaceholderText('Value');
+      expect(headerValueInputs[0]).toHaveAttribute('type', 'password');
+    });
 
-    const initialData: ExtensionFormData = {
-      name: 'Test Extension',
-      description: 'An extension',
-      type: 'streamable_http',
-      cmd: '',
-      endpoint: 'https://example.com/mcp',
-      enabled: true,
-      timeout: 300,
-      envVars: [],
-      headers: [{ key: 'Authorization', value: 'Bearer secret123', isEdited: false }],
-    };
+    it('reveals header value when toggle is clicked', async () => {
+      const user = userEvent.setup();
+      renderWithHeaders();
 
-    render(
-      <ExtensionModal
-        title="Edit Extension"
-        initialData={initialData}
-        onClose={mockOnClose}
-        onSubmit={mockOnSubmit}
-        submitLabel="Save"
-        modalType="edit"
-      />
-    );
+      const toggleButtons = screen.getAllByRole('button', { name: 'Show header value' });
+      await user.click(toggleButtons[0]);
 
-    const toggleButtons = screen.getAllByRole('button', { name: 'Show header value' });
-    await user.click(toggleButtons[0]);
+      const headerValueInputs = screen.getAllByPlaceholderText('Value');
+      expect(headerValueInputs[0]).toHaveAttribute('type', 'text');
+    });
 
-    const headerValueInputs = screen.getAllByPlaceholderText('Value');
-    expect(headerValueInputs[0]).toHaveAttribute('type', 'text');
-  });
+    it('hides header value when toggle is clicked again', async () => {
+      const user = userEvent.setup();
+      renderWithHeaders();
 
-  it('hides header value when toggle is clicked again', async () => {
-    const user = userEvent.setup();
-    const mockOnSubmit = vi.fn();
-    const mockOnClose = vi.fn();
+      const toggleButtons = screen.getAllByRole('button', { name: 'Show header value' });
+      await user.click(toggleButtons[0]);
 
-    const initialData: ExtensionFormData = {
-      name: 'Test Extension',
-      description: 'An extension',
-      type: 'streamable_http',
-      cmd: '',
-      endpoint: 'https://example.com/mcp',
-      enabled: true,
-      timeout: 300,
-      envVars: [],
-      headers: [{ key: 'Authorization', value: 'Bearer secret123', isEdited: false }],
-    };
+      const hideButtons = screen.getAllByRole('button', { name: 'Hide header value' });
+      await user.click(hideButtons[0]);
 
-    render(
-      <ExtensionModal
-        title="Edit Extension"
-        initialData={initialData}
-        onClose={mockOnClose}
-        onSubmit={mockOnSubmit}
-        submitLabel="Save"
-        modalType="edit"
-      />
-    );
-
-    const toggleButtons = screen.getAllByRole('button', { name: 'Show header value' });
-    await user.click(toggleButtons[0]);
-
-    const hideButtons = screen.getAllByRole('button', { name: 'Hide header value' });
-    await user.click(hideButtons[0]);
-
-    const headerValueInputs = screen.getAllByPlaceholderText('Value');
-    expect(headerValueInputs[0]).toHaveAttribute('type', 'password');
+      const headerValueInputs = screen.getAllByPlaceholderText('Value');
+      expect(headerValueInputs[0]).toHaveAttribute('type', 'password');
+    });
   });
 });
