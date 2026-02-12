@@ -1764,6 +1764,25 @@ mod tests {
             .as_text()
             .unwrap();
         assert!(user_content.text.contains("Hello, world!"));
+
+        // The assistant-audience content must be extractable via as_text()
+        let assistant_content = view_result
+            .content
+            .iter()
+            .find(|c| {
+                c.audience()
+                    .is_some_and(|roles| roles.contains(&Role::Assistant))
+            })
+            .expect("view should return content with Assistant audience");
+        assert!(
+            assistant_content.as_text().is_some(),
+            "assistant content must be RawContent::Text, not Resource"
+        );
+        assert!(assistant_content
+            .as_text()
+            .unwrap()
+            .text
+            .contains("Hello, world!"));
     }
 
     #[tokio::test]
