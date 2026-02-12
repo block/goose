@@ -124,7 +124,7 @@ jobs:
             Goose*.zip
             *.deb
             *.rpm
-            **/*.flatpak
+            *.flatpak
             download_cli.sh
 
       # Create/update the canary release
