@@ -51,7 +51,7 @@ describe('goosed API integration tests', () => {
   describe('health', () => {
     it('should respond to status endpoint', async () => {
       const response = await status({ client: ctx.client });
-      expect(response.response.ok).toBe(true);
+      expect(response.response).toBeOkResponse();
       expect(response.data).toBeDefined();
     });
   });
@@ -65,14 +65,14 @@ describe('goosed API integration tests', () => {
           is_secret: false,
         },
       });
-      expect(response.response.ok).toBe(true);
+      expect(response.response).toBeOkResponse();
     });
   });
 
   describe('providers', () => {
     it('should list available providers', async () => {
       const response = await providers({ client: ctx.client });
-      expect(response.response.ok).toBe(true);
+      expect(response.response).toBeOkResponse();
       expect(response.data).toBeDefined();
       expect(Array.isArray(response.data)).toBe(true);
     });
@@ -86,7 +86,7 @@ describe('goosed API integration tests', () => {
           working_dir: '/tmp',
         },
       });
-      expect(startResponse.response.ok).toBe(true);
+      expect(startResponse.response).toBeOkResponse();
       expect(startResponse.data).toBeDefined();
 
       const session = startResponse.data!;
@@ -99,14 +99,14 @@ describe('goosed API integration tests', () => {
           session_id: session.id,
         },
       });
-      expect(getResponse.response.ok).toBe(true);
+      expect(getResponse.response).toBeOkResponse();
       expect(getResponse.data).toBeDefined();
       expect(getResponse.data!.id).toBe(session.id);
     });
 
     it('should list sessions', async () => {
       const sessionsResponse = await listSessions({ client: ctx.client });
-      expect(sessionsResponse.response.ok).toBe(true);
+      expect(sessionsResponse.response).toBeOkResponse();
       expect(sessionsResponse.data).toBeDefined();
       expect(sessionsResponse.data!.sessions).toBeDefined();
       expect(Array.isArray(sessionsResponse.data!.sessions)).toBe(true);
@@ -122,7 +122,7 @@ describe('goosed API integration tests', () => {
           working_dir: '/tmp',
         },
       });
-      expect(startResponse.response.ok).toBe(true);
+      expect(startResponse.response).toBeOkResponse();
       const sessionId = startResponse.data!.id;
 
       const sseResponse = await fetch(`${ctx.baseUrl}/reply`, {
@@ -211,7 +211,7 @@ describe('goosed API integration tests', () => {
           working_dir: '/tmp',
         },
       });
-      expect(startResponse.response.ok).toBe(true);
+      expect(startResponse.response).toBeOkResponse();
       const sessionId = startResponse.data!.id;
 
       const providerResponse = await updateAgentProvider({
@@ -222,7 +222,7 @@ describe('goosed API integration tests', () => {
           model: modelName,
         },
       });
-      expect(providerResponse.response.ok).toBe(true);
+      expect(providerResponse.response).toBeOkResponse();
 
       const sseResponse = await fetch(`${ctx.baseUrl}/reply`, {
         method: 'POST',

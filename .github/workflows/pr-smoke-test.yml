@@ -272,6 +272,7 @@ jobs:
 
       - name: Run Integration Tests
         env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           GOOSED_BINARY: ../../target/debug/goosed
           GOOSE_PROVIDER: anthropic
           GOOSE_MODEL: claude-sonnet-4-5-20250929

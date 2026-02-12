@@ -14,6 +14,31 @@ import {
   waitForServer,
   buildGoosedEnv,
 } from '../../src/goosed';
+import { expect } from 'vitest';
+
+function stringifyResponse(response: Response) {
+  const details = {
+    ok: response.ok,
+    status: response.status,
+    statusText: response.statusText,
+    url: response.url,
+    headers: response.headers ? Object.fromEntries(response.headers) : undefined,
+  };
+  return JSON.stringify(details, null, 2);
+}
+
+expect.extend({
+  toBeOkResponse(response) {
+    const pass = response.ok === true;
+    return {
+      pass,
+      message: () =>
+        pass
+          ? 'expected response not to be ok'
+          : `expected response to be ok, got: ${stringifyResponse(response)}`,
+    };
+  },
+});
 
 const TEST_SECRET_KEY = 'test';
 
