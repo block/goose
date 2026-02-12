@@ -278,5 +278,5 @@ jobs:
           GOOSE_MODEL: claude-sonnet-4-5-20250929
         run: |
             echo 'export PATH=/some/fake/path:$PATH' >> $HOME/.bashrc
-            source ../../bin/activate-hermit && npm run test:integration
+            source ../../bin/activate-hermit && npm run test:integration:debug
         working-directory: ui/desktop

@@ -1029,9 +1029,13 @@ impl DeveloperServer {
         let mut command = configure_shell_command(&shell_config, command, working_dir.as_deref());
 
         if self.extend_path_with_shell {
+            tracing::info!("Extending PATH with shell directories");
             if let Err(e) = get_shell_path_dirs()
                 .await
-                .and_then(|dirs| join_paths(dirs).map_err(|e| anyhow!(e)))
+                .and_then(|dirs| {
+                    tracing::info!("Found shell directories: {:?}", dirs);
+                    join_paths(dirs).map_err(|e| anyhow!(e))
+                })
                 .map(|path| command.env("PATH", path))
             {
                 tracing::error!("Failed to extend PATH with shell directories: {}", e)
