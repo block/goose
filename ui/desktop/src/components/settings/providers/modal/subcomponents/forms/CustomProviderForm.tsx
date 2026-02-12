@@ -123,7 +123,7 @@ export default function CustomProviderForm({
       if (value.includes(' ')) {
         return;
       }
-            const normalizedValue = value.trim().toLowerCase();
+      const normalizedValue = value.trim().toLowerCase();
       const isDuplicate = headers.some(
         (h, i) => i !== index && h.key.trim().toLowerCase() === normalizedValue,
       );
@@ -131,7 +131,7 @@ export default function CustomProviderForm({
         return;
       }
       const updatedHeaders = [...headers];
-      updatedHeaders[index].key = normalizedValue;
+      updatedHeaders[index].key = value;
       setHeaders(updatedHeaders);
       return;
     }
@@ -172,13 +172,14 @@ export default function CustomProviderForm({
       .map((m) => m.trim())
       .filter((m) => m);
 
-    // Build headers object, including pending header input if valid
     let allHeaders = [...headers];
 
-    // Auto-add pending header input if both fields are filled and valid
     if (newHeaderKey.trim() && newHeaderValue.trim()) {
       const keyHasSpaces = newHeaderKey.includes(' ');
-      const isDuplicate = headers.some(h => h.key.trim() === newHeaderKey.trim());
+      const normalizedPendingKey = newHeaderKey.trim().toLowerCase();
+      const isDuplicate = headers.some(
+        (h) => h.key.trim().toLowerCase() === normalizedPendingKey,
+      );
 
       if (!keyHasSpaces && !isDuplicate) {
         allHeaders.push({ key: newHeaderKey, value: newHeaderValue });
@@ -203,7 +204,7 @@ export default function CustomProviderForm({
       models: modelList,
       supports_streaming: supportsStreaming,
       requires_auth: requiresApiKey,
-      headers: Object.keys(headersObject).length > 0 ? headersObject : undefined,
+      headers: headersObject,
     });
   };
 
