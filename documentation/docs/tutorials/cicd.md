@@ -174,7 +174,7 @@ steps:
 
 #### Pinning goose versions in CI/CD
 
-In CI/CD, we recommend pinning a specific goose version with `GOOSE_VERSION` for reproducible runs. This also avoids 404 errors if the `stable` tag or assets aren’t available in the runner environment.
+In CI/CD, we recommend pinning a specific goose version with `GOOSE_VERSION` for reproducible runs. This also avoids 404 errors when downloading the goose CLI binary assets if the `stable` release tag doesn’t include them.
 
 Relevant installer options for CI:
 - `GOOSE_VERSION`: the version to pin the install to (both `1.21.1` and `v1.21.1` formats are supported)

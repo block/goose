@@ -403,7 +403,7 @@ While core configurations are shared between interfaces, extensions have flexibi
 </Tabs>
 
 ## Pin a goose version in CI/CD
-In CI/CD (and other automated, non-interactive environments), pin a specific version with `GOOSE_VERSION` to make installs reproducible and avoid 404s if the stable tag/assets aren’t available.
+In CI/CD (and other automated, non-interactive environments), pin a specific version with `GOOSE_VERSION` to make installs reproducible and avoid 404s when downloading the goose CLI binary assets if the `stable` release tag doesn’t include them.
 
 See [CI/CD Environments](/docs/tutorials/cicd) for a complete example and usage details.
 
