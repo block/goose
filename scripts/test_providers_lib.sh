@@ -178,8 +178,6 @@ run_test_cases() {
   wait
 }
 
-# report_results
-# Result files use format: "success|message" or "failure|message"
 report_results() {
   echo ""
   echo "=== Test Results ==="
