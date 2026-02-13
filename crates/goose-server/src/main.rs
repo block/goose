@@ -7,7 +7,10 @@ mod routes;
 mod state;
 mod tunnel;
 
+use std::path::PathBuf;
+
 use clap::{Parser, Subcommand};
+use goose::agents::validate_extensions;
 use goose::config::paths::Paths;
 use goose_mcp::{
     mcp_server_runner::{serve, McpCommand},
@@ -30,6 +33,12 @@ enum Commands {
     Mcp {
         #[arg(value_parser = clap::value_parser!(McpCommand))]
         server: McpCommand,
+    },
+    /// Validate a bundled-extensions JSON file
+    #[command(name = "validate-extensions")]
+    ValidateExtensions {
+        /// Path to the bundled-extensions JSON file
+        path: PathBuf,
     },
 }
 
@@ -57,6 +66,22 @@ async fn main() -> anyhow::Result<()> {
                     )
                     .await?
                 }
+            }
+        }
+        Commands::ValidateExtensions { path } => {
+            let result = validate_extensions::validate_bundled_extensions(&path)?;
+            if result.errors.is_empty() {
+                println!("✓ All {} extensions validated successfully.", result.total);
+            } else {
+                eprintln!(
+                    "✗ Found {} error(s) in {} extension(s):\n",
+                    result.errors.len(),
+                    result.errors.len()
+                );
+                for (i, error) in result.errors.iter().enumerate() {
+                    eprintln!("  [{}] {}", i, error);
+                }
+                std::process::exit(1);
             }
         }
     }
