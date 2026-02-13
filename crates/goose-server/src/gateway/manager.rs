@@ -7,11 +7,25 @@ use tokio_util::sync::CancellationToken;
 use utoipa::ToSchema;
 
 use goose::config::paths::Paths;
+use goose::config::Config;
 use goose::execution::manager::AgentManager;
 
 use super::handler::GatewayHandler;
 use super::pairing::PairingStore;
 use super::{Gateway, GatewayConfig, PairingState, PlatformUser};
+
+const GATEWAY_CONFIGS_KEY: &str = "gateway_configs";
+
+fn secret_key_for(gateway_type: &str) -> String {
+    format!("gateway_platform_config_{}", gateway_type)
+}
+
+/// Serialized form stored in goose config (no secrets).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct SavedGatewayEntry {
+    gateway_type: String,
+    max_sessions: usize,
+}
 
 #[allow(dead_code)]
 pub struct GatewayInstance {
@@ -60,7 +74,70 @@ impl GatewayManager {
         &self.pairing_store
     }
 
+    /// Load saved gateway configs and start them. Called once at server startup.
+    pub async fn check_auto_start(&self) {
+        let configs = match Self::load_saved_configs() {
+            Ok(configs) => configs,
+            Err(e) => {
+                tracing::warn!(error = %e, "failed to load saved gateway configs");
+                return;
+            }
+        };
+
+        for config in configs {
+            let gateway = match super::create_gateway(&config) {
+                Ok(gw) => gw,
+                Err(e) => {
+                    tracing::error!(
+                        gateway = %config.gateway_type,
+                        error = %e,
+                        "failed to create saved gateway"
+                    );
+                    continue;
+                }
+            };
+
+            if let Err(e) = self.start_gateway_internal(config.clone(), gateway).await {
+                tracing::error!(
+                    gateway = %config.gateway_type,
+                    error = %e,
+                    "failed to auto-start gateway"
+                );
+            } else {
+                tracing::info!(gateway = %config.gateway_type, "gateway auto-started");
+            }
+        }
+    }
+
+    /// Start a gateway and persist its config for auto-start on next launch.
     pub async fn start_gateway(
+        &self,
+        config: GatewayConfig,
+        gateway: Arc<dyn Gateway>,
+    ) -> anyhow::Result<()> {
+        self.start_gateway_internal(config.clone(), gateway).await?;
+        Self::save_config(&config)?;
+        Ok(())
+    }
+
+    /// Stop a gateway and remove its persisted config.
+    pub async fn stop_gateway(&self, gateway_type: &str) -> anyhow::Result<()> {
+        let instance = self
+            .gateways
+            .write()
+            .await
+            .remove(gateway_type)
+            .ok_or_else(|| anyhow::anyhow!("Gateway '{}' is not running", gateway_type))?;
+
+        instance.cancel.cancel();
+        let _ = instance.handle.await;
+
+        Self::remove_saved_config(gateway_type);
+        tracing::info!(gateway = %gateway_type, "gateway stopped");
+        Ok(())
+    }
+
+    async fn start_gateway_internal(
         &self,
         config: GatewayConfig,
         gateway: Arc<dyn Gateway>,
@@ -99,21 +176,6 @@ impl GatewayManager {
         };
 
         self.gateways.write().await.insert(gw_type, instance);
-
-        Ok(())
-    }
-
-    pub async fn stop_gateway(&self, gateway_type: &str) -> anyhow::Result<()> {
-        let instance = self
-            .gateways
-            .write()
-            .await
-            .remove(gateway_type)
-            .ok_or_else(|| anyhow::anyhow!("Gateway '{}' is not running", gateway_type))?;
-
-        instance.cancel.cancel();
-        let _ = instance.handle.await;
-        tracing::info!(gateway = %gateway_type, "gateway stopped");
         Ok(())
     }
 
@@ -191,5 +253,84 @@ impl GatewayManager {
             .store_pending_code(&code, gateway_type, expires_at)
             .await?;
         Ok((code, expires_at))
+    }
+
+    // --- Config persistence ---
+
+    fn load_saved_configs() -> anyhow::Result<Vec<GatewayConfig>> {
+        let config = Config::global();
+
+        let entries: Vec<SavedGatewayEntry> = match config.get_param(GATEWAY_CONFIGS_KEY) {
+            Ok(entries) => entries,
+            Err(_) => return Ok(Vec::new()),
+        };
+
+        let mut configs = Vec::new();
+        for entry in entries {
+            let platform_config: serde_json::Value =
+                match config.get_secret(&secret_key_for(&entry.gateway_type)) {
+                    Ok(v) => v,
+                    Err(e) => {
+                        tracing::warn!(
+                            gateway = %entry.gateway_type,
+                            error = %e,
+                            "skipping gateway with missing platform config secret"
+                        );
+                        continue;
+                    }
+                };
+
+            configs.push(GatewayConfig {
+                gateway_type: entry.gateway_type,
+                platform_config,
+                max_sessions: entry.max_sessions,
+            });
+        }
+
+        Ok(configs)
+    }
+
+    fn save_config(gw_config: &GatewayConfig) -> anyhow::Result<()> {
+        let config = Config::global();
+
+        // Save platform_config (contains secrets like bot tokens) to the secret store.
+        config
+            .set_secret(
+                &secret_key_for(&gw_config.gateway_type),
+                &gw_config.platform_config,
+            )
+            .map_err(|e| anyhow::anyhow!("failed to save gateway secret: {}", e))?;
+
+        // Load existing entries, add/replace this one, save back.
+        let mut entries: Vec<SavedGatewayEntry> =
+            config.get_param(GATEWAY_CONFIGS_KEY).unwrap_or_default();
+        entries.retain(|e| e.gateway_type != gw_config.gateway_type);
+        entries.push(SavedGatewayEntry {
+            gateway_type: gw_config.gateway_type.clone(),
+            max_sessions: gw_config.max_sessions,
+        });
+
+        config
+            .set_param(GATEWAY_CONFIGS_KEY, &entries)
+            .map_err(|e| anyhow::anyhow!("failed to save gateway config: {}", e))?;
+
+        Ok(())
+    }
+
+    fn remove_saved_config(gateway_type: &str) {
+        let config = Config::global();
+
+        // Remove the secret.
+        if let Err(e) = config.delete_secret(&secret_key_for(gateway_type)) {
+            tracing::warn!(error = %e, "failed to remove gateway secret");
+        }
+
+        // Remove from the config entries list.
+        let mut entries: Vec<SavedGatewayEntry> =
+            config.get_param(GATEWAY_CONFIGS_KEY).unwrap_or_default();
+        entries.retain(|e| e.gateway_type != gateway_type);
+        if let Err(e) = config.set_param(GATEWAY_CONFIGS_KEY, &entries) {
+            tracing::warn!(error = %e, "failed to update gateway config list");
+        }
     }
 }
