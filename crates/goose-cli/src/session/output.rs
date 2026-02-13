@@ -120,16 +120,18 @@ pub struct ThinkingIndicator {
 impl ThinkingIndicator {
     pub fn show(&mut self) {
         let spinner = cliclack::spinner();
+        let hint = style("(Ctrl+C to interrupt)").dim();
         if Config::global()
             .get_param("RANDOM_THINKING_MESSAGES")
             .unwrap_or(true)
         {
             spinner.start(format!(
-                "{}...",
-                super::thinking::get_random_thinking_message()
+                "{}...  {}",
+                super::thinking::get_random_thinking_message(),
+                hint,
             ));
         } else {
-            spinner.start("Thinking...");
+            spinner.start(format!("Thinking...  {}", hint));
         }
         self.spinner = Some(spinner);
     }
@@ -467,17 +469,15 @@ pub fn render_builtin_error(names: &str, error: &str) {
 fn render_text_editor_request(call: &CallToolRequestParams, debug: bool) {
     print_tool_header(call);
 
-    // Print path first with special formatting
     if let Some(args) = &call.arguments {
         if let Some(Value::String(path)) = args.get("path") {
             println!(
-                "{}: {}",
+                "    {} {}",
                 style("path").dim(),
-                style(shorten_path(path, debug)).green()
+                style(shorten_path(path, debug)).dim()
             );
         }
 
-        // Print other arguments normally, excluding path
         if let Some(args) = &call.arguments {
             let mut other_args = serde_json::Map::new();
             for (k, v) in args {
@@ -486,7 +486,7 @@ fn render_text_editor_request(call: &CallToolRequestParams, debug: bool) {
                 }
             }
             if !other_args.is_empty() {
-                print_params(&Some(other_args), 0, debug);
+                print_params(&Some(other_args), 1, debug);
             }
         }
     }
@@ -495,7 +495,7 @@ fn render_text_editor_request(call: &CallToolRequestParams, debug: bool) {
 
 fn render_shell_request(call: &CallToolRequestParams, debug: bool) {
     print_tool_header(call);
-    print_params(&call.arguments, 0, debug);
+    print_params(&call.arguments, 1, debug);
     println!();
 }
 
@@ -515,10 +515,11 @@ fn render_execute_code_request(call: &CallToolRequestParams, debug: bool) {
     let plural = if count == 1 { "" } else { "s" };
     println!();
     println!(
-        "─── {} tool call{} | {} ──────────────────────────",
-        style(count).cyan(),
+        "  {} {} {} tool call{}",
+        style("▸").dim(),
+        style("execute").dim(),
+        style(count).dim(),
         plural,
-        style("execute").magenta().dim()
     );
 
     for (i, node) in tool_graph.iter().filter_map(Value::as_object).enumerate() {
@@ -544,10 +545,10 @@ fn render_execute_code_request(call: &CallToolRequestParams, debug: bool) {
             format!(" (uses {})", deps.join(", "))
         };
         println!(
-            "  {}. {}: {}{}",
+            "    {}. {} {}{}",
             style(i + 1).dim(),
-            style(tool).cyan(),
-            style(desc).green(),
+            style(tool).dim(),
+            style(desc).dim(),
             style(deps_str).dim()
         );
     }
@@ -570,7 +571,7 @@ fn render_delegate_request(call: &CallToolRequestParams, debug: bool) {
 
     if let Some(args) = &call.arguments {
         if let Some(Value::String(source)) = args.get("source") {
-            println!("{}: {}", style("source").dim(), style(source).cyan());
+            println!("    {} {}", style("source").dim(), style(source).dim());
         }
 
         if let Some(Value::String(instructions)) = args.get("instructions") {
@@ -580,15 +581,15 @@ fn render_delegate_request(call: &CallToolRequestParams, debug: bool) {
                 instructions.clone()
             };
             println!(
-                "{}: {}",
+                "    {} {}",
                 style("instructions").dim(),
-                style(display).green()
+                style(display).dim()
             );
         }
 
         if let Some(Value::Object(params)) = args.get("parameters") {
-            println!("{}:", style("parameters").dim());
-            print_params(&Some(params.clone()), 1, debug);
+            println!("    {}:", style("parameters").dim());
+            print_params(&Some(params.clone()), 2, debug);
         }
 
         let skip_keys = ["source", "instructions", "parameters"];
@@ -599,7 +600,7 @@ fn render_delegate_request(call: &CallToolRequestParams, debug: bool) {
             }
         }
         if !other_args.is_empty() {
-            print_params(&Some(other_args), 0, debug);
+            print_params(&Some(other_args), 1, debug);
         }
     }
 
@@ -611,7 +612,7 @@ fn render_todo_request(call: &CallToolRequestParams, _debug: bool) {
 
     if let Some(args) = &call.arguments {
         if let Some(Value::String(content)) = args.get("content") {
-            println!("{}: {}", style("content").dim(), style(content).green());
+            println!("    {} {}", style("content").dim(), style(content).dim());
         }
     }
     println!();
@@ -619,7 +620,7 @@ fn render_todo_request(call: &CallToolRequestParams, _debug: bool) {
 
 fn render_default_request(call: &CallToolRequestParams, debug: bool) {
     print_tool_header(call);
-    print_params(&call.arguments, 0, debug);
+    print_params(&call.arguments, 1, debug);
     println!();
 }
 
@@ -660,14 +661,13 @@ pub fn render_subagent_tool_call(
         }
     }
     let tool_header = format!(
-        "─── {} ──────────────────────────",
-        style(format_subagent_tool_call_message(subagent_id, tool_name))
-            .magenta()
-            .dim()
+        "  {} {}",
+        style("▸").dim(),
+        style(format_subagent_tool_call_message(subagent_id, tool_name)).dim(),
     );
     println!();
     println!("{}", tool_header);
-    print_params(&arguments.cloned(), 0, debug);
+    print_params(&arguments.cloned(), 1, debug);
     println!();
 }
 
@@ -677,11 +677,12 @@ fn render_subagent_tool_graph(subagent_id: &str, tool_graph: &[Value]) {
     let plural = if count == 1 { "" } else { "s" };
     println!();
     println!(
-        "─── {} {} tool call{} | {} ──────────────────────────",
-        style(format!("[subagent:{}]", short_id)).cyan(),
-        style(count).cyan(),
+        "  {} {} {} {} tool call{}",
+        style("▸").dim(),
+        style(format!("[subagent:{}]", short_id)).dim(),
+        style("execute_code").dim(),
+        style(count).dim(),
         plural,
-        style("execute_code").magenta().dim()
     );
 
     for (i, node) in tool_graph.iter().filter_map(Value::as_object).enumerate() {
@@ -707,10 +708,10 @@ fn render_subagent_tool_graph(subagent_id: &str, tool_graph: &[Value]) {
             format!(" (uses {})", deps.join(", "))
         };
         println!(
-            "  {}. {}: {}{}",
+            "    {}. {} {}{}",
             style(i + 1).dim(),
-            style(tool).cyan(),
-            style(desc).green(),
+            style(tool).dim(),
+            style(desc).dim(),
             style(deps_str).dim()
         );
     }
@@ -721,11 +722,16 @@ fn render_subagent_tool_graph(subagent_id: &str, tool_graph: &[Value]) {
 
 fn print_tool_header(call: &CallToolRequestParams) {
     let (tool, extension) = split_tool_name(&call.name);
-    let tool_header = format!(
-        "─── {} | {} ──────────────────────────",
-        style(tool),
-        style(extension).magenta().dim(),
-    );
+    let tool_header = if extension.is_empty() {
+        format!("  {} {}", style("▸").dim(), style(&tool).dim())
+    } else {
+        format!(
+            "  {} {} {}",
+            style("▸").dim(),
+            style(&tool).dim(),
+            style(extension).magenta().dim(),
+        )
+    };
     println!();
     println!("{}", tool_header);
 }
@@ -889,7 +895,6 @@ fn shorten_path(path: &str, debug: bool) -> String {
     shortened.join("/")
 }
 
-// Session display functions
 pub fn display_session_info(
     resume: bool,
     provider: &str,
@@ -897,107 +902,126 @@ pub fn display_session_info(
     session_id: &Option<String>,
     provider_instance: Option<&Arc<dyn goose::providers::base::Provider>>,
 ) {
-    let start_session_msg = if resume {
-        "resuming session |"
+    let status = if resume {
+        "resuming"
     } else if session_id.is_none() {
-        "running without session |"
+        "ephemeral"
     } else {
-        "starting session |"
+        "new session"
     };
 
-    // Check if we have lead/worker mode
-    if let Some(provider_inst) = provider_instance {
+    let model_display = if let Some(provider_inst) = provider_instance {
         if let Some(lead_worker) = provider_inst.as_lead_worker() {
             let (lead_model, worker_model) = lead_worker.get_model_info();
-            println!(
-                "{} {} {} {} {} {} {}",
-                style(start_session_msg).dim(),
-                style("provider:").dim(),
-                style(provider).cyan().dim(),
-                style("lead model:").dim(),
-                style(&lead_model).cyan().dim(),
-                style("worker model:").dim(),
-                style(&worker_model).cyan().dim(),
-            );
+            format!("{} → {}", lead_model, worker_model)
         } else {
-            println!(
-                "{} {} {} {} {}",
-                style(start_session_msg).dim(),
-                style("provider:").dim(),
-                style(provider).cyan().dim(),
-                style("model:").dim(),
-                style(model).cyan().dim(),
-            );
+            model.to_string()
         }
     } else {
-        // Fallback to original behavior if no provider instance
-        println!(
-            "{} {} {} {} {}",
-            style(start_session_msg).dim(),
-            style("provider:").dim(),
-            style(provider).cyan().dim(),
-            style("model:").dim(),
-            style(model).cyan().dim(),
-        );
-    }
+        model.to_string()
+    };
+
+    println!(
+        "\n  {} {} {} {} {}",
+        style("●").green(),
+        style(status).dim(),
+        style("·").dim(),
+        style(provider).dim(),
+        style(&model_display).cyan(),
+    );
+
+    let cwd_display = std::env::current_dir()
+        .ok()
+        .map(|p| p.display().to_string())
+        .unwrap_or_else(|| "unknown".to_string());
 
     if let Some(id) = session_id {
         println!(
-            "    {} {}",
-            style("session id:").dim(),
-            style(id).cyan().dim()
+            "  {} {} {}",
+            style(" ").dim(),
+            style(id).dim(),
+            style(format!("· {}", cwd_display)).dim(),
+        );
+    } else {
+        println!(
+            "  {} {}",
+            style(" ").dim(),
+            style(format!("  {}", cwd_display)).dim(),
         );
     }
+}
 
-    println!(
-        "    {} {}",
-        style("working directory:").dim(),
-        style(std::env::current_dir().unwrap().display())
-            .cyan()
-            .dim()
-    );
+pub fn set_terminal_title() {
+    if !std::io::stdout().is_terminal() {
+        return;
+    }
+    let dir_name = std::env::current_dir()
+        .ok()
+        .and_then(|p| p.file_name().map(|n| n.to_string_lossy().into_owned()))
+        .unwrap_or_default();
+    // Sanitize: strip control characters (ESC, BEL, etc.) to prevent terminal escape injection
+    let sanitized: String = dir_name.chars().filter(|c| !c.is_control()).collect();
+    // OSC 0 sets the terminal window/tab title
+    print!("\x1b]0;🪿 {}\x07", sanitized);
+    let _ = std::io::stdout().flush();
 }
 
 pub fn display_greeting() {
-    println!("\ngoose is running! Enter your instructions, or try asking what goose can do.\n");
+    set_terminal_title();
+    println!(
+        "\n{} {}\n",
+        style("🪿 goose").bold(),
+        style("ready — type a message to get started").dim()
+    );
 }
 
-/// Display context window usage with both current and session totals
 pub fn display_context_usage(total_tokens: usize, context_limit: usize) {
     use console::style;
 
     if context_limit == 0 {
-        println!("Context: Error - context limit is zero");
+        println!(
+            "  {}",
+            style("context usage unavailable (context limit is 0)").dim()
+        );
         return;
     }
 
-    // Calculate percentage used with bounds checking
     let percentage =
         (((total_tokens as f64 / context_limit as f64) * 100.0).round() as usize).min(100);
 
-    // Create dot visualization with safety bounds
-    let dot_count = 10;
-    let filled_dots =
-        (((percentage as f64 / 100.0) * dot_count as f64).round() as usize).min(dot_count);
-    let empty_dots = dot_count - filled_dots;
+    let bar_width = 20;
+    let filled = ((percentage as f64 / 100.0) * bar_width as f64).round() as usize;
+    let empty = bar_width - filled.min(bar_width);
 
-    let filled = "●".repeat(filled_dots);
-    let empty = "○".repeat(empty_dots);
-
-    // Combine dots and apply color
-    let dots = format!("{}{}", filled, empty);
-    let colored_dots = if percentage < 50 {
-        style(dots).green()
+    let bar = format!("{}{}", "━".repeat(filled), "╌".repeat(empty));
+    let colored_bar = if percentage < 50 {
+        style(bar).green().dim()
     } else if percentage < 85 {
-        style(dots).yellow()
+        style(bar).yellow()
     } else {
-        style(dots).red()
+        style(bar).red()
     };
 
-    // Print the status line
+    fn format_tokens(n: usize) -> String {
+        if n >= 1_000_000 {
+            format!("{:.1}M", n as f64 / 1_000_000.0)
+        } else if n >= 1_000 {
+            format!("{:.0}k", n as f64 / 1_000.0)
+        } else {
+            n.to_string()
+        }
+    }
+
     println!(
-        "Context: {} {}% ({}/{} tokens)",
-        colored_dots, percentage, total_tokens, context_limit
+        "  {} {} {}",
+        colored_bar,
+        style(format!("{}%", percentage)).dim(),
+        style(format!(
+            "{}/{}",
+            format_tokens(total_tokens),
+            format_tokens(context_limit)
+        ))
+        .dim(),
     );
 }
 

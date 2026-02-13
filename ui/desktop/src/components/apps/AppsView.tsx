@@ -36,7 +36,8 @@ export default function AppsView() {
           throwOnError: true,
         });
         const cachedApps = response.data?.apps || [];
-        setApps(cachedApps);
+        // Only show apps from the "apps" extension (vibe coded apps built by Goose)
+        setApps(cachedApps.filter((a) => a.mcpServers?.includes('apps')));
       } catch (err) {
         console.warn('Failed to load cached apps:', err);
       } finally {
@@ -58,7 +59,8 @@ export default function AppsView() {
           query: { session_id: sessionId },
         });
         const freshApps = response.data?.apps || [];
-        setApps(freshApps);
+        // Only show apps from the "apps" extension (vibe coded apps built by Goose)
+        setApps(freshApps.filter((a) => a.mcpServers?.includes('apps')));
         setError(null);
       } catch (err) {
         console.warn('Failed to refresh apps:', err);
@@ -90,7 +92,7 @@ export default function AppsView() {
             query: { session_id: eventSessionId },
           }).then((response) => {
             if (response.data?.apps) {
-              setApps(response.data.apps);
+              setApps(response.data.apps.filter((a) => a.mcpServers?.includes('apps')));
             }
           });
         }
@@ -111,7 +113,8 @@ export default function AppsView() {
         query: { session_id: sessionId },
       });
       const fetchedApps = response.data?.apps || [];
-      setApps(fetchedApps);
+      // Only show apps from the "apps" extension (vibe coded apps built by Goose)
+      setApps(fetchedApps.filter((a) => a.mcpServers?.includes('apps')));
       setError(null);
     } catch (err) {
       // Only set error if we don't have apps to show
@@ -176,7 +179,9 @@ export default function AppsView() {
       const response = await listApps({
         throwOnError: true,
       });
-      setApps(response.data?.apps || []);
+      const cachedApps = response.data?.apps || [];
+      // Only show apps from the "apps" extension (vibe coded apps built by Goose)
+      setApps(cachedApps.filter((a) => a.mcpServers?.includes('apps')));
       setError(null);
     } catch (err) {
       console.error('Failed to import app:', err);

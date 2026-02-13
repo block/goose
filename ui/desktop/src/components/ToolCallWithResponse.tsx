@@ -516,7 +516,7 @@ function ToolCallView({
 
   // Function to create a descriptive representation of what the tool is doing
   const getToolDescription = (): string | null => {
-    const args = toolCall.arguments as Record<string, ToolCallArgumentValue>;
+    const args = (toolCall.arguments ?? {}) as Record<string, ToolCallArgumentValue>;
     const toolName = getToolName(toolCall.name);
 
     const getStringValue = (value: ToolCallArgumentValue): string => {
