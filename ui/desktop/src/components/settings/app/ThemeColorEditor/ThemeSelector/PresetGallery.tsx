@@ -132,11 +132,27 @@ export function PresetGallery({ onApply }: PresetGalleryProps) {
               key={preset.id}
               className="border border-border-primary rounded-lg p-4 flex flex-col hover:border-border-secondary transition-colors"
             >
-              {/* Spacer to push content to bottom */}
+              {/* Theme Preview Colors - Top of card */}
+              <div className="grid grid-cols-4 h-24 rounded border border-border-primary overflow-hidden">
+                <div 
+                  style={{ backgroundColor: preset.colors[resolvedTheme]['color-background-primary'] }}
+                />
+                <div 
+                  style={{ backgroundColor: preset.colors[resolvedTheme]['color-background-secondary'] }}
+                />
+                <div 
+                  style={{ backgroundColor: preset.colors[resolvedTheme]['color-text-primary'] }}
+                />
+                <div 
+                  style={{ backgroundColor: preset.colors[resolvedTheme]['color-background-inverse'] }}
+                />
+              </div>
+              
+              {/* Spacer to push info to bottom */}
               <div className="flex-1" />
               
               {/* Bottom-aligned content */}
-              <div className="space-y-3">
+              <div className="space-y-3 mt-3">
                 {/* Theme Info */}
                 <div>
                   <h3 className="text-sm font-semibold text-text-primary">
@@ -160,22 +176,6 @@ export function PresetGallery({ onApply }: PresetGalleryProps) {
                       {tag}
                     </span>
                   ))}
-                </div>
-                
-                {/* Theme Preview Colors - Show only current mode (4 colors) */}
-                <div className="grid grid-cols-4 h-24 rounded border border-border-primary overflow-hidden">
-                  <div 
-                    style={{ backgroundColor: preset.colors[resolvedTheme]['color-background-primary'] }}
-                  />
-                  <div 
-                    style={{ backgroundColor: preset.colors[resolvedTheme]['color-background-secondary'] }}
-                  />
-                  <div 
-                    style={{ backgroundColor: preset.colors[resolvedTheme]['color-text-primary'] }}
-                  />
-                  <div 
-                    style={{ backgroundColor: preset.colors[resolvedTheme]['color-background-inverse'] }}
-                  />
                 </div>
 
                 {/* Apply Button - Bottom Aligned */}
