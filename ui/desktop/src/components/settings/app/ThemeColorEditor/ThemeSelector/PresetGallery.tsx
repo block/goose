@@ -10,6 +10,8 @@ import { toast } from 'react-toastify';
 import { ThemePreset } from '../../../../../themes/presets/types';
 import { getThemePresets, applyThemePreset } from '../../../../../api';
 import { useTheme } from '../../../../../contexts/ThemeContext';
+import { Check, Download } from 'lucide-react';
+import { Tooltip, TooltipContent, TooltipTrigger } from '../../../../ui/Tooltip';
 
 interface PresetGalleryProps {
   onApply?: () => void;
@@ -122,63 +124,86 @@ export function PresetGallery({ onApply }: PresetGalleryProps) {
 
       {/* Theme Grid - Full Height */}
       <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4 flex-1 overflow-y-auto pr-2">
-        {filteredPresets.map(preset => (
-          <div
-            key={preset.id}
-            className="border border-border-primary rounded-lg p-4 space-y-3 hover:border-border-secondary transition-colors"
-          >
-            {/* Theme Preview Colors - Show only current mode (4 colors) */}
-            <div className="grid grid-cols-4 h-8 rounded border border-border-primary overflow-hidden">
-              <div 
-                style={{ backgroundColor: preset.colors[resolvedTheme]['color-background-primary'] }}
-              />
-              <div 
-                style={{ backgroundColor: preset.colors[resolvedTheme]['color-background-secondary'] }}
-              />
-              <div 
-                style={{ backgroundColor: preset.colors[resolvedTheme]['color-text-primary'] }}
-              />
-              <div 
-                style={{ backgroundColor: preset.colors[resolvedTheme]['color-background-inverse'] }}
-              />
-            </div>
-
-            {/* Theme Info */}
-            <div>
-              <h3 className="text-sm font-semibold text-text-primary">
-                {preset.name}
-              </h3>
-              <p className="text-xs text-text-secondary mt-1">
-                {preset.description}
-              </p>
-              <p className="text-xs text-text-secondary mt-1">
-                by {preset.author}
-              </p>
-            </div>
-
-            {/* Tags */}
-            <div className="flex flex-wrap gap-1">
-              {preset.tags.map(tag => (
-                <span
-                  key={tag}
-                  className="px-2 py-0.5 text-xs bg-background-secondary text-text-secondary rounded capitalize"
-                >
-                  {tag}
-                </span>
-              ))}
-            </div>
-
-            {/* Apply Button */}
-            <Button
-              onClick={() => handleApplyPreset(preset.id)}
-              disabled={applying !== null}
-              className="w-full"
-              size="sm"
+        {filteredPresets.map(preset => {
+          const isApplied = preset.id === 'goose-classic'; // TODO: Track which theme is currently applied
+          
+          return (
+            <div
+              key={preset.id}
+              className="border border-border-primary rounded-lg p-4 flex flex-col hover:border-border-secondary transition-colors"
             >
-              {applying === preset.id ? 'Applying...' : 'Apply Theme'}
-            </Button>
-          </div>
-        ))}
+              {/* Theme Preview Colors - Show only current mode (4 colors) */}
+              <div className="grid grid-cols-4 h-8 rounded border border-border-primary overflow-hidden">
+                <div 
+                  style={{ backgroundColor: preset.colors[resolvedTheme]['color-background-primary'] }}
+                />
+                <div 
+                  style={{ backgroundColor: preset.colors[resolvedTheme]['color-background-secondary'] }}
+                />
+                <div 
+                  style={{ backgroundColor: preset.colors[resolvedTheme]['color-text-primary'] }}
+                />
+                <div 
+                  style={{ backgroundColor: preset.colors[resolvedTheme]['color-background-inverse'] }}
+                />
+              </div>
+
+              {/* Theme Info */}
+              <div className="mt-3 flex-1">
+                <h3 className="text-sm font-semibold text-text-primary">
+                  {preset.name}
+                </h3>
+                <p className="text-xs text-text-secondary mt-1">
+                  {preset.description}
+                </p>
+                <p className="text-xs text-text-secondary mt-1">
+                  by {preset.author}
+                </p>
+              </div>
+
+              {/* Tags */}
+              <div className="flex flex-wrap gap-1 mt-3">
+                {preset.tags.map(tag => (
+                  <span
+                    key={tag}
+                    className="px-2 py-0.5 text-xs bg-background-secondary text-text-secondary rounded capitalize"
+                  >
+                    {tag}
+                  </span>
+                ))}
+              </div>
+
+              {/* Apply Button - Bottom Aligned */}
+              <div className="mt-3">
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      onClick={() => handleApplyPreset(preset.id)}
+                      disabled={applying !== null}
+                      variant={isApplied ? 'default' : 'secondary'}
+                      size="sm"
+                      shape="round"
+                      className="w-full"
+                    >
+                      {isApplied ? (
+                        <Check className="w-4 h-4" />
+                      ) : (
+                        <Download className="w-4 h-4" />
+                      )}
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    {applying === preset.id 
+                      ? 'Applying...' 
+                      : isApplied 
+                        ? 'Currently Applied' 
+                        : 'Apply Theme'}
+                  </TooltipContent>
+                </Tooltip>
+              </div>
+            </div>
+          );
+        })}
       </div>
 
       {filteredPresets.length === 0 && (
