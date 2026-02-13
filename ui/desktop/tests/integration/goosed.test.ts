@@ -190,8 +190,12 @@ extensions:
     it('should see the full PATH when calling the developer tool', async () => {
       const currentPath = getUserPath();
 
-      // find a part of current path that is not in CONSTRAINED_PATH
-      const pathEntry = currentPath.find((entry) => !CONSTRAINED_PATH.includes(entry));
+      // find a part of current path that is not in CONSTRAINED_PATH.
+      // also excludes anything with 'node_modules', because we'd expect that
+      // to be added by this test itself
+      const pathEntry = currentPath.find(
+        (entry) => !CONSTRAINED_PATH.includes(entry) && !entry.includes('node_modules')
+      );
       if (!pathEntry) {
         expect.fail(`Could not find a path entry not in ${CONSTRAINED_PATH}`);
       }
