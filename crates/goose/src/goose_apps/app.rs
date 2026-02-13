@@ -5,7 +5,9 @@ use tokio_util::sync::CancellationToken;
 use tracing::warn;
 use utoipa::ToSchema;
 
-use super::resource::McpAppResource;
+use super::resource::{
+    CspMetadata, McpAppResource, PermissionsMetadata, ResourceMetadata, UiMetadata,
+};
 
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
@@ -99,6 +101,25 @@ impl GooseApp {
             })
             .unwrap_or_default();
 
+        let csp = metadata
+            .get("csp")
+            .and_then(|v| serde_json::from_value::<CspMetadata>(v.clone()).ok());
+
+        let prefers_border = metadata.get("prefersBorder").and_then(|v| v.as_bool());
+
+        let meta = if csp.is_some() || prefers_border.is_some() {
+            Some(ResourceMetadata {
+                ui: Some(UiMetadata {
+                    csp,
+                    permissions: PermissionsMetadata::default(),
+                    domain: None,
+                    prefers_border,
+                }),
+            })
+        } else {
+            None
+        };
+
         let prd = prd_re
             .captures(html)
             .and_then(|cap| cap.get(1))
@@ -115,7 +136,7 @@ impl GooseApp {
                 mime_type: "text/html;profile=mcp-app".to_string(),
                 text: Some(clean_html),
                 blob: None,
-                meta: None,
+                meta,
             },
             mcp_servers,
             window_props,
@@ -148,6 +169,19 @@ impl GooseApp {
 
         if !self.mcp_servers.is_empty() {
             metadata["mcpServers"] = serde_json::json!(self.mcp_servers);
+        }
+
+        if let Some(ref meta) = self.resource.meta {
+            if let Some(ref ui) = meta.ui {
+                if let Some(ref csp) = ui.csp {
+                    if let Ok(csp_value) = serde_json::to_value(csp) {
+                        metadata["csp"] = csp_value;
+                    }
+                }
+                if let Some(prefers_border) = ui.prefers_border {
+                    metadata["prefersBorder"] = serde_json::json!(prefers_border);
+                }
+            }
         }
 
         let metadata_json = serde_json::to_string_pretty(&metadata)
@@ -226,11 +260,27 @@ pub async fn fetch_mcp_apps(
         {
             Ok(read_result) => {
                 let mut html = String::new();
+                let mut resource_meta: Option<super::resource::ResourceMetadata> = None;
                 for content in read_result.contents {
-                    if let rmcp::model::ResourceContents::TextResourceContents { text, .. } =
-                        content
+                    if let rmcp::model::ResourceContents::TextResourceContents {
+                        text, meta, ..
+                    } = content
                     {
                         html = text;
+                        if let Some(meta_map) = meta {
+                            let meta_value = serde_json::Value::Object(meta_map.0);
+                            if let Some(ui_value) = meta_value.get("ui") {
+                                if let Ok(ui_meta) =
+                                    serde_json::from_value::<super::resource::UiMetadata>(
+                                        ui_value.clone(),
+                                    )
+                                {
+                                    resource_meta = Some(super::resource::ResourceMetadata {
+                                        ui: Some(ui_meta),
+                                    });
+                                }
+                            }
+                        }
                         break;
                     }
                 }
@@ -243,7 +293,7 @@ pub async fn fetch_mcp_apps(
                         mime_type: "text/html;profile=mcp-app".to_string(),
                         text: Some(html),
                         blob: None,
-                        meta: None,
+                        meta: resource_meta,
                     };
 
                     let window_props = if let Some(ref meta) = resource.meta {
@@ -306,4 +356,167 @@ pub async fn fetch_mcp_apps(
     }
 
     Ok(apps)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn from_html_parses_csp_from_json_ld() {
+        let html = r#"<!DOCTYPE html>
+<html><head>
+<script type="application/ld+json">
+{
+  "@context": "https://goose.ai/schema",
+  "@type": "GooseApp",
+  "name": "test-app",
+  "csp": {
+    "connectDomains": ["https://api.example.com", "wss://ws.example.com"],
+    "resourceDomains": ["https://cdn.example.com"],
+    "frameDomains": ["https://embed.example.com"],
+    "baseUriDomains": ["https://base.example.com"]
+  },
+  "prefersBorder": true
+}
+</script>
+</head><body>Hello</body></html>"#;
+
+        let app = GooseApp::from_html(html).unwrap();
+
+        let meta = app.resource.meta.as_ref().expect("meta should be present");
+        let ui = meta.ui.as_ref().expect("ui metadata should be present");
+        let csp = ui.csp.as_ref().expect("csp should be present");
+
+        assert_eq!(
+            csp.connect_domains,
+            Some(vec![
+                "https://api.example.com".to_string(),
+                "wss://ws.example.com".to_string()
+            ])
+        );
+        assert_eq!(
+            csp.resource_domains,
+            Some(vec!["https://cdn.example.com".to_string()])
+        );
+        assert_eq!(
+            csp.frame_domains,
+            Some(vec!["https://embed.example.com".to_string()])
+        );
+        assert_eq!(
+            csp.base_uri_domains,
+            Some(vec!["https://base.example.com".to_string()])
+        );
+        assert_eq!(ui.prefers_border, Some(true));
+    }
+
+    #[test]
+    fn from_html_without_csp_has_no_meta() {
+        let html = r#"<!DOCTYPE html>
+<html><head>
+<script type="application/ld+json">
+{
+  "@context": "https://goose.ai/schema",
+  "@type": "GooseApp",
+  "name": "simple-app"
+}
+</script>
+</head><body>Hello</body></html>"#;
+
+        let app = GooseApp::from_html(html).unwrap();
+        assert!(app.resource.meta.is_none());
+    }
+
+    #[test]
+    fn to_html_roundtrips_csp() {
+        let html = r#"<!DOCTYPE html>
+<html><head>
+<script type="application/ld+json">
+{
+  "@context": "https://goose.ai/schema",
+  "@type": "GooseApp",
+  "name": "roundtrip-app",
+  "csp": {
+    "connectDomains": ["https://esm.sh"],
+    "resourceDomains": ["https://esm.sh"]
+  },
+  "prefersBorder": true
+}
+</script>
+</head><body>Hello</body></html>"#;
+
+        let app = GooseApp::from_html(html).unwrap();
+        let output_html = app.to_html().unwrap();
+        let roundtripped = GooseApp::from_html(&output_html).unwrap();
+
+        let original_csp = app
+            .resource
+            .meta
+            .as_ref()
+            .unwrap()
+            .ui
+            .as_ref()
+            .unwrap()
+            .csp
+            .as_ref()
+            .unwrap();
+        let roundtripped_csp = roundtripped
+            .resource
+            .meta
+            .as_ref()
+            .unwrap()
+            .ui
+            .as_ref()
+            .unwrap()
+            .csp
+            .as_ref()
+            .unwrap();
+
+        assert_eq!(
+            original_csp.connect_domains,
+            roundtripped_csp.connect_domains
+        );
+        assert_eq!(
+            original_csp.resource_domains,
+            roundtripped_csp.resource_domains
+        );
+        assert_eq!(
+            app.resource
+                .meta
+                .as_ref()
+                .unwrap()
+                .ui
+                .as_ref()
+                .unwrap()
+                .prefers_border,
+            roundtripped
+                .resource
+                .meta
+                .as_ref()
+                .unwrap()
+                .ui
+                .as_ref()
+                .unwrap()
+                .prefers_border,
+        );
+    }
+
+    #[test]
+    fn chat_html_has_csp() {
+        let chat_html = include_str!("chat.html");
+        let app = GooseApp::from_html(chat_html).unwrap();
+
+        let meta = app.resource.meta.as_ref().expect("chat should have meta");
+        let ui = meta.ui.as_ref().expect("chat should have ui metadata");
+        let csp = ui.csp.as_ref().expect("chat should have csp");
+
+        assert_eq!(
+            csp.connect_domains,
+            Some(vec!["https://esm.sh".to_string()])
+        );
+        assert_eq!(
+            csp.resource_domains,
+            Some(vec!["https://esm.sh".to_string()])
+        );
+    }
 }
