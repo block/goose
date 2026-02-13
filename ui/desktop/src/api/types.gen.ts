@@ -36,6 +36,10 @@ export type Annotations = {
     priority?: number;
 };
 
+export type ApplyPresetRequest = {
+    preset_id: string;
+};
+
 export type Author = {
     contact?: string | null;
     metadata?: string | null;
@@ -1197,6 +1201,29 @@ export type TextContent = {
         [key: string]: unknown;
     };
     text: string;
+};
+
+export type ThemeColorsDto = {
+    dark: {
+        [key: string]: string;
+    };
+    light: {
+        [key: string]: string;
+    };
+};
+
+export type ThemePreset = {
+    author: string;
+    colors: ThemeColorsDto;
+    description: string;
+    id: string;
+    name: string;
+    tags: Array<string>;
+    version: string;
+};
+
+export type ThemePresetsResponse = {
+    presets: Array<ThemePreset>;
 };
 
 export type ThemeVariablesResponse = {
@@ -3919,6 +3946,49 @@ export type SendTelemetryEventResponses = {
      */
     202: unknown;
 };
+
+export type ApplyThemePresetData = {
+    body: ApplyPresetRequest;
+    path?: never;
+    query?: never;
+    url: '/theme/apply-preset';
+};
+
+export type ApplyThemePresetErrors = {
+    /**
+     * Theme preset not found
+     */
+    404: unknown;
+    /**
+     * Failed to apply theme preset
+     */
+    500: unknown;
+};
+
+export type ApplyThemePresetResponses = {
+    /**
+     * Theme preset applied successfully
+     */
+    200: string;
+};
+
+export type ApplyThemePresetResponse = ApplyThemePresetResponses[keyof ApplyThemePresetResponses];
+
+export type GetThemePresetsData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/theme/presets';
+};
+
+export type GetThemePresetsResponses = {
+    /**
+     * List of all built-in theme presets
+     */
+    200: ThemePresetsResponse;
+};
+
+export type GetThemePresetsResponse = GetThemePresetsResponses[keyof GetThemePresetsResponses];
 
 export type SaveThemeData = {
     body: SaveThemeRequest;

@@ -8,6 +8,7 @@ import { useState, useEffect } from 'react';
 import { Button } from '../../../../ui/button';
 import { toast } from 'react-toastify';
 import { ThemePreset } from '../../../../../themes/presets/types';
+import { getThemePresets, applyThemePreset } from '../../../../../api';
 
 interface PresetGalleryProps {
   onApply?: () => void;
@@ -27,9 +28,8 @@ export function PresetGallery({ onApply }: PresetGalleryProps) {
   const loadPresets = async () => {
     try {
       setLoading(true);
-      const response = await fetch('/theme/presets');
-      const data = await response.json();
-      setPresets(data.presets || []);
+      const response = await getThemePresets();
+      setPresets(response.data?.presets || []);
     } catch (error) {
       console.error('Failed to load theme presets:', error);
       toast.error('Failed to load theme presets');
@@ -42,17 +42,11 @@ export function PresetGallery({ onApply }: PresetGalleryProps) {
     try {
       setApplying(presetId);
       
-      const response = await fetch('/theme/apply-preset', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
+      await applyThemePreset({
+        body: {
+          preset_id: presetId,
         },
-        body: JSON.stringify({ preset_id: presetId }),
       });
-
-      if (!response.ok) {
-        throw new Error('Failed to apply theme');
-      }
 
       toast.success('Theme applied successfully! Reloading...');
       

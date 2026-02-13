@@ -8,17 +8,6 @@
       "email": "ai-oss-tools@block.xyz"
     },
     "license": {
-      "name": "ApacheSuccessfully generated OpenAPI schema at /Users/spencermartin/Desktop/goose-mcp-apps-styling/ui/desktop/openapi.json
-{
-  "openapi": "3.0.3",
-  "info": {
-    "title": "goose-server",
-    "description": "An AI agent",
-    "contact": {
-      "name": "Block",
-      "email": "ai-oss-tools@block.xyz"
-    },
-    "license": {
       "name": "Apache-2.0"
     },
     "version": "1.23.0"
