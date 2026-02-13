@@ -63,7 +63,7 @@ pub async fn run_initialize_without_provider() {
     let temp_dir = tempfile::tempdir().unwrap();
 
     let provider_factory: ProviderConstructor =
-        Arc::new(|_| Box::pin(async { Err(anyhow::anyhow!("no provider configured")) }));
+        Arc::new(|_, _| Box::pin(async { Err(anyhow::anyhow!("no provider configured")) }));
 
     let agent = Arc::new(
         GooseAcpAgent::new(

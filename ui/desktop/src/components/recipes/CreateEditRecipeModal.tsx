@@ -1,11 +1,18 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useForm } from '@tanstack/react-form';
-import { Recipe, generateDeepLink, Parameter } from '../../recipe';
+import {
+  Recipe,
+  generateDeepLink,
+  Parameter,
+  encodeRecipe,
+  stripEmptyExtensions,
+} from '../../recipe';
 import { Check, ExternalLink, Play, Save, X } from 'lucide-react';
 import { Geese } from '../icons/Geese';
 import Copy from '../icons/Copy';
 import { ExtensionConfig } from '../ConfigContext';
 import { Button } from '../ui/button';
+import type { Settings } from '../../api';
 
 import { RecipeFormFields } from './shared/RecipeFormFields';
 import { RecipeFormData } from './shared/recipeFormSchema';
@@ -40,6 +47,9 @@ export default function CreateEditRecipeModal({
         jsonSchema: recipe.response?.json_schema
           ? JSON.stringify(recipe.response.json_schema, null, 2)
           : '',
+        model: recipe.settings?.goose_model ?? undefined,
+        provider: recipe.settings?.goose_provider ?? undefined,
+        extensions: recipe.extensions || undefined,
       };
     }
     return {
@@ -50,6 +60,9 @@ export default function CreateEditRecipeModal({
       activities: [],
       parameters: [],
       jsonSchema: '',
+      model: undefined,
+      provider: undefined,
+      extensions: undefined,
     };
   }, [recipe]);
 
@@ -65,6 +78,9 @@ export default function CreateEditRecipeModal({
   const [activities, setActivities] = useState(form.state.values.activities);
   const [parameters, setParameters] = useState(form.state.values.parameters);
   const [jsonSchema, setJsonSchema] = useState(form.state.values.jsonSchema);
+  const [model, setModel] = useState(form.state.values.model);
+  const [provider, setProvider] = useState(form.state.values.provider);
+  const [extensions, setExtensions] = useState(form.state.values.extensions);
 
   // Subscribe to form changes to update local state
   useEffect(() => {
@@ -76,14 +92,13 @@ export default function CreateEditRecipeModal({
       setActivities(form.state.values.activities);
       setParameters(form.state.values.parameters);
       setJsonSchema(form.state.values.jsonSchema);
+      setModel(form.state.values.model);
+      setProvider(form.state.values.provider);
+      setExtensions(form.state.values.extensions);
     });
   }, [form]);
   const [copied, setCopied] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
-
-  const [recipeExtensions] = useState<ExtensionConfig[] | undefined>(() => {
-    return recipe?.extensions ?? undefined;
-  });
 
   // Reset form when recipe changes
   useEffect(() => {
@@ -128,9 +143,31 @@ export default function CreateEditRecipeModal({
       }
     }
 
-    const extensions = recipeExtensions?.map((extension) =>
-      'envs' in extension ? { ...extension, envs: undefined } : extension
+    const cleanedExtensions = extensions?.map(
+      (extension: ExtensionConfig & { envs?: unknown; enabled?: boolean }) => {
+        const { envs: _envs, enabled: _enabled, ...rest } = extension;
+        return rest;
+      }
     ) as ExtensionConfig[] | undefined;
+
+    const mergedSettings: Settings = {
+      ...(recipe?.settings || {}),
+    };
+    if (model !== undefined) {
+      mergedSettings.goose_model = model || null;
+    } else if ('goose_model' in mergedSettings) {
+      delete mergedSettings.goose_model;
+    }
+    if (provider !== undefined) {
+      mergedSettings.goose_provider = provider || null;
+    } else if ('goose_provider' in mergedSettings) {
+      delete mergedSettings.goose_provider;
+    }
+    const settings = Object.values(mergedSettings).some(
+      (value) => value !== undefined && value !== null
+    )
+      ? mergedSettings
+      : undefined;
 
     return {
       ...recipe,
@@ -141,7 +178,8 @@ export default function CreateEditRecipeModal({
       prompt: prompt || undefined,
       parameters: formattedParameters,
       response: responseConfig,
-      extensions,
+      extensions: cleanedExtensions,
+      settings,
     };
   }, [
     recipe,
@@ -152,7 +190,9 @@ export default function CreateEditRecipeModal({
     prompt,
     parameters,
     jsonSchema,
-    recipeExtensions,
+    model,
+    provider,
+    extensions,
   ]);
 
   const requiredFieldsAreFilled = () => {
@@ -224,7 +264,9 @@ export default function CreateEditRecipeModal({
     activities,
     parameters,
     jsonSchema,
-    recipeExtensions,
+    model,
+    provider,
+    extensions,
     getCurrentRecipe,
   ]);
 
@@ -291,19 +333,20 @@ export default function CreateEditRecipeModal({
     try {
       const recipe = getCurrentRecipe();
 
-      let saved_recipe_id = await saveRecipe(recipe, recipeId);
+      await saveRecipe(recipe, recipeId);
 
       // Close modal first
       onClose(true);
 
-      // Open recipe in a new window instead of navigating in the same window
+      // Encode the recipe as a deeplink before passing to the new window
+      const encodedRecipe = await encodeRecipe(stripEmptyExtensions(recipe));
       window.electron.createChatWindow(
         undefined,
         undefined,
         undefined,
         undefined,
         undefined,
-        saved_recipe_id
+        encodedRecipe
       );
 
       toastSuccess({

@@ -54,7 +54,10 @@ impl ProviderDef for MockProvider {
         ProviderMetadata::empty()
     }
 
-    fn from_env(model: ModelConfig) -> futures::future::BoxFuture<'static, anyhow::Result<Self>> {
+    fn from_env(
+        model: ModelConfig,
+        _extensions: Vec<goose::config::ExtensionConfig>,
+    ) -> futures::future::BoxFuture<'static, anyhow::Result<Self>> {
         Box::pin(async move { Ok(Self::new(model)) })
     }
 }
