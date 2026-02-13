@@ -8,7 +8,7 @@
 import { ColorVariable } from '../types';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '../../../../ui/card';
 import { Button } from '../../../../ui/button';
-import { Home, MessageSquarePlus, FileText, AppWindow, Clock, Puzzle } from 'lucide-react';
+import { Home, MessageSquarePlus, FileText, AppWindow, Clock, Puzzle, Save } from 'lucide-react';
 import { Gear } from '../../../../icons';
 
 interface ColorPreviewProps {
@@ -176,12 +176,25 @@ function BackgroundPreview({ variable, color }: { variable: ColorVariable; color
   if (varName === 'color-background-inverse') {
     return (
       <>
-        <Button variant="default" className="w-full" style={{ backgroundColor: color }}>
-          Primary Action Button
+        {/* Primary Action Button with Icon (Exact Replica) */}
+        <Button variant="default" className="w-full flex items-center justify-center gap-2" style={{ backgroundColor: color }}>
+          <Save className="w-4 h-4 text-text-inverse" />
+          <span className="text-text-inverse">Save Theme</span>
         </Button>
         
-        <div className="p-3 rounded-lg text-text-inverse text-sm" style={{ backgroundColor: color }}>
-          Selected item or active state
+        {/* User Chat Bubble (Exact Replica from UserMessage.tsx) */}
+        <div className="message flex justify-end w-full">
+          <div className="flex-col max-w-[85%] w-fit">
+            <div className="flex flex-col group">
+              <div className="flex rounded-xl py-2.5 px-4" style={{ backgroundColor: color }}>
+                <div>
+                  <p className="text-sm text-text-inverse">
+                    Can you help me customize the theme colors?
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
       </>
     );
