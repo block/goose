@@ -5,10 +5,14 @@ use futures::StreamExt;
 use tokio_util::sync::CancellationToken;
 
 use goose::agents::{AgentEvent, SessionConfig};
+use goose::config::extensions::get_enabled_extensions;
 use goose::config::paths::Paths;
+use goose::config::Config;
 use goose::conversation::message::{Message, MessageContent};
 use goose::execution::manager::AgentManager;
+use goose::model::ModelConfig;
 use goose::session::SessionType;
+use goose::session::{EnabledExtensionsState, ExtensionState};
 
 use super::pairing::PairingStore;
 use super::{Gateway, GatewayConfig, IncomingMessage, OutgoingMessage, PairingState, PlatformUser};
@@ -129,6 +133,33 @@ impl GatewayHandler {
             .create_session(working_dir, session_name, SessionType::Gateway)
             .await?;
 
+        let manager = self.agent_manager.session_manager();
+        let config = Config::global();
+
+        // Store the current provider and model config on the session so the agent
+        // can be restored after LRU eviction, matching the start_agent flow.
+        let mut update = manager.update(&session.id);
+        if let Ok(provider) = config.get_goose_provider() {
+            update = update.provider_name(provider);
+        }
+        if let Ok(model_name) = config.get_goose_model() {
+            if let Ok(model_config) = ModelConfig::new(&model_name) {
+                update = update.model_config(model_config);
+            }
+        }
+
+        // Store default extensions so load_extensions_from_session works.
+        let extensions = get_enabled_extensions();
+        let extensions_state = EnabledExtensionsState::new(extensions);
+        let mut extension_data = session.extension_data.clone();
+        if let Err(e) = extensions_state.to_extension_data(&mut extension_data) {
+            tracing::warn!(error = %e, "failed to initialize gateway session extensions");
+        } else {
+            update = update.extension_data(extension_data);
+        }
+
+        update.apply().await?;
+
         let now = chrono::Utc::now().timestamp();
         self.pairing_store
             .set(
@@ -165,6 +196,28 @@ impl GatewayHandler {
             .agent_manager
             .get_or_create_agent(session_id.to_string())
             .await?;
+
+        let session = self
+            .agent_manager
+            .session_manager()
+            .get_session(session_id, false)
+            .await?;
+
+        // Ensure provider is configured (handles first use and LRU eviction).
+        if let Err(e) = agent.restore_provider_from_session(&session).await {
+            self.gateway
+                .send_message(
+                    &message.user,
+                    OutgoingMessage::Error {
+                        message: format!("Failed to configure provider: {e}"),
+                    },
+                )
+                .await?;
+            return Ok(());
+        }
+
+        // Load extensions if not already loaded.
+        agent.load_extensions_from_session(&session).await;
 
         let cancel = CancellationToken::new();
         let user_message = Message::user().with_text(&message.text);
