@@ -14,3 +14,6 @@ jobs:
           echo $PATH
           echo $SHELL
           echo $HOME
+          PATH=/usr/bin:/bin:/usr/sbin:/sbin $SHELL -l -i -c 'echo $PATH'
+          echo '/fake/path' >> $HOME/.bashrc
+          PATH=/usr/bin:/bin:/usr/sbin:/sbin $SHELL -l -i -c 'echo $PATH'
