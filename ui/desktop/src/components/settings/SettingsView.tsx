@@ -1,7 +1,7 @@
 import { ScrollArea } from '../ui/scroll-area';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs';
 import { View, ViewOptions } from '../../utils/navigationUtils';
-import ModelsSection from './models/ModelsSection';
+import UnifiedModelSection from './models/UnifiedModelSection';
 import SessionSharingSection from './sessions/SessionSharingSection';
 import ExternalBackendSection from './app/ExternalBackendSection';
 import AppSettingsSection from './app/AppSettingsSection';
@@ -54,6 +54,7 @@ export default function SettingsView({
         chat: 'chat',
         prompts: 'prompts',
         keyboard: 'keyboard',
+        'local-inference': 'models', // Redirect to unified models tab
       };
 
       const targetTab = sectionToTab[viewOptions.section];
@@ -152,7 +153,7 @@ export default function SettingsView({
                   value="models"
                   className="mt-0 focus-visible:outline-none focus-visible:ring-0"
                 >
-                  <ModelsSection setView={setView} />
+                  <UnifiedModelSection setView={setView} />
                 </TabsContent>
 
                 <TabsContent

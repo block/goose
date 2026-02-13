@@ -94,6 +94,11 @@ pub fn inspect_keys(
 pub fn check_provider_configured(metadata: &ProviderMetadata, provider_type: ProviderType) -> bool {
     let config = Config::global();
 
+    // Special override
+    if metadata.name == "local" {
+        return true;
+    }
+
     if provider_type == ProviderType::Custom || provider_type == ProviderType::Declarative {
         if let Ok(loaded_provider) = load_provider(metadata.name.as_str()) {
             if !loaded_provider.config.requires_auth {

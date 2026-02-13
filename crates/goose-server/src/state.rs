@@ -14,6 +14,7 @@ use tokio::task::JoinHandle;
 
 use crate::tunnel::TunnelManager;
 use goose::agents::ExtensionLoadResult;
+use goose::providers::local_inference::InferenceRuntime;
 
 type ExtensionLoadingTasks =
     Arc<Mutex<HashMap<String, Arc<Mutex<Option<JoinHandle<Vec<ExtensionLoadResult>>>>>>>>;
@@ -26,6 +27,7 @@ pub struct AppState {
     recipe_session_tracker: Arc<Mutex<HashSet<String>>>,
     pub tunnel_manager: Arc<TunnelManager>,
     pub extension_loading_tasks: ExtensionLoadingTasks,
+    pub inference_runtime: Arc<InferenceRuntime>,
 }
 
 fn spawn_developer(r: tokio::io::DuplexStream, w: tokio::io::DuplexStream) {
@@ -57,6 +59,7 @@ impl AppState {
             recipe_session_tracker: Arc::new(Mutex::new(HashSet::new())),
             tunnel_manager,
             extension_loading_tasks: Arc::new(Mutex::new(HashMap::new())),
+            inference_runtime: InferenceRuntime::get_or_init(),
         }))
     }
 

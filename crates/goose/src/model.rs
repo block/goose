@@ -83,8 +83,13 @@ static MODEL_SPECIFIC_LIMITS: Lazy<Vec<(&'static str, usize)>> = Lazy::new(|| {
         ("gemma-2b", 8_192),
         ("gemma1", 8_192),
         ("gemma", 8_192),
-        // facebook
+        // facebook / meta
         ("llama-2-1b", 32_000),
+        // local inference models (must come before general "llama" pattern)
+        ("llama-3.2-1b", 4_096),
+        ("llama-3.2-3b", 4_096),
+        ("hermes-2-pro-7b", 8_192),
+        ("mistral-small-22b", 32_768),
         ("llama", 128_000),
         // qwen
         ("qwen3-coder", 262_144),
