@@ -21,6 +21,9 @@ jobs:
           PATH=/usr/bin:/bin:/usr/sbin:/sbin $SHELL -l -i -c 'echo $PATH'
 
           echo 'check config files'
+          echo ************ $HOME/.bashrc
           cat $HOME/.bashrc
+          echo ************ $HOME/.bash_profile
           cat $HOME/.bash_profile
+          echo ************ $HOME/.profile
           cat $HOME/.profile
