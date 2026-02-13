@@ -31,18 +31,18 @@ const HUE_COLORS = [
 // Generate saturation/lightness grid for a given hue
 function generateSaturationGrid(hueColor: string): string[][] {
   const grid: string[][] = [];
-  const rows = 8; // Lightness levels (more granular)
-  const cols = 10; // Saturation levels (more granular)
+  const rows = 10; // Lightness levels (maximum granularity)
+  const cols = 15; // Saturation levels (maximum granularity)
   
   // Parse hue color to HSL
   const hsl = hexToHSL(hueColor);
   
   for (let row = 0; row < rows; row++) {
     const rowColors: string[] = [];
-    const lightness = 95 - (row * 12); // 95%, 83%, 71%, 59%, 47%, 35%, 23%, 11%
+    const lightness = 95 - (row * 9.5); // 95% to 5% in 9.5% steps
     
     for (let col = 0; col < cols; col++) {
-      const saturation = col * 11; // 0%, 11%, 22%, 33%, 44%, 55%, 66%, 77%, 88%, 99%
+      const saturation = col * 7; // 0% to 98% in 7% steps
       const color = hslToHex(hsl.h, saturation, lightness);
       rowColors.push(color);
     }
@@ -159,7 +159,7 @@ export function SimpleColorPicker({ color, onChange }: SimpleColorPickerProps) {
         <div className="text-xs text-text-secondary mb-1.5">Select Shade</div>
         <div className="space-y-0.5">
           {saturationGrid.map((row, rowIndex) => (
-            <div key={rowIndex} className="grid grid-cols-10 gap-0.5">
+            <div key={rowIndex} className="grid grid-cols-15 gap-0.5">
               {row.map((gridColor, colIndex) => (
                 <button
                   key={`${rowIndex}-${colIndex}`}
