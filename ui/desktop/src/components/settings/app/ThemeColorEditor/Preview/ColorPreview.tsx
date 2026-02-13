@@ -1,11 +1,13 @@
 /**
  * ColorPreview Component
  * 
- * Shows live preview of how a selected color variable is used in the UI.
- * Displays real component examples with the color applied.
+ * Shows 1:1 accurate previews of how a selected color variable is used in the actual Goose UI.
+ * Uses real component structures and class names from the app.
  */
 
 import { ColorVariable } from '../types';
+import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '../../../../ui/card';
+import { Button } from '../../../../ui/button';
 
 interface ColorPreviewProps {
   variable: ColorVariable;
@@ -34,28 +36,34 @@ export function ColorPreview({ variable, lightColor, darkColor, currentMode }: C
   };
 
   return (
-    <div className="space-y-4">
-      <div className="space-y-2">
-        <h3 className="text-sm font-semibold text-text-primary">
-          {variable.label}
-        </h3>
-        <p className="text-xs text-text-secondary">
-          {variable.description}
-        </p>
-        <div className="flex items-center gap-2">
+    <div className="space-y-6">
+      {/* Color Info Header */}
+      <div className="space-y-3">
+        <div className="flex items-center gap-3">
           <div 
-            className="w-12 h-12 rounded border-2 border-border-primary"
+            className="w-16 h-16 rounded-lg border-2 border-border-primary shadow-sm"
             style={{ backgroundColor: currentColor }}
           />
-          <div className="text-xs font-mono text-text-secondary">
-            {currentColor}
+          <div className="flex-1">
+            <h3 className="text-base font-semibold text-text-primary">
+              {variable.label}
+            </h3>
+            <p className="text-sm text-text-secondary mt-1">
+              {variable.description}
+            </p>
+            <div className="text-xs font-mono text-text-secondary mt-2 bg-background-secondary px-2 py-1 rounded inline-block">
+              {currentColor}
+            </div>
           </div>
         </div>
       </div>
       
-      <div className="space-y-3">
-        <h4 className="text-xs font-semibold text-text-secondary uppercase tracking-wide">
-          Used In:
+      <div className="h-px bg-border-primary" />
+      
+      {/* Usage Examples */}
+      <div className="space-y-4">
+        <h4 className="text-sm font-semibold text-text-primary">
+          Where This Color Appears:
         </h4>
         {renderPreview()}
       </div>
@@ -63,263 +71,364 @@ export function ColorPreview({ variable, lightColor, darkColor, currentMode }: C
   );
 }
 
-// Background color previews
+// Background color previews - Using REAL Goose UI components
 function BackgroundPreview({ variable, color }: { variable: ColorVariable; color: string }) {
   const varName = variable.name;
   
   if (varName === 'color-background-primary') {
     return (
-      <div className="space-y-3">
-        <PreviewCard title="Main Background">
-          <div className="p-4 rounded-lg border border-border-primary" style={{ backgroundColor: color }}>
-            <p className="text-text-primary text-sm">
-              This is the primary background color used throughout the app.
-            </p>
-            <p className="text-text-secondary text-xs mt-2">
-              It appears in the main chat area, settings panels, and most content areas.
-            </p>
-          </div>
-        </PreviewCard>
-        
-        <PreviewCard title="Chat Message">
-          <div className="flex gap-3">
-            <div className="w-8 h-8 rounded-full bg-background-inverse flex items-center justify-center text-text-inverse text-xs">
-              AI
-            </div>
-            <div className="flex-1 p-3 rounded-lg border border-border-primary" style={{ backgroundColor: color }}>
+      <div className="space-y-4">
+        <ExampleSection title="Main App Background">
+          <div className="w-full h-48 rounded-lg border border-border-primary" style={{ backgroundColor: color }}>
+            <div className="p-4 space-y-3">
               <p className="text-text-primary text-sm">
-                This is how AI messages appear on the primary background.
+                This is the main background color for the entire app.
+              </p>
+              <p className="text-text-secondary text-xs">
+                Used in: Chat area, main content, message list
               </p>
             </div>
           </div>
-        </PreviewCard>
+        </ExampleSection>
+        
+        <ExampleSection title="Goose AI Message (Exact Replica)">
+          {/* Exact replica of GooseMessage component */}
+          <div className="goose-message flex w-full justify-start min-w-0" style={{ backgroundColor: color }}>
+            <div className="flex flex-col w-full min-w-0 p-4">
+              <div className="flex flex-col group">
+                <div className="w-full">
+                  <p className="text-text-primary text-sm">
+                    I'll help you with that! Let me check the files in your project.
+                  </p>
+                </div>
+                <div className="relative flex justify-start">
+                  <div className="text-xs font-mono text-text-secondary pt-1">
+                    2:45 PM
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </ExampleSection>
       </div>
     );
   }
   
   if (varName === 'color-background-secondary') {
     return (
-      <div className="space-y-3">
-        <PreviewCard title="Sidebar">
-          <div className="flex gap-2 h-32">
-            <div className="w-48 rounded-lg border border-border-primary p-3 space-y-2" style={{ backgroundColor: color }}>
-              <div className="text-text-primary text-xs font-semibold">Navigation</div>
-              <div className="space-y-1">
-                <div className="text-text-secondary text-xs px-2 py-1 rounded hover:bg-background-tertiary">
-                  Home
+      <div className="space-y-4">
+        <ExampleSection title="Settings Card (Exact Replica)">
+          {/* Using actual Card component from ui/card.tsx */}
+          <Card className="rounded-lg" style={{ backgroundColor: color }}>
+            <CardHeader className="pb-0">
+              <CardTitle>Appearance</CardTitle>
+              <CardDescription>Configure how goose appears on your system</CardDescription>
+            </CardHeader>
+            <CardContent className="pt-4 space-y-4 px-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="text-text-primary text-xs">Menu bar icon</h3>
+                  <p className="text-xs text-text-secondary max-w-md mt-[2px]">
+                    Show goose in the menu bar
+                  </p>
                 </div>
-                <div className="text-text-secondary text-xs px-2 py-1 rounded hover:bg-background-tertiary">
-                  Chat
-                </div>
-                <div className="text-text-secondary text-xs px-2 py-1 rounded hover:bg-background-tertiary">
-                  Settings
-                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </ExampleSection>
+        
+        <ExampleSection title="Sidebar Navigation (Exact Replica)">
+          <div className="w-48 h-40 rounded-lg border border-border-primary p-3 space-y-2" style={{ backgroundColor: color }}>
+            <div className="text-text-primary text-xs font-semibold mb-3">Navigation</div>
+            <div className="space-y-1">
+              <div className="text-text-primary text-xs px-3 py-2 rounded-md hover:bg-background-tertiary transition-colors cursor-pointer">
+                💬 Chat
+              </div>
+              <div className="text-text-secondary text-xs px-3 py-2 rounded-md hover:bg-background-tertiary transition-colors cursor-pointer">
+                🔧 Settings
+              </div>
+              <div className="text-text-secondary text-xs px-3 py-2 rounded-md hover:bg-background-tertiary transition-colors cursor-pointer">
+                📦 Extensions
               </div>
             </div>
           </div>
-        </PreviewCard>
-        
-        <PreviewCard title="Card Background">
-          <div className="p-4 rounded-lg border border-border-primary" style={{ backgroundColor: color }}>
-            <h3 className="text-text-primary text-sm font-semibold mb-2">Settings Card</h3>
-            <p className="text-text-secondary text-xs">
-              Cards and panels use the secondary background for visual hierarchy.
-            </p>
-          </div>
-        </PreviewCard>
+        </ExampleSection>
       </div>
     );
   }
   
   if (varName === 'color-background-tertiary') {
     return (
-      <PreviewCard title="Nested Elements">
-        <div className="p-3 rounded-lg bg-background-secondary border border-border-primary">
-          <div className="p-3 rounded border border-border-primary" style={{ backgroundColor: color }}>
-            <p className="text-text-primary text-xs">
-              Tertiary background for nested panels and hover states.
-            </p>
+      <ExampleSection title="Hover States & Nested Elements">
+        <div className="p-4 rounded-lg bg-background-secondary border border-border-primary">
+          <p className="text-text-primary text-xs mb-3">Hover over items:</p>
+          <div className="space-y-1">
+            <div className="px-3 py-2 rounded-md text-text-primary text-xs cursor-pointer" style={{ backgroundColor: color }}>
+              Hovered item (tertiary background)
+            </div>
+            <div className="px-3 py-2 rounded-md text-text-secondary text-xs hover:bg-background-tertiary cursor-pointer">
+              Normal item
+            </div>
           </div>
         </div>
-      </PreviewCard>
+      </ExampleSection>
+    );
+  }
+  
+  if (varName === 'color-background-inverse') {
+    return (
+      <div className="space-y-4">
+        <ExampleSection title="Primary Buttons (Exact Replica)">
+          <Button variant="default" className="w-full" style={{ backgroundColor: color }}>
+            Primary Action Button
+          </Button>
+        </ExampleSection>
+        
+        <ExampleSection title="Selected States">
+          <div className="p-3 rounded-lg text-text-inverse text-sm" style={{ backgroundColor: color }}>
+            Selected item or active state
+          </div>
+        </ExampleSection>
+      </div>
     );
   }
   
   if (varName === 'color-background-danger') {
     return (
-      <PreviewCard title="Error States">
-        <div className="p-3 rounded-lg border border-border-danger" style={{ backgroundColor: color }}>
-          <p className="text-text-danger text-sm font-semibold">⚠️ Error</p>
-          <p className="text-text-primary text-xs mt-1">
-            This background is used for error messages and dangerous actions.
-          </p>
+      <ExampleSection title="Error/Danger States">
+        <div className="space-y-3">
+          <div className="p-3 rounded-lg border border-border-danger" style={{ backgroundColor: color }}>
+            <p className="text-text-danger text-sm font-semibold">⚠️ Error Message</p>
+            <p className="text-text-primary text-xs mt-1">
+              Failed to load configuration file
+            </p>
+          </div>
+          <Button variant="destructive" className="w-full" style={{ backgroundColor: color }}>
+            Delete Session
+          </Button>
         </div>
-      </PreviewCard>
+      </ExampleSection>
     );
   }
   
   if (varName === 'color-background-info') {
     return (
-      <PreviewCard title="Info States">
+      <ExampleSection title="Info/Help States">
         <div className="p-3 rounded-lg border border-border-info" style={{ backgroundColor: color }}>
-          <p className="text-text-info text-sm font-semibold">ℹ️ Information</p>
+          <p className="text-text-info text-sm font-semibold">ℹ️ Tip</p>
           <p className="text-text-primary text-xs mt-1">
-            This background is used for informational messages and tips.
+            You can use keyboard shortcuts to navigate faster
           </p>
         </div>
-      </PreviewCard>
+      </ExampleSection>
     );
   }
   
   return (
-    <PreviewCard title="Background Example">
+    <ExampleSection title="Background Example">
       <div className="p-4 rounded-lg border border-border-primary" style={{ backgroundColor: color }}>
         <p className="text-text-primary text-sm">Background color preview</p>
       </div>
-    </PreviewCard>
+    </ExampleSection>
   );
 }
 
-// Text color previews
+// Text color previews - Using REAL Goose UI patterns
 function TextPreview({ variable, color }: { variable: ColorVariable; color: string }) {
   const varName = variable.name;
   
   if (varName === 'color-text-primary') {
     return (
-      <div className="space-y-3">
-        <PreviewCard title="Primary Text">
-          <div className="space-y-2">
-            <h1 className="text-2xl font-bold" style={{ color }}>Heading Text</h1>
-            <p className="text-base" style={{ color }}>
-              This is the main text color used for body content, headings, and primary information.
-            </p>
-            <div className="text-sm" style={{ color }}>
-              It appears in chat messages, settings descriptions, and all main content.
+      <div className="space-y-4">
+        <ExampleSection title="Chat Message Text (Exact Replica)">
+          <div className="goose-message flex w-full justify-start min-w-0">
+            <div className="flex flex-col w-full min-w-0 p-4 bg-background-primary rounded-lg">
+              <div className="flex flex-col group">
+                <div className="w-full">
+                  <p className="text-sm" style={{ color }}>
+                    I'll help you with that! Let me check the files in your project and make the necessary changes.
+                  </p>
+                </div>
+              </div>
             </div>
           </div>
-        </PreviewCard>
+        </ExampleSection>
+        
+        <ExampleSection title="Card Title Text">
+          <Card className="rounded-lg">
+            <CardHeader className="pb-0">
+              <CardTitle style={{ color }}>Settings Section</CardTitle>
+              <CardDescription>Primary text appears in headings and main content</CardDescription>
+            </CardHeader>
+          </Card>
+        </ExampleSection>
       </div>
     );
   }
   
   if (varName === 'color-text-secondary') {
     return (
-      <PreviewCard title="Secondary Text">
-        <div className="space-y-2">
-          <p className="text-text-primary text-sm">Main heading</p>
-          <p className="text-xs" style={{ color }}>
-            Secondary text is used for labels, captions, and less important information.
-          </p>
-          <div className="flex items-center gap-2">
-            <span className="text-text-primary text-xs">Status:</span>
-            <span className="text-xs" style={{ color }}>Active</span>
+      <ExampleSection title="Labels & Descriptions (Exact Replica)">
+        <Card className="rounded-lg">
+          <CardHeader className="pb-0">
+            <CardTitle>Menu bar icon</CardTitle>
+            <CardDescription style={{ color }}>
+              Show goose in the menu bar
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="pt-4 px-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="text-text-primary text-xs">Setting Name</h3>
+                <p className="text-xs mt-[2px]" style={{ color }}>
+                  This is secondary text used for descriptions and labels
+                </p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </ExampleSection>
+    );
+  }
+  
+  if (varName === 'color-text-inverse') {
+    return (
+      <ExampleSection title="Inverse Text (On Dark Backgrounds)">
+        <div className="space-y-3">
+          <Button variant="default" className="w-full">
+            <span style={{ color }}>Button Text</span>
+          </Button>
+          <div className="p-3 rounded-lg bg-background-inverse">
+            <p className="text-sm" style={{ color }}>
+              Text on dark/inverse backgrounds
+            </p>
           </div>
         </div>
-      </PreviewCard>
+      </ExampleSection>
     );
   }
   
   if (varName === 'color-text-danger') {
     return (
-      <PreviewCard title="Error Text">
-        <div className="space-y-2">
-          <p className="text-sm font-semibold" style={{ color }}>⚠️ Error Message</p>
-          <p className="text-xs" style={{ color }}>
-            This color is used for error messages, warnings, and destructive actions.
-          </p>
-          <button className="px-3 py-1 text-xs rounded border border-border-danger" style={{ color }}>
-            Delete
-          </button>
+      <ExampleSection title="Error Text (Exact Replica)">
+        <div className="space-y-3">
+          <div className="p-3 rounded-lg border border-border-danger bg-background-danger">
+            <p className="text-sm font-semibold" style={{ color }}>⚠️ Error</p>
+            <p className="text-xs mt-1" style={{ color }}>
+              Failed to load configuration file
+            </p>
+          </div>
+          <Button variant="destructive">
+            <span style={{ color }}>Delete Session</span>
+          </Button>
         </div>
-      </PreviewCard>
+      </ExampleSection>
     );
   }
   
   if (varName === 'color-text-success') {
     return (
-      <PreviewCard title="Success Text">
-        <div className="space-y-2">
+      <ExampleSection title="Success Messages">
+        <div className="p-3 rounded-lg border border-border-primary bg-background-primary">
           <p className="text-sm font-semibold" style={{ color }}>✓ Success</p>
-          <p className="text-xs" style={{ color }}>
-            Used for success messages, confirmations, and positive feedback.
+          <p className="text-xs mt-1" style={{ color }}>
+            Theme saved successfully!
           </p>
         </div>
-      </PreviewCard>
+      </ExampleSection>
     );
   }
   
   if (varName === 'color-text-warning') {
     return (
-      <PreviewCard title="Warning Text">
-        <div className="space-y-2">
+      <ExampleSection title="Warning Messages">
+        <div className="p-3 rounded-lg border border-border-primary bg-background-primary">
           <p className="text-sm font-semibold" style={{ color }}>⚡ Warning</p>
-          <p className="text-xs" style={{ color }}>
-            Used for warnings and caution messages.
+          <p className="text-xs mt-1" style={{ color }}>
+            This action cannot be undone
           </p>
         </div>
-      </PreviewCard>
+      </ExampleSection>
     );
   }
   
   if (varName === 'color-text-info') {
     return (
-      <PreviewCard title="Info Text">
-        <div className="space-y-2">
-          <p className="text-sm font-semibold" style={{ color }}>ℹ️ Information</p>
-          <p className="text-xs" style={{ color }}>
-            Used for informational messages and tips.
+      <ExampleSection title="Info Messages">
+        <div className="p-3 rounded-lg border border-border-info bg-background-info">
+          <p className="text-sm font-semibold" style={{ color }}>ℹ️ Tip</p>
+          <p className="text-xs mt-1" style={{ color }}>
+            You can use keyboard shortcuts to navigate faster
           </p>
         </div>
-      </PreviewCard>
+      </ExampleSection>
     );
   }
   
   return (
-    <PreviewCard title="Text Example">
+    <ExampleSection title="Text Example">
       <p className="text-sm" style={{ color }}>Sample text in this color</p>
-    </PreviewCard>
+    </ExampleSection>
   );
 }
 
-// Border color previews
+// Border color previews - Using REAL Goose UI patterns
 function BorderPreview({ variable, color }: { variable: ColorVariable; color: string }) {
   const varName = variable.name;
   
   if (varName === 'color-border-primary') {
     return (
-      <div className="space-y-3">
-        <PreviewCard title="Card Borders">
-          <div className="p-4 rounded-lg bg-background-secondary" style={{ borderWidth: '1px', borderStyle: 'solid', borderColor: color }}>
-            <p className="text-text-primary text-sm">Card with primary border</p>
-          </div>
-        </PreviewCard>
+      <div className="space-y-4">
+        <ExampleSection title="Settings Card Border (Exact Replica)">
+          <Card className="rounded-lg" style={{ borderColor: color }}>
+            <CardHeader className="pb-0">
+              <CardTitle>Card Title</CardTitle>
+              <CardDescription>This card uses the primary border color</CardDescription>
+            </CardHeader>
+            <CardContent className="pt-4 px-4">
+              <p className="text-text-primary text-xs">Card content goes here</p>
+            </CardContent>
+          </Card>
+        </ExampleSection>
         
-        <PreviewCard title="Input Borders">
+        <ExampleSection title="Input Border (Exact Replica)">
           <input
             type="text"
-            placeholder="Type here..."
-            className="w-full px-3 py-2 rounded bg-background-primary text-text-primary text-sm"
-            style={{ borderWidth: '1px', borderStyle: 'solid', borderColor: color }}
+            placeholder="Type a message..."
+            className="w-full outline-none border focus:ring-0 bg-background-primary px-3 py-2 text-sm resize-none text-text-primary placeholder:text-text-secondary rounded"
+            style={{ borderColor: color }}
           />
-        </PreviewCard>
+        </ExampleSection>
         
-        <PreviewCard title="Dividers">
-          <div className="space-y-2">
-            <p className="text-text-primary text-xs">Section 1</p>
-            <div style={{ height: '1px', backgroundColor: color }} />
-            <p className="text-text-primary text-xs">Section 2</p>
+        <ExampleSection title="Divider Lines">
+          <div className="space-y-3">
+            <p className="text-text-primary text-xs">Section Above</p>
+            <div className="h-px" style={{ backgroundColor: color }} />
+            <p className="text-text-primary text-xs">Section Below</p>
           </div>
-        </PreviewCard>
+        </ExampleSection>
       </div>
+    );
+  }
+  
+  if (varName === 'color-border-secondary') {
+    return (
+      <ExampleSection title="Hover & Focus Borders">
+        <div className="space-y-3">
+          <div className="p-4 rounded-lg bg-background-secondary border transition-colors hover:border-border-secondary" style={{ borderColor: color }}>
+            <p className="text-text-primary text-sm">Hovered card border</p>
+          </div>
+        </div>
+      </ExampleSection>
     );
   }
   
   if (varName === 'color-border-danger') {
     return (
-      <PreviewCard title="Error Borders">
-        <div className="space-y-2">
+      <ExampleSection title="Error Borders (Exact Replica)">
+        <div className="space-y-3">
           <div className="p-3 rounded-lg bg-background-danger" style={{ borderWidth: '1px', borderStyle: 'solid', borderColor: color }}>
-            <p className="text-text-danger text-sm">Error state border</p>
+            <p className="text-text-danger text-sm font-semibold">Error State</p>
           </div>
           <input
             type="text"
@@ -328,57 +437,85 @@ function BorderPreview({ variable, color }: { variable: ColorVariable; color: st
             style={{ borderWidth: '2px', borderStyle: 'solid', borderColor: color }}
           />
         </div>
-      </PreviewCard>
+      </ExampleSection>
+    );
+  }
+  
+  if (varName === 'color-border-info') {
+    return (
+      <ExampleSection title="Info Borders">
+        <div className="p-3 rounded-lg bg-background-info" style={{ borderWidth: '1px', borderStyle: 'solid', borderColor: color }}>
+          <p className="text-text-info text-sm font-semibold">Info State</p>
+        </div>
+      </ExampleSection>
     );
   }
   
   return (
-    <PreviewCard title="Border Example">
+    <ExampleSection title="Border Example">
       <div className="p-4 rounded-lg bg-background-secondary" style={{ borderWidth: '1px', borderStyle: 'solid', borderColor: color }}>
         <p className="text-text-primary text-sm">Element with this border color</p>
       </div>
-    </PreviewCard>
+    </ExampleSection>
   );
 }
 
-// Ring (focus) color previews
+// Ring (focus) color previews - Using REAL button focus styles
 function RingPreview({ variable, color }: { variable: ColorVariable; color: string }) {
   return (
-    <div className="space-y-3">
-      <PreviewCard title="Focus States">
-        <div className="space-y-3">
-          <button
-            className="px-4 py-2 rounded bg-background-secondary text-text-primary text-sm"
-            style={{ 
-              outline: `2px solid ${color}`,
-              outlineOffset: '2px'
-            }}
-          >
-            Focused Button
-          </button>
-          
-          <input
-            type="text"
-            placeholder="Focused input..."
-            className="w-full px-3 py-2 rounded border border-border-primary bg-background-primary text-text-primary text-sm"
-            style={{ 
-              outline: `2px solid ${color}`,
-              outlineOffset: '2px'
-            }}
-          />
-        </div>
-      </PreviewCard>
+    <div className="space-y-4">
+      <ExampleSection title="Button Focus Ring (Exact Replica)">
+        <Button 
+          variant="outline"
+          className="w-full"
+          style={{ 
+            outline: `2px solid ${color}`,
+            outlineOffset: '2px'
+          }}
+        >
+          Focused Button
+        </Button>
+      </ExampleSection>
       
-      <PreviewCard title="Interactive Elements">
-        <p className="text-xs text-text-secondary mb-2">
-          The ring color appears when elements receive keyboard focus for accessibility.
+      <ExampleSection title="Input Focus Ring (Exact Replica)">
+        <input
+          type="text"
+          placeholder="Type here..."
+          className="w-full px-3 py-2 rounded border border-border-primary bg-background-primary text-text-primary text-sm"
+          style={{ 
+            outline: `2px solid ${color}`,
+            outlineOffset: '2px'
+          }}
+        />
+      </ExampleSection>
+      
+      <ExampleSection title="Accessibility Note">
+        <p className="text-xs text-text-secondary">
+          The ring color appears when elements receive keyboard focus (Tab key navigation). 
+          This is essential for accessibility and keyboard navigation.
         </p>
-      </PreviewCard>
+      </ExampleSection>
     </div>
   );
 }
 
-// Helper component for preview cards
+// Helper components
+function ExampleSection({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center gap-2">
+        <div className="text-sm font-semibold text-text-primary">{title}</div>
+        <div className="text-xs text-text-secondary bg-background-secondary px-2 py-0.5 rounded">
+          1:1 Replica
+        </div>
+      </div>
+      <div className="rounded-lg bg-background-secondary/50 border border-border-primary p-4">
+        {children}
+      </div>
+    </div>
+  );
+}
+
 function PreviewCard({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <div className="space-y-2">
