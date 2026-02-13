@@ -115,7 +115,6 @@ impl EnabledExtensionsState {
         Self { extensions }
     }
 
-<<<<<<< HEAD
     pub fn from_extension_data(extension_data: &ExtensionData) -> Option<Self> {
         let mut state = <Self as ExtensionState>::from_extension_data(extension_data)?;
         state.extensions.retain(is_extension_available);
@@ -141,7 +140,6 @@ impl EnabledExtensionsState {
     ) -> Vec<ExtensionConfig> {
         let session = session_manager.get_session(session_id, false).await.ok();
         Self::extensions_or_default(session.as_ref().map(|s| &s.extension_data), config)
-    }
     }
 }
 
