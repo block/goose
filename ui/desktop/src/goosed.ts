@@ -1,9 +1,3 @@
-/**
- * Goosed process management utilities.
- * These utilities are designed to work in both the main Electron process
- * and in Node.js test environments.
- */
-
 import { spawn, ChildProcess } from 'child_process';
 import fs from 'node:fs';
 import os from 'node:os';
@@ -22,20 +16,14 @@ export const defaultLogger: Logger = {
 };
 
 export const findAvailablePort = (): Promise<number> => {
-  return new Promise((resolve, reject) => {
+  return new Promise((resolve, _reject) => {
     const server = createServer();
 
-    server.on('error', reject);
-
     server.listen(0, '127.0.0.1', () => {
-      const address = server.address();
-      if (address && typeof address === 'object') {
-        const { port } = address;
-        server.close(() => resolve(port));
-      } else {
-        server.close();
-        reject(new Error('Failed to get port from server address'));
-      }
+      const { port } = server.address() as { port: number };
+      server.close(() => {
+        resolve(port);
+      });
     });
   });
 };
