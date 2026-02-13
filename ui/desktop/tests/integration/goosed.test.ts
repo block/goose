@@ -6,7 +6,7 @@
  */
 
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import { startGoosed, type GoosedTestContext } from './setup';
+import { setupGoosed, type GoosedTestContext } from './setup';
 import {
   status,
   readConfig,
@@ -59,7 +59,7 @@ extensions:
     available_tools: []
 `;
 
-    ctx = await startGoosed({ pathOverride: '/usr/bin:/bin', configYaml });
+    ctx = await setupGoosed({ pathOverride: '/usr/bin:/bin', configYaml });
   });
 
   afterAll(async () => {
@@ -273,7 +273,9 @@ extensions:
           if (event.type === 'Message') {
             const content = event.message?.content?.[0];
             if (content?.type === 'toolResponse') {
-              const toolResult = content as { toolResult?: { value?: { content?: Array<{ text?: string }> } } };
+              const toolResult = content as {
+                toolResult?: { value?: { content?: Array<{ text?: string }> } };
+              };
               const output = toolResult?.toolResult?.value?.content?.[0]?.text;
               if (output && output.includes('/usr')) {
                 clearTimeout(timeout);

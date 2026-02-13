@@ -9,7 +9,6 @@ import type { ChildProcess } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { createClient, createConfig } from '../../src/api/client';
 import type { Client } from '../../src/api/client';
 import { startGoosed as startGoosedBase, checkServerStatus, type Logger } from '../../src/goosed';
 import { expect } from 'vitest';
@@ -48,7 +47,7 @@ export interface GoosedTestContext {
   cleanup: () => Promise<void>;
 }
 
-export async function startGoosed({
+export async function setupGoosed({
   pathOverride,
   configYaml,
 }: {
@@ -79,21 +78,26 @@ export async function startGoosed({
     additionalEnv.PATH = pathOverride;
   }
 
-  const result = await startGoosedBase({
+  const {
+    baseUrl,
+    process: goosedProcess,
+    client,
+    cleanup: baseCleanup,
+    errorLog,
+  } = await startGoosedBase({
     serverSecret: TEST_SECRET_KEY,
     env: additionalEnv,
     logger: testLogger,
   });
-  const client = result.client;
 
-  if (!result.process) {
+  if (!goosedProcess) {
     throw new Error('Expected goosed process to be started, but got external backend');
   }
 
-  const serverReady = await checkServerStatus(result.client, result.errorLog);
+  const serverReady = await checkServerStatus(client, errorLog);
   if (!serverReady) {
-    result.cleanup();
-    console.error('Server stderr:', result.errorLog.join('\n'));
+    baseCleanup();
+    console.error('Server stderr:', errorLog.join('\n'));
     throw new Error('Failed to start goosed');
   }
 
@@ -116,20 +120,20 @@ export async function startGoosed({
     }
 
     return new Promise<void>((resolve) => {
-      if (!result.process || result.process.killed) {
+      if (!goosedProcess || goosedProcess.killed) {
         resolve();
         return;
       }
 
-      result.process.on('close', () => {
+      goosedProcess.on('close', () => {
         resolve();
       });
 
-      result.process.kill('SIGTERM');
+      goosedProcess.kill('SIGTERM');
 
       setTimeout(() => {
-        if (result.process && !result.process.killed) {
-          result.process.kill('SIGKILL');
+        if (goosedProcess && !goosedProcess.killed) {
+          goosedProcess.kill('SIGKILL');
         }
         resolve();
       }, 5000);
@@ -140,9 +144,9 @@ export async function startGoosed({
 
   return {
     client,
-    baseUrl: result.baseUrl,
+    baseUrl,
     secretKey: TEST_SECRET_KEY,
-    process: result.process,
+    process: goosedProcess,
     cleanup,
   };
 }
