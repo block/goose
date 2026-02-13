@@ -161,9 +161,9 @@ impl PromptInjectionScanner {
             tool_confidence = %tool_result.confidence,
             context_confidence = ?context_result.ml_confidence,
             final_confidence = %final_confidence,
-            has_command_ml = tool_result.ml_confidence.is_some(),
-            has_prompt_ml = context_result.ml_confidence.is_some(),
-            has_patterns = tool_result.used_pattern_detection,
+            used_command_ml = tool_result.ml_confidence.is_some(),
+            used_prompt_ml = context_result.ml_confidence.is_some(),
+            used_pattern_detection = tool_result.used_pattern_detection,
             threshold = %threshold,
             malicious = final_confidence >= threshold,
             "Security analysis complete"
