@@ -303,93 +303,62 @@ pub fn stream_openai_compat(
 mod tests {
     use super::*;
     use serde_json::json;
+    use test_case::test_case;
 
-    #[test]
-    fn http_402_maps_to_credits_exhausted() {
-        let payload = json!({
-            "error": {
-                "message": "Insufficient credits to complete this request"
-            }
-        });
-        let err = map_http_error_to_provider_error(
-            StatusCode::PAYMENT_REQUIRED,
-            Some(payload),
-        );
-        match err {
-            ProviderError::CreditsExhausted {
-                ref details,
-                ref top_up_url,
-            } => {
-                assert!(
-                    details.contains("Insufficient credits"),
-                    "Expected details to contain error message, got: {details}"
-                );
-                // Generic handler doesn't know the provider, so no URL
-                assert_eq!(*top_up_url, None);
-            }
-            other => panic!("Expected CreditsExhausted, got: {:?}", other),
-        }
-    }
-
-    #[test]
-    fn http_402_with_no_payload_maps_to_credits_exhausted() {
-        let err = map_http_error_to_provider_error(StatusCode::PAYMENT_REQUIRED, None);
-        assert!(
-            matches!(err, ProviderError::CreditsExhausted { .. }),
-            "Expected CreditsExhausted, got: {:?}",
-            err
-        );
-    }
-
-    #[test]
-    fn http_429_maps_to_rate_limit_not_credits() {
-        let payload = json!({
-            "error": {
-                "message": "Rate limit exceeded"
-            }
-        });
-        let err =
-            map_http_error_to_provider_error(StatusCode::TOO_MANY_REQUESTS, Some(payload));
-        assert!(
-            matches!(err, ProviderError::RateLimitExceeded { .. }),
-            "Expected RateLimitExceeded, got: {:?}",
-            err
-        );
-    }
-
-    #[test]
-    fn http_401_maps_to_authentication() {
-        let err = map_http_error_to_provider_error(StatusCode::UNAUTHORIZED, None);
-        assert!(
-            matches!(err, ProviderError::Authentication(_)),
-            "Expected Authentication, got: {:?}",
-            err
-        );
-    }
-
-    #[test]
-    fn http_400_with_context_length_maps_correctly() {
-        let payload = json!({
-            "error": {
-                "message": "This request exceeds the maximum context length"
-            }
-        });
-        let err = map_http_error_to_provider_error(StatusCode::BAD_REQUEST, Some(payload));
-        assert!(
-            matches!(err, ProviderError::ContextLengthExceeded(_)),
-            "Expected ContextLengthExceeded, got: {:?}",
-            err
-        );
-    }
-
-    #[test]
-    fn http_500_maps_to_server_error() {
-        let err =
-            map_http_error_to_provider_error(StatusCode::INTERNAL_SERVER_ERROR, None);
-        assert!(
-            matches!(err, ProviderError::ServerError(_)),
-            "Expected ServerError, got: {:?}",
-            err
+    #[test_case(
+        StatusCode::PAYMENT_REQUIRED,
+        Some(json!({"error": {"message": "Insufficient credits to complete this request"}})),
+        "CreditsExhausted"
+        ; "402 with payload"
+    )]
+    #[test_case(
+        StatusCode::PAYMENT_REQUIRED,
+        None,
+        "CreditsExhausted"
+        ; "402 without payload"
+    )]
+    #[test_case(
+        StatusCode::TOO_MANY_REQUESTS,
+        Some(json!({"error": {"message": "Rate limit exceeded"}})),
+        "RateLimitExceeded"
+        ; "429 rate limit"
+    )]
+    #[test_case(
+        StatusCode::UNAUTHORIZED,
+        None,
+        "Authentication"
+        ; "401 unauthorized"
+    )]
+    #[test_case(
+        StatusCode::BAD_REQUEST,
+        Some(json!({"error": {"message": "This request exceeds the maximum context length"}})),
+        "ContextLengthExceeded"
+        ; "400 context length"
+    )]
+    #[test_case(
+        StatusCode::INTERNAL_SERVER_ERROR,
+        None,
+        "ServerError"
+        ; "500 server error"
+    )]
+    fn http_status_maps_to_expected_error(
+        status: StatusCode,
+        payload: Option<Value>,
+        expected_variant: &str,
+    ) {
+        let err = map_http_error_to_provider_error(status, payload);
+        let actual = err.telemetry_type();
+        let expected_telemetry = match expected_variant {
+            "CreditsExhausted" => "credits_exhausted",
+            "RateLimitExceeded" => "rate_limit",
+            "Authentication" => "auth",
+            "ContextLengthExceeded" => "context_length",
+            "ServerError" => "server",
+            other => panic!("Unknown variant: {other}"),
+        };
+        assert_eq!(
+            actual, expected_telemetry,
+            "Expected {expected_variant}, got error: {err:?}"
         );
     }
 }

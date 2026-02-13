@@ -15,11 +15,17 @@
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Message } from '../api';
+import { Message, SystemNotificationContent } from '../api';
 import GooseMessage from './GooseMessage';
 import UserMessage from './UserMessage';
-import { SystemNotificationInline } from './context_management/SystemNotificationInline';
-import { CreditsExhaustedNotification } from './context_management/CreditsExhaustedNotification';
+import {
+  SystemNotificationInline,
+  getInlineSystemNotification,
+} from './context_management/SystemNotificationInline';
+import {
+  CreditsExhaustedNotification,
+  getCreditsExhaustedNotification,
+} from './context_management/CreditsExhaustedNotification';
 import { NotificationEvent } from '../types/message';
 import LoadingGoose from './LoadingGoose';
 import { ChatType } from '../types/chat';
@@ -72,18 +78,19 @@ export default function ProgressiveMessageList({
   const hasOnlyToolResponses = (message: Message) =>
     message.content.every((c) => c.type === 'toolResponse');
 
-  const hasInlineSystemNotification = (message: Message): boolean => {
-    return message.content.some(
-      (content) =>
-        content.type === 'systemNotification' && content.notificationType === 'inlineMessage'
-    );
+  const getSystemNotification = (message: Message): SystemNotificationContent | undefined => {
+    return getCreditsExhaustedNotification(message) ?? getInlineSystemNotification(message);
   };
 
-  const hasCreditsExhaustedNotification = (message: Message): boolean => {
-    return message.content.some(
-      (content) =>
-        content.type === 'systemNotification' && content.notificationType === 'creditsExhausted'
-    );
+  const renderSystemNotification = (notification: SystemNotificationContent) => {
+    switch (notification.notificationType) {
+      case 'creditsExhausted':
+        return <CreditsExhaustedNotification notification={notification} />;
+      case 'inlineMessage':
+        return <SystemNotificationInline notification={notification} />;
+      default:
+        return null;
+    }
   };
 
   // Simple progressive loading - start immediately when component mounts if needed
@@ -196,27 +203,15 @@ export default function ProgressiveMessageList({
           return null;
         }
 
-        // System notifications are never user messages, handle them first
-        if (hasCreditsExhaustedNotification(message)) {
+        const notification = getSystemNotification(message);
+        if (notification) {
           return (
             <div
-              key={message.id ?? `msg-${index}-${message.created}`}
+              key={`notification-${index}`}
               className={`relative ${index === 0 ? 'mt-0' : 'mt-4'} assistant`}
               data-testid="message-container"
             >
-              <CreditsExhaustedNotification message={message} />
-            </div>
-          );
-        }
-
-        if (hasInlineSystemNotification(message)) {
-          return (
-            <div
-              key={message.id ?? `msg-${index}-${message.created}`}
-              className={`relative ${index === 0 ? 'mt-0' : 'mt-4'} assistant`}
-              data-testid="message-container"
-            >
-              <SystemNotificationInline message={message} />
+              {renderSystemNotification(notification)}
             </div>
           );
         }

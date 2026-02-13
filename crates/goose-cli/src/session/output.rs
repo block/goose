@@ -263,10 +263,6 @@ pub fn render_message(message: &Message, debug: bool) {
                         hide_thinking();
                         println!("\n{}", style(&notification.msg).yellow());
 
-                        // If the provider supplied a top-up URL, try to open
-                        // the user's browser so they can add credits. Uses the
-                        // `webbrowser` crate (same cross-platform mechanism as
-                        // the Tetrate OAuth sign-up flow).
                         if let Some(url) = notification
                             .data
                             .as_ref()

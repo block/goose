@@ -2,26 +2,12 @@ import React from 'react';
 import { Message, SystemNotificationContent } from '../../api';
 
 interface CreditsExhaustedNotificationProps {
-  message: Message;
+  notification: SystemNotificationContent;
 }
 
-/**
- * Renders a credits-exhausted notification with a prominent message and
- * an optional "Top Up Credits" button that opens the provider's dashboard
- * in the user's default browser.
- */
 export const CreditsExhaustedNotification: React.FC<CreditsExhaustedNotificationProps> = ({
-  message,
+  notification,
 }) => {
-  const notification = message.content.find(
-    (content): content is SystemNotificationContent & { type: 'systemNotification' } =>
-      content.type === 'systemNotification' && content.notificationType === 'creditsExhausted'
-  );
-
-  if (!notification?.msg) {
-    return null;
-  }
-
   const topUpUrl =
     notification.data &&
     typeof notification.data === 'object' &&
@@ -55,3 +41,12 @@ export const CreditsExhaustedNotification: React.FC<CreditsExhaustedNotification
     </div>
   );
 };
+
+export function getCreditsExhaustedNotification(
+  message: Message
+): SystemNotificationContent | undefined {
+  return message.content.find(
+    (content): content is SystemNotificationContent & { type: 'systemNotification' } =>
+      content.type === 'systemNotification' && content.notificationType === 'creditsExhausted'
+  );
+}

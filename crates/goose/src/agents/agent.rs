@@ -1435,12 +1435,8 @@ impl Agent {
                         }
                         Err(ref provider_err @ ProviderError::CreditsExhausted { ref details, ref top_up_url }) => {
                             crate::posthog::emit_error(provider_err.telemetry_type(), &provider_err.to_string());
-                            error!("Credits exhausted: {}", details);
+                            error!("Error: {}", provider_err);
 
-                            // Surface the error as a structured CreditsExhausted
-                            // notification so the UI layer (CLI, desktop app, API)
-                            // can decide how to present it — e.g. opening a browser,
-                            // showing a dialog, or returning it in a JSON response.
                             let user_msg = if let Some(url) = top_up_url.as_deref() {
                                 format!(
                                     "Your credits have been exhausted: {details}\n\n\

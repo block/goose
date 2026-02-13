@@ -164,9 +164,6 @@ pub struct FrontendToolRequest {
 pub enum SystemNotificationType {
     ThinkingMessage,
     InlineMessage,
-    /// Provider credits have been exhausted. The `data` field of the
-    /// notification may contain `{"top_up_url": "..."}` so the UI layer
-    /// can open the user's browser or show a clickable link.
     CreditsExhausted,
 }
 
