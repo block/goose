@@ -522,11 +522,11 @@ export default function McpAppRenderer({
   };
 
   const containerClasses = cn(
-    'bg-background-default overflow-hidden',
+    'bg-background-primary overflow-hidden',
     iframeWidth === null && '[&_iframe]:!w-full',
     isError && 'border border-red-500 rounded-lg bg-red-50 dark:bg-red-900/20',
     !isError && !isExpandedView && 'mt-6 mb-2',
-    !isError && !isExpandedView && meta.prefersBorder && 'border border-border-default rounded-lg'
+    !isError && !isExpandedView && meta.prefersBorder && 'border border-border-primary rounded-lg'
   );
 
   const containerStyle = isExpandedView

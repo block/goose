@@ -522,10 +522,10 @@ export function RecipeFormFields({
 
                 {field.state.value && field.state.value.trim() && (
                   <div
-                    className={`border rounded-lg p-3 bg-background-muted ${
+                    className={`border rounded-lg p-3 bg-background-secondary ${
                       field.state.meta.errors.length > 0
                         ? 'border-red-500'
-                        : 'border-border-default'
+                        : 'border-border-primary'
                     }`}
                   >
                     <pre className="text-xs font-mono text-text-primary whitespace-pre-wrap break-words max-h-32 overflow-y-auto">

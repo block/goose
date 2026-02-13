@@ -1192,9 +1192,9 @@ export default function ChatInput({
     <div
       className={`flex flex-col relative h-auto p-4 transition-colors ${disableAnimation ? '' : 'page-transition'
         } ${isFocused
-          ? 'border-border-strong hover:border-border-strong'
-          : 'border-border-default hover:border-border-default'
-        } bg-background-default z-10 rounded-t-2xl`}
+          ? 'border-border-secondary hover:border-border-secondary'
+          : 'border-border-primary hover:border-border-primary'
+        } bg-background-primary z-10 rounded-t-2xl`}
       data-drop-zone="true"
       onDrop={handleLocalDrop}
       onDragOver={handleLocalDragOver}
