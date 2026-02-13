@@ -935,6 +935,27 @@ pub async fn get_theme_presets() -> Json<ThemePresetsResponse> {
     Json(ThemePresetsResponse { presets })
 }
 
+#[derive(Serialize, ToSchema)]
+pub struct ActiveThemeResponse {
+    theme_id: Option<String>,
+}
+
+#[utoipa::path(
+    get,
+    path = "/theme/active",
+    responses(
+        (status = 200, description = "Get the currently active theme ID", body = ActiveThemeResponse)
+    )
+)]
+pub async fn get_active_theme() -> Json<ActiveThemeResponse> {
+    let active_theme_path = Paths::in_data_dir("active_theme.txt");
+    let theme_id = std::fs::read_to_string(&active_theme_path)
+        .ok()
+        .map(|s| s.trim().to_string());
+    
+    Json(ActiveThemeResponse { theme_id })
+}
+
 #[derive(Deserialize, ToSchema)]
 pub struct ApplyPresetRequest {
     preset_id: String,
@@ -979,6 +1000,10 @@ pub async fn apply_theme_preset(
     // Save to theme.css
     let theme_path = Paths::in_data_dir("theme.css");
     std::fs::write(&theme_path, css)?;
+    
+    // Store the active theme ID
+    let active_theme_path = Paths::in_data_dir("active_theme.txt");
+    std::fs::write(&active_theme_path, &request.preset_id)?;
     
     Ok(Json(format!("Applied theme preset: {}", preset.name)))
 }
@@ -1087,6 +1112,7 @@ pub fn routes(state: Arc<AppState>) -> Router {
         .route("/theme/variables", get(get_theme_variables))
         .route("/theme/save", post(save_theme))
         .route("/theme/presets", get(get_theme_presets))
+        .route("/theme/active", get(get_active_theme))
         .route("/theme/apply-preset", post(apply_theme_preset))
         .route("/theme/save-custom", post(save_custom_theme))
         .route("/theme/saved/{id}", delete(delete_custom_theme))

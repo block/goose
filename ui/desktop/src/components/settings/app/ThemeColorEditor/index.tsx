@@ -127,6 +127,9 @@ export function ThemeColorEditor({ onClose }: ThemeColorEditorProps) {
         },
       });
       
+      // Store the active theme ID
+      localStorage.setItem('activeThemeId', themeId);
+      
       toast.success(`Theme "${themeName}" saved successfully!`);
       
       // Reload the page to apply changes

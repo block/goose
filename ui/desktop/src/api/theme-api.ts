@@ -50,3 +50,18 @@ export const deleteCustomTheme = async (id: string): Promise<DeleteCustomThemeRe
   
   return response.data;
 };
+
+export interface ActiveThemeResponse {
+  theme_id: string | null;
+}
+
+/**
+ * Get the currently active theme ID
+ */
+export const getActiveTheme = async (): Promise<ActiveThemeResponse> => {
+  const response = await client.get<ActiveThemeResponse, unknown, false>({
+    url: '/theme/active',
+  });
+  
+  return response.data;
+};
