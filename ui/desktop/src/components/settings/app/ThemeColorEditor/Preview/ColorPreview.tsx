@@ -16,10 +16,17 @@ interface ColorPreviewProps {
   lightColor: string;
   darkColor: string;
   currentMode: 'light' | 'dark';
+  allColors: Record<string, string>; // All current theme colors for the active mode
 }
 
-export function ColorPreview({ variable, lightColor, darkColor, currentMode }: ColorPreviewProps) {
+export function ColorPreview({ variable, lightColor, darkColor, currentMode, allColors }: ColorPreviewProps) {
   const currentColor = currentMode === 'light' ? lightColor : darkColor;
+  
+  // Create inline styles for all theme colors to override CSS variables
+  const themeStyles = Object.entries(allColors).reduce((acc, [key, value]) => {
+    acc[`--${key}` as any] = value;
+    return acc;
+  }, {} as React.CSSProperties);
   
   // Render different previews based on color category
   const renderPreview = () => {
@@ -61,9 +68,9 @@ export function ColorPreview({ variable, lightColor, darkColor, currentMode }: C
         <div className="h-px bg-border-primary" />
       </div>
       
-      {/* Usage Examples - Centered Vertically */}
+      {/* Usage Examples - Centered Vertically with Live Theme Colors */}
       <div className="flex-1 flex items-center justify-center py-8">
-        <div className="w-full max-w-2xl space-y-6">
+        <div className="w-full max-w-2xl space-y-6" style={themeStyles}>
           {renderPreview()}
         </div>
       </div>

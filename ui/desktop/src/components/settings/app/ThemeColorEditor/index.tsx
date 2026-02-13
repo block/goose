@@ -310,6 +310,7 @@ export function ThemeColorEditor({ onClose }: ThemeColorEditorProps) {
                     lightColor={themeColors.light[selectedVariable] || '#000000'}
                     darkColor={themeColors.dark[selectedVariable] || '#000000'}
                     currentMode={activeMode}
+                    allColors={themeColors[activeMode]}
                   />
                 ) : (
                   <div className="flex items-center justify-center h-full">
