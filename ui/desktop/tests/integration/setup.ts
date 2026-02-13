@@ -94,13 +94,6 @@ export async function setupGoosed({
     throw new Error('Expected goosed process to be started, but got external backend');
   }
 
-  const serverReady = await checkServerStatus(client, errorLog);
-  if (!serverReady) {
-    baseCleanup();
-    console.error('Server stderr:', errorLog.join('\n'));
-    throw new Error('Failed to start goosed');
-  }
-
   const cleanup = async (): Promise<void> => {
     // dump server logs to test logs, visible if there are test failures
     try {
@@ -123,6 +116,13 @@ export async function setupGoosed({
     await baseCleanup();
     await fs.promises.rm(tempDir, { recursive: true, force: true });
   };
+
+  const serverReady = await checkServerStatus(client, errorLog);
+  if (!serverReady) {
+    await cleanup();
+    console.error('Server stderr:', errorLog.join('\n'));
+    throw new Error('Failed to start goosed');
+  }
 
   return {
     client,
