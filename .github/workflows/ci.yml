@@ -1,4 +1,4 @@
-name: CI
+name: Debug GHA
 
 on:
   pull_request:
