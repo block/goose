@@ -104,7 +104,7 @@
         },
         "responses": {
           "200": {
-            "description": "Resource read successfully",
+            "description": "Tool executed successfully",
             "content": {
               "application/json": {
                 "schema": {
@@ -117,13 +117,13 @@
             "description": "Unauthorized - invalid secret key"
           },
           "404": {
-            "description": "Resource not found"
+            "description": "Session not found"
           },
           "424": {
-            "description": "Agent not initialized"
+            "description": "Agent not initialized for session"
           },
           "500": {
-            "description": "Internal server error"
+            "description": "Tool execution failed"
           }
         }
       }
