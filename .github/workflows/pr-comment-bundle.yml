@@ -144,7 +144,7 @@ jobs:
             script which will download the latest release (or you can specify the release you need), does the
             unzip, xattr to get it out of quarantine and signs it.
             
-            If you need to this manually:
+            If you need to do this manually:
             
                * Download the file
                * Unzip
