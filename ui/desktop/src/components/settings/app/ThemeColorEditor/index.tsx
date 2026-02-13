@@ -10,10 +10,11 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../../../ui/tabs';
 import { Button } from '../../../ui/button';
 import { getThemeVariables, saveTheme } from '../../../../api';
-import { ThemeColorEditorProps, ThemeColors, ColorMode, COLOR_VARIABLES } from './types';
+import { ThemeColorEditorProps, ThemeColors, ColorMode, COLOR_VARIABLES, ColorVariable } from './types';
 import { HexColorPicker } from 'react-colorful';
 import { toast } from 'react-toastify';
 import { PresetGallery } from './ThemeSelector/PresetGallery';
+import { ColorPreview } from './Preview/ColorPreview';
 
 export function ThemeColorEditor({ onClose }: ThemeColorEditorProps) {
   const [loading, setLoading] = useState(true);
@@ -171,58 +172,86 @@ export function ThemeColorEditor({ onClose }: ThemeColorEditorProps) {
                 <TabsTrigger value="dark">Dark Mode</TabsTrigger>
               </TabsList>
 
-          <TabsContent value={activeMode} className="flex-1 overflow-auto mt-4">
-            <div className="space-y-6 pr-2">
-              {Object.entries(groupedVariables).map(([category, variables]) => (
-                <div key={category} className="space-y-3">
-                  <h3 className="text-sm font-semibold text-text-primary capitalize">
-                    {category} Colors
-                  </h3>
-                  <div className="grid grid-cols-2 gap-4">
-                    {variables.map((variable) => {
-                      const currentColor = themeColors[activeMode][variable.name] || '#000000';
-                      const isSelected = selectedVariable === variable.name;
-                      
-                      return (
-                        <div key={variable.name} className="space-y-2">
-                          <div className="flex items-center justify-between">
-                            <label className="text-xs text-text-secondary">
-                              {variable.label}
-                            </label>
-                            <div
-                              className="w-8 h-8 rounded border-2 border-border-primary cursor-pointer hover:scale-110 transition-transform"
-                              style={{ backgroundColor: currentColor }}
-                              onClick={() => setSelectedVariable(isSelected ? null : variable.name)}
-                            />
-                          </div>
-                          
-                          {isSelected && (
-                            <div className="mt-2">
-                              <HexColorPicker
-                                color={currentColor}
-                                onChange={(color) => handleColorChange(variable.name, color)}
-                              />
-                              <input
-                                type="text"
-                                value={currentColor}
-                                onChange={(e) => handleColorChange(variable.name, e.target.value)}
-                                className="mt-2 w-full px-2 py-1 text-xs border border-border-primary rounded bg-background-primary text-text-primary"
-                                placeholder="#000000"
+          <TabsContent value={activeMode} className="flex-1 overflow-hidden mt-4">
+            {/* Split Panel Layout */}
+            <div className="flex gap-4 h-full">
+              {/* Left Panel: Color Pickers (40%) */}
+              <div className="w-[40%] overflow-auto pr-2 space-y-6">
+                {Object.entries(groupedVariables).map(([category, variables]) => (
+                  <div key={category} className="space-y-3">
+                    <h3 className="text-sm font-semibold text-text-primary capitalize">
+                      {category} Colors
+                    </h3>
+                    <div className="space-y-3">
+                      {variables.map((variable) => {
+                        const currentColor = themeColors[activeMode][variable.name] || '#000000';
+                        const isSelected = selectedVariable === variable.name;
+                        
+                        return (
+                          <div 
+                            key={variable.name} 
+                            className={`p-3 rounded-lg border-2 transition-all cursor-pointer ${
+                              isSelected 
+                                ? 'border-border-secondary bg-background-secondary' 
+                                : 'border-border-primary hover:border-border-secondary'
+                            }`}
+                            onClick={() => setSelectedVariable(variable.name)}
+                          >
+                            <div className="flex items-center justify-between mb-2">
+                              <label className="text-xs font-medium text-text-primary cursor-pointer">
+                                {variable.label}
+                              </label>
+                              <div
+                                className="w-10 h-10 rounded border-2 border-border-primary shadow-sm"
+                                style={{ backgroundColor: currentColor }}
                               />
                             </div>
-                          )}
-                          
-                          {variable.description && (
-                            <p className="text-xs text-text-secondary opacity-70">
-                              {variable.description}
-                            </p>
-                          )}
-                        </div>
-                      );
-                    })}
+                            
+                            {isSelected && (
+                              <div className="mt-3 space-y-2">
+                                <HexColorPicker
+                                  color={currentColor}
+                                  onChange={(color) => handleColorChange(variable.name, color)}
+                                  style={{ width: '100%' }}
+                                />
+                                <input
+                                  type="text"
+                                  value={currentColor}
+                                  onChange={(e) => handleColorChange(variable.name, e.target.value)}
+                                  className="w-full px-3 py-2 text-sm border border-border-primary rounded bg-background-primary text-text-primary font-mono"
+                                  placeholder="#000000"
+                                />
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
                   </div>
-                </div>
-              ))}
+                ))}
+              </div>
+
+              {/* Right Panel: Live Preview (60%) */}
+              <div className="w-[60%] overflow-auto pl-4 border-l border-border-primary">
+                {selectedVariable ? (
+                  <ColorPreview
+                    variable={COLOR_VARIABLES.find(v => v.name === selectedVariable)!}
+                    lightColor={themeColors.light[selectedVariable] || '#000000'}
+                    darkColor={themeColors.dark[selectedVariable] || '#000000'}
+                    currentMode={activeMode}
+                  />
+                ) : (
+                  <div className="flex items-center justify-center h-full">
+                    <div className="text-center space-y-2">
+                      <div className="text-4xl">🎨</div>
+                      <p className="text-text-primary font-medium">Select a color to preview</p>
+                      <p className="text-text-secondary text-sm max-w-xs">
+                        Click any color on the left to see where it's used in the UI
+                      </p>
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
               </TabsContent>
             </Tabs>
