@@ -163,10 +163,6 @@
    Not part of the MCP spec — only used by Goose components.
    ═══════════════════════════════════════════════════════════════════════════ */
 @theme inline {
-  --color-background-accent: var(--color-background-inverse);
-  --color-border-accent: var(--color-text-inverse);
-  --color-text-accent: var(--color-text-inverse);
-  --color-text-on-accent: var(--color-text-inverse);
   --font-serif: serif;
   --color-ring: var(--color-ring-primary);
   --color-sidebar-foreground: var(--sidebar-foreground);
