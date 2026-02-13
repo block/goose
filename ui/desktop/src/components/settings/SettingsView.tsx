@@ -35,7 +35,7 @@ export default function SettingsView({
   viewOptions: SettingsViewOptions;
 }) {
   const [activeTab, setActiveTab] = useState('models');
-  const [tunnelDisabled, setTunnelDisabled] = useState<boolean | null>(null);
+  const [tunnelDisabled, setTunnelDisabled] = useState(false);
   const hasTrackedInitialTab = useRef(false);
 
   const handleTabChange = (tab: string) => {
@@ -81,7 +81,7 @@ export default function SettingsView({
         setTunnelDisabled(data?.state === 'disabled');
       })
       .catch(() => {
-        setTunnelDisabled(true);
+        setTunnelDisabled(false);
       });
   }, []);
 
@@ -155,7 +155,7 @@ export default function SettingsView({
                     <Keyboard className="h-4 w-4" />
                     Keyboard
                   </TabsTrigger>
-                  {tunnelDisabled === false && (
+                  {!tunnelDisabled && (
                     <TabsTrigger
                       value="gateway"
                       className="flex gap-2"
@@ -211,7 +211,7 @@ export default function SettingsView({
                   <KeyboardShortcutsSection />
                 </TabsContent>
 
-                {tunnelDisabled === false && (
+                {!tunnelDisabled && (
                   <TabsContent
                     value="gateway"
                     className="mt-0 focus-visible:outline-none focus-visible:ring-0"
