@@ -142,7 +142,6 @@ where
     F: Fn(&ScenarioResult) -> Result<()>,
 {
     use goose::config::ExtensionConfig;
-    use tokio::sync::Mutex;
 
     goose::agents::moim::SKIP.with(|f| f.set(true));
 
@@ -187,7 +186,12 @@ where
 
         let original_env = setup_environment(config)?;
 
-        let inner_provider = create(&factory_name, ModelConfig::new(config.model_name)?).await?;
+        let inner_provider = create(
+            &factory_name,
+            ModelConfig::new(config.model_name)?,
+            Vec::new(),
+        )
+        .await?;
 
         let test_provider = Arc::new(TestProvider::new_recording(inner_provider, &file_path));
         (
@@ -224,7 +228,7 @@ where
                 bundled: None,
                 available_tools: vec![],
             },
-            Arc::new(Mutex::new(Box::new(mock_client))),
+            Arc::new(mock_client),
             None,
             None,
         )

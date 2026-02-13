@@ -71,7 +71,7 @@ interface UIResource {
   resource: {
     uri: string;       // e.g., ui://component/id
     // highlight-next-line
-    mimeType: 'text/html' | 'text/uri-list' | 'application/vnd.mcp-ui.remote-dom'; // text/html for HTML content, text/uri-list for URL content, application/vnd.mcp-ui.remote-dom for remote-dom content (Javascript)
+    mimeType: 'text/html' | 'text/uri-list' | 'application/vnd.mcp-ui.remote-dom'; // text/html for HTML content, text/uri-list for URL content, application/vnd.mcp-ui.remote-dom for remote-dom content (JavaScript)
     text?: string;      // Inline HTML, external URL, or remote-dom script
     blob?: string;      // Base64-encoded HTML, URL, or remote-dom script
   };

@@ -228,7 +228,7 @@ I still need some critical information to create a comprehensive plan:
 5. Should the application maintain any history of previous search/replace operations?
 
 Without this information, I can only provide a generic plan that might not accurately capture your requirements.
-( O)> please provde a generic plan
+( O)> please provide a generic plan
 ```
 While goose creates a standardized plan format, it customizes the content based on your answers. goose can generate the code needed to implement the steps of the plan it produces. You should review the plan and any code that it generates before ending plan mode (`/endplan`) and asking goose to implement the plan. 
 

@@ -1,8 +1,10 @@
 // Extension data management for sessions
 // Provides a simple way to store extension-specific data with versioned keys
 
+use crate::config::base::Config;
 use crate::config::extensions::is_extension_available;
 use crate::config::ExtensionConfig;
+use crate::session::SessionManager;
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -113,10 +115,33 @@ impl EnabledExtensionsState {
         Self { extensions }
     }
 
+<<<<<<< HEAD
     pub fn from_extension_data(extension_data: &ExtensionData) -> Option<Self> {
         let mut state = <Self as ExtensionState>::from_extension_data(extension_data)?;
         state.extensions.retain(is_extension_available);
         Some(state)
+    }
+
+    pub fn extensions_or_default(
+        extension_data: Option<&ExtensionData>,
+        config: &Config,
+    ) -> Vec<ExtensionConfig> {
+        extension_data
+            .and_then(Self::from_extension_data)
+            .map(|state| state.extensions)
+            .unwrap_or_else(|| {
+                crate::config::extensions::get_enabled_extensions_with_config(config)
+            })
+    }
+
+    pub async fn for_session(
+        session_manager: &SessionManager,
+        session_id: &str,
+        config: &Config,
+    ) -> Vec<ExtensionConfig> {
+        let session = session_manager.get_session(session_id, false).await.ok();
+        Self::extensions_or_default(session.as_ref().map(|s| &s.extension_data), config)
+    }
     }
 }
 
@@ -124,6 +149,54 @@ impl EnabledExtensionsState {
 mod tests {
     use super::*;
     use serde_json::json;
+    use tempfile::NamedTempFile;
+    use test_case::test_case;
+
+    fn test_config() -> Config {
+        let config_file = NamedTempFile::new().unwrap();
+        let secrets_file = NamedTempFile::new().unwrap();
+        Config::new_with_file_secrets(config_file.path(), secrets_file.path()).unwrap()
+    }
+
+    fn test_extension() -> ExtensionConfig {
+        ExtensionConfig::Builtin {
+            name: "developer".into(),
+            description: "dev".into(),
+            display_name: None,
+            timeout: None,
+            bundled: None,
+            available_tools: vec![],
+        }
+    }
+
+    fn extension_data_with(extensions: Vec<ExtensionConfig>) -> ExtensionData {
+        let mut data = ExtensionData::new();
+        EnabledExtensionsState::new(extensions)
+            .to_extension_data(&mut data)
+            .unwrap();
+        data
+    }
+
+    #[test_case(
+        Some(extension_data_with(vec![test_extension()])),
+        Some(vec![test_extension()])
+        ; "prefers_session_data"
+    )]
+    #[test_case(None, None ; "no_session_falls_back_to_config")]
+    #[test_case(Some(ExtensionData::default()), None ; "empty_session_data_falls_back_to_config")]
+    fn test_extensions_or_default(
+        extension_data: Option<ExtensionData>,
+        expected: Option<Vec<ExtensionConfig>>,
+    ) {
+        let config = test_config();
+        let expected = expected.unwrap_or_else(|| {
+            crate::config::extensions::get_enabled_extensions_with_config(&config)
+        });
+        assert_eq!(
+            EnabledExtensionsState::extensions_or_default(extension_data.as_ref(), &config),
+            expected,
+        );
+    }
 
     #[test]
     fn test_extension_data_basic_operations() {

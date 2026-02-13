@@ -133,7 +133,7 @@ Lower-performing models might work, but they're more likely to hallucinate or mi
 ## Watch Vibe Coding in Action  
 Here’s how folks vibe code with Goose:  
 
-<iframe width="560" height="315" src="https://www.youtube.com/embed/xZo3aA-vFi4?si=14bVczrCUwdKBZyg" title="The Great Great Off" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" referrerpolicy="strict-origin-when-cross-origin" allowfullscreen></iframe>
+<iframe width="560" height="315" src="https://www.youtube.com/embed/xZo3aA-vFi4?si=14bVczrCUwdKBZyg" title="The Great Goose Off" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" referrerpolicy="strict-origin-when-cross-origin" allowfullscreen></iframe>
 
 ## Final Thoughts
 

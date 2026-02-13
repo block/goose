@@ -144,9 +144,17 @@ export type CreateScheduleRequest = {
  */
 export type CspMetadata = {
     /**
+     * Domains allowed for base-uri
+     */
+    baseUriDomains?: Array<string> | null;
+    /**
      * Domains allowed for connect-src (fetch, XHR, WebSocket)
      */
     connectDomains?: Array<string> | null;
+    /**
+     * Domains allowed for frame-src (nested iframes)
+     */
+    frameDomains?: Array<string> | null;
     /**
      * Domains allowed for resource loading (scripts, styles, images, fonts, media)
      */
@@ -564,6 +572,8 @@ export type MessageContent = (TextContent & {
     type: 'redactedThinking';
 }) | (SystemNotificationContent & {
     type: 'systemNotification';
+}) | (ReasoningContent & {
+    type: 'reasoning';
 });
 
 export type MessageEvent = {
@@ -831,6 +841,10 @@ export type ReadResourceResponse = {
     mimeType?: string | null;
     text: string;
     uri: string;
+};
+
+export type ReasoningContent = {
+    text: string;
 };
 
 export type Recipe = {
@@ -1148,6 +1162,8 @@ export type SystemNotificationContent = {
 
 export type SystemNotificationType = 'thinkingMessage' | 'inlineMessage';
 
+export type TaskSupport = string;
+
 export type TelemetryEventRequest = {
     event_name: string;
     properties?: {
@@ -1198,6 +1214,9 @@ export type Tool = {
         [key: string]: unknown;
     };
     description?: string;
+    execution?: ToolExecution | {
+        [key: string]: unknown;
+    };
     icons?: Array<Icon>;
     inputSchema: {
         [key: string]: unknown;
@@ -1222,6 +1241,12 @@ export type ToolConfirmationRequest = {
     id: string;
     prompt?: string | null;
     toolName: string;
+};
+
+export type ToolExecution = {
+    taskSupport?: TaskSupport | {
+        [key: string]: unknown;
+    };
 };
 
 /**

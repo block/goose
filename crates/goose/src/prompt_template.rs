@@ -36,14 +36,6 @@ static TEMPLATE_REGISTRY: &[(&str, &str)] = &[
         "Prompt for analyzing tool operations for read-only detection",
     ),
     (
-        "desktop_prompt.md",
-        "Additional context provided when using the desktop application",
-    ),
-    (
-        "desktop_recipe_instruction.md",
-        "Prompt template for recipe instructions in desktop mode",
-    ),
-    (
         "plan.md",
         "Prompt used when goose creates step-by-step plans. CLI only",
     ),

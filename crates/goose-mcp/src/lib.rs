@@ -14,6 +14,7 @@ pub mod computercontroller;
 pub mod developer;
 pub mod mcp_server_runner;
 mod memory;
+pub mod subprocess;
 pub mod tutorial;
 
 pub use autovisualiser::AutoVisualiserRouter;
