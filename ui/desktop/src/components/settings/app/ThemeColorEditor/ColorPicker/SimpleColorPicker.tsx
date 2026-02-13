@@ -154,7 +154,7 @@ export function SimpleColorPicker({ color, onChange }: SimpleColorPickerProps) {
             <button
               key={hueColor}
               onClick={() => handleHueSelect(hueColor)}
-              className={`w-6 h-6 rounded border transition-all hover:scale-110 ${
+              className={`aspect-square rounded border transition-all hover:scale-110 ${
                 selectedHue === hueColor
                   ? 'border-border-secondary ring-1 ring-ring-primary'
                   : 'border-border-primary'
@@ -176,7 +176,7 @@ export function SimpleColorPicker({ color, onChange }: SimpleColorPickerProps) {
                 <button
                   key={`${rowIndex}-${colIndex}`}
                   onClick={() => handleColorSelect(gridColor)}
-                  className={`w-8 h-8 rounded border transition-all hover:scale-110 ${
+                  className={`aspect-square rounded border transition-all hover:scale-110 ${
                     color.toLowerCase() === gridColor.toLowerCase()
                       ? 'border-border-secondary ring-1 ring-ring-primary'
                       : 'border-border-primary'
@@ -202,7 +202,7 @@ export function SimpleColorPicker({ color, onChange }: SimpleColorPickerProps) {
             <button
               key={grayColor}
               onClick={() => handleColorSelect(grayColor)}
-              className={`w-8 h-8 rounded border transition-all hover:scale-110 ${
+              className={`aspect-square rounded border transition-all hover:scale-110 ${
                 color.toLowerCase() === grayColor.toLowerCase()
                   ? 'border-border-secondary ring-1 ring-ring-primary'
                   : 'border-border-primary'
@@ -220,7 +220,7 @@ export function SimpleColorPicker({ color, onChange }: SimpleColorPickerProps) {
         <div className="grid grid-cols-1 gap-0.5">
           <button
             onClick={() => handleColorSelect('#ffffff')}
-            className={`w-8 h-8 rounded border transition-all hover:scale-110 ${
+            className={`aspect-square rounded border transition-all hover:scale-110 ${
               color.toLowerCase() === '#ffffff'
                 ? 'border-border-secondary ring-1 ring-ring-primary'
                 : 'border-border-primary'
