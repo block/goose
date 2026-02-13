@@ -15,7 +15,7 @@ import { HexColorPicker } from 'react-colorful';
 import { toast } from 'react-toastify';
 import { PresetGallery } from './ThemeSelector/PresetGallery';
 import { ColorPreview } from './Preview/ColorPreview';
-import { Refresh, Save } from 'lucide-react';
+import { RotateCcw, Save } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipTrigger } from '../../../ui/Tooltip';
 
 export function ThemeColorEditor({ onClose }: ThemeColorEditorProps) {
@@ -166,7 +166,7 @@ export function ThemeColorEditor({ onClose }: ThemeColorEditorProps) {
                     size="sm"
                     shape="round"
                   >
-                    <Refresh className="w-4 h-4" />
+                    <RotateCcw className="w-4 h-4" />
                   </Button>
                 </TooltipTrigger>
                 <TooltipContent>Reset to Default Theme</TooltipContent>
