@@ -116,10 +116,10 @@ export const startGoosed = async (options: StartGoosedOptions): Promise<GoosedRe
     return connectToExternalBackend(dir, `http://127.0.0.1:${port}`);
   }
 
-  const useSandbox = isSandboxEnabled() && isSandboxAvailable();
   if (isSandboxEnabled() && !isSandboxAvailable()) {
-    log.warn('[sandbox] GOOSE_SANDBOX=true but sandbox-exec not available (macOS only)');
+    throw new Error('GOOSE_SANDBOX=true but sandbox-exec is not available (macOS only)');
   }
+  const useSandbox = isSandboxEnabled();
 
   let goosedPath = getGoosedBinaryPath(app);
 
@@ -128,7 +128,9 @@ export const startGoosed = async (options: StartGoosedOptions): Promise<GoosedRe
   const port = await findAvailablePort();
   const stderrLines: string[] = [];
 
-  log.info(`Starting goosed from: ${resolvedGoosedPath} on port ${port} in dir ${dir}${useSandbox ? ' [SANDBOXED]' : ''}`);
+  log.info(
+    `Starting goosed from: ${resolvedGoosedPath} on port ${port} in dir ${dir}${useSandbox ? ' [SANDBOXED]' : ''}`
+  );
 
   const additionalEnv: GooseProcessEnv = {
     HOME: homeDir,

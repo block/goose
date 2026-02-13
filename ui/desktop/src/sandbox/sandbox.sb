@@ -2,16 +2,31 @@
 ;; The process can only reach the network via localhost (where our proxy lives).
 ;; All child processes inherit this restriction.
 ;;
-;; __HOMEDIR__ is replaced with the actual home directory at materialisation time.
+;; Placeholders replaced at materialisation time:
+;;   __HOMEDIR__         → actual home directory
+;;   __PROXY_PORT__      → actual proxy port
+;;   __SENSITIVE_FILES__ → file protection rules (or empty)
+;;   __RAW_SOCKETS__     → raw socket blocking rules (or empty)
+;;   __TUNNELING_TOOLS__ → tunneling tool blocking rules (or empty)
 
 (version 1)
 (allow default)
+
+;; ============================================================================
+;; FILE SYSTEM PROTECTIONS
+;; ============================================================================
 
 ;; Protect sandbox config (sandbox.sb, blocked.txt) from the sandboxed process
 (deny file-write* (subpath "__HOMEDIR__/.config/goose/sandbox"))
 
 ;; Protect goose config from the sandboxed process
 (deny file-write* (literal "__HOMEDIR__/.config/goose/config.yaml"))
+
+__SENSITIVE_FILES__
+
+;; ============================================================================
+;; NETWORK RESTRICTIONS
+;; ============================================================================
 
 ;; Block all network, then poke holes for localhost + DNS
 (deny network*)
@@ -27,3 +42,14 @@
 
 ;; Allow network-inbound on localhost (for local dev servers, LSPs, etc.)
 (allow network-inbound (local ip "localhost:*"))
+
+__RAW_SOCKETS__
+
+;; ============================================================================
+;; PROCESS RESTRICTIONS
+;; ============================================================================
+
+__TUNNELING_TOOLS__
+
+;; Prevent loading of network-related kernel extensions
+(deny system-kext-load)
