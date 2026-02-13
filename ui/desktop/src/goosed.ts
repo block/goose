@@ -36,6 +36,14 @@ export interface FindBinaryOptions {
 }
 
 export const findGoosedBinaryPath = (options: FindBinaryOptions = {}): string => {
+  const pathFromEnv = process.env.GOOSED_BINARY;
+  if (pathFromEnv) {
+    if (fs.existsSync(pathFromEnv) && fs.statSync(pathFromEnv).isFile()) {
+      return path.resolve(pathFromEnv);
+    } else {
+      throw new Error(`Invalid GOOSED_BINARY path: ${pathFromEnv} (pwd is ${process.cwd()})`);
+    }
+  }
   const { isPackaged = false, resourcesPath } = options;
   const binaryName = process.platform === 'win32' ? 'goosed.exe' : 'goosed';
 
