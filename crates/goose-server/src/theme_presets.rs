@@ -46,9 +46,9 @@ pub fn get_all_presets() -> Vec<ThemePreset> {
     ]
 }
 
-/// Get a specific preset by ID
+/// Get a specific preset by ID (includes both built-in and custom themes)
 pub fn get_preset(id: &str) -> Option<ThemePreset> {
-    get_all_presets().into_iter().find(|p| p.id == id)
+    get_all_presets_with_custom().into_iter().find(|p| p.id == id)
 }
 
 /// Goose Classic Theme - The default theme
