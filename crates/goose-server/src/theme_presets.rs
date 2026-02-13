@@ -5,8 +5,9 @@
 
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use utoipa::ToSchema;
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct ThemePreset {
     pub id: String,
     pub name: String,
@@ -17,7 +18,7 @@ pub struct ThemePreset {
     pub version: String,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct ThemeColors {
     pub light: HashMap<String, String>,
     pub dark: HashMap<String, String>,
