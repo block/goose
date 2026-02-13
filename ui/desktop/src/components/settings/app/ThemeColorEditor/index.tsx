@@ -193,8 +193,8 @@ export function ThemeColorEditor({ onClose }: ThemeColorEditorProps) {
           </div>
           
           <div className="flex items-center gap-4">
-            <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as 'presets' | 'customize')} className="flex-1">
-              <TabsList className="grid w-full grid-cols-2">
+            <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as 'presets' | 'customize')}>
+              <TabsList className="inline-flex">
                 <TabsTrigger value="presets" className="flex items-center gap-2">
                   <Palette className="w-4 h-4" />
                   <span>Theme Presets</span>
