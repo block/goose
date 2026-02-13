@@ -21,6 +21,7 @@ mod schedule_tool;
 pub mod subagent_execution_tool;
 pub(crate) mod subagent_handler;
 pub(crate) mod subagent_task_config;
+pub(crate) mod summarize_extension;
 pub(crate) mod summon_extension;
 pub(crate) mod todo_extension;
 pub(crate) mod tom_extension;

@@ -759,6 +759,8 @@ impl Agent {
             if let Some(final_output_tool) = self.final_output_tool.lock().await.as_ref() {
                 prefixed_tools.push(final_output_tool.tool());
             }
+
+
         }
 
         prefixed_tools

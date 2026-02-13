@@ -2,6 +2,7 @@ use crate::agents::apps_extension;
 use crate::agents::chatrecall_extension;
 use crate::agents::code_execution_extension;
 use crate::agents::extension_manager_extension;
+use crate::agents::summarize_extension;
 use crate::agents::summon_extension;
 use crate::agents::todo_extension;
 use crate::agents::tom_extension;
@@ -109,6 +110,20 @@ pub static PLATFORM_EXTENSIONS: Lazy<HashMap<&'static str, PlatformExtensionDef>
                 default_enabled: true,
                 unprefixed_tools: true,
                 client_factory: |ctx| Box::new(summon_extension::SummonClient::new(ctx).unwrap()),
+            },
+        );
+
+        map.insert(
+            summarize_extension::EXTENSION_NAME,
+            PlatformExtensionDef {
+                name: summarize_extension::EXTENSION_NAME,
+                display_name: "Summarize",
+                description: "Load files/directories and get an LLM summary in a single call",
+                default_enabled: true,
+                unprefixed_tools: false,
+                client_factory: |ctx| {
+                    Box::new(summarize_extension::SummarizeClient::new(ctx).unwrap())
+                },
             },
         );
 
