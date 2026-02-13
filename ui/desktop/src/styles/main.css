@@ -576,6 +576,11 @@ p > code.bg-inline-code {
   margin-bottom: 0 !important;
 }
 
+.user-message,
+.user-message * {
+  color: var(--color-text-inverse) !important;
+}
+
 .scrollbar-thin {
   scrollbar-width: thin;
 }
