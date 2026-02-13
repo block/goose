@@ -15,7 +15,7 @@
  * - "standalone" — Goose-specific mode for dedicated Electron windows
  */
 
-import { AppRenderer } from '@mcp-ui/client';
+import { AppRenderer, type RequestHandlerExtra } from '@mcp-ui/client';
 import type {
   McpUiDisplayMode,
   McpUiHostContext,
@@ -23,7 +23,7 @@ import type {
   McpUiResourcePermissions,
   McpUiSizeChangedNotification,
 } from '@modelcontextprotocol/ext-apps/app-bridge';
-import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
+import type { CallToolResult, JSONRPCRequest } from '@modelcontextprotocol/sdk/types.js';
 import { useCallback, useEffect, useMemo, useReducer, useState } from 'react';
 import { callTool, readResource } from '../../api';
 import { AppEvents } from '../../constants/events';
@@ -400,6 +400,16 @@ export default function McpAppRenderer({
     []
   );
 
+  const handleFallbackRequest = useCallback(
+    async (request: JSONRPCRequest, _extra: RequestHandlerExtra) => {
+      console.log('Fallback request:', request.method);
+
+      // todo: add `sampling/createMessage` per https://github.com/block/goose/pull/7039
+      return { status: 'success' as const };
+    },
+    []
+  );
+
   const handleError = useCallback((err: Error) => {
     console.error('[MCP App Error]:', err);
     dispatch({ type: 'ERROR', message: errorMessage(err) });
@@ -516,6 +526,7 @@ export default function McpAppRenderer({
         onReadResource={handleReadResource}
         onLoggingMessage={handleLoggingMessage}
         onSizeChanged={handleSizeChanged}
+        onFallbackRequest={handleFallbackRequest}
         onError={handleError}
       />
     );
