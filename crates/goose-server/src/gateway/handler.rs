@@ -4,7 +4,7 @@ use std::sync::Arc;
 use futures::StreamExt;
 use tokio_util::sync::CancellationToken;
 
-use goose::agents::{AgentEvent, SessionConfig};
+use goose::agents::{AgentEvent, ExtensionConfig, SessionConfig};
 use goose::config::extensions::get_enabled_extensions;
 use goose::config::paths::Paths;
 use goose::config::Config;
@@ -12,7 +12,7 @@ use goose::conversation::message::{Message, MessageContent};
 use goose::execution::manager::AgentManager;
 use goose::model::ModelConfig;
 use goose::session::SessionType;
-use goose::session::{EnabledExtensionsState, ExtensionState};
+use goose::session::{EnabledExtensionsState, ExtensionState, Session};
 
 use super::pairing::PairingStore;
 use super::{Gateway, GatewayConfig, IncomingMessage, OutgoingMessage, PairingState, PlatformUser};
@@ -183,6 +183,71 @@ impl GatewayHandler {
         Ok(())
     }
 
+    /// Sync the session's provider, model, and extensions with the current
+    /// global config so gateway sessions always reflect what the user has
+    /// configured in the desktop app.  Returns `true` if extensions changed
+    /// (which means the caller must recreate the agent so stale extension
+    /// processes are torn down).
+    async fn sync_session_config(&self, session: &Session) -> anyhow::Result<bool> {
+        let config = Config::global();
+        let manager = self.agent_manager.session_manager();
+
+        // --- current global config ---
+        let current_provider = config.get_goose_provider().ok();
+        let current_model_name = config.get_goose_model().ok();
+        let current_extensions = get_enabled_extensions();
+
+        // --- what the session has ---
+        let session_extensions: Vec<ExtensionConfig> =
+            EnabledExtensionsState::from_extension_data(&session.extension_data)
+                .map(|s| s.extensions)
+                .unwrap_or_default();
+
+        let provider_changed = current_provider.as_deref() != session.provider_name.as_deref();
+        let model_changed = current_model_name.as_deref()
+            != session
+                .model_config
+                .as_ref()
+                .map(|m| m.model_name.as_str());
+        let extensions_changed = current_extensions != session_extensions;
+
+        if !provider_changed && !model_changed && !extensions_changed {
+            return Ok(false);
+        }
+
+        tracing::info!(
+            session_id = %session.id,
+            provider_changed,
+            model_changed,
+            extensions_changed,
+            "syncing gateway session with current config"
+        );
+
+        let mut update = manager.update(&session.id);
+
+        if let Some(ref provider) = current_provider {
+            update = update.provider_name(provider);
+        }
+        if let Some(ref model_name) = current_model_name {
+            if let Ok(model_config) = ModelConfig::new(model_name) {
+                update = update.model_config(model_config);
+            }
+        }
+
+        if extensions_changed {
+            let extensions_state = EnabledExtensionsState::new(current_extensions);
+            let mut extension_data = session.extension_data.clone();
+            if let Err(e) = extensions_state.to_extension_data(&mut extension_data) {
+                tracing::warn!(error = %e, "failed to update gateway session extensions");
+            } else {
+                update = update.extension_data(extension_data);
+            }
+        }
+
+        update.apply().await?;
+        Ok(extensions_changed)
+    }
+
     async fn relay_to_session(
         &self,
         message: &IncomingMessage,
@@ -192,11 +257,26 @@ impl GatewayHandler {
             .send_message(&message.user, OutgoingMessage::Typing)
             .await?;
 
+        let session = self
+            .agent_manager
+            .session_manager()
+            .get_session(session_id, false)
+            .await?;
+
+        // Sync provider/model/extensions with the user's current desktop config.
+        // If extensions changed we must tear down the old agent so stale
+        // extension processes don't linger.
+        let extensions_changed = self.sync_session_config(&session).await?;
+        if extensions_changed {
+            let _ = self.agent_manager.remove_session(session_id).await;
+        }
+
         let agent = self
             .agent_manager
             .get_or_create_agent(session_id.to_string())
             .await?;
 
+        // Re-read the session after sync so restore picks up the new values.
         let session = self
             .agent_manager
             .session_manager()
@@ -216,7 +296,7 @@ impl GatewayHandler {
             return Ok(());
         }
 
-        // Load extensions if not already loaded.
+        // Load extensions (skips any already loaded on the agent).
         agent.load_extensions_from_session(&session).await;
 
         let cancel = CancellationToken::new();
