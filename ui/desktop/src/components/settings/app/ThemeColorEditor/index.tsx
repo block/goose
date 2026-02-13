@@ -145,7 +145,7 @@ export function ThemeColorEditor({ onClose }: ThemeColorEditorProps) {
 
   return (
     <Dialog open onOpenChange={onClose}>
-      <DialogContent className="max-w-full max-h-full w-screen h-screen m-0 rounded-none flex flex-col">
+      <DialogContent className="!max-w-none !w-screen !h-screen !top-0 !left-0 !translate-x-0 !translate-y-0 !m-0 !rounded-none !p-0 flex flex-col !inset-0">
         <DialogHeader className="px-6 py-4 border-b border-border-primary flex-shrink-0">
           <div className="flex items-center justify-between mb-4">
             <div>
