@@ -8,14 +8,28 @@ import { ThemePreset } from './types';
 import { gooseClassic } from './goose-classic';
 import { nord } from './nord';
 import { dracula } from './dracula';
+import { solarized } from './solarized';
+import { monokai } from './monokai';
+import { github } from './github';
+import { gruvbox } from './gruvbox';
+import { tokyoNight } from './tokyo-night';
+import { oneDark } from './one-dark';
+import { highContrast } from './high-contrast';
 
 /**
  * All available theme presets
  */
 export const themePresets: ThemePreset[] = [
   gooseClassic,
+  highContrast,
   nord,
   dracula,
+  solarized,
+  monokai,
+  github,
+  gruvbox,
+  tokyoNight,
+  oneDark,
 ];
 
 /**
@@ -57,4 +71,4 @@ export function getAllTags(): string[] {
 }
 
 export * from './types';
-export { gooseClassic, nord, dracula };
+export { gooseClassic, highContrast, nord, dracula, solarized, monokai, github, gruvbox, tokyoNight, oneDark };
