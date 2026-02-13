@@ -1,6 +1,7 @@
 use crate::routes::errors::ErrorResponse;
 use crate::routes::utils::check_provider_configured;
 use crate::state::AppState;
+use crate::theme_presets;
 use axum::routing::put;
 use axum::{
     extract::Path,
@@ -883,6 +884,71 @@ pub async fn save_theme(Json(request): Json<SaveThemeRequest>) -> Result<Json<St
     }
 }
 
+#[derive(Serialize, ToSchema)]
+pub struct ThemePresetsResponse {
+    presets: Vec<theme_presets::ThemePreset>,
+}
+
+#[utoipa::path(
+    get,
+    path = "/theme/presets",
+    responses(
+        (status = 200, description = "List of all built-in theme presets", body = ThemePresetsResponse)
+    )
+)]
+pub async fn get_theme_presets() -> Json<ThemePresetsResponse> {
+    let presets = theme_presets::get_all_presets();
+    Json(ThemePresetsResponse { presets })
+}
+
+#[derive(Deserialize, ToSchema)]
+pub struct ApplyPresetRequest {
+    preset_id: String,
+}
+
+#[utoipa::path(
+    post,
+    path = "/theme/apply-preset",
+    request_body = ApplyPresetRequest,
+    responses(
+        (status = 200, description = "Theme preset applied successfully", body = String),
+        (status = 404, description = "Theme preset not found"),
+        (status = 500, description = "Failed to apply theme preset")
+    )
+)]
+pub async fn apply_theme_preset(
+    Json(request): Json<ApplyPresetRequest>,
+) -> Result<Json<String>, ErrorResponse> {
+    let preset = theme_presets::get_preset(&request.preset_id)
+        .ok_or_else(|| ErrorResponse::not_found(format!("Theme preset '{}' not found", request.preset_id)))?;
+    
+    // Convert preset to CSS format
+    let mut css_lines = Vec::new();
+    
+    // Light mode
+    css_lines.push(":root {".to_string());
+    for (key, value) in &preset.colors.light {
+        css_lines.push(format!("  --{}: {};", key, value));
+    }
+    css_lines.push("}".to_string());
+    css_lines.push("".to_string());
+    
+    // Dark mode
+    css_lines.push(".dark {".to_string());
+    for (key, value) in &preset.colors.dark {
+        css_lines.push(format!("  --{}: {};", key, value));
+    }
+    css_lines.push("}".to_string());
+    
+    let css = css_lines.join("\n");
+    
+    // Save to theme.css
+    let theme_path = Paths::in_data_dir("theme.css");
+    std::fs::write(&theme_path, css)?;
+    
+    Ok(Json(format!("Applied theme preset: {}", preset.name)))
+}
+
 pub fn routes(state: Arc<AppState>) -> Router {
     Router::new()
         .route("/config", get(read_all_config))
@@ -917,6 +983,8 @@ pub fn routes(state: Arc<AppState>) -> Router {
         )
         .route("/theme/variables", get(get_theme_variables))
         .route("/theme/save", post(save_theme))
+        .route("/theme/presets", get(get_theme_presets))
+        .route("/theme/apply-preset", post(apply_theme_preset))
         .with_state(state)
 }
 

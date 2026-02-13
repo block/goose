@@ -6,6 +6,7 @@ mod openapi;
 mod routes;
 mod state;
 mod theme_css;
+mod theme_presets;
 mod tunnel;
 
 use clap::{Parser, Subcommand};

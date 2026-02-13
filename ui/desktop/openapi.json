@@ -6957,7 +6957,6 @@
         "properties": {
           "variables": {
             "type": "object",
-            "description": "MCP-compatible CSS variables with light-dark() format\nThese variables use MCP standard naming (--color-*) and light-dark() format\nfor seamless integration with both the main app and MCP apps.",
             "additionalProperties": {
               "type": "string"
             }

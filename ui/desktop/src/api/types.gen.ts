@@ -1200,11 +1200,6 @@ export type TextContent = {
 };
 
 export type ThemeVariablesResponse = {
-    /**
-     * MCP-compatible CSS variables with light-dark() format
-     * These variables use MCP standard naming (--color-*) and light-dark() format
-     * for seamless integration with both the main app and MCP apps.
-     */
     variables: {
         [key: string]: string;
     };
