@@ -8,6 +8,7 @@ use std::collections::HashMap;
 use utoipa::ToSchema;
 
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+#[schema(as = ThemePreset)]
 pub struct ThemePreset {
     pub id: String,
     pub name: String,
@@ -19,6 +20,7 @@ pub struct ThemePreset {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+#[schema(as = ThemeColors)]
 pub struct ThemeColors {
     pub light: HashMap<String, String>,
     pub dark: HashMap<String, String>,

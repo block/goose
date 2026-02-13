@@ -884,9 +884,26 @@ pub async fn save_theme(Json(request): Json<SaveThemeRequest>) -> Result<Json<St
     }
 }
 
+#[derive(Serialize, Deserialize, ToSchema)]
+pub struct ThemePreset {
+    pub id: String,
+    pub name: String,
+    pub author: String,
+    pub description: String,
+    pub tags: Vec<String>,
+    pub colors: ThemeColorsDto,
+    pub version: String,
+}
+
+#[derive(Serialize, Deserialize, ToSchema)]
+pub struct ThemeColorsDto {
+    pub light: HashMap<String, String>,
+    pub dark: HashMap<String, String>,
+}
+
 #[derive(Serialize, ToSchema)]
 pub struct ThemePresetsResponse {
-    presets: Vec<theme_presets::ThemePreset>,
+    presets: Vec<ThemePreset>,
 }
 
 #[utoipa::path(
@@ -897,7 +914,21 @@ pub struct ThemePresetsResponse {
     )
 )]
 pub async fn get_theme_presets() -> Json<ThemePresetsResponse> {
-    let presets = theme_presets::get_all_presets();
+    let presets = theme_presets::get_all_presets()
+        .into_iter()
+        .map(|p| ThemePreset {
+            id: p.id,
+            name: p.name,
+            author: p.author,
+            description: p.description,
+            tags: p.tags,
+            colors: ThemeColorsDto {
+                light: p.colors.light,
+                dark: p.colors.dark,
+            },
+            version: p.version,
+        })
+        .collect();
     Json(ThemePresetsResponse { presets })
 }
 

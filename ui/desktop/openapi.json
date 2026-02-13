@@ -8,6 +8,17 @@
       "email": "ai-oss-tools@block.xyz"
     },
     "license": {
+      "name": "ApacheSuccessfully generated OpenAPI schema at /Users/spencermartin/Desktop/goose-mcp-apps-styling/ui/desktop/openapi.json
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "goose-server",
+    "description": "An AI agent",
+    "contact": {
+      "name": "Block",
+      "email": "ai-oss-tools@block.xyz"
+    },
+    "license": {
       "name": "Apache-2.0"
     },
     "version": "1.23.0"
@@ -3236,6 +3247,62 @@
         }
       }
     },
+    "/theme/apply-preset": {
+      "post": {
+        "tags": [
+          "super::routes::config_management"
+        ],
+        "operationId": "apply_theme_preset",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ApplyPresetRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Theme preset applied successfully",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Theme preset not found"
+          },
+          "500": {
+            "description": "Failed to apply theme preset"
+          }
+        }
+      }
+    },
+    "/theme/presets": {
+      "get": {
+        "tags": [
+          "super::routes::config_management"
+        ],
+        "operationId": "get_theme_presets",
+        "responses": {
+          "200": {
+            "description": "List of all built-in theme presets",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ThemePresetsResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/theme/save": {
       "post": {
         "tags": [
@@ -3500,6 +3567,17 @@
           },
           "priority": {
             "type": "number"
+          }
+        }
+      },
+      "ApplyPresetRequest": {
+        "type": "object",
+        "required": [
+          "preset_id"
+        ],
+        "properties": {
+          "preset_id": {
+            "type": "string"
           }
         }
       },
@@ -6946,6 +7024,79 @@
           },
           "text": {
             "type": "string"
+          }
+        }
+      },
+      "ThemeColorsDto": {
+        "type": "object",
+        "required": [
+          "light",
+          "dark"
+        ],
+        "properties": {
+          "dark": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            }
+          },
+          "light": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "ThemePreset": {
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "author",
+          "description",
+          "tags",
+          "colors",
+          "version"
+        ],
+        "properties": {
+          "author": {
+            "type": "string"
+          },
+          "colors": {
+            "$ref": "#/components/schemas/ThemeColorsDto"
+          },
+          "description": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "version": {
+            "type": "string"
+          }
+        }
+      },
+      "ThemePresetsResponse": {
+        "type": "object",
+        "required": [
+          "presets"
+        ],
+        "properties": {
+          "presets": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ThemePreset"
+            }
           }
         }
       },
