@@ -19,3 +19,8 @@ jobs:
           PATH=/usr/bin:/bin:/usr/sbin:/sbin $SHELL -l -i -c 'echo $PATH'
           echo 'PATH=/fake/path:$PATH' >> $HOME/.bash_profile
           PATH=/usr/bin:/bin:/usr/sbin:/sbin $SHELL -l -i -c 'echo $PATH'
+
+          echo 'check config files'
+          cat $HOME/.bashrc
+          cat $HOME/.bash_profile
+          cat $HOME/.profile
