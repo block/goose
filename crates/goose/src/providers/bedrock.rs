@@ -1,6 +1,8 @@
 use std::collections::HashMap;
 
-use super::base::{ConfigKey, Provider, ProviderDef, ProviderMetadata, ProviderUsage};
+use super::base::{
+    ConfigKey, MessageStream, Provider, ProviderDef, ProviderMetadata, ProviderUsage,
+};
 use super::errors::ProviderError;
 use super::retry::{ProviderRetry, RetryConfig};
 use crate::conversation::message::Message;
@@ -10,6 +12,8 @@ use anyhow::Result;
 use async_trait::async_trait;
 use aws_sdk_bedrockruntime::config::ProvideCredentials;
 use aws_sdk_bedrockruntime::operation::converse::ConverseError;
+use aws_sdk_bedrockruntime::operation::converse_stream::ConverseStreamError;
+use aws_sdk_bedrockruntime::operation::RequestId;
 use aws_sdk_bedrockruntime::{types as bedrock, Client};
 use futures::future::BoxFuture;
 use reqwest::header::HeaderValue;
@@ -18,7 +22,8 @@ use serde_json::Value;
 
 // Import the migrated helper functions from providers/formats/bedrock.rs
 use super::formats::bedrock::{
-    from_bedrock_message, from_bedrock_usage, to_bedrock_message, to_bedrock_tool_config,
+    from_bedrock_message, from_bedrock_usage, stream_bedrock_response, to_bedrock_message,
+    to_bedrock_tool_config,
 };
 use crate::session_context::SESSION_ID_HEADER;
 
@@ -347,6 +352,90 @@ impl Provider for BedrockProvider {
 
         let provider_usage = ProviderUsage::new(model_name.to_string(), usage);
         Ok((message, provider_usage))
+    }
+
+    fn supports_streaming(&self) -> bool {
+        true
+    }
+
+    async fn stream(
+        &self,
+        session_id: &str,
+        system: &str,
+        messages: &[Message],
+        tools: &[Tool],
+    ) -> Result<MessageStream, ProviderError> {
+        let model_name = &self.model.model_name;
+
+        let mut request = self
+            .client
+            .converse_stream()
+            .system(bedrock::SystemContentBlock::Text(system.to_string()))
+            .model_id(model_name.to_string())
+            .set_messages(Some(
+                messages
+                    .iter()
+                    .filter(|m| m.is_agent_visible())
+                    .map(to_bedrock_message)
+                    .collect::<Result<_>>()?,
+            ));
+
+        if !tools.is_empty() {
+            request = request.tool_config(to_bedrock_tool_config(tools)?);
+        }
+
+        let mut request = request.customize();
+
+        if !session_id.is_empty() {
+            let session_id = session_id.to_string();
+            request = request.mutate_request(move |req| {
+                if let Ok(value) = HeaderValue::from_str(&session_id) {
+                    req.headers_mut().insert(SESSION_ID_HEADER, value);
+                }
+            });
+        }
+
+        let response = request
+            .send()
+            .await
+            .map_err(|err| match err.into_service_error() {
+                ConverseStreamError::ThrottlingException(throttle_err) => {
+                    ProviderError::RateLimitExceeded {
+                        details: format!("Bedrock throttling error: {:?}", throttle_err),
+                        retry_delay: None,
+                    }
+                }
+                ConverseStreamError::AccessDeniedException(err) => {
+                    ProviderError::Authentication(format!("Failed to call Bedrock: {:?}", err))
+                }
+                ConverseStreamError::ValidationException(err)
+                    if err
+                        .message()
+                        .unwrap_or_default()
+                        .contains("Input is too long for requested model.") =>
+                {
+                    ProviderError::ContextLengthExceeded(format!(
+                        "Failed to call Bedrock: {:?}",
+                        err
+                    ))
+                }
+                ConverseStreamError::ModelErrorException(err) => {
+                    ProviderError::ExecutionError(format!("Failed to call Bedrock: {:?}", err))
+                }
+                err => ProviderError::ServerError(format!("Failed to call Bedrock: {:?}", err)),
+            })?;
+
+        // Use request_id as message identifier, or generate a UUID
+        let message_id = response
+            .request_id()
+            .map(String::from)
+            .unwrap_or_else(|| uuid::Uuid::new_v4().to_string());
+
+        Ok(stream_bedrock_response(
+            response.stream,
+            message_id,
+            model_name.clone(),
+        ))
     }
 }
 

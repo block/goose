@@ -5,6 +5,7 @@ use std::path::Path;
 use crate::mcp_utils::ToolResult;
 use anyhow::{anyhow, bail, Result};
 use aws_sdk_bedrockruntime::types as bedrock;
+use aws_sdk_bedrockruntime::types::ConverseStreamOutput;
 use aws_smithy_types::{Document, Number};
 use base64::Engine;
 use chrono::Utc;
@@ -14,7 +15,8 @@ use rmcp::model::{
 };
 use serde_json::Value;
 
-use super::super::base::Usage;
+use super::super::base::{MessageStream, ProviderUsage, Usage};
+use super::super::errors::ProviderError;
 use crate::conversation::message::{Message, MessageContent};
 
 pub fn to_bedrock_message(message: &Message) -> Result<bedrock::Message> {
@@ -384,6 +386,151 @@ pub fn from_bedrock_json(document: &Document) -> Result<Value> {
                 .map(|(key, val)| Ok((key.clone(), from_bedrock_json(val)?)))
                 .collect::<Result<_>>()?,
         ),
+    })
+}
+
+/// State for accumulating tool call data across streaming deltas
+#[derive(Debug, Default)]
+struct ToolCallState {
+    tool_use_id: String,
+    name: String,
+    input_json: String,
+}
+
+/// Process Bedrock streaming events into a stream of Messages
+///
+/// This function takes the event receiver from converse_stream and yields
+/// Messages as content is received. Text content is yielded incrementally,
+/// while tool calls are accumulated and yielded when complete.
+pub fn stream_bedrock_response(
+    mut event_receiver: aws_sdk_bedrockruntime::primitives::event_stream::EventReceiver<
+        ConverseStreamOutput,
+        aws_sdk_bedrockruntime::types::error::ConverseStreamOutputError,
+    >,
+    message_id: String,
+    model_name: String,
+) -> MessageStream {
+    Box::pin(async_stream::stream! {
+        let created = Utc::now().timestamp();
+
+        // Track accumulated tool calls (indexed by content block index)
+        let mut tool_calls: HashMap<i32, ToolCallState> = HashMap::new();
+        let mut current_block_index: i32 = -1;
+
+        // Track usage
+        let mut usage: Option<Usage> = None;
+
+        loop {
+            let event = match event_receiver.recv().await {
+                Ok(Some(event)) => event,
+                Ok(None) => break, // Stream ended
+                Err(e) => {
+                    yield Err(ProviderError::RequestFailed(format!("Bedrock stream error: {:?}", e)));
+                    break;
+                }
+            };
+
+            match event {
+                ConverseStreamOutput::MessageStart(_) => {
+                    // Message started, role is always assistant
+                }
+                ConverseStreamOutput::ContentBlockStart(start) => {
+                    current_block_index = start.content_block_index;
+
+                    // Check if this is a tool use block
+                    if let Some(bedrock::ContentBlockStart::ToolUse(tool_start)) = start.start {
+                        tool_calls.insert(
+                            current_block_index,
+                            ToolCallState {
+                                tool_use_id: tool_start.tool_use_id,
+                                name: tool_start.name,
+                                input_json: String::new(),
+                            },
+                        );
+                    }
+                }
+                ConverseStreamOutput::ContentBlockDelta(delta) => {
+                    current_block_index = delta.content_block_index;
+
+                    if let Some(delta_content) = delta.delta {
+                        match delta_content {
+                            bedrock::ContentBlockDelta::Text(text) => {
+                                // Yield text content immediately
+                                let mut message = Message::assistant().with_text(&text);
+                                message.id = Some(message_id.clone());
+                                message.created = created;
+                                yield Ok((Some(message), None));
+                            }
+                            bedrock::ContentBlockDelta::ToolUse(tool_delta) => {
+                                // Accumulate tool input JSON
+                                if let Some(tool_state) = tool_calls.get_mut(&current_block_index) {
+                                    tool_state.input_json.push_str(&tool_delta.input);
+                                }
+                            }
+                            bedrock::ContentBlockDelta::ReasoningContent(reasoning) => {
+                                // Handle reasoning/thinking content (extended thinking)
+                                // ReasoningContentBlockDelta is an enum with Text, Signature, RedactedContent variants
+                                if let Ok(text) = reasoning.as_text() {
+                                    let mut message = Message::assistant().with_thinking(
+                                        text,
+                                        "", // Signature comes as a separate delta
+                                    );
+                                    message.id = Some(message_id.clone());
+                                    message.created = created;
+                                    yield Ok((Some(message), None));
+                                }
+                                // Note: Signature and RedactedContent deltas are handled separately by the model
+                            }
+                            _ => {
+                                // Other delta types (citations, images, etc.) - ignore for now
+                            }
+                        }
+                    }
+                }
+                ConverseStreamOutput::ContentBlockStop(_) => {
+                    // Content block finished - if it was a tool call, yield it now
+                    if let Some(tool_state) = tool_calls.remove(&current_block_index) {
+                        // Parse the accumulated JSON input
+                        let arguments: Value = if tool_state.input_json.is_empty() {
+                            Value::Object(serde_json::Map::new())
+                        } else {
+                            serde_json::from_str(&tool_state.input_json)
+                                .unwrap_or(Value::Object(serde_json::Map::new()))
+                        };
+
+                        let mut message = Message::assistant().with_tool_request(
+                            &tool_state.tool_use_id,
+                            Ok(CallToolRequestParams {
+                                meta: None,
+                                task: None,
+                                name: tool_state.name.into(),
+                                arguments: Some(object(arguments)),
+                            }),
+                        );
+                        message.id = Some(message_id.clone());
+                        message.created = created;
+                        yield Ok((Some(message), None));
+                    }
+                }
+                ConverseStreamOutput::MessageStop(_) => {
+                    // Message complete - any remaining tool calls should have been yielded
+                }
+                ConverseStreamOutput::Metadata(metadata) => {
+                    // Extract usage information
+                    if let Some(token_usage) = metadata.usage {
+                        usage = Some(from_bedrock_usage(&token_usage));
+                    }
+                }
+                _ => {
+                    // Unknown event type - ignore
+                }
+            }
+        }
+
+        // Yield final usage if we have it
+        if let Some(usage) = usage {
+            yield Ok((None, Some(ProviderUsage::new(model_name, usage))));
+        }
     })
 }
 
