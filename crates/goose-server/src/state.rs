@@ -31,7 +31,7 @@ pub struct AppState {
 fn spawn_developer(r: tokio::io::DuplexStream, w: tokio::io::DuplexStream) {
     let bash_env = Paths::config_dir().join(".bash_env");
     let server = DeveloperServer::new()
-        // .extend_path_with_shell(true)
+        .extend_path_with_shell(true)
         .bash_env_file(Some(bash_env));
     tokio::spawn(async move {
         match server.serve((r, w)).await {
