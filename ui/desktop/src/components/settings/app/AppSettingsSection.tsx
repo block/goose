@@ -6,6 +6,7 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '
 import UpdateSection from './UpdateSection';
 import TunnelSection from '../tunnel/TunnelSection';
 import GatewaySettingsSection from '../gateways/GatewaySettingsSection';
+import { getTunnelStatus } from '../../../api/sdk.gen';
 
 import { COST_TRACKING_ENABLED, UPDATES_ENABLED } from '../../../updates';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../ui/card';
@@ -28,6 +29,7 @@ export default function AppSettingsSection({ scrollToSection }: AppSettingsSecti
   const [showNotificationModal, setShowNotificationModal] = useState(false);
   const [showPricing, setShowPricing] = useState(true);
   const [isDarkMode, setIsDarkMode] = useState(false);
+  const [tunnelDisabled, setTunnelDisabled] = useState(false);
   const updateSectionRef = useRef<HTMLDivElement>(null);
 
   // Check if GOOSE_VERSION is set to determine if Updates section should be shown
@@ -72,6 +74,14 @@ export default function AppSettingsSection({ scrollToSection }: AppSettingsSecti
       }, 100);
     }
   }, [scrollToSection]);
+
+  useEffect(() => {
+    getTunnelStatus().then(({ data }) => {
+      if (data?.state === 'disabled') {
+        setTunnelDisabled(true);
+      }
+    }).catch(() => {});
+  }, []);
 
   // Load menu bar and dock icon states
   useEffect(() => {
@@ -270,9 +280,12 @@ export default function AppSettingsSection({ scrollToSection }: AppSettingsSecti
         </CardContent>
       </Card>
 
-      <TunnelSection />
-
-      <GatewaySettingsSection />
+      {!tunnelDisabled && (
+        <>
+          <TunnelSection />
+          <GatewaySettingsSection />
+        </>
+      )}
 
       <TelemetrySettings isWelcome={false} />
 

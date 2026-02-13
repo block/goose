@@ -58,30 +58,11 @@ async function gatewayFetch(endpoint: string, options: globalThis.RequestInit = 
 export default function GatewaySettingsSection() {
   const [gateways, setGateways] = useState<GatewayStatus[]>([]);
   const [loading, setLoading] = useState(true);
-  const [hidden, setHidden] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showAddModal, setShowAddModal] = useState(false);
   const [pairingCode, setPairingCode] = useState<PairingCodeResponse | null>(null);
   const [pairingGatewayType, setPairingGatewayType] = useState<string | null>(null);
   const [copiedCode, setCopiedCode] = useState(false);
-
-  // Hide when tunnel is disabled (GOOSE_TUNNEL=no)
-  useEffect(() => {
-    const checkTunnelStatus = async () => {
-      try {
-        const response = await gatewayFetch('/tunnel/status');
-        if (response.ok) {
-          const data = await response.json();
-          if (data.state === 'disabled') {
-            setHidden(true);
-          }
-        }
-      } catch {
-        // If we can't reach the server, don't hide
-      }
-    };
-    checkTunnelStatus();
-  }, []);
 
   const fetchStatus = useCallback(async () => {
     try {
@@ -164,10 +145,6 @@ export default function GatewaySettingsSection() {
       console.error('Failed to copy:', err);
     }
   };
-
-  if (hidden) {
-    return null;
-  }
 
   return (
     <section className="space-y-4 mt-1">
