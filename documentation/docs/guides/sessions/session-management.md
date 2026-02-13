@@ -120,6 +120,10 @@ In your first session, goose prompts you to [set up an LLM (Large Language Model
     </TabItem>
 </Tabs>
 
+:::tip Disable AI-generated Session Naming
+Use [`GOOSE_DISABLE_SESSION_NAMING`](/docs/guides/environment-variables#session-management) to keep the default name instead of calling a model to generate one (useful in CI/headless workflows).
+:::
+
 ## Exit Session
 Note that sessions are automatically saved when you exit.
 <Tabs groupId="interface">
