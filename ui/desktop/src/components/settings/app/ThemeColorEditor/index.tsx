@@ -10,6 +10,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../../../ui/tabs';
 import { Button } from '../../../ui/button';
 import { getThemeVariables, saveTheme } from '../../../../api';
+import { saveCustomTheme } from '../../../../api/theme-api';
 import { ThemeColorEditorProps, ThemeColors, ColorMode, COLOR_VARIABLES, ColorVariable } from './types';
 import { toast } from 'react-toastify';
 import { SimpleColorPicker } from './ColorPicker/SimpleColorPicker';
@@ -80,6 +81,16 @@ export function ThemeColorEditor({ onClose }: ThemeColorEditorProps) {
     try {
       setSaving(true);
       
+      // Validate theme name
+      if (!themeName.trim()) {
+        toast.error('Please enter a theme name');
+        setSaving(false);
+        return;
+      }
+      
+      // Generate a unique theme ID from the name
+      const themeId = `custom-${themeName.toLowerCase().replace(/[^a-z0-9]+/g, '-')}-${Date.now()}`;
+      
       // Convert back to CSS format
       const cssLines: string[] = [];
       
@@ -100,8 +111,23 @@ export function ThemeColorEditor({ onClose }: ThemeColorEditorProps) {
       
       const css = cssLines.join('\n');
       
+      // Save as active theme (theme.css)
       await saveTheme({ body: { css } });
-      toast.success('Theme saved successfully!');
+      
+      // Save as custom preset for future use
+      await saveCustomTheme({
+        id: themeId,
+        name: themeName.trim(),
+        author: 'You',
+        description: themeDescription.trim() || 'Custom theme',
+        tags: ['custom'],
+        colors: {
+          light: themeColors.light,
+          dark: themeColors.dark,
+        },
+      });
+      
+      toast.success(`Theme "${themeName}" saved successfully!`);
       
       // Reload the page to apply changes
       window.location.reload();
