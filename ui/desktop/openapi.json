@@ -3236,6 +3236,26 @@
         }
       }
     },
+    "/theme/active": {
+      "get": {
+        "tags": [
+          "super::routes::config_management"
+        ],
+        "operationId": "get_active_theme",
+        "responses": {
+          "200": {
+            "description": "Get the currently active theme ID",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ActiveThemeResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/theme/apply-preset": {
       "post": {
         "tags": [
@@ -3594,6 +3614,15 @@
         ],
         "discriminator": {
           "propertyName": "actionType"
+        }
+      },
+      "ActiveThemeResponse": {
+        "type": "object",
+        "properties": {
+          "theme_id": {
+            "type": "string",
+            "nullable": true
+          }
         }
       },
       "AddExtensionRequest": {

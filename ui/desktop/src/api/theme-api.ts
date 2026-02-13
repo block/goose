@@ -23,6 +23,10 @@ export interface DeleteCustomThemeResponse {
   message: string;
 }
 
+export interface ActiveThemeResponse {
+  theme_id: string | null;
+}
+
 /**
  * Save a custom theme preset
  */
@@ -50,10 +54,6 @@ export const deleteCustomTheme = async (id: string): Promise<DeleteCustomThemeRe
   
   return response.data;
 };
-
-export interface ActiveThemeResponse {
-  theme_id: string | null;
-}
 
 /**
  * Get the currently active theme ID

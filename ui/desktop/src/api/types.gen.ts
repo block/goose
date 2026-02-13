@@ -25,6 +25,10 @@ export type ActionRequiredData = {
     user_data: unknown;
 };
 
+export type ActiveThemeResponse = {
+    theme_id?: string | null;
+};
+
 export type AddExtensionRequest = {
     config: ExtensionConfig;
     session_id: string;
@@ -3956,6 +3960,22 @@ export type SendTelemetryEventResponses = {
      */
     202: unknown;
 };
+
+export type GetActiveThemeData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/theme/active';
+};
+
+export type GetActiveThemeResponses = {
+    /**
+     * Get the currently active theme ID
+     */
+    200: ActiveThemeResponse;
+};
+
+export type GetActiveThemeResponse = GetActiveThemeResponses[keyof GetActiveThemeResponses];
 
 export type ApplyThemePresetData = {
     body: ApplyPresetRequest;
