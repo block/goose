@@ -99,12 +99,11 @@ export async function startGoosed({
     if (!serverReady) {
       result.cleanup();
       console.error('Server stderr:', result.errorLog.join('\n'));
-      throw new Error('Server failed to start');
-    }
-  } catch (error) {
-    result.cleanup();
-    console.error('Server stderr:', result.errorLog.join('\n'));
-    throw error;
+  const serverReady = await waitForServer(baseUrl);
+  if (!serverReady) {
+    goosedProcess.kill();
+    console.error('Server stderr:', stderrLines.join('\n'));
+    throw new Error(`Failed to start goosed on port ${port}: server did not become ready`);
   }
 
   const client = createClient(
