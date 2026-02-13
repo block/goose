@@ -1,0 +1,322 @@
+use crate::agents::extension::PlatformExtensionContext;
+use crate::agents::mcp_client::{Error, McpClientTrait};
+use anyhow::Result;
+use async_trait::async_trait;
+use goose_mcp::developer::text_editor;
+use rmcp::model::{
+    CallToolResult, Content, Implementation, InitializeResult, JsonObject, ListToolsResult,
+    ProtocolVersion, ServerCapabilities, Tool, ToolAnnotations, ToolsCapability,
+};
+use schemars::JsonSchema;
+use serde::Deserialize;
+use std::fs;
+use std::io::Read;
+use std::path::{Path, PathBuf};
+use tokio_util::sync::CancellationToken;
+
+pub static EXTENSION_NAME: &str = "reader";
+const MAX_FILE_BYTES: u64 = 256 * 1024;
+const MAX_DIR_ENTRIES: usize = 2000;
+const IGNORED_DIRS: &[&str] = &[
+    ".git",
+    "node_modules",
+    "target",
+    "__pycache__",
+    ".venv",
+    "venv",
+    ".tox",
+    ".mypy_cache",
+    ".pytest_cache",
+    "dist",
+    "build",
+    ".next",
+    ".nuxt",
+    ".output",
+    "coverage",
+    ".gradle",
+    ".idea",
+    ".vs",
+    ".vscode",
+    ".eggs",
+    ".cache",
+    "vendor",
+];
+const IGNORED_FILES: &[&str] = &[".DS_Store", "Thumbs.db"];
+const IGNORED_SUFFIXES: &[&str] = &[".min.js", ".min.css", ".map", ".lock"];
+
+#[derive(Debug, Deserialize, JsonSchema)]
+struct ReadParams {
+    path: String,
+    #[serde(default = "default_depth")]
+    max_depth: u32,
+    #[serde(default)]
+    view_range: Option<Vec<i64>>,
+}
+fn default_depth() -> u32 {
+    3
+}
+
+fn resolve_and_validate(raw: &str, wd: &Path) -> std::result::Result<PathBuf, String> {
+    let target = if Path::new(raw).is_absolute() {
+        PathBuf::from(raw)
+    } else {
+        wd.join(raw)
+    };
+    if target
+        .components()
+        .any(|c| matches!(c, std::path::Component::ParentDir))
+    {
+        return Err("Path traversal detected: paths cannot contain '..'".into());
+    }
+    let canon = target
+        .canonicalize()
+        .map_err(|e| format!("Cannot resolve '{}': {e}", target.display()))?;
+    let canon_wd = wd
+        .canonicalize()
+        .map_err(|e| format!("Cannot resolve working directory: {e}"))?;
+    if !canon.starts_with(&canon_wd) {
+        return Err(format!(
+            "Path outside working directory: {}",
+            canon_wd.display()
+        ));
+    }
+    Ok(canon)
+}
+
+fn is_binary(path: &Path) -> bool {
+    let Ok(mut f) = fs::File::open(path) else {
+        return false;
+    };
+    let mut buf = [0u8; 8192];
+    let Ok(n) = f.read(&mut buf) else {
+        return false;
+    };
+    buf[..n].contains(&0)
+}
+
+fn read_file(
+    path: &Path,
+    view_range: Option<Vec<i64>>,
+) -> std::result::Result<Vec<Content>, String> {
+    if is_binary(path) {
+        return Ok(vec![Content::text(format!(
+            "Skipped binary file: {}",
+            path.display()
+        ))]);
+    }
+    let mut buf = Vec::new();
+    fs::File::open(path)
+        .map_err(|e| format!("Cannot open '{}': {e}", path.display()))?
+        .take(MAX_FILE_BYTES)
+        .read_to_end(&mut buf)
+        .map_err(|e| format!("Read error: {e}"))?;
+    let raw = String::from_utf8_lossy(&buf);
+    let lines: Vec<&str> = raw.lines().collect();
+    let total = lines.len();
+    let te_range = match view_range.as_deref() {
+        Some([a, b]) => Some((*a as usize, *b)),
+        Some(r) => {
+            return Err(format!(
+                "view_range must have exactly 2 elements, got {}",
+                r.len()
+            ))
+        }
+        None => None,
+    };
+    let (s, e) = text_editor::calculate_view_range(te_range, total).map_err(|e| e.message)?;
+    Ok(vec![Content::text(text_editor::format_file_content(
+        path, &lines, s, e, te_range,
+    ))])
+}
+
+fn should_ignore(name: &str, is_dir: bool) -> bool {
+    if is_dir {
+        IGNORED_DIRS.contains(&name)
+    } else {
+        IGNORED_FILES.contains(&name) || IGNORED_SUFFIXES.iter().any(|s| name.ends_with(s))
+    }
+}
+
+fn read_directory(path: &Path, max_depth: u32) -> Vec<Content> {
+    let mut out = format!("{}\n", path.display());
+    let mut c = (0usize, 0usize, 0usize, false); // files, dirs, total, truncated
+    build_tree(path, 0, max_depth as usize, &mut out, &mut c);
+    if c.3 {
+        out.push_str(&format!("\n(truncated at {MAX_DIR_ENTRIES} entries)\n"));
+    }
+    out.push_str(&format!("\n{} files, {} directories\n", c.0, c.1));
+    vec![Content::text(out)]
+}
+
+fn build_tree(
+    dir: &Path,
+    depth: usize,
+    max_depth: usize,
+    out: &mut String,
+    c: &mut (usize, usize, usize, bool),
+) {
+    if c.3 || depth > max_depth {
+        return;
+    }
+    let Ok(rd) = fs::read_dir(dir) else { return };
+    let mut entries: Vec<fs::DirEntry> = rd.filter_map(|e| e.ok()).collect();
+    entries.sort_by_key(|e| e.file_name());
+    let n = entries.len();
+    for (i, entry) in entries.iter().enumerate() {
+        if c.3 {
+            return;
+        }
+        let path = entry.path();
+        let name = entry.file_name().to_string_lossy().to_string();
+        let pfx = format!(
+            "{}{}",
+            "│   ".repeat(depth),
+            if i == n - 1 {
+                "└── "
+            } else {
+                "├── "
+            }
+        );
+        if path.is_dir() {
+            if should_ignore(&name, true) {
+                continue;
+            }
+            c.1 += 1;
+            c.2 += 1;
+            if c.2 > MAX_DIR_ENTRIES {
+                c.3 = true;
+                return;
+            }
+            out.push_str(&format!("{pfx}{name}/\n"));
+            if depth < max_depth {
+                build_tree(&path, depth + 1, max_depth, out, c);
+            }
+        } else if path.is_file() {
+            if should_ignore(&name, false) {
+                continue;
+            }
+            c.0 += 1;
+            c.2 += 1;
+            if c.2 > MAX_DIR_ENTRIES {
+                c.3 = true;
+                return;
+            }
+            let sz = fs::metadata(&path).map(|m| m.len()).unwrap_or(0);
+            let sz_s = match sz {
+                0..=1023 => format!("{sz}B"),
+                1024..=1_048_575 => format!("{:.1}KB", sz as f64 / 1024.0),
+                _ => format!("{:.1}MB", sz as f64 / 1_048_576.0),
+            };
+            out.push_str(&format!("{pfx}{name:<40} {sz_s}\n"));
+        }
+    }
+}
+
+pub struct ReaderClient {
+    info: InitializeResult,
+}
+
+impl ReaderClient {
+    pub fn new(_ctx: PlatformExtensionContext) -> Result<Self> {
+        Ok(Self { info: InitializeResult {
+            protocol_version: ProtocolVersion::V_2025_03_26,
+            capabilities: ServerCapabilities {
+                tools: Some(ToolsCapability { list_changed: Some(false) }),
+                ..Default::default()
+            },
+            server_info: Implementation {
+                name: EXTENSION_NAME.into(),
+                title: Some("Reader".into()),
+                version: "1.0.0".into(),
+                ..Default::default()
+            },
+            instructions: Some("Read-only filesystem access. Use `read` to view files or list directories within the working directory.".into()),
+        }})
+    }
+
+    fn get_tools() -> Vec<Tool> {
+        let schema = schemars::schema_for!(ReadParams);
+        let v = serde_json::to_value(schema).expect("schema");
+        vec![Tool::new(
+            "read",
+            "Read a file or list a directory. Paths resolve against working directory and must stay within it.",
+            v.as_object().unwrap().clone(),
+        ).annotate(ToolAnnotations {
+            title: Some("Read files and directories".into()),
+            read_only_hint: Some(true),
+            idempotent_hint: Some(true),
+            ..Default::default()
+        })]
+    }
+
+    fn handle_read(&self, p: ReadParams, wd: &Path) -> std::result::Result<Vec<Content>, String> {
+        let path = resolve_and_validate(&p.path, wd)?;
+        if path.is_dir() {
+            Ok(read_directory(&path, p.max_depth))
+        } else if path.is_file() {
+            read_file(&path, p.view_range)
+        } else {
+            Err(format!("Not a file or directory: {}", path.display()))
+        }
+    }
+}
+
+#[async_trait]
+impl McpClientTrait for ReaderClient {
+    async fn list_tools(
+        &self,
+        _: &str,
+        _: Option<String>,
+        _: CancellationToken,
+    ) -> std::result::Result<ListToolsResult, Error> {
+        Ok(ListToolsResult {
+            tools: Self::get_tools(),
+            next_cursor: None,
+            meta: None,
+        })
+    }
+
+    async fn call_tool(
+        &self,
+        _: &str,
+        name: &str,
+        arguments: Option<JsonObject>,
+        working_dir: Option<&str>,
+        _: CancellationToken,
+    ) -> std::result::Result<CallToolResult, Error> {
+        if name != "read" {
+            return Ok(CallToolResult::error(vec![Content::text(format!(
+                "Unknown tool: {name}"
+            ))]));
+        }
+        let wd = working_dir
+            .map(PathBuf::from)
+            .unwrap_or_else(|| std::env::current_dir().unwrap_or_else(|_| PathBuf::from("/")));
+        let params: ReadParams = match arguments
+            .map(|a| serde_json::from_value(serde_json::Value::Object(a)))
+            .transpose()
+        {
+            Ok(Some(p)) => p,
+            Ok(None) => ReadParams {
+                path: ".".into(),
+                max_depth: 3,
+                view_range: None,
+            },
+            Err(e) => {
+                return Ok(CallToolResult::error(vec![Content::text(format!(
+                    "Invalid parameters: {e}"
+                ))]))
+            }
+        };
+        match self.handle_read(params, &wd) {
+            Ok(c) => Ok(CallToolResult::success(c)),
+            Err(e) => Ok(CallToolResult::error(vec![Content::text(format!(
+                "Error: {e}"
+            ))])),
+        }
+    }
+
+    fn get_info(&self) -> Option<&InitializeResult> {
+        Some(&self.info)
+    }
+}
