@@ -43,7 +43,6 @@ const TEST_SECRET_KEY = 'test';
 export interface GoosedTestContext {
   client: Client;
   baseUrl: string;
-  port: number;
   secretKey: string;
   process: ChildProcess;
   cleanup: () => Promise<void>;
@@ -85,28 +84,18 @@ export async function startGoosed({
     env: additionalEnv,
     logger: testLogger,
   });
+  const client = result.client;
 
   if (!result.process) {
     throw new Error('Expected goosed process to be started, but got external backend');
   }
 
-  const port = parseInt(new URL(result.baseUrl).port, 10);
-
   const serverReady = await checkServerStatus(result.client, result.errorLog);
   if (!serverReady) {
     result.cleanup();
     console.error('Server stderr:', result.errorLog.join('\n'));
-    throw new Error(`Failed to start goosed on port ${port}: server did not become ready`);
+    throw new Error('Failed to start goosed');
   }
-
-  const client = createClient(
-    createConfig({
-      baseUrl: result.baseUrl,
-      headers: {
-        'X-Secret-Key': TEST_SECRET_KEY,
-      },
-    })
-  );
 
   const cleanup = async (): Promise<void> => {
     try {
@@ -152,7 +141,6 @@ export async function startGoosed({
   return {
     client,
     baseUrl: result.baseUrl,
-    port,
     secretKey: TEST_SECRET_KEY,
     process: result.process,
     cleanup,
