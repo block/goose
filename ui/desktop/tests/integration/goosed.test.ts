@@ -16,6 +16,7 @@ import {
   listSessions,
   getSession,
   updateAgentProvider,
+  reply,
 } from '../../src/api';
 import { execSync } from 'child_process';
 import os from 'node:os';
@@ -142,18 +143,14 @@ extensions:
       expect(startResponse.response).toBeOkResponse();
       const sessionId = startResponse.data!.id;
 
-      const sseResponse = await fetch(`${ctx.baseUrl}/reply`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-Secret-Key': ctx.secretKey,
-          Accept: 'text/event-stream',
-        },
-        body: JSON.stringify({
+      const abortController = new AbortController();
+      const { stream } = await reply({
+        client: ctx.client,
+        body: {
           session_id: sessionId,
           user_message: {
             role: 'user',
-            created: Math.floor(Date.now() / 1000), // Unix timestamp in seconds
+            created: Math.floor(Date.now() / 1000),
             content: [
               {
                 type: 'text',
@@ -165,21 +162,21 @@ extensions:
               agentVisible: true,
             },
           },
-        }),
+        },
+        throwOnError: true,
+        signal: abortController.signal,
       });
 
-      expect(sseResponse.status).toBe(200);
-
-      const reader = sseResponse.body?.getReader();
-      if (reader) {
-        setTimeout(() => reader.cancel(), 1000);
-        try {
-          const { value } = await reader.read();
-          expect(value).toBeDefined();
-        } catch {
-          // Reader was cancelled, that's fine
+      const timeout = setTimeout(() => abortController.abort(), 1000);
+      try {
+        for await (const event of stream) {
+          expect(event).toBeDefined();
+          break;
         }
+      } catch {
+        // Aborted or error, that's fine
       }
+      clearTimeout(timeout);
 
       await stopAgent({
         client: ctx.client,
@@ -242,14 +239,10 @@ extensions:
       });
       expect(providerResponse.response).toBeOkResponse();
 
-      const sseResponse = await fetch(`${ctx.baseUrl}/reply`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-Secret-Key': ctx.secretKey,
-          Accept: 'text/event-stream',
-        },
-        body: JSON.stringify({
+      const abortController = new AbortController();
+      const { stream } = await reply({
+        client: ctx.client,
+        body: {
           session_id: sessionId,
           user_message: {
             role: 'user',
@@ -265,46 +258,39 @@ extensions:
               agentVisible: true,
             },
           },
-        }),
+        },
+        throwOnError: true,
+        signal: abortController.signal,
       });
 
-      expect(sseResponse.status).toBe(200);
-
-      const reader = sseResponse.body?.getReader();
-      const decoder = new TextDecoder();
-
       let returnedPath: string | undefined = undefined;
-      if (reader) {
-        const timeout = setTimeout(() => reader.cancel(), 60000); // 60s timeout
+      const timeout = setTimeout(() => abortController.abort(), 60000); // 60s timeout
 
-        try {
-          while (true) {
-            const { done, value } = await reader.read();
-            if (done) break;
+      try {
+        for await (const event of stream) {
+          console.log('stream: ', JSON.stringify(event));
 
-            const chunk = decoder.decode(value, { stream: true });
-            console.log('stream: ', chunk);
-
-            try {
-              const data = JSON.parse(chunk.replace(/^data:/, ''));
-              const output = data?.message?.content?.[0]?.toolResult?.value?.content?.[0]?.text;
+          if (event.type === 'Message') {
+            const content = event.message?.content?.[0];
+            if (content?.type === 'toolResponse') {
+              const toolResult = content as { toolResult?: { value?: { content?: Array<{ text?: string }> } } };
+              const output = toolResult?.toolResult?.value?.content?.[0]?.text;
               if (output && output.includes('/usr')) {
                 clearTimeout(timeout);
-                reader.cancel();
+                abortController.abort();
                 returnedPath = output;
                 break;
               }
-            } catch {
-              // The response we care about is always a complete JSON object. Others will be
-              // incomplete, so we expect parsing errors.
             }
           }
-        } catch (error) {
-          // Reader cancelled or error
-          console.log('Reader cancelled or error: ', error);
         }
-        clearTimeout(timeout);
+      } catch (error) {
+        // Aborted or error
+        if (!(error instanceof Error && error.name === 'AbortError')) {
+          console.log('Stream error: ', error);
+        }
       }
+      clearTimeout(timeout);
 
       await stopAgent({
         client: ctx.client,
