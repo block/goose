@@ -11,8 +11,6 @@ use std::collections::HashMap;
 use crate::agents::mcp_client::McpClientTrait;
 use once_cell::sync::Lazy;
 
-// Re-export commonly used items from submodules
-pub use code_execution::EXTENSION_NAME as CODE_EXECUTION_EXTENSION_NAME;
 pub use ext_manager::MANAGE_EXTENSIONS_TOOL_NAME_COMPLETE;
 
 // These are used by integration tests in crates/goose/tests/
