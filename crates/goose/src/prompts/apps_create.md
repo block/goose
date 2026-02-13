@@ -16,4 +16,13 @@ WINDOW SIZING:
 - Typical sizes: small utilities (400x300), standard apps (800x600), large apps (1200x800)
 - Set resizable to false for fixed-size apps, true for flexible layouts
 
-You must call the create_app_content tool to return the app name, description, HTML, and window properties.
+CONTENT SECURITY POLICY (CSP):
+- Apps run in a sandboxed iframe with a strict Content Security Policy
+- By default, apps can only load resources from their own origin — all external domains are blocked
+- If your app loads ANY external resources (fonts, icons, CSS, images from CDNs), you MUST declare them in the `csp` field
+- `connect_domains`: domains the app makes network requests to (fetch, XHR, WebSocket)
+- `resource_domains`: domains the app loads static assets from (scripts, styles, fonts, images)
+- Example: if you use Google Fonts, set `resource_domains: ["https://fonts.googleapis.com", "https://fonts.gstatic.com"]`
+- If no external resources are used, omit the `csp` field entirely
+
+You must call the create_app_content tool to return the app name, description, HTML, window properties, and CSP (if needed).

@@ -45,7 +45,7 @@ fn is_default_permissions(p: &PermissionsMetadata) -> bool {
 }
 
 /// UI-specific metadata for MCP resources
-#[derive(Debug, Clone, Serialize, Deserialize, ToSchema, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, ToSchema, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct UiMetadata {
     /// Content Security Policy configuration

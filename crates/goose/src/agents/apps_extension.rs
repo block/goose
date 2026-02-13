@@ -2,6 +2,7 @@ use crate::agents::extension::PlatformExtensionContext;
 use crate::agents::mcp_client::{Error, McpClientTrait};
 use crate::config::paths::Paths;
 use crate::conversation::message::Message;
+use crate::goose_apps::resource::{CspMetadata, ResourceMetadata, UiMetadata};
 use crate::goose_apps::McpAppResource;
 use crate::goose_apps::{GooseApp, WindowProps};
 use crate::prompt_template::render_template;
@@ -57,6 +58,18 @@ struct ListAppsParams {
     // No parameters needed - lists all apps
 }
 
+/// Content Security Policy for apps that load external resources.
+/// Only needed when the app fetches from or loads resources from external domains.
+#[derive(Debug, Default, Serialize, Deserialize, JsonSchema)]
+struct AppCsp {
+    /// Domains the app needs to connect to (fetch, XHR, WebSocket). Example: ["https://api.example.com"]
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    connect_domains: Vec<String>,
+    /// Domains the app loads static resources from (scripts, styles, images, fonts). Example: ["https://cdn.example.com"]
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    resource_domains: Vec<String>,
+}
+
 /// Response from create_app_content tool
 #[derive(Debug, Serialize, Deserialize, JsonSchema)]
 struct CreateAppContentResponse {
@@ -72,6 +85,9 @@ struct CreateAppContentResponse {
     height: Option<u32>,
     /// Whether the window should be resizable
     resizable: Option<bool>,
+    /// Content Security Policy — declare external domains the app needs access to.
+    /// Only needed if the app loads scripts, styles, fonts, or makes requests to external domains.
+    csp: Option<AppCsp>,
 }
 
 /// Response from update_app_content tool
@@ -89,6 +105,9 @@ struct UpdateAppContentResponse {
     height: Option<u32>,
     /// Updated resizable property (optional - only if it should change)
     resizable: Option<bool>,
+    /// Content Security Policy — declare external domains the app needs access to.
+    /// Only needed if the app loads scripts, styles, fonts, or makes requests to external domains.
+    csp: Option<AppCsp>,
 }
 
 pub struct AppsManagerClient {
@@ -388,6 +407,18 @@ impl AppsManagerClient {
             ));
         }
 
+        let meta = content.csp.map(|csp| ResourceMetadata {
+            ui: Some(UiMetadata {
+                csp: Some(CspMetadata {
+                    connect_domains: Some(csp.connect_domains),
+                    resource_domains: Some(csp.resource_domains),
+                    frame_domains: None,
+                    base_uri_domains: None,
+                }),
+                ..Default::default()
+            }),
+        });
+
         let app = GooseApp {
             resource: McpAppResource {
                 uri: format!("ui://apps/{}", content.name),
@@ -396,7 +427,7 @@ impl AppsManagerClient {
                 mime_type: "text/html;profile=mcp-app".to_string(),
                 text: Some(content.html),
                 blob: None,
-                meta: None,
+                meta,
             },
             mcp_servers: vec![EXTENSION_NAME.to_string()],
             window_props: Some(WindowProps {
@@ -444,6 +475,17 @@ impl AppsManagerClient {
         app.resource.text = Some(content.html);
         app.resource.description = Some(content.description);
         app.prd = Some(content.prd);
+        app.resource.meta = content.csp.map(|csp| ResourceMetadata {
+            ui: Some(UiMetadata {
+                csp: Some(CspMetadata {
+                    connect_domains: Some(csp.connect_domains),
+                    resource_domains: Some(csp.resource_domains),
+                    frame_domains: None,
+                    base_uri_domains: None,
+                }),
+                ..Default::default()
+            }),
+        });
         if content.width.is_some() || content.height.is_some() || content.resizable.is_some() {
             let current_props = app.window_props.as_ref();
             let default_width = current_props
@@ -567,8 +609,9 @@ impl McpClientTrait for AppsManagerClient {
 
         for name in app_names {
             if let Ok(app) = self.load_app(&name) {
-                let meta = if let Some(ref window_props) = app.window_props {
-                    let mut meta_obj = Meta::new();
+                let mut meta_obj = Meta::new();
+
+                if let Some(ref window_props) = app.window_props {
                     meta_obj.insert(
                         "window".to_string(),
                         json!({
@@ -577,9 +620,18 @@ impl McpClientTrait for AppsManagerClient {
                             "resizable": window_props.resizable,
                         }),
                     );
-                    Some(meta_obj)
-                } else {
+                }
+
+                if let Some(ref res_meta) = app.resource.meta {
+                    if let Some(ui_value) = build_ui_meta(res_meta) {
+                        meta_obj.insert("ui".into(), ui_value);
+                    }
+                }
+
+                let meta = if meta_obj.is_empty() {
                     None
+                } else {
+                    Some(meta_obj)
                 };
 
                 let raw_resource = RawResource {
@@ -625,13 +677,85 @@ impl McpClientTrait for AppsManagerClient {
             .text
             .unwrap_or_else(|| String::from("No content"));
 
+        // Build per-content meta with CSP and UI metadata so the frontend
+        // can create the sandbox proxy with the correct Content-Security-Policy.
+        let content_meta = app.resource.meta.as_ref().and_then(|res_meta| {
+            let ui_value = build_ui_meta(res_meta)?;
+            let mut meta = Meta::new();
+            meta.insert("ui".into(), ui_value);
+            Some(meta)
+        });
+
         Ok(ReadResourceResult {
-            contents: vec![ResourceContents::text(html, uri)],
+            contents: vec![ResourceContents::TextResourceContents {
+                uri: uri.to_string(),
+                mime_type: Some("text/html".into()),
+                text: html,
+                meta: content_meta,
+            }],
         })
     }
 
     fn get_info(&self) -> Option<&InitializeResult> {
         Some(&self.info)
+    }
+}
+
+/// Serialize `ResourceMetadata` into a `serde_json::Value` suitable for MCP `_meta.ui`.
+fn build_ui_meta(res_meta: &ResourceMetadata) -> Option<serde_json::Value> {
+    let ui = res_meta.ui.as_ref()?;
+    let mut ui_obj = serde_json::Map::new();
+
+    if let Some(ref csp) = ui.csp {
+        let mut csp_obj = serde_json::Map::new();
+        let insert_domains = |obj: &mut serde_json::Map<String, serde_json::Value>,
+                              key: &str,
+                              domains: &Option<Vec<String>>| {
+            if let Some(d) = domains {
+                if !d.is_empty() {
+                    obj.insert(key.into(), json!(d));
+                }
+            }
+        };
+        insert_domains(&mut csp_obj, "connectDomains", &csp.connect_domains);
+        insert_domains(&mut csp_obj, "resourceDomains", &csp.resource_domains);
+        insert_domains(&mut csp_obj, "frameDomains", &csp.frame_domains);
+        insert_domains(&mut csp_obj, "baseUriDomains", &csp.base_uri_domains);
+        if !csp_obj.is_empty() {
+            ui_obj.insert("csp".into(), json!(csp_obj));
+        }
+    }
+
+    let perms = &ui.permissions;
+    let mut perms_obj = serde_json::Map::new();
+    if perms.camera {
+        perms_obj.insert("camera".into(), json!({}));
+    }
+    if perms.microphone {
+        perms_obj.insert("microphone".into(), json!({}));
+    }
+    if perms.geolocation {
+        perms_obj.insert("geolocation".into(), json!({}));
+    }
+    if perms.clipboard_write {
+        perms_obj.insert("clipboardWrite".into(), json!({}));
+    }
+    if !perms_obj.is_empty() {
+        ui_obj.insert("permissions".into(), json!(perms_obj));
+    }
+
+    if let Some(ref domain) = ui.domain {
+        ui_obj.insert("domain".into(), json!(domain));
+    }
+
+    if let Some(prefers_border) = ui.prefers_border {
+        ui_obj.insert("prefersBorder".into(), json!(prefers_border));
+    }
+
+    if ui_obj.is_empty() {
+        None
+    } else {
+        Some(json!(ui_obj))
     }
 }
 

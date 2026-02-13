@@ -101,18 +101,46 @@ impl GooseApp {
             })
             .unwrap_or_default();
 
-        let csp = metadata
-            .get("csp")
+        // Parse _meta.ui block (mirrors MCP spec nesting)
+        let ui_obj = metadata.get("_meta").and_then(|m| m.get("ui"));
+
+        let csp = ui_obj
+            .and_then(|ui| ui.get("csp"))
             .and_then(|v| serde_json::from_value::<CspMetadata>(v.clone()).ok());
 
-        let prefers_border = metadata.get("prefersBorder").and_then(|v| v.as_bool());
+        let prefers_border = ui_obj
+            .and_then(|ui| ui.get("prefersBorder"))
+            .and_then(|v| v.as_bool());
 
-        let meta = if csp.is_some() || prefers_border.is_some() {
+        let domain = ui_obj
+            .and_then(|ui| ui.get("domain"))
+            .and_then(|v| v.as_str())
+            .map(|s| s.to_string());
+
+        let permissions = ui_obj
+            .and_then(|ui| ui.get("permissions"))
+            .and_then(|v| {
+                let obj = v.as_object()?;
+                Some(PermissionsMetadata {
+                    camera: obj.contains_key("camera"),
+                    microphone: obj.contains_key("microphone"),
+                    geolocation: obj.contains_key("geolocation"),
+                    clipboard_write: obj.contains_key("clipboardWrite"),
+                })
+            })
+            .unwrap_or_default();
+
+        let has_ui_meta = csp.is_some()
+            || prefers_border.is_some()
+            || domain.is_some()
+            || permissions != PermissionsMetadata::default();
+
+        let meta = if has_ui_meta {
             Some(ResourceMetadata {
                 ui: Some(UiMetadata {
                     csp,
-                    permissions: PermissionsMetadata::default(),
-                    domain: None,
+                    permissions,
+                    domain,
                     prefers_border,
                 }),
             })
@@ -173,13 +201,44 @@ impl GooseApp {
 
         if let Some(ref meta) = self.resource.meta {
             if let Some(ref ui) = meta.ui {
+                let mut ui_obj = serde_json::Map::new();
+
                 if let Some(ref csp) = ui.csp {
                     if let Ok(csp_value) = serde_json::to_value(csp) {
-                        metadata["csp"] = csp_value;
+                        ui_obj.insert("csp".into(), csp_value);
                     }
                 }
+
+                let perms = &ui.permissions;
+                if *perms != PermissionsMetadata::default() {
+                    let mut perms_obj = serde_json::Map::new();
+                    if perms.camera {
+                        perms_obj.insert("camera".into(), serde_json::json!({}));
+                    }
+                    if perms.microphone {
+                        perms_obj.insert("microphone".into(), serde_json::json!({}));
+                    }
+                    if perms.geolocation {
+                        perms_obj.insert("geolocation".into(), serde_json::json!({}));
+                    }
+                    if perms.clipboard_write {
+                        perms_obj.insert("clipboardWrite".into(), serde_json::json!({}));
+                    }
+                    ui_obj.insert("permissions".into(), serde_json::Value::Object(perms_obj));
+                }
+
+                if let Some(ref domain) = ui.domain {
+                    ui_obj.insert("domain".into(), serde_json::json!(domain));
+                }
+
                 if let Some(prefers_border) = ui.prefers_border {
-                    metadata["prefersBorder"] = serde_json::json!(prefers_border);
+                    ui_obj.insert("prefersBorder".into(), serde_json::json!(prefers_border));
+                }
+
+                if !ui_obj.is_empty() {
+                    metadata["_meta"] = serde_json::json!({
+                        "ui": serde_json::Value::Object(ui_obj)
+                    });
                 }
             }
         }
@@ -371,13 +430,17 @@ mod tests {
   "@context": "https://goose.ai/schema",
   "@type": "GooseApp",
   "name": "test-app",
-  "csp": {
-    "connectDomains": ["https://api.example.com", "wss://ws.example.com"],
-    "resourceDomains": ["https://cdn.example.com"],
-    "frameDomains": ["https://embed.example.com"],
-    "baseUriDomains": ["https://base.example.com"]
-  },
-  "prefersBorder": true
+  "_meta": {
+    "ui": {
+      "csp": {
+        "connectDomains": ["https://api.example.com", "wss://ws.example.com"],
+        "resourceDomains": ["https://cdn.example.com"],
+        "frameDomains": ["https://embed.example.com"],
+        "baseUriDomains": ["https://base.example.com"]
+      },
+      "prefersBorder": true
+    }
+  }
 }
 </script>
 </head><body>Hello</body></html>"#;
@@ -436,11 +499,15 @@ mod tests {
   "@context": "https://goose.ai/schema",
   "@type": "GooseApp",
   "name": "roundtrip-app",
-  "csp": {
-    "connectDomains": ["https://esm.sh"],
-    "resourceDomains": ["https://esm.sh"]
-  },
-  "prefersBorder": true
+  "_meta": {
+    "ui": {
+      "csp": {
+        "connectDomains": ["https://esm.sh"],
+        "resourceDomains": ["https://esm.sh"]
+      },
+      "prefersBorder": true
+    }
+  }
 }
 </script>
 </head><body>Hello</body></html>"#;
@@ -499,6 +566,82 @@ mod tests {
                 .unwrap()
                 .prefers_border,
         );
+    }
+
+    #[test]
+    fn from_html_parses_permissions_and_domain() {
+        let html = r#"<!DOCTYPE html>
+<html><head>
+<script type="application/ld+json">
+{
+  "@context": "https://goose.ai/schema",
+  "@type": "GooseApp",
+  "name": "perms-app",
+  "_meta": {
+    "ui": {
+      "permissions": {
+        "camera": {},
+        "clipboardWrite": {}
+      },
+      "domain": "myapp.example.com"
+    }
+  }
+}
+</script>
+</head><body>Hello</body></html>"#;
+
+        let app = GooseApp::from_html(html).unwrap();
+        let meta = app.resource.meta.as_ref().expect("meta should be present");
+        let ui = meta.ui.as_ref().expect("ui should be present");
+
+        assert!(ui.permissions.camera);
+        assert!(!ui.permissions.microphone);
+        assert!(!ui.permissions.geolocation);
+        assert!(ui.permissions.clipboard_write);
+        assert_eq!(ui.domain.as_deref(), Some("myapp.example.com"));
+    }
+
+    #[test]
+    fn to_html_roundtrips_permissions_and_domain() {
+        let html = r#"<!DOCTYPE html>
+<html><head>
+<script type="application/ld+json">
+{
+  "@context": "https://goose.ai/schema",
+  "@type": "GooseApp",
+  "name": "roundtrip-perms",
+  "_meta": {
+    "ui": {
+      "permissions": {
+        "microphone": {},
+        "geolocation": {}
+      },
+      "domain": "test.example.com",
+      "prefersBorder": false
+    }
+  }
+}
+</script>
+</head><body>Hello</body></html>"#;
+
+        let app = GooseApp::from_html(html).unwrap();
+        let output_html = app.to_html().unwrap();
+        let roundtripped = GooseApp::from_html(&output_html).unwrap();
+
+        let ui = roundtripped
+            .resource
+            .meta
+            .as_ref()
+            .unwrap()
+            .ui
+            .as_ref()
+            .unwrap();
+        assert!(!ui.permissions.camera);
+        assert!(ui.permissions.microphone);
+        assert!(ui.permissions.geolocation);
+        assert!(!ui.permissions.clipboard_write);
+        assert_eq!(ui.domain.as_deref(), Some("test.example.com"));
+        assert_eq!(ui.prefers_border, Some(false));
     }
 
     #[test]
