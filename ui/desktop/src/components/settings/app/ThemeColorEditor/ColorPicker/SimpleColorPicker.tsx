@@ -132,8 +132,33 @@ function hslToHex(h: number, s: number, l: number): string {
   return `#${toHex(r)}${toHex(g)}${toHex(b)}`;
 }
 
+// Helper: Find closest hue from HUE_COLORS for a given color
+function findClosestHue(color: string): string {
+  const hsl = hexToHSL(color);
+  const targetHue = hsl.h;
+  
+  // Find the closest hue from our predefined colors
+  let closestHue = HUE_COLORS[0];
+  let minDiff = 360;
+  
+  HUE_COLORS.forEach(hueColor => {
+    const hueHSL = hexToHSL(hueColor);
+    let diff = Math.abs(hueHSL.h - targetHue);
+    // Handle wrap-around (e.g., 350° is close to 10°)
+    if (diff > 180) diff = 360 - diff;
+    
+    if (diff < minDiff) {
+      minDiff = diff;
+      closestHue = hueColor;
+    }
+  });
+  
+  return closestHue;
+}
+
 export function SimpleColorPicker({ color, onChange }: SimpleColorPickerProps) {
-  const [selectedHue, setSelectedHue] = useState(HUE_COLORS[0]);
+  // Initialize with the closest hue to the current color
+  const [selectedHue, setSelectedHue] = useState(() => findClosestHue(color));
   const saturationGrid = generateSaturationGrid(selectedHue);
 
   const handleHueSelect = (hueColor: string) => {
