@@ -17,7 +17,7 @@ use crate::providers;
 use crate::recipe::build_recipe::build_recipe_from_template;
 use crate::recipe::local_recipes::load_local_recipe_file;
 use crate::recipe::{Recipe, Settings, RECIPE_FILE_EXTENSIONS};
-use crate::session::extension_data::{EnabledExtensionsState, ExtensionState};
+use crate::session::extension_data::EnabledExtensionsState;
 use crate::session::SessionType;
 use anyhow::Result;
 use async_trait::async_trait;

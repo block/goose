@@ -10,7 +10,7 @@ use goose::config::{get_all_extensions, Config, ExtensionConfig};
 use goose::providers::create;
 use goose::recipe::Recipe;
 use goose::session::session_manager::SessionType;
-use goose::session::{EnabledExtensionsState, ExtensionState};
+use goose::session::EnabledExtensionsState;
 use rustyline::EditMode;
 use std::collections::BTreeSet;
 use std::process;
@@ -72,12 +72,6 @@ fn parse_cli_flag_extensions(
     extensions_to_load
 }
 
-fn is_deprecated_platform_extension(extension: &ExtensionConfig) -> bool {
-    matches!(
-        extension,
-        ExtensionConfig::Platform { name, .. } if name.eq_ignore_ascii_case("skills")
-    )
-}
 
 /// Configuration for building a new Goose session
 ///
@@ -523,7 +517,6 @@ async fn resolve_and_load_extensions(
     } else {
         resolve_extensions_for_new_session(recipe.and_then(|r| r.extensions.as_deref()), None)
     };
-    configured_extensions.retain(|config| !is_deprecated_platform_extension(config));
 
     let cli_flag_extensions = parse_cli_flag_extensions(
         &session_config.extensions,

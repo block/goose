@@ -1,15 +1,13 @@
 use crate::agents::extension::PLATFORM_EXTENSIONS;
 use crate::agents::ExtensionConfig;
 use crate::config::extensions::ExtensionEntry;
-use serde_yaml::{Mapping, Value};
+use serde_yaml::Mapping;
 
 const EXTENSIONS_CONFIG_KEY: &str = "extensions";
-const DEPRECATED_PLATFORM_EXTENSIONS: [&str; 1] = ["skills"];
 
 pub fn run_migrations(config: &mut Mapping) -> bool {
     let mut changed = false;
     changed |= migrate_platform_extensions(config);
-    changed |= remove_deprecated_platform_extensions(config);
     changed
 }
 
@@ -83,47 +81,6 @@ fn migrate_platform_extensions(config: &mut Mapping) -> bool {
     needs_save
 }
 
-fn remove_deprecated_platform_extensions(config: &mut Mapping) -> bool {
-    let extensions_key = Value::String(EXTENSIONS_CONFIG_KEY.to_string());
-
-    let extensions_value = config
-        .get(&extensions_key)
-        .cloned()
-        .unwrap_or(Value::Mapping(Mapping::new()));
-
-    let mut extensions_map: Mapping = match extensions_value {
-        Value::Mapping(m) => m,
-        _ => Mapping::new(),
-    };
-
-    let keys_to_remove: Vec<Value> = extensions_map
-        .iter()
-        .filter_map(|(key, value)| {
-            let entry = serde_yaml::from_value::<ExtensionEntry>(value.clone()).ok()?;
-            match entry.config {
-                ExtensionConfig::Platform { name, .. }
-                    if DEPRECATED_PLATFORM_EXTENSIONS
-                        .iter()
-                        .any(|deprecated| deprecated.eq_ignore_ascii_case(name.as_str())) =>
-                {
-                    Some(key.clone())
-                }
-                _ => None,
-            }
-        })
-        .collect();
-
-    if keys_to_remove.is_empty() {
-        return false;
-    }
-
-    for key in keys_to_remove {
-        extensions_map.remove(&key);
-    }
-
-    config.insert(extensions_key, Value::Mapping(extensions_map));
-    true
-}
 
 #[cfg(test)]
 mod tests {
@@ -183,34 +140,4 @@ mod tests {
         assert!(!changed);
     }
 
-    #[test]
-    fn test_remove_deprecated_skills_platform_extension() {
-        let mut config = Mapping::new();
-        let mut extensions = Mapping::new();
-        let skills_entry = ExtensionEntry {
-            config: ExtensionConfig::Platform {
-                name: "skills".to_string(),
-                description: "deprecated".to_string(),
-                display_name: Some("Skills".to_string()),
-                bundled: Some(true),
-                available_tools: Vec::new(),
-            },
-            enabled: true,
-        };
-        extensions.insert(
-            Value::String("skills".to_string()),
-            serde_yaml::to_value(&skills_entry).unwrap(),
-        );
-        config.insert(
-            Value::String(EXTENSIONS_CONFIG_KEY.to_string()),
-            Value::Mapping(extensions),
-        );
-
-        let changed = run_migrations(&mut config);
-        assert!(changed);
-
-        let extensions_key = Value::String(EXTENSIONS_CONFIG_KEY.to_string());
-        let extensions = config.get(&extensions_key).unwrap().as_mapping().unwrap();
-        assert!(!extensions.contains_key(&Value::String("skills".to_string())));
-    }
 }

@@ -11,7 +11,6 @@ use axum::{
 };
 use goose::agents::ExtensionConfig;
 use goose::recipe::Recipe;
-use goose::session::extension_data::ExtensionState;
 use goose::session::session_manager::SessionInsights;
 use goose::session::{EnabledExtensionsState, Session};
 use serde::{Deserialize, Serialize};
