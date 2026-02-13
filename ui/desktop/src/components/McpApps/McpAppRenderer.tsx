@@ -15,7 +15,7 @@
  * - "standalone" — Goose-specific mode for dedicated Electron windows
  */
 
-import { AppRenderer } from '@mcp-ui/client';
+import { AppRenderer, RequestHandlerExtra } from '@mcp-ui/client';
 import type {
   McpUiDisplayMode,
   McpUiHostContext,
@@ -23,7 +23,7 @@ import type {
   McpUiResourcePermissions,
   McpUiSizeChangedNotification,
 } from '@modelcontextprotocol/ext-apps/app-bridge';
-import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
+import type { CallToolResult, JSONRPCRequest } from '@modelcontextprotocol/sdk/types.js';
 import { useCallback, useEffect, useMemo, useReducer, useState } from 'react';
 import { callTool, readResource } from '../../api';
 import { AppEvents } from '../../constants/events';
@@ -383,6 +383,15 @@ export default function McpAppRenderer({
     []
   );
 
+  const handleFallbackRequest = useCallback(
+    async (request: JSONRPCRequest, _extra: RequestHandlerExtra) => {
+      console.log('Fallback request:', request.method);
+      // todo: add `sampling/createMessage` per https://github.com/block/goose/pull/7039
+      return { status: 'success' as const };
+    },
+    []
+  );
+
   /**
    * Height: non-positive values are ignored (keeps previous height).
    * Width: if provided, container uses that width (capped at 100%);
@@ -407,7 +416,6 @@ export default function McpAppRenderer({
 
   const meta = getMeta(state);
   const html = getHtml(state);
-
   const readyCsp = state.status === 'ready' ? state.sandboxCsp : null;
   const mcpUiCsp = useMemo((): McpUiResourceCsp | undefined => {
     if (!readyCsp) return undefined;
@@ -517,6 +525,7 @@ export default function McpAppRenderer({
         onLoggingMessage={handleLoggingMessage}
         onSizeChanged={handleSizeChanged}
         onError={handleError}
+        onFallbackRequest={handleFallbackRequest}
       />
     );
   };
