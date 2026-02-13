@@ -43,7 +43,7 @@ export interface GoosedTestContext {
   client: Client;
   baseUrl: string;
   secretKey: string;
-  process: ChildProcess;
+  process: ChildProcess | null;
   cleanup: () => Promise<void>;
 }
 

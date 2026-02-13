@@ -38,8 +38,8 @@
     "strictPropertyInitialization": true,
     "noImplicitThis": true,
     "alwaysStrict": true,
-    "noImplicitReturns": true
+    "noImplicitReturns": true,
   },
-  "include": ["src"],
-  "references": [{ "path": "./tsconfig.node.json" }]
+  "include": ["src", "tests/integration"],
+  "references": [{ "path": "./tsconfig.node.json" }],
 }
