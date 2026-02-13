@@ -145,34 +145,84 @@ export function ThemeColorEditor({ onClose }: ThemeColorEditorProps) {
 
   return (
     <Dialog open onOpenChange={onClose}>
-      <DialogContent className="max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
-        <DialogHeader>
-          <DialogTitle>Customize Theme</DialogTitle>
-          <DialogDescription>
-            Choose from preset themes or customize individual colors for light and dark modes
-          </DialogDescription>
+      <DialogContent className="max-w-full max-h-full w-screen h-screen m-0 rounded-none flex flex-col">
+        <DialogHeader className="px-6 py-4 border-b border-border-primary flex-shrink-0">
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <DialogTitle className="text-lg">Theme Builder</DialogTitle>
+              <DialogDescription className="mt-1">
+                Create your perfect theme with presets or custom colors
+              </DialogDescription>
+            </div>
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                onClick={handleReset}
+                disabled={saving}
+                size="sm"
+              >
+                Reset to Default
+              </Button>
+              <Button
+                onClick={handleSave}
+                disabled={saving}
+                size="sm"
+              >
+                {saving ? 'Saving...' : 'Save Theme'}
+              </Button>
+              <Button
+                variant="outline"
+                onClick={onClose}
+                size="sm"
+              >
+                Close
+              </Button>
+            </div>
+          </div>
+          
+          <div className="flex items-center gap-4">
+            <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as 'presets' | 'customize')} className="flex-1">
+              <TabsList className="grid w-full grid-cols-2 max-w-md">
+                <TabsTrigger value="presets">Theme Presets</TabsTrigger>
+                <TabsTrigger value="customize">Custom Colors</TabsTrigger>
+              </TabsList>
+            </Tabs>
+            
+            {activeTab === 'customize' && (
+              <Tabs value={activeMode} onValueChange={(v) => setActiveMode(v as ColorMode)}>
+                <TabsList className="grid grid-cols-2">
+                  <TabsTrigger value="light">Light Mode</TabsTrigger>
+                  <TabsTrigger value="dark">Dark Mode</TabsTrigger>
+                </TabsList>
+              </Tabs>
+            )}
+          </div>
         </DialogHeader>
 
         <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as 'presets' | 'customize')} className="flex-1 flex flex-col overflow-hidden">
-          <TabsList className="grid w-full grid-cols-2">
-            <TabsTrigger value="presets">Theme Presets</TabsTrigger>
-            <TabsTrigger value="customize">Custom Colors</TabsTrigger>
-          </TabsList>
+          <div className="hidden">
+            <TabsList>
+              <TabsTrigger value="presets">Theme Presets</TabsTrigger>
+              <TabsTrigger value="customize">Custom Colors</TabsTrigger>
+            </TabsList>
+          </div>
 
           {/* Presets Tab */}
-          <TabsContent value="presets" className="flex-1 overflow-auto mt-4">
+          <TabsContent value="presets" className="flex-1 overflow-auto px-6 py-4">
             <PresetGallery onApply={onClose} />
           </TabsContent>
 
           {/* Customize Tab */}
-          <TabsContent value="customize" className="flex-1 overflow-hidden flex flex-col">
+          <TabsContent value="customize" className="flex-1 overflow-hidden flex flex-col px-6 py-4">
             <Tabs value={activeMode} onValueChange={(v) => setActiveMode(v as ColorMode)} className="flex-1 flex flex-col overflow-hidden">
-              <TabsList className="grid w-full grid-cols-2 mb-4">
-                <TabsTrigger value="light">Light Mode</TabsTrigger>
-                <TabsTrigger value="dark">Dark Mode</TabsTrigger>
-              </TabsList>
+              <div className="hidden">
+                <TabsList>
+                  <TabsTrigger value="light">Light Mode</TabsTrigger>
+                  <TabsTrigger value="dark">Dark Mode</TabsTrigger>
+                </TabsList>
+              </div>
 
-          <TabsContent value={activeMode} className="flex-1 overflow-hidden mt-4">
+          <TabsContent value={activeMode} className="flex-1 overflow-hidden">
             {/* Split Panel Layout */}
             <div className="flex gap-4 h-full">
               {/* Left Panel: Color Pickers (40%) */}
@@ -255,32 +305,6 @@ export function ThemeColorEditor({ onClose }: ThemeColorEditorProps) {
             </div>
               </TabsContent>
             </Tabs>
-
-            <div className="flex justify-between items-center pt-4 border-t border-border-primary mt-4">
-              <Button
-                variant="outline"
-                onClick={handleReset}
-                disabled={saving}
-              >
-                Reset to Default
-              </Button>
-              
-              <div className="flex gap-2">
-                <Button
-                  variant="outline"
-                  onClick={onClose}
-                  disabled={saving}
-                >
-                  Cancel
-                </Button>
-                <Button
-                  onClick={handleSave}
-                  disabled={saving}
-                >
-                  {saving ? 'Saving...' : 'Save Theme'}
-                </Button>
-              </div>
-            </div>
           </TabsContent>
         </Tabs>
       </DialogContent>
