@@ -5,7 +5,6 @@ mod logging;
 mod openapi;
 mod routes;
 mod state;
-mod theme_css;
 mod tunnel;
 
 use clap::{Parser, Subcommand};

@@ -836,53 +836,6 @@ pub async fn configure_provider_oauth(
     Ok(Json("OAuth configuration completed".to_string()))
 }
 
-#[derive(Serialize, ToSchema)]
-pub struct ThemeVariablesResponse {
-    variables: HashMap<String, String>,
-}
-
-#[utoipa::path(
-    get,
-    path = "/theme/variables",
-    responses(
-        (status = 200, description = "MCP theme variables with light-dark() format", body = ThemeVariablesResponse)
-    )
-)]
-pub async fn get_theme_variables() -> Json<ThemeVariablesResponse> {
-    use crate::theme_css;
-    let variables = theme_css::generate_mcp_theme_variables();
-    Json(ThemeVariablesResponse { variables })
-}
-
-#[derive(Deserialize, ToSchema)]
-pub struct SaveThemeRequest {
-    /// CSS content for theme.css file. If empty, deletes the theme file (reset).
-    css: String,
-}
-
-#[utoipa::path(
-    post,
-    path = "/theme/save",
-    request_body = SaveThemeRequest,
-    responses(
-        (status = 200, description = "Theme saved successfully", body = String),
-        (status = 500, description = "Failed to save theme")
-    )
-)]
-pub async fn save_theme(Json(request): Json<SaveThemeRequest>) -> Result<Json<String>, ErrorResponse> {
-    let theme_path = Paths::in_data_dir("theme.css");
-
-    if request.css.trim().is_empty() {
-        if theme_path.exists() {
-            std::fs::remove_file(&theme_path)?;
-        }
-        Ok(Json("Theme reset successfully".to_string()))
-    } else {
-        std::fs::write(&theme_path, request.css)?;
-        Ok(Json("Theme saved successfully".to_string()))
-    }
-}
-
 pub fn routes(state: Arc<AppState>) -> Router {
     Router::new()
         .route("/config", get(read_all_config))
@@ -915,8 +868,6 @@ pub fn routes(state: Arc<AppState>) -> Router {
             "/config/providers/{name}/oauth",
             post(configure_provider_oauth),
         )
-        .route("/theme/variables", get(get_theme_variables))
-        .route("/theme/save", post(save_theme))
         .with_state(state)
 }
 

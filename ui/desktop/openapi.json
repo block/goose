@@ -3236,59 +3236,6 @@
         }
       }
     },
-    "/theme/save": {
-      "post": {
-        "tags": [
-          "super::routes::config_management"
-        ],
-        "operationId": "save_theme",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/SaveThemeRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "Theme saved successfully",
-            "content": {
-              "text/plain": {
-                "schema": {
-                  "type": "string"
-                }
-              }
-            }
-          },
-          "500": {
-            "description": "Failed to save theme"
-          }
-        }
-      }
-    },
-    "/theme/variables": {
-      "get": {
-        "tags": [
-          "super::routes::config_management"
-        ],
-        "operationId": "get_theme_variables",
-        "responses": {
-          "200": {
-            "description": "MCP theme variables with light-dark() format",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ThemeVariablesResponse"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
     "/tunnel/start": {
       "post": {
         "tags": [
@@ -6271,18 +6218,6 @@
           }
         }
       },
-      "SaveThemeRequest": {
-        "type": "object",
-        "required": [
-          "css"
-        ],
-        "properties": {
-          "css": {
-            "type": "string",
-            "description": "CSS content for theme.css file. If empty, deletes the theme file (reset)."
-          }
-        }
-      },
       "ScanRecipeRequest": {
         "type": "object",
         "required": [
@@ -6946,21 +6881,6 @@
           },
           "text": {
             "type": "string"
-          }
-        }
-      },
-      "ThemeVariablesResponse": {
-        "type": "object",
-        "required": [
-          "variables"
-        ],
-        "properties": {
-          "variables": {
-            "type": "object",
-            "description": "MCP-compatible CSS variables with light-dark() format\nThese variables use MCP standard naming (--color-*) and light-dark() format\nfor seamless integration with both the main app and MCP apps.",
-            "additionalProperties": {
-              "type": "string"
-            }
           }
         }
       },

@@ -1,5 +1,11 @@
 import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
-import { getThemeVariables } from '../api';
+import {
+  applyThemeTokens,
+  buildMcpHostStyles,
+  lightTokens,
+  darkTokens,
+} from '../theme/theme-tokens';
+import type { McpUiHostStyles } from '@modelcontextprotocol/ext-apps/app-bridge';
 
 type ThemePreference = 'light' | 'dark' | 'system';
 type ResolvedTheme = 'light' | 'dark';
@@ -8,7 +14,8 @@ interface ThemeContextValue {
   userThemePreference: ThemePreference;
   setUserThemePreference: (pref: ThemePreference) => void;
   resolvedTheme: ResolvedTheme;
-  themeVariables: Record<string, string> | null;
+  mcpHostStyles: McpUiHostStyles;
+  refreshTokens: () => void;
 }
 
 const ThemeContext = createContext<ThemeContextValue | null>(null);
@@ -53,67 +60,8 @@ function applyThemeToDocument(theme: ResolvedTheme): void {
   document.documentElement.classList.remove(toRemove);
 }
 
-const THEME_STYLE_ID = 'goose-mcp-theme';
-
-/**
- * Parse light-dark() values and generate CSS for :root and .dark
- * Example: "light-dark(#fff, #000)" => { light: "#fff", dark: "#000" }
- */
-function parseLightDark(value: string): { light: string; dark: string } | null {
-  const match = value.match(/^light-dark\((.+),\s*(.+)\)$/);
-  if (!match) return null;
-  return { light: match[1].trim(), dark: match[2].trim() };
-}
-
-/**
- * Generate and inject CSS from theme variables
- */
-function injectThemeCSS(variables: Record<string, string> | null): void {
-  const styleElement = document.getElementById(THEME_STYLE_ID) as HTMLStyleElement;
-
-  if (!variables || Object.keys(variables).length === 0) {
-    // Remove style element if no variables
-    if (styleElement) {
-      styleElement.remove();
-    }
-    return;
-  }
-
-  // Separate variables into light and dark mode
-  const rootVars: string[] = [];
-  const darkVars: string[] = [];
-
-  for (const [name, value] of Object.entries(variables)) {
-    const parsed = parseLightDark(value);
-    if (parsed) {
-      rootVars.push(`  ${name}: ${parsed.light};`);
-      darkVars.push(`  ${name}: ${parsed.dark};`);
-    }
-  }
-
-  // Generate CSS
-  const css = `:root {\n${rootVars.join('\n')}\n}\n\n.dark {\n${darkVars.join('\n')}\n}`;
-
-  // Inject or update the style tag
-  if (!styleElement) {
-    const newStyleElement = document.createElement('style');
-    newStyleElement.id = THEME_STYLE_ID;
-    newStyleElement.textContent = css;
-    document.head.appendChild(newStyleElement);
-  } else {
-    styleElement.textContent = css;
-  }
-}
-
-async function loadThemeVariables(): Promise<Record<string, string> | null> {
-  try {
-    const response = await getThemeVariables();
-    return response.data?.variables || null;
-  } catch (err) {
-    console.warn('Failed to load theme variables:', err);
-    return null;
-  }
-}
+// Built once — light-dark() values are theme-independent
+const mcpHostStyles = buildMcpHostStyles();
 
 interface ThemeProviderProps {
   children: React.ReactNode;
@@ -125,7 +73,8 @@ export function ThemeProvider({ children }: ThemeProviderProps) {
   const [resolvedTheme, setResolvedTheme] = useState<ResolvedTheme>(() =>
     resolveTheme(loadThemePreference())
   );
-  const [themeVariables, setThemeVariables] = useState<Record<string, string> | null>(null);
+  // Bumped to force re-application of tokens (e.g., after custom color save)
+  const [tokenVersion, setTokenVersion] = useState(0);
 
   const setUserThemePreference = useCallback((preference: ThemePreference) => {
     setUserThemePreferenceState(preference);
@@ -156,12 +105,28 @@ export function ThemeProvider({ children }: ThemeProviderProps) {
     return () => mediaQuery.removeEventListener('change', handleChange);
   }, [userThemePreference]);
 
+  // Re-read localStorage overrides and re-apply tokens in this window
+  const refreshTokens = useCallback(() => {
+    setTokenVersion((v) => v + 1);
+    // Broadcast to other windows so they also refresh
+    window.electron?.broadcastThemeChange({
+      mode: resolvedTheme,
+      useSystemTheme: userThemePreference === 'system',
+      theme: resolvedTheme,
+      tokensUpdated: true,
+    });
+  }, [resolvedTheme, userThemePreference]);
+
   // Listen for theme changes from other windows (via Electron IPC)
   useEffect(() => {
     if (!window.electron) return;
 
     const handleThemeChanged = (_event: unknown, ...args: unknown[]) => {
-      const themeData = args[0] as { useSystemTheme: boolean; theme: string };
+      const themeData = args[0] as {
+        useSystemTheme: boolean;
+        theme: string;
+        tokensUpdated?: boolean;
+      };
       const newPreference: ThemePreference = themeData.useSystemTheme
         ? 'system'
         : themeData.theme === 'dark'
@@ -171,6 +136,11 @@ export function ThemeProvider({ children }: ThemeProviderProps) {
       setUserThemePreferenceState(newPreference);
       saveThemePreference(newPreference);
       setResolvedTheme(resolveTheme(newPreference));
+
+      // If custom tokens were updated, force re-application
+      if (themeData.tokensUpdated) {
+        setTokenVersion((v) => v + 1);
+      }
     };
 
     window.electron.on('theme-changed', handleThemeChanged);
@@ -179,24 +149,35 @@ export function ThemeProvider({ children }: ThemeProviderProps) {
     };
   }, []);
 
-  // Apply theme to document whenever resolvedTheme changes
+  // Apply theme class and CSS tokens whenever resolvedTheme changes
   useEffect(() => {
     applyThemeToDocument(resolvedTheme);
-  }, [resolvedTheme]);
 
-  // Load theme variables and inject CSS on mount
-  useEffect(() => {
-    loadThemeVariables().then((variables) => {
-      setThemeVariables(variables);
-      injectThemeCSS(variables);
-    });
-  }, []);
+    // Merge any user overrides from localStorage on top of defaults
+    const stored = localStorage.getItem('theme-overrides');
+    if (stored) {
+      try {
+        const overrides = JSON.parse(stored);
+        const defaults = resolvedTheme === 'dark' ? darkTokens : lightTokens;
+        const merged = { ...defaults, ...(overrides[resolvedTheme] ?? {}) };
+        const root = document.documentElement;
+        for (const [key, value] of Object.entries(merged)) {
+          root.style.setProperty(key, value as string);
+        }
+      } catch {
+        applyThemeTokens(resolvedTheme);
+      }
+    } else {
+      applyThemeTokens(resolvedTheme);
+    }
+  }, [resolvedTheme, tokenVersion]);
 
   const value: ThemeContextValue = {
     userThemePreference,
     setUserThemePreference,
     resolvedTheme,
-    themeVariables,
+    mcpHostStyles,
+    refreshTokens,
   };
 
   return <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>;
