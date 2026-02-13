@@ -100,8 +100,8 @@ export function extensionToFormData(extension: FixedExtensionEntry): ExtensionFo
     description: extension.description || '',
     type:
       extension.type === 'frontend' ||
-      extension.type === 'inline_python' ||
-      extension.type === 'platform'
+        extension.type === 'inline_python' ||
+        extension.type === 'platform'
         ? 'stdio'
         : extension.type,
     cmd: extension.type === 'stdio' ? quoteShell([extension.cmd, ...extension.args]) : undefined,
@@ -155,7 +155,7 @@ export function createExtensionConfig(formData: ExtensionFormData): ExtensionCon
       timeout: formData.timeout,
       uri: formData.endpoint || '',
       ...(env_keys.length > 0 ? { env_keys } : {}),
-      ...(Object.keys(headers).length > 0 ? { headers } : {}),
+      headers,
     };
   } else {
     // For other types

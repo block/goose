@@ -1,3 +1,4 @@
+use crate::subprocess::SubprocessExt;
 use etcetera::{choose_app_strategy, AppStrategy};
 use indoc::{formatdoc, indoc};
 use reqwest::{Client, Url};
@@ -710,6 +711,7 @@ impl ComputerControllerServer {
                     .arg(&command)
                     .env("GOOSE_TERMINAL", "1")
                     .env("AGENT", "goose")
+                    .set_no_window()
                     .output()
                     .await
                     .map_err(|e| {
@@ -725,6 +727,7 @@ impl ComputerControllerServer {
                 .arg(&command)
                 .env("GOOSE_TERMINAL", "1")
                 .env("AGENT", "goose")
+                .set_no_window()
                 .output()
                 .await
                 .map_err(|e| {

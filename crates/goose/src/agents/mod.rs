@@ -30,7 +30,7 @@ pub mod types;
 pub use agent::{Agent, AgentConfig, AgentEvent, ExtensionLoadResult};
 pub use container::Container;
 pub use execute_commands::COMPACT_TRIGGERS;
-pub use extension::ExtensionConfig;
+pub use extension::{ExtensionConfig, ExtensionError};
 pub use extension_manager::ExtensionManager;
 pub use prompt_manager::PromptManager;
 pub use subagent_handler::SUBAGENT_TOOL_REQUEST_TYPE;

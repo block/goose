@@ -1577,13 +1577,17 @@ impl Agent {
             None => {
                 let model_name = config
                     .get_goose_model()
-                    .map_err(|_| anyhow!("Could not configure agent: missing model"))?;
+                    .ok()
+                    .ok_or_else(|| anyhow!("Could not configure agent: missing model"))?;
                 crate::model::ModelConfig::new(&model_name)
                     .map_err(|e| anyhow!("Could not configure agent: invalid model {}", e))?
             }
         };
 
-        let provider = crate::providers::create(&provider_name, model_config)
+        let extensions =
+            EnabledExtensionsState::extensions_or_default(Some(&session.extension_data), config);
+
+        let provider = crate::providers::create(&provider_name, model_config, extensions)
             .await
             .map_err(|e| anyhow!("Could not create provider: {}", e))?;
 

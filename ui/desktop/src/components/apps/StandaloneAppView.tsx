@@ -151,7 +151,7 @@ export default function StandaloneAppView() {
           resourceUri={resourceUri!}
           extensionName={extensionName!}
           sessionId={sessionId || null}
-          fullscreen={true}
+          displayMode="standalone"
           cachedHtml={cachedHtml || undefined}
         />
       </div>

@@ -402,7 +402,7 @@ export GOOSE_TELEMETRY_ENABLED=true   # Enable telemetry
 ```
 
 :::tip
-When the keyring is disabled, secrets are stored here:
+When the keyring is disabled (or cannot be accessed and goose [falls back to file-based storage](/docs/troubleshooting/known-issues#keyring-cannot-be-accessed-automatic-fallback)), secrets are stored here:
 
 * macOS/Linux: `~/.config/goose/secrets.yaml`
 * Windows: `%APPDATA%\Block\goose\config\secrets.yaml`

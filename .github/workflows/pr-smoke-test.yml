@@ -67,13 +67,20 @@ jobs:
 
       - name: Build Binary for Smoke Tests
         run: |
-          cargo build --bin goose
+          cargo build --bin goose --bin goosed
 
-      - name: Upload Binary for Smoke Tests
+      - name: Upload goose binary
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f  # v6.0.0
         with:
           name: goose-binary
           path: target/debug/goose
+          retention-days: 1
+
+      - name: Upload goosed binary
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f  # v6.0.0
+        with:
+          name: goosed-binary
+          path: target/debug/goosed
           retention-days: 1
 
   smoke-tests:
@@ -181,21 +188,11 @@ jobs:
       - name: Make Binary Executable
         run: chmod +x target/debug/goose
 
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '22'
-
-      - name: Install agentic providers
-        run: npm install -g @anthropic-ai/claude-code @openai/codex @google/gemini-cli
-
       - name: Run Provider Tests (Code Execution Mode)
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-          CODEX_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
-          GEMINI_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
           DATABRICKS_HOST: ${{ secrets.DATABRICKS_HOST }}
           DATABRICKS_TOKEN: ${{ secrets.DATABRICKS_TOKEN }}
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
@@ -208,7 +205,7 @@ jobs:
         run: |
           mkdir -p $HOME/.local/share/goose/sessions
           mkdir -p $HOME/.config/goose
-          bash scripts/test_providers.sh --code-exec
+          bash scripts/test_providers_code_exec.sh
 
   compaction-tests:
     name: Compaction Tests
@@ -249,3 +246,38 @@ jobs:
           mkdir -p $HOME/.local/share/goose/sessions
           mkdir -p $HOME/.config/goose
           bash scripts/test_compaction.sh
+
+  goosed-integration-tests:
+    name: goose server HTTP integration tests
+    runs-on: ubuntu-latest
+    needs: build-binary
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8  # v6.0.1
+        with:
+          ref: ${{ github.event.inputs.branch || github.ref }}
+
+      - name: Download Binary
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131  # v7.0.0
+        with:
+          name: goosed-binary
+          path: target/debug
+
+      - name: Make Binary Executable
+        run: chmod +x target/debug/goosed
+
+      - name: Install Node.js Dependencies
+        run: source ../../bin/activate-hermit && npm ci
+        working-directory: ui/desktop
+
+      - name: Run Integration Tests
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          GOOSED_BINARY: ../../target/debug/goosed
+          GOOSE_PROVIDER: anthropic
+          GOOSE_MODEL: claude-sonnet-4-5-20250929
+          SHELL: /bin/bash
+        run: |
+            echo 'export PATH=/some/fake/path:$PATH' >> $HOME/.bash_profile
+            source ../../bin/activate-hermit && npm run test:integration:debug
+        working-directory: ui/desktop

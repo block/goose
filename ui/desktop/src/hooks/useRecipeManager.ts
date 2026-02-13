@@ -3,7 +3,7 @@ import { Recipe, scanRecipe } from '../recipe';
 import { createUserMessage } from '../types/message';
 import { Message } from '../api';
 
-import { substituteParameters } from '../utils/providerUtils';
+import { substituteParameters } from '../utils/parameterSubstitution';
 import { updateSessionUserRecipeValues } from '../api';
 import { useChatContext } from '../contexts/ChatContext';
 import { ChatType } from '../types/chat';
