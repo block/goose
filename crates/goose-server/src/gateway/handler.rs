@@ -1,5 +1,6 @@
 use std::path::PathBuf;
 use std::sync::Arc;
+use std::time::Duration;
 
 use futures::StreamExt;
 use tokio_util::sync::CancellationToken;
@@ -327,27 +328,120 @@ impl GatewayHandler {
             }
         };
 
-        let mut response_text = String::new();
-
-        while let Some(event) = stream.next().await {
-            match event {
-                Ok(AgentEvent::Message(msg)) => {
-                    if msg.role == rmcp::model::Role::Assistant {
-                        for content in &msg.content {
-                            if let MessageContent::Text(t) = content {
-                                if !response_text.is_empty() {
-                                    response_text.push('\n');
-                                }
-                                response_text.push_str(&t.text);
+        // Telegram stops showing "typing…" after ~5 seconds.  Re-send the
+        // indicator every 4 s so the user always sees activity while the
+        // agent is working (tool calls, LLM round-trips, etc.).
+        let typing_cancel = CancellationToken::new();
+        let typing_gateway = self.gateway.clone();
+        let typing_user = message.user.clone();
+        let typing_handle = tokio::spawn({
+            let cancel = typing_cancel.clone();
+            async move {
+                let mut interval = tokio::time::interval(Duration::from_secs(4));
+                interval.tick().await; // first tick is immediate, skip it
+                loop {
+                    tokio::select! {
+                        _ = cancel.cancelled() => break,
+                        _ = interval.tick() => {
+                            if let Err(e) = typing_gateway
+                                .send_message(&typing_user, OutgoingMessage::Typing)
+                                .await
+                            {
+                                tracing::debug!(error = %e, "failed to re-send typing indicator");
+                                break;
                             }
                         }
                     }
                 }
-                Ok(AgentEvent::McpNotification(_)) => {}
-                Ok(AgentEvent::ModelChange { .. }) => {}
-                Ok(AgentEvent::HistoryReplaced(_)) => {}
+            }
+        });
+
+        let mut response_text = String::new();
+        let mut event_count: u64 = 0;
+
+        while let Some(event) = stream.next().await {
+            event_count += 1;
+            match event {
+                Ok(AgentEvent::Message(ref msg)) => {
+                    tracing::debug!(
+                        session_id,
+                        role = ?msg.role,
+                        content_items = msg.content.len(),
+                        "gateway stream: message event #{event_count}"
+                    );
+                    if msg.role == rmcp::model::Role::Assistant {
+                        for content in &msg.content {
+                            match content {
+                                MessageContent::Text(t) => {
+                                    if !response_text.is_empty() {
+                                        response_text.push('\n');
+                                    }
+                                    response_text.push_str(&t.text);
+                                }
+                                MessageContent::ToolRequest(req) => {
+                                    if let Ok(call) = &req.tool_call {
+                                        tracing::debug!(
+                                            session_id,
+                                            tool = %call.name,
+                                            "gateway stream: tool request"
+                                        );
+                                        let _ = self
+                                            .gateway
+                                            .send_message(
+                                                &message.user,
+                                                OutgoingMessage::ToolStarted {
+                                                    tool_name: call.name.to_string(),
+                                                },
+                                            )
+                                            .await;
+                                    }
+                                }
+                                MessageContent::ToolResponse(resp) => {
+                                    let success = resp.tool_result.is_ok();
+                                    tracing::debug!(
+                                        session_id,
+                                        id = %resp.id,
+                                        success,
+                                        "gateway stream: tool response"
+                                    );
+                                    let _ = self
+                                        .gateway
+                                        .send_message(
+                                            &message.user,
+                                            OutgoingMessage::ToolCompleted {
+                                                tool_name: resp.id.clone(),
+                                                success,
+                                            },
+                                        )
+                                        .await;
+                                }
+                                _ => {}
+                            }
+                        }
+                    }
+                }
+                Ok(AgentEvent::McpNotification(_)) => {
+                    tracing::debug!(session_id, "gateway stream: mcp notification #{event_count}");
+                }
+                Ok(AgentEvent::ModelChange { ref model, ref mode }) => {
+                    tracing::debug!(
+                        session_id,
+                        model,
+                        mode,
+                        "gateway stream: model change #{event_count}"
+                    );
+                }
+                Ok(AgentEvent::HistoryReplaced(_)) => {
+                    tracing::debug!(
+                        session_id,
+                        "gateway stream: history replaced #{event_count}"
+                    );
+                }
                 Err(e) => {
-                    tracing::error!(error = %e, "agent stream error");
+                    tracing::error!(session_id, error = %e, "gateway stream: error at event #{event_count}");
+                    // Stop typing indicator before sending error.
+                    typing_cancel.cancel();
+                    let _ = typing_handle.await;
                     self.gateway
                         .send_message(
                             &message.user,
@@ -360,6 +454,17 @@ impl GatewayHandler {
                 }
             }
         }
+
+        // Stream finished — stop the typing indicator.
+        typing_cancel.cancel();
+        let _ = typing_handle.await;
+
+        tracing::debug!(
+            session_id,
+            event_count,
+            response_len = response_text.len(),
+            "gateway stream: finished"
+        );
 
         if response_text.is_empty() {
             response_text = "(No response)".to_string();
