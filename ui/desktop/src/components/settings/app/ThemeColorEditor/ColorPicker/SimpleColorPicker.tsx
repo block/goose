@@ -133,18 +133,18 @@ export function SimpleColorPicker({ color, onChange }: SimpleColorPickerProps) {
   };
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-3">
       {/* Hue Spectrum Bar */}
       <div>
-        <div className="text-xs text-text-secondary mb-2">Select Hue</div>
-        <div className="grid grid-cols-12 gap-1">
+        <div className="text-xs text-text-secondary mb-1.5">Select Hue</div>
+        <div className="grid grid-cols-12 gap-0.5">
           {HUE_COLORS.map((hueColor) => (
             <button
               key={hueColor}
               onClick={() => handleHueSelect(hueColor)}
-              className={`w-full aspect-square rounded border-2 transition-all hover:scale-110 ${
+              className={`w-6 h-6 rounded border transition-all hover:scale-110 ${
                 selectedHue === hueColor
-                  ? 'border-border-secondary ring-2 ring-ring-primary'
+                  ? 'border-border-secondary ring-1 ring-ring-primary'
                   : 'border-border-primary'
               }`}
               style={{ backgroundColor: hueColor }}
@@ -156,17 +156,17 @@ export function SimpleColorPicker({ color, onChange }: SimpleColorPickerProps) {
 
       {/* Saturation/Lightness Grid */}
       <div>
-        <div className="text-xs text-text-secondary mb-2">Select Shade</div>
-        <div className="space-y-1">
+        <div className="text-xs text-text-secondary mb-1.5">Select Shade</div>
+        <div className="space-y-0.5">
           {saturationGrid.map((row, rowIndex) => (
-            <div key={rowIndex} className="grid grid-cols-5 gap-1">
+            <div key={rowIndex} className="grid grid-cols-5 gap-0.5">
               {row.map((gridColor, colIndex) => (
                 <button
                   key={`${rowIndex}-${colIndex}`}
                   onClick={() => handleColorSelect(gridColor)}
-                  className={`w-full aspect-square rounded border-2 transition-all hover:scale-110 ${
+                  className={`w-8 h-8 rounded border transition-all hover:scale-110 ${
                     color.toLowerCase() === gridColor.toLowerCase()
-                      ? 'border-border-secondary ring-2 ring-ring-primary'
+                      ? 'border-border-secondary ring-1 ring-ring-primary'
                       : 'border-border-primary'
                   }`}
                   style={{ backgroundColor: gridColor }}
@@ -180,15 +180,15 @@ export function SimpleColorPicker({ color, onChange }: SimpleColorPickerProps) {
 
       {/* Grayscale Row */}
       <div>
-        <div className="text-xs text-text-secondary mb-2">Grayscale</div>
-        <div className="grid grid-cols-6 gap-1">
+        <div className="text-xs text-text-secondary mb-1.5">Grayscale</div>
+        <div className="grid grid-cols-6 gap-0.5">
           {['#000000', '#333333', '#666666', '#999999', '#cccccc', '#ffffff'].map((grayColor) => (
             <button
               key={grayColor}
               onClick={() => handleColorSelect(grayColor)}
-              className={`w-full aspect-square rounded border-2 transition-all hover:scale-110 ${
+              className={`w-8 h-8 rounded border transition-all hover:scale-110 ${
                 color.toLowerCase() === grayColor.toLowerCase()
-                  ? 'border-border-secondary ring-2 ring-ring-primary'
+                  ? 'border-border-secondary ring-1 ring-ring-primary'
                   : 'border-border-primary'
               }`}
               style={{ backgroundColor: grayColor }}
