@@ -135,15 +135,19 @@ export function PresetGallery({ onApply }: PresetGalleryProps) {
             key={preset.id}
             className="border border-border-primary rounded-lg p-4 space-y-3 hover:border-border-secondary transition-colors"
           >
-            {/* Theme Preview Colors - Show only current mode */}
-            <div className="h-8 rounded border border-border-primary overflow-hidden">
+            {/* Theme Preview Colors - Show only current mode (4 colors) */}
+            <div className="grid grid-cols-4 h-8 rounded border border-border-primary overflow-hidden">
               <div 
-                className="h-1/2" 
                 style={{ backgroundColor: preset.colors[resolvedTheme]['color-background-primary'] }}
               />
               <div 
-                className="h-1/2" 
                 style={{ backgroundColor: preset.colors[resolvedTheme]['color-background-secondary'] }}
+              />
+              <div 
+                style={{ backgroundColor: preset.colors[resolvedTheme]['color-text-primary'] }}
+              />
+              <div 
+                style={{ backgroundColor: preset.colors[resolvedTheme]['color-background-inverse'] }}
               />
             </div>
 
