@@ -101,6 +101,12 @@ recipe:
   - [ ] Extension page should load with env variables modal showing
   - [ ] Allow form input and saving extension
 
+## Speech-to-Text (Local Model)
+
+- [ ] Go to Settings > Chat > Voice dictation provider and select the small model
+- [ ] Run a quick test that speech-to-text is working (click the mic button, speak, verify transcription)
+- [ ] Also try OpenAI using your OpenAI key
+
 ## Settings
 
 - [ ] Settings page loads and all tabs load

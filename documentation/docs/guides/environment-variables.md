@@ -129,7 +129,7 @@ These variables configure a [lead/worker model pattern](/docs/tutorials/lead-wor
 | `GOOSE_LEAD_MODEL` | **Required to enable lead mode.** Name of the lead model | Model name (e.g., "gpt-4o", "claude-sonnet-4-20250514") | None |
 | `GOOSE_LEAD_PROVIDER` | Provider for the lead model | [See available providers](/docs/getting-started/providers#available-providers) | Falls back to `GOOSE_PROVIDER` |
 | `GOOSE_LEAD_TURNS` | Number of initial turns using the lead model before switching to the worker model | Integer | 3 |
-| `GOOSE_LEAD_FAILURE_THRESHOLD` | Consecutive failures before fallback to the lead model | Integer | 2 |
+| `GOOSE_LEAD_FAILURE_THRESHOLD` | Consecutive failures before falling back to the lead model | Integer | 2 |
 | `GOOSE_LEAD_FALLBACK_TURNS` | Number of turns to use the lead model in fallback mode | Integer | 2 |
 
 A _turn_ is one complete prompt-response interaction. Here's how it works with the default settings:
@@ -226,8 +226,9 @@ These variables control how goose manages conversation sessions and context.
 | `GOOSE_CLI_THEME` | [Theme](/docs/guides/goose-cli-commands#themes) for CLI response  markdown | "light", "dark", "ansi" | "dark" |
 | `GOOSE_CLI_NEWLINE_KEY` | Customize the keyboard shortcut for [inserting newlines in CLI input](/docs/guides/goose-cli-commands#keyboard-shortcuts) | Single character (e.g., "n", "m") | "j" (Ctrl+J) |
 | `GOOSE_RANDOM_THINKING_MESSAGES` | Controls whether to show amusing random messages during processing | "true", "false" | "true" |
-| `GOOSE_CLI_SHOW_COST` | Toggles display of model cost estimates in CLI output | "true", "1" (case insensitive) to enable | false |
+| `GOOSE_CLI_SHOW_COST` | Toggles display of model cost estimates in CLI output | "true", "1" (case-insensitive) to enable | false |
 | `GOOSE_AUTO_COMPACT_THRESHOLD` | Set the percentage threshold at which goose [automatically summarizes your session](/docs/guides/sessions/smart-context-management#automatic-compaction). | Float between 0.0 and 1.0 (disabled at 0.0) | 0.8 |
+| `GOOSE_TOOL_CALL_CUTOFF` | Number of tool calls to keep in full detail before summarizing older tool outputs to help maintain efficient context usage  | Integer (e.g., 5, 10, 20) | 10 |
 
 **Examples**
 
@@ -271,6 +272,9 @@ export GOOSE_CLI_SHOW_COST=true
 
 # Automatically compact sessions when 60% of available tokens are used
 export GOOSE_AUTO_COMPACT_THRESHOLD=0.6
+
+# Keep more tool calls in full detail (useful for debugging or verbose workflows)
+export GOOSE_TOOL_CALL_CUTOFF=20
 ```
 
 ### Model Context Limit Overrides
@@ -307,11 +311,11 @@ These variables control how goose handles [tool execution](/docs/guides/goose-pe
 | Variable | Purpose | Values | Default |
 |----------|---------|---------|---------|
 | `GOOSE_MODE` | Controls how goose handles tool execution | "auto", "approve", "chat", "smart_approve" | "smart_approve" |
-| `GOOSE_TOOLSHIM` | Enables/disables tool call interpretation | "1", "true" (case insensitive) to enable | false |
+| `GOOSE_TOOLSHIM` | Enables/disables tool call interpretation | "1", "true" (case-insensitive) to enable | false |
 | `GOOSE_TOOLSHIM_OLLAMA_MODEL` | Specifies the model for [tool call interpretation](/docs/experimental/ollama) | Model name (e.g. llama3.2, qwen2.5) | System default |
 | `GOOSE_CLI_MIN_PRIORITY` | Controls verbosity of [tool output](/docs/guides/managing-tools/adjust-tool-output) | Float between 0.0 and 1.0 | 0.0 |
 | `GOOSE_CLI_TOOL_PARAMS_TRUNCATION_MAX_LENGTH` | Maximum length for tool parameter values before truncation in CLI output (not in debug mode) | Integer | 40 |
-| `GOOSE_DEBUG` | Enables debug mode to show full tool parameters without truncation. Can also be toggled during a session using the `/r` [slash command](/docs/guides/goose-cli-commands#slash-commands) | "1", "true" (case insensitive) to enable | false |
+| `GOOSE_DEBUG` | Enables debug mode to show full tool parameters without truncation. Can also be toggled during a session using the `/r` [slash command](/docs/guides/goose-cli-commands#slash-commands) | "1", "true" (case-insensitive) to enable | false |
 | `GOOSE_SEARCH_PATHS` | Additional directories to search for executables when running extensions | JSON array of paths (e.g., `["/usr/local/bin", "~/custom/bin"]`) | System PATH only | No |
 
 **Examples**
@@ -398,7 +402,7 @@ export GOOSE_TELEMETRY_ENABLED=true   # Enable telemetry
 ```
 
 :::tip
-When the keyring is disabled, secrets are stored here:
+When the keyring is disabled (or cannot be accessed and goose [falls back to file-based storage](/docs/troubleshooting/known-issues#keyring-cannot-be-accessed-automatic-fallback)), secrets are stored here:
 
 * macOS/Linux: `~/.config/goose/secrets.yaml`
 * Windows: `%APPDATA%\Block\goose\config\secrets.yaml`
@@ -500,7 +504,7 @@ These variables enable experimental features that are in active development. The
 
 | Variable | Purpose | Values | Default |
 |----------|---------|---------|---------|
-| `ALPHA_FEATURES` | Enables experimental alpha features&mdash;check the feature docs to see if this flag is required | "true", "1" (case insensitive) to enable | false |
+| `ALPHA_FEATURES` | Enables experimental alpha features&mdash;check the feature docs to see if this flag is required | "true", "1" (case-insensitive) to enable | false |
 
 **Examples**
 

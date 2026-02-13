@@ -204,7 +204,7 @@ const getDocumentationPath = (serverId: string): string => {
                         className="card-stats"
                       >
                         <Star className="h-4 w-4" />
-                        <span>{formatStarCount(githubStars)} on Github</span>
+                        <span>{formatStarCount(githubStars)} on GitHub</span>
                       </a>
                     )}
 

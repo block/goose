@@ -3,14 +3,13 @@ use crate::cli::StreamableHttpOptions;
 use super::output;
 use super::CliSession;
 use console::style;
-use goose::agents::{Agent, Container};
-use goose::config::get_enabled_extensions;
+use goose::agents::{Agent, Container, ExtensionError};
 use goose::config::resolve_extensions_for_new_session;
 use goose::config::{get_all_extensions, Config, ExtensionConfig};
 use goose::providers::create;
 use goose::recipe::Recipe;
 use goose::session::session_manager::SessionType;
-use goose::session::{EnabledExtensionsState, ExtensionState};
+use goose::session::EnabledExtensionsState;
 use rustyline::EditMode;
 use std::collections::BTreeSet;
 use std::process;
@@ -490,27 +489,19 @@ async fn handle_resumed_session_workdir(agent: &Agent, session_id: &str, interac
     }
 }
 
-async fn resolve_and_load_extensions(
-    agent: Agent,
+async fn collect_extension_configs(
+    agent: &Agent,
     session_config: &SessionBuilderConfig,
     recipe: Option<&Recipe>,
     session_id: &str,
-    provider_for_debug: Arc<dyn goose::providers::base::Provider>,
-) -> Arc<Agent> {
-    for warning in goose::config::get_warnings() {
-        eprintln!("{}", style(format!("Warning: {}", warning)).yellow());
-    }
-
+) -> Result<Vec<ExtensionConfig>, ExtensionError> {
     let configured_extensions: Vec<ExtensionConfig> = if session_config.resume {
-        agent
-            .config
-            .session_manager
-            .get_session(session_id, false)
-            .await
-            .ok()
-            .and_then(|s| EnabledExtensionsState::from_extension_data(&s.extension_data))
-            .map(|state| state.extensions)
-            .unwrap_or_else(get_enabled_extensions)
+        EnabledExtensionsState::for_session(
+            &agent.config.session_manager,
+            session_id,
+            Config::global(),
+        )
+        .await
     } else if session_config.no_profile {
         Vec::new()
     } else {
@@ -523,17 +514,33 @@ async fn resolve_and_load_extensions(
         &session_config.builtins,
     );
 
-    let mut extensions_to_load: Vec<(String, ExtensionConfig)> = configured_extensions
-        .iter()
-        .map(|cfg| (cfg.name(), cfg.clone()))
+    let mut all: Vec<ExtensionConfig> = configured_extensions;
+    all.extend(cli_flag_extensions.into_iter().map(|(_, cfg)| cfg));
+
+    Ok(all)
+}
+
+async fn resolve_and_load_extensions(
+    agent: Agent,
+    extensions: Vec<ExtensionConfig>,
+    provider_for_debug: Arc<dyn goose::providers::base::Provider>,
+    interactive: bool,
+    session_id: &str,
+) -> Arc<Agent> {
+    for warning in goose::config::get_warnings() {
+        eprintln!("{}", style(format!("Warning: {}", warning)).yellow());
+    }
+
+    let extensions_to_load: Vec<(String, ExtensionConfig)> = extensions
+        .into_iter()
+        .map(|cfg| (cfg.name(), cfg))
         .collect();
-    extensions_to_load.extend(cli_flag_extensions);
 
     load_extensions(
         agent,
         extensions_to_load,
         provider_for_debug,
-        session_config.interactive,
+        interactive,
         session_id,
     )
     .await
@@ -549,15 +556,10 @@ async fn configure_session_prompts(
         tracing::warn!("Failed to save extension state: {}", e);
     }
 
-    session
-        .agent
-        .extend_system_prompt(super::prompt::get_cli_prompt())
-        .await;
-
     if let Some(ref additional_prompt) = session_config.additional_system_prompt {
         session
             .agent
-            .extend_system_prompt(additional_prompt.clone())
+            .extend_system_prompt("additional".to_string(), additional_prompt.clone())
             .await;
     }
 
@@ -600,14 +602,31 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> CliSession {
     let recipe = session_config.recipe.as_ref();
 
     agent
-        .apply_recipe_components(
-            recipe.and_then(|r| r.sub_recipes.clone()),
-            recipe.and_then(|r| r.response.clone()),
-            true,
-        )
+        .apply_recipe_components(recipe.and_then(|r| r.response.clone()), true)
         .await;
 
-    let new_provider = match create(&resolved.provider_name, resolved.model_config).await {
+    let session_id = resolve_session_id(&session_config, &session_manager).await;
+
+    if session_config.resume {
+        handle_resumed_session_workdir(&agent, &session_id, session_config.interactive).await;
+    }
+
+    let extensions_for_provider =
+        match collect_extension_configs(&agent, &session_config, recipe, &session_id).await {
+            Ok(exts) => exts,
+            Err(e) => {
+                output::render_error(&format!("Failed to collect extensions: {}", e));
+                process::exit(1);
+            }
+        };
+
+    let new_provider = match create(
+        &resolved.provider_name,
+        resolved.model_config,
+        extensions_for_provider.clone(),
+    )
+    .await
+    {
         Ok(provider) => provider,
         Err(e) => {
             output::render_error(&format!(
@@ -633,8 +652,6 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> CliSession {
         tracing::info!("🤖 Using model: {}", resolved.model_name);
     }
 
-    let session_id = resolve_session_id(&session_config, &session_manager).await;
-
     agent
         .update_provider(new_provider, &session_id)
         .await
@@ -643,17 +660,24 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> CliSession {
             process::exit(1);
         });
 
-    if session_config.resume {
-        handle_resumed_session_workdir(&agent, &session_id, session_config.interactive).await;
+    if let Some(recipe) = session_config.recipe.clone() {
+        if let Err(e) = session_manager
+            .update(&session_id)
+            .recipe(Some(recipe))
+            .apply()
+            .await
+        {
+            tracing::warn!("Failed to store recipe on session: {}", e);
+        }
     }
 
     // Extensions are loaded after session creation because we may change directory when resuming
     let agent_ptr = resolve_and_load_extensions(
         agent,
-        &session_config,
-        recipe,
-        &session_id,
+        extensions_for_provider,
         Arc::clone(&provider_for_display),
+        session_config.interactive,
+        &session_id,
     )
     .await;
 
