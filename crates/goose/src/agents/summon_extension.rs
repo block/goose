@@ -1039,6 +1039,7 @@ impl SummonClient {
             None,
             crate::config::GooseMode::Auto,
             true, // disable session naming for subagents
+            crate::agents::GoosePlatform::GooseCli,
         );
 
         let subagent_session = self
@@ -1470,6 +1471,7 @@ impl SummonClient {
             None,
             crate::config::GooseMode::Auto,
             true, // disable session naming for subagents
+            crate::agents::GoosePlatform::GooseCli,
         );
 
         let subagent_session = self

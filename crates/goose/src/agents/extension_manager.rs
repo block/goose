@@ -34,7 +34,7 @@ use super::tool_execution::ToolCallResult;
 use super::types::SharedProvider;
 use crate::agents::extension::{Envs, ProcessExit};
 use crate::agents::extension_malware_check;
-use crate::agents::mcp_client::{McpClient, McpClientTrait};
+use crate::agents::mcp_client::{GooseMcpClientCapabilities, McpClient, McpClientTrait};
 use crate::builtin_extension::get_builtin_extension;
 use crate::config::extensions::name_to_key;
 use crate::config::search_path::SearchPaths;
@@ -99,6 +99,10 @@ impl Extension {
     }
 }
 
+pub struct ExtensionManagerCapabilities {
+    pub mcpui: bool,
+}
+
 /// Manages goose extensions / MCP clients and their interactions
 pub struct ExtensionManager {
     extensions: Mutex<HashMap<String, Extension>>,
@@ -106,6 +110,8 @@ pub struct ExtensionManager {
     provider: SharedProvider,
     tools_cache: Mutex<Option<Arc<Vec<Tool>>>>,
     tools_cache_version: AtomicU64,
+    client_name: String,
+    capabilities: ExtensionManagerCapabilities,
 }
 
 /// A flattened representation of a resource used by the agent to prepare inference
@@ -221,6 +227,8 @@ async fn child_process_client(
     provider: SharedProvider,
     working_dir: Option<&PathBuf>,
     docker_container: Option<String>,
+    client_name: String,
+    capabilities: GooseMcpClientCapabilities,
 ) -> ExtensionResult<McpClient> {
     configure_subprocess(&mut command);
 
@@ -258,6 +266,8 @@ async fn child_process_client(
         Duration::from_secs(timeout.unwrap_or(crate::config::DEFAULT_EXTENSION_TIMEOUT)),
         provider,
         docker_container,
+        client_name,
+        capabilities,
     )
     .await;
 
@@ -384,6 +394,8 @@ async fn create_streamable_http_client(
     headers: &HashMap<String, String>,
     name: &str,
     provider: SharedProvider,
+    client_name: String,
+    capabilities: GooseMcpClientCapabilities,
 ) -> ExtensionResult<Box<dyn McpClientTrait>> {
     let mut default_headers = HeaderMap::new();
 
@@ -415,7 +427,14 @@ async fn create_streamable_http_client(
     let timeout_duration =
         Duration::from_secs(timeout.unwrap_or(crate::config::DEFAULT_EXTENSION_TIMEOUT));
 
-    let client_res = McpClient::connect(transport, timeout_duration, provider.clone()).await;
+    let client_res = McpClient::connect(
+        transport,
+        timeout_duration,
+        provider.clone(),
+        client_name.clone(),
+        capabilities.clone(),
+    )
+    .await;
 
     if extract_auth_error(&client_res).is_some() {
         let auth_manager = oauth_flow(&uri.to_string(), &name.to_string())
@@ -438,7 +457,14 @@ async fn create_streamable_http_client(
             },
         );
         Ok(Box::new(
-            McpClient::connect(transport, timeout_duration, provider).await?,
+            McpClient::connect(
+                transport,
+                timeout_duration,
+                provider,
+                client_name,
+                capabilities,
+            )
+            .await?,
         ))
     } else {
         Ok(Box::new(client_res?))
@@ -449,6 +475,8 @@ impl ExtensionManager {
     pub fn new(
         provider: SharedProvider,
         session_manager: Arc<crate::session::SessionManager>,
+        client_name: String,
+        capabilities: ExtensionManagerCapabilities,
     ) -> Self {
         Self {
             extensions: Mutex::new(HashMap::new()),
@@ -459,13 +487,20 @@ impl ExtensionManager {
             provider,
             tools_cache: Mutex::new(None),
             tools_cache_version: AtomicU64::new(0),
+            client_name,
+            capabilities,
         }
     }
 
     #[cfg(test)]
     pub fn new_without_provider(data_dir: std::path::PathBuf) -> Self {
         let session_manager = Arc::new(crate::session::SessionManager::new(data_dir));
-        Self::new(Arc::new(Mutex::new(None)), session_manager)
+        Self::new(
+            Arc::new(Mutex::new(None)),
+            session_manager,
+            "goose-cli".to_string(),
+            ExtensionManagerCapabilities { mcpui: false },
+        )
     }
 
     pub fn get_context(&self) -> &PlatformExtensionContext {
@@ -527,12 +562,18 @@ impl ExtensionManager {
                     .iter()
                     .map(|(k, v)| (k.clone(), substitute_env_vars(v, &all_envs)))
                     .collect();
+                let capability = GooseMcpClientCapabilities {
+                    mcpui: self.capabilities.mcpui,
+                };
+
                 create_streamable_http_client(
                     uri,
                     *timeout,
                     &resolved_headers,
                     name,
                     self.provider.clone(),
+                    self.client_name.clone(),
+                    capability,
                 )
                 .await?
             }
@@ -578,12 +619,17 @@ impl ExtensionManager {
                     })
                 };
 
+                let capabilities = GooseMcpClientCapabilities {
+                    mcpui: self.capabilities.mcpui,
+                };
                 let client = child_process_client(
                     command,
                     timeout,
                     self.provider.clone(),
                     Some(&effective_working_dir),
                     container.map(|c| c.id().to_string()),
+                    self.client_name.clone(),
+                    capabilities,
                 )
                 .await?;
                 Box::new(client)
@@ -614,12 +660,17 @@ impl ExtensionManager {
                             .arg(&normalized_name);
                     });
 
+                    let capabilities = GooseMcpClientCapabilities {
+                        mcpui: self.capabilities.mcpui,
+                    };
                     let client = child_process_client(
                         command,
                         timeout,
                         self.provider.clone(),
                         Some(&effective_working_dir),
                         Some(container_id.to_string()),
+                        self.client_name.clone(),
+                        capabilities,
                     )
                     .await?;
                     Box::new(client)
@@ -627,11 +678,16 @@ impl ExtensionManager {
                     let (server_read, client_write) = tokio::io::duplex(65536);
                     let (client_read, server_write) = tokio::io::duplex(65536);
                     extension_fn(server_read, server_write);
+                    let capabilities = GooseMcpClientCapabilities {
+                        mcpui: self.capabilities.mcpui,
+                    };
                     Box::new(
                         McpClient::connect(
                             (client_read, client_write),
                             timeout_duration,
                             self.provider.clone(),
+                            self.client_name.clone(),
+                            capabilities,
                         )
                         .await?,
                     )
@@ -668,12 +724,18 @@ impl ExtensionManager {
                     command.arg("python").arg(file_path.to_str().unwrap());
                 });
 
+                let capabilities = GooseMcpClientCapabilities {
+                    mcpui: self.capabilities.mcpui,
+                };
+
                 let client = child_process_client(
                     command,
                     timeout,
                     self.provider.clone(),
                     Some(&effective_working_dir),
                     container.map(|c| c.id().to_string()),
+                    self.client_name.clone(),
+                    capabilities,
                 )
                 .await?;
 
