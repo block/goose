@@ -448,14 +448,12 @@ impl McpClientTrait for ExtensionManagerClient {
 
         match result {
             Ok(content) => Ok(CallToolResult::success(content)),
-            Err(error) => {
-                Ok(CallToolResult {
-                    content: vec![Content::text(error.to_string())],
-                    is_error: Some(true),
-                    structured_content: None,
-                    meta: None,
-                })
-            }
+            Err(error) => Ok(CallToolResult {
+                content: vec![Content::text(error.to_string())],
+                is_error: Some(true),
+                structured_content: None,
+                meta: None,
+            }),
         }
     }
 
