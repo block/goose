@@ -17,7 +17,7 @@
  *   GOOSE_SANDBOX_SSH_ALL_HOSTS=true        — allow SSH to all hosts (default: git hosts only)
  *
  *   SSH git operations (git clone git@...) are routed through the proxy via
- *   a bundled connect-proxy.pl script used as SSH ProxyCommand. This avoids
+ *   a bundled connect-proxy.py script used as SSH ProxyCommand. This avoids
  *   needing nc (which is blocked by the seatbelt profile).
  *   GOOSE_SANDBOX_LD_FAILOVER=allow|deny|blocklist — LD failover mode
  */
@@ -141,9 +141,9 @@ function writeSandboxProfile(content: string): string {
 }
 
 function writeConnectProxy(): string {
-  const runtimePath = path.join(sandboxDir, 'connect-proxy.pl');
+  const runtimePath = path.join(sandboxDir, 'connect-proxy.py');
   fs.mkdirSync(sandboxDir, { recursive: true });
-  const content = fs.readFileSync(bundledPath('connect-proxy.pl'), 'utf-8');
+  const content = fs.readFileSync(bundledPath('connect-proxy.py'), 'utf-8');
   fs.writeFileSync(runtimePath, content, { mode: 0o755 });
   return runtimePath;
 }
@@ -185,7 +185,7 @@ export function buildSandboxSpawn(
       HTTPS_PROXY: proxyUrl,
       no_proxy: 'localhost,127.0.0.1,::1',
       NO_PROXY: 'localhost,127.0.0.1,::1',
-      GIT_SSH_COMMAND: `ssh -o ProxyCommand='/usr/bin/perl "${connectProxy}" %h %p'`,
+      GIT_SSH_COMMAND: `ssh -o ProxyCommand='/usr/bin/python3 "${connectProxy}" %h %p'`,
       SANDBOX_PROXY_PORT: String(proxyPort),
     },
   };
