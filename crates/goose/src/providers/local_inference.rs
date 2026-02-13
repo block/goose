@@ -10,6 +10,7 @@ use crate::providers::base::{
 };
 use crate::providers::errors::ProviderError;
 use crate::providers::formats::openai::format_tools;
+use crate::providers::utils::RequestLog;
 use anyhow::Result;
 use async_stream::try_stream;
 use async_trait::async_trait;
@@ -22,7 +23,7 @@ use llama_cpp_2::model::{AddBos, LlamaChatMessage, LlamaChatTemplate, LlamaModel
 use llama_cpp_2::openai::OpenAIChatTemplateParams;
 use llama_cpp_2::sampling::LlamaSampler;
 use llama_cpp_2::{list_llama_ggml_backend_devices, LlamaBackendDeviceType};
-use rmcp::model::{CallToolRequestParams, Role, Tool};
+use rmcp::model::{CallToolRequestParams, RawContent, Role, Tool};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::borrow::Cow;
@@ -445,16 +446,96 @@ impl StreamingEmulatorParser {
 
 fn build_openai_messages_json(system: &str, messages: &[Message]) -> String {
     let mut arr: Vec<Value> = vec![json!({"role": "system", "content": system})];
+
     for msg in messages {
-        let role = match msg.role {
+        let role_str = match msg.role {
             Role::User => "user",
             Role::Assistant => "assistant",
         };
-        let content = extract_text_content(msg);
-        if !content.trim().is_empty() {
-            arr.push(json!({"role": role, "content": content}));
+
+        // Collect text parts, tool calls (assistant), and tool results (user)
+        let mut text_parts = Vec::new();
+        let mut tool_calls = Vec::new();
+        let mut tool_results = Vec::new();
+
+        for content in &msg.content {
+            match content {
+                MessageContent::Text(t) => {
+                    if !t.text.trim().is_empty() {
+                        text_parts.push(t.text.clone());
+                    }
+                }
+                MessageContent::ToolRequest(req) => {
+                    if let Ok(call) = &req.tool_call {
+                        let args_str = call
+                            .arguments
+                            .as_ref()
+                            .and_then(|a| serde_json::to_string(a).ok())
+                            .unwrap_or_else(|| "{}".to_string());
+                        tool_calls.push(json!({
+                            "id": req.id,
+                            "type": "function",
+                            "function": {
+                                "name": call.name,
+                                "arguments": args_str,
+                            }
+                        }));
+                    }
+                }
+                MessageContent::ToolResponse(resp) => {
+                    let result_text = match &resp.tool_result {
+                        Ok(result) => result
+                            .content
+                            .iter()
+                            .filter_map(|c| match c.raw {
+                                RawContent::Text(ref t) => Some(t.text.as_str()),
+                                _ => None,
+                            })
+                            .collect::<Vec<_>>()
+                            .join("\n"),
+                        Err(e) => format!("Error: {e}"),
+                    };
+                    tool_results.push((resp.id.clone(), result_text));
+                }
+                _ => {}
+            }
+        }
+
+        // Emit assistant message: may have text content + tool_calls
+        if role_str == "assistant" {
+            if !tool_calls.is_empty() {
+                let mut assistant_msg = json!({
+                    "role": "assistant",
+                    "tool_calls": tool_calls,
+                });
+                let text = text_parts.join("\n");
+                if !text.is_empty() {
+                    assistant_msg["content"] = Value::String(text);
+                }
+                arr.push(assistant_msg);
+            } else {
+                let text = text_parts.join("\n");
+                if !text.is_empty() {
+                    arr.push(json!({"role": "assistant", "content": text}));
+                }
+            }
+        } else {
+            // User messages: emit tool results as separate "tool" role messages,
+            // and any text as a regular user message.
+            let text = text_parts.join("\n");
+            if !text.is_empty() {
+                arr.push(json!({"role": "user", "content": text}));
+            }
+            for (tool_call_id, result_text) in tool_results {
+                arr.push(json!({
+                    "role": "tool",
+                    "tool_call_id": tool_call_id,
+                    "content": result_text,
+                }));
+            }
         }
     }
+
     serde_json::to_string(&arr).unwrap_or_else(|_| "[]".to_string())
 }
 
@@ -863,16 +944,19 @@ fn parse_xml_function_format(block: &str) -> Option<(String, serde_json::Map<Str
 }
 
 /// Parse GLM-style tool calls: `NAME<arg_key>K</arg_key><arg_value>V</arg_value>...`
-#[allow(clippy::string_slice)]
+/// Also handles zero-argument calls like just `NAME`.
 fn parse_xml_arg_key_value_format(block: &str) -> Option<(String, serde_json::Map<String, Value>)> {
-    let func_name_end = block.find("<arg_key>")?;
-    // Safe: find returns a byte offset at the start of an ASCII '<' character.
+    let func_name_end = block.find("<arg_key>").unwrap_or(block.len());
+    // Safe: find returns a byte offset at the start of an ASCII '<' character,
+    // and block.len() is always a valid boundary.
+    #[allow(clippy::string_slice)]
     let func_name = block[..func_name_end].trim().to_string();
     if func_name.is_empty() {
         return None;
     }
 
     let mut args = serde_json::Map::new();
+    #[allow(clippy::string_slice)]
     let mut rest = &block[func_name_end..];
 
     while let Some((_, after_key_open)) = rest.split_once("<arg_key>") {
@@ -896,11 +980,7 @@ fn parse_xml_arg_key_value_format(block: &str) -> Option<(String, serde_json::Ma
         rest = after_val_close;
     }
 
-    if args.is_empty() {
-        None
-    } else {
-        Some((func_name, args))
-    }
+    Some((func_name, args))
 }
 
 fn extract_xml_tool_call_messages(
@@ -1365,6 +1445,27 @@ impl Provider for LocalInferenceProvider {
         let context_limit = model_context_limit;
         let settings = model_settings;
 
+        let log_payload = serde_json::json!({
+            "system": &system_prompt,
+            "messages": messages.iter().map(|m| {
+                serde_json::json!({
+                    "role": match m.role { Role::User => "user", Role::Assistant => "assistant" },
+                    "content": extract_text_content(m),
+                })
+            }).collect::<Vec<_>>(),
+            "tools": tools.iter().map(|t| &t.name).collect::<Vec<_>>(),
+            "settings": {
+                "use_jinja": settings.use_jinja,
+                "native_tool_calling": settings.native_tool_calling,
+                "context_size": settings.context_size,
+                "sampling": settings.sampling,
+            },
+        });
+
+        let mut log = RequestLog::start(&self.model_config, &log_payload).map_err(|e| {
+            ProviderError::ExecutionError(format!("Failed to start request log: {e}"))
+        })?;
+
         // Channel for streaming tokens from blocking thread to async stream
         let (tx, mut rx) = tokio::sync::mpsc::channel::<
             Result<(Option<Message>, Option<ProviderUsage>), ProviderError>,
@@ -1373,14 +1474,28 @@ impl Provider for LocalInferenceProvider {
         tokio::task::spawn_blocking(move || {
             let rt = tokio::runtime::Handle::current();
 
+            // Macro to log errors before sending them through the channel
+            macro_rules! send_err {
+                ($err:expr) => {{
+                    let err = $err;
+                    let msg = match &err {
+                        ProviderError::ExecutionError(s) => s.as_str(),
+                        ProviderError::ContextLengthExceeded(s) => s.as_str(),
+                        _ => "unknown error",
+                    };
+                    let _ = log.error(msg);
+                    let _ = tx.blocking_send(Err(err));
+                    return;
+                }};
+            }
+
             let model_guard = rt.block_on(model_arc.lock());
             let loaded = match model_guard.as_ref() {
                 Some(l) => l,
                 None => {
-                    let _ = tx.blocking_send(Err(ProviderError::ExecutionError(
-                        "Model not loaded".to_string(),
-                    )));
-                    return;
+                    send_err!(ProviderError::ExecutionError(
+                        "Model not loaded".to_string()
+                    ));
                 }
             };
 
@@ -1395,22 +1510,20 @@ impl Provider for LocalInferenceProvider {
                     {
                         Ok(p) => p,
                         Err(e) => {
-                            let _ = tx.blocking_send(Err(ProviderError::ExecutionError(format!(
+                            send_err!(ProviderError::ExecutionError(format!(
                                 "Failed to apply chat template: {}",
                                 e
-                            ))));
-                            return;
+                            )));
                         }
                     };
 
                 let tokens = match loaded.model.str_to_token(&prompt, AddBos::Never) {
                     Ok(t) => t,
                     Err(e) => {
-                        let _ = tx.blocking_send(Err(ProviderError::ExecutionError(format!(
+                        send_err!(ProviderError::ExecutionError(format!(
                             "Failed to tokenize prompt: {}",
                             e
-                        ))));
-                        return;
+                        )));
                     }
                 };
 
@@ -1429,24 +1542,21 @@ impl Provider for LocalInferenceProvider {
                 };
                 if let Some(mem_max) = memory_max_ctx {
                     if prompt_token_count > mem_max {
-                        let _ =
-                            tx.blocking_send(Err(ProviderError::ContextLengthExceeded(format!(
-                                "Prompt ({} tokens) exceeds estimated memory capacity ({} tokens). \
-                                 Try a smaller model or reduce conversation length.",
-                                prompt_token_count, mem_max,
-                            ))));
-                        return;
+                        send_err!(ProviderError::ContextLengthExceeded(format!(
+                            "Prompt ({} tokens) exceeds estimated memory capacity ({} tokens). \
+                             Try a smaller model or reduce conversation length.",
+                            prompt_token_count, mem_max,
+                        )));
                     }
                 }
                 let ctx_params = build_context_params(effective_ctx as u32, &settings);
                 let mut ctx = match loaded.model.new_context(runtime.backend(), ctx_params) {
                     Ok(c) => c,
                     Err(e) => {
-                        let _ = tx.blocking_send(Err(ProviderError::ExecutionError(format!(
+                        send_err!(ProviderError::ExecutionError(format!(
                             "Failed to create context: {}",
                             e
-                        ))));
-                        return;
+                        )));
                     }
                 };
 
@@ -1455,19 +1565,17 @@ impl Provider for LocalInferenceProvider {
                     let mut batch = match LlamaBatch::get_one(chunk) {
                         Ok(b) => b,
                         Err(e) => {
-                            let _ = tx.blocking_send(Err(ProviderError::ExecutionError(format!(
+                            send_err!(ProviderError::ExecutionError(format!(
                                 "Failed to create batch: {}",
                                 e
-                            ))));
-                            return;
+                            )));
                         }
                     };
                     if let Err(e) = ctx.decode(&mut batch) {
-                        let _ = tx.blocking_send(Err(ProviderError::ExecutionError(format!(
+                        send_err!(ProviderError::ExecutionError(format!(
                             "Prefill decode failed: {}",
                             e
-                        ))));
-                        return;
+                        )));
                     }
                 }
 
@@ -1495,11 +1603,10 @@ impl Provider for LocalInferenceProvider {
                     let piece = match loaded.model.token_to_piece(token, &mut decoder, true, None) {
                         Ok(p) => p,
                         Err(e) => {
-                            let _ = tx.blocking_send(Err(ProviderError::ExecutionError(format!(
+                            send_err!(ProviderError::ExecutionError(format!(
                                 "Failed to decode token: {}",
                                 e
-                            ))));
-                            return;
+                            )));
                         }
                     };
 
@@ -1575,19 +1682,17 @@ impl Provider for LocalInferenceProvider {
                     let mut next_batch = match LlamaBatch::get_one(&next_tokens) {
                         Ok(b) => b,
                         Err(e) => {
-                            let _ = tx.blocking_send(Err(ProviderError::ExecutionError(format!(
+                            send_err!(ProviderError::ExecutionError(format!(
                                 "Failed to create batch: {}",
                                 e
-                            ))));
-                            return;
+                            )));
                         }
                     };
                     if let Err(e) = ctx.decode(&mut next_batch) {
-                        let _ = tx.blocking_send(Err(ProviderError::ExecutionError(format!(
+                        send_err!(ProviderError::ExecutionError(format!(
                             "Decode failed: {}",
                             e
-                        ))));
-                        return;
+                        )));
                     }
                 }
 
@@ -1657,6 +1762,14 @@ impl Provider for LocalInferenceProvider {
                     Some(input_tokens),
                     Some(output_token_count),
                     Some(total_tokens),
+                );
+                let _ = log.write(
+                    &serde_json::json!({
+                        "path": "emulator",
+                        "prompt_tokens": input_tokens,
+                        "output_tokens": output_token_count,
+                    }),
+                    Some(&usage),
                 );
                 let provider_usage = ProviderUsage::new(model_name, usage);
                 let _ = tx.blocking_send(Ok((None, Some(provider_usage))));
@@ -1733,14 +1846,18 @@ impl Provider for LocalInferenceProvider {
                     Err(_) => match apply_template(compact_tools.as_deref()) {
                         Ok(r) => r,
                         Err(e) => {
-                            let _ = tx.blocking_send(Err(ProviderError::ExecutionError(format!(
+                            send_err!(ProviderError::ExecutionError(format!(
                                 "Failed to apply chat template: {}",
                                 e
-                            ))));
-                            return;
+                            )));
                         }
                     },
                 };
+
+                let _ = log.write(
+                    &serde_json::json!({"applied_prompt": &template_result.prompt}),
+                    None,
+                );
 
                 let tokens = match loaded
                     .model
@@ -1748,11 +1865,10 @@ impl Provider for LocalInferenceProvider {
                 {
                     Ok(t) => t,
                     Err(e) => {
-                        let _ = tx.blocking_send(Err(ProviderError::ExecutionError(format!(
+                        send_err!(ProviderError::ExecutionError(format!(
                             "Failed to tokenize prompt: {}",
                             e
-                        ))));
-                        return;
+                        )));
                     }
                 };
 
@@ -1773,24 +1889,21 @@ impl Provider for LocalInferenceProvider {
                 };
                 if let Some(mem_max) = memory_max_ctx {
                     if prompt_token_count > mem_max {
-                        let _ =
-                            tx.blocking_send(Err(ProviderError::ContextLengthExceeded(format!(
-                                "Prompt ({} tokens) exceeds estimated memory capacity ({} tokens). \
-                                 Try a smaller model or reduce conversation length.",
-                                prompt_token_count, mem_max,
-                            ))));
-                        return;
+                        send_err!(ProviderError::ContextLengthExceeded(format!(
+                            "Prompt ({} tokens) exceeds estimated memory capacity ({} tokens). \
+                             Try a smaller model or reduce conversation length.",
+                            prompt_token_count, mem_max,
+                        )));
                     }
                 }
                 let ctx_params = build_context_params(effective_ctx as u32, &settings);
                 let mut ctx = match loaded.model.new_context(runtime.backend(), ctx_params) {
                     Ok(c) => c,
                     Err(e) => {
-                        let _ = tx.blocking_send(Err(ProviderError::ExecutionError(format!(
+                        send_err!(ProviderError::ExecutionError(format!(
                             "Failed to create context: {}",
                             e
-                        ))));
-                        return;
+                        )));
                     }
                 };
 
@@ -1799,19 +1912,17 @@ impl Provider for LocalInferenceProvider {
                     let mut batch = match LlamaBatch::get_one(chunk) {
                         Ok(b) => b,
                         Err(e) => {
-                            let _ = tx.blocking_send(Err(ProviderError::ExecutionError(format!(
+                            send_err!(ProviderError::ExecutionError(format!(
                                 "Failed to create batch: {}",
                                 e
-                            ))));
-                            return;
+                            )));
                         }
                     };
                     if let Err(e) = ctx.decode(&mut batch) {
-                        let _ = tx.blocking_send(Err(ProviderError::ExecutionError(format!(
+                        send_err!(ProviderError::ExecutionError(format!(
                             "Prefill decode failed: {}",
                             e
-                        ))));
-                        return;
+                        )));
                     }
                 }
 
@@ -1844,11 +1955,10 @@ impl Provider for LocalInferenceProvider {
                     let piece = match loaded.model.token_to_piece(token, &mut decoder, true, None) {
                         Ok(p) => p,
                         Err(e) => {
-                            let _ = tx.blocking_send(Err(ProviderError::ExecutionError(format!(
+                            send_err!(ProviderError::ExecutionError(format!(
                                 "Failed to decode token: {}",
                                 e
-                            ))));
-                            return;
+                            )));
                         }
                     };
 
@@ -1898,19 +2008,17 @@ impl Provider for LocalInferenceProvider {
                     let mut next_batch = match LlamaBatch::get_one(&next_tokens) {
                         Ok(b) => b,
                         Err(e) => {
-                            let _ = tx.blocking_send(Err(ProviderError::ExecutionError(format!(
+                            send_err!(ProviderError::ExecutionError(format!(
                                 "Failed to create batch: {}",
                                 e
-                            ))));
-                            return;
+                            )));
                         }
                     };
                     if let Err(e) = ctx.decode(&mut next_batch) {
-                        let _ = tx.blocking_send(Err(ProviderError::ExecutionError(format!(
+                        send_err!(ProviderError::ExecutionError(format!(
                             "Decode failed: {}",
                             e
-                        ))));
-                        return;
+                        )));
                     }
                 }
 
@@ -1956,6 +2064,15 @@ impl Provider for LocalInferenceProvider {
                     Some(input_tokens),
                     Some(output_token_count),
                     Some(total_tokens),
+                );
+                let _ = log.write(
+                    &serde_json::json!({
+                        "path": "native",
+                        "generated_text": &generated_text,
+                        "prompt_tokens": input_tokens,
+                        "output_tokens": output_token_count,
+                    }),
+                    Some(&usage),
                 );
                 let provider_usage = ProviderUsage::new(model_name, usage);
                 let _ = tx.blocking_send(Ok((None, Some(provider_usage))));
@@ -2062,6 +2179,18 @@ mod tests {
         assert_eq!(calls.len(), 1);
         assert_eq!(calls[0].0, "developer__shell");
         assert_eq!(calls[0].1.get("command").unwrap(), "ls -la");
+    }
+
+    #[test]
+    fn test_parse_glm_style_tool_call_no_args() {
+        let text = "Some text\n<tool_call>load</tool_call>";
+        let result = split_content_and_xml_tool_calls(text);
+        assert!(result.is_some());
+        let (content, calls) = result.unwrap();
+        assert_eq!(content, "Some text");
+        assert_eq!(calls.len(), 1);
+        assert_eq!(calls[0].0, "load");
+        assert!(calls[0].1.is_empty());
     }
 
     #[test]
