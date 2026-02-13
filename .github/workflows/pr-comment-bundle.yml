@@ -148,7 +148,7 @@ jobs:
             
                * Download the file
                * Unzip
-               * run `xattr -r -d com.apple.quarantine '/path/to/goose.app'`
+               * run `xattr -r -d com.apple.quarantine '/path/to/Goose.app'`
                * optionally run `codesign --force --deep --sign - --entitlements ui/desktop/entitlements.plist '/path/to/Goose.app'`
                * start the app
             
