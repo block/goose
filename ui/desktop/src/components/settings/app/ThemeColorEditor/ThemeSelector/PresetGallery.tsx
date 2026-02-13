@@ -88,9 +88,9 @@ export function PresetGallery({ onApply }: PresetGalleryProps) {
   }
 
   return (
-    <div className="space-y-4">
+    <div className="h-full flex flex-col">
       {/* Search and Filter */}
-      <div className="space-y-3">
+      <div className="space-y-3 flex-shrink-0">
         <input
           type="text"
           placeholder="Search themes..."
@@ -126,8 +126,8 @@ export function PresetGallery({ onApply }: PresetGalleryProps) {
         </div>
       </div>
 
-      {/* Theme Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-h-[500px] overflow-y-auto pr-2">
+      {/* Theme Grid - Full Height */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 flex-1 overflow-y-auto pr-2 mt-4">
         {filteredPresets.map(preset => (
           <div
             key={preset.id}
