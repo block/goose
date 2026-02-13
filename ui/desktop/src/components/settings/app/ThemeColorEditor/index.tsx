@@ -9,7 +9,7 @@ import { useState, useEffect } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '../../../ui/dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../../../ui/tabs';
 import { Button } from '../../../ui/button';
-import { getThemeVariables, saveTheme } from '../../../../api';
+import { getThemeVariables, saveTheme, applyThemePreset } from '../../../../api';
 import { saveCustomTheme } from '../../../../api/theme-api';
 import { ThemeColorEditorProps, ThemeColors, ColorMode, COLOR_VARIABLES, ColorVariable } from './types';
 import { toast } from 'react-toastify';
@@ -111,10 +111,7 @@ export function ThemeColorEditor({ onClose }: ThemeColorEditorProps) {
       
       const css = cssLines.join('\n');
       
-      // Save as active theme (theme.css)
-      await saveTheme({ body: { css } });
-      
-      // Save as custom preset for future use
+      // Save as custom preset for future use first
       await saveCustomTheme({
         id: themeId,
         name: themeName.trim(),
@@ -127,10 +124,14 @@ export function ThemeColorEditor({ onClose }: ThemeColorEditorProps) {
         },
       });
       
-      // Store the active theme ID
-      localStorage.setItem('activeThemeId', themeId);
+      // Apply the theme (this will also store the active theme ID on backend)
+      await applyThemePreset({
+        body: {
+          preset_id: themeId,
+        },
+      });
       
-      toast.success(`Theme "${themeName}" saved successfully!`);
+      toast.success(`Theme "${themeName}" saved and applied successfully!`);
       
       // Reload the page to apply changes
       window.location.reload();
