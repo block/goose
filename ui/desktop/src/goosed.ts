@@ -101,19 +101,35 @@ export const isFatalError = (line: string): boolean => {
   return fatalPatterns.some((pattern) => pattern.test(line));
 };
 
-export const buildGoosedEnv = (port: number, secretKey: string): Record<string, string> => {
+export const buildGoosedEnv = (
+  port: number,
+  secretKey: string,
+  binaryPath?: string
+): Record<string, string> => {
   // Environment variable naming follows the config crate convention:
   // - GOOSE_ prefix with _ separator for top-level fields (GOOSE_PORT, GOOSE_HOST)
   // - __ separator for nested fields (GOOSE_SERVER__SECRET_KEY)
+  const homeDir = process.env.HOME || os.homedir();
   const env: Record<string, string> = {
     GOOSE_PORT: port.toString(),
     GOOSE_SERVER__SECRET_KEY: secretKey,
-    HOME: process.env.HOME || os.homedir(),
+    HOME: homeDir,
   };
 
+  // Windows-specific environment variables
+  if (process.platform === 'win32') {
+    env.USERPROFILE = homeDir;
+    env.APPDATA = process.env.APPDATA || path.join(homeDir, 'AppData', 'Roaming');
+    env.LOCALAPPDATA = process.env.LOCALAPPDATA || path.join(homeDir, 'AppData', 'Local');
+  }
+
+  // Add binary directory to PATH for any dependencies
   const pathKey = process.platform === 'win32' ? 'Path' : 'PATH';
-  if (process.env[pathKey]) {
-    env[pathKey] = process.env[pathKey];
+  const currentPath = process.env[pathKey] || '';
+  if (binaryPath) {
+    env[pathKey] = `${path.dirname(binaryPath)}${path.delimiter}${currentPath}`;
+  } else if (currentPath) {
+    env[pathKey] = currentPath;
   }
 
   return env;
@@ -190,9 +206,6 @@ export const startGoosed = async (options: StartGoosedOptions): Promise<GoosedRe
   }
 
   const goosedPath = findGoosedBinaryPath({ isPackaged, resourcesPath });
-  if (!goosedPath) {
-    throw new Error('Could not find goosed binary');
-  }
 
   const port = await findAvailablePort();
   logger.info(`Starting goosed from: ${goosedPath} on port ${port} in dir ${workingDir}`);
@@ -201,7 +214,7 @@ export const startGoosed = async (options: StartGoosedOptions): Promise<GoosedRe
 
   const spawnEnv = {
     ...process.env,
-    ...buildGoosedEnv(port, serverSecret),
+    ...buildGoosedEnv(port, serverSecret, goosedPath),
   };
 
   for (const [key, value] of Object.entries(additionalEnv)) {
@@ -210,10 +223,14 @@ export const startGoosed = async (options: StartGoosedOptions): Promise<GoosedRe
     }
   }
 
+  const isWindows = process.platform === 'win32';
   const spawnOptions = {
     env: spawnEnv,
     cwd: workingDir,
     windowsHide: true,
+    detached: isWindows,
+    shell: false as const,
+    stdio: ['ignore', 'pipe', 'pipe'] as ['ignore', 'pipe', 'pipe'],
   };
 
   const safeSpawnOptions = {
