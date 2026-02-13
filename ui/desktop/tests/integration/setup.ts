@@ -16,6 +16,8 @@ import {
 } from '../../src/goosed';
 import { expect } from 'vitest';
 import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 
 function stringifyResponse(response: Response) {
   const details = {
@@ -61,16 +63,15 @@ export async function startGoosed({
 }): Promise<GoosedTestContext> {
   const port = await findAvailablePort();
   const baseUrl = `http://127.0.0.1:${port}`;
-  const goosedPath = findGoosedBinaryPath({
-    envOverride: process.env.GOOSED_BINARY,
-  });
+  const pathFromEnv = process.env.GOOSED_BINARY;
+  const goosedPath = pathFromEnv ?? findGoosedBinaryPath();
 
   // mk temp dir for app root
-  const tempDir = await fs.promises.mkdtemp('/tmp/goose-app-root-');
+  const tempDir = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'goose-app-root-'));
 
   if (configYaml) {
-    await fs.promises.mkdir(`${tempDir}/config`, { recursive: true });
-    await fs.promises.writeFile(`${tempDir}/config/config.yaml`, configYaml);
+    await fs.promises.mkdir(path.join(tempDir, 'config'), { recursive: true });
+    await fs.promises.writeFile(path.join(tempDir, 'config', 'config.yaml'), configYaml);
   }
 
   const env = {
@@ -128,20 +129,19 @@ export async function startGoosed({
   );
 
   const cleanup = async (): Promise<void> => {
-    // dump all logs from tempDir/state/logs/server/*/*-goosed.log to console.log
-    const logDirs = await fs.promises.readdir(`${tempDir}/state/logs/server`);
+    const logDirs = await fs.promises.readdir(path.join(tempDir, 'state', 'logs', 'server'));
     for (const logDir of logDirs) {
-      const logFiles = await fs.promises.readdir(`${tempDir}/state/logs/server/${logDir}`);
+      const logFiles = await fs.promises.readdir(
+        path.join(tempDir, 'state', 'logs', 'server', logDir)
+      );
       for (const logFile of logFiles) {
-        const logPath = `${tempDir}/state/logs/server/${logDir}/${logFile}`;
+        const logPath = path.join(tempDir, 'state', 'logs', 'server', logDir, logFile);
         const logContent = await fs.promises.readFile(logPath, 'utf8');
         console.log(logContent);
       }
     }
 
-    await fs.promises.rm(tempDir, { recursive: true, force: true });
-
-    return new Promise((resolve) => {
+    return new Promise<void>((resolve) => {
       if (goosedProcess.killed) {
         resolve();
         return;
@@ -159,6 +159,8 @@ export async function startGoosed({
         }
         resolve();
       }, 5000);
+    }).then(async () => {
+      await fs.promises.rm(tempDir, { recursive: true, force: true });
     });
   };
 

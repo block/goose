@@ -18,6 +18,7 @@ import {
   updateAgentProvider,
 } from '../../src/api';
 import { execSync } from 'child_process';
+import os from 'node:os';
 
 const CONSTRAINED_PATH = '/usr/bin:/bin:/usr/sbin:/sbin';
 
@@ -99,7 +100,7 @@ extensions:
       const startResponse = await startAgent({
         client: ctx.client,
         body: {
-          working_dir: '/tmp',
+          working_dir: os.tmpdir(),
         },
       });
       expect(startResponse.response).toBeOkResponse();
@@ -135,7 +136,7 @@ extensions:
       const startResponse = await startAgent({
         client: ctx.client,
         body: {
-          working_dir: '/tmp',
+          working_dir: os.tmpdir(),
         },
       });
       expect(startResponse.response).toBeOkResponse();
@@ -225,7 +226,7 @@ extensions:
       const startResponse = await startAgent({
         client: ctx.client,
         body: {
-          working_dir: '/tmp',
+          working_dir: os.tmpdir(),
         },
       });
       expect(startResponse.response).toBeOkResponse();
