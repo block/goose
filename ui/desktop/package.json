@@ -9,10 +9,6 @@
   },
   "main": ".vite/build/main.js",
   "scripts": {
-    "build-native-auth-session": "node scripts/build-auth-session.js",
-    "premake": "npm run build-native-auth-session",
-    "prestart-gui": "npm run build-native-auth-session",
-    "prestart-gui-debug": "npm run build-native-auth-session",
     "typecheck": "tsc --noEmit",
     "generate-api": "openapi-ts",
     "start-gui": "npm run generate-api && electron-forge start",
@@ -110,7 +106,6 @@
     "@electron-forge/plugin-fuses": "^7.11.1",
     "@electron-forge/plugin-vite": "^7.11.1",
     "@electron/fuses": "^1.8.0",
-    "@electron/node-gyp": "^10.2.0-electron.2",
     "@electron/remote": "^2.1.3",
     "@eslint/js": "^9.39.2",
     "@hey-api/openapi-ts": "^0.92.3",

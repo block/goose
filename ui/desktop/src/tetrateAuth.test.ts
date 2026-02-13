@@ -110,6 +110,32 @@ describe('tetrateAuth', () => {
     await expect(waitPromise).rejects.toThrow('Authentication timed out');
   });
 
+  it('rejects immediately when the auth provider returns an error callback', async () => {
+    const { flowId, authUrl } = __test.createTetrateAuthFlow();
+    const callbackUrl = new URL(authUrl).searchParams.get('callback');
+    expect(callbackUrl).toBeTruthy();
+
+    const errorUrl = new URL(callbackUrl as string);
+    errorUrl.searchParams.set('error', 'access_denied');
+
+    const waitPromise = __test.waitForTetrateCallback(flowId);
+    expect(handleTetrateCallbackUrl(errorUrl.toString())).toBe(true);
+
+    await expect(waitPromise).rejects.toThrow('access_denied');
+  });
+
+  it('rejects immediately when the callback has no code and no error', async () => {
+    const { flowId, authUrl } = __test.createTetrateAuthFlow();
+    const callbackUrl = new URL(authUrl).searchParams.get('callback');
+    expect(callbackUrl).toBeTruthy();
+
+    // The callback URL already has flow_id and state but no code or error
+    const waitPromise = __test.waitForTetrateCallback(flowId);
+    expect(handleTetrateCallbackUrl(callbackUrl as string)).toBe(true);
+
+    await expect(waitPromise).rejects.toThrow('Authentication failed');
+  });
+
   it('runs the full auth flow and verifies the code', async () => {
     const verifyMock = vi.mocked(verifyTetrateSetup);
     const request = new globalThis.Request('http://localhost/test');

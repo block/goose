@@ -1,7 +1,4 @@
-import { app, shell } from 'electron';
-import { createRequire } from 'node:module';
-import fsSync from 'node:fs';
-import path from 'node:path';
+import { shell } from 'electron';
 import * as crypto from 'crypto';
 import type { Client } from './api/client';
 import { verifyTetrateSetup } from './api';
@@ -28,8 +25,11 @@ type TetrateCallbackData = {
   state: string;
 };
 
-type NativeAuthSession = {
-  startAuthSession: (url: string, callbackScheme: string) => Promise<string>;
+type TetrateCallbackMatch = {
+  flowId: string;
+  state: string;
+  code?: string;
+  error?: string;
 };
 
 const TETRATE_AUTH_URL = 'https://router.tetrate.ai/auth';
@@ -37,57 +37,6 @@ const TETRATE_AUTH_TTL_MS = 10 * 60 * 1000;
 const TETRATE_AUTH_CALLBACK_SCHEME = 'goose';
 
 const tetrateAuthFlows = new Map<string, TetrateAuthFlow>();
-let nativeAuthSession: NativeAuthSession | null | undefined;
-
-function loadNativeAuthSession(): NativeAuthSession | null {
-  if (process.platform !== 'darwin') {
-    return null;
-  }
-
-  if (nativeAuthSession !== undefined) {
-    return nativeAuthSession;
-  }
-
-  const require = createRequire(import.meta.url);
-  const appPath = app.getAppPath();
-  const candidate = app.isPackaged
-    ? path.join(
-        process.resourcesPath,
-        'native',
-        'auth_session',
-        'build',
-        'Release',
-        'auth_session.node'
-      )
-    : path.join(
-        appPath,
-        'src',
-        'native',
-        'auth_session',
-        'build',
-        'Release',
-        'auth_session.node'
-      );
-
-  if (!fsSync.existsSync(candidate)) {
-    log.info('Tetrate auth native module not found:', candidate);
-    nativeAuthSession = null;
-    return null;
-  }
-
-  try {
-    nativeAuthSession = require(candidate) as NativeAuthSession;
-    return nativeAuthSession;
-  } catch (error) {
-    log.info(
-      'Tetrate auth native module failed to load:',
-      error instanceof Error ? error.message : String(error)
-    );
-  }
-
-  nativeAuthSession = null;
-  return null;
-}
 
 function createPkcePair(): { codeVerifier: string; codeChallenge: string } {
   const codeVerifier = crypto.randomBytes(96).toString('base64url');
@@ -139,6 +88,39 @@ function parseTetrateCallbackUrl(callbackUrl: string): TetrateCallbackData | nul
   return { code, flowId, state };
 }
 
+function matchTetrateCallbackUrl(callbackUrl: string): TetrateCallbackMatch | null {
+  let parsedUrl: URL;
+  try {
+    parsedUrl = new URL(callbackUrl);
+  } catch {
+    return null;
+  }
+
+  const normalizedPath = parsedUrl.pathname.replace(/\/$/, '');
+  if (
+    parsedUrl.protocol !== `${TETRATE_AUTH_CALLBACK_SCHEME}:` ||
+    parsedUrl.hostname !== 'auth' ||
+    normalizedPath !== '/tetrate'
+  ) {
+    return null;
+  }
+
+  const flowId = parsedUrl.searchParams.get('flow_id');
+  const state = parsedUrl.searchParams.get('state');
+
+  if (!flowId || !state) {
+    return null;
+  }
+
+  const result: TetrateCallbackMatch = { flowId, state };
+  const code = parsedUrl.searchParams.get('code');
+  const error = parsedUrl.searchParams.get('error');
+  if (code) result.code = code;
+  if (error) result.error = error;
+
+  return result;
+}
+
 function cleanupTetrateAuthFlow(flowId: string): void {
   const flow = tetrateAuthFlows.get(flowId);
   if (!flow) {
@@ -188,26 +170,36 @@ export function handleTetrateCallbackUrl(
   url: string,
   clearPendingDeepLink?: () => void
 ): boolean {
-  const data = parseTetrateCallbackUrl(url);
-  if (!data) {
+  const match = matchTetrateCallbackUrl(url);
+  if (!match) {
     return false;
   }
 
   clearPendingDeepLink?.();
 
-  const flow = tetrateAuthFlows.get(data.flowId);
+  const flow = tetrateAuthFlows.get(match.flowId);
   if (!flow) {
-    log.info('Tetrate auth callback without active flow:', { flowId: data.flowId });
+    log.info('Tetrate auth callback without active flow:', { flowId: match.flowId });
     return true;
   }
 
-  if (flow.state !== data.state) {
-    expireTetrateAuthFlow(data.flowId, 'Authentication state mismatch');
+  if (flow.state !== match.state) {
+    expireTetrateAuthFlow(match.flowId, 'Authentication state mismatch');
     return true;
   }
 
   if (Date.now() > flow.expiresAt) {
-    expireTetrateAuthFlow(data.flowId, 'Authentication timed out');
+    expireTetrateAuthFlow(match.flowId, 'Authentication timed out');
+    return true;
+  }
+
+  if (match.error) {
+    expireTetrateAuthFlow(match.flowId, `Authentication denied: ${match.error}`);
+    return true;
+  }
+
+  if (!match.code) {
+    expireTetrateAuthFlow(match.flowId, 'Authentication failed');
     return true;
   }
 
@@ -238,11 +230,6 @@ function waitForTetrateCallback(flowId: string): Promise<string> {
 }
 
 async function startTetrateAuthSession(flowId: string, authUrl: string): Promise<string> {
-  const nativeSession = loadNativeAuthSession();
-  if (nativeSession) {
-    return nativeSession.startAuthSession(authUrl, TETRATE_AUTH_CALLBACK_SCHEME);
-  }
-
   await shell.openExternal(authUrl);
   return waitForTetrateCallback(flowId);
 }
@@ -315,6 +302,7 @@ export const __test = {
   createPkcePair,
   createTetrateAuthFlow,
   getTetrateAuthTtlMs: () => TETRATE_AUTH_TTL_MS,
+  matchTetrateCallbackUrl,
   parseTetrateCallbackUrl,
   resetForTests: () => {
     for (const flow of tetrateAuthFlows.values()) {
@@ -323,7 +311,6 @@ export const __test = {
       }
     }
     tetrateAuthFlows.clear();
-    nativeAuthSession = undefined;
   },
   waitForTetrateCallback,
 };

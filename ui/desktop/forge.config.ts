@@ -4,7 +4,7 @@ const { resolve } = require('path');
 
 let cfg = {
   asar: true,
-  extraResource: ['src/bin', 'src/images', 'src/native'],
+  extraResource: ['src/bin', 'src/images'],
   icon: 'src/images/icon',
   // Windows specific configuration
   win32: {
