@@ -457,7 +457,7 @@ function ToolCallView({
     }
   })();
 
-  const isToolDetails = toolCall?.arguments && Object.entries(toolCall.arguments).length > 0;
+  const isToolDetails = Object.entries(toolCall?.arguments ?? {}).length > 0;
 
   // Check if streaming has finished but no tool response was received
   // This is a workaround for cases where the backend doesn't send tool responses

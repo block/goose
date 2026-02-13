@@ -11,11 +11,12 @@ export type ToolCallArgumentValue =
   | { [key: string]: ToolCallArgumentValue };
 
 interface ToolCallArgumentsProps {
-  args: Record<string, ToolCallArgumentValue>;
+  args?: Record<string, ToolCallArgumentValue> | null;
 }
 
 export function ToolCallArguments({ args }: ToolCallArgumentsProps) {
   const [expandedKeys, setExpandedKeys] = useState<Record<string, boolean>>({});
+  const safeArgs = args ?? {};
 
   const toggleKey = (key: string) => {
     setExpandedKeys((prev) => ({ ...prev, [key]: !prev[key] }));
@@ -93,7 +94,7 @@ export function ToolCallArguments({ args }: ToolCallArgumentsProps) {
 
   return (
     <div className="my-2">
-      {Object.entries(args).map(([key, value]) => (
+      {Object.entries(safeArgs).map(([key, value]) => (
         <div key={key}>{renderValue(key, value)}</div>
       ))}
     </div>
