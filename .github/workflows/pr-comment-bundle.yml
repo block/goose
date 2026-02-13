@@ -137,7 +137,7 @@ jobs:
 
             **Instructions:**
             
-            Easiest way is to just run the
+            The easiest way is to just run the following script:
             
             `./scripts/pre-release.sh`
             
