@@ -1,0 +1,10 @@
+# Blocked domains — edit this file while goosed is running.
+# Changes take effect immediately (re-read on every connection).
+# One domain per line. Subdomains are blocked automatically.
+# Lines starting with # are comments.
+#
+# Examples:
+#   evil.com          — blocks evil.com and *.evil.com
+#   pastebin.com      — blocks pastebin.com and *.pastebin.com
+#   transfer.sh
+#   webhook.site
