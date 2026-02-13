@@ -3280,7 +3280,7 @@
         "operationId": "get_theme_presets",
         "responses": {
           "200": {
-            "description": "List of all built-in theme presets",
+            "description": "List of all theme presets (built-in and custom)",
             "content": {
               "application/json": {
                 "schema": {
@@ -3321,6 +3321,76 @@
           },
           "500": {
             "description": "Failed to save theme"
+          }
+        }
+      }
+    },
+    "/theme/save-custom": {
+      "post": {
+        "tags": [
+          "super::routes::config_management"
+        ],
+        "operationId": "save_custom_theme",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SaveCustomThemeRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Custom theme saved successfully",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Failed to save custom theme"
+          }
+        }
+      }
+    },
+    "/theme/saved/{id}": {
+      "delete": {
+        "tags": [
+          "super::routes::config_management"
+        ],
+        "operationId": "delete_custom_theme",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Theme ID to delete",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Custom theme deleted successfully",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Theme not found"
+          },
+          "500": {
+            "description": "Failed to delete theme"
           }
         }
       }
@@ -6301,6 +6371,40 @@
           }
         }
       },
+      "SaveCustomThemeRequest": {
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "author",
+          "description",
+          "tags",
+          "colors"
+        ],
+        "properties": {
+          "author": {
+            "type": "string"
+          },
+          "colors": {
+            "$ref": "#/components/schemas/ThemeColorsDto"
+          },
+          "description": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
       "SavePromptRequest": {
         "type": "object",
         "required": [
@@ -7060,6 +7164,9 @@
           },
           "id": {
             "type": "string"
+          },
+          "is_custom": {
+            "type": "boolean"
           },
           "name": {
             "type": "string"

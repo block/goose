@@ -983,6 +983,15 @@ export type RunNowResponse = {
     session_id: string;
 };
 
+export type SaveCustomThemeRequest = {
+    author: string;
+    colors: ThemeColorsDto;
+    description: string;
+    id: string;
+    name: string;
+    tags: Array<string>;
+};
+
 export type SavePromptRequest = {
     content: string;
 };
@@ -1217,6 +1226,7 @@ export type ThemePreset = {
     colors: ThemeColorsDto;
     description: string;
     id: string;
+    is_custom?: boolean;
     name: string;
     tags: Array<string>;
     version: string;
@@ -3983,7 +3993,7 @@ export type GetThemePresetsData = {
 
 export type GetThemePresetsResponses = {
     /**
-     * List of all built-in theme presets
+     * List of all theme presets (built-in and custom)
      */
     200: ThemePresetsResponse;
 };
@@ -4012,6 +4022,61 @@ export type SaveThemeResponses = {
 };
 
 export type SaveThemeResponse = SaveThemeResponses[keyof SaveThemeResponses];
+
+export type SaveCustomThemeData = {
+    body: SaveCustomThemeRequest;
+    path?: never;
+    query?: never;
+    url: '/theme/save-custom';
+};
+
+export type SaveCustomThemeErrors = {
+    /**
+     * Failed to save custom theme
+     */
+    500: unknown;
+};
+
+export type SaveCustomThemeResponses = {
+    /**
+     * Custom theme saved successfully
+     */
+    200: string;
+};
+
+export type SaveCustomThemeResponse = SaveCustomThemeResponses[keyof SaveCustomThemeResponses];
+
+export type DeleteCustomThemeData = {
+    body?: never;
+    path: {
+        /**
+         * Theme ID to delete
+         */
+        id: string;
+    };
+    query?: never;
+    url: '/theme/saved/{id}';
+};
+
+export type DeleteCustomThemeErrors = {
+    /**
+     * Theme not found
+     */
+    404: unknown;
+    /**
+     * Failed to delete theme
+     */
+    500: unknown;
+};
+
+export type DeleteCustomThemeResponses = {
+    /**
+     * Custom theme deleted successfully
+     */
+    200: string;
+};
+
+export type DeleteCustomThemeResponse = DeleteCustomThemeResponses[keyof DeleteCustomThemeResponses];
 
 export type GetThemeVariablesData = {
     body?: never;
