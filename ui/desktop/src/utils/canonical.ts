@@ -17,9 +17,8 @@ export async function fetchCanonicalModelInfo(
       throwOnError: true,
     });
 
-    return response.data.model_info;
+    return response.data.model_info ?? null;
   } catch {
-    // 404 means model not found in canonical registry
     return null;
   }
 }

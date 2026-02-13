@@ -767,9 +767,6 @@
                 }
               }
             }
-          },
-          "404": {
-            "description": "Model not found in canonical registry"
           }
         }
       }
@@ -5400,12 +5397,16 @@
       "ModelInfoResponse": {
         "type": "object",
         "required": [
-          "model_info",
           "source"
         ],
         "properties": {
           "model_info": {
-            "$ref": "#/components/schemas/ModelInfoData"
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ModelInfoData"
+              }
+            ],
+            "nullable": true
           },
           "source": {
             "type": "string"

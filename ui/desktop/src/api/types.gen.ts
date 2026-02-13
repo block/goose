@@ -681,7 +681,7 @@ export type ModelInfoQuery = {
 };
 
 export type ModelInfoResponse = {
-    model_info: ModelInfoData;
+    model_info?: ModelInfoData | null;
     source: string;
 };
 
@@ -1979,13 +1979,6 @@ export type GetCanonicalModelInfoData = {
     path?: never;
     query?: never;
     url: '/config/canonical-model-info';
-};
-
-export type GetCanonicalModelInfoErrors = {
-    /**
-     * Model not found in canonical registry
-     */
-    404: unknown;
 };
 
 export type GetCanonicalModelInfoResponses = {
