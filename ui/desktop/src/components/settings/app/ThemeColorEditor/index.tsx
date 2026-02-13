@@ -11,8 +11,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '../../../ui/tabs';
 import { Button } from '../../../ui/button';
 import { getThemeVariables, saveTheme } from '../../../../api';
 import { ThemeColorEditorProps, ThemeColors, ColorMode, COLOR_VARIABLES, ColorVariable } from './types';
-import { HexColorPicker } from 'react-colorful';
 import { toast } from 'react-toastify';
+import { SimpleColorPicker } from './ColorPicker/SimpleColorPicker';
 import { PresetGallery } from './ThemeSelector/PresetGallery';
 import { ColorPreview } from './Preview/ColorPreview';
 import { RotateCcw, Save, Palette, Paintbrush } from 'lucide-react';
@@ -280,11 +280,10 @@ export function ThemeColorEditor({ onClose }: ThemeColorEditorProps) {
                             </div>
                             
                             {isSelected && (
-                              <div className="mt-3 space-y-2">
-                                <HexColorPicker
+                              <div className="mt-3 space-y-3">
+                                <SimpleColorPicker
                                   color={currentColor}
                                   onChange={(color) => handleColorChange(variable.name, color)}
-                                  style={{ width: '100%' }}
                                 />
                                 <input
                                   type="text"
