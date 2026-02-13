@@ -5,6 +5,7 @@ import { Settings } from 'lucide-react';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '../../ui/dialog';
 import UpdateSection from './UpdateSection';
 import TunnelSection from '../tunnel/TunnelSection';
+import GatewaySettingsSection from '../gateways/GatewaySettingsSection';
 
 import { COST_TRACKING_ENABLED, UPDATES_ENABLED } from '../../../updates';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../ui/card';
@@ -270,6 +271,8 @@ export default function AppSettingsSection({ scrollToSection }: AppSettingsSecti
       </Card>
 
       <TunnelSection />
+
+      <GatewaySettingsSection />
 
       <TelemetrySettings isWelcome={false} />
 
