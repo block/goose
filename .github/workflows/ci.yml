@@ -1,9 +1,9 @@
 name: Debug GHA
 
 on:
-  pull_request:
+  push:
     branches:
-      - main
+      - figure-out-github-actions-paths
 
 jobs:
   debug:
