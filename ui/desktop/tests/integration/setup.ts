@@ -102,6 +102,7 @@ export async function setupGoosed({
   }
 
   const cleanup = async (): Promise<void> => {
+    // dump server logs to test logs, visible if there are test failures
     try {
       const logsPath = path.join(tempDir, 'state', 'logs', 'server');
       if (fs.existsSync(logsPath)) {
@@ -116,30 +117,11 @@ export async function setupGoosed({
         }
       }
     } catch {
-      // Logs may not exist, that's okay
+      // Logs may not exist
     }
 
-    return new Promise<void>((resolve) => {
-      if (!goosedProcess || goosedProcess.killed) {
-        resolve();
-        return;
-      }
-
-      goosedProcess.on('close', () => {
-        resolve();
-      });
-
-      goosedProcess.kill('SIGTERM');
-
-      setTimeout(() => {
-        if (goosedProcess && !goosedProcess.killed) {
-          goosedProcess.kill('SIGKILL');
-        }
-        resolve();
-      }, 5000);
-    }).then(async () => {
-      await fs.promises.rm(tempDir, { recursive: true, force: true });
-    });
+    await baseCleanup();
+    await fs.promises.rm(tempDir, { recursive: true, force: true });
   };
 
   return {

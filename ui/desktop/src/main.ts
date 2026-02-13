@@ -493,9 +493,9 @@ const createChat = async (
     logger: log,
   });
 
-  app.on('will-quit', () => {
+  app.on('will-quit', async () => {
     log.info('App quitting, terminating goosed server');
-    goosedResult.cleanup();
+    await goosedResult.cleanup();
   });
 
   const {

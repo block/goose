@@ -151,7 +151,7 @@ export interface GoosedResult {
   workingDir: string;
   process: ChildProcess | null;
   errorLog: string[];
-  cleanup: () => void;
+  cleanup: () => Promise<void>;
   client: Client;
 }
 
@@ -190,7 +190,7 @@ export const startGoosed = async (options: StartGoosedOptions): Promise<GoosedRe
       workingDir,
       process: null,
       errorLog,
-      cleanup: () => {
+      cleanup: async () => {
         logger.info('Not killing external process that is managed externally');
       },
       client: goosedClientForUrlAndSecret(url, serverSecret),
@@ -207,7 +207,7 @@ export const startGoosed = async (options: StartGoosedOptions): Promise<GoosedRe
       workingDir,
       process: null,
       errorLog,
-      cleanup: () => {
+      cleanup: async () => {
         logger.info('Not killing external process that is managed externally');
       },
       client: goosedClientForUrlAndSecret(url, serverSecret),
@@ -281,8 +281,17 @@ export const startGoosed = async (options: StartGoosedOptions): Promise<GoosedRe
     errorLog.push(err.message);
   });
 
-  const cleanup = () => {
-    if (goosedProcess && !goosedProcess.killed) {
+  const cleanup = async (): Promise<void> => {
+    return new Promise<void>((resolve) => {
+      if (!goosedProcess || goosedProcess.killed) {
+        resolve();
+        return;
+      }
+
+      goosedProcess.on('close', () => {
+        resolve();
+      });
+
       logger.info('Terminating goosed server');
       try {
         if (process.platform === 'win32') {
@@ -293,7 +302,14 @@ export const startGoosed = async (options: StartGoosedOptions): Promise<GoosedRe
       } catch (error) {
         logger.error('Error while terminating goosed process:', error);
       }
-    }
+
+      setTimeout(() => {
+        if (goosedProcess && !goosedProcess.killed && process.platform !== 'win32') {
+          goosedProcess.kill('SIGKILL');
+        }
+        resolve();
+      }, 5000);
+    });
   };
 
   logger.info(`Goosed server successfully started on port ${port}`);
