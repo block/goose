@@ -1,0 +1,29 @@
+;; Sandbox profile: allow everything EXCEPT direct outbound network.
+;; The process can only reach the network via localhost (where our proxy lives).
+;; All child processes inherit this restriction.
+;;
+;; __HOMEDIR__ is replaced with the actual home directory at materialisation time.
+
+(version 1)
+(allow default)
+
+;; Protect sandbox config (sandbox.sb, blocked.txt) from the sandboxed process
+(deny file-write* (subpath "__HOMEDIR__/.config/goose/sandbox"))
+
+;; Protect goose config from the sandboxed process
+(deny file-write* (literal "__HOMEDIR__/.config/goose/config.yaml"))
+
+;; Block all network, then poke holes for localhost + DNS
+(deny network*)
+
+;; DNS resolution via macOS system resolver (mDNSResponder)
+(allow network-outbound (literal "/private/var/run/mDNSResponder"))
+
+;; Unix domain sockets (used by various local services)
+(allow network-outbound (remote unix-socket))
+
+;; Localhost only — this is the only way out, through our proxy
+(allow network-outbound (remote ip "localhost:*"))
+
+;; Allow network-inbound on localhost (for local dev servers, LSPs, etc.)
+(allow network-inbound (local ip "localhost:*"))

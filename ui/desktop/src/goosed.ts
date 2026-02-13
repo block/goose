@@ -11,6 +11,13 @@ import { Buffer } from 'node:buffer';
 import { status } from './api';
 import { Client } from './api/client';
 import { ExternalGoosedConfig } from './utils/settings';
+import {
+  buildSandboxSpawn,
+  ensureProxy,
+  stopProxy,
+  isSandboxEnabled,
+  isSandboxAvailable,
+} from './sandbox';
 
 export const findAvailablePort = (): Promise<number> => {
   return new Promise((resolve, _reject) => {
@@ -109,6 +116,11 @@ export const startGoosed = async (options: StartGoosedOptions): Promise<GoosedRe
     return connectToExternalBackend(dir, `http://127.0.0.1:${port}`);
   }
 
+  const useSandbox = isSandboxEnabled() && isSandboxAvailable();
+  if (isSandboxEnabled() && !isSandboxAvailable()) {
+    log.warn('[sandbox] GOOSE_SANDBOX=true but sandbox-exec not available (macOS only)');
+  }
+
   let goosedPath = getGoosedBinaryPath(app);
 
   const resolvedGoosedPath = path.resolve(goosedPath);
@@ -116,7 +128,7 @@ export const startGoosed = async (options: StartGoosedOptions): Promise<GoosedRe
   const port = await findAvailablePort();
   const stderrLines: string[] = [];
 
-  log.info(`Starting goosed from: ${resolvedGoosedPath} on port ${port} in dir ${dir}`);
+  log.info(`Starting goosed from: ${resolvedGoosedPath} on port ${port} in dir ${dir}${useSandbox ? ' [SANDBOXED]' : ''}`);
 
   const additionalEnv: GooseProcessEnv = {
     HOME: homeDir,
@@ -137,6 +149,20 @@ export const startGoosed = async (options: StartGoosedOptions): Promise<GoosedRe
     goosedPath = resolvedGoosedPath;
   }
   log.info(`Binary path resolved to: ${goosedPath}`);
+
+  // If sandbox mode, start proxy and wrap with sandbox-exec
+  let spawnCommand = goosedPath;
+  let spawnArgs = ['agent'];
+
+  if (useSandbox) {
+    const proxy = await ensureProxy();
+    const sandboxSpawn = buildSandboxSpawn(goosedPath, ['agent'], proxy.port);
+    spawnCommand = sandboxSpawn.command;
+    spawnArgs = sandboxSpawn.args;
+    // Merge proxy env vars into the process env
+    Object.assign(processEnv, sandboxSpawn.env);
+    log.info(`[sandbox] Spawning via: ${spawnCommand} ${spawnArgs.join(' ')}`);
+  }
 
   const spawnOptions = {
     cwd: dir,
@@ -163,9 +189,7 @@ export const startGoosed = async (options: StartGoosedOptions): Promise<GoosedRe
   };
   log.info('Spawn options:', JSON.stringify(safeSpawnOptions, null, 2));
 
-  const safeArgs = ['agent'];
-
-  const goosedProcess: ChildProcess = spawn(goosedPath, safeArgs, spawnOptions);
+  const goosedProcess: ChildProcess = spawn(spawnCommand, spawnArgs, spawnOptions);
 
   if (isWindows && goosedProcess.unref) {
     goosedProcess.unref();
@@ -211,6 +235,9 @@ export const startGoosed = async (options: StartGoosedOptions): Promise<GoosedRe
   app.on('will-quit', () => {
     log.info('App quitting, terminating goosed server');
     try_kill_goose();
+    if (useSandbox) {
+      stopProxy().catch((err) => log.error('Error stopping sandbox proxy:', err));
+    }
   });
 
   log.info(`Goosed server successfully started on port ${port}`);
