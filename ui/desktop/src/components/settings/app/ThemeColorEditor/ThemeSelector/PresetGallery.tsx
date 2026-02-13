@@ -132,49 +132,53 @@ export function PresetGallery({ onApply }: PresetGalleryProps) {
               key={preset.id}
               className="border border-border-primary rounded-lg p-4 flex flex-col hover:border-border-secondary transition-colors"
             >
-              {/* Theme Preview Colors - Show only current mode (4 colors) */}
-              <div className="grid grid-cols-4 h-24 rounded border border-border-primary overflow-hidden">
-                <div 
-                  style={{ backgroundColor: preset.colors[resolvedTheme]['color-background-primary'] }}
-                />
-                <div 
-                  style={{ backgroundColor: preset.colors[resolvedTheme]['color-background-secondary'] }}
-                />
-                <div 
-                  style={{ backgroundColor: preset.colors[resolvedTheme]['color-text-primary'] }}
-                />
-                <div 
-                  style={{ backgroundColor: preset.colors[resolvedTheme]['color-background-inverse'] }}
-                />
-              </div>
+              {/* Spacer to push content to bottom */}
+              <div className="flex-1" />
+              
+              {/* Bottom-aligned content */}
+              <div className="space-y-3">
+                {/* Theme Info */}
+                <div>
+                  <h3 className="text-sm font-semibold text-text-primary">
+                    {preset.name}
+                  </h3>
+                  <p className="text-xs text-text-secondary mt-1">
+                    {preset.description}
+                  </p>
+                  <p className="text-xs text-text-secondary mt-1">
+                    by {preset.author}
+                  </p>
+                </div>
 
-              {/* Theme Info */}
-              <div className="mt-3 flex-1">
-                <h3 className="text-sm font-semibold text-text-primary">
-                  {preset.name}
-                </h3>
-                <p className="text-xs text-text-secondary mt-1">
-                  {preset.description}
-                </p>
-                <p className="text-xs text-text-secondary mt-1">
-                  by {preset.author}
-                </p>
-              </div>
+                {/* Tags */}
+                <div className="flex flex-wrap gap-1">
+                  {preset.tags.map(tag => (
+                    <span
+                      key={tag}
+                      className="px-2 py-0.5 text-xs bg-background-secondary text-text-secondary rounded capitalize"
+                    >
+                      {tag}
+                    </span>
+                  ))}
+                </div>
+                
+                {/* Theme Preview Colors - Show only current mode (4 colors) */}
+                <div className="grid grid-cols-4 h-24 rounded border border-border-primary overflow-hidden">
+                  <div 
+                    style={{ backgroundColor: preset.colors[resolvedTheme]['color-background-primary'] }}
+                  />
+                  <div 
+                    style={{ backgroundColor: preset.colors[resolvedTheme]['color-background-secondary'] }}
+                  />
+                  <div 
+                    style={{ backgroundColor: preset.colors[resolvedTheme]['color-text-primary'] }}
+                  />
+                  <div 
+                    style={{ backgroundColor: preset.colors[resolvedTheme]['color-background-inverse'] }}
+                  />
+                </div>
 
-              {/* Tags */}
-              <div className="flex flex-wrap gap-1 mt-3">
-                {preset.tags.map(tag => (
-                  <span
-                    key={tag}
-                    className="px-2 py-0.5 text-xs bg-background-secondary text-text-secondary rounded capitalize"
-                  >
-                    {tag}
-                  </span>
-                ))}
-              </div>
-
-              {/* Apply Button - Bottom Aligned */}
-              <div className="mt-3">
+                {/* Apply Button - Bottom Aligned */}
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <Button
