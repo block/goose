@@ -81,7 +81,6 @@ fn migrate_platform_extensions(config: &mut Mapping) -> bool {
     needs_save
 }
 
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -139,5 +138,4 @@ mod tests {
         let changed = run_migrations(&mut config);
         assert!(!changed);
     }
-
 }

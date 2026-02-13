@@ -71,7 +71,6 @@ fn parse_cli_flag_extensions(
     extensions_to_load
 }
 
-
 /// Configuration for building a new Goose session
 ///
 /// This struct contains all the parameters needed to create a new session,
