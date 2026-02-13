@@ -11,21 +11,16 @@ import path from 'node:path';
 import { createServer } from 'net';
 import { Buffer } from 'node:buffer';
 
-// Simple logger interface - can be console or electron-log
 export interface Logger {
   info: (...args: unknown[]) => void;
   error: (...args: unknown[]) => void;
 }
 
-// Default to console logging
 export const defaultLogger: Logger = {
   info: (...args) => console.log('[goosed]', ...args),
   error: (...args) => console.error('[goosed]', ...args),
 };
 
-/**
- * Find an available port by binding to port 0 and letting the OS assign one.
- */
 export const findAvailablePort = (): Promise<number> => {
   return new Promise((resolve, reject) => {
     const server = createServer();
@@ -50,10 +45,7 @@ export interface FindBinaryOptions {
   resourcesPath?: string;
 }
 
-/**
- * Find the goosed binary path, checking multiple possible locations.
- */
-export const findGoosedBinaryPath = (options: FindBinaryOptions = {}): string | null => {
+export const findGoosedBinaryPath = (options: FindBinaryOptions = {}): string => {
   const { isPackaged = false, resourcesPath } = options;
   const binaryName = process.platform === 'win32' ? 'goosed.exe' : 'goosed';
 
@@ -78,11 +70,13 @@ export const findGoosedBinaryPath = (options: FindBinaryOptions = {}): string | 
         return p;
       }
     } catch {
-      // Continue to next path
+      // continue
     }
   }
 
-  return null;
+  throw new Error(
+    `Goosed binary not found in any of the possible paths: ${possiblePaths.join(', ')}`
+  );
 };
 
 export interface WaitForServerOptions {
@@ -91,9 +85,6 @@ export interface WaitForServerOptions {
   logger?: Logger;
 }
 
-/**
- * Wait for the goosed server to be ready by polling the status endpoint.
- */
 export const waitForServer = async (
   baseUrl: string,
   options: WaitForServerOptions = {}
@@ -117,17 +108,11 @@ export const waitForServer = async (
   return false;
 };
 
-/**
- * Check if a log line indicates a fatal error.
- */
 export const isFatalError = (line: string): boolean => {
   const fatalPatterns = [/panicked at/, /RUST_BACKTRACE/, /fatal error/i, /^error\[E\d+\]/];
   return fatalPatterns.some((pattern) => pattern.test(line));
 };
 
-/**
- * Build environment variables for the goosed process.
- */
 export const buildGoosedEnv = (port: number, secretKey: string): Record<string, string> => {
   // Note: Only returns the goosed-specific env vars. Caller should spread with process.env.
   // Environment variable naming follows the config crate convention:
@@ -173,9 +158,6 @@ export interface GoosedResult {
   cleanup: () => void;
 }
 
-/**
- * Start or connect to a goosed server.
- */
 export const startGoosed = async (options: StartGoosedOptions): Promise<GoosedResult> => {
   const {
     dir,
@@ -190,7 +172,6 @@ export const startGoosed = async (options: StartGoosedOptions): Promise<GoosedRe
   const errorLog: string[] = [];
   const workingDir = dir || os.homedir();
 
-  // Handle external backend
   if (externalGoosed?.enabled && externalGoosed.url) {
     const url = externalGoosed.url.replace(/\/$/, '');
     logger.info(`Using external goosed backend at ${url}`);
@@ -206,7 +187,6 @@ export const startGoosed = async (options: StartGoosedOptions): Promise<GoosedRe
     };
   }
 
-  // Support for GOOSE_EXTERNAL_BACKEND env var (for testing)
   const externalBackendUrl = process.env.GOOSE_EXTERNAL_BACKEND;
   if (externalBackendUrl) {
     const url = externalBackendUrl.replace(/\/$/, '');
@@ -223,7 +203,6 @@ export const startGoosed = async (options: StartGoosedOptions): Promise<GoosedRe
     };
   }
 
-  // Find binary and start local server
   const goosedPath = findGoosedBinaryPath({ isPackaged, resourcesPath });
   if (!goosedPath) {
     throw new Error('Could not find goosed binary');
@@ -234,24 +213,20 @@ export const startGoosed = async (options: StartGoosedOptions): Promise<GoosedRe
 
   const baseUrl = `http://127.0.0.1:${port}`;
 
-  // Build environment
   const spawnEnv = buildGoosedEnv(port, serverSecret);
 
-  // Add any additional env vars (like GOOSE_PATH_ROOT)
   for (const [key, value] of Object.entries(additionalEnv)) {
     if (value !== undefined) {
       spawnEnv[key] = value;
     }
   }
 
-  // Spawn options
   const spawnOptions = {
     env: spawnEnv,
     cwd: workingDir,
     windowsHide: true,
   };
 
-  // Log spawn options (without secrets)
   const safeSpawnOptions = {
     ...spawnOptions,
     env: Object.fromEntries(

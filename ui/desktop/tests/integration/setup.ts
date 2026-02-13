@@ -2,10 +2,13 @@
  * Integration test setup for testing the goosed binary via the TypeScript API client.
  *
  * This test suite spawns a real goosed process and issues requests via the
- * auto-generated API client from ui/desktop/src/api.
+ * auto-generated API client.
  */
 
 import { spawn, type ChildProcess } from 'node:child_process';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 import { createClient, createConfig } from '../../src/api/client';
 import type { Client } from '../../src/api/client';
 import {
@@ -15,9 +18,6 @@ import {
   buildGoosedEnv,
 } from '../../src/goosed';
 import { expect } from 'vitest';
-import fs from 'node:fs';
-import os from 'node:os';
-import path from 'node:path';
 
 function stringifyResponse(response: Response) {
   const details = {
