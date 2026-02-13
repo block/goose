@@ -129,7 +129,7 @@ export function PresetGallery({ onApply }: PresetGalleryProps) {
       </div>
 
       {/* Theme Grid - Full Height */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 flex-1 overflow-y-auto pr-2 mt-4">
+      <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4 flex-1 overflow-y-auto pr-2 mt-4">
         {filteredPresets.map(preset => (
           <div
             key={preset.id}
