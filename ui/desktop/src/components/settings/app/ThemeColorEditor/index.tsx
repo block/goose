@@ -15,6 +15,8 @@ import { HexColorPicker } from 'react-colorful';
 import { toast } from 'react-toastify';
 import { PresetGallery } from './ThemeSelector/PresetGallery';
 import { ColorPreview } from './Preview/ColorPreview';
+import { Refresh, Save } from 'lucide-react';
+import { Tooltip, TooltipContent, TooltipTrigger } from '../../../ui/Tooltip';
 
 export function ThemeColorEditor({ onClose }: ThemeColorEditorProps) {
   const [loading, setLoading] = useState(true);
@@ -155,28 +157,34 @@ export function ThemeColorEditor({ onClose }: ThemeColorEditorProps) {
               </DialogDescription>
             </div>
             <div className="flex gap-2">
-              <Button
-                variant="outline"
-                onClick={handleReset}
-                disabled={saving}
-                size="sm"
-              >
-                Reset to Default
-              </Button>
-              <Button
-                onClick={handleSave}
-                disabled={saving}
-                size="sm"
-              >
-                {saving ? 'Saving...' : 'Save Theme'}
-              </Button>
-              <Button
-                variant="outline"
-                onClick={onClose}
-                size="sm"
-              >
-                Close
-              </Button>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="outline"
+                    onClick={handleReset}
+                    disabled={saving}
+                    size="sm"
+                    shape="round"
+                  >
+                    <Refresh className="w-4 h-4" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Reset to Default Theme</TooltipContent>
+              </Tooltip>
+              
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    onClick={handleSave}
+                    disabled={saving}
+                    size="sm"
+                    shape="round"
+                  >
+                    <Save className="w-4 h-4" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>{saving ? 'Saving...' : 'Save Theme'}</TooltipContent>
+              </Tooltip>
             </div>
           </div>
           
