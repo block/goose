@@ -263,11 +263,18 @@ export function ThemeColorEditor({ onClose }: ThemeColorEditorProps) {
                             onClick={() => setSelectedVariable(variable.name)}
                           >
                             <div className="flex items-center justify-between mb-2">
-                              <label className="text-xs font-medium text-text-primary cursor-pointer">
-                                {variable.label}
-                              </label>
+                              <div className="flex-1 mr-3">
+                                <label className="text-sm font-medium text-text-primary cursor-pointer block">
+                                  {variable.label}
+                                </label>
+                                {variable.description && (
+                                  <p className="text-xs text-text-secondary mt-0.5">
+                                    {variable.description}
+                                  </p>
+                                )}
+                              </div>
                               <div
-                                className="w-10 h-10 rounded border-2 border-border-primary shadow-sm"
+                                className="w-10 h-10 rounded border-2 border-border-primary shadow-sm flex-shrink-0"
                                 style={{ backgroundColor: currentColor }}
                               />
                             </div>
