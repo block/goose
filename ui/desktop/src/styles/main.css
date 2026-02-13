@@ -1,3 +1,7 @@
+/* ═══════════════════════════════════════════════════════════
+   1. TAILWIND IMPORTS & CONFIG
+   ═══════════════════════════════════════════════════════════ */
+
 @import 'tailwindcss';
 @import 'tw-animate-css';
 @plugin '@tailwindcss/typography';
@@ -5,13 +9,17 @@
 @source '../../index.html';
 @source '../**/*.{js,ts,jsx,tsx}';
 
+@custom-variant dark (&:where(.dark, .dark *));
+
 @theme {
   --breakpoint-md: 930px;
 }
 
-/* Cash Sans */
-
-@custom-variant dark (&:where(.dark, .dark *));
+/* ═══════════════════════════════════════════════════════════
+   2. TAILWIND PRIMITIVES — @theme {}
+   Palette colors, breakpoints, shadow reset.
+   Build-time values Tailwind uses directly. NOT part of MCP spec.
+   ═══════════════════════════════════════════════════════════ */
 
 @theme {
   --shadow-*: initial;
@@ -45,37 +53,245 @@
 
   --color-yellow-100: #ffd966;
   --color-yellow-200: #fbcd44;
-
 }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   3. MCP APP SPECIFIC TOKEN REGISTRATION — @theme inline {}
+   Register every McpUiStyleVariableKey so Tailwind generates utility classes.
+   Values are self-referential var() (colors) or `initial` (non-color) —
+   actual values live in :root / .dark below.
+   ═══════════════════════════════════════════════════════════════════════════ */
+@theme inline {
+  --ease-g2: cubic-bezier(0.55, 0, 1, 0.45);
+
+  /* Backgrounds */
+  --color-background-primary: var(--color-background-primary);
+  --color-background-secondary: var(--color-background-secondary);
+  --color-background-tertiary: var(--color-background-tertiary);
+  --color-background-inverse: var(--color-background-inverse);
+  --color-background-ghost: var(--color-background-ghost);
+  --color-background-info: var(--color-background-info);
+  --color-background-danger: var(--color-background-danger);
+  --color-background-success: var(--color-background-success);
+  --color-background-warning: var(--color-background-warning);
+  --color-background-disabled: var(--color-background-disabled);
+
+  /* Text */
+  --color-text-primary: var(--color-text-primary);
+  --color-text-secondary: var(--color-text-secondary);
+  --color-text-tertiary: var(--color-text-tertiary);
+  --color-text-inverse: var(--color-text-inverse);
+  --color-text-ghost: var(--color-text-ghost);
+  --color-text-info: var(--color-text-info);
+  --color-text-danger: var(--color-text-danger);
+  --color-text-success: var(--color-text-success);
+  --color-text-warning: var(--color-text-warning);
+  --color-text-disabled: var(--color-text-disabled);
+
+  /* Borders */
+  --color-border-primary: var(--color-border-primary);
+  --color-border-secondary: var(--color-border-secondary);
+  --color-border-tertiary: var(--color-border-tertiary);
+  --color-border-inverse: var(--color-border-inverse);
+  --color-border-ghost: var(--color-border-ghost);
+  --color-border-info: var(--color-border-info);
+  --color-border-danger: var(--color-border-danger);
+  --color-border-success: var(--color-border-success);
+  --color-border-warning: var(--color-border-warning);
+  --color-border-disabled: var(--color-border-disabled);
+
+  /* Rings */
+  --color-ring-primary: var(--color-ring-primary);
+  --color-ring-secondary: var(--color-ring-secondary);
+  --color-ring-inverse: var(--color-ring-inverse);
+  --color-ring-info: var(--color-ring-info);
+  --color-ring-danger: var(--color-ring-danger);
+  --color-ring-success: var(--color-ring-success);
+  --color-ring-warning: var(--color-ring-warning);
+
+  /* Typography */
+  --font-sans: initial;
+  --font-mono: initial;
+  --font-weight-normal: initial;
+  --font-weight-medium: initial;
+  --font-weight-semibold: initial;
+  --font-weight-bold: initial;
+  --font-text-xs-size: initial;
+  --font-text-sm-size: initial;
+  --font-text-md-size: initial;
+  --font-text-lg-size: initial;
+  --font-heading-xs-size: initial;
+  --font-heading-sm-size: initial;
+  --font-heading-md-size: initial;
+  --font-heading-lg-size: initial;
+  --font-heading-xl-size: initial;
+  --font-heading-2xl-size: initial;
+  --font-heading-3xl-size: initial;
+  --font-text-xs-line-height: initial;
+  --font-text-sm-line-height: initial;
+  --font-text-md-line-height: initial;
+  --font-text-lg-line-height: initial;
+  --font-heading-xs-line-height: initial;
+  --font-heading-sm-line-height: initial;
+  --font-heading-md-line-height: initial;
+  --font-heading-lg-line-height: initial;
+  --font-heading-xl-line-height: initial;
+  --font-heading-2xl-line-height: initial;
+  --font-heading-3xl-line-height: initial;
+
+  /* Border radius */
+  --border-radius-xs: initial;
+  --border-radius-sm: initial;
+  --border-radius-md: initial;
+  --border-radius-lg: initial;
+  --border-radius-xl: initial;
+  --border-radius-full: initial;
+
+  /* Border width */
+  --border-width-regular: initial;
+
+  /* Shadows */
+  --shadow-hairline: initial;
+  --shadow-sm: initial;
+  --shadow-md: initial;
+  --shadow-lg: initial;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   4. GOOSE DESKTOP UI ALIASES — @theme inline {}
+   App-specific tokens that map to MCP spec tokens.
+   Not part of the MCP spec — only used by Goose components.
+   ═══════════════════════════════════════════════════════════════════════════ */
+@theme inline {
+  --color-background-accent: var(--color-background-inverse);
+  --color-border-accent: var(--color-text-inverse);
+  --color-text-accent: var(--color-text-inverse);
+  --color-text-on-accent: var(--color-text-inverse);
+  --font-serif: serif;
+  --color-ring: var(--color-ring-primary);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --shadow-default: var(--shadow-default);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   5. CSS BASELINE — :root {}
+   Light-mode values. These are the defaults that theme-tokens.ts may override
+   at runtime via style.setProperty().
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/*
+ * Semantic tokens — CSS baseline values.
+ * These provide immediate styling before React mounts.
+ * At runtime, ThemeContext applies the canonical values from theme-tokens.ts
+ * via style.setProperty(), which overrides these as inline styles.
+ *
+ * The source of truth is theme-tokens.ts — keep these in sync.
+ */
 
 :root {
   /* fonts */
   --font-sans: 'Cash Sans', sans-serif;
   --font-mono: monospace;
 
-  /* MCP-compliant semantic colors */
+  /* font weights */
+  --font-weight-normal: 400;
+  --font-weight-medium: 500;
+  --font-weight-semibold: 600;
+  --font-weight-bold: 700;
+
+  /* text sizes */
+  --font-text-xs-size: 0.75rem;
+  --font-text-sm-size: 0.875rem;
+  --font-text-md-size: 1rem;
+  --font-text-lg-size: 1.125rem;
+
+  /* heading sizes */
+  --font-heading-xs-size: 1rem;
+  --font-heading-sm-size: 1.125rem;
+  --font-heading-md-size: 1.25rem;
+  --font-heading-lg-size: 1.5rem;
+  --font-heading-xl-size: 1.875rem;
+  --font-heading-2xl-size: 2.25rem;
+  --font-heading-3xl-size: 3rem;
+
+  /* text line heights */
+  --font-text-xs-line-height: 1rem;
+  --font-text-sm-line-height: 1.25rem;
+  --font-text-md-line-height: 1.5rem;
+  --font-text-lg-line-height: 1.75rem;
+
+  /* heading line heights */
+  --font-heading-xs-line-height: 1.5rem;
+  --font-heading-sm-line-height: 1.75rem;
+  --font-heading-md-line-height: 1.75rem;
+  --font-heading-lg-line-height: 2rem;
+  --font-heading-xl-line-height: 2.25rem;
+  --font-heading-2xl-line-height: 2.5rem;
+  --font-heading-3xl-line-height: 3.5rem;
+
+  /* border radius */
+  --border-radius-xs: 2px;
+  --border-radius-sm: 4px;
+  --border-radius-md: 8px;
+  --border-radius-lg: 12px;
+  --border-radius-xl: 16px;
+  --border-radius-full: 9999px;
+
+  /* border width */
+  --border-width-regular: 1px;
+
+  /* shadows */
+  --shadow-hairline: 0 0 0 1px rgba(0, 0, 0, 0.05);
+  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.1);
+  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -4px rgba(0, 0, 0, 0.1);
+
+  /* MCP App compliant semantic colors — light */
   --color-background-primary: var(--color-white);
   --color-background-secondary: var(--color-neutral-50);
   --color-background-tertiary: var(--color-neutral-100);
   --color-background-inverse: var(--color-black);
-  --color-background-danger: var(--color-red-200);
+  --color-background-ghost: transparent;
   --color-background-info: var(--color-blue-200);
-
-  --color-border-primary: var(--color-neutral-100);
-  --color-border-secondary: var(--color-neutral-100);
-  --color-border-danger: var(--color-red-200);
-  --color-border-info: var(--color-blue-200);
+  --color-background-danger: var(--color-red-200);
+  --color-background-success: var(--color-green-200);
+  --color-background-warning: var(--color-yellow-200);
+  --color-background-disabled: var(--color-neutral-100);
 
   --color-text-primary: var(--color-neutral-800);
   --color-text-secondary: var(--color-neutral-400);
+  --color-text-tertiary: var(--color-neutral-300);
   --color-text-inverse: var(--color-white);
+  --color-text-ghost: var(--color-neutral-400);
+  --color-text-info: var(--color-blue-200);
   --color-text-danger: var(--color-red-200);
   --color-text-success: var(--color-green-200);
   --color-text-warning: var(--color-yellow-200);
-  --color-text-info: var(--color-blue-200);
+  --color-text-disabled: var(--color-neutral-200);
 
-  --color-ring-primary: var(--color-border-secondary);
+  --color-border-primary: var(--color-neutral-100);
+  --color-border-secondary: var(--color-neutral-100);
+  --color-border-tertiary: var(--color-neutral-200);
+  --color-border-inverse: var(--color-black);
+  --color-border-ghost: transparent;
+  --color-border-info: var(--color-blue-200);
+  --color-border-danger: var(--color-red-200);
+  --color-border-success: var(--color-green-200);
+  --color-border-warning: var(--color-yellow-200);
+  --color-border-disabled: var(--color-neutral-100);
 
+  --color-ring-primary: var(--color-neutral-100);
+  --color-ring-secondary: var(--color-neutral-200);
+  --color-ring-inverse: var(--color-white);
+  --color-ring-info: var(--color-blue-200);
+  --color-ring-danger: var(--color-red-200);
+  --color-ring-success: var(--color-green-200);
+  --color-ring-warning: var(--color-yellow-200);
+
+  /* Legacy aliases (used by existing components) */
   --text-default: var(--color-neutral-800);
   --text-muted: var(--color-neutral-600);
   --text-inverse: var(--color-white);
@@ -84,7 +300,7 @@
   --text-warning: var(--color-yellow-200);
   --text-info: var(--color-blue-200);
 
-  /* App-specific aliases (derived from MCP colors) */
+  /* App-specific aliases (derived from MCP semantic tokens) */
   --placeholder: var(--color-text-secondary);
 
   /* Search highlighting */
@@ -102,36 +318,65 @@
   --sidebar-ring: var(--color-border-primary);
 
   /* custom shadow */
-
   --shadow-default:
     0px 12px 32px 0px rgba(0, 0, 0, 0.04), 0px 8px 16px 0px rgba(0, 0, 0, 0.02),
     0px 2px 4px 0px rgba(0, 0, 0, 0.04), 0px 0px 1px 0px rgba(0, 0, 0, 0.2);
 }
 
+/* ═══════════════════════════════════════════════════════════════════════════
+   6. CSS BASELINE — .dark {}
+   Dark-mode overrides. Same token set as :root, dark palette.
+   ═══════════════════════════════════════════════════════════════════════════ */
 .dark {
-  /* MCP-compliant semantic colors */
+  /* MCP-compliant semantic colors — dark */
   --color-background-primary: var(--color-neutral-950);
   --color-background-secondary: var(--color-neutral-800);
   --color-background-tertiary: var(--color-neutral-700);
   --color-background-inverse: var(--color-neutral-200);
-  --color-background-danger: var(--color-red-100);
+  --color-background-ghost: transparent;
   --color-background-info: var(--color-blue-100);
-
-  --color-border-primary: var(--color-neutral-800);
-  --color-border-secondary: var(--color-neutral-600);
-  --color-border-danger: var(--color-red-100);
-  --color-border-info: var(--color-blue-100);
+  --color-background-danger: var(--color-red-100);
+  --color-background-success: var(--color-green-100);
+  --color-background-warning: var(--color-yellow-100);
+  --color-background-disabled: var(--color-neutral-700);
 
   --color-text-primary: var(--color-white);
   --color-text-secondary: var(--color-neutral-400);
+  --color-text-tertiary: var(--color-neutral-500);
   --color-text-inverse: var(--color-black);
+  --color-text-ghost: var(--color-neutral-400);
+  --color-text-info: var(--color-blue-100);
   --color-text-danger: var(--color-red-100);
   --color-text-success: var(--color-green-100);
   --color-text-warning: var(--color-yellow-100);
-  --color-text-info: var(--color-blue-100);
+  --color-text-disabled: var(--color-neutral-600);
 
-  --color-ring-primary: var(--color-border-secondary);
+  --color-border-primary: var(--color-neutral-800);
+  --color-border-secondary: var(--color-neutral-600);
+  --color-border-tertiary: var(--color-neutral-700);
+  --color-border-inverse: var(--color-white);
+  --color-border-ghost: transparent;
+  --color-border-info: var(--color-blue-100);
+  --color-border-danger: var(--color-red-100);
+  --color-border-success: var(--color-green-100);
+  --color-border-warning: var(--color-yellow-100);
+  --color-border-disabled: var(--color-neutral-800);
 
+  --color-ring-primary: var(--color-neutral-600);
+  --color-ring-secondary: var(--color-neutral-700);
+  --color-ring-inverse: var(--color-black);
+  --color-ring-info: var(--color-blue-100);
+  --color-ring-danger: var(--color-red-100);
+  --color-ring-success: var(--color-green-100);
+  --color-ring-warning: var(--color-yellow-100);
+
+  /* shadows — darker for dark mode */
+  --shadow-hairline: 0 0 0 1px rgba(0, 0, 0, 0.2);
+  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.2);
+  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.3), 0 2px 4px -2px rgba(0, 0, 0, 0.2);
+  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.3), 0 4px 6px -4px rgba(0, 0, 0, 0.2);
+
+  /* Legacy aliases */
   --text-default: var(--color-white);
   --text-muted: var(--color-neutral-300);
   --text-inverse: var(--color-black);
@@ -140,7 +385,7 @@
   --text-warning: var(--color-yellow-100);
   --text-info: var(--color-blue-100);
 
-  /* App-specific aliases (derived from MCP colors) */
+  /* App-specific aliases (derived from MCP semantic tokens) */
   --placeholder: var(--color-text-secondary);
 
   /* Search highlighting */
@@ -162,49 +407,10 @@
     0px 2px 4px 0px rgba(0, 0, 0, 0.1), 0px 0px 1px 0px rgba(0, 0, 0, 0.3);
 }
 
-@theme inline {
-  --ease-g2: cubic-bezier(0.55, 0, 1, 0.45);
-
-  /* MCP-compliant variables - Tailwind generates utilities from these */
-  --color-background-primary: var(--color-background-primary);
-  --color-background-secondary: var(--color-background-secondary);
-  --color-background-tertiary: var(--color-background-tertiary);
-  --color-background-inverse: var(--color-background-inverse);
-  --color-background-danger: var(--color-background-danger);
-  --color-background-info: var(--color-background-info);
-
-  --color-border-primary: var(--color-border-primary);
-  --color-border-secondary: var(--color-border-secondary);
-  --color-border-danger: var(--color-border-danger);
-  --color-border-info: var(--color-border-info);
-
-  --color-text-primary: var(--color-text-primary);
-  --color-text-secondary: var(--color-text-secondary);
-  --color-text-inverse: var(--color-text-inverse);
-  --color-text-danger: var(--color-text-danger);
-  --color-text-success: var(--color-text-success);
-  --color-text-warning: var(--color-text-warning);
-  --color-text-info: var(--color-text-info);
-
-  --color-ring-primary: var(--color-ring-primary);
-
-  /* App-specific aliases for brand/accent colors (map to inverse for high contrast) */
-  --color-background-accent: var(--color-background-inverse);
-  --color-border-accent: var(--color-text-inverse);
-  --color-text-accent: var(--color-text-inverse);
-  --color-text-on-accent: var(--color-text-inverse);
-
-  --font-serif: serif;
-
-  --color-ring: var(--color-ring-primary);
-
-  --color-sidebar-foreground: var(--sidebar-foreground);
-  --color-sidebar-accent: var(--sidebar-accent);
-  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
-  --color-sidebar-border: var(--sidebar-border);
-
-  --shadow-default: var(--shadow-default);
-}
+/* ═══════════════════════════════════════════════════════════════════════════
+   7. BASE LAYER + FONTS + ANIMATIONS + COMPONENTS
+   Everything below is standard Tailwind @layer base / component styles.
+   ═══════════════════════════════════════════════════════════════════════════ */
 
 @layer base {
   * {
@@ -496,28 +702,6 @@
   background-color: var(--color-neutral-500);
 }
 
-::-webkit-scrollbar-track {
-  background: transparent;
-  border-radius: 4px;
-}
-
-::-webkit-scrollbar-thumb {
-  background: var(--color-neutral-200);
-  border-radius: 4px;
-}
-
-.dark ::-webkit-scrollbar-thumb {
-  background: var(--color-neutral-400);
-}
-
-::-webkit-scrollbar-thumb:hover {
-  background: var(--color-neutral-300);
-}
-
-.dark ::-webkit-scrollbar-thumb:hover {
-  background: var(--color-neutral-500);
-}
-
 body {
   background-color: var(--color-background-primary);
   -webkit-font-smoothing: antialiased;
@@ -751,17 +935,6 @@ p > code.bg-inline-code {
 [data-slot='sidebar-gap'] {
   /* Optimize for width animations */
   will-change: width;
-}
-
-/* Remove will-change when not transitioning to save memory */
-[data-state='expanded'] [data-slot='sidebar-container'],
-[data-state='collapsed'] [data-slot='sidebar-container'] {
-  will-change: auto;
-}
-
-[data-state='expanded'] [data-slot='sidebar-gap'],
-[data-state='collapsed'] [data-slot='sidebar-gap'] {
-  will-change: auto;
 }
 
 /* Ensure smooth transitions during state changes */
