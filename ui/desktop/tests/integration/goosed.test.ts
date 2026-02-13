@@ -24,7 +24,7 @@ const CONSTRAINED_PATH = '/usr/bin:/bin:/usr/sbin:/sbin';
 function getUserPath(): string[] {
   try {
     const userShell = process.env.SHELL || '/bin/bash';
-    const path = execSync(`${userShell} -i -c 'echo $PATH'`, {
+    const path = execSync(`${userShell} -l -i -c 'echo $PATH'`, {
       encoding: 'utf-8',
       timeout: 5000,
       env: {
