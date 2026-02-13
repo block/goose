@@ -38,36 +38,38 @@ export function ColorPreview({ variable, lightColor, darkColor, currentMode }: C
   };
 
   return (
-    <div className="space-y-6">
-      {/* Color Info Header */}
-      <div className="space-y-3">
-        <div className="flex items-center gap-3">
-          <div 
-            className="w-16 h-16 rounded-lg border-2 border-border-primary shadow-sm"
-            style={{ backgroundColor: currentColor }}
-          />
-          <div className="flex-1">
-            <h3 className="text-base font-semibold text-text-primary">
-              {variable.label}
-            </h3>
-            <p className="text-sm text-text-secondary mt-1">
-              {variable.description}
-            </p>
-            <div className="text-xs font-mono text-text-secondary mt-2 bg-background-secondary px-2 py-1 rounded inline-block">
-              {currentColor}
+    <div className="h-full flex items-center justify-center p-8">
+      <div className="w-full max-w-2xl space-y-6">
+        {/* Color Info Header */}
+        <div className="space-y-3">
+          <div className="flex items-center gap-3">
+            <div 
+              className="w-16 h-16 rounded-lg border-2 border-border-primary shadow-sm"
+              style={{ backgroundColor: currentColor }}
+            />
+            <div className="flex-1">
+              <h3 className="text-base font-semibold text-text-primary">
+                {variable.label}
+              </h3>
+              <p className="text-sm text-text-secondary mt-1">
+                {variable.description}
+              </p>
+              <div className="text-xs font-mono text-text-secondary mt-2 bg-background-secondary px-2 py-1 rounded inline-block">
+                {currentColor}
+              </div>
             </div>
           </div>
         </div>
-      </div>
-      
-      <div className="h-px bg-border-primary" />
-      
-      {/* Usage Examples */}
-      <div className="space-y-4">
-        <h4 className="text-sm font-semibold text-text-primary">
-          Where This Color Appears:
-        </h4>
-        {renderPreview()}
+        
+        <div className="h-px bg-border-primary" />
+        
+        {/* Usage Examples */}
+        <div className="space-y-4">
+          <h4 className="text-sm font-semibold text-text-primary">
+            Where This Color Appears:
+          </h4>
+          {renderPreview()}
+        </div>
       </div>
     </div>
   );
