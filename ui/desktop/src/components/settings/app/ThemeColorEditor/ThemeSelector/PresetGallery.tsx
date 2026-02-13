@@ -91,16 +91,8 @@ export function PresetGallery({ onApply }: PresetGalleryProps) {
 
   return (
     <div className="h-full flex flex-col">
-      {/* Search and Filter */}
-      <div className="space-y-3 flex-shrink-0">
-        <input
-          type="text"
-          placeholder="Search themes..."
-          value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
-          className="w-full px-3 py-2 border border-border-primary rounded-lg bg-background-primary text-text-primary text-sm"
-        />
-        
+      {/* Filter Tags Only */}
+      <div className="flex-shrink-0 mb-4">
         <div className="flex flex-wrap gap-2">
           <button
             onClick={() => setSelectedTag(null)}
@@ -129,7 +121,7 @@ export function PresetGallery({ onApply }: PresetGalleryProps) {
       </div>
 
       {/* Theme Grid - Full Height */}
-      <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4 flex-1 overflow-y-auto pr-2 mt-4">
+      <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4 flex-1 overflow-y-auto pr-2">
         {filteredPresets.map(preset => (
           <div
             key={preset.id}
