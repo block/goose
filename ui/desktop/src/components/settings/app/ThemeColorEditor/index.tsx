@@ -17,14 +17,18 @@ import { PresetGallery } from './ThemeSelector/PresetGallery';
 import { ColorPreview } from './Preview/ColorPreview';
 import { RotateCcw, Save, Palette, Paintbrush } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipTrigger } from '../../../ui/Tooltip';
+import { useTheme } from '../../../../contexts/ThemeContext';
 
 export function ThemeColorEditor({ onClose }: ThemeColorEditorProps) {
+  const { resolvedTheme } = useTheme();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [themeColors, setThemeColors] = useState<ThemeColors>({ light: {}, dark: {} });
   const [activeTab, setActiveTab] = useState<'presets' | 'customize'>('presets');
-  const [activeMode, setActiveMode] = useState<ColorMode>('light');
   const [selectedVariable, setSelectedVariable] = useState<string | null>(null);
+  
+  // Use system theme instead of separate mode state
+  const activeMode: ColorMode = resolvedTheme;
 
   // Load current theme variables
   useEffect(() => {
@@ -203,12 +207,9 @@ export function ThemeColorEditor({ onClose }: ThemeColorEditorProps) {
             </Tabs>
             
             {activeTab === 'customize' && (
-              <Tabs value={activeMode} onValueChange={(v) => setActiveMode(v as ColorMode)}>
-                <TabsList className="grid grid-cols-2">
-                  <TabsTrigger value="light">Light Mode</TabsTrigger>
-                  <TabsTrigger value="dark">Dark Mode</TabsTrigger>
-                </TabsList>
-              </Tabs>
+              <div className="text-sm text-text-secondary bg-background-secondary px-3 py-1.5 rounded-md">
+                Editing: <span className="font-medium text-text-primary capitalize">{activeMode} Mode</span>
+              </div>
             )}
           </div>
         </DialogHeader>
