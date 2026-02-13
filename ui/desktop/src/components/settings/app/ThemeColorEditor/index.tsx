@@ -26,6 +26,8 @@ export function ThemeColorEditor({ onClose }: ThemeColorEditorProps) {
   const [themeColors, setThemeColors] = useState<ThemeColors>({ light: {}, dark: {} });
   const [activeTab, setActiveTab] = useState<'presets' | 'customize'>('presets');
   const [selectedVariable, setSelectedVariable] = useState<string | null>(null);
+  const [themeName, setThemeName] = useState('My Custom Theme');
+  const [themeDescription, setThemeDescription] = useState('');
   
   // Use system theme instead of separate mode state
   const activeMode: ColorMode = resolvedTheme;
@@ -242,6 +244,41 @@ export function ThemeColorEditor({ onClose }: ThemeColorEditorProps) {
             <div className="flex gap-4 h-full">
               {/* Left Panel: Color Pickers (40%) */}
               <div className="w-[40%] overflow-auto pr-2 space-y-6">
+                {/* Custom Theme Info Card */}
+                <div className="border-2 border-border-primary rounded-lg p-4 bg-background-secondary space-y-3">
+                  {/* Theme Preview Colors */}
+                  <div className="grid grid-cols-4 h-8 rounded border border-border-primary overflow-hidden">
+                    <div style={{ backgroundColor: themeColors[activeMode]['color-background-primary'] || '#000000' }} />
+                    <div style={{ backgroundColor: themeColors[activeMode]['color-background-secondary'] || '#000000' }} />
+                    <div style={{ backgroundColor: themeColors[activeMode]['color-text-primary'] || '#000000' }} />
+                    <div style={{ backgroundColor: themeColors[activeMode]['color-background-inverse'] || '#000000' }} />
+                  </div>
+                  
+                  {/* Theme Name */}
+                  <div>
+                    <label className="text-xs text-text-secondary mb-1 block">Theme Name</label>
+                    <input
+                      type="text"
+                      value={themeName}
+                      onChange={(e) => setThemeName(e.target.value)}
+                      className="w-full px-3 py-2 text-sm border border-border-primary rounded bg-background-primary text-text-primary font-medium"
+                      placeholder="My Custom Theme"
+                    />
+                  </div>
+                  
+                  {/* Theme Description (Optional) */}
+                  <div>
+                    <label className="text-xs text-text-secondary mb-1 block">Description (Optional)</label>
+                    <input
+                      type="text"
+                      value={themeDescription}
+                      onChange={(e) => setThemeDescription(e.target.value)}
+                      className="w-full px-3 py-2 text-sm border border-border-primary rounded bg-background-primary text-text-secondary"
+                      placeholder="Describe your theme..."
+                    />
+                  </div>
+                </div>
+                
                 {Object.entries(groupedVariables).map(([category, variables]) => (
                   <div key={category} className="space-y-3">
                     <h3 className="text-sm font-semibold text-text-primary capitalize">
