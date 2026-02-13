@@ -402,10 +402,14 @@ export default function McpAppRenderer({
 
   const handleFallbackRequest = useCallback(
     async (request: JSONRPCRequest, _extra: RequestHandlerExtra) => {
-      console.log('Fallback request:', request.method);
-
-      // todo: add `sampling/createMessage` per https://github.com/block/goose/pull/7039
-      return { status: 'success' as const };
+      // todo: handle `sampling/createMessage` per https://github.com/block/goose/pull/7039
+      if (request.method === 'sampling/createMessage') {
+        return { status: 'success' as const };
+      }
+      return {
+        status: 'error' as const,
+        message: `Unhandled JSON-RPC method: ${request.method ?? '<unknown>'}`,
+      };
     },
     []
   );
