@@ -5,6 +5,8 @@
 
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use std::fs;
+use std::path::PathBuf;
 use utoipa::ToSchema;
 
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
@@ -17,6 +19,8 @@ pub struct ThemePreset {
     pub tags: Vec<String>,
     pub colors: ThemeColors,
     pub version: String,
+    #[serde(default)]
+    pub is_custom: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
@@ -97,6 +101,7 @@ fn goose_classic() -> ThemePreset {
         tags: vec!["light".to_string(), "dark".to_string(), "default".to_string()],
         colors: ThemeColors { light, dark },
         version: "1.0.0".to_string(),
+        is_custom: false,
     }
 }
 
@@ -150,6 +155,7 @@ fn nord() -> ThemePreset {
         tags: vec!["dark".to_string(), "light".to_string(), "cool".to_string(), "minimal".to_string()],
         colors: ThemeColors { light, dark },
         version: "1.0.0".to_string(),
+        is_custom: false,
     }
 }
 
@@ -203,6 +209,7 @@ fn dracula() -> ThemePreset {
         tags: vec!["dark".to_string(), "colorful".to_string(), "high-contrast".to_string()],
         colors: ThemeColors { light, dark },
         version: "1.0.0".to_string(),
+        is_custom: false,
     }
 }
 
@@ -256,6 +263,7 @@ fn high_contrast() -> ThemePreset {
         tags: vec!["light".to_string(), "dark".to_string(), "high-contrast".to_string(), "accessible".to_string()],
         colors: ThemeColors { light, dark },
         version: "1.0.0".to_string(),
+        is_custom: false,
     }
 }
 
@@ -309,6 +317,7 @@ fn solarized() -> ThemePreset {
         tags: vec!["light".to_string(), "dark".to_string(), "minimal".to_string(), "retro".to_string()],
         colors: ThemeColors { light, dark },
         version: "1.0.0".to_string(),
+        is_custom: false,
     }
 }
 
@@ -362,6 +371,7 @@ fn monokai() -> ThemePreset {
         tags: vec!["dark".to_string(), "colorful".to_string(), "retro".to_string()],
         colors: ThemeColors { light, dark },
         version: "1.0.0".to_string(),
+        is_custom: false,
     }
 }
 
@@ -415,6 +425,7 @@ fn github() -> ThemePreset {
         tags: vec!["light".to_string(), "dark".to_string(), "minimal".to_string(), "modern".to_string()],
         colors: ThemeColors { light, dark },
         version: "1.0.0".to_string(),
+        is_custom: false,
     }
 }
 
@@ -468,6 +479,7 @@ fn gruvbox() -> ThemePreset {
         tags: vec!["dark".to_string(), "light".to_string(), "warm".to_string(), "retro".to_string()],
         colors: ThemeColors { light, dark },
         version: "1.0.0".to_string(),
+        is_custom: false,
     }
 }
 
@@ -521,6 +533,7 @@ fn tokyo_night() -> ThemePreset {
         tags: vec!["dark".to_string(), "modern".to_string(), "colorful".to_string()],
         colors: ThemeColors { light, dark },
         version: "1.0.0".to_string(),
+        is_custom: false,
     }
 }
 
@@ -574,5 +587,85 @@ fn one_dark() -> ThemePreset {
         tags: vec!["dark".to_string(), "modern".to_string(), "minimal".to_string()],
         colors: ThemeColors { light, dark },
         version: "1.0.0".to_string(),
+        is_custom: false,
+    }
+}
+
+// ============================================================================
+// Custom Theme Management
+// ============================================================================
+
+/// Get the path to the saved themes directory
+fn get_saved_themes_dir() -> Result<PathBuf, std::io::Error> {
+    let config_dir = dirs::config_dir()
+        .ok_or_else(|| std::io::Error::new(std::io::ErrorKind::NotFound, "Config directory not found"))?;
+    let themes_dir = config_dir.join("goose").join("data").join("saved_themes");
+    
+    // Create directory if it doesn't exist
+    if !themes_dir.exists() {
+        fs::create_dir_all(&themes_dir)?;
+    }
+    
+    Ok(themes_dir)
+}
+
+/// Load all custom themes from the saved_themes directory
+pub fn load_custom_themes() -> Vec<ThemePreset> {
+    let themes_dir = match get_saved_themes_dir() {
+        Ok(dir) => dir,
+        Err(_) => return vec![],
+    };
+    
+    let mut themes = Vec::new();
+    
+    if let Ok(entries) = fs::read_dir(themes_dir) {
+        for entry in entries.flatten() {
+            let path = entry.path();
+            if path.extension().and_then(|s| s.to_str()) == Some("json") {
+                if let Ok(content) = fs::read_to_string(&path) {
+                    if let Ok(mut theme) = serde_json::from_str::<ThemePreset>(&content) {
+                        theme.is_custom = true;
+                        themes.push(theme);
+                    }
+                }
+            }
+        }
+    }
+    
+    themes
+}
+
+/// Get all presets including both built-in and custom themes
+pub fn get_all_presets_with_custom() -> Vec<ThemePreset> {
+    let mut presets = get_all_presets();
+    let custom_themes = load_custom_themes();
+    presets.extend(custom_themes);
+    presets
+}
+
+/// Save a custom theme
+pub fn save_custom_theme(theme: ThemePreset) -> Result<(), std::io::Error> {
+    let themes_dir = get_saved_themes_dir()?;
+    let file_path = themes_dir.join(format!("{}.json", theme.id));
+    
+    let json = serde_json::to_string_pretty(&theme)?;
+    fs::write(file_path, json)?;
+    
+    Ok(())
+}
+
+/// Delete a custom theme by ID
+pub fn delete_custom_theme(id: &str) -> Result<(), std::io::Error> {
+    let themes_dir = get_saved_themes_dir()?;
+    let file_path = themes_dir.join(format!("{}.json", id));
+    
+    if file_path.exists() {
+        fs::remove_file(file_path)?;
+        Ok(())
+    } else {
+        Err(std::io::Error::new(
+            std::io::ErrorKind::NotFound,
+            "Theme not found",
+        ))
     }
 }

@@ -893,6 +893,8 @@ pub struct ThemePreset {
     pub tags: Vec<String>,
     pub colors: ThemeColorsDto,
     pub version: String,
+    #[serde(default)]
+    pub is_custom: bool,
 }
 
 #[derive(Serialize, Deserialize, ToSchema)]
@@ -910,11 +912,11 @@ pub struct ThemePresetsResponse {
     get,
     path = "/theme/presets",
     responses(
-        (status = 200, description = "List of all built-in theme presets", body = ThemePresetsResponse)
+        (status = 200, description = "List of all theme presets (built-in and custom)", body = ThemePresetsResponse)
     )
 )]
 pub async fn get_theme_presets() -> Json<ThemePresetsResponse> {
-    let presets = theme_presets::get_all_presets()
+    let presets = theme_presets::get_all_presets_with_custom()
         .into_iter()
         .map(|p| ThemePreset {
             id: p.id,
@@ -927,6 +929,7 @@ pub async fn get_theme_presets() -> Json<ThemePresetsResponse> {
                 dark: p.colors.dark,
             },
             version: p.version,
+            is_custom: p.is_custom,
         })
         .collect();
     Json(ThemePresetsResponse { presets })
@@ -980,6 +983,75 @@ pub async fn apply_theme_preset(
     Ok(Json(format!("Applied theme preset: {}", preset.name)))
 }
 
+#[derive(Deserialize, ToSchema)]
+pub struct SaveCustomThemeRequest {
+    pub id: String,
+    pub name: String,
+    pub author: String,
+    pub description: String,
+    pub tags: Vec<String>,
+    pub colors: ThemeColorsDto,
+}
+
+#[utoipa::path(
+    post,
+    path = "/theme/save-custom",
+    request_body = SaveCustomThemeRequest,
+    responses(
+        (status = 200, description = "Custom theme saved successfully", body = String),
+        (status = 500, description = "Failed to save custom theme")
+    )
+)]
+pub async fn save_custom_theme(
+    Json(request): Json<SaveCustomThemeRequest>,
+) -> Result<Json<String>, ErrorResponse> {
+    let theme = theme_presets::ThemePreset {
+        id: request.id.clone(),
+        name: request.name,
+        author: request.author,
+        description: request.description,
+        tags: request.tags,
+        colors: theme_presets::ThemeColors {
+            light: request.colors.light,
+            dark: request.colors.dark,
+        },
+        version: "1.0.0".to_string(),
+        is_custom: true,
+    };
+    
+    theme_presets::save_custom_theme(theme)
+        .map_err(|e| ErrorResponse::internal(format!("Failed to save custom theme: {}", e)))?;
+    
+    Ok(Json(format!("Custom theme '{}' saved successfully", request.id)))
+}
+
+#[utoipa::path(
+    delete,
+    path = "/theme/saved/{id}",
+    params(
+        ("id" = String, Path, description = "Theme ID to delete")
+    ),
+    responses(
+        (status = 200, description = "Custom theme deleted successfully", body = String),
+        (status = 404, description = "Theme not found"),
+        (status = 500, description = "Failed to delete theme")
+    )
+)]
+pub async fn delete_custom_theme(
+    Path(id): Path<String>,
+) -> Result<Json<String>, ErrorResponse> {
+    theme_presets::delete_custom_theme(&id)
+        .map_err(|e| {
+            if e.kind() == std::io::ErrorKind::NotFound {
+                ErrorResponse::not_found(format!("Theme '{}' not found", id))
+            } else {
+                ErrorResponse::internal(format!("Failed to delete theme: {}", e))
+            }
+        })?;
+    
+    Ok(Json(format!("Custom theme '{}' deleted successfully", id)))
+}
+
 pub fn routes(state: Arc<AppState>) -> Router {
     Router::new()
         .route("/config", get(read_all_config))
@@ -1016,6 +1088,8 @@ pub fn routes(state: Arc<AppState>) -> Router {
         .route("/theme/save", post(save_theme))
         .route("/theme/presets", get(get_theme_presets))
         .route("/theme/apply-preset", post(apply_theme_preset))
+        .route("/theme/save-custom", post(save_custom_theme))
+        .route("/theme/saved/{id}", delete(delete_custom_theme))
         .with_state(state)
 }
 
