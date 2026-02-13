@@ -193,11 +193,11 @@ export function SimpleColorPicker({ color, onChange }: SimpleColorPickerProps) {
       {/* Grayscale Row */}
       <div>
         <div className="text-xs text-text-secondary mb-1.5">Grayscale</div>
-        <div className="grid grid-cols-15 gap-0.5">
+        <div className="grid grid-cols-16 gap-0.5">
           {[
             '#000000', '#111111', '#222222', '#333333', '#444444',
             '#555555', '#666666', '#777777', '#888888', '#999999',
-            '#aaaaaa', '#bbbbbb', '#cccccc', '#dddddd', '#eeeeee',
+            '#aaaaaa', '#bbbbbb', '#cccccc', '#dddddd', '#eeeeee', '#ffffff',
           ].map((grayColor) => (
             <button
               key={grayColor}
@@ -211,23 +211,6 @@ export function SimpleColorPicker({ color, onChange }: SimpleColorPickerProps) {
               aria-label={`Select ${grayColor}`}
             />
           ))}
-        </div>
-      </div>
-      
-      {/* Pure White Row */}
-      <div>
-        <div className="text-xs text-text-secondary mb-1.5">White</div>
-        <div className="grid grid-cols-1 gap-0.5">
-          <button
-            onClick={() => handleColorSelect('#ffffff')}
-            className={`aspect-square rounded border transition-all hover:scale-110 ${
-              color.toLowerCase() === '#ffffff'
-                ? 'border-border-secondary ring-1 ring-ring-primary'
-                : 'border-border-primary'
-            }`}
-            style={{ backgroundColor: '#ffffff' }}
-            aria-label="Select white"
-          />
         </div>
       </div>
     </div>
