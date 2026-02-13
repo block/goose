@@ -47,6 +47,7 @@ import { Client, createClient, createConfig } from './api/client';
 import { GooseApp } from './api';
 import installExtension, { REACT_DEVELOPER_TOOLS } from 'electron-devtools-installer';
 import { BLOCKED_PROTOCOLS, WEB_PROTOCOLS } from './utils/urlSecurity';
+import { safeJsonFetch } from './utils/safeJsonFetch';
 
 function shouldSetupUpdater(): boolean {
   // Setup updater if either the flag is enabled OR dev updates are enabled
@@ -546,6 +547,7 @@ const createChat = async (
   const goosedClient = createClient(
     createConfig({
       baseUrl,
+      fetch: safeJsonFetch,
       headers: {
         'Content-Type': 'application/json',
         'X-Secret-Key': serverSecret,

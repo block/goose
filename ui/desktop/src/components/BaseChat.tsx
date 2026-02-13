@@ -35,7 +35,6 @@ import { useToolCount } from './alerts/useToolCount';
 import { getThinkingMessage, getTextAndImageContent } from '../types/message';
 import ParameterInputModal from './ParameterInputModal';
 import { substituteParameters } from '../utils/providerUtils';
-import { useModelAndProvider } from './ModelAndProviderContext';
 import CreateRecipeFromSessionModal from './recipes/CreateRecipeFromSessionModal';
 import { toastSuccess } from '../toasts';
 import { Recipe } from '../recipe';
@@ -177,13 +176,6 @@ export default function BaseChat({
   });
 
   const recipe = session?.recipe;
-  const { setProviderAndModel } = useModelAndProvider();
-
-  useEffect(() => {
-    if (session?.provider_name && session?.model_config?.model_name) {
-      setProviderAndModel(session.provider_name, session.model_config.model_name);
-    }
-  }, [session?.provider_name, session?.model_config?.model_name, setProviderAndModel]);
 
   useEffect(() => {
     if (!recipe) return;
@@ -275,8 +267,10 @@ export default function BaseChat({
         shouldStartAgent?: boolean;
         editedMessage?: string;
       }>;
-      window.dispatchEvent(new CustomEvent(AppEvents.SESSION_CREATED));
       const { newSessionId, shouldStartAgent, editedMessage } = customEvent.detail;
+      window.dispatchEvent(
+        new CustomEvent(AppEvents.SESSION_CREATED, { detail: { sessionId: newSessionId } })
+      );
 
       const params = new URLSearchParams();
       params.set('resumeSessionId', newSessionId);

@@ -29,6 +29,12 @@ import { maybeHandlePlatformEvent } from '../utils/platform_events';
 
 const resultsCache = new Map<string, { messages: Message[]; session: Session }>();
 
+// Clear cache entry when a session is deleted to prevent resurrection from stale cached data
+window.addEventListener(AppEvents.SESSION_DELETED, (event: Event) => {
+  const { sessionId } = (event as CustomEvent<{ sessionId: string }>).detail;
+  resultsCache.delete(sessionId);
+});
+
 interface UseChatStreamProps {
   sessionId: string;
   onStreamFinish: () => void;
@@ -520,7 +526,7 @@ export function useChatStream({
 
       // Emit session-created event for first message in a new session
       if (!hasExistingMessages && hasNewMessage) {
-        window.dispatchEvent(new CustomEvent(AppEvents.SESSION_CREATED));
+        window.dispatchEvent(new CustomEvent(AppEvents.SESSION_CREATED, { detail: { sessionId } }));
 
         // Start polling for session name update during streaming
         // The backend generates the name in parallel with the response
