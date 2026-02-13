@@ -114,61 +114,40 @@ function BackgroundPreview({ variable, color }: { variable: ColorVariable; color
   
   if (varName === 'color-background-secondary') {
     return (
-      <>
-        {/* Settings Card */}
-        <Card className="rounded-lg" style={{ backgroundColor: color }}>
-          <CardHeader className="pb-0">
-            <CardTitle>Appearance</CardTitle>
-            <CardDescription>Configure how goose appears on your system</CardDescription>
-          </CardHeader>
-          <CardContent className="pt-4 space-y-4 px-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <h3 className="text-text-primary text-xs">Menu bar icon</h3>
-                <p className="text-xs text-text-secondary max-w-md mt-[2px]">
-                  Show goose in the menu bar
-                </p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-        
-        {/* Sidebar Navigation */}
-        <div className="w-64 mx-auto rounded-lg border border-border-primary overflow-hidden" style={{ backgroundColor: color }}>
-          <div className="p-3 space-y-1">
-            <div className="w-full justify-start px-3 py-2 rounded-lg h-fit bg-background-tertiary transition-all duration-200 flex items-center gap-2">
-              <Home className="w-4 h-4 text-text-primary" />
-              <span className="text-text-primary text-sm">Home</span>
-            </div>
-            <div className="w-full justify-start px-3 py-2 rounded-lg h-fit hover:bg-background-tertiary/50 transition-all duration-200 flex items-center gap-2">
-              <MessageSquarePlus className="w-4 h-4 text-text-secondary" />
-              <span className="text-text-secondary text-sm">Chat</span>
-            </div>
-            <div className="h-px bg-border-primary my-2" />
-            <div className="w-full justify-start px-3 py-2 rounded-lg h-fit hover:bg-background-tertiary/50 transition-all duration-200 flex items-center gap-2">
-              <FileText className="w-4 h-4 text-text-secondary" />
-              <span className="text-text-secondary text-sm">Recipes</span>
-            </div>
-            <div className="w-full justify-start px-3 py-2 rounded-lg h-fit hover:bg-background-tertiary/50 transition-all duration-200 flex items-center gap-2">
-              <AppWindow className="w-4 h-4 text-text-secondary" />
-              <span className="text-text-secondary text-sm">Apps</span>
-            </div>
-            <div className="w-full justify-start px-3 py-2 rounded-lg h-fit hover:bg-background-tertiary/50 transition-all duration-200 flex items-center gap-2">
-              <Clock className="w-4 h-4 text-text-secondary" />
-              <span className="text-text-secondary text-sm">Scheduler</span>
-            </div>
-            <div className="w-full justify-start px-3 py-2 rounded-lg h-fit hover:bg-background-tertiary/50 transition-all duration-200 flex items-center gap-2">
-              <Puzzle className="w-4 h-4 text-text-secondary" />
-              <span className="text-text-secondary text-sm">Extensions</span>
-            </div>
-            <div className="h-px bg-border-primary my-2" />
-            <div className="w-full justify-start px-3 py-2 rounded-lg h-fit hover:bg-background-tertiary/50 transition-all duration-200 flex items-center gap-2">
-              <Gear className="w-4 h-4 text-text-secondary" />
-              <span className="text-text-secondary text-sm">Settings</span>
-            </div>
+      <div className="w-64 mx-auto rounded-lg border border-border-primary overflow-hidden" style={{ backgroundColor: color }}>
+        <div className="p-3 space-y-1">
+          <div className="w-full justify-start px-3 py-2 rounded-lg h-fit bg-background-tertiary transition-all duration-200 flex items-center gap-2">
+            <Home className="w-4 h-4 text-text-primary" />
+            <span className="text-text-primary text-sm">Home</span>
+          </div>
+          <div className="w-full justify-start px-3 py-2 rounded-lg h-fit hover:bg-background-tertiary/50 transition-all duration-200 flex items-center gap-2">
+            <MessageSquarePlus className="w-4 h-4 text-text-secondary" />
+            <span className="text-text-secondary text-sm">Chat</span>
+          </div>
+          <div className="h-px bg-border-primary my-2" />
+          <div className="w-full justify-start px-3 py-2 rounded-lg h-fit hover:bg-background-tertiary/50 transition-all duration-200 flex items-center gap-2">
+            <FileText className="w-4 h-4 text-text-secondary" />
+            <span className="text-text-secondary text-sm">Recipes</span>
+          </div>
+          <div className="w-full justify-start px-3 py-2 rounded-lg h-fit hover:bg-background-tertiary/50 transition-all duration-200 flex items-center gap-2">
+            <AppWindow className="w-4 h-4 text-text-secondary" />
+            <span className="text-text-secondary text-sm">Apps</span>
+          </div>
+          <div className="w-full justify-start px-3 py-2 rounded-lg h-fit hover:bg-background-tertiary/50 transition-all duration-200 flex items-center gap-2">
+            <Clock className="w-4 h-4 text-text-secondary" />
+            <span className="text-text-secondary text-sm">Scheduler</span>
+          </div>
+          <div className="w-full justify-start px-3 py-2 rounded-lg h-fit hover:bg-background-tertiary/50 transition-all duration-200 flex items-center gap-2">
+            <Puzzle className="w-4 h-4 text-text-secondary" />
+            <span className="text-text-secondary text-sm">Extensions</span>
+          </div>
+          <div className="h-px bg-border-primary my-2" />
+          <div className="w-full justify-start px-3 py-2 rounded-lg h-fit hover:bg-background-tertiary/50 transition-all duration-200 flex items-center gap-2">
+            <Gear className="w-4 h-4 text-text-secondary" />
+            <span className="text-text-secondary text-sm">Settings</span>
           </div>
         </div>
-      </>
+      </div>
     );
   }
   
