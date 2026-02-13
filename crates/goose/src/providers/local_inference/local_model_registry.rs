@@ -57,6 +57,8 @@ pub struct ModelSettings {
     pub n_threads: Option<i32>,
     #[serde(default)]
     pub native_tool_calling: bool,
+    #[serde(default)]
+    pub use_jinja: bool,
 }
 
 fn default_repeat_penalty() -> f32 {
@@ -83,6 +85,7 @@ impl Default for ModelSettings {
             flash_attention: None,
             n_threads: None,
             native_tool_calling: false,
+            use_jinja: false,
         }
     }
 }

@@ -19,6 +19,7 @@ use llama_cpp_2::llama_backend::LlamaBackend;
 use llama_cpp_2::llama_batch::LlamaBatch;
 use llama_cpp_2::model::params::LlamaModelParams;
 use llama_cpp_2::model::{AddBos, LlamaChatMessage, LlamaChatTemplate, LlamaModel};
+use llama_cpp_2::openai::OpenAIChatTemplateParams;
 use llama_cpp_2::sampling::LlamaSampler;
 use llama_cpp_2::{list_llama_ggml_backend_devices, LlamaBackendDeviceType};
 use rmcp::model::{CallToolRequestParams, Role, Tool};
@@ -442,6 +443,21 @@ impl StreamingEmulatorParser {
     }
 }
 
+fn build_openai_messages_json(system: &str, messages: &[Message]) -> String {
+    let mut arr: Vec<Value> = vec![json!({"role": "system", "content": system})];
+    for msg in messages {
+        let role = match msg.role {
+            Role::User => "user",
+            Role::Assistant => "assistant",
+        };
+        let content = extract_text_content(msg);
+        if !content.trim().is_empty() {
+            arr.push(json!({"role": role, "content": content}));
+        }
+    }
+    serde_json::to_string(&arr).unwrap_or_else(|_| "[]".to_string())
+}
+
 fn extract_text_content(msg: &Message) -> String {
     let mut parts = Vec::new();
 
@@ -523,8 +539,10 @@ fn estimate_max_context_for_memory(
         return None;
     }
 
-    // Reserve 20% of available memory for computation scratch buffers and overhead.
-    let usable = (available as f64 * 0.8) as u64;
+    // Reserve memory for computation scratch buffers (attention, etc.) and other overhead.
+    // The compute buffer can be 40-50% of the KV cache size for large models, so we
+    // conservatively use only half the available memory for the KV cache.
+    let usable = (available as f64 * 0.5) as u64;
 
     let n_layer = model.n_layer() as u64;
     let n_head_kv = model.n_head_kv() as u64;
@@ -535,9 +553,25 @@ fn estimate_max_context_for_memory(
         return None;
     }
 
+    // For MLA (Multi-head Latent Attention) models like DeepSeek/GLM, the actual KV cache
+    // dimensions differ from n_head_kv * head_dim. Read the true dimensions from GGUF metadata.
+    let arch = model
+        .meta_val_str("general.architecture")
+        .unwrap_or_default();
     let head_dim = n_embd / n_head;
-    // KV cache: 2 (K+V) * n_layer * n_head_kv * head_dim * 2 bytes (f16) per context token
-    let bytes_per_token = 2 * n_layer * n_head_kv * head_dim * 2;
+    let k_per_head = model
+        .meta_val_str(&format!("{arch}.attention.key_length"))
+        .ok()
+        .and_then(|v| v.parse::<u64>().ok())
+        .unwrap_or(head_dim);
+    let v_per_head = model
+        .meta_val_str(&format!("{arch}.attention.value_length"))
+        .ok()
+        .and_then(|v| v.parse::<u64>().ok())
+        .unwrap_or(head_dim);
+
+    // Total KV dimensions across all KV heads, times n_layer, times 2 bytes (f16) per element
+    let bytes_per_token = (k_per_head + v_per_head) * n_head_kv * n_layer * 2;
 
     if bytes_per_token == 0 {
         return None;
@@ -791,7 +825,15 @@ fn split_content_and_xml_tool_calls(
 }
 
 fn parse_single_xml_tool_call(block: &str) -> Option<(String, serde_json::Map<String, Value>)> {
-    // Extract function name from <function=NAME>...
+    // Try <function=NAME><parameter=K>V</parameter>...</function> format first
+    if let Some(result) = parse_xml_function_format(block) {
+        return Some(result);
+    }
+    // Try GLM-style: TOOL_NAME<arg_key>K</arg_key><arg_value>V</arg_value>...
+    parse_xml_arg_key_value_format(block)
+}
+
+fn parse_xml_function_format(block: &str) -> Option<(String, serde_json::Map<String, Value>)> {
     let (_, after_func_eq) = block.split_once("<function=")?;
     let (func_name, func_body) = after_func_eq.split_once('>')?;
     let func_name = func_name.trim().to_string();
@@ -799,7 +841,6 @@ fn parse_single_xml_tool_call(block: &str) -> Option<(String, serde_json::Map<St
     let mut args = serde_json::Map::new();
     let mut rest = func_body;
 
-    // Extract each <parameter=NAME>VALUE</parameter>
     while let Some((_, after_param_eq)) = rest.split_once("<parameter=") {
         let Some((param_name, after_name_close)) = after_param_eq.split_once('>') else {
             break;
@@ -819,6 +860,47 @@ fn parse_single_xml_tool_call(block: &str) -> Option<(String, serde_json::Map<St
     }
 
     Some((func_name, args))
+}
+
+/// Parse GLM-style tool calls: `NAME<arg_key>K</arg_key><arg_value>V</arg_value>...`
+#[allow(clippy::string_slice)]
+fn parse_xml_arg_key_value_format(block: &str) -> Option<(String, serde_json::Map<String, Value>)> {
+    let func_name_end = block.find("<arg_key>")?;
+    // Safe: find returns a byte offset at the start of an ASCII '<' character.
+    let func_name = block[..func_name_end].trim().to_string();
+    if func_name.is_empty() {
+        return None;
+    }
+
+    let mut args = serde_json::Map::new();
+    let mut rest = &block[func_name_end..];
+
+    while let Some((_, after_key_open)) = rest.split_once("<arg_key>") {
+        let Some((key, after_key_close)) = after_key_open.split_once("</arg_key>") else {
+            break;
+        };
+        let key = key.trim().to_string();
+
+        let Some((_, after_val_open)) = after_key_close.split_once("<arg_value>") else {
+            break;
+        };
+        let (value, after_val_close) = after_val_open
+            .split_once("</arg_value>")
+            .unwrap_or((after_val_open, ""));
+        let value = value.trim();
+
+        let json_value =
+            serde_json::from_str(value).unwrap_or_else(|_| Value::String(value.to_string()));
+        args.insert(key, json_value);
+
+        rest = after_val_close;
+    }
+
+    if args.is_empty() {
+        None
+    } else {
+        Some((func_name, args))
+    }
 }
 
 fn extract_xml_tool_call_messages(
@@ -1271,6 +1353,12 @@ impl Provider for LocalInferenceProvider {
             (None, None)
         };
 
+        let oai_messages_json = if model_settings.use_jinja {
+            Some(build_openai_messages_json(&system_prompt, messages))
+        } else {
+            None
+        };
+
         let model_arc = self.model.clone();
         let runtime = self.runtime.clone();
         let model_name = model_config.model_name.clone();
@@ -1598,13 +1686,35 @@ impl Provider for LocalInferenceProvider {
                 // context window, retry with compact definitions (name +
                 // description only, no parameter schemas).
                 let apply_template = |tools: Option<&str>| {
-                    loaded.model.apply_chat_template_with_tools_oaicompat(
-                        &loaded.template,
-                        &chat_messages,
-                        tools,
-                        None,
-                        true,
-                    )
+                    if let Some(ref messages_json) = oai_messages_json {
+                        let params = OpenAIChatTemplateParams {
+                            messages_json: messages_json.as_str(),
+                            tools_json: tools,
+                            tool_choice: None,
+                            json_schema: None,
+                            grammar: None,
+                            reasoning_format: None,
+                            chat_template_kwargs: None,
+                            add_generation_prompt: true,
+                            use_jinja: true,
+                            parallel_tool_calls: false,
+                            enable_thinking: false,
+                            add_bos: false,
+                            add_eos: false,
+                            parse_tool_calls: true,
+                        };
+                        loaded
+                            .model
+                            .apply_chat_template_oaicompat(&loaded.template, &params)
+                    } else {
+                        loaded.model.apply_chat_template_with_tools_oaicompat(
+                            &loaded.template,
+                            &chat_messages,
+                            tools,
+                            None,
+                            true,
+                        )
+                    }
                 };
 
                 let template_result = match apply_template(full_tools_json.as_deref()) {
@@ -1940,6 +2050,35 @@ mod tests {
         let safe = safe_stream_end(text);
         // Should hold back the partial tag
         assert!(safe <= text.find('<').unwrap());
+    }
+
+    #[test]
+    fn test_parse_glm_style_tool_call() {
+        let text = "<tool_call>developer__shell<arg_key>command</arg_key><arg_value>ls -la</arg_value></tool_call>";
+        let result = split_content_and_xml_tool_calls(text);
+        assert!(result.is_some());
+        let (content, calls) = result.unwrap();
+        assert!(content.is_empty());
+        assert_eq!(calls.len(), 1);
+        assert_eq!(calls[0].0, "developer__shell");
+        assert_eq!(calls[0].1.get("command").unwrap(), "ls -la");
+    }
+
+    #[test]
+    fn test_parse_glm_style_tool_call_multiple_args() {
+        let text = "Let me check.\n<tool_call>execute<arg_key>code</arg_key><arg_value>async function run() { return 1; }</arg_value><arg_key>tool_graph</arg_key><arg_value>[{\"tool\": \"shell\"}]</arg_value></tool_call>";
+        let result = split_content_and_xml_tool_calls(text);
+        assert!(result.is_some());
+        let (content, calls) = result.unwrap();
+        assert_eq!(content, "Let me check.");
+        assert_eq!(calls.len(), 1);
+        assert_eq!(calls[0].0, "execute");
+        assert_eq!(
+            calls[0].1.get("code").unwrap(),
+            "async function run() { return 1; }"
+        );
+        // tool_graph should be parsed as JSON array
+        assert!(calls[0].1.get("tool_graph").unwrap().is_array());
     }
 
     #[test]
