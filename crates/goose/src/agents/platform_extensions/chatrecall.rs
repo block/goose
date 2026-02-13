@@ -13,7 +13,6 @@ use tokio_util::sync::CancellationToken;
 
 pub static EXTENSION_NAME: &str = "chatrecall";
 
-/// Parameters for the chatrecall tool
 #[derive(Debug, Serialize, Deserialize, JsonSchema)]
 struct ChatRecallParams {
     /// Search keywords. Use multiple related terms/synonyms (e.g., 'database postgres sql'). Mutually exclusive with session_id.
@@ -120,7 +119,6 @@ impl ChatRecallClient {
                         total
                     );
 
-                    // Show first 3 messages
                     let first_count = std::cmp::min(3, total);
                     output.push_str("--- First Few Messages ---\n\n");
                     for (idx, msg) in msgs.iter().take(first_count).enumerate() {
@@ -134,7 +132,6 @@ impl ChatRecallClient {
                         output.push('\n');
                     }
 
-                    // Show last 3 messages (if different from first)
                     if total > first_count {
                         output.push_str("--- Last Few Messages ---\n\n");
                         let last_count = std::cmp::min(3, total);
@@ -186,7 +183,6 @@ impl ChatRecallClient {
                 .and_then(|s| chrono::DateTime::parse_from_rfc3339(s).ok())
                 .map(|dt| dt.with_timezone(&chrono::Utc));
 
-            // Exclude current session from results to avoid self-referential loops
             let exclude_session_id = Some(current_session_id.to_string());
 
             match self
@@ -248,7 +244,6 @@ impl ChatRecallClient {
     }
 
     fn get_tools() -> Vec<Tool> {
-        // Generate JSON schema from the ChatRecallParams struct
         let schema = schema_for!(ChatRecallParams);
         let schema_value =
             serde_json::to_value(schema).expect("Failed to serialize ChatRecallParams schema");

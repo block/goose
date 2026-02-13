@@ -34,7 +34,7 @@ import RecipeActivities from './recipes/RecipeActivities';
 import { useToolCount } from './alerts/useToolCount';
 import { getThinkingMessage, getTextAndImageContent } from '../types/message';
 import ParameterInputModal from './ParameterInputModal';
-import { substituteParameters } from '../utils/providerUtils';
+import { substituteParameters } from '../utils/parameterSubstitution';
 import { useModelAndProvider } from './ModelAndProviderContext';
 import CreateRecipeFromSessionModal from './recipes/CreateRecipeFromSessionModal';
 import { toastSuccess } from '../toasts';
