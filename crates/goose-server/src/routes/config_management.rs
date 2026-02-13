@@ -1,7 +1,6 @@
 use crate::routes::errors::ErrorResponse;
 use crate::routes::utils::check_provider_configured;
 use crate::state::AppState;
-use axum::http::StatusCode;
 use axum::routing::put;
 use axum::{
     extract::Path,
@@ -434,7 +433,7 @@ pub struct ModelInfoData {
 
 #[derive(Serialize, ToSchema)]
 pub struct ModelInfoResponse {
-    pub model_info: ModelInfoData,
+    pub model_info: Option<ModelInfoData>,
     pub source: String,
 }
 
@@ -449,36 +448,31 @@ pub struct ModelInfoQuery {
     path = "/config/canonical-model-info",
     request_body = ModelInfoQuery,
     responses(
-        (status = 200, description = "Model information retrieved successfully", body = ModelInfoResponse),
-        (status = 404, description = "Model not found in canonical registry")
+        (status = 200, description = "Model information retrieved successfully", body = ModelInfoResponse)
     )
 )]
 pub async fn get_canonical_model_info(
     Json(query): Json<ModelInfoQuery>,
-) -> Result<Json<ModelInfoResponse>, StatusCode> {
+) -> Json<ModelInfoResponse> {
     let canonical_model = maybe_get_canonical_model(&query.provider, &query.model);
 
-    if let Some(canonical_model) = canonical_model {
-        let model_info = ModelInfoData {
-            provider: query.provider.clone(),
-            model: query.model.clone(),
-            context_limit: canonical_model.limit.context,
-            max_output_tokens: canonical_model.limit.output,
-            // Costs are per million tokens - client handles division for display
-            input_token_cost: canonical_model.cost.input,
-            output_token_cost: canonical_model.cost.output,
-            cache_read_token_cost: canonical_model.cost.cache_read,
-            cache_write_token_cost: canonical_model.cost.cache_write,
-            currency: "$".to_string(),
-        };
+    let model_info = canonical_model.map(|canonical_model| ModelInfoData {
+        provider: query.provider.clone(),
+        model: query.model.clone(),
+        context_limit: canonical_model.limit.context,
+        max_output_tokens: canonical_model.limit.output,
+        // Costs are per million tokens - client handles division for display
+        input_token_cost: canonical_model.cost.input,
+        output_token_cost: canonical_model.cost.output,
+        cache_read_token_cost: canonical_model.cost.cache_read,
+        cache_write_token_cost: canonical_model.cost.cache_write,
+        currency: "$".to_string(),
+    });
 
-        Ok(Json(ModelInfoResponse {
-            model_info,
-            source: "canonical".to_string(),
-        }))
-    } else {
-        Err(StatusCode::NOT_FOUND)
-    }
+    Json(ModelInfoResponse {
+        model_info,
+        source: "canonical".to_string(),
+    })
 }
 
 #[utoipa::path(
