@@ -737,9 +737,7 @@ impl GooseAcpAgent {
                 let config_path = self.config_dir.join(CONFIG_YAML_NAME);
                 let config = Config::new(&config_path, "goose")?;
                 let model_id = config.get_goose_model()?;
-                let provider_name = config
-                    .get_goose_provider()
-                    .map_err(|_| anyhow::anyhow!("No provider configured"))?;
+                let provider_name = config.get_goose_provider()?;
                 goose::model::ModelConfig::new(&model_id)?.with_canonical_limits(&provider_name)
             }
         };
