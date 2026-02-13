@@ -15,15 +15,7 @@ jobs:
           echo $SHELL
           echo $HOME
           PATH=/usr/bin:/bin:/usr/sbin:/sbin $SHELL -l -i -c 'echo $PATH'
-          echo 'PATH=/fake/path:$PATH' >> $HOME/.bashrc
+          echo 'export PATH=/fake/path:$PATH' >> $HOME/.bashrc
           PATH=/usr/bin:/bin:/usr/sbin:/sbin $SHELL -l -i -c 'echo $PATH'
-          echo 'PATH=/fake/path:$PATH' >> $HOME/.bash_profile
+          echo 'export PATH=/fake/path:$PATH' >> $HOME/.bash_profile
           PATH=/usr/bin:/bin:/usr/sbin:/sbin $SHELL -l -i -c 'echo $PATH'
-
-          echo 'check config files'
-          echo ************ $HOME/.bashrc
-          cat $HOME/.bashrc
-          echo ************ $HOME/.bash_profile
-          cat $HOME/.bash_profile
-          echo ************ $HOME/.profile
-          cat $HOME/.profile
