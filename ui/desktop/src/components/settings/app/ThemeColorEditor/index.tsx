@@ -6,7 +6,7 @@
  */
 
 import { useState, useEffect } from 'react';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../../../ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '../../../ui/dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../../../ui/tabs';
 import { Button } from '../../../ui/button';
 import { getThemeVariables, saveTheme } from '../../../../api';
@@ -147,6 +147,9 @@ export function ThemeColorEditor({ onClose }: ThemeColorEditorProps) {
       <DialogContent className="max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
         <DialogHeader>
           <DialogTitle>Customize Theme</DialogTitle>
+          <DialogDescription>
+            Choose from preset themes or customize individual colors for light and dark modes
+          </DialogDescription>
         </DialogHeader>
 
         <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as 'presets' | 'customize')} className="flex-1 flex flex-col overflow-hidden">
