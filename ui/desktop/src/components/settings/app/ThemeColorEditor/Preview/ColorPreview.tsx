@@ -204,17 +204,9 @@ function BackgroundPreview({ variable, color }: { variable: ColorVariable; color
   
   if (varName === 'color-background-danger') {
     return (
-      <>
-        <div className="p-3 rounded-lg border border-border-danger" style={{ backgroundColor: color }}>
-          <p className="text-text-danger text-sm font-semibold">⚠️ Error Message</p>
-          <p className="text-text-primary text-xs mt-1">
-            Failed to load configuration file
-          </p>
-        </div>
-        <Button variant="destructive" className="w-full" style={{ backgroundColor: color }}>
-          Delete Session
-        </Button>
-      </>
+      <Button variant="destructive" className="w-full" style={{ backgroundColor: color }}>
+        Delete Session
+      </Button>
     );
   }
   
