@@ -15,7 +15,7 @@ import { toast } from 'react-toastify';
 import { SimpleColorPicker } from './ColorPicker/SimpleColorPicker';
 import { PresetGallery } from './ThemeSelector/PresetGallery';
 import { ColorPreview } from './Preview/ColorPreview';
-import { RotateCcw, Save, Palette, Paintbrush } from 'lucide-react';
+import { RotateCcw, Save, Palette, Paintbrush, Pipette } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipTrigger } from '../../../ui/Tooltip';
 import { useTheme } from '../../../../contexts/ThemeContext';
 
@@ -314,12 +314,14 @@ export function ThemeColorEditor({ onClose }: ThemeColorEditorProps) {
                   />
                 ) : (
                   <div className="flex items-center justify-center h-full">
-                    <div className="text-center space-y-2">
-                      <div className="text-4xl">🎨</div>
-                      <p className="text-text-primary font-medium">Select a color to preview</p>
-                      <p className="text-text-secondary text-sm max-w-xs">
-                        Click any color on the left to see where it's used in the UI
-                      </p>
+                    <div className="text-center space-y-4">
+                      <Pipette className="w-16 h-16 mx-auto text-text-secondary opacity-50" />
+                      <div className="space-y-2">
+                        <p className="text-text-primary font-medium">Select a color to preview</p>
+                        <p className="text-text-secondary text-sm max-w-xs">
+                          Click any color on the left to see where it's used in the UI
+                        </p>
+                      </div>
                     </div>
                   </div>
                 )}
