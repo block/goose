@@ -3,6 +3,7 @@ use axum::http::{HeaderMap, HeaderName};
 use chrono::{DateTime, Utc};
 use futures::stream::{FuturesUnordered, StreamExt};
 use futures::{future, FutureExt};
+use once_cell::sync::Lazy;
 use rmcp::service::{ClientInitializeError, ServiceError};
 use rmcp::transport::streamable_http_client::{
     AuthRequiredError, StreamableHttpClientTransportConfig, StreamableHttpError,
@@ -50,6 +51,12 @@ use schemars::_private::NoSerialize;
 use serde_json::Value;
 
 type McpClientBox = Arc<Mutex<Box<dyn McpClientTrait>>>;
+
+static RE_ENV_BRACES: Lazy<regex::Regex> =
+    Lazy::new(|| regex::Regex::new(r"\$\{\s*([A-Za-z_][A-Za-z0-9_]*)\s*\}").expect("valid regex"));
+
+static RE_ENV_SIMPLE: Lazy<regex::Regex> =
+    Lazy::new(|| regex::Regex::new(r"\$([A-Za-z_][A-Za-z0-9_]*)").expect("valid regex"));
 
 struct Extension {
     pub config: ExtensionConfig,
@@ -346,9 +353,7 @@ pub(crate) async fn merge_environments(
 pub(crate) fn substitute_env_vars(value: &str, env_map: &HashMap<String, String>) -> String {
     let mut result = value.to_string();
 
-    let re_braces =
-        regex::Regex::new(r"\$\{\s*([A-Za-z_][A-Za-z0-9_]*)\s*\}").expect("valid regex");
-    for cap in re_braces.captures_iter(value) {
+    for cap in RE_ENV_BRACES.captures_iter(value) {
         if let Some(var_name) = cap.get(1) {
             if let Some(env_value) = env_map.get(var_name.as_str()) {
                 result = result.replace(&cap[0], env_value);
@@ -356,8 +361,8 @@ pub(crate) fn substitute_env_vars(value: &str, env_map: &HashMap<String, String>
         }
     }
 
-    let re_simple = regex::Regex::new(r"\$([A-Za-z_][A-Za-z0-9_]*)").expect("valid regex");
-    for cap in re_simple.captures_iter(&result.clone()) {
+    let snapshot = result.clone();
+    for cap in RE_ENV_SIMPLE.captures_iter(&snapshot) {
         if let Some(var_name) = cap.get(1) {
             if !value.contains(&format!("${{{}}}", var_name.as_str())) {
                 if let Some(env_value) = env_map.get(var_name.as_str()) {
