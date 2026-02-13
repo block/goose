@@ -5,18 +5,13 @@
  * auto-generated API client.
  */
 
-import { spawn, type ChildProcess } from 'node:child_process';
+import type { ChildProcess } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { createClient, createConfig } from '../../src/api/client';
 import type { Client } from '../../src/api/client';
-import {
-  findAvailablePort,
-  findGoosedBinaryPath,
-  waitForServer,
-  buildGoosedEnv,
-} from '../../src/goosed';
+import { startGoosed as startGoosedBase, waitForServer, type Logger } from '../../src/goosed';
 import { expect } from 'vitest';
 
 function stringifyResponse(response: Response) {
@@ -61,12 +56,6 @@ export async function startGoosed({
   pathOverride?: string;
   configYaml?: string;
 }): Promise<GoosedTestContext> {
-  const port = await findAvailablePort();
-  const baseUrl = `http://127.0.0.1:${port}`;
-  const pathFromEnv = process.env.GOOSED_BINARY;
-  const goosedPath = pathFromEnv ?? findGoosedBinaryPath();
-
-  // mk temp dir for app root
   const tempDir = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'goose-app-root-'));
 
   if (configYaml) {
@@ -74,54 +63,53 @@ export async function startGoosed({
     await fs.promises.writeFile(path.join(tempDir, 'config', 'config.yaml'), configYaml);
   }
 
-  const env = {
-    ...buildGoosedEnv(port, TEST_SECRET_KEY),
-    ...(pathOverride && { PATH: pathOverride }),
+  const testLogger: Logger = {
+    info: (...args) => {
+      if (process.env.DEBUG) {
+        console.log('[goosed]', ...args);
+      }
+    },
+    error: (...args) => console.error('[goosed]', ...args),
+  };
+
+  const additionalEnv: Record<string, string> = {
     GOOSE_PATH_ROOT: tempDir,
   };
 
-  console.log('spawning goosed with env:', env);
-  const goosedProcess = spawn(goosedPath, ['agent'], {
-    env: { ...process.env, ...env },
-    stdio: ['pipe', 'pipe', 'pipe'],
+  if (pathOverride) {
+    additionalEnv.PATH = pathOverride;
+  }
+
+  const result = await startGoosedBase({
+    serverSecret: TEST_SECRET_KEY,
+    env: additionalEnv,
+    logger: testLogger,
   });
 
-  const stderrLines: string[] = [];
+  if (!result.process) {
+    throw new Error('Expected goosed process to be started, but got external backend');
+  }
 
-  goosedProcess.stdout?.on('data', (data: Buffer) => {
-    if (process.env.DEBUG) {
-      console.log(`[goosed:${port}:stdout]`, data.toString());
-    }
-  });
-
-  goosedProcess.stderr?.on('data', (data: Buffer) => {
-    const lines = data
-      .toString()
-      .split('\n')
-      .filter((l) => l.trim());
-    lines.forEach((line) => {
-      stderrLines.push(line);
-      if (process.env.DEBUG) {
-        console.error(`[goosed:${port}:stderr]`, line);
-      }
-    });
-  });
-
-  goosedProcess.on('error', (err: Error) => {
-    console.error(`Failed to start goosed on port ${port}:`, err);
-  });
+  const port = parseInt(new URL(result.baseUrl).port, 10);
 
   try {
-    await waitForServer(baseUrl, { errorLog: stderrLines });
+    const serverReady = await waitForServer(result.baseUrl, {
+      logger: testLogger,
+    });
+    if (!serverReady) {
+      result.cleanup();
+      console.error('Server stderr:', result.errorLog.join('\n'));
+      throw new Error('Server failed to start');
+    }
   } catch (error) {
-    goosedProcess.kill();
-    console.error('Server stderr:', stderrLines.join('\n'));
+    result.cleanup();
+    console.error('Server stderr:', result.errorLog.join('\n'));
     throw error;
   }
 
   const client = createClient(
     createConfig({
-      baseUrl,
+      baseUrl: result.baseUrl,
       headers: {
         'X-Secret-Key': TEST_SECRET_KEY,
       },
@@ -129,33 +117,38 @@ export async function startGoosed({
   );
 
   const cleanup = async (): Promise<void> => {
-    const logDirs = await fs.promises.readdir(path.join(tempDir, 'state', 'logs', 'server'));
-    for (const logDir of logDirs) {
-      const logFiles = await fs.promises.readdir(
-        path.join(tempDir, 'state', 'logs', 'server', logDir)
-      );
-      for (const logFile of logFiles) {
-        const logPath = path.join(tempDir, 'state', 'logs', 'server', logDir, logFile);
-        const logContent = await fs.promises.readFile(logPath, 'utf8');
-        console.log(logContent);
+    try {
+      const logsPath = path.join(tempDir, 'state', 'logs', 'server');
+      if (fs.existsSync(logsPath)) {
+        const logDirs = await fs.promises.readdir(logsPath);
+        for (const logDir of logDirs) {
+          const logFiles = await fs.promises.readdir(path.join(logsPath, logDir));
+          for (const logFile of logFiles) {
+            const logPath = path.join(logsPath, logDir, logFile);
+            const logContent = await fs.promises.readFile(logPath, 'utf8');
+            console.log(logContent);
+          }
+        }
       }
+    } catch {
+      // Logs may not exist, that's okay
     }
 
     return new Promise<void>((resolve) => {
-      if (goosedProcess.killed) {
+      if (!result.process || result.process.killed) {
         resolve();
         return;
       }
 
-      goosedProcess.on('close', () => {
+      result.process.on('close', () => {
         resolve();
       });
 
-      goosedProcess.kill('SIGTERM');
+      result.process.kill('SIGTERM');
 
       setTimeout(() => {
-        if (!goosedProcess.killed) {
-          goosedProcess.kill('SIGKILL');
+        if (result.process && !result.process.killed) {
+          result.process.kill('SIGKILL');
         }
         resolve();
       }, 5000);
@@ -166,10 +159,10 @@ export async function startGoosed({
 
   return {
     client,
-    baseUrl,
+    baseUrl: result.baseUrl,
     port,
     secretKey: TEST_SECRET_KEY,
-    process: goosedProcess,
+    process: result.process,
     cleanup,
   };
 }

@@ -191,7 +191,7 @@ extensions:
   });
 
   describe('the developer tool', () => {
-    it('should see the full PATH when calling the developer tool', async () => {
+    it('should see the full PATH when calling the developer tool', async (testContext) => {
       const currentPath = getUserPath();
 
       const pathEntry = currentPath.find((entry) => !CONSTRAINED_PATH.includes(entry));
@@ -210,7 +210,7 @@ extensions:
       let providerName = configResponse.data as string | null | undefined;
 
       if (!providerName) {
-        console.log('Skipping tool execution test - no GOOSE_PROVIDER configured');
+        testContext.skip('Skipping tool execution test - no GOOSE_PROVIDER configured');
         return;
       }
 

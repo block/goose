@@ -47,7 +47,7 @@ export const checkServerStatus = async (client: Client, errorLog: string[]): Pro
     }
 
     try {
-      await status({ client });
+      await status({ client, throwOnError: true });
       return true;
     } catch {
       await new Promise((resolve) => setTimeout(resolve, interval));

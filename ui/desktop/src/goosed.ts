@@ -114,7 +114,6 @@ export const isFatalError = (line: string): boolean => {
 };
 
 export const buildGoosedEnv = (port: number, secretKey: string): Record<string, string> => {
-  // Note: Only returns the goosed-specific env vars. Caller should spread with process.env.
   // Environment variable naming follows the config crate convention:
   // - GOOSE_ prefix with _ separator for top-level fields (GOOSE_PORT, GOOSE_HOST)
   // - __ separator for nested fields (GOOSE_SERVER__SECRET_KEY)
@@ -124,7 +123,6 @@ export const buildGoosedEnv = (port: number, secretKey: string): Record<string, 
     HOME: process.env.HOME || os.homedir(),
   };
 
-  // Handle PATH for different platforms
   const pathKey = process.platform === 'win32' ? 'Path' : 'PATH';
   if (process.env[pathKey]) {
     env[pathKey] = process.env[pathKey];
@@ -213,7 +211,10 @@ export const startGoosed = async (options: StartGoosedOptions): Promise<GoosedRe
 
   const baseUrl = `http://127.0.0.1:${port}`;
 
-  const spawnEnv = buildGoosedEnv(port, serverSecret);
+  const spawnEnv = {
+    ...process.env,
+    ...buildGoosedEnv(port, serverSecret),
+  };
 
   for (const [key, value] of Object.entries(additionalEnv)) {
     if (value !== undefined) {
