@@ -1,9 +1,13 @@
 {
-  "timestamp": "2026-02-10T00:46:11.029713069+00:00",
+  "timestamp": "2026-02-12T21:29:44.571109204+00:00",
   "unmapped_models": [
     {
       "provider": "anthropic",
-      "model": "claude-opus-4-6"
+      "model": "claude-churro-eap"
+    },
+    {
+      "provider": "anthropic",
+      "model": "claude-churro-eap-cc"
     },
     {
       "provider": "google",
@@ -2535,10 +2539,6 @@
     },
     {
       "provider": "openrouter",
-      "model": "anthropic/claude-opus-4.6"
-    },
-    {
-      "provider": "openrouter",
       "model": "arcee-ai/trinity-mini"
     },
     {
@@ -2635,19 +2635,15 @@
     },
     {
       "provider": "openrouter",
+      "model": "minimax/minimax-m2.5"
+    },
+    {
+      "provider": "openrouter",
       "model": "mistralai/ministral-14b-2512"
     },
     {
       "provider": "openrouter",
-      "model": "mistralai/ministral-3b"
-    },
-    {
-      "provider": "openrouter",
       "model": "mistralai/ministral-3b-2512"
-    },
-    {
-      "provider": "openrouter",
-      "model": "mistralai/ministral-8b"
     },
     {
       "provider": "openrouter",
@@ -2691,19 +2687,11 @@
     },
     {
       "provider": "openrouter",
-      "model": "mistralai/mistral-tiny"
-    },
-    {
-      "provider": "openrouter",
       "model": "mistralai/mixtral-8x22b-instruct"
     },
     {
       "provider": "openrouter",
       "model": "mistralai/mixtral-8x7b-instruct"
-    },
-    {
-      "provider": "openrouter",
-      "model": "mistralai/pixtral-12b"
     },
     {
       "provider": "openrouter",
@@ -2843,10 +2831,6 @@
     },
     {
       "provider": "openrouter",
-      "model": "openrouter/pony-alpha"
-    },
-    {
-      "provider": "openrouter",
       "model": "prime-intellect/intellect-3"
     },
     {
@@ -2935,6 +2919,10 @@
     },
     {
       "provider": "openrouter",
+      "model": "qwen/qwen3-vl-32b-instruct"
+    },
+    {
+      "provider": "openrouter",
       "model": "qwen/qwen3-vl-8b-instruct"
     },
     {
@@ -2956,6 +2944,10 @@
     {
       "provider": "openrouter",
       "model": "sao10k/l3.1-euryale-70b"
+    },
+    {
+      "provider": "openrouter",
+      "model": "stepfun/step-3.5-flash"
     },
     {
       "provider": "openrouter",
@@ -2983,10 +2975,6 @@
     },
     {
       "provider": "openrouter",
-      "model": "xiaomi/mimo-v2-flash"
-    },
-    {
-      "provider": "openrouter",
       "model": "z-ai/glm-4-32b"
     },
     {
@@ -2994,8 +2982,8 @@
       "model": "z-ai/glm-4.6v"
     },
     {
-      "provider": "tetrate",
-      "model": "claude-opus-4-6"
+      "provider": "openrouter",
+      "model": "z-ai/glm-5"
     },
     {
       "provider": "tetrate",
@@ -3301,6 +3289,10 @@
         "canonical_model": "anthropic/claude-opus-4.5"
       },
       {
+        "provider_model": "claude-opus-4-6",
+        "canonical_model": "anthropic/claude-opus-4.6"
+      },
+      {
         "provider_model": "claude-sonnet-4-20250514",
         "canonical_model": "anthropic/claude-sonnet-4"
       },
@@ -3376,10 +3368,6 @@
       }
     ],
     "openai": [
-      {
-        "provider_model": "codex-mini-latest",
-        "canonical_model": "openai/codex-mini"
-      },
       {
         "provider_model": "gpt-3.5-turbo",
         "canonical_model": "openai/gpt-3.5-turbo"
@@ -3649,6 +3637,10 @@
       {
         "provider_model": "anthropic/claude-opus-4.5",
         "canonical_model": "openrouter/anthropic/claude-opus-4.5"
+      },
+      {
+        "provider_model": "anthropic/claude-opus-4.6",
+        "canonical_model": "openrouter/anthropic/claude-opus-4.6"
       },
       {
         "provider_model": "anthropic/claude-sonnet-4",
@@ -4011,6 +4003,10 @@
         "canonical_model": "openrouter/x-ai/grok-code-fast-1"
       },
       {
+        "provider_model": "xiaomi/mimo-v2-flash",
+        "canonical_model": "openrouter/xiaomi/mimo-v2-flash"
+      },
+      {
         "provider_model": "z-ai/glm-4.5",
         "canonical_model": "openrouter/z-ai/glm-4.5"
       },
@@ -4099,6 +4095,10 @@
       {
         "provider_model": "claude-opus-4-5-20251101",
         "canonical_model": "anthropic/claude-opus-4.5"
+      },
+      {
+        "provider_model": "claude-opus-4-6",
+        "canonical_model": "anthropic/claude-opus-4.6"
       },
       {
         "provider_model": "claude-sonnet-4-0",
@@ -4474,6 +4474,12 @@
     },
     {
       "provider": "anthropic",
+      "model": "claude-opus-4-6",
+      "canonical": "anthropic/claude-opus-4.6",
+      "recommended": true
+    },
+    {
+      "provider": "anthropic",
       "model": "claude-sonnet-4-20250514",
       "canonical": "anthropic/claude-sonnet-4",
       "recommended": true
@@ -4572,12 +4578,6 @@
       "provider": "google",
       "model": "gemini-flash-lite-latest",
       "canonical": "google/gemini-flash-lite",
-      "recommended": true
-    },
-    {
-      "provider": "openai",
-      "model": "codex-mini-latest",
-      "canonical": "openai/codex-mini",
       "recommended": true
     },
     {
@@ -4980,6 +4980,12 @@
       "provider": "openrouter",
       "model": "anthropic/claude-opus-4.5",
       "canonical": "openrouter/anthropic/claude-opus-4.5",
+      "recommended": true
+    },
+    {
+      "provider": "openrouter",
+      "model": "anthropic/claude-opus-4.6",
+      "canonical": "openrouter/anthropic/claude-opus-4.6",
       "recommended": true
     },
     {
@@ -5524,6 +5530,12 @@
     },
     {
       "provider": "openrouter",
+      "model": "xiaomi/mimo-v2-flash",
+      "canonical": "openrouter/xiaomi/mimo-v2-flash",
+      "recommended": true
+    },
+    {
+      "provider": "openrouter",
       "model": "z-ai/glm-4.5",
       "canonical": "openrouter/z-ai/glm-4.5",
       "recommended": true
@@ -5652,6 +5664,12 @@
       "provider": "tetrate",
       "model": "claude-opus-4-5-20251101",
       "canonical": "anthropic/claude-opus-4.5",
+      "recommended": true
+    },
+    {
+      "provider": "tetrate",
+      "model": "claude-opus-4-6",
+      "canonical": "anthropic/claude-opus-4.6",
       "recommended": true
     },
     {
@@ -6142,14 +6160,14 @@
     }
   ],
   "model_counts": {
-    "anthropic": 10,
+    "anthropic": 12,
     "aws_bedrock": 0,
     "azure_openai": 0,
     "databricks": 0,
     "gcp_vertex_ai": 0,
     "google": 45,
-    "openai": 653,
-    "openrouter": 230,
+    "openai": 652,
+    "openrouter": 229,
     "tetrate": 151,
     "venice": 0,
     "xai": 13
@@ -6164,6 +6182,7 @@
     "anthropic/claude-opus-4.0",
     "anthropic/claude-opus-4.1",
     "anthropic/claude-opus-4.5",
+    "anthropic/claude-opus-4.6",
     "anthropic/claude-sonnet-4",
     "anthropic/claude-sonnet-4.0",
     "anthropic/claude-sonnet-4.5",
@@ -6182,7 +6201,6 @@
     "google/gemini-embedding-001",
     "google/gemini-flash",
     "google/gemini-flash-lite",
-    "openai/codex-mini",
     "openai/gpt-3.5-turbo",
     "openai/gpt-4",
     "openai/gpt-4-turbo",
@@ -6223,6 +6241,7 @@
     "openrouter/anthropic/claude-opus-4",
     "openrouter/anthropic/claude-opus-4.1",
     "openrouter/anthropic/claude-opus-4.5",
+    "openrouter/anthropic/claude-opus-4.6",
     "openrouter/anthropic/claude-sonnet-4",
     "openrouter/anthropic/claude-sonnet-4.5",
     "openrouter/arcee-ai/trinity-large-preview:free",
@@ -6311,6 +6330,7 @@
     "openrouter/x-ai/grok-4-fast",
     "openrouter/x-ai/grok-4.1-fast",
     "openrouter/x-ai/grok-code-fast-1",
+    "openrouter/xiaomi/mimo-v2-flash",
     "openrouter/z-ai/glm-4.5",
     "openrouter/z-ai/glm-4.5-air",
     "openrouter/z-ai/glm-4.5-air:free",
