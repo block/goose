@@ -8,6 +8,7 @@ import {
   ipcMain,
   Menu,
   MenuItem,
+  net,
   Notification,
   powerSaveBlocker,
   screen,
@@ -96,6 +97,31 @@ async function configureProxy() {
 }
 
 if (started) app.quit();
+
+// Accept self-signed certificates from the local goosed server.
+// goosed generates a fresh self-signed TLS cert on every launch so that
+// MCP app iframes are served over HTTPS and get a secure context.
+// certificate-error handles webContents requests (renderer).
+// setCertificateVerifyProc handles net.fetch requests (main process).
+app.on('certificate-error', (event, _webContents, url, _error, _certificate, callback) => {
+  const parsed = new URL(url);
+  if (parsed.hostname === '127.0.0.1' || parsed.hostname === 'localhost') {
+    event.preventDefault();
+    callback(true);
+  } else {
+    callback(false);
+  }
+});
+
+app.whenReady().then(() => {
+  session.defaultSession.setCertificateVerifyProc((request, callback) => {
+    if (request.hostname === '127.0.0.1' || request.hostname === 'localhost') {
+      callback(0); // Accept
+    } else {
+      callback(-3); // Use default verification
+    }
+  });
+});
 
 if (process.env.ENABLE_PLAYWRIGHT) {
   const debugPort = process.env.PLAYWRIGHT_DEBUG_PORT || '9222';
@@ -454,7 +480,7 @@ let appConfig = {
   GOOSE_DEFAULT_PROVIDER: defaultProvider,
   GOOSE_DEFAULT_MODEL: defaultModel,
   GOOSE_PREDEFINED_MODELS: predefinedModels,
-  GOOSE_API_HOST: 'http://127.0.0.1',
+  GOOSE_API_HOST: 'http://localhost',
   GOOSE_WORKING_DIR: '',
   // If GOOSE_ALLOWLIST_WARNING env var is not set, defaults to false (strict blocking mode)
   GOOSE_ALLOWLIST_WARNING: process.env.GOOSE_ALLOWLIST_WARNING === 'true',
@@ -546,6 +572,7 @@ const createChat = async (
   const goosedClient = createClient(
     createConfig({
       baseUrl,
+      fetch: net.fetch as unknown as typeof globalThis.fetch,
       headers: {
         'Content-Type': 'application/json',
         'X-Secret-Key': serverSecret,
@@ -1648,6 +1675,9 @@ async function appMain() {
     const sources = [
       "'self'",
       'http://127.0.0.1:*',
+      'https://127.0.0.1:*',
+      'http://localhost:*',
+      'https://localhost:*',
       'https://api.github.com',
       'https://github.com',
       'https://objects.githubusercontent.com',
