@@ -11,7 +11,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { createClient, createConfig } from '../../src/api/client';
 import type { Client } from '../../src/api/client';
-import { startGoosed as startGoosedBase, waitForServer, type Logger } from '../../src/goosed';
+import { startGoosed as startGoosedBase, checkServerStatus, type Logger } from '../../src/goosed';
 import { expect } from 'vitest';
 
 function stringifyResponse(response: Response) {
@@ -92,17 +92,10 @@ export async function startGoosed({
 
   const port = parseInt(new URL(result.baseUrl).port, 10);
 
-  try {
-    const serverReady = await waitForServer(result.baseUrl, {
-      logger: testLogger,
-    });
-    if (!serverReady) {
-      result.cleanup();
-      console.error('Server stderr:', result.errorLog.join('\n'));
-  const serverReady = await waitForServer(baseUrl);
+  const serverReady = await checkServerStatus(result.client, result.errorLog);
   if (!serverReady) {
-    goosedProcess.kill();
-    console.error('Server stderr:', stderrLines.join('\n'));
+    result.cleanup();
+    console.error('Server stderr:', result.errorLog.join('\n'));
     throw new Error(`Failed to start goosed on port ${port}: server did not become ready`);
   }
 

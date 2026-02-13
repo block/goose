@@ -4,6 +4,8 @@ import os from 'node:os';
 import path from 'node:path';
 import { createServer } from 'net';
 import { Buffer } from 'node:buffer';
+import { status } from './api';
+import { Client, createClient, createConfig } from './api/client';
 
 export interface Logger {
   info: (...args: unknown[]) => void;
@@ -67,37 +69,29 @@ export const findGoosedBinaryPath = (options: FindBinaryOptions = {}): string =>
   );
 };
 
-export interface WaitForServerOptions {
-  timeout?: number;
-  interval?: number;
-  logger?: Logger;
-}
-
-export const waitForServer = async (
-  baseUrl: string,
-  options: WaitForServerOptions = {}
-): Promise<boolean> => {
-  const { timeout = 10000, interval = 100, logger = defaultLogger } = options;
+export const checkServerStatus = async (client: Client, errorLog: string[]): Promise<boolean> => {
+  const timeout = 10000;
+  const interval = 100;
   const maxAttempts = Math.ceil(timeout / interval);
 
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-    try {
-      const response = await fetch(`${baseUrl}/status`);
-      if (response.ok) {
-        return true;
-      }
-    } catch {
-      // Server not ready yet
+    if (errorLog.some(isFatalError)) {
+      return false;
     }
-    await new Promise((resolve) => setTimeout(resolve, interval));
+
+    try {
+      await status({ client, throwOnError: true });
+      return true;
+    } catch {
+      await new Promise((resolve) => setTimeout(resolve, interval));
+    }
   }
 
-  logger.error(`Server failed to respond after ${timeout / 1000} seconds`);
   return false;
 };
 
 export const isFatalError = (line: string): boolean => {
-  const fatalPatterns = [/panicked at/, /RUST_BACKTRACE/, /fatal error/i, /^error\[E\d+\]/];
+  const fatalPatterns = [/panicked at/, /RUST_BACKTRACE/, /fatal error/i];
   return fatalPatterns.some((pattern) => pattern.test(line));
 };
 
@@ -144,11 +138,11 @@ export interface ExternalGoosedConfig {
 
 export interface StartGoosedOptions {
   dir?: string;
-  isPackaged?: boolean;
-  resourcesPath?: string;
   serverSecret: string;
   env?: Record<string, string | undefined>;
   externalGoosed?: ExternalGoosedConfig;
+  isPackaged?: boolean;
+  resourcesPath?: string;
   logger?: Logger;
 }
 
@@ -158,7 +152,20 @@ export interface GoosedResult {
   process: ChildProcess | null;
   errorLog: string[];
   cleanup: () => void;
+  client: Client;
 }
+
+const goosedClientForUrlAndSecret = (url: string, secret: string): Client => {
+  return createClient(
+    createConfig({
+      baseUrl: url,
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Secret-Key': secret,
+      },
+    })
+  );
+};
 
 export const startGoosed = async (options: StartGoosedOptions): Promise<GoosedResult> => {
   const {
@@ -186,6 +193,7 @@ export const startGoosed = async (options: StartGoosedOptions): Promise<GoosedRe
       cleanup: () => {
         logger.info('Not killing external process that is managed externally');
       },
+      client: goosedClientForUrlAndSecret(url, serverSecret),
     };
   }
 
@@ -202,6 +210,7 @@ export const startGoosed = async (options: StartGoosedOptions): Promise<GoosedRe
       cleanup: () => {
         logger.info('Not killing external process that is managed externally');
       },
+      client: goosedClientForUrlAndSecret(url, serverSecret),
     };
   }
 
@@ -295,5 +304,6 @@ export const startGoosed = async (options: StartGoosedOptions): Promise<GoosedRe
     process: goosedProcess,
     errorLog,
     cleanup,
+    client: goosedClientForUrlAndSecret(baseUrl, serverSecret),
   };
 };
