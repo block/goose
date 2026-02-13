@@ -205,6 +205,10 @@ fn format_messages(messages: &[Message], image_format: &ImageFormat) -> Vec<Data
                 MessageContent::SystemNotification(_)
                 | MessageContent::ToolConfirmationRequest(_)
                 | MessageContent::ActionRequired(_) => {}
+                MessageContent::Reasoning(_reasoning) => {
+                    // Reasoning content is for OpenAI-compatible APIs (e.g., DeepSeek)
+                    // Databricks doesn't use this format, so skip
+                }
             }
         }
 

@@ -113,6 +113,11 @@ pub fn to_bedrock_message_content(content: &MessageContent) -> Result<bedrock::C
                     .build()?,
             )
         }
+        MessageContent::Reasoning(_reasoning) => {
+            // Reasoning content is for OpenAI-compatible APIs (e.g., DeepSeek)
+            // Bedrock doesn't use this format, so skip
+            bedrock::ContentBlock::Text("".to_string())
+        }
     })
 }
 

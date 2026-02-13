@@ -4089,12 +4089,28 @@
         "type": "object",
         "description": "Content Security Policy metadata for MCP Apps\nSpecifies allowed domains for network connections and resource loading",
         "properties": {
+          "baseUriDomains": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Domains allowed for base-uri",
+            "nullable": true
+          },
           "connectDomains": {
             "type": "array",
             "items": {
               "type": "string"
             },
             "description": "Domains allowed for connect-src (fetch, XHR, WebSocket)",
+            "nullable": true
+          },
+          "frameDomains": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Domains allowed for frame-src (nested iframes)",
             "nullable": true
           },
           "resourceDomains": {
@@ -5601,6 +5617,27 @@
                 }
               }
             ]
+          },
+          {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ReasoningContent"
+              },
+              {
+                "type": "object",
+                "required": [
+                  "type"
+                ],
+                "properties": {
+                  "type": {
+                    "type": "string",
+                    "enum": [
+                      "reasoning"
+                    ]
+                  }
+                }
+              }
+            ]
           }
         ],
         "description": "Content passed inside a message, which can be both simple content and tool content",
@@ -6360,6 +6397,17 @@
             "type": "string"
           },
           "uri": {
+            "type": "string"
+          }
+        }
+      },
+      "ReasoningContent": {
+        "type": "object",
+        "required": [
+          "text"
+        ],
+        "properties": {
+          "text": {
             "type": "string"
           }
         }
