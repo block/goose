@@ -395,8 +395,8 @@ impl Provider for BedrockProvider {
             });
         }
 
-        let response = request
-            .send()
+        let response = self
+            .with_retry("bedrock_converse_stream", request.send())
             .await
             .map_err(|err| match err.into_service_error() {
                 ConverseStreamError::ThrottlingException(throttle_err) => {
