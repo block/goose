@@ -133,7 +133,7 @@ export function PresetGallery({ onApply }: PresetGalleryProps) {
               className="border border-border-primary rounded-lg p-4 flex flex-col hover:border-border-secondary transition-colors"
             >
               {/* Theme Preview Colors - Show only current mode (4 colors) */}
-              <div className="grid grid-cols-4 h-8 rounded border border-border-primary overflow-hidden">
+              <div className="grid grid-cols-4 h-24 rounded border border-border-primary overflow-hidden">
                 <div 
                   style={{ backgroundColor: preset.colors[resolvedTheme]['color-background-primary'] }}
                 />

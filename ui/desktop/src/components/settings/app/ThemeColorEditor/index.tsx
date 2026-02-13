@@ -247,7 +247,7 @@ export function ThemeColorEditor({ onClose }: ThemeColorEditorProps) {
                 {/* Custom Theme Info Card */}
                 <div className="border-2 border-border-primary rounded-lg p-4 bg-background-secondary space-y-3">
                   {/* Theme Preview Colors */}
-                  <div className="grid grid-cols-4 h-8 rounded border border-border-primary overflow-hidden">
+                  <div className="grid grid-cols-4 h-24 rounded border border-border-primary overflow-hidden">
                     <div style={{ backgroundColor: themeColors[activeMode]['color-background-primary'] || '#000000' }} />
                     <div style={{ backgroundColor: themeColors[activeMode]['color-background-secondary'] || '#000000' }} />
                     <div style={{ backgroundColor: themeColors[activeMode]['color-text-primary'] || '#000000' }} />
