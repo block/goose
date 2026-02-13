@@ -19,12 +19,17 @@ import {
 } from '../../src/api';
 import { execSync } from 'child_process';
 
+const CONSTRAINED_PATH = '/usr/bin:/bin:/usr/sbin:/sbin';
+
 function getUserPath(): string[] {
   try {
     const userShell = process.env.SHELL || '/bin/bash';
     const path = execSync(`${userShell} -i -c 'echo $PATH'`, {
       encoding: 'utf-8',
       timeout: 5000,
+      env: {
+        PATH: CONSTRAINED_PATH,
+      },
     }).trim();
 
     const delimiter = process.platform === 'win32' ? ';' : ':';
@@ -34,8 +39,6 @@ function getUserPath(): string[] {
     throw error;
   }
 }
-
-const CONSTRAINED_PATH = '/usr/bin:/bin:/usr/sbin:/sbin';
 
 describe('goosed API integration tests', () => {
   let ctx: GoosedTestContext;
@@ -190,12 +193,7 @@ extensions:
     it('should see the full PATH when calling the developer tool', async () => {
       const currentPath = getUserPath();
 
-      // find a part of current path that is not in CONSTRAINED_PATH.
-      // also excludes anything with 'node_modules', because we'd expect that
-      // to be added by this test itself
-      const pathEntry = currentPath.find(
-        (entry) => !CONSTRAINED_PATH.includes(entry) && !entry.includes('node_modules')
-      );
+      const pathEntry = currentPath.find((entry) => !CONSTRAINED_PATH.includes(entry));
       if (!pathEntry) {
         expect.fail(`Could not find a path entry not in ${CONSTRAINED_PATH}`);
       }
