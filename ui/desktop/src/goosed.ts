@@ -173,9 +173,9 @@ export const startGoosed = async (options: StartGoosedOptions): Promise<GoosedRe
     };
   }
 
-  const externalBackendUrl = process.env.GOOSE_EXTERNAL_BACKEND;
-  if (externalBackendUrl) {
-    const url = externalBackendUrl.replace(/\/$/, '');
+  if (process.env.GOOSE_EXTERNAL_BACKEND) {
+    const port = process.env.GOOSE_PORT || '3000';
+    const url = `http://127.0.0.1:${port}`;
     logger.info(`Using external goosed backend from env at ${url}`);
 
     return {
