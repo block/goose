@@ -136,7 +136,7 @@ export function PresetGallery({ onApply }: PresetGalleryProps) {
             className="border border-border-primary rounded-lg p-4 space-y-3 hover:border-border-secondary transition-colors"
           >
             {/* Theme Preview Colors - Show only current mode */}
-            <div className="h-12 rounded border border-border-primary overflow-hidden">
+            <div className="h-8 rounded border border-border-primary overflow-hidden">
               <div 
                 className="h-1/2" 
                 style={{ backgroundColor: preset.colors[resolvedTheme]['color-background-primary'] }}
