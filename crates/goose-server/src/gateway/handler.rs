@@ -303,10 +303,16 @@ impl GatewayHandler {
         let cancel = CancellationToken::new();
         let user_message = Message::user().with_text(&message.text);
 
+        // Cap tool-calling loops so the agent doesn't run away doing
+        // dozens of tool calls before responding.  After this many
+        // LLM→tool round-trips the agent will stop and reply with
+        // whatever it has.
+        const GATEWAY_MAX_TURNS: u32 = 5;
+
         let session_config = SessionConfig {
             id: session_id.to_string(),
             schedule_id: None,
-            max_turns: None,
+            max_turns: Some(GATEWAY_MAX_TURNS),
             retry_config: None,
         };
 
@@ -356,7 +362,13 @@ impl GatewayHandler {
             }
         });
 
-        let mut response_text = String::new();
+        // Buffer text within a single assistant message so we send one
+        // Telegram message per LLM turn rather than per-chunk.  When a
+        // ToolRequest appears in the same message we flush the buffer
+        // first — the user sees "Let me check…" immediately, then the
+        // typing indicator while the tool runs, then the next response.
+        let mut pending_text = String::new();
+        let mut sent_any = false;
         let mut event_count: u64 = 0;
 
         while let Some(event) = stream.next().await {
@@ -373,12 +385,29 @@ impl GatewayHandler {
                         for content in &msg.content {
                             match content {
                                 MessageContent::Text(t) => {
-                                    if !response_text.is_empty() {
-                                        response_text.push('\n');
+                                    if !t.text.is_empty() {
+                                        if !pending_text.is_empty() {
+                                            pending_text.push('\n');
+                                        }
+                                        pending_text.push_str(&t.text);
                                     }
-                                    response_text.push_str(&t.text);
                                 }
                                 MessageContent::ToolRequest(req) => {
+                                    // Flush any accumulated text before
+                                    // the tool runs — the user sees the
+                                    // assistant's intent immediately.
+                                    if !pending_text.is_empty() {
+                                        let _ = self
+                                            .gateway
+                                            .send_message(
+                                                &message.user,
+                                                OutgoingMessage::Text {
+                                                    body: std::mem::take(&mut pending_text),
+                                                },
+                                            )
+                                            .await;
+                                        sent_any = true;
+                                    }
                                     if let Ok(call) = &req.tool_call {
                                         tracing::debug!(
                                             session_id,
@@ -462,22 +491,33 @@ impl GatewayHandler {
         tracing::debug!(
             session_id,
             event_count,
-            response_len = response_text.len(),
+            pending_text_len = pending_text.len(),
+            sent_any,
             "gateway stream: finished"
         );
 
-        if response_text.is_empty() {
-            response_text = "(No response)".to_string();
+        // Send any remaining buffered text (this is typically the final
+        // assistant response after the last tool round-trip).
+        if !pending_text.is_empty() {
+            self.gateway
+                .send_message(
+                    &message.user,
+                    OutgoingMessage::Text {
+                        body: pending_text,
+                    },
+                )
+                .await?;
+        } else if !sent_any {
+            // Nothing was ever sent — let the user know.
+            self.gateway
+                .send_message(
+                    &message.user,
+                    OutgoingMessage::Text {
+                        body: "(No response)".to_string(),
+                    },
+                )
+                .await?;
         }
-
-        self.gateway
-            .send_message(
-                &message.user,
-                OutgoingMessage::Text {
-                    body: response_text,
-                },
-            )
-            .await?;
 
         Ok(())
     }
