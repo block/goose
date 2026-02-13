@@ -9,12 +9,14 @@ import { Button } from '../../../../ui/button';
 import { toast } from 'react-toastify';
 import { ThemePreset } from '../../../../../themes/presets/types';
 import { getThemePresets, applyThemePreset } from '../../../../../api';
+import { useTheme } from '../../../../../contexts/ThemeContext';
 
 interface PresetGalleryProps {
   onApply?: () => void;
 }
 
 export function PresetGallery({ onApply }: PresetGalleryProps) {
+  const { resolvedTheme } = useTheme();
   const [presets, setPresets] = useState<ThemePreset[]>([]);
   const [loading, setLoading] = useState(true);
   const [applying, setApplying] = useState<string | null>(null);
@@ -133,28 +135,16 @@ export function PresetGallery({ onApply }: PresetGalleryProps) {
             key={preset.id}
             className="border border-border-primary rounded-lg p-4 space-y-3 hover:border-border-secondary transition-colors"
           >
-            {/* Theme Preview Colors */}
-            <div className="flex gap-2 h-12">
-              <div className="flex-1 rounded border border-border-primary overflow-hidden">
-                <div 
-                  className="h-1/2" 
-                  style={{ backgroundColor: preset.colors.light['color-background-primary'] }}
-                />
-                <div 
-                  className="h-1/2" 
-                  style={{ backgroundColor: preset.colors.light['color-background-secondary'] }}
-                />
-              </div>
-              <div className="flex-1 rounded border border-border-primary overflow-hidden">
-                <div 
-                  className="h-1/2" 
-                  style={{ backgroundColor: preset.colors.dark['color-background-primary'] }}
-                />
-                <div 
-                  className="h-1/2" 
-                  style={{ backgroundColor: preset.colors.dark['color-background-secondary'] }}
-                />
-              </div>
+            {/* Theme Preview Colors - Show only current mode */}
+            <div className="h-12 rounded border border-border-primary overflow-hidden">
+              <div 
+                className="h-1/2" 
+                style={{ backgroundColor: preset.colors[resolvedTheme]['color-background-primary'] }}
+              />
+              <div 
+                className="h-1/2" 
+                style={{ backgroundColor: preset.colors[resolvedTheme]['color-background-secondary'] }}
+              />
             </div>
 
             {/* Theme Info */}
