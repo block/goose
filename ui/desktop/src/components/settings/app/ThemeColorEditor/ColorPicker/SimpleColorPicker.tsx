@@ -12,20 +12,32 @@ interface SimpleColorPickerProps {
   onChange: (color: string) => void;
 }
 
-// Hue spectrum colors (12 stops around the color wheel)
+// Hue spectrum colors (24 stops around the color wheel for maximum precision)
 const HUE_COLORS = [
-  '#ff0000', // Red
-  '#ff8000', // Orange
-  '#ffff00', // Yellow
-  '#80ff00', // Yellow-Green
-  '#00ff00', // Green
-  '#00ff80', // Green-Cyan
-  '#00ffff', // Cyan
-  '#0080ff', // Cyan-Blue
-  '#0000ff', // Blue
-  '#8000ff', // Blue-Purple
-  '#ff00ff', // Purple
-  '#ff0080', // Purple-Red
+  '#ff0000', // Red (0°)
+  '#ff4000', // Red-Orange
+  '#ff8000', // Orange (30°)
+  '#ffbf00', // Orange-Yellow
+  '#ffff00', // Yellow (60°)
+  '#bfff00', // Yellow-Lime
+  '#80ff00', // Lime (90°)
+  '#40ff00', // Lime-Green
+  '#00ff00', // Green (120°)
+  '#00ff40', // Green-Spring
+  '#00ff80', // Spring (150°)
+  '#00ffbf', // Spring-Cyan
+  '#00ffff', // Cyan (180°)
+  '#00bfff', // Cyan-Azure
+  '#0080ff', // Azure (210°)
+  '#0040ff', // Azure-Blue
+  '#0000ff', // Blue (240°)
+  '#4000ff', // Blue-Violet
+  '#8000ff', // Violet (270°)
+  '#bf00ff', // Violet-Purple
+  '#ff00ff', // Purple (300°)
+  '#ff00bf', // Purple-Magenta
+  '#ff0080', // Magenta (330°)
+  '#ff0040', // Magenta-Red
 ];
 
 // Generate saturation/lightness grid for a given hue
@@ -137,7 +149,7 @@ export function SimpleColorPicker({ color, onChange }: SimpleColorPickerProps) {
       {/* Hue Spectrum Bar */}
       <div>
         <div className="text-xs text-text-secondary mb-1.5">Select Hue</div>
-        <div className="grid grid-cols-12 gap-0.5">
+        <div className="grid grid-cols-24 gap-0.5">
           {HUE_COLORS.map((hueColor) => (
             <button
               key={hueColor}
