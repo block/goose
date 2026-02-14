@@ -3236,6 +3236,82 @@
         }
       }
     },
+    "/theme/active": {
+      "get": {
+        "tags": [
+          "super::routes::config_management"
+        ],
+        "operationId": "get_active_theme",
+        "responses": {
+          "200": {
+            "description": "Get the currently active theme ID",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ActiveThemeResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/theme/apply-preset": {
+      "post": {
+        "tags": [
+          "super::routes::config_management"
+        ],
+        "operationId": "apply_theme_preset",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ApplyPresetRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Theme preset applied successfully",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Theme preset not found"
+          },
+          "500": {
+            "description": "Failed to apply theme preset"
+          }
+        }
+      }
+    },
+    "/theme/presets": {
+      "get": {
+        "tags": [
+          "super::routes::config_management"
+        ],
+        "operationId": "get_theme_presets",
+        "responses": {
+          "200": {
+            "description": "List of all theme presets (built-in and custom)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ThemePresetsResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/theme/save": {
       "post": {
         "tags": [
@@ -3265,6 +3341,76 @@
           },
           "500": {
             "description": "Failed to save theme"
+          }
+        }
+      }
+    },
+    "/theme/save-custom": {
+      "post": {
+        "tags": [
+          "super::routes::config_management"
+        ],
+        "operationId": "save_custom_theme",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SaveCustomThemeRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Custom theme saved successfully",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Failed to save custom theme"
+          }
+        }
+      }
+    },
+    "/theme/saved/{id}": {
+      "delete": {
+        "tags": [
+          "super::routes::config_management"
+        ],
+        "operationId": "delete_custom_theme",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Theme ID to delete",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Custom theme deleted successfully",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Theme not found"
+          },
+          "500": {
+            "description": "Failed to delete theme"
           }
         }
       }
@@ -3470,6 +3616,15 @@
           "propertyName": "actionType"
         }
       },
+      "ActiveThemeResponse": {
+        "type": "object",
+        "properties": {
+          "theme_id": {
+            "type": "string",
+            "nullable": true
+          }
+        }
+      },
       "AddExtensionRequest": {
         "type": "object",
         "required": [
@@ -3500,6 +3655,17 @@
           },
           "priority": {
             "type": "number"
+          }
+        }
+      },
+      "ApplyPresetRequest": {
+        "type": "object",
+        "required": [
+          "preset_id"
+        ],
+        "properties": {
+          "preset_id": {
+            "type": "string"
           }
         }
       },
@@ -6234,6 +6400,40 @@
           }
         }
       },
+      "SaveCustomThemeRequest": {
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "author",
+          "description",
+          "tags",
+          "colors"
+        ],
+        "properties": {
+          "author": {
+            "type": "string"
+          },
+          "colors": {
+            "$ref": "#/components/schemas/ThemeColorsDto"
+          },
+          "description": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
       "SavePromptRequest": {
         "type": "object",
         "required": [
@@ -6949,6 +7149,82 @@
           }
         }
       },
+      "ThemeColorsDto": {
+        "type": "object",
+        "required": [
+          "light",
+          "dark"
+        ],
+        "properties": {
+          "dark": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            }
+          },
+          "light": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "ThemePreset": {
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "author",
+          "description",
+          "tags",
+          "colors",
+          "version"
+        ],
+        "properties": {
+          "author": {
+            "type": "string"
+          },
+          "colors": {
+            "$ref": "#/components/schemas/ThemeColorsDto"
+          },
+          "description": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "is_custom": {
+            "type": "boolean"
+          },
+          "name": {
+            "type": "string"
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "version": {
+            "type": "string"
+          }
+        }
+      },
+      "ThemePresetsResponse": {
+        "type": "object",
+        "required": [
+          "presets"
+        ],
+        "properties": {
+          "presets": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ThemePreset"
+            }
+          }
+        }
+      },
       "ThemeVariablesResponse": {
         "type": "object",
         "required": [
@@ -6957,7 +7233,6 @@
         "properties": {
           "variables": {
             "type": "object",
-            "description": "MCP-compatible CSS variables with light-dark() format\nThese variables use MCP standard naming (--color-*) and light-dark() format\nfor seamless integration with both the main app and MCP apps.",
             "additionalProperties": {
               "type": "string"
             }

@@ -25,6 +25,10 @@ export type ActionRequiredData = {
     user_data: unknown;
 };
 
+export type ActiveThemeResponse = {
+    theme_id?: string | null;
+};
+
 export type AddExtensionRequest = {
     config: ExtensionConfig;
     session_id: string;
@@ -34,6 +38,10 @@ export type Annotations = {
     audience?: Array<Role>;
     lastModified?: string;
     priority?: number;
+};
+
+export type ApplyPresetRequest = {
+    preset_id: string;
 };
 
 export type Author = {
@@ -979,6 +987,15 @@ export type RunNowResponse = {
     session_id: string;
 };
 
+export type SaveCustomThemeRequest = {
+    author: string;
+    colors: ThemeColorsDto;
+    description: string;
+    id: string;
+    name: string;
+    tags: Array<string>;
+};
+
 export type SavePromptRequest = {
     content: string;
 };
@@ -1199,12 +1216,31 @@ export type TextContent = {
     text: string;
 };
 
+export type ThemeColorsDto = {
+    dark: {
+        [key: string]: string;
+    };
+    light: {
+        [key: string]: string;
+    };
+};
+
+export type ThemePreset = {
+    author: string;
+    colors: ThemeColorsDto;
+    description: string;
+    id: string;
+    is_custom?: boolean;
+    name: string;
+    tags: Array<string>;
+    version: string;
+};
+
+export type ThemePresetsResponse = {
+    presets: Array<ThemePreset>;
+};
+
 export type ThemeVariablesResponse = {
-    /**
-     * MCP-compatible CSS variables with light-dark() format
-     * These variables use MCP standard naming (--color-*) and light-dark() format
-     * for seamless integration with both the main app and MCP apps.
-     */
     variables: {
         [key: string]: string;
     };
@@ -3925,6 +3961,65 @@ export type SendTelemetryEventResponses = {
     202: unknown;
 };
 
+export type GetActiveThemeData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/theme/active';
+};
+
+export type GetActiveThemeResponses = {
+    /**
+     * Get the currently active theme ID
+     */
+    200: ActiveThemeResponse;
+};
+
+export type GetActiveThemeResponse = GetActiveThemeResponses[keyof GetActiveThemeResponses];
+
+export type ApplyThemePresetData = {
+    body: ApplyPresetRequest;
+    path?: never;
+    query?: never;
+    url: '/theme/apply-preset';
+};
+
+export type ApplyThemePresetErrors = {
+    /**
+     * Theme preset not found
+     */
+    404: unknown;
+    /**
+     * Failed to apply theme preset
+     */
+    500: unknown;
+};
+
+export type ApplyThemePresetResponses = {
+    /**
+     * Theme preset applied successfully
+     */
+    200: string;
+};
+
+export type ApplyThemePresetResponse = ApplyThemePresetResponses[keyof ApplyThemePresetResponses];
+
+export type GetThemePresetsData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/theme/presets';
+};
+
+export type GetThemePresetsResponses = {
+    /**
+     * List of all theme presets (built-in and custom)
+     */
+    200: ThemePresetsResponse;
+};
+
+export type GetThemePresetsResponse = GetThemePresetsResponses[keyof GetThemePresetsResponses];
+
 export type SaveThemeData = {
     body: SaveThemeRequest;
     path?: never;
@@ -3947,6 +4042,61 @@ export type SaveThemeResponses = {
 };
 
 export type SaveThemeResponse = SaveThemeResponses[keyof SaveThemeResponses];
+
+export type SaveCustomThemeData = {
+    body: SaveCustomThemeRequest;
+    path?: never;
+    query?: never;
+    url: '/theme/save-custom';
+};
+
+export type SaveCustomThemeErrors = {
+    /**
+     * Failed to save custom theme
+     */
+    500: unknown;
+};
+
+export type SaveCustomThemeResponses = {
+    /**
+     * Custom theme saved successfully
+     */
+    200: string;
+};
+
+export type SaveCustomThemeResponse = SaveCustomThemeResponses[keyof SaveCustomThemeResponses];
+
+export type DeleteCustomThemeData = {
+    body?: never;
+    path: {
+        /**
+         * Theme ID to delete
+         */
+        id: string;
+    };
+    query?: never;
+    url: '/theme/saved/{id}';
+};
+
+export type DeleteCustomThemeErrors = {
+    /**
+     * Theme not found
+     */
+    404: unknown;
+    /**
+     * Failed to delete theme
+     */
+    500: unknown;
+};
+
+export type DeleteCustomThemeResponses = {
+    /**
+     * Custom theme deleted successfully
+     */
+    200: string;
+};
+
+export type DeleteCustomThemeResponse = DeleteCustomThemeResponses[keyof DeleteCustomThemeResponses];
 
 export type GetThemeVariablesData = {
     body?: never;

@@ -5,6 +5,7 @@ pub mod openapi;
 pub mod routes;
 pub mod state;
 pub mod theme_css;
+pub mod theme_presets;
 pub mod tunnel;
 
 // Re-export commonly used items
