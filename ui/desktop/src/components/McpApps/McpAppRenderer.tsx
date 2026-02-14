@@ -519,8 +519,12 @@ export default function McpAppRenderer({
         sandbox={sandboxConfig}
         toolName={resourceUri}
         html={html ?? undefined}
-        toolInput={toolInput?.arguments}
-        toolInputPartial={toolInputPartial ? { arguments: toolInputPartial.arguments } : undefined}
+        toolInput={toolInput?.arguments ?? {}}
+        toolInputPartial={
+          toolInputPartial?.arguments != null
+            ? { arguments: toolInputPartial.arguments }
+            : undefined
+        }
         toolCancelled={isToolCancelled}
         hostContext={hostContext}
         toolResult={appToolResult}
