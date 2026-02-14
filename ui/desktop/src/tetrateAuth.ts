@@ -30,13 +30,16 @@ type TetrateCallbackMatch = {
   state: string;
   code?: string;
   error?: string;
+  errorDescription?: string;
 };
 
 const TETRATE_AUTH_URL = 'https://router.tetrate.ai/auth';
-const TETRATE_AUTH_TTL_MS = 10 * 60 * 1000;
+const TETRATE_AUTH_TTL_MS = 2 * 60 * 1000;
 const TETRATE_AUTH_CALLBACK_SCHEME = 'goose';
 
 const tetrateAuthFlows = new Map<string, TetrateAuthFlow>();
+const completedTetrateAuthFlowErrors = new Map<string, string>();
+let activeTetrateFlowId: string | null = null;
 
 function createPkcePair(): { codeVerifier: string; codeChallenge: string } {
   const codeVerifier = crypto.randomBytes(96).toString('base64url');
@@ -115,8 +118,10 @@ function matchTetrateCallbackUrl(callbackUrl: string): TetrateCallbackMatch | nu
   const result: TetrateCallbackMatch = { flowId, state };
   const code = parsedUrl.searchParams.get('code');
   const error = parsedUrl.searchParams.get('error');
+  const errorDescription = parsedUrl.searchParams.get('error_description');
   if (code) result.code = code;
   if (error) result.error = error;
+  if (errorDescription) result.errorDescription = errorDescription;
 
   return result;
 }
@@ -141,6 +146,9 @@ function expireTetrateAuthFlow(flowId: string, message: string): void {
   }
 
   log.warn('Tetrate auth flow expired:', { flowId, reason: message });
+  if (!flow.reject) {
+    completedTetrateAuthFlowErrors.set(flowId, message);
+  }
   flow.reject?.(new Error(message));
   cleanupTetrateAuthFlow(flowId);
 }
@@ -194,7 +202,8 @@ export function handleTetrateCallbackUrl(
   }
 
   if (match.error) {
-    expireTetrateAuthFlow(match.flowId, `Authentication denied: ${match.error}`);
+    const errorMessage = match.errorDescription || match.error;
+    expireTetrateAuthFlow(match.flowId, `Authentication denied: ${errorMessage}`);
     return true;
   }
 
@@ -211,6 +220,11 @@ export function handleTetrateCallbackUrl(
 function waitForTetrateCallback(flowId: string): Promise<string> {
   const flow = tetrateAuthFlows.get(flowId);
   if (!flow) {
+    const completedFlowError = completedTetrateAuthFlowErrors.get(flowId);
+    if (completedFlowError) {
+      completedTetrateAuthFlowErrors.delete(flowId);
+      return Promise.reject(new Error(completedFlowError));
+    }
     return Promise.reject(new Error('Authentication expired'));
   }
 
@@ -234,6 +248,16 @@ async function startTetrateAuthSession(flowId: string, authUrl: string): Promise
   return waitForTetrateCallback(flowId);
 }
 
+export function cancelTetrateAuthFlow(message = 'Authentication canceled by user'): boolean {
+  if (!activeTetrateFlowId) {
+    return false;
+  }
+  const flowId = activeTetrateFlowId;
+  activeTetrateFlowId = null;
+  expireTetrateAuthFlow(flowId, message);
+  return true;
+}
+
 function getTetrateAuthErrorMessage(error: unknown): string {
   if (error instanceof Error && error.message) {
     return error.message;
@@ -251,7 +275,15 @@ function getTetrateAuthErrorMessage(error: unknown): string {
 }
 
 export async function runTetrateAuthFlow(client: Client): Promise<TetrateSetupResponse> {
+  if (activeTetrateFlowId) {
+    return {
+      success: false,
+      message: 'Authentication already in progress',
+    };
+  }
+
   const { flowId, authUrl } = createTetrateAuthFlow();
+  activeTetrateFlowId = flowId;
 
   try {
     const callbackUrl = await startTetrateAuthSession(flowId, authUrl);
@@ -294,6 +326,10 @@ export async function runTetrateAuthFlow(client: Client): Promise<TetrateSetupRe
       success: false,
       message: getTetrateAuthErrorMessage(error),
     };
+  } finally {
+    if (activeTetrateFlowId === flowId) {
+      activeTetrateFlowId = null;
+    }
   }
 }
 
@@ -311,6 +347,8 @@ export const __test = {
       }
     }
     tetrateAuthFlows.clear();
+    completedTetrateAuthFlowErrors.clear();
+    activeTetrateFlowId = null;
   },
   waitForTetrateCallback,
 };

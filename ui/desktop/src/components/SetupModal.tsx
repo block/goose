@@ -9,6 +9,7 @@ interface SetupModalProps {
   onRetry?: () => void;
   autoClose?: number;
   onClose?: () => void;
+  closeLabel?: string;
 }
 
 export function SetupModal({
@@ -19,6 +20,7 @@ export function SetupModal({
   onRetry,
   autoClose,
   onClose,
+  closeLabel,
 }: SetupModalProps) {
   useEffect(() => {
     if (autoClose && onClose) {
@@ -45,7 +47,7 @@ export function SetupModal({
         {onClose && (
           <div className="mb-4">
             <Button onClick={onClose} className="w-full">
-              Close
+              {closeLabel || 'Close'}
             </Button>
             <br />
           </div>

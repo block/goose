@@ -48,6 +48,7 @@ import { Client, createClient, createConfig } from './api/client';
 import { GooseApp } from './api';
 import {
   TETRATE_AUTH_CLEANUP_INTERVAL_MS,
+  cancelTetrateAuthFlow,
   cleanupExpiredTetrateAuthFlows,
   handleTetrateCallbackUrl,
   runTetrateAuthFlow,
@@ -1264,6 +1265,10 @@ ipcMain.handle('tetrate-auth-start', async (event) => {
   }
 
   return runTetrateAuthFlow(client);
+});
+
+ipcMain.handle('tetrate-auth-cancel', () => {
+  return cancelTetrateAuthFlow();
 });
 
 // Handle menu bar icon visibility

@@ -19,7 +19,12 @@ vi.mock('./api', () => ({
 import { shell } from 'electron';
 import type { Client } from './api/client';
 import { verifyTetrateSetup } from './api';
-import { __test, handleTetrateCallbackUrl, runTetrateAuthFlow } from './tetrateAuth';
+import {
+  __test,
+  cancelTetrateAuthFlow,
+  handleTetrateCallbackUrl,
+  runTetrateAuthFlow,
+} from './tetrateAuth';
 
 describe('tetrateAuth', () => {
   afterEach(() => {
@@ -124,6 +129,21 @@ describe('tetrateAuth', () => {
     await expect(waitPromise).rejects.toThrow('access_denied');
   });
 
+  it('uses error_description when the auth callback includes one', async () => {
+    const { flowId, authUrl } = __test.createTetrateAuthFlow();
+    const callbackUrl = new URL(authUrl).searchParams.get('callback');
+    expect(callbackUrl).toBeTruthy();
+
+    const errorUrl = new URL(callbackUrl as string);
+    errorUrl.searchParams.set('error', 'access_denied');
+    errorUrl.searchParams.set('error_description', 'User denied authorization');
+
+    const waitPromise = __test.waitForTetrateCallback(flowId);
+    expect(handleTetrateCallbackUrl(errorUrl.toString())).toBe(true);
+
+    await expect(waitPromise).rejects.toThrow('User denied authorization');
+  });
+
   it('rejects immediately when the callback has no code and no error', async () => {
     const { flowId, authUrl } = __test.createTetrateAuthFlow();
     const callbackUrl = new URL(authUrl).searchParams.get('callback');
@@ -134,6 +154,19 @@ describe('tetrateAuth', () => {
     expect(handleTetrateCallbackUrl(callbackUrl as string)).toBe(true);
 
     await expect(waitPromise).rejects.toThrow('Authentication failed');
+  });
+
+  it('supports canceling an active auth flow', async () => {
+    const openExternalMock = vi.mocked(shell.openExternal);
+    openExternalMock.mockResolvedValue();
+
+    const flowPromise = runTetrateAuthFlow({} as Client);
+    expect(cancelTetrateAuthFlow()).toBe(true);
+
+    await expect(flowPromise).resolves.toEqual({
+      success: false,
+      message: 'Authentication canceled by user',
+    });
   });
 
   it('runs the full auth flow and verifies the code', async () => {

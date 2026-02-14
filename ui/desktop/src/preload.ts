@@ -115,6 +115,7 @@ type ElectronAPI = {
   // Function to serve temp images
   getTempImage: (filePath: string) => Promise<string | null>;
   startTetrateAuth: () => Promise<{ success: boolean; message: string }>;
+  cancelTetrateAuth: () => Promise<boolean>;
   // Update-related functions
   getVersion: () => string;
   checkForUpdates: () => Promise<{ updateInfo: unknown; error: string | null }>;
@@ -237,6 +238,9 @@ const electronAPI: ElectronAPI = {
   },
   startTetrateAuth: (): Promise<{ success: boolean; message: string }> => {
     return ipcRenderer.invoke('tetrate-auth-start');
+  },
+  cancelTetrateAuth: (): Promise<boolean> => {
+    return ipcRenderer.invoke('tetrate-auth-cancel');
   },
   getVersion: (): string => {
     return config.GOOSE_VERSION || ipcRenderer.sendSync('get-app-version') || '';

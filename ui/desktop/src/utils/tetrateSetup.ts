@@ -11,3 +11,11 @@ export async function startTetrateSetup(): Promise<{
     };
   }
 }
+
+export async function cancelTetrateSetup(): Promise<boolean> {
+  try {
+    return await window.electron.cancelTetrateAuth();
+  } catch {
+    return false;
+  }
+}
