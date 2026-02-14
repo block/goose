@@ -55,6 +55,11 @@ pub async fn run() -> Result<()> {
         tunnel_manager.check_auto_start().await;
     });
 
+    let gateway_manager = app_state.gateway_manager.clone();
+    tokio::spawn(async move {
+        gateway_manager.check_auto_start().await;
+    });
+
     axum::serve(listener, app)
         .with_graceful_shutdown(shutdown_signal())
         .await?;

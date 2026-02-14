@@ -12,6 +12,7 @@ use std::sync::Arc;
 use tokio::sync::Mutex;
 use tokio::task::JoinHandle;
 
+use crate::gateway::manager::GatewayManager;
 use crate::tunnel::TunnelManager;
 use goose::agents::ExtensionLoadResult;
 
@@ -22,9 +23,9 @@ type ExtensionLoadingTasks =
 pub struct AppState {
     pub(crate) agent_manager: Arc<AgentManager>,
     pub recipe_file_hash_map: Arc<Mutex<HashMap<String, PathBuf>>>,
-    /// Tracks sessions that have already emitted recipe telemetry to prevent double counting.
     recipe_session_tracker: Arc<Mutex<HashSet<String>>>,
     pub tunnel_manager: Arc<TunnelManager>,
+    pub gateway_manager: Arc<GatewayManager>,
     pub extension_loading_tasks: ExtensionLoadingTasks,
 }
 
@@ -50,12 +51,14 @@ impl AppState {
 
         let agent_manager = AgentManager::instance().await?;
         let tunnel_manager = Arc::new(TunnelManager::new());
+        let gateway_manager = Arc::new(GatewayManager::new(agent_manager.clone()));
 
         Ok(Arc::new(Self {
             agent_manager,
             recipe_file_hash_map: Arc::new(Mutex::new(HashMap::new())),
             recipe_session_tracker: Arc::new(Mutex::new(HashSet::new())),
             tunnel_manager,
+            gateway_manager,
             extension_loading_tasks: Arc::new(Mutex::new(HashMap::new())),
         }))
     }

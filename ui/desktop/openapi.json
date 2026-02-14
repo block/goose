@@ -6522,7 +6522,8 @@
           "scheduled",
           "sub_agent",
           "hidden",
-          "terminal"
+          "terminal",
+          "gateway"
         ]
       },
       "SessionsQuery": {
