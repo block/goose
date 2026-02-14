@@ -4,8 +4,8 @@ SETLOCAL EnableDelayedExpansion
 SET "NODE_VERSION=22.14.0"
 SET "GOOSE_NODE_DIR=%LOCALAPPDATA%\Goose\node"
 
-REM === Check for previously downloaded portable Node.js ===
-if exist "%GOOSE_NODE_DIR%\npx.cmd" (
+REM === Check for previously downloaded portable Node.js (matching version) ===
+if exist "%GOOSE_NODE_DIR%\node-v%NODE_VERSION%.installed" (
     SET "PATH=%GOOSE_NODE_DIR%;!PATH!"
     "%GOOSE_NODE_DIR%\npx.cmd" %*
     exit /b !errorlevel!
@@ -41,7 +41,7 @@ if defined NVM_SYMLINK (
 REM === Download portable Node.js as last resort ===
 
 REM Re-check cache (another parallel extension may have just installed it)
-if exist "%GOOSE_NODE_DIR%\npx.cmd" (
+if exist "%GOOSE_NODE_DIR%\node-v%NODE_VERSION%.installed" (
     SET "PATH=%GOOSE_NODE_DIR%;!PATH!"
     "%GOOSE_NODE_DIR%\npx.cmd" %*
     exit /b !errorlevel!
@@ -68,6 +68,7 @@ del "%NODE_ZIP%" >nul 2>&1
 rmdir /s /q "%NODE_EXTRACT%" >nul 2>&1
 
 if exist "%GOOSE_NODE_DIR%\npx.cmd" (
+    echo.>"%GOOSE_NODE_DIR%\node-v%NODE_VERSION%.installed"
     SET "PATH=%GOOSE_NODE_DIR%;!PATH!"
     echo [Goose] Node.js v%NODE_VERSION% ready. 1>&2
     "%GOOSE_NODE_DIR%\npx.cmd" %*
