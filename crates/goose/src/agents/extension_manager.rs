@@ -500,10 +500,6 @@ impl ExtensionManager {
             return Ok(());
         }
 
-        // Resolve working_dir: explicit > current_dir
-        let effective_working_dir =
-            working_dir.unwrap_or_else(|| std::env::current_dir().unwrap_or_default());
-
         let mut temp_dir = None;
 
         let client: Box<dyn McpClientTrait> = match &config {
@@ -578,6 +574,9 @@ impl ExtensionManager {
                     })
                 };
 
+                let effective_working_dir = working_dir
+                    .clone()
+                    .unwrap_or_else(|| std::env::current_dir().unwrap_or_default());
                 let client = child_process_client(
                     command,
                     timeout,
@@ -614,6 +613,9 @@ impl ExtensionManager {
                             .arg(&normalized_name);
                     });
 
+                    let effective_working_dir = working_dir
+                        .clone()
+                        .unwrap_or_else(|| std::env::current_dir().unwrap_or_default());
                     let client = child_process_client(
                         command,
                         timeout,
@@ -624,6 +626,8 @@ impl ExtensionManager {
                     .await?;
                     Box::new(client)
                 } else {
+                    // Non-containerized builtin runs in-process via duplex channels.
+                    // Working directory is passed per-request via call_tool metadata, not here.
                     let (server_read, client_write) = tokio::io::duplex(65536);
                     let (client_read, server_write) = tokio::io::duplex(65536);
                     extension_fn(server_read, server_write);
@@ -668,6 +672,10 @@ impl ExtensionManager {
                     command.arg("python").arg(file_path.to_str().unwrap());
                 });
 
+                // Compute working_dir for InlinePython (runs as child process via uvx)
+                let effective_working_dir = working_dir
+                    .clone()
+                    .unwrap_or_else(|| std::env::current_dir().unwrap_or_default());
                 let client = child_process_client(
                     command,
                     timeout,
