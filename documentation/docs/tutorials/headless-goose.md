@@ -120,9 +120,10 @@ Set up your environment variables to avoid some of the repetitive runtime decisi
 export GOOSE_CONTEXT_STRATEGY=summarize
 export GOOSE_MAX_TURNS=50
 export GOOSE_MODE=auto
+export GOOSE_DISABLE_SESSION_NAMING=true
 ```
 
-The `CONTEXT_STRATEGY` and `MAX_TURNS` settings help manage conversation limits, while `GOOSE_MODE` set to `auto` allows for non-interactive execution.
+The `CONTEXT_STRATEGY` and `MAX_TURNS` settings help manage conversation limits, while `GOOSE_MODE` set to `auto` allows for non-interactive execution. `GOOSE_DISABLE_SESSION_NAMING` avoids the extra background model call used to generate a session name and keeps the default "CLI Session" name.
 
 ### 3. **Implement Robust Error Handling**
 
