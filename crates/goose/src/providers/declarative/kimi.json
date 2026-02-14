@@ -1,0 +1,29 @@
+{
+  "name": "kimi",
+  "engine": "openai",
+  "display_name": "Kimi Code",
+  "description": "Kimi Code subscription models (powered by Kimi K2.5)",
+  "api_key_env": "KIMI_API_KEY",
+  "base_url": "https://api.kimi.com/coding/v1/chat/completions",
+  "models": [
+    {
+      "name": "kimi-for-coding",
+      "context_limit": 262144,
+      "input_token_cost": null,
+      "output_token_cost": null,
+      "currency": null,
+      "supports_cache_control": null
+    },
+    {
+      "name": "kimi-code",
+      "context_limit": 262144,
+      "input_token_cost": null,
+      "output_token_cost": null,
+      "currency": null,
+      "supports_cache_control": null
+    }
+  ],
+  "headers": null,
+  "timeout_seconds": null,
+  "supports_streaming": true
+}
