@@ -214,62 +214,87 @@ pub fn set_thinking_message(s: &String) {
     }
 }
 
-pub fn render_message(message: &Message, debug: bool) {
-    let theme = get_theme();
+pub struct Renderer {
+    pub text_messages: String,
+}
 
-    for content in &message.content {
-        match content {
-            MessageContent::ActionRequired(action) => match &action.data {
-                ActionRequiredData::ToolConfirmation { tool_name, .. } => {
-                    println!("action_required(tool_confirmation): {}", tool_name)
-                }
-                ActionRequiredData::Elicitation { message, .. } => {
-                    println!("action_required(elicitation): {}", message)
-                }
-                ActionRequiredData::ElicitationResponse { id, .. } => {
-                    println!("action_required(elicitation_response): {}", id)
-                }
-            },
-            MessageContent::Text(text) => print_markdown(&text.text, theme),
-            MessageContent::ToolRequest(req) => render_tool_request(req, theme, debug),
-            MessageContent::ToolResponse(resp) => render_tool_response(resp, theme, debug),
-            MessageContent::Image(image) => {
-                println!("Image: [data: {}, type: {}]", image.data, image.mime_type);
-            }
-            MessageContent::Thinking(thinking) => {
-                if std::env::var("GOOSE_CLI_SHOW_THINKING").is_ok()
-                    && std::io::stdout().is_terminal()
-                {
-                    println!("\n{}", style("Thinking:").dim().italic());
-                    print_markdown(&thinking.thinking, theme);
-                }
-            }
-            MessageContent::RedactedThinking(_) => {
-                // For redacted thinking, print thinking was redacted
-                println!("\n{}", style("Thinking:").dim().italic());
-                print_markdown("Thinking was redacted", theme);
-            }
-            MessageContent::SystemNotification(notification) => {
-                use goose::conversation::message::SystemNotificationType;
-
-                match notification.notification_type {
-                    SystemNotificationType::ThinkingMessage => {
-                        show_thinking();
-                        set_thinking_message(&notification.msg);
-                    }
-                    SystemNotificationType::InlineMessage => {
-                        hide_thinking();
-                        println!("\n{}", style(&notification.msg).yellow());
-                    }
-                }
-            }
-            _ => {
-                println!("WARNING: Message content type could not be rendered");
-            }
+impl Renderer {
+    pub fn new() -> Self {
+        Self {
+            text_messages: String::new(),
         }
     }
 
-    let _ = std::io::stdout().flush();
+    pub fn reset(&mut self) {
+        self.text_messages.clear();
+    }
+
+    pub fn finish(&mut self) {
+        print_markdown(&self.text_messages, get_theme());
+        self.reset();
+    }
+
+    pub fn render_message(&mut self, message: &Message, debug: bool) {
+        let theme = get_theme();
+
+        for content in &message.content {
+            match content {
+                MessageContent::ActionRequired(action) => match &action.data {
+                    ActionRequiredData::ToolConfirmation { tool_name, .. } => {
+                        println!("action_required(tool_confirmation): {}", tool_name)
+                    }
+                    ActionRequiredData::Elicitation { message, .. } => {
+                        println!("action_required(elicitation): {}", message)
+                    }
+                    ActionRequiredData::ElicitationResponse { id, .. } => {
+                        println!("action_required(elicitation_response): {}", id)
+                    }
+                },
+                MessageContent::Text(text) => self.add_text_message(&text.text),
+                MessageContent::ToolRequest(req) => render_tool_request(req, theme, debug),
+                MessageContent::ToolResponse(resp) => render_tool_response(resp, theme, debug),
+                MessageContent::Image(image) => {
+                    println!("Image: [data: {}, type: {}]", image.data, image.mime_type);
+                }
+                MessageContent::Thinking(thinking) => {
+                    if std::env::var("GOOSE_CLI_SHOW_THINKING").is_ok()
+                        && std::io::stdout().is_terminal()
+                    {
+                        println!("\n{}", style("Thinking:").dim().italic());
+                        print_markdown(&thinking.thinking, theme);
+                    }
+                }
+                MessageContent::RedactedThinking(_) => {
+                    // For redacted thinking, print thinking was redacted
+                    println!("\n{}", style("Thinking:").dim().italic());
+                    print_markdown("Thinking was redacted", theme);
+                }
+                MessageContent::SystemNotification(notification) => {
+                    use goose::conversation::message::SystemNotificationType;
+
+                    match notification.notification_type {
+                        SystemNotificationType::ThinkingMessage => {
+                            show_thinking();
+                            set_thinking_message(&notification.msg);
+                        }
+                        SystemNotificationType::InlineMessage => {
+                            hide_thinking();
+                            println!("\n{}", style(&notification.msg).yellow());
+                        }
+                    }
+                }
+                _ => {
+                    println!("WARNING: Message content type could not be rendered");
+                }
+            }
+        }
+
+        let _ = std::io::stdout().flush();
+    }
+
+    fn add_text_message(&mut self, message: &str) {
+        self.text_messages.push_str(message);
+    }
 }
 
 pub fn render_text(text: &str, color: Option<Color>, dim: bool) {

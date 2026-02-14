@@ -164,6 +164,7 @@ pub struct CliSession {
     edit_mode: Option<EditMode>,
     retry_config: Option<RetryConfig>,
     output_format: String,
+    renderer: output::Renderer,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -259,6 +260,7 @@ impl CliSession {
             edit_mode,
             retry_config,
             output_format,
+            renderer: output::Renderer::new(),
         }
     }
 
@@ -769,7 +771,7 @@ impl CliSession {
 
         self.messages.clear();
         tracing::info!("Chat context cleared by user.");
-        output::render_message(
+        self.renderer.render_message(
             &Message::assistant().with_text("Chat context cleared.\n"),
             self.debug,
         );
@@ -847,7 +849,7 @@ impl CliSession {
                 &[],
             )
             .await?;
-        output::render_message(&plan_response, self.debug);
+        self.renderer.render_message(&plan_response, self.debug);
         output::hide_thinking();
         let planner_response_type = classify_planner_response(
             &self.session_id,
@@ -1033,7 +1035,7 @@ impl CliSession {
                                 if is_stream_json_mode {
                                     emit_stream_event(&StreamEvent::Message { message: message.clone() });
                                 } else if !is_json_mode {
-                                    output::render_message(&message, self.debug);
+                                    self.renderer.render_message(&message, self.debug);
                                 }
                             }
                         }
@@ -1074,7 +1076,10 @@ impl CliSession {
                             }
                             break;
                         }
-                        None => break,
+                        None => {
+                            self.renderer.finish();
+                            break;
+                        }
                     }
                 }
                 _ = cancel_token_clone.cancelled() => {
@@ -1171,7 +1176,7 @@ impl CliSession {
             }
             self.push_message(response_message);
             self.push_message(Message::assistant().with_text(interrupt_prompt));
-            output::render_message(
+            self.renderer.render_message(
                 &Message::assistant().with_text(interrupt_prompt),
                 self.debug,
             );
@@ -1180,7 +1185,7 @@ impl CliSession {
                 match last_msg.content.first() {
                     Some(MessageContent::ToolResponse(_)) => {
                         self.push_message(Message::assistant().with_text(interrupt_prompt));
-                        output::render_message(
+                        self.renderer.render_message(
                             &Message::assistant().with_text(interrupt_prompt),
                             self.debug,
                         );
@@ -1189,7 +1194,7 @@ impl CliSession {
                         self.messages.pop();
                         let assistant_msg = Message::assistant().with_text(interrupt_prompt);
                         self.push_message(assistant_msg.clone());
-                        output::render_message(&assistant_msg, self.debug);
+                        self.renderer.render_message(&assistant_msg, self.debug);
                     }
                     None => {
                         // Empty message content — nothing to do, just continue gracefully
@@ -1246,7 +1251,7 @@ impl CliSession {
     }
 
     /// Render all past messages from the session history
-    pub fn render_message_history(&self) {
+    pub fn render_message_history(&mut self) {
         if self.messages.is_empty() {
             return;
         }
@@ -1259,7 +1264,7 @@ impl CliSession {
 
         // Render each message
         for message in self.messages.iter() {
-            output::render_message(message, self.debug);
+            self.renderer.render_message(message, self.debug);
         }
 
         println!();
@@ -1363,7 +1368,7 @@ impl CliSession {
                         }
 
                         if msg.role == rmcp::model::Role::User {
-                            output::render_message(&msg, self.debug);
+                            self.renderer.render_message(&msg, self.debug);
                         }
                         self.push_message(msg);
                     }
