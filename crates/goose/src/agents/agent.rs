@@ -1433,6 +1433,37 @@ impl Agent {
                                 }
                             }
                         }
+                        Err(ref provider_err @ ProviderError::CreditsExhausted { ref details, ref top_up_url }) => {
+                            crate::posthog::emit_error(provider_err.telemetry_type(), &provider_err.to_string());
+                            error!("Error: {}", provider_err);
+
+                            let user_msg = if let Some(url) = top_up_url.as_deref() {
+                                format!(
+                                    "Your credits have been exhausted: {details}\n\n\
+                                     To add more credits, visit: {url}\n\n\
+                                     Once you've topped up, retry your last message to continue."
+                                )
+                            } else {
+                                format!(
+                                    "Your credits have been exhausted: {details}\n\n\
+                                     Please check your account with your provider to add more \
+                                     credits, then retry your last message to continue."
+                                )
+                            };
+
+                            let notification_data = serde_json::json!({
+                                "top_up_url": top_up_url,
+                            });
+
+                            yield AgentEvent::Message(
+                                Message::assistant().with_system_notification_with_data(
+                                    SystemNotificationType::CreditsExhausted,
+                                    user_msg,
+                                    notification_data,
+                                )
+                            );
+                            break;
+                        }
                         Err(ref provider_err) => {
                             crate::posthog::emit_error(provider_err.telemetry_type(), &provider_err.to_string());
                             error!("Error: {}", provider_err);

@@ -6800,7 +6800,8 @@
         "type": "string",
         "enum": [
           "thinkingMessage",
-          "inlineMessage"
+          "inlineMessage",
+          "creditsExhausted"
         ]
       },
       "TaskSupport": {

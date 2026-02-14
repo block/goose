@@ -30,6 +30,13 @@ pub enum ProviderError {
 
     #[error("Unsupported operation: {0}")]
     NotImplemented(String),
+
+    #[error("Credits exhausted: {details}")]
+    CreditsExhausted {
+        details: String,
+        /// URL where the user can add more credits / top up
+        top_up_url: Option<String>,
+    },
 }
 
 impl ProviderError {
@@ -43,6 +50,7 @@ impl ProviderError {
             ProviderError::ExecutionError(_) => "execution",
             ProviderError::UsageError(_) => "usage",
             ProviderError::NotImplemented(_) => "not_implemented",
+            ProviderError::CreditsExhausted { .. } => "credits_exhausted",
         }
     }
 }

@@ -20,7 +20,6 @@ use crate::providers::formats::openai::{create_request, get_usage, response_to_m
 use rmcp::model::Tool;
 
 const TETRATE_PROVIDER_NAME: &str = "tetrate";
-// Tetrate Agent Router Service can run many models, we suggest the default
 pub const TETRATE_KNOWN_MODELS: &[&str] = &[
     "claude-opus-4-1",
     "claude-3-7-sonnet-latest",
@@ -34,6 +33,7 @@ pub const TETRATE_KNOWN_MODELS: &[&str] = &[
     "gpt-4.1",
 ];
 pub const TETRATE_DOC_URL: &str = "https://router.tetrate.ai";
+pub const TETRATE_DASHBOARD_URL: &str = "https://router.tetrate.ai/dashboard";
 
 #[derive(serde::Serialize)]
 pub struct TetrateProvider {
@@ -49,7 +49,6 @@ impl TetrateProvider {
     pub async fn from_env(model: ModelConfig) -> Result<Self> {
         let config = crate::config::Config::global();
         let api_key: String = config.get_secret("TETRATE_API_KEY")?;
-        // API host for LLM endpoints (/v1/chat/completions, /v1/models)
         let host: String = config
             .get_param("TETRATE_HOST")
             .unwrap_or_else(|_| "https://api.router.tetrate.ai".to_string());
@@ -67,6 +66,16 @@ impl TetrateProvider {
         })
     }
 
+    fn enrich_credits_error(err: ProviderError) -> ProviderError {
+        match err {
+            ProviderError::CreditsExhausted { details, .. } => ProviderError::CreditsExhausted {
+                details,
+                top_up_url: Some(TETRATE_DASHBOARD_URL.to_string()),
+            },
+            other => other,
+        }
+    }
+
     async fn post(
         &self,
         session_id: Option<&str>,
@@ -77,56 +86,15 @@ impl TetrateProvider {
             .response_post(session_id, "v1/chat/completions", payload)
             .await?;
 
-        // Handle Google-compatible model responses differently
         if is_google_model(payload) {
-            return handle_response_google_compat(response).await;
+            return handle_response_google_compat(response)
+                .await
+                .map_err(Self::enrich_credits_error);
         }
 
-        // For OpenAI-compatible models, parse the response body to JSON
-        let response_body = handle_response_openai_compat(response)
+        handle_response_openai_compat(response)
             .await
-            .map_err(|e| ProviderError::RequestFailed(format!("Failed to parse response: {e}")))?;
-
-        let _debug = format!(
-            "Tetrate Agent Router Service request with payload: {} and response: {}",
-            serde_json::to_string_pretty(payload).unwrap_or_else(|_| "Invalid JSON".to_string()),
-            serde_json::to_string_pretty(&response_body)
-                .unwrap_or_else(|_| "Invalid JSON".to_string())
-        );
-
-        // Tetrate Agent Router Service can return errors in 200 OK responses, so we have to check for errors explicitly
-        if let Some(error_obj) = response_body.get("error") {
-            // If there's an error object, extract the error message and code
-            let error_message = error_obj
-                .get("message")
-                .and_then(|m| m.as_str())
-                .unwrap_or("Unknown Tetrate Agent Router Service error");
-
-            let error_code = error_obj.get("code").and_then(|c| c.as_u64()).unwrap_or(0);
-
-            // Check for context length errors in the error message
-            if error_code == 400 && error_message.contains("maximum context length") {
-                return Err(ProviderError::ContextLengthExceeded(
-                    error_message.to_string(),
-                ));
-            }
-
-            // Return appropriate error based on the error code
-            match error_code {
-                401 | 403 => return Err(ProviderError::Authentication(error_message.to_string())),
-                429 => {
-                    return Err(ProviderError::RateLimitExceeded {
-                        details: error_message.to_string(),
-                        retry_delay: None,
-                    })
-                }
-                500 | 503 => return Err(ProviderError::ServerError(error_message.to_string())),
-                _ => return Err(ProviderError::RequestFailed(error_message.to_string())),
-            }
-        }
-
-        // No error detected, return the response body
-        Ok(response_body)
+            .map_err(Self::enrich_credits_error)
     }
 }
 
@@ -236,7 +204,10 @@ impl Provider for TetrateProvider {
                     .api_client
                     .response_post(Some(session_id), "v1/chat/completions", &payload)
                     .await?;
-                handle_status_openai_compat(resp).await
+
+                handle_status_openai_compat(resp)
+                    .await
+                    .map_err(Self::enrich_credits_error)
             })
             .await
             .inspect_err(|e| {
@@ -314,5 +285,36 @@ impl Provider for TetrateProvider {
 
     fn supports_streaming(&self) -> bool {
         self.supports_streaming
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn enrich_adds_dashboard_url() {
+        let err = ProviderError::CreditsExhausted {
+            details: "out of credits".to_string(),
+            top_up_url: None,
+        };
+        match TetrateProvider::enrich_credits_error(err) {
+            ProviderError::CreditsExhausted { top_up_url, .. } => {
+                assert_eq!(
+                    top_up_url.as_deref(),
+                    Some("https://router.tetrate.ai/dashboard")
+                );
+            }
+            _ => panic!("Expected CreditsExhausted variant"),
+        }
+    }
+
+    #[test]
+    fn enrich_passes_through_other_errors() {
+        let err = ProviderError::ServerError("boom".to_string());
+        assert!(matches!(
+            TetrateProvider::enrich_credits_error(err),
+            ProviderError::ServerError(_)
+        ));
     }
 }
