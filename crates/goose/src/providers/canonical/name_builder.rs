@@ -81,10 +81,10 @@ pub fn map_to_canonical_model(
         if let Some(canonical) = registry.get(registry_provider, model) {
             return Some(canonical.id.clone());
         }
-        return None;
+        // If direct lookup failed, fall through to inference logic below
     }
 
-    // For hosting/meta-providers do string matching magic to figure out the real provider and model
+    // For hosting/meta-providers (or unknown providers), do string matching magic to figure out the real provider and model
     let model_stripped = strip_common_prefixes(model);
 
     if let Some(swapped) = swap_claude_word_order(&model_stripped) {

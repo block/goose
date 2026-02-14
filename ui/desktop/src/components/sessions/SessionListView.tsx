@@ -358,15 +358,17 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
         const resp = await searchSessions({
           query: { query: debouncedSearchTerm },
         });
-        
+
         if (resp.data) {
           // Response is Vec<Session> - sessions that match the search
           const matchedSessionIds = new Set(resp.data.map((s: { id: string }) => s.id));
           const filtered = sessions.filter((session) => matchedSessionIds.has(session.id));
-          
+
           startTransition(() => {
             setFilteredSessions(filtered);
-            setSearchResults(filtered.length > 0 ? { count: filtered.length, currentIndex: 1 } : null);
+            setSearchResults(
+              filtered.length > 0 ? { count: filtered.length, currentIndex: 1 } : null
+            );
           });
         }
       };

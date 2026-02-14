@@ -100,8 +100,8 @@ export function extensionToFormData(extension: FixedExtensionEntry): ExtensionFo
     description: extension.description || '',
     type:
       extension.type === 'frontend' ||
-        extension.type === 'inline_python' ||
-        extension.type === 'platform'
+      extension.type === 'inline_python' ||
+      extension.type === 'platform'
         ? 'stdio'
         : extension.type,
     cmd: extension.type === 'stdio' ? quoteShell([extension.cmd, ...extension.args]) : undefined,

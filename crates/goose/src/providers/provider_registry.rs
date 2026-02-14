@@ -25,7 +25,9 @@ impl ProviderEntry {
         extensions: Vec<ExtensionConfig>,
     ) -> Result<Arc<dyn Provider>> {
         let default_model = &self.metadata.default_model;
-        let model_config = ModelConfig::new(default_model.as_str())?;
+        let provider_name = &self.metadata.name;
+        let model_config =
+            ModelConfig::new(default_model.as_str())?.with_canonical_limits(provider_name);
         (self.constructor)(model_config, extensions).await
     }
 }

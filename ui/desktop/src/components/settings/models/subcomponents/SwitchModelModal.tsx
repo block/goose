@@ -85,7 +85,9 @@ export const SwitchModelModal = ({
   const [providerOptions, setProviderOptions] = useState<{ value: string; label: string }[]>([]);
   type ModelOption = { value: string; label: string; provider: string; isDisabled?: boolean };
   const [modelOptions, setModelOptions] = useState<{ options: ModelOption[] }[]>([]);
-  const [provider, setProvider] = useState<string | null>(initialProvider || currentProvider || null);
+  const [provider, setProvider] = useState<string | null>(
+    initialProvider || currentProvider || null
+  );
   const [model, setModel] = useState<string>(currentModel || '');
   const [isCustomModel, setIsCustomModel] = useState(false);
   const [validationErrors, setValidationErrors] = useState({

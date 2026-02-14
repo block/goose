@@ -1489,7 +1489,7 @@ mod tests {
             max_tokens: Some(1024),
             toolshim: false,
             toolshim_model: None,
-            fast_model: None,
+            fast_model_config: None,
             request_params: None,
         };
         let request = create_request(
@@ -1529,7 +1529,7 @@ mod tests {
             max_tokens: Some(1024),
             toolshim: false,
             toolshim_model: None,
-            fast_model: None,
+            fast_model_config: None,
             request_params: None,
         };
         let request = create_request(
@@ -1570,7 +1570,7 @@ mod tests {
             max_tokens: Some(1024),
             toolshim: false,
             toolshim_model: None,
-            fast_model: None,
+            fast_model_config: None,
             request_params: None,
         };
         let request = create_request(

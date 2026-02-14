@@ -78,7 +78,7 @@ export default function CustomProviderForm({
     const valueEmpty = !newHeaderValue.trim();
     const keyHasSpaces = newHeaderKey.includes(' ');
     const normalizedNewKey = newHeaderKey.trim().toLowerCase();
-    const isDuplicate = headers.some(h => h.key.trim().toLowerCase() === normalizedNewKey);
+    const isDuplicate = headers.some((h) => h.key.trim().toLowerCase() === normalizedNewKey);
 
     if (keyEmpty || valueEmpty) {
       setInvalidHeaderFields({
@@ -125,7 +125,7 @@ export default function CustomProviderForm({
       }
       const normalizedValue = value.trim().toLowerCase();
       const isDuplicate = headers.some(
-        (h, i) => i !== index && h.key.trim().toLowerCase() === normalizedValue,
+        (h, i) => i !== index && h.key.trim().toLowerCase() === normalizedValue
       );
       if (isDuplicate && normalizedValue !== '') {
         return;
@@ -177,9 +177,7 @@ export default function CustomProviderForm({
     if (newHeaderKey.trim() && newHeaderValue.trim()) {
       const keyHasSpaces = newHeaderKey.includes(' ');
       const normalizedPendingKey = newHeaderKey.trim().toLowerCase();
-      const isDuplicate = headers.some(
-        (h) => h.key.trim().toLowerCase() === normalizedPendingKey,
-      );
+      const isDuplicate = headers.some((h) => h.key.trim().toLowerCase() === normalizedPendingKey);
 
       if (!keyHasSpaces && !isDuplicate) {
         allHeaders.push({ key: newHeaderKey, value: newHeaderValue });
@@ -387,7 +385,8 @@ export default function CustomProviderForm({
               Custom Headers
             </label>
             <p className="text-xs text-textSubtle mb-4">
-              Add custom HTTP headers to include in requests to the provider. Click the "+" button to add after filling both fields.
+              Add custom HTTP headers to include in requests to the provider. Click the "+" button
+              to add after filling both fields.
             </p>
             <div className="grid grid-cols-[1fr_1fr_auto] gap-2 items-center">
               {headers.map((header, index) => (
