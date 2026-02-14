@@ -99,18 +99,22 @@ impl OllamaProvider {
     ) -> Result<Self> {
         let timeout = Duration::from_secs(config.timeout_seconds.unwrap_or(OLLAMA_TIMEOUT));
 
-        let base =
-            if config.base_url.starts_with("http://") || config.base_url.starts_with("https://") {
-                config.base_url.clone()
-            } else {
-                format!("http://{}", config.base_url)
-            };
+        let resolved_url = if let Some(ref env_vars) = config.env_vars {
+            crate::config::declarative_providers::expand_env_vars(&config.base_url, env_vars)?
+        } else {
+            config.base_url.clone()
+        };
+
+        let base = if resolved_url.starts_with("http://") || resolved_url.starts_with("https://") {
+            resolved_url.clone()
+        } else {
+            format!("http://{}", resolved_url)
+        };
 
         let mut base_url = Url::parse(&base)
-            .map_err(|e| anyhow::anyhow!("Invalid base URL '{}': {}", config.base_url, e))?;
+            .map_err(|e| anyhow::anyhow!("Invalid base URL '{}': {}", resolved_url, e))?;
 
-        let explicit_default_port =
-            config.base_url.ends_with(":80") || config.base_url.ends_with(":443");
+        let explicit_default_port = resolved_url.ends_with(":80") || resolved_url.ends_with(":443");
         let is_https = base_url.scheme() == "https";
 
         if base_url.port().is_none() && !explicit_default_port && !is_https {

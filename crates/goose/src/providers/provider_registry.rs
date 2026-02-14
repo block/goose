@@ -112,6 +112,17 @@ impl ProviderRegistry {
             }
         }
 
+        if let Some(ref env_vars) = config.env_vars {
+            for ev in env_vars {
+                config_keys.push(super::base::ConfigKey::new(
+                    &ev.name,
+                    ev.required,
+                    ev.secret,
+                    ev.default.as_deref(),
+                ));
+            }
+        }
+
         let custom_metadata = ProviderMetadata {
             name: config.name.clone(),
             display_name: config.display_name.clone(),
@@ -120,7 +131,7 @@ impl ProviderRegistry {
             known_models,
             model_doc_link: base_metadata.model_doc_link,
             config_keys,
-            allows_unlisted_models: false,
+            allows_unlisted_models: config.dynamic_models.unwrap_or(false),
         };
 
         self.entries.insert(

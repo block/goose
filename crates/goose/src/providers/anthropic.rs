@@ -97,7 +97,13 @@ impl AnthropicProvider {
             key: api_key,
         };
 
-        let mut api_client = ApiClient::new(config.base_url, auth)?
+        let resolved_url = if let Some(ref env_vars) = config.env_vars {
+            crate::config::declarative_providers::expand_env_vars(&config.base_url, env_vars)?
+        } else {
+            config.base_url.clone()
+        };
+
+        let mut api_client = ApiClient::new(resolved_url, auth)?
             .with_header("anthropic-version", ANTHROPIC_API_VERSION)?;
 
         if let Some(headers) = &config.headers {
