@@ -10,9 +10,9 @@ if exist "%GOOSE_NODE_DIR%\npx.cmd" (
     exit /b !errorlevel!
 )
 
-REM === Search PATH for npx, skipping ourselves ===
+REM === Search PATH for a real npx (one that has node.exe alongside it) ===
 for /f "tokens=*" %%i in ('where npx.cmd 2^>nul') do (
-    if /i not "%%i"=="%~f0" (
+    if exist "%%~dpi\node.exe" (
         "%%i" %*
         exit /b !errorlevel!
     )
@@ -38,6 +38,13 @@ if defined NVM_SYMLINK (
 )
 
 REM === Download portable Node.js as last resort ===
+
+REM Re-check cache (another parallel extension may have just installed it)
+if exist "%GOOSE_NODE_DIR%\npx.cmd" (
+    "%GOOSE_NODE_DIR%\npx.cmd" %*
+    exit /b !errorlevel!
+)
+
 echo [Goose] Node.js not found. Downloading portable Node.js v%NODE_VERSION%... 1>&2
 
 SET "NODE_ZIP=%TEMP%\goose-node-%NODE_VERSION%.zip"
@@ -51,7 +58,6 @@ if errorlevel 1 (
 )
 
 REM Install to Goose directory
-if exist "%GOOSE_NODE_DIR%" rmdir /s /q "%GOOSE_NODE_DIR%"
 mkdir "%GOOSE_NODE_DIR%" >nul 2>&1
 xcopy /s /e /q /y "%NODE_EXTRACT%\node-v%NODE_VERSION%-win-x64\*" "%GOOSE_NODE_DIR%\" >nul 2>&1
 
