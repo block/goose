@@ -71,6 +71,9 @@ crates/goose/tests/mcp_replays/*errors.txt
 # Nix build output
 result
 
+# direnv
+.direnv/
+
 # Goose self-test artifacts
 gooseselftest/
 .tasks/
