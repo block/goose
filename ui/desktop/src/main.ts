@@ -44,7 +44,7 @@ import {
 } from './utils/autoUpdater';
 import { UPDATES_ENABLED } from './updates';
 import './utils/recipeHash';
-import { Client, createClient, createConfig } from './api/client';
+import { Client } from './api/client';
 import { GooseApp } from './api';
 import {
   cancelTetrateAuthFlow,
