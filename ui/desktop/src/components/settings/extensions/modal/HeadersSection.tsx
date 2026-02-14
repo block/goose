@@ -1,6 +1,6 @@
 import React from 'react';
 import { Button } from '../../../ui/button';
-import { Plus, X } from 'lucide-react';
+import { Plus, X, Eye, EyeOff } from 'lucide-react';
 import { Input } from '../../../ui/input';
 import { cn } from '../../../../utils';
 
@@ -31,6 +31,9 @@ export default function HeadersSection({
     key: false,
     value: false,
   });
+  // Track which header values are visible (all masked by default)
+  const [visibleIndexes, setVisibleIndexes] = React.useState<Set<number>>(new Set());
+  const [showNewRowValue, setShowNewRowValue] = React.useState(false);
 
   // Notify parent when pending input changes
   React.useEffect(() => {
@@ -81,6 +84,37 @@ export default function HeadersSection({
     onAdd(newKey, newValue);
     setNewKey('');
     setNewValue('');
+    setShowNewRowValue(false);
+  };
+
+  const handleRemove = (index: number) => {
+    onRemove(index);
+    // Clean up visibility state and reindex remaining entries
+    setVisibleIndexes((prev) => {
+      const newSet = new Set(prev);
+      newSet.delete(index);
+      const reindexed = new Set<number>();
+      for (const visibleIdx of newSet) {
+        if (visibleIdx > index) {
+          reindexed.add(visibleIdx - 1);
+        } else {
+          reindexed.add(visibleIdx);
+        }
+      }
+      return reindexed;
+    });
+  };
+
+  const toggleVisibility = (index: number) => {
+    setVisibleIndexes((prev) => {
+      const newSet = new Set(prev);
+      if (newSet.has(index)) {
+        newSet.delete(index);
+      } else {
+        newSet.add(index);
+      }
+      return newSet;
+    });
   };
 
   const clearValidation = () => {
@@ -103,7 +137,7 @@ export default function HeadersSection({
           add after filling both fields.
         </p>
       </div>
-      <div className="grid grid-cols-[1fr_1fr_auto] gap-2 items-center">
+      <div className="grid grid-cols-[1fr_1fr_auto_auto] gap-2 items-center">
         {/* Existing headers */}
         {headers.map((header, index) => (
           <React.Fragment key={index}>
@@ -118,19 +152,31 @@ export default function HeadersSection({
                 )}
               />
             </div>
-            <div className="relative">
-              <Input
-                value={header.value}
-                onChange={(e) => onChange(index, 'value', e.target.value)}
-                placeholder="Value"
-                className={cn(
-                  'w-full text-text-default border-border-default hover:border-border-default',
-                  isFieldInvalid(index, 'value') && 'border-red-500 focus:border-red-500'
-                )}
-              />
-            </div>
+            <Input
+              type={visibleIndexes.has(index) ? 'text' : 'password'}
+              value={header.value}
+              onChange={(e) => onChange(index, 'value', e.target.value)}
+              placeholder="Value"
+              className={cn(
+                'w-full text-text-default border-border-default hover:border-border-default',
+                isFieldInvalid(index, 'value') && 'border-red-500 focus:border-red-500'
+              )}
+            />
             <Button
-              onClick={() => onRemove(index)}
+              onClick={() => toggleVisibility(index)}
+              variant="ghost"
+              className="group p-2 h-auto text-iconSubtle hover:bg-transparent"
+              title={visibleIndexes.has(index) ? 'Hide value' : 'Show value'}
+              aria-label={visibleIndexes.has(index) ? 'Hide header value' : 'Show header value'}
+            >
+              {visibleIndexes.has(index) ? (
+                <Eye className="h-3 w-3 text-gray-400 group-hover:text-white group-hover:drop-shadow-sm transition-all" />
+              ) : (
+                <EyeOff className="h-3 w-3 text-gray-400 group-hover:text-white group-hover:drop-shadow-sm transition-all" />
+              )}
+            </Button>
+            <Button
+              onClick={() => handleRemove(index)}
               variant="ghost"
               className="group p-2 h-auto text-iconSubtle hover:bg-transparent"
             >
@@ -153,6 +199,7 @@ export default function HeadersSection({
           )}
         />
         <Input
+          type={showNewRowValue ? 'text' : 'password'}
           value={newValue}
           onChange={(e) => {
             setNewValue(e.target.value);
@@ -164,6 +211,19 @@ export default function HeadersSection({
             invalidFields.value && 'border-red-500 focus:border-red-500'
           )}
         />
+        <Button
+          onClick={() => setShowNewRowValue(!showNewRowValue)}
+          variant="ghost"
+          className="group p-2 h-auto text-iconSubtle hover:bg-transparent"
+          title={showNewRowValue ? 'Hide value' : 'Show value'}
+          aria-label={showNewRowValue ? 'Hide header value' : 'Show header value'}
+        >
+          {showNewRowValue ? (
+            <Eye className="h-3 w-3 text-gray-400 group-hover:text-white group-hover:drop-shadow-sm transition-all" />
+          ) : (
+            <EyeOff className="h-3 w-3 text-gray-400 group-hover:text-white group-hover:drop-shadow-sm transition-all" />
+          )}
+        </Button>
         <Button
           onClick={handleAdd}
           variant="ghost"
