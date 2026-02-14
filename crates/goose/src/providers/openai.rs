@@ -155,8 +155,14 @@ impl OpenAiProvider {
             None
         };
 
-        let url = url::Url::parse(&config.base_url)
-            .map_err(|e| anyhow::anyhow!("Invalid base URL '{}': {}", config.base_url, e))?;
+        let resolved_url = if let Some(ref env_vars) = config.env_vars {
+            crate::config::declarative_providers::expand_env_vars(&config.base_url, env_vars)?
+        } else {
+            config.base_url.clone()
+        };
+
+        let url = url::Url::parse(&resolved_url)
+            .map_err(|e| anyhow::anyhow!("Invalid base URL '{}': {}", resolved_url, e))?;
 
         let host = if let Some(port) = url.port() {
             format!(
