@@ -8,7 +8,6 @@ type TetrateAuthFlow = {
   codeVerifier: string;
   state: string;
   expiresAt: number;
-  callbackUrl?: string;
   resolve?: (url: string) => void;
   reject?: (error: Error) => void;
   timeoutId?: ReturnType<typeof setTimeout>;
@@ -32,7 +31,6 @@ const TETRATE_AUTH_TTL_MS = 2 * 60 * 1000;
 const TETRATE_AUTH_CALLBACK_SCHEME = 'goose';
 
 const tetrateAuthFlows = new Map<string, TetrateAuthFlow>();
-const completedTetrateAuthFlowErrors = new Map<string, string>();
 let activeTetrateFlowId: string | null = null;
 
 function createPkcePair(): { codeVerifier: string; codeChallenge: string } {
@@ -112,9 +110,6 @@ function expireTetrateAuthFlow(flowId: string, message: string): void {
   }
 
   log.warn('Tetrate auth flow expired:', { flowId, reason: message });
-  if (!flow.reject) {
-    completedTetrateAuthFlowErrors.set(flowId, message);
-  }
   flow.reject?.(new Error(message));
   cleanupTetrateAuthFlow(flowId);
 }
@@ -178,40 +173,26 @@ export function handleTetrateCallbackUrl(
     return true;
   }
 
-  flow.callbackUrl = url;
   flow.resolve?.(url);
   return true;
 }
 
-function waitForTetrateCallback(flowId: string): Promise<string> {
+function startTetrateAuthSession(flowId: string, authUrl: string): Promise<string> {
   const flow = tetrateAuthFlows.get(flowId);
   if (!flow) {
-    const completedFlowError = completedTetrateAuthFlowErrors.get(flowId);
-    if (completedFlowError) {
-      completedTetrateAuthFlowErrors.delete(flowId);
-      return Promise.reject(new Error(completedFlowError));
-    }
     return Promise.reject(new Error('Authentication expired'));
   }
 
-  if (flow.callbackUrl) {
-    return Promise.resolve(flow.callbackUrl);
-  }
-
-  if (Date.now() > flow.expiresAt) {
-    expireTetrateAuthFlow(flowId, 'Authentication timed out');
-    return Promise.reject(new Error('Authentication timed out'));
-  }
-
-  return new Promise((resolve, reject) => {
+  const callbackPromise = new Promise<string>((resolve, reject) => {
     flow.resolve = resolve;
     flow.reject = reject;
   });
-}
 
-async function startTetrateAuthSession(flowId: string, authUrl: string): Promise<string> {
-  await shell.openExternal(authUrl);
-  return waitForTetrateCallback(flowId);
+  shell.openExternal(authUrl).catch((err) => {
+    flow.reject?.(err instanceof Error ? err : new Error(String(err)));
+  });
+
+  return callbackPromise;
 }
 
 export function cancelTetrateAuthFlow(message = 'Authentication canceled by user'): boolean {
@@ -297,6 +278,16 @@ export const __test = {
   createTetrateAuthFlow,
   getTetrateAuthTtlMs: () => TETRATE_AUTH_TTL_MS,
   matchTetrateCallbackUrl,
+  waitForTetrateCallback: (flowId: string): Promise<string> => {
+    const flow = tetrateAuthFlows.get(flowId);
+    if (!flow) {
+      return Promise.reject(new Error('Authentication expired'));
+    }
+    return new Promise<string>((resolve, reject) => {
+      flow.resolve = resolve;
+      flow.reject = reject;
+    });
+  },
   resetForTests: () => {
     for (const flow of tetrateAuthFlows.values()) {
       if (flow.timeoutId) {
@@ -304,8 +295,6 @@ export const __test = {
       }
     }
     tetrateAuthFlows.clear();
-    completedTetrateAuthFlowErrors.clear();
     activeTetrateFlowId = null;
   },
-  waitForTetrateCallback,
 };

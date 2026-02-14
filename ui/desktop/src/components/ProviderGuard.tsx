@@ -92,7 +92,7 @@ export default function ProviderGuard({ didSelectProvider, children }: ProviderG
     setTetrateSetupState({
       show: true,
       title: 'Complete setup in your browser',
-      message: 'After finishing sign-in in the browser, return to Goose. You can cancel setup anytime.',
+      message: 'After finishing sign-in in the browser, return to Goose.',
       showProgress: true,
       showRetry: false,
       closeLabel: 'Cancel Setup',
