@@ -333,12 +333,24 @@ function TextPreview({ variable, color }: { variable: ColorVariable; color: stri
   
   if (varName === 'color-text-info') {
     return (
-      <div className="p-3 rounded-lg border border-border-info bg-background-info">
-        <p className="text-sm font-semibold" style={{ color }}>ℹ️ Tip</p>
-        <p className="text-xs mt-1" style={{ color }}>
-          You can use keyboard shortcuts to navigate faster
-        </p>
-      </div>
+      <>
+        <div className="p-3 rounded-lg border border-border-primary bg-background-secondary">
+          <p className="text-sm font-semibold" style={{ color }}>ℹ️ Information</p>
+          <p className="text-xs mt-1 text-text-secondary">
+            Info text is used for helpful tips, notifications, and informational messages
+          </p>
+        </div>
+        
+        <div className="flex items-start gap-2 p-3 rounded-lg bg-background-primary border border-border-primary">
+          <div className="w-1 h-full rounded-full" style={{ backgroundColor: color }} />
+          <div>
+            <p className="text-xs font-semibold" style={{ color }}>Pro Tip</p>
+            <p className="text-xs text-text-secondary mt-1">
+              You can use keyboard shortcuts to navigate faster through the app
+            </p>
+          </div>
+        </div>
+      </>
     );
   }
   
