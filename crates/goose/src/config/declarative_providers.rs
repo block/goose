@@ -28,6 +28,17 @@ pub enum ProviderEngine {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+pub struct EnvVarConfig {
+    pub name: String,
+    #[serde(default)]
+    pub required: bool,
+    #[serde(default)]
+    pub secret: bool,
+    pub description: Option<String>,
+    pub default: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct DeclarativeProviderConfig {
     pub name: String,
     pub engine: ProviderEngine,
@@ -42,6 +53,10 @@ pub struct DeclarativeProviderConfig {
     pub supports_streaming: Option<bool>,
     #[serde(default = "default_requires_auth")]
     pub requires_auth: bool,
+    #[serde(default)]
+    pub env_vars: Option<Vec<EnvVarConfig>>,
+    #[serde(default)]
+    pub dynamic_models: Option<bool>,
 }
 
 fn default_requires_auth() -> bool {
@@ -60,6 +75,40 @@ impl DeclarativeProviderConfig {
     pub fn models(&self) -> &[ModelInfo] {
         &self.models
     }
+}
+
+/// Expand `${VAR_NAME}` placeholders in a template string using the given env var configs.
+/// Resolves values via Config (secret if `secret`, param otherwise), falls back to `default`.
+/// Returns an error if a `required` var is missing.
+pub fn expand_env_vars(template: &str, env_vars: &[EnvVarConfig]) -> Result<String> {
+    let config = Config::global();
+    let mut result = template.to_string();
+    for var in env_vars {
+        let placeholder = format!("${{{}}}", var.name);
+        if !result.contains(&placeholder) {
+            continue;
+        }
+        let value = if var.secret {
+            config.get_secret::<String>(&var.name).ok()
+        } else {
+            config.get_param::<String>(&var.name).ok()
+        };
+        let value = match value {
+            Some(v) => v,
+            None => match &var.default {
+                Some(d) => d.clone(),
+                None if var.required => {
+                    return Err(anyhow::anyhow!(
+                        "Required environment variable {} is not set",
+                        var.name
+                    ));
+                }
+                None => continue,
+            },
+        };
+        result = result.replace(&placeholder, &value);
+    }
+    Ok(result)
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
@@ -154,6 +203,8 @@ pub fn create_custom_provider(
         timeout_seconds: None,
         supports_streaming: params.supports_streaming,
         requires_auth: params.requires_auth,
+        env_vars: None,
+        dynamic_models: None,
     };
 
     let custom_providers_dir = custom_providers_dir();
@@ -211,6 +262,8 @@ pub fn update_custom_provider(params: UpdateCustomProviderParams) -> Result<()> 
             timeout_seconds: existing_config.timeout_seconds,
             supports_streaming: params.supports_streaming,
             requires_auth: params.requires_auth,
+            env_vars: existing_config.env_vars,
+            dynamic_models: existing_config.dynamic_models,
         };
 
         let file_path = custom_providers_dir().join(format!("{}.json", updated_config.name));
@@ -325,6 +378,13 @@ pub fn register_declarative_provider(
     config: DeclarativeProviderConfig,
     provider_type: ProviderType,
 ) {
+    // Expand env vars in base_url once, so individual engines don't need to
+    let mut config = config;
+    if let Some(ref env_vars) = config.env_vars {
+        if let Ok(resolved) = expand_env_vars(&config.base_url, env_vars) {
+            config.base_url = resolved;
+        }
+    }
     let config_clone = config.clone();
 
     match config.engine {
@@ -349,5 +409,135 @@ pub fn register_declarative_provider(
                 move |model| AnthropicProvider::from_custom_config(model, config_clone.clone()),
             );
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_tanzu_json_deserializes() {
+        let json = include_str!("../providers/declarative/tanzu.json");
+        let config: DeclarativeProviderConfig =
+            serde_json::from_str(json).expect("tanzu.json should parse");
+        assert_eq!(config.name, "tanzu_ai");
+        assert_eq!(config.display_name, "Tanzu AI Services");
+        assert!(matches!(config.engine, ProviderEngine::OpenAI));
+        assert_eq!(config.api_key_env, "TANZU_AI_API_KEY");
+        assert_eq!(
+            config.base_url,
+            "${TANZU_AI_ENDPOINT}/openai/v1/chat/completions"
+        );
+        assert_eq!(config.dynamic_models, Some(true));
+        assert_eq!(config.supports_streaming, Some(false));
+
+        let env_vars = config.env_vars.as_ref().expect("env_vars should be set");
+        assert_eq!(env_vars.len(), 1);
+        assert_eq!(env_vars[0].name, "TANZU_AI_ENDPOINT");
+        assert!(env_vars[0].required);
+        assert!(!env_vars[0].secret);
+
+        assert_eq!(config.models.len(), 1);
+        assert_eq!(config.models[0].name, "openai/gpt-oss-120b");
+    }
+
+    #[test]
+    fn test_existing_json_files_still_deserialize_without_new_fields() {
+        let json = include_str!("../providers/declarative/groq.json");
+        let config: DeclarativeProviderConfig =
+            serde_json::from_str(json).expect("groq.json should parse without env_vars");
+        assert!(config.env_vars.is_none());
+        assert!(config.dynamic_models.is_none());
+    }
+
+    #[test]
+    fn test_expand_env_vars_replaces_placeholder() {
+        let _guard = env_lock::lock_env([("TEST_EXPAND_HOST", Some("https://example.com/api"))]);
+
+        let env_vars = vec![EnvVarConfig {
+            name: "TEST_EXPAND_HOST".to_string(),
+            required: true,
+            secret: false,
+            description: None,
+            default: None,
+        }];
+
+        let result = expand_env_vars("${TEST_EXPAND_HOST}/v1/chat/completions", &env_vars).unwrap();
+        assert_eq!(result, "https://example.com/api/v1/chat/completions");
+    }
+
+    #[test]
+    fn test_expand_env_vars_required_missing_errors() {
+        let _guard = env_lock::lock_env([("TEST_EXPAND_MISSING", None::<&str>)]);
+
+        let env_vars = vec![EnvVarConfig {
+            name: "TEST_EXPAND_MISSING".to_string(),
+            required: true,
+            secret: false,
+            description: None,
+            default: None,
+        }];
+
+        let result = expand_env_vars("${TEST_EXPAND_MISSING}/path", &env_vars);
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("TEST_EXPAND_MISSING"));
+    }
+
+    #[test]
+    fn test_expand_env_vars_uses_default_when_missing() {
+        let _guard = env_lock::lock_env([("TEST_EXPAND_DEFAULT", None::<&str>)]);
+
+        let env_vars = vec![EnvVarConfig {
+            name: "TEST_EXPAND_DEFAULT".to_string(),
+            required: false,
+            secret: false,
+            description: None,
+            default: Some("https://fallback.example.com".to_string()),
+        }];
+
+        let result =
+            expand_env_vars("${TEST_EXPAND_DEFAULT}/v1/chat/completions", &env_vars).unwrap();
+        assert_eq!(result, "https://fallback.example.com/v1/chat/completions");
+    }
+
+    #[test]
+    fn test_expand_env_vars_no_placeholders_passthrough() {
+        let env_vars = vec![EnvVarConfig {
+            name: "UNUSED_VAR".to_string(),
+            required: true,
+            secret: false,
+            description: None,
+            default: None,
+        }];
+
+        let result =
+            expand_env_vars("https://static.example.com/v1/chat/completions", &env_vars).unwrap();
+        assert_eq!(result, "https://static.example.com/v1/chat/completions");
+    }
+
+    #[test]
+    fn test_expand_env_vars_empty_slice_passthrough() {
+        let result = expand_env_vars("${WHATEVER}/path", &[]).unwrap();
+        assert_eq!(result, "${WHATEVER}/path");
+    }
+
+    #[test]
+    fn test_expand_env_vars_env_value_overrides_default() {
+        let _guard = env_lock::lock_env([("TEST_EXPAND_OVERRIDE", Some("https://from-env.com"))]);
+
+        let env_vars = vec![EnvVarConfig {
+            name: "TEST_EXPAND_OVERRIDE".to_string(),
+            required: false,
+            secret: false,
+            description: None,
+            default: Some("https://from-default.com".to_string()),
+        }];
+
+        let result = expand_env_vars("${TEST_EXPAND_OVERRIDE}/path", &env_vars).unwrap();
+        assert_eq!(result, "https://from-env.com/path");
     }
 }

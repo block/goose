@@ -99,18 +99,16 @@ impl OllamaProvider {
     ) -> Result<Self> {
         let timeout = Duration::from_secs(config.timeout_seconds.unwrap_or(OLLAMA_TIMEOUT));
 
-        let base =
-            if config.base_url.starts_with("http://") || config.base_url.starts_with("https://") {
-                config.base_url.clone()
-            } else {
-                format!("http://{}", config.base_url)
-            };
+        let base = if config.base_url.starts_with("http://") || config.base_url.starts_with("https://") {
+            config.base_url.clone()
+        } else {
+            format!("http://{}", config.base_url)
+        };
 
         let mut base_url = Url::parse(&base)
             .map_err(|e| anyhow::anyhow!("Invalid base URL '{}': {}", config.base_url, e))?;
 
-        let explicit_default_port =
-            config.base_url.ends_with(":80") || config.base_url.ends_with(":443");
+        let explicit_default_port = config.base_url.ends_with(":80") || config.base_url.ends_with(":443");
         let is_https = base_url.scheme() == "https";
 
         if base_url.port().is_none() && !explicit_default_port && !is_https {

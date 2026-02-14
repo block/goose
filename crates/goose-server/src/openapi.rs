@@ -17,7 +17,7 @@ use rmcp::model::{
 use utoipa::{OpenApi, ToSchema};
 
 use goose::config::declarative_providers::{
-    DeclarativeProviderConfig, LoadedProvider, ProviderEngine,
+    DeclarativeProviderConfig, EnvVarConfig, LoadedProvider, ProviderEngine,
 };
 use goose::conversation::message::{
     ActionRequired, ActionRequiredData, FrontendToolRequest, Message, MessageContent,
@@ -490,6 +490,7 @@ derive_utoipa!(Icon as IconSchema);
         LoadedProvider,
         ProviderEngine,
         DeclarativeProviderConfig,
+        EnvVarConfig,
         ExtensionEntry,
         ExtensionConfig,
         ConfigKey,
