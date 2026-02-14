@@ -440,26 +440,48 @@ Beyond goose's built-in [logging system](/docs/guides/logs), you can export tele
 
 ### OpenTelemetry Protocol (OTLP)
 
-Configure goose to export traces and metrics to any OTLP-compatible observability platform. 
-OTLP is the standard protocol for sending telemetry collected by [OpenTelemetry](https://opentelemetry.io/docs/). When configured, goose exports telemetry asynchronously and flushes on exit.
+Configure goose to export traces, metrics, and logs to any
+[OpenTelemetry](https://opentelemetry.io/docs/) compatible platform.
+When configured, goose exports telemetry asynchronously and flushes on exit.
 
-| Variable | Purpose | Values | Default |
-|----------|---------|--------|---------|
-| `OTEL_EXPORTER_OTLP_ENDPOINT` | OTLP endpoint URL | URL (e.g., `http://localhost:4318`) | None |
-| `OTEL_EXPORTER_OTLP_TIMEOUT` | Export timeout in milliseconds | Integer (ms) | `10000` |
+goose respects standard [OTel SDK environment variables][otel-env]. The
+simplest way to enable export is to set a collector endpoint:
 
-**When to use OTLP:**
-- Diagnosing slow tool execution or LLM response times
-- Understanding intermittent failures across multiple sessions
-- Monitoring goose performance in production or CI/CD environments
-- Tracking usage patterns, costs, and resource consumption over time
-- Setting up alerts for performance degradation or high error rates
-
-**Example:**
 ```bash
 export OTEL_EXPORTER_OTLP_ENDPOINT="http://localhost:4318"
-export OTEL_EXPORTER_OTLP_TIMEOUT=10000
 ```
+
+This enables OTLP export for all signals (traces, metrics, logs). You can
+control each signal independently with `OTEL_{SIGNAL}_EXPORTER` where signal
+is `TRACES`, `METRICS`, or `LOGS`:
+
+| Variable pattern | Purpose | Values |
+|---|---|---|
+| `OTEL_EXPORTER_OTLP_ENDPOINT` | Base OTLP endpoint (applies `/v1/traces`, etc.) | URL |
+| `OTEL_EXPORTER_OTLP_{SIGNAL}_ENDPOINT` | Override endpoint for a specific signal | URL |
+| `OTEL_{SIGNAL}_EXPORTER` | Exporter type per signal | `otlp`, `console`, `none` |
+| `OTEL_SDK_DISABLED` | Disable all OTel export | `true` |
+
+Additional variables like `OTEL_SERVICE_NAME`, `OTEL_RESOURCE_ATTRIBUTES`,
+and `OTEL_EXPORTER_OTLP_TIMEOUT` are also supported.
+See the [OTel environment variable spec][otel-env] for the full list.
+
+**Examples:**
+```bash
+# Export everything to a local collector
+export OTEL_EXPORTER_OTLP_ENDPOINT="http://localhost:4318"
+
+# Export only traces, disable metrics and logs
+export OTEL_TRACES_EXPORTER="otlp"
+export OTEL_METRICS_EXPORTER="none"
+export OTEL_LOGS_EXPORTER="none"
+export OTEL_EXPORTER_OTLP_ENDPOINT="http://localhost:4318"
+
+# Debug traces to console (no collector needed)
+export OTEL_TRACES_EXPORTER="console"
+```
+
+[otel-env]: https://opentelemetry.io/docs/specs/otel/configuration/sdk-environment-variables/
 
 ### Langfuse Integration
 
