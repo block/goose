@@ -141,27 +141,27 @@ export function ShortcutRecorder({
             text-xs font-mono px-3 py-2 rounded border
             ${
               recording
-                ? 'bg-background-default ring-1'
+                ? 'bg-background-primary ring-1'
                 : conflict
-                  ? 'bg-background-muted border-yellow-600/50'
-                  : 'bg-background-muted border-border-default cursor-pointer'
+                  ? 'bg-background-secondary border-yellow-600/50'
+                  : 'bg-background-secondary border-border-primary cursor-pointer'
             }
             focus:outline-none focus:ring-1
             w-64 text-center
           `}
         >
           {recording ? (
-            <span className="text-text-muted animate-pulse">Press shortcut...</span>
+            <span className="text-text-secondary animate-pulse">Press shortcut...</span>
           ) : displayShortcut ? (
-            <span className={conflict ? 'text-yellow-600' : 'text-text-default'}>
+            <span className={conflict ? 'text-yellow-600' : 'text-text-primary'}>
               {displayShortcut}
             </span>
           ) : capturedShortcut ? (
-            <span className={conflict ? 'text-yellow-600' : 'text-text-default'}>
+            <span className={conflict ? 'text-yellow-600' : 'text-text-primary'}>
               {formatShortcut(capturedShortcut)}
             </span>
           ) : (
-            <span className="text-text-muted">Click to record...</span>
+            <span className="text-text-secondary">Click to record...</span>
           )}
         </div>
         <Button

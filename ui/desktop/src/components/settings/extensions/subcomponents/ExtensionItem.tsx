@@ -84,7 +84,7 @@ export default function ExtensionItem({
           <div className="flex items-center justify-end gap-2">
             {editable && (
               <button
-                className="text-text-muted hover:text-text-default"
+                className="text-text-secondary hover:text-text-primary"
                 aria-label={`Configure ${getFriendlyTitle(extension)} Extension`}
                 onClick={() => onConfigure?.(extension)}
               >
@@ -101,7 +101,7 @@ export default function ExtensionItem({
           </div>
         </CardAction>
       </CardHeader>
-      <CardContent className="px-4 overflow-hidden text-sm break-words text-text-muted">
+      <CardContent className="px-4 overflow-hidden text-sm break-words text-text-secondary">
         {renderSubtitle()}
       </CardContent>
     </Card>

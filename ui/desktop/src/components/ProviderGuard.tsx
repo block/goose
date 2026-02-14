@@ -275,7 +275,7 @@ export default function ProviderGuard({ didSelectProvider, children }: ProviderG
 
   if (isChecking) {
     return (
-      <div className="h-screen w-full bg-background-default flex items-center justify-center">
+      <div className="h-screen w-full bg-background-primary flex items-center justify-center">
         <WelcomeGooseLogo />
       </div>
     );
@@ -287,7 +287,7 @@ export default function ProviderGuard({ didSelectProvider, children }: ProviderG
 
   if (!hasProvider && showFirstTimeSetup) {
     return (
-      <div className="h-screen w-full bg-background-default overflow-hidden relative">
+      <div className="h-screen w-full bg-background-primary overflow-hidden relative">
         <div
           ref={scrollContainerRef}
           onScroll={checkScrollPosition}
@@ -303,7 +303,7 @@ export default function ProviderGuard({ didSelectProvider, children }: ProviderG
                   </div>
                   <h1 className="text-2xl sm:text-4xl font-light text-left">Welcome to Goose</h1>
                 </div>
-                <p className="text-text-muted text-base sm:text-lg mt-4 sm:mt-6">
+                <p className="text-text-secondary text-base sm:text-lg mt-4 sm:mt-6">
                   Since it’s your first time here, let’s get you set up with an AI provider so goose
                   can work its magic.
                 </p>
@@ -330,12 +330,12 @@ export default function ProviderGuard({ didSelectProvider, children }: ProviderG
                 >
                   <div className="flex items-start justify-between mb-3">
                     <div className="flex items-center gap-2">
-                      <ChatGPT className="w-5 h-5 text-text-default" />
-                      <span className="font-medium text-text-default text-sm sm:text-base">
+                      <ChatGPT className="w-5 h-5 text-text-primary" />
+                      <span className="font-medium text-text-primary text-sm sm:text-base">
                         ChatGPT Subscription
                       </span>
                     </div>
-                    <div className="text-text-muted group-hover:text-text-default transition-colors">
+                    <div className="text-text-secondary group-hover:text-text-primary transition-colors">
                       <svg
                         className="w-4 h-4 sm:w-5 sm:h-5"
                         fill="none"
@@ -351,7 +351,7 @@ export default function ProviderGuard({ didSelectProvider, children }: ProviderG
                       </svg>
                     </div>
                   </div>
-                  <p className="text-text-muted text-sm sm:text-base">
+                  <p className="text-text-secondary text-sm sm:text-base">
                     Use your ChatGPT Plus/Pro subscription for GPT-5 Codex models.
                   </p>
                 </div>
@@ -371,13 +371,13 @@ export default function ProviderGuard({ didSelectProvider, children }: ProviderG
                 >
                   <div className="flex items-start justify-between mb-3">
                     <div className="flex items-center gap-2">
-                      <Tetrate className="w-5 h-5 text-text-default" />
+                      <Tetrate className="w-5 h-5 text-text-primary" />
                       <span className="text-sm sm:text-base">
-                        <span className="font-medium text-text-default">Agent Router</span>
-                        <span className="text-text-muted text-xs"> by Tetrate</span>
+                        <span className="font-medium text-text-primary">Agent Router</span>
+                        <span className="text-text-secondary text-xs"> by Tetrate</span>
                       </span>
                     </div>
-                    <div className="text-text-muted group-hover:text-text-default transition-colors">
+                    <div className="text-text-secondary group-hover:text-text-primary transition-colors">
                       <svg
                         className="w-4 h-4 sm:w-5 sm:h-5"
                         fill="none"
@@ -393,7 +393,7 @@ export default function ProviderGuard({ didSelectProvider, children }: ProviderG
                       </svg>
                     </div>
                   </div>
-                  <p className="text-text-muted text-sm sm:text-base">
+                  <p className="text-text-secondary text-sm sm:text-base">
                     Access multiple AI models with automatic setup. Sign up to receive $10 credit.
                   </p>
                 </div>
@@ -409,12 +409,12 @@ export default function ProviderGuard({ didSelectProvider, children }: ProviderG
 
                 <div className="relative flex items-start justify-between mb-3">
                   <div className="flex items-center gap-2">
-                    <OpenRouter className="w-5 h-5 text-text-default" />
-                    <span className="font-medium text-text-default text-sm sm:text-base">
+                    <OpenRouter className="w-5 h-5 text-text-primary" />
+                    <span className="font-medium text-text-primary text-sm sm:text-base">
                       OpenRouter
                     </span>
                   </div>
-                  <div className="text-text-muted group-hover:text-text-default transition-colors">
+                  <div className="text-text-secondary group-hover:text-text-primary transition-colors">
                     <svg
                       className="w-4 h-4 sm:w-5 sm:h-5"
                       fill="none"
@@ -430,17 +430,17 @@ export default function ProviderGuard({ didSelectProvider, children }: ProviderG
                     </svg>
                   </div>
                 </div>
-                <p className="text-text-muted text-sm sm:text-base">
+                <p className="text-text-secondary text-sm sm:text-base">
                   Access 200+ models with one API. Pay-per-use pricing.
                 </p>
               </div>
 
               {/* Other providers section */}
               <div className="w-full p-4 sm:p-6 bg-transparent border rounded-xl">
-                <h3 className="font-medium text-text-default text-sm sm:text-base mb-3">
+                <h3 className="font-medium text-text-primary text-sm sm:text-base mb-3">
                   Other Providers
                 </h3>
-                <p className="text-text-muted text-sm sm:text-base mb-4">
+                <p className="text-text-secondary text-sm sm:text-base mb-4">
                   Set up additional providers manually through settings.
                 </p>
                 <button
@@ -460,7 +460,7 @@ export default function ProviderGuard({ didSelectProvider, children }: ProviderG
         {/* Scroll indicator - fixed at bottom, hides when scrolled to bottom */}
         {showScrollIndicator && (
           <div className="absolute bottom-4 left-1/2 -translate-x-1/2 pointer-events-none transition-opacity duration-300 opacity-60 animate-bounce">
-            <div className="flex flex-col items-center gap-1 text-text-muted">
+            <div className="flex flex-col items-center gap-1 text-text-secondary">
               <span className="text-xs">More options below</span>
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path

@@ -215,7 +215,7 @@ export default function CustomProviderForm({
           <div>
             <label
               htmlFor="provider-select"
-              className="flex items-center text-sm font-medium text-text-default mb-2"
+              className="flex items-center text-sm font-medium text-text-primary mb-2"
             >
               Provider Type
               <span className="text-red-500 ml-1">*</span>
@@ -253,7 +253,7 @@ export default function CustomProviderForm({
           <div>
             <label
               htmlFor="display-name"
-              className="flex items-center text-sm font-medium text-text-default mb-2"
+              className="flex items-center text-sm font-medium text-text-primary mb-2"
             >
               Display Name
               <span className="text-red-500 ml-1">*</span>
@@ -276,7 +276,7 @@ export default function CustomProviderForm({
           <div>
             <label
               htmlFor="api-url"
-              className="flex items-center text-sm font-medium text-text-default mb-2"
+              className="flex items-center text-sm font-medium text-text-primary mb-2"
             >
               API URL
               <span className="text-red-500 ml-1">*</span>
@@ -300,8 +300,8 @@ export default function CustomProviderForm({
       )}
 
       <div>
-        <label className="block text-sm font-medium text-text-default mb-2">Authentication</label>
-        <p className="text-sm text-text-muted mb-3">
+        <label className="block text-sm font-medium text-text-primary mb-2">Authentication</label>
+        <p className="text-sm text-text-secondary mb-3">
           Local LLMs like Ollama typically don't require an API key.
         </p>
         <div className="flex items-center space-x-2">
@@ -310,9 +310,9 @@ export default function CustomProviderForm({
             id="requires-api-key"
             checked={requiresApiKey}
             onChange={(e) => handleRequiresApiKeyChange(e.target.checked)}
-            className="rounded border-border-default"
+            className="rounded border-border-primary"
           />
-          <label htmlFor="requires-api-key" className="text-sm text-text-muted">
+          <label htmlFor="requires-api-key" className="text-sm text-text-secondary">
             This provider requires an API key
           </label>
         </div>
@@ -321,7 +321,7 @@ export default function CustomProviderForm({
           <div className="mt-3">
             <label
               htmlFor="api-key"
-              className="flex items-center text-sm font-medium text-text-default mb-2"
+              className="flex items-center text-sm font-medium text-text-primary mb-2"
             >
               API Key
               {!initialData && <span className="text-red-500 ml-1">*</span>}
@@ -349,7 +349,7 @@ export default function CustomProviderForm({
           <div>
             <label
               htmlFor="available-models"
-              className="flex items-center text-sm font-medium text-text-default mb-2"
+              className="flex items-center text-sm font-medium text-text-primary mb-2"
             >
               Available Models (comma-separated)
               <span className="text-red-500 ml-1">*</span>
@@ -375,9 +375,9 @@ export default function CustomProviderForm({
               id="supports-streaming"
               checked={supportsStreaming}
               onChange={(e) => setSupportsStreaming(e.target.checked)}
-              className="rounded border-border-default"
+              className="rounded border-border-primary"
             />
-            <label htmlFor="supports-streaming" className="text-sm text-text-muted">
+            <label htmlFor="supports-streaming" className="text-sm text-text-secondary">
               Provider supports streaming responses
             </label>
           </div>

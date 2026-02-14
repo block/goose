@@ -137,7 +137,7 @@ export default function DefaultProviderSetupForm({
   const renderParametersList = (parameters: ConfigKey[]) => {
     return parameters.map((parameter) => (
       <div key={parameter.name}>
-        <label className="block text-sm font-medium text-text-default mb-1">
+        <label className="block text-sm font-medium text-text-primary mb-1">
           {getFieldLabel(parameter)}
           {parameter.required && <span className="text-red-500 ml-1">*</span>}
         </label>
@@ -157,8 +157,8 @@ export default function DefaultProviderSetupForm({
           className={`w-full h-14 px-4 font-regular rounded-lg shadow-none ${
             validationErrors[parameter.name]
               ? 'border-2 border-red-500'
-              : 'border border-border-default hover:border-border-default'
-          } bg-background-default text-lg placeholder:text-text-muted font-regular text-text-default`}
+              : 'border border-border-primary hover:border-border-primary'
+          } bg-background-primary text-lg placeholder:text-text-secondary font-regular text-text-primary`}
           required={parameter.required}
         />
         {validationErrors[parameter.name] && (

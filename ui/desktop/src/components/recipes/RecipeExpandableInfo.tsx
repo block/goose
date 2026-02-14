@@ -34,12 +34,12 @@ export default function RecipeExpandableInfo({
   return (
     <>
       <div className="flex justify-between items-center mb-2">
-        <label className="block text-md text-text-default font-bold">
+        <label className="block text-md text-text-primary font-bold">
           {infoLabel} {required && <span className="text-red-500">*</span>}
         </label>
       </div>
 
-      <div className="relative rounded-lg bg-background-default text-text-default">
+      <div className="relative rounded-lg bg-background-primary text-text-primary">
         {infoValue && (
           <>
             <div
@@ -81,7 +81,7 @@ export default function RecipeExpandableInfo({
               onClick={() => setValueExpanded(!isValueExpanded)}
               aria-label={isValueExpanded ? 'Collapse content' : 'Expand content'}
               title={isValueExpanded ? 'Collapse' : 'Expand'}
-              className="bg-background-muted hover:bg-background-default text-text-muted hover:text-text-default transition-colors"
+              className="bg-background-secondary hover:bg-background-primary text-text-secondary hover:text-text-primary transition-colors"
             >
               <ChevronDown
                 className={`w-6 h-6 transition-transform duration-300 ${

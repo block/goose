@@ -131,27 +131,27 @@ Add any other context about the problem here.
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-background-default border border-border-default rounded-lg p-6 max-w-md mx-4">
+      <div className="bg-background-primary border border-border-primary rounded-lg p-6 max-w-md mx-4">
         <div className="flex items-start gap-3 mb-4">
           <AlertTriangle className="text-orange-500 flex-shrink-0 mt-1" size={20} />
           <div>
-            <h3 className="text-lg font-semibold text-text-default mb-2">Report a Problem</h3>
-            <p className="text-sm text-text-muted mb-3">
+            <h3 className="text-lg font-semibold text-text-primary mb-2">Report a Problem</h3>
+            <p className="text-sm text-text-secondary mb-3">
               You can download a diagnostics zip file to share with the team, or file a bug directly
               on GitHub with your system details pre-filled. A diagnostics report contains the
               following:
             </p>
-            <ul className="text-sm text-text-muted list-disc list-inside space-y-1 mb-3">
+            <ul className="text-sm text-text-secondary list-disc list-inside space-y-1 mb-3">
               <li>Basic system info</li>
               <li>Your current session messages</li>
               <li>Recent log files</li>
               <li>Configuration settings</li>
             </ul>
-            <p className="text-sm text-text-muted">
+            <p className="text-sm text-text-secondary">
               <strong>Warning:</strong> If your session contains sensitive information, do not share
               the diagnostics file publicly.
             </p>
-            <p className="text-sm text-text-muted">
+            <p className="text-sm text-text-secondary">
               If you file a bug, consider attaching the diagnostics report to it.
             </p>
           </div>

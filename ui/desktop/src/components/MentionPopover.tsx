@@ -524,7 +524,7 @@ const MentionPopover = forwardRef<
     return (
       <div
         ref={popoverRef}
-        className="fixed z-50 bg-background-default border border-border-default rounded-lg shadow-lg min-w-96 max-w-lg max-h-80"
+        className="fixed z-50 bg-background-primary border border-border-primary rounded-lg shadow-lg min-w-96 max-w-lg max-h-80"
         style={{
           left: position.x,
           top: position.y - 10, // Position above the chat input
@@ -535,12 +535,12 @@ const MentionPopover = forwardRef<
           {isLoading ? (
             <div className="flex items-center justify-center py-4">
               <div className="animate-spin rounded-full h-4 w-4 border-t-2 border-b-2"></div>
-              <span className="ml-2 text-sm text-text-muted">Scanning files...</span>
+              <span className="ml-2 text-sm text-text-secondary">Scanning files...</span>
             </div>
           ) : (
             <>
               {displayItems.length > 0 && (
-                <div className="text-xs text-text-muted mb-2 px-1">
+                <div className="text-xs text-text-secondary mb-2 px-1">
                   {displayItems.length} item{displayItems.length !== 1 ? 's' : ''} found
                 </div>
               )}
@@ -558,18 +558,18 @@ const MentionPopover = forwardRef<
                       index === selectedIndex ? 'bg-sidebar-accent' : 'hover:bg-sidebar-accent/50'
                     }`}
                   >
-                    <div className="flex-shrink-0 text-text-muted">
+                    <div className="flex-shrink-0 text-text-secondary">
                       <ItemIcon item={item} />
                     </div>
                     <div className="flex-1 min-w-0">
-                      <div className="text-sm truncate text-text-default">{item.name}</div>
-                      <div className="text-xs truncate text-text-muted">{item.extra}</div>
+                      <div className="text-sm truncate text-text-primary">{item.name}</div>
+                      <div className="text-xs truncate text-text-secondary">{item.extra}</div>
                     </div>
                   </div>
                 ))}
 
                 {!isLoading && displayItems.length === 0 && query && (
-                  <div className="p-4 text-center text-text-muted text-sm">
+                  <div className="p-4 text-center text-text-secondary text-sm">
                     No items found matching "{query}"
                   </div>
                 )}

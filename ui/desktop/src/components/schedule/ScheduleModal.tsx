@@ -26,7 +26,7 @@ interface ScheduleModalProps {
 
 type SourceType = 'file' | 'deeplink';
 
-const modalLabelClassName = 'block text-sm font-medium text-text-default mb-1';
+const modalLabelClassName = 'block text-sm font-medium text-text-primary mb-1';
 
 export const ScheduleModal: React.FC<ScheduleModalProps> = ({
   isOpen,
@@ -163,15 +163,15 @@ export const ScheduleModal: React.FC<ScheduleModalProps> = ({
 
   return (
     <div className="fixed inset-0 bg-black/50 z-40 flex items-center justify-center p-4">
-      <Card className="w-full max-w-md bg-background-default shadow-xl rounded-3xl z-50 flex flex-col max-h-[90vh] overflow-hidden">
+      <Card className="w-full max-w-md bg-background-primary shadow-xl rounded-3xl z-50 flex flex-col max-h-[90vh] overflow-hidden">
         <div className="px-8 pt-6 pb-4 flex-shrink-0">
           <div className="flex items-center gap-3">
             <img src={ClockIcon} alt="Clock" className="w-8 h-8" />
             <div className="flex-1">
-              <h2 className="text-base font-semibold text-text-default">
+              <h2 className="text-base font-semibold text-text-primary">
                 {isEditMode ? 'Edit Schedule' : 'Create New Schedule'}
               </h2>
-              {isEditMode && <p className="text-sm text-text-muted">{schedule.id}</p>}
+              {isEditMode && <p className="text-sm text-text-secondary">{schedule.id}</p>}
             </div>
           </div>
         </div>
@@ -289,7 +289,7 @@ export const ScheduleModal: React.FC<ScheduleModalProps> = ({
           </div>
         </form>
 
-        <div className="flex gap-2 px-8 py-4 border-t border-border-default">
+        <div className="flex gap-2 px-8 py-4 border-t border-border-primary">
           <Button
             type="button"
             variant="ghost"

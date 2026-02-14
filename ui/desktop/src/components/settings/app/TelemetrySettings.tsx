@@ -95,10 +95,10 @@ export default function TelemetrySettings({ isWelcome = false }: TelemetrySettin
   const toggleRow = (
     <div className="flex items-center justify-between">
       <div>
-        <h4 className={isWelcome ? 'text-text-default text-sm' : 'text-text-default text-xs'}>
+        <h4 className={isWelcome ? 'text-text-primary text-sm' : 'text-text-primary text-xs'}>
           {toggleLabel}
         </h4>
-        <p className={`${isWelcome ? 'text-sm' : 'text-xs'} text-text-muted max-w-md mt-[2px]`}>
+        <p className={`${isWelcome ? 'text-sm' : 'text-xs'} text-text-secondary max-w-md mt-[2px]`}>
           {toggleDescription} {learnMoreLink}
         </p>
       </div>
@@ -110,8 +110,8 @@ export default function TelemetrySettings({ isWelcome = false }: TelemetrySettin
     return (
       <>
         <div className="w-full p-4 sm:p-6 bg-transparent border rounded-xl">
-          <h3 className="font-medium text-text-default text-sm sm:text-base mb-1">{title}</h3>
-          <p className="text-text-muted text-sm sm:text-base mb-4">{description}</p>
+          <h3 className="font-medium text-text-primary text-sm sm:text-base mb-1">{title}</h3>
+          <p className="text-text-secondary text-sm sm:text-base mb-4">{description}</p>
           {toggleRow}
         </div>
         {modal}

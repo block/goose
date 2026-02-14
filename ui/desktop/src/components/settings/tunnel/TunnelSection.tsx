@@ -164,8 +164,8 @@ export default function TunnelSection() {
 
           <div className="flex items-center justify-between">
             <div>
-              <h3 className="text-text-default text-xs">Tunnel Status</h3>
-              <p className="text-xs text-text-muted max-w-md mt-[2px]">
+              <h3 className="text-text-primary text-xs">Tunnel Status</h3>
+              <p className="text-xs text-text-secondary max-w-md mt-[2px]">
                 {STATUS_MESSAGES[tunnelInfo.state]}
               </p>
             </div>
@@ -216,7 +216,7 @@ export default function TunnelSection() {
                 </div>
               </div>
 
-              <div className="text-center text-sm text-text-muted">
+              <div className="text-center text-sm text-text-secondary">
                 Scan this QR code with the goose mobile app. Do not share this code with anyone else
                 as it is for your personal access.
               </div>
@@ -237,7 +237,7 @@ export default function TunnelSection() {
                 {showDetails && (
                   <div className="mt-3 space-y-3">
                     <div>
-                      <h3 className="text-xs font-medium mb-1 text-text-muted">Tunnel URL</h3>
+                      <h3 className="text-xs font-medium mb-1 text-text-secondary">Tunnel URL</h3>
                       <div className="flex items-center gap-2">
                         <code className="flex-1 p-2 bg-gray-100 dark:bg-gray-800 rounded text-xs break-all overflow-hidden">
                           {tunnelInfo.url}
@@ -254,7 +254,7 @@ export default function TunnelSection() {
                     </div>
 
                     <div>
-                      <h3 className="text-xs font-medium mb-1 text-text-muted">Secret Key</h3>
+                      <h3 className="text-xs font-medium mb-1 text-text-secondary">Secret Key</h3>
                       <div className="flex items-center gap-2">
                         <code className="flex-1 p-2 bg-gray-100 dark:bg-gray-800 rounded text-xs break-all overflow-hidden">
                           {tunnelInfo.secret}
@@ -305,7 +305,7 @@ export default function TunnelSection() {
               </div>
             </div>
 
-            <div className="text-center text-sm text-text-muted">
+            <div className="text-center text-sm text-text-secondary">
               Scan this QR code with your iPhone camera to install the goose mobile app from the App
               Store
             </div>

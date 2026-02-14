@@ -28,3 +28,5 @@ export type McpAppToolResult = {
   content: Content[];
   structuredContent?: unknown;
 };
+
+
