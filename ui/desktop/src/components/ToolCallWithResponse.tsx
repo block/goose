@@ -24,7 +24,7 @@ import ToolApprovalButtons from './ToolApprovalButtons';
 interface ToolGraphNode {
   tool: string;
   description: string;
-  depends_on: number[];
+  depends_on?: number[];
 }
 
 type UiMeta = {
@@ -825,7 +825,7 @@ function CodeModeView({ toolGraph, code }: CodeModeViewProps) {
 
     graph.forEach((node, index) => {
       const deps =
-        node.depends_on.length > 0 ? ` (uses ${node.depends_on.map((d) => d + 1).join(', ')})` : '';
+        node.depends_on && node.depends_on.length > 0 ? ` (uses ${node.depends_on.map((d) => d + 1).join(', ')})` : '';
       lines.push(`${index + 1}. ${node.tool}: ${node.description}${deps}`);
     });
 

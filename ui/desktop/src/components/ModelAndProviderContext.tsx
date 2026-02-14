@@ -19,6 +19,8 @@ const SWITCH_MODEL_SUCCESS_MSG = 'Successfully switched models';
 interface ModelAndProviderContextType {
   currentModel: string | null;
   currentProvider: string | null;
+  setCurrentModel: React.Dispatch<React.SetStateAction<string | null>>;
+  setCurrentProvider: React.Dispatch<React.SetStateAction<string | null>>;
   changeModel: (sessionId: string | null, model: Model) => Promise<void>;
   getCurrentModelAndProvider: () => Promise<{ model: string; provider: string }>;
   getFallbackModelAndProvider: () => Promise<{ model: string; provider: string }>;
@@ -188,6 +190,8 @@ export const ModelAndProviderProvider: React.FC<ModelAndProviderProviderProps> =
     () => ({
       currentModel,
       currentProvider,
+      setCurrentModel,
+      setCurrentProvider,
       changeModel,
       getCurrentModelAndProvider,
       getFallbackModelAndProvider,
@@ -200,6 +204,8 @@ export const ModelAndProviderProvider: React.FC<ModelAndProviderProviderProps> =
     [
       currentModel,
       currentProvider,
+      setCurrentModel,
+      setCurrentProvider,
       changeModel,
       getCurrentModelAndProvider,
       getFallbackModelAndProvider,
