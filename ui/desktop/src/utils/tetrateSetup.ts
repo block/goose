@@ -7,7 +7,7 @@ export async function startTetrateSetup(): Promise<{
   } catch (e) {
     return {
       success: false,
-      message: `Failed to start Tetrate setup ['${e}]`,
+      message: `Failed to start Tetrate setup: ${e}`,
     };
   }
 }

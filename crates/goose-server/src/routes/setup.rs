@@ -1,6 +1,6 @@
 use crate::routes::errors::ErrorResponse;
 use crate::state::AppState;
-use axum::{http::StatusCode, routing::post, Json, Router};
+use axum::{routing::post, Json, Router};
 use goose::config::signup_openrouter::OpenRouterAuth;
 use goose::config::signup_tetrate::{configure_tetrate, TetrateAuth};
 use goose::config::{configure_openrouter, Config};
@@ -72,7 +72,7 @@ async fn start_openrouter_setup() -> Result<Json<SetupResponse>, ErrorResponse> 
 )]
 async fn verify_tetrate_setup(
     Json(request): Json<TetrateVerifyRequest>,
-) -> Result<Json<SetupResponse>, StatusCode> {
+) -> Result<Json<SetupResponse>, ErrorResponse> {
     let api_key =
         match TetrateAuth::exchange_code_with_verifier(request.code, request.code_verifier).await {
             Ok(api_key) => api_key,

@@ -19,12 +19,6 @@ export type TetrateSetupResponse = {
   message: string;
 };
 
-type TetrateCallbackData = {
-  code: string;
-  flowId: string;
-  state: string;
-};
-
 type TetrateCallbackMatch = {
   flowId: string;
   state: string;
@@ -61,34 +55,6 @@ function buildTetrateAuthUrl(callbackUrl: string, codeChallenge: string): string
   url.searchParams.set('code_challenge_method', 'S256');
   url.searchParams.set('client', 'goose');
   return url.toString();
-}
-
-function parseTetrateCallbackUrl(callbackUrl: string): TetrateCallbackData | null {
-  let parsedUrl: URL;
-  try {
-    parsedUrl = new URL(callbackUrl);
-  } catch {
-    return null;
-  }
-
-  const normalizedPath = parsedUrl.pathname.replace(/\/$/, '');
-  if (
-    parsedUrl.protocol !== `${TETRATE_AUTH_CALLBACK_SCHEME}:` ||
-    parsedUrl.hostname !== 'auth' ||
-    normalizedPath !== '/tetrate'
-  ) {
-    return null;
-  }
-
-  const code = parsedUrl.searchParams.get('code');
-  const flowId = parsedUrl.searchParams.get('flow_id');
-  const state = parsedUrl.searchParams.get('state');
-
-  if (!code || !flowId || !state) {
-    return null;
-  }
-
-  return { code, flowId, state };
 }
 
 function matchTetrateCallbackUrl(callbackUrl: string): TetrateCallbackMatch | null {
@@ -287,30 +253,22 @@ export async function runTetrateAuthFlow(client: Client): Promise<TetrateSetupRe
 
   try {
     const callbackUrl = await startTetrateAuthSession(flowId, authUrl);
-    const callback = parseTetrateCallbackUrl(callbackUrl);
+    const match = matchTetrateCallbackUrl(callbackUrl);
 
-    if (!callback) {
+    if (!match?.code) {
       throw new Error('Invalid authentication response');
     }
 
-    const flow = tetrateAuthFlows.get(callback.flowId);
+    const flow = tetrateAuthFlows.get(flowId);
     if (!flow) {
       throw new Error('Authentication expired');
     }
 
-    if (flow.state !== callback.state) {
-      throw new Error('Authentication state mismatch');
-    }
-
-    if (Date.now() > flow.expiresAt) {
-      throw new Error('Authentication timed out');
-    }
-
     const codeVerifier = flow.codeVerifier;
-    cleanupTetrateAuthFlow(callback.flowId);
+    cleanupTetrateAuthFlow(flowId);
 
     const response = await verifyTetrateSetup({
-      body: { code: callback.code, code_verifier: codeVerifier },
+      body: { code: match.code, code_verifier: codeVerifier },
       throwOnError: true,
       client,
     });
@@ -339,7 +297,6 @@ export const __test = {
   createTetrateAuthFlow,
   getTetrateAuthTtlMs: () => TETRATE_AUTH_TTL_MS,
   matchTetrateCallbackUrl,
-  parseTetrateCallbackUrl,
   resetForTests: () => {
     for (const flow of tetrateAuthFlows.values()) {
       if (flow.timeoutId) {

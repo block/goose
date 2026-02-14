@@ -54,16 +54,16 @@ describe('tetrateAuth', () => {
     expect(parsed.searchParams.get('client')).toBe('goose');
   });
 
-  it('parses valid callback URLs and rejects invalid ones', () => {
+  it('matches valid callback URLs and rejects invalid ones', () => {
     const url = 'goose://auth/tetrate?flow_id=flow&state=state&code=code';
-    expect(__test.parseTetrateCallbackUrl(url)).toEqual({
-      code: 'code',
+    expect(__test.matchTetrateCallbackUrl(url)).toEqual({
       flowId: 'flow',
       state: 'state',
+      code: 'code',
     });
 
-    expect(__test.parseTetrateCallbackUrl('goose://auth/other?flow_id=flow')).toBeNull();
-    expect(__test.parseTetrateCallbackUrl('https://example.com')).toBeNull();
+    expect(__test.matchTetrateCallbackUrl('goose://auth/other?flow_id=flow')).toBeNull();
+    expect(__test.matchTetrateCallbackUrl('https://example.com')).toBeNull();
   });
 
   it('resolves the waiting callback when a valid deep link arrives', async () => {

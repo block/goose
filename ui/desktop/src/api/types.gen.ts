@@ -1182,6 +1182,11 @@ export type Template = {
     user_content?: string | null;
 };
 
+export type TetrateVerifyRequest = {
+    code: string;
+    code_verifier: string;
+};
+
 export type TextContent = {
     _meta?: {
         [key: string]: unknown;
@@ -3906,6 +3911,19 @@ export type SendTelemetryEventResponses = {
      */
     202: unknown;
 };
+
+export type VerifyTetrateSetupData = {
+    body: TetrateVerifyRequest;
+    path?: never;
+    query?: never;
+    url: '/tetrate/verify';
+};
+
+export type VerifyTetrateSetupResponses = {
+    200: SetupResponse;
+};
+
+export type VerifyTetrateSetupResponse = VerifyTetrateSetupResponses[keyof VerifyTetrateSetupResponses];
 
 export type StartTunnelData = {
     body?: never;
