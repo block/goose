@@ -47,9 +47,7 @@ import './utils/recipeHash';
 import { Client, createClient, createConfig } from './api/client';
 import { GooseApp } from './api';
 import {
-  TETRATE_AUTH_CLEANUP_INTERVAL_MS,
   cancelTetrateAuthFlow,
-  cleanupExpiredTetrateAuthFlows,
   handleTetrateCallbackUrl,
   runTetrateAuthFlow,
 } from './tetrateAuth';
