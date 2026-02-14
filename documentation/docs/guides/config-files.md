@@ -97,8 +97,6 @@ GOOSE_SEARCH_PATHS:
   - "/opt/homebrew/bin"
 
 # Observability (OpenTelemetry)
-# Prefer ENV, which overrides this configuration and fully supports 
-# OTel semantics. See the environment-variables guide for details.
 OTEL_EXPORTER_OTLP_ENDPOINT: "http://localhost:4318"
 OTEL_EXPORTER_OTLP_TIMEOUT: 20000
 
