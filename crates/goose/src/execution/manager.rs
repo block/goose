@@ -1,4 +1,4 @@
-use crate::agents::{Agent, AgentConfig};
+use crate::agents::{Agent, AgentConfig, ExtensionManager};
 use crate::config::paths::Paths;
 use crate::config::permission::PermissionManager;
 use crate::config::{Config, GooseMode};
@@ -21,6 +21,7 @@ pub struct AgentManager {
     scheduler: Arc<dyn SchedulerTrait>,
     session_manager: Arc<SessionManager>,
     default_provider: Arc<RwLock<Option<Arc<dyn crate::providers::base::Provider>>>>,
+    shared_extension_manager: Arc<ExtensionManager>,
 }
 
 impl AgentManager {
@@ -34,11 +35,15 @@ impl AgentManager {
         let capacity = NonZeroUsize::new(max_sessions.unwrap_or(DEFAULT_MAX_SESSION))
             .unwrap_or_else(|| NonZeroUsize::new(100).unwrap());
 
+        let provider = Arc::new(tokio::sync::Mutex::new(None));
+        let shared_extension_manager =
+            Arc::new(ExtensionManager::new(provider, session_manager.clone()));
         let manager = Self {
             sessions: Arc::new(RwLock::new(LruCache::new(capacity))),
             scheduler,
             session_manager,
             default_provider: Arc::new(RwLock::new(None)),
+            shared_extension_manager,
         };
 
         Ok(manager)
@@ -62,6 +67,10 @@ impl AgentManager {
 
     pub fn scheduler(&self) -> Arc<dyn SchedulerTrait> {
         Arc::clone(&self.scheduler)
+    }
+
+    pub fn extension_manager(&self) -> Arc<ExtensionManager> {
+        Arc::clone(&self.shared_extension_manager)
     }
 
     /// Get the shared SessionManager for session-only operations
@@ -93,7 +102,10 @@ impl AgentManager {
                 .get_goose_disable_session_naming()
                 .unwrap_or(false),
         );
-        let agent = Arc::new(Agent::with_config(config));
+        let agent = Arc::new(Agent::with_config_and_extensions(
+            config,
+            Some(Arc::clone(&self.shared_extension_manager)),
+        ));
         if let Some(provider) = &*self.default_provider.read().await {
             agent
                 .update_provider(Arc::clone(provider), &session_id)

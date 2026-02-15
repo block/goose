@@ -5,6 +5,7 @@ use crate::scenario_tests::message_generator::MessageGenerator;
 use crate::scenario_tests::mock_client::weather_client;
 use crate::scenario_tests::provider_configs::{get_provider_configs, ProviderConfig};
 use crate::session::CliSession;
+use crate::GoosedClient;
 use anyhow::Result;
 use goose::agents::{Agent, AgentConfig};
 use goose::config::permission::PermissionManager;
@@ -253,12 +254,9 @@ where
         .await?;
 
     let mut cli_session = CliSession::new(
-        agent,
+        GoosedClient::dummy(),
         session.id,
         false,
-        None,
-        None,
-        None,
         None,
         "text".to_string(),
     )

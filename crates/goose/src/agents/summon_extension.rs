@@ -1,16 +1,18 @@
-//! Summon Extension - Unified tooling for recipes, skills, and subagents
+//! Summon Extension - Unified tooling for recipes, skills, and specialists
 //!
 //! Provides two tools:
 //! - `load`: Inject knowledge into current context or discover available sources
-//! - `delegate`: Run tasks in isolated subagents (sync or async)
+//! - `delegate`: Run tasks in isolated specialists (sync or async)
 
+use crate::agent_manager::client::AgentClientManager;
 use crate::agents::builtin_skills;
+use crate::agents::delegation::DelegationStrategy;
 use crate::agents::extension::PlatformExtensionContext;
 use crate::agents::mcp_client::{Error, McpClientTrait};
-use crate::agents::subagent_handler::{
-    run_complete_subagent_task, run_subagent_task_with_callback, OnMessageCallback,
+use crate::agents::specialist_config::{TaskConfig, DEFAULT_SUBAGENT_MAX_TURNS};
+use crate::agents::specialist_handler::{
+    run_complete_specialist_task, run_specialist_task_with_callback, OnMessageCallback,
 };
-use crate::agents::subagent_task_config::{TaskConfig, DEFAULT_SUBAGENT_MAX_TURNS};
 use crate::agents::AgentConfig;
 use crate::config::paths::Paths;
 use crate::config::Config;
@@ -18,8 +20,12 @@ use crate::providers;
 use crate::recipe::build_recipe::build_recipe_from_template;
 use crate::recipe::local_recipes::load_local_recipe_file;
 use crate::recipe::{Recipe, Settings, RECIPE_FILE_EXTENSIONS};
+use crate::registry::manifest::RegistryEntryKind;
+use crate::registry::sources::local::LocalRegistrySource;
+use crate::registry::RegistryManager;
 use crate::session::extension_data::EnabledExtensionsState;
 use crate::session::SessionType;
+use agent_client_protocol_schema::{NewSessionRequest, SessionModeId, SetSessionModeRequest};
 use anyhow::Result;
 use async_trait::async_trait;
 use rmcp::model::{
@@ -47,6 +53,7 @@ pub struct Source {
     pub description: String,
     pub path: PathBuf,
     pub content: String,
+    pub distribution: Option<crate::registry::manifest::AgentDistribution>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
@@ -110,6 +117,8 @@ pub struct DelegateParams {
     pub provider: Option<String>,
     pub model: Option<String>,
     pub temperature: Option<f32>,
+    /// Agent mode to use (e.g., "code", "review", "architect")
+    pub mode: Option<String>,
     #[serde(default)]
     pub r#async: bool,
 }
@@ -145,6 +154,29 @@ struct AgentMetadata {
     description: Option<String>,
     #[serde(default)]
     model: Option<String>,
+    #[serde(default)]
+    #[allow(dead_code)]
+    default_mode: Option<String>,
+    #[serde(default)]
+    modes: Vec<AgentModeEntry>,
+    #[serde(default)]
+    #[allow(dead_code)]
+    required_extensions: Vec<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[allow(dead_code)]
+struct AgentModeEntry {
+    slug: String,
+    name: String,
+    #[serde(default)]
+    description: Option<String>,
+    #[serde(default)]
+    instructions: Option<String>,
+    #[serde(default)]
+    instructions_file: Option<String>,
+    #[serde(default)]
+    tool_groups: Vec<String>,
 }
 
 fn parse_frontmatter<T: for<'de> Deserialize<'de>>(content: &str) -> Option<(T, String)> {
@@ -175,6 +207,7 @@ fn parse_skill_content(content: &str, path: PathBuf) -> Option<Source> {
         description: metadata.description,
         path,
         content: body,
+        distribution: None,
     })
 }
 
@@ -196,6 +229,7 @@ fn parse_agent_content(content: &str, path: PathBuf) -> Option<Source> {
         description,
         path,
         content: body,
+        distribution: None,
     })
 }
 
@@ -234,6 +268,7 @@ pub struct SummonClient {
     source_cache: Mutex<Option<(Instant, PathBuf, Vec<Source>)>>,
     background_tasks: Mutex<HashMap<String, BackgroundTask>>,
     completed_tasks: Mutex<HashMap<String, CompletedTask>>,
+    agent_manager: AgentClientManager,
 }
 
 impl Drop for SummonClient {
@@ -272,7 +307,7 @@ impl SummonClient {
                 website_url: None,
             },
             instructions: Some(
-                "Load knowledge and delegate tasks to subagents using the summon extension."
+                "Load knowledge and delegate tasks to specialists using the summon extension."
                     .to_string(),
             ),
         };
@@ -283,6 +318,7 @@ impl SummonClient {
             source_cache: Mutex::new(None),
             background_tasks: Mutex::new(HashMap::new()),
             completed_tasks: Mutex::new(HashMap::new()),
+            agent_manager: AgentClientManager::default(),
         })
     }
 
@@ -346,6 +382,10 @@ impl SummonClient {
                     "type": "string",
                     "description": "Override model."
                 },
+                "mode": {
+                    "type": "string",
+                    "description": "Agent mode to use (e.g., 'code', 'review', 'architect'). Only valid with agent sources that define modes."
+                },
                 "temperature": {
                     "type": "number",
                     "description": "Override temperature."
@@ -360,7 +400,7 @@ impl SummonClient {
 
         Tool::new(
             "delegate",
-            "Delegate a task to a subagent that runs independently with its own context.\n\n\
+            "Delegate a task to a specialist that runs independently with its own context.\n\n\
              Modes:\n\
              1. Ad-hoc: Provide `instructions` for a custom task\n\
              2. Source-based: Provide `source` name to run a subrecipe, recipe, skill, or agent\n\
@@ -402,6 +442,9 @@ impl SummonClient {
                 sources.push(source);
             }
         }
+
+        // Add registry sources (agents, skills, recipes from registry)
+        self.add_registry_sources(&mut sources, &mut seen).await;
 
         sources.sort_by(|a, b| (&a.kind, &a.name).cmp(&(&b.kind, &b.name)));
         sources
@@ -554,6 +597,54 @@ impl SummonClient {
         sources
     }
 
+    /// Discover agents, skills, and recipes from the registry
+    async fn add_registry_sources(
+        &self,
+        sources: &mut Vec<Source>,
+        seen: &mut std::collections::HashSet<String>,
+    ) {
+        let mut manager = RegistryManager::new();
+        if let Ok(local_source) = LocalRegistrySource::from_default_paths() {
+            manager.add_source(Box::new(local_source));
+        }
+
+        // Search for all entry types from the registry
+        if let Ok(entries) = manager.search(None, None).await {
+            for entry in entries {
+                if seen.contains(&entry.name) {
+                    continue;
+                }
+                seen.insert(entry.name.clone());
+
+                let kind = match entry.kind {
+                    RegistryEntryKind::Agent => SourceKind::Agent,
+                    RegistryEntryKind::Skill => SourceKind::Skill,
+                    RegistryEntryKind::Recipe => SourceKind::Recipe,
+                    RegistryEntryKind::Tool => continue, // tools are extensions, not sources
+                };
+
+                let (content, distribution) = match &entry.detail {
+                    crate::registry::manifest::RegistryEntryDetail::Skill(s) => {
+                        (s.content.clone(), None)
+                    }
+                    crate::registry::manifest::RegistryEntryDetail::Agent(a) => {
+                        (a.instructions.clone(), a.distribution.clone())
+                    }
+                    _ => (String::new(), None),
+                };
+
+                sources.push(Source {
+                    name: entry.name.clone(),
+                    kind,
+                    description: entry.description.clone(),
+                    path: entry.local_path.clone().unwrap_or_default(),
+                    content,
+                    distribution,
+                });
+            }
+        }
+    }
+
     async fn add_subrecipes(
         &self,
         session_id: &str,
@@ -589,6 +680,7 @@ impl SummonClient {
                 description,
                 path: PathBuf::from(&sr.path),
                 content: String::new(),
+                distribution: None,
             });
         }
     }
@@ -659,6 +751,7 @@ impl SummonClient {
                         description: recipe.description.clone(),
                         path: path.clone(),
                         content: recipe.instructions.clone().unwrap_or_default(),
+                        distribution: None,
                     });
                 }
                 Err(e) => {
@@ -720,6 +813,18 @@ impl SummonClient {
 
         for entry in entries.flatten() {
             let path = entry.path();
+
+            if path.is_dir() {
+                // Directory-based agent: look for agent.yaml or agent.md
+                if let Some(source) = self.try_load_agent_dir(&path) {
+                    if !seen.contains(&source.name) {
+                        seen.insert(source.name.clone());
+                        sources.push(source);
+                    }
+                }
+                continue;
+            }
+
             if !path.is_file() {
                 continue;
             }
@@ -744,6 +849,93 @@ impl SummonClient {
                 }
             }
         }
+    }
+
+    fn try_load_agent_dir(&self, dir: &Path) -> Option<Source> {
+        // Check for agent.yaml first (full manifest with modes)
+        let yaml_path = dir.join("agent.yaml");
+        if yaml_path.is_file() {
+            return self.load_agent_from_yaml(&yaml_path, dir);
+        }
+
+        // Fallback: check for agent.md in the directory
+        let md_path = dir.join("agent.md");
+        if md_path.is_file() {
+            let content = std::fs::read_to_string(&md_path).ok()?;
+            return parse_agent_content(&content, md_path);
+        }
+
+        None
+    }
+
+    fn load_agent_from_yaml(&self, yaml_path: &Path, agent_dir: &Path) -> Option<Source> {
+        let yaml_content = std::fs::read_to_string(yaml_path).ok()?;
+        let metadata: AgentMetadata = serde_yaml::from_str(&yaml_content).ok()?;
+
+        let description = metadata.description.clone().unwrap_or_else(|| {
+            let model_info = metadata
+                .model
+                .as_ref()
+                .map(|m| format!(" ({})", m))
+                .unwrap_or_default();
+            format!("Agent{}", model_info)
+        });
+
+        // Build the content (instructions) from the agent.yaml
+        // If modes exist, include mode listing in the content
+        let mut content = String::new();
+
+        // Look for a README.md or instructions.md in the agent directory
+        for instructions_file in &["README.md", "instructions.md", "agent.md"] {
+            let path = agent_dir.join(instructions_file);
+            if path.is_file() {
+                if let Ok(c) = std::fs::read_to_string(&path) {
+                    content = c;
+                    break;
+                }
+            }
+        }
+
+        if content.is_empty() {
+            // Use description as fallback content
+            content = description.clone();
+        }
+
+        // Add mode listing if modes are defined
+        if !metadata.modes.is_empty() {
+            content.push_str(
+                "
+
+## Available Modes
+
+",
+            );
+            for mode in &metadata.modes {
+                let desc = mode.description.as_deref().unwrap_or("");
+                content.push_str(&format!(
+                    "- **{}** ({}): {}
+",
+                    mode.name, mode.slug, desc
+                ));
+            }
+            if let Some(default) = &metadata.default_mode {
+                content.push_str(&format!(
+                    "
+Default mode: {}
+",
+                    default
+                ));
+            }
+        }
+
+        Some(Source {
+            name: metadata.name,
+            kind: SourceKind::Agent,
+            description,
+            path: yaml_path.to_path_buf(),
+            content,
+            distribution: None,
+        })
     }
 
     async fn handle_load(
@@ -929,7 +1121,7 @@ impl SummonClient {
         }
 
         output.push_str("\nUse load(source: \"name\") to load into context.\n");
-        output.push_str("Use delegate(source: \"name\") to run as subagent.");
+        output.push_str("Use delegate(source: \"name\") to run as specialist.");
 
         Ok(vec![Content::text(output)])
     }
@@ -1003,6 +1195,7 @@ impl SummonClient {
                 provider: None,
                 model: None,
                 temperature: None,
+                mode: None,
                 r#async: false,
             });
 
@@ -1015,12 +1208,38 @@ impl SummonClient {
             .await
             .map_err(|e| format!("Failed to get session: {}", e))?;
 
-        if session.session_type == SessionType::SubAgent {
+        if session.session_type == SessionType::Specialist {
             return Err("Delegated tasks cannot spawn further delegations".to_string());
         }
 
         if params.r#async {
             return self.handle_async_delegate(session_id, params).await;
+        }
+
+        // Route via DelegationStrategy when source is an Agent
+        if let Some(source_name) = &params.source {
+            let working_dir = session.working_dir.clone();
+            if let Some(source) = self
+                .resolve_source(session_id, source_name, &working_dir)
+                .await
+            {
+                if source.kind == SourceKind::Agent {
+                    let strategy = DelegationStrategy::choose(
+                        source.distribution.as_ref(),
+                        false, // TODO: detect custom extensions from agent frontmatter
+                        false, // TODO: detect model override from agent frontmatter
+                        false, // TODO: detect modes from agent frontmatter
+                    );
+                    tracing::info!("Delegation strategy for '{}': {}", source_name, strategy);
+
+                    if strategy.is_external() {
+                        return self
+                            .handle_acp_delegate(&source, &params, cancellation_token)
+                            .await;
+                    }
+                    // InProcessSpecialist falls through to the existing recipe-based path
+                }
+            }
         }
 
         let working_dir = session.working_dir.clone();
@@ -1038,30 +1257,93 @@ impl SummonClient {
             crate::config::permission::PermissionManager::instance(),
             None,
             crate::config::GooseMode::Auto,
-            true, // disable session naming for subagents
+            true, // disable session naming for specialists
         );
 
-        let subagent_session = self
+        let specialist_session = self
             .context
             .session_manager
             .create_session(
                 working_dir,
                 "Delegated task".to_string(),
-                SessionType::SubAgent,
+                SessionType::Specialist,
             )
             .await
-            .map_err(|e| format!("Failed to create subagent session: {}", e))?;
+            .map_err(|e| format!("Failed to create specialist session: {}", e))?;
 
-        let result = run_complete_subagent_task(
+        let result = run_complete_specialist_task(
             agent_config,
             recipe,
             task_config,
             true,
-            subagent_session.id,
+            specialist_session.id,
             Some(cancellation_token),
         )
         .await
         .map_err(|e| format!("Delegation failed: {}", e))?;
+
+        Ok(vec![Content::text(result)])
+    }
+
+    async fn handle_acp_delegate(
+        &self,
+        source: &Source,
+        params: &DelegateParams,
+        _cancellation_token: CancellationToken,
+    ) -> Result<Vec<Content>, String> {
+        let distribution = source
+            .distribution
+            .as_ref()
+            .ok_or("Agent has no distribution")?;
+
+        let agent_name = &source.name;
+
+        // Connect to the external agent if not already connected
+        let connected = self.agent_manager.list_agents().await;
+        if !connected.contains(&agent_name.to_string()) {
+            self.agent_manager
+                .connect_with_distribution(agent_name.clone(), distribution)
+                .await
+                .map_err(|e| format!("Failed to connect to agent '{}': {}", agent_name, e))?;
+        }
+
+        // Create a session on the external agent
+        let cwd = std::env::current_dir().unwrap_or_default();
+        let session_resp = self
+            .agent_manager
+            .new_session(agent_name, NewSessionRequest::new(cwd))
+            .await
+            .map_err(|e| format!("Failed to create session on agent '{}': {}", agent_name, e))?;
+
+        let session_id = session_resp.session_id;
+
+        // Optionally set mode
+        if let Some(mode) = &params.mode {
+            let mode_req =
+                SetSessionModeRequest::new(session_id.clone(), SessionModeId::from(mode.clone()));
+            let _ = self
+                .agent_manager
+                .set_mode(agent_name, mode_req)
+                .await
+                .map_err(|e| {
+                    format!(
+                        "Failed to set mode '{}' on agent '{}': {}",
+                        mode, agent_name, e
+                    )
+                })?;
+        }
+
+        let instructions = params
+            .instructions
+            .as_ref()
+            .ok_or("Instructions required for ACP delegation")?;
+
+        // Prompt the agent and collect text
+        let result = self
+            .agent_manager
+            .prompt_agent_text(agent_name, &session_id, instructions)
+            .await
+            .map_err(|e| format!("Delegation failed: {}", e))?;
 
         Ok(vec![Content::text(result)])
     }
@@ -1252,8 +1534,12 @@ impl SummonClient {
                 .map_err(|e| format!("Failed to read agent file: {}", e))?
         };
 
-        let (metadata, _): (AgentMetadata, String) =
+        let (metadata, body): (AgentMetadata, String) =
             parse_frontmatter(&agent_content).ok_or("Failed to parse agent frontmatter")?;
+
+        // Resolve mode instructions
+        let instructions =
+            self.resolve_mode_instructions(&metadata, &body, &source.path, params.mode.as_deref())?;
 
         let model = metadata.model;
 
@@ -1268,7 +1554,7 @@ impl SummonClient {
             .version("1.0.0")
             .title(format!("Agent: {}", source.name))
             .description(source.description.clone())
-            .instructions(&source.content);
+            .instructions(&instructions);
 
         if let Some(settings) = settings {
             builder = builder.settings(settings);
@@ -1281,6 +1567,80 @@ impl SummonClient {
         builder
             .build()
             .map_err(|e| format!("Failed to build recipe from agent: {}", e))
+    }
+
+    fn resolve_mode_instructions(
+        &self,
+        metadata: &AgentMetadata,
+        base_body: &str,
+        agent_path: &Path,
+        requested_mode: Option<&str>,
+    ) -> Result<String, String> {
+        if metadata.modes.is_empty() {
+            // No modes defined — use base body as instructions (backward compatible)
+            return Ok(base_body.to_string());
+        }
+
+        let mode_slug = requested_mode
+            .or(metadata.default_mode.as_deref())
+            .unwrap_or_else(|| {
+                metadata
+                    .modes
+                    .first()
+                    .map(|m| m.slug.as_str())
+                    .unwrap_or("")
+            });
+
+        if mode_slug.is_empty() {
+            return Ok(base_body.to_string());
+        }
+
+        let mode = metadata
+            .modes
+            .iter()
+            .find(|m| m.slug == mode_slug)
+            .ok_or_else(|| {
+                let available: Vec<&str> = metadata.modes.iter().map(|m| m.slug.as_str()).collect();
+                format!(
+                    "Mode '{}' not found. Available modes: {}",
+                    mode_slug,
+                    available.join(", ")
+                )
+            })?;
+
+        // Priority: inline instructions > instructions_file > base body
+        if let Some(inline) = &mode.instructions {
+            // Combine base body as context + mode-specific instructions
+            Ok(format!(
+                "{}
+
+## Active Mode: {} ({})
+
+{}",
+                base_body, mode.name, mode.slug, inline
+            ))
+        } else if let Some(file) = &mode.instructions_file {
+            let agent_dir = agent_path.parent().unwrap_or(Path::new("."));
+            let mode_path = agent_dir.join(file);
+            let mode_content = std::fs::read_to_string(&mode_path).map_err(|e| {
+                format!(
+                    "Failed to read mode instructions file '{}': {}",
+                    mode_path.display(),
+                    e
+                )
+            })?;
+            Ok(format!(
+                "{}
+
+## Active Mode: {} ({})
+
+{}",
+                base_body, mode.name, mode.slug, mode_content
+            ))
+        } else {
+            // Mode defined but no specific instructions — use base body
+            Ok(base_body.to_string())
+        }
     }
 
     async fn build_task_config(
@@ -1469,17 +1829,17 @@ impl SummonClient {
             crate::config::permission::PermissionManager::instance(),
             None,
             crate::config::GooseMode::Auto,
-            true, // disable session naming for subagents
+            true, // disable session naming for specialists
         );
 
-        let subagent_session = self
+        let specialist_session = self
             .context
             .session_manager
-            .create_session(working_dir, description.clone(), SessionType::SubAgent)
+            .create_session(working_dir, description.clone(), SessionType::Specialist)
             .await
-            .map_err(|e| format!("Failed to create subagent session: {}", e))?;
+            .map_err(|e| format!("Failed to create specialist session: {}", e))?;
 
-        let task_id = subagent_session.id.clone();
+        let task_id = specialist_session.id.clone();
 
         let turns = Arc::new(AtomicU32::new(0));
         let last_activity = Arc::new(AtomicU64::new(current_epoch_millis()));
@@ -1496,12 +1856,12 @@ impl SummonClient {
         let task_token_clone = task_token.clone();
 
         let handle = tokio::spawn(async move {
-            run_subagent_task_with_callback(
+            run_specialist_task_with_callback(
                 agent_config,
                 recipe,
                 task_config,
                 true,
-                subagent_session.id,
+                specialist_session.id,
                 Some(task_token_clone),
                 Some(on_message),
             )
@@ -1540,17 +1900,17 @@ impl McpClientTrait for SummonClient {
     ) -> Result<ListToolsResult, Error> {
         self.cleanup_completed_tasks().await;
 
-        let is_subagent = self
+        let is_specialist = self
             .context
             .session_manager
             .get_session(session_id, false)
             .await
-            .map(|s| s.session_type == SessionType::SubAgent)
+            .map(|s| s.session_type == SessionType::Specialist)
             .unwrap_or(false);
 
         let mut tools = vec![self.create_load_tool()];
 
-        if !is_subagent {
+        if !is_specialist {
             tools.push(self.create_delegate_tool());
         }
 
@@ -1778,6 +2138,7 @@ You review code."#;
             provider: None,
             model: None,
             temperature: None,
+            mode: None,
             r#async: false,
         };
 

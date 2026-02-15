@@ -81,12 +81,12 @@ const MAX_NAME_LENGTH: usize = 200;
 )]
 async fn list_sessions(
     State(state): State<Arc<AppState>>,
-) -> Result<Json<SessionListResponse>, StatusCode> {
+) -> Result<Json<SessionListResponse>, ErrorResponse> {
     let sessions = state
         .session_manager()
         .list_sessions()
         .await
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+        .map_err(|e| ErrorResponse::internal(e.to_string()))?;
 
     Ok(Json(SessionListResponse { sessions }))
 }
@@ -111,7 +111,7 @@ async fn list_sessions(
 async fn get_session(
     State(state): State<Arc<AppState>>,
     Path(session_id): Path<String>,
-) -> Result<Json<Session>, StatusCode> {
+) -> Result<Json<Session>, ErrorResponse> {
     let session = state
         .session_manager()
         .get_session(&session_id, true)
@@ -135,12 +135,12 @@ async fn get_session(
 )]
 async fn get_session_insights(
     State(state): State<Arc<AppState>>,
-) -> Result<Json<SessionInsights>, StatusCode> {
+) -> Result<Json<SessionInsights>, ErrorResponse> {
     let insights = state
         .session_manager()
         .get_insights()
         .await
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+        .map_err(|e| ErrorResponse::internal(e.to_string()))?;
     Ok(Json(insights))
 }
 
@@ -167,13 +167,13 @@ async fn update_session_name(
     State(state): State<Arc<AppState>>,
     Path(session_id): Path<String>,
     Json(request): Json<UpdateSessionNameRequest>,
-) -> Result<StatusCode, StatusCode> {
+) -> Result<StatusCode, ErrorResponse> {
     let name = request.name.trim();
     if name.is_empty() {
-        return Err(StatusCode::BAD_REQUEST);
+        return Err(StatusCode::BAD_REQUEST.into());
     }
     if name.len() > MAX_NAME_LENGTH {
-        return Err(StatusCode::BAD_REQUEST);
+        return Err(StatusCode::BAD_REQUEST.into());
     }
 
     state
@@ -182,7 +182,7 @@ async fn update_session_name(
         .user_provided_name(name.to_string())
         .apply()
         .await
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+        .map_err(|e| ErrorResponse::internal(e.to_string()))?;
 
     Ok(StatusCode::OK)
 }
@@ -283,7 +283,7 @@ async fn update_session_user_recipe_values(
 async fn delete_session(
     State(state): State<Arc<AppState>>,
     Path(session_id): Path<String>,
-) -> Result<StatusCode, StatusCode> {
+) -> Result<StatusCode, ErrorResponse> {
     state
         .session_manager()
         .delete_session(&session_id)
@@ -319,7 +319,7 @@ async fn delete_session(
 async fn export_session(
     State(state): State<Arc<AppState>>,
     Path(session_id): Path<String>,
-) -> Result<Json<String>, StatusCode> {
+) -> Result<Json<String>, ErrorResponse> {
     let exported = state
         .session_manager()
         .export_session(&session_id)
@@ -347,7 +347,7 @@ async fn export_session(
 async fn import_session(
     State(state): State<Arc<AppState>>,
     Json(request): Json<ImportSessionRequest>,
-) -> Result<Json<Session>, StatusCode> {
+) -> Result<Json<Session>, ErrorResponse> {
     let session = state
         .session_manager()
         .import_session(&request.json)
@@ -473,7 +473,7 @@ pub struct SessionExtensionsResponse {
 async fn get_session_extensions(
     State(state): State<Arc<AppState>>,
     Path(session_id): Path<String>,
-) -> Result<Json<SessionExtensionsResponse>, StatusCode> {
+) -> Result<Json<SessionExtensionsResponse>, ErrorResponse> {
     let session = state
         .session_manager()
         .get_session(&session_id, false)
@@ -486,6 +486,123 @@ async fn get_session_extensions(
     );
 
     Ok(Json(SessionExtensionsResponse { extensions }))
+}
+
+#[utoipa::path(
+    post,
+    path = "/sessions/{session_id}/clear",
+    params(
+        ("session_id" = String, Path, description = "Unique identifier for the session")
+    ),
+    responses(
+        (status = 200, description = "Session cleared successfully"),
+        (status = 404, description = "Session not found"),
+        (status = 500, description = "Internal server error")
+    ),
+    security(
+        ("api_key" = [])
+    ),
+    tag = "Session Management"
+)]
+async fn clear_session(
+    State(state): State<Arc<AppState>>,
+    Path(session_id): Path<String>,
+) -> Result<StatusCode, ErrorResponse> {
+    let sm = state.session_manager();
+
+    sm.replace_conversation(&session_id, &goose::conversation::Conversation::default())
+        .await
+        .map_err(|_| StatusCode::NOT_FOUND)?;
+
+    sm.update(&session_id)
+        .total_tokens(Some(0))
+        .input_tokens(Some(0))
+        .output_tokens(Some(0))
+        .apply()
+        .await
+        .map_err(|e| ErrorResponse::internal(e.to_string()))?;
+
+    Ok(StatusCode::OK)
+}
+
+#[utoipa::path(
+    post,
+    path = "/sessions/{session_id}/messages",
+    params(
+        ("session_id" = String, Path, description = "Unique identifier for the session")
+    ),
+    request_body = Message,
+    responses(
+        (status = 200, description = "Message added successfully"),
+        (status = 404, description = "Session not found"),
+        (status = 500, description = "Internal server error")
+    ),
+    security(
+        ("api_key" = [])
+    ),
+    tag = "Session Management"
+)]
+async fn add_message(
+    State(state): State<Arc<AppState>>,
+    Path(session_id): Path<String>,
+    Json(message): Json<goose::conversation::message::Message>,
+) -> Result<StatusCode, ErrorResponse> {
+    state
+        .session_manager()
+        .add_message(&session_id, &message)
+        .await
+        .map_err(|e| ErrorResponse::internal(e.to_string()))?;
+
+    Ok(StatusCode::OK)
+}
+
+#[utoipa::path(
+    post,
+    path = "/sessions/{session_id}/recipe",
+    params(
+        ("session_id" = String, Path, description = "Session ID")
+    ),
+    responses(
+        (status = 200, description = "Recipe created", body = goose::recipe::Recipe),
+        (status = 500, description = "Failed to create recipe"),
+    ),
+    security(
+        ("api_key" = [])
+    ),
+    tag = "Session Management"
+)]
+async fn create_recipe(
+    State(state): State<Arc<AppState>>,
+    Path(session_id): Path<String>,
+) -> Result<Json<goose::recipe::Recipe>, ErrorResponse> {
+    let session = state
+        .session_manager()
+        .get_session(&session_id, true)
+        .await
+        .map_err(|e| ErrorResponse {
+            message: format!("Session not found: {}", e),
+            status: StatusCode::NOT_FOUND,
+        })?;
+
+    let conversation = session.conversation.unwrap_or_default();
+
+    let agent = state
+        .get_agent_for_route(session_id.clone())
+        .await
+        .map_err(|status| ErrorResponse {
+            message: format!("Failed to get agent: {}", status),
+            status,
+        })?;
+
+    let recipe = agent
+        .create_recipe(&session_id, conversation)
+        .await
+        .map_err(|e| ErrorResponse {
+            message: format!("Failed to create recipe: {}", e),
+            status: StatusCode::INTERNAL_SERVER_ERROR,
+        })?;
+
+    Ok(Json(recipe))
 }
 
 pub fn routes(state: Arc<AppState>) -> Router {
@@ -510,6 +627,9 @@ pub fn routes(state: Arc<AppState>) -> Router {
             "/sessions/{session_id}/extensions",
             get(get_session_extensions),
         )
+        .route("/sessions/{session_id}/clear", post(clear_session))
+        .route("/sessions/{session_id}/recipe", post(create_recipe))
+        .route("/sessions/{session_id}/messages", post(add_message))
         .with_state(state)
 }
 #[derive(Deserialize, ToSchema)]
@@ -553,10 +673,10 @@ fn default_limit() -> usize {
 async fn search_sessions(
     State(state): State<Arc<AppState>>,
     axum::extract::Query(params): axum::extract::Query<SearchSessionsQuery>,
-) -> Result<Json<Vec<Session>>, StatusCode> {
+) -> Result<Json<Vec<Session>>, ErrorResponse> {
     let query = params.query.trim();
     if query.is_empty() {
-        return Err(StatusCode::BAD_REQUEST);
+        return Err(StatusCode::BAD_REQUEST.into());
     }
 
     let limit = params.limit.min(50);
@@ -575,7 +695,7 @@ async fn search_sessions(
         .session_manager()
         .search_chat_history(query, Some(limit), after_date, before_date, None)
         .await
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+        .map_err(|e| ErrorResponse::internal(e.to_string()))?;
 
     // Get full Session objects for matching session IDs
     let session_ids: Vec<String> = search_results
@@ -588,7 +708,7 @@ async fn search_sessions(
         .session_manager()
         .list_sessions()
         .await
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+        .map_err(|e| ErrorResponse::internal(e.to_string()))?;
 
     let matching_sessions: Vec<Session> = all_sessions
         .into_iter()

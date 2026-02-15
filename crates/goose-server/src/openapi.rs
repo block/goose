@@ -10,9 +10,9 @@ use goose::permission::permission_confirmation::{Permission, PrincipalType};
 use goose::providers::base::{ConfigKey, ModelInfo, ProviderMetadata, ProviderType};
 use goose::session::{Session, SessionInsights, SessionType, SystemInfo};
 use rmcp::model::{
-    Annotations, Content, EmbeddedResource, Icon, ImageContent, JsonObject, RawAudioContent,
-    RawEmbeddedResource, RawImageContent, RawResource, RawTextContent, ResourceContents, Role,
-    TaskSupport, TextContent, Tool, ToolAnnotations, ToolExecution,
+    Annotations, Content, EmbeddedResource, Icon, ImageContent, JsonObject, Prompt, PromptArgument,
+    RawAudioContent, RawEmbeddedResource, RawImageContent, RawResource, RawTextContent,
+    ResourceContents, Role, TaskSupport, TextContent, Tool, ToolAnnotations, ToolExecution,
 };
 use utoipa::{OpenApi, ToSchema};
 
@@ -21,8 +21,9 @@ use goose::config::declarative_providers::{
 };
 use goose::conversation::message::{
     ActionRequired, ActionRequiredData, FrontendToolRequest, Message, MessageContent,
-    MessageMetadata, RedactedThinkingContent, SystemNotificationContent, SystemNotificationType,
-    ThinkingContent, TokenState, ToolConfirmationRequest, ToolRequest, ToolResponse,
+    MessageMetadata, RedactedThinkingContent, RoutingInfo, SystemNotificationContent,
+    SystemNotificationType, ThinkingContent, TokenState, ToolConfirmationRequest, ToolRequest,
+    ToolResponse,
 };
 
 use crate::routes::recipe_utils::RecipeManifest;
@@ -325,6 +326,8 @@ derive_utoipa!(Annotations as AnnotationsSchema);
 derive_utoipa!(ResourceContents as ResourceContentsSchema);
 derive_utoipa!(JsonObject as JsonObjectSchema);
 derive_utoipa!(Icon as IconSchema);
+derive_utoipa!(Prompt as PromptSchema);
+derive_utoipa!(PromptArgument as PromptArgumentSchema);
 
 #[derive(OpenApi)]
 #[openapi(
@@ -367,6 +370,8 @@ derive_utoipa!(Icon as IconSchema);
         super::routes::agent::restart_agent,
         super::routes::agent::update_working_dir,
         super::routes::agent::get_tools,
+        super::routes::agent::list_extension_prompts,
+        super::routes::agent::get_extension_prompt,
         super::routes::agent::read_resource,
         super::routes::agent::call_tool,
         super::routes::agent::list_apps,
@@ -389,6 +394,8 @@ derive_utoipa!(Icon as IconSchema);
         super::routes::session::update_session_user_recipe_values,
         super::routes::session::fork_session,
         super::routes::session::get_session_extensions,
+        super::routes::session::clear_session,
+        super::routes::session::add_message,
         super::routes::schedule::create_schedule,
         super::routes::schedule::list_schedules,
         super::routes::schedule::delete_schedule,
@@ -423,8 +430,33 @@ derive_utoipa!(Icon as IconSchema);
         super::routes::dictation::get_download_progress,
         super::routes::dictation::cancel_download,
         super::routes::dictation::delete_model,
+        super::routes::agent_management::connect_agent,
+        super::routes::agent_management::create_session,
+        super::routes::agent_management::prompt_agent,
+        super::routes::agent_management::set_mode,
+        super::routes::agent_management::list_agents,
+        super::routes::agent_management::disconnect_agent,
+        super::routes::agent_management::list_builtin_agents,
+        super::routes::agent_management::toggle_builtin_agent,
+        super::routes::agent_management::bind_extension_to_agent,
+        super::routes::agent_management::unbind_extension_from_agent,
+        super::routes::agent_management::orchestrator_status,
+        // ACP Discovery
+        super::routes::acp_discovery::ping,
+        super::routes::acp_discovery::list_agents,
+        super::routes::acp_discovery::get_agent,
+        super::routes::acp_discovery::get_acp_session,
+        // ACP Runs
+        super::routes::runs::create_run,
+        super::routes::runs::get_run,
+        super::routes::runs::resume_run,
+        super::routes::runs::cancel_run,
+        super::routes::runs::get_run_events,
+        super::routes::runs::list_runs,
     ),
     components(schemas(
+        super::routes::agent_management::OrchestratorStatus,
+        super::routes::agent_management::OrchestratorAgentInfo,
         super::routes::config_management::UpsertConfigQuery,
         super::routes::config_management::ConfigKeyQuery,
         super::routes::config_management::DetectProviderRequest,
@@ -462,6 +494,7 @@ derive_utoipa!(Icon as IconSchema);
         Message,
         MessageContent,
         MessageMetadata,
+        RoutingInfo,
         TokenState,
         ContentSchema,
         EmbeddedResourceSchema,
@@ -501,6 +534,8 @@ derive_utoipa!(Icon as IconSchema);
         ToolAnnotationsSchema,
         ToolExecutionSchema,
         TaskSupportSchema,
+        PromptSchema,
+        PromptArgumentSchema,
         ToolInfo,
         PermissionLevel,
         Permission,
@@ -555,6 +590,9 @@ derive_utoipa!(Icon as IconSchema);
         goose::agents::types::SuccessCheck,
         super::routes::agent::UpdateProviderRequest,
         super::routes::agent::GetToolsQuery,
+        super::routes::agent::GetPromptsQuery,
+        super::routes::agent::GetPromptRequest,
+        super::routes::agent::GetPromptResponse,
         super::routes::agent::ReadResourceRequest,
         super::routes::agent::ReadResourceResponse,
         super::routes::agent::CallToolRequest,
@@ -592,6 +630,42 @@ derive_utoipa!(Icon as IconSchema);
         super::routes::dictation::WhisperModelResponse,
         DownloadProgress,
         DownloadStatus,
+        super::routes::agent_management::ConnectAgentRequest,
+        super::routes::agent_management::ConnectAgentResponse,
+        super::routes::agent_management::CreateSessionRequest,
+        super::routes::agent_management::CreateSessionResponse,
+        super::routes::agent_management::PromptAgentRequest,
+        super::routes::agent_management::PromptAgentResponse,
+        super::routes::agent_management::SetModeAgentRequest,
+        super::routes::agent_management::AgentListResponse,
+        super::routes::agent_management::BuiltinAgentInfo,
+        super::routes::agent_management::BuiltinAgentMode,
+        super::routes::agent_management::BuiltinAgentsResponse,
+        super::routes::agent_management::ToggleAgentResponse,
+        super::routes::agent_management::BindExtensionRequest,
+        // ACP types
+        goose::acp_compat::AcpRun,
+        goose::acp_compat::AcpRunStatus,
+        goose::acp_compat::RunMode,
+        goose::acp_compat::RunCreateRequest,
+        goose::acp_compat::RunResumeRequest,
+        goose::acp_compat::AcpMessage,
+        goose::acp_compat::AcpMessagePart,
+        goose::acp_compat::AcpRole,
+        goose::acp_compat::AcpSession,
+        goose::acp_compat::AcpError,
+        goose::acp_compat::AwaitRequest,
+        goose::acp_compat::AwaitResume,
+        goose::acp_compat::AgentManifest,
+        goose::acp_compat::AgentModeInfo,
+        goose::acp_compat::AgentMetadata,
+        goose::acp_compat::AgentStatus,
+        goose::acp_compat::AgentDependency,
+        goose::acp_compat::Person,
+        goose::acp_compat::Link,
+        super::routes::reply::PlanTask,
+        goose::conversation::message::Message,
+        super::routes::acp_discovery::AgentsListResponse,
     ))
 )]
 pub struct ApiDoc;

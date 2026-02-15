@@ -2,6 +2,7 @@ pub mod configure;
 pub mod info;
 pub mod project;
 pub mod recipe;
+pub mod registry;
 pub mod schedule;
 pub mod session;
 pub mod term;

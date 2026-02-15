@@ -128,6 +128,8 @@ ignore = { workspace = true }
 which = { workspace = true }
 pctx_code_mode = "^0.2.3"
 unbinder = "0.1.7"
+agent-client-protocol = { version = "0.9.4", features = ["unstable"] }
+agent-client-protocol-schema = { version = "0.10.8", features = ["unstable_session_model"] }
 
 [target.'cfg(target_os = "windows")'.dependencies]
 winapi = { version = "0.3", features = ["wincred"] }

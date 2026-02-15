@@ -27,10 +27,10 @@ use goose::{
     agents::{extension::ToolInfo, extension_manager::get_parameter_names},
     config::permission::PermissionLevel,
 };
-use rmcp::model::{CallToolRequestParams, Content};
+use rmcp::model::{CallToolRequestParams, Content, Prompt};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
 use std::sync::Arc;
 use tokio_util::sync::CancellationToken;
@@ -53,6 +53,11 @@ pub struct UpdateProviderRequest {
 #[derive(Deserialize, utoipa::ToSchema)]
 pub struct GetToolsQuery {
     extension_name: Option<String>,
+    session_id: String,
+}
+
+#[derive(Deserialize, utoipa::IntoParams, utoipa::ToSchema)]
+pub struct GetPromptsQuery {
     session_id: String,
 }
 
@@ -473,7 +478,7 @@ async fn update_from_session(
 async fn get_tools(
     State(state): State<Arc<AppState>>,
     Query(query): Query<GetToolsQuery>,
-) -> Result<Json<Vec<ToolInfo>>, StatusCode> {
+) -> Result<Json<Vec<ToolInfo>>, ErrorResponse> {
     let config = Config::global();
     let goose_mode = config.get_goose_mode().unwrap_or(GooseMode::Auto);
     let session_id = query.session_id;
@@ -862,7 +867,7 @@ async fn update_working_dir(
 async fn read_resource(
     State(state): State<Arc<AppState>>,
     Json(payload): Json<ReadResourceRequest>,
-) -> Result<Json<ReadResourceResponse>, StatusCode> {
+) -> Result<Json<ReadResourceResponse>, ErrorResponse> {
     use rmcp::model::ResourceContents;
 
     let agent = state
@@ -901,9 +906,9 @@ async fn read_resource(
         } => {
             let decoded = match base64::engine::general_purpose::STANDARD.decode(&blob) {
                 Ok(bytes) => {
-                    String::from_utf8(bytes).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
+                    String::from_utf8(bytes).map_err(|e| ErrorResponse::internal(e.to_string()))?
                 }
-                Err(_) => return Err(StatusCode::INTERNAL_SERVER_ERROR),
+                Err(_) => return Err(StatusCode::INTERNAL_SERVER_ERROR.into()),
             };
             (uri, mime_type, decoded, meta)
         }
@@ -934,7 +939,7 @@ async fn read_resource(
 async fn call_tool(
     State(state): State<Arc<AppState>>,
     Json(payload): Json<CallToolRequest>,
-) -> Result<Json<CallToolResponse>, StatusCode> {
+) -> Result<Json<CallToolResponse>, ErrorResponse> {
     let agent = state
         .get_agent_for_route(payload.session_id.clone())
         .await?;
@@ -960,12 +965,12 @@ async fn call_tool(
             CancellationToken::default(),
         )
         .await
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+        .map_err(|e| ErrorResponse::internal(e.to_string()))?;
 
     let result = tool_result
         .result
         .await
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+        .map_err(|e| ErrorResponse::internal(e.to_string()))?;
 
     Ok(Json(CallToolResponse {
         content: result.content,
@@ -1172,6 +1177,77 @@ async fn import_app(
     ))
 }
 
+#[utoipa::path(
+    get,
+    path = "/agent/prompts",
+    params(
+        ("session_id" = String, Query, description = "Required session ID")
+    ),
+    responses(
+        (status = 200, description = "MCP extension prompts grouped by extension name"),
+        (status = 401, description = "Unauthorized - invalid secret key"),
+        (status = 424, description = "Agent not initialized"),
+        (status = 500, description = "Internal server error")
+    )
+)]
+async fn list_extension_prompts(
+    State(state): State<Arc<AppState>>,
+    Query(query): Query<GetPromptsQuery>,
+) -> Result<Json<HashMap<String, Vec<Prompt>>>, ErrorResponse> {
+    let agent = state.get_agent_for_route(query.session_id.clone()).await?;
+    let prompts = agent.list_extension_prompts(&query.session_id).await;
+    Ok(Json(prompts))
+}
+
+#[derive(Deserialize, utoipa::ToSchema)]
+pub struct GetPromptRequest {
+    session_id: String,
+    name: String,
+    #[serde(default)]
+    arguments: serde_json::Value,
+}
+
+#[derive(Serialize, utoipa::ToSchema)]
+pub struct GetPromptResponse {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    description: Option<String>,
+    messages: Vec<serde_json::Value>,
+}
+
+#[utoipa::path(
+    post,
+    path = "/agent/prompts/get",
+    request_body = GetPromptRequest,
+    responses(
+        (status = 200, description = "Prompt messages", body = GetPromptResponse),
+        (status = 401, description = "Unauthorized - invalid secret key"),
+        (status = 404, description = "Prompt not found"),
+        (status = 424, description = "Agent not initialized"),
+        (status = 500, description = "Internal server error")
+    )
+)]
+async fn get_extension_prompt(
+    State(state): State<Arc<AppState>>,
+    Json(body): Json<GetPromptRequest>,
+) -> Result<Json<GetPromptResponse>, ErrorResponse> {
+    let agent = state.get_agent_for_route(body.session_id.clone()).await?;
+    let result = agent
+        .get_prompt(&body.session_id, &body.name, body.arguments)
+        .await
+        .map_err(|_| StatusCode::NOT_FOUND)?;
+
+    let messages: Vec<serde_json::Value> = result
+        .messages
+        .iter()
+        .map(|m| serde_json::to_value(m).unwrap_or_default())
+        .collect();
+
+    Ok(Json(GetPromptResponse {
+        description: result.description,
+        messages,
+    }))
+}
+
 pub fn routes(state: Arc<AppState>) -> Router {
     Router::new()
         .route("/agent/start", post(start_agent))
@@ -1179,6 +1255,8 @@ pub fn routes(state: Arc<AppState>) -> Router {
         .route("/agent/restart", post(restart_agent))
         .route("/agent/update_working_dir", post(update_working_dir))
         .route("/agent/tools", get(get_tools))
+        .route("/agent/prompts", get(list_extension_prompts))
+        .route("/agent/prompts/get", post(get_extension_prompt))
         .route("/agent/read_resource", post(read_resource))
         .route("/agent/call_tool", post(call_tool))
         .route("/agent/list_apps", get(list_apps))

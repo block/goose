@@ -28,7 +28,7 @@ pub enum SessionType {
     #[default]
     User,
     Scheduled,
-    SubAgent,
+    Specialist,
     Hidden,
     Terminal,
 }
@@ -37,7 +37,7 @@ impl std::fmt::Display for SessionType {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             SessionType::User => write!(f, "user"),
-            SessionType::SubAgent => write!(f, "sub_agent"),
+            SessionType::Specialist => write!(f, "specialist"),
             SessionType::Hidden => write!(f, "hidden"),
             SessionType::Scheduled => write!(f, "scheduled"),
             SessionType::Terminal => write!(f, "terminal"),
@@ -51,7 +51,7 @@ impl std::str::FromStr for SessionType {
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s {
             "user" => Ok(SessionType::User),
-            "sub_agent" => Ok(SessionType::SubAgent),
+            "specialist" => Ok(SessionType::Specialist),
             "hidden" => Ok(SessionType::Hidden),
             "scheduled" => Ok(SessionType::Scheduled),
             "terminal" => Ok(SessionType::Terminal),

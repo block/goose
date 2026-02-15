@@ -1,5 +1,6 @@
 pub mod cli;
 pub mod commands;
+pub mod goosed_client;
 pub mod logging;
 pub mod project_tracker;
 pub mod recipes;
@@ -9,4 +10,5 @@ pub mod signal;
 
 // Re-export commonly used types
 pub use cli::Cli;
+pub use goosed_client::GoosedClient;
 pub use session::CliSession;

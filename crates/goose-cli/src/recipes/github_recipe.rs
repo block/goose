@@ -28,6 +28,7 @@ pub struct RecipeInfo {
 pub enum RecipeSource {
     Local,
     GitHub,
+    Registry,
 }
 
 pub const GOOSE_RECIPE_GITHUB_REPO_CONFIG_KEY: &str = "GOOSE_RECIPE_GITHUB_REPO";

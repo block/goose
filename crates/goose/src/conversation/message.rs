@@ -574,7 +574,14 @@ impl From<PromptMessage> for Message {
     }
 }
 
-#[derive(ToSchema, Clone, Copy, PartialEq, Serialize, Deserialize, Debug)]
+#[derive(ToSchema, Clone, PartialEq, Serialize, Deserialize, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct RoutingInfo {
+    pub agent_name: String,
+    pub mode_slug: String,
+}
+
+#[derive(ToSchema, Clone, PartialEq, Serialize, Deserialize, Debug)]
 /// Metadata for message visibility
 #[serde(rename_all = "camelCase")]
 pub struct MessageMetadata {
@@ -582,6 +589,8 @@ pub struct MessageMetadata {
     pub user_visible: bool,
     /// Whether the message should be included in the agent's context window
     pub agent_visible: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub routing_info: Option<RoutingInfo>,
 }
 
 impl Default for MessageMetadata {
@@ -589,6 +598,7 @@ impl Default for MessageMetadata {
         MessageMetadata {
             user_visible: true,
             agent_visible: true,
+            routing_info: None,
         }
     }
 }
@@ -599,6 +609,7 @@ impl MessageMetadata {
         MessageMetadata {
             user_visible: false,
             agent_visible: true,
+            routing_info: None,
         }
     }
 
@@ -607,6 +618,7 @@ impl MessageMetadata {
         MessageMetadata {
             user_visible: true,
             agent_visible: false,
+            routing_info: None,
         }
     }
 
@@ -615,38 +627,45 @@ impl MessageMetadata {
         MessageMetadata {
             user_visible: false,
             agent_visible: false,
+            routing_info: None,
         }
     }
 
-    /// Return a copy with agent_visible set to false
-    pub fn with_agent_invisible(self) -> Self {
+    pub fn with_agent_invisible(&self) -> Self {
         Self {
             agent_visible: false,
-            ..self
+            ..self.clone()
         }
     }
 
-    /// Return a copy with user_visible set to false
-    pub fn with_user_invisible(self) -> Self {
+    pub fn with_user_invisible(&self) -> Self {
         Self {
             user_visible: false,
-            ..self
+            ..self.clone()
         }
     }
 
-    /// Return a copy with agent_visible set to true
-    pub fn with_agent_visible(self) -> Self {
+    pub fn with_agent_visible(&self) -> Self {
         Self {
             agent_visible: true,
-            ..self
+            ..self.clone()
         }
     }
 
-    /// Return a copy with user_visible set to true
-    pub fn with_user_visible(self) -> Self {
+    pub fn with_user_visible(&self) -> Self {
         Self {
             user_visible: true,
-            ..self
+            ..self.clone()
+        }
+    }
+
+    pub fn with_routing_info(&self, agent_name: String, mode_slug: String) -> Self {
+        Self {
+            routing_info: Some(RoutingInfo {
+                agent_name,
+                mode_slug,
+            }),
+            ..self.clone()
         }
     }
 }
@@ -832,6 +851,46 @@ impl Message {
             .filter_map(|c| c.as_text())
             .collect::<Vec<_>>()
             .join("\n")
+    }
+
+    /// Strip <tool_call>...</tool_call> and <tool_result>...</tool_result> XML tags
+    /// from text content. Some models emit these as raw text alongside structured tool
+    /// calls, which should not be displayed to users.
+    pub fn strip_tool_call_tags(mut self) -> Self {
+        use regex::Regex;
+        use std::sync::LazyLock;
+
+        static TOOL_CALL_RE: LazyLock<Regex> =
+            LazyLock::new(|| Regex::new(r"(?s)<tool_call>.*?</tool_call>").unwrap());
+        static TOOL_RESULT_RE: LazyLock<Regex> =
+            LazyLock::new(|| Regex::new(r"(?s)<tool_result>.*?</tool_result>").unwrap());
+
+        self.content = self
+            .content
+            .into_iter()
+            .filter_map(|c| {
+                if let MessageContent::Text(ref text) = c {
+                    let cleaned = TOOL_CALL_RE.replace_all(&text.text, "");
+                    let cleaned = TOOL_RESULT_RE.replace_all(&cleaned, "");
+                    // Only trim if tags were actually stripped, to preserve
+                    // whitespace in streaming text deltas
+                    let had_tags = cleaned.len() != text.text.len();
+                    let cleaned = if had_tags {
+                        cleaned.trim().to_string()
+                    } else {
+                        cleaned.into_owned()
+                    };
+                    if cleaned.is_empty() {
+                        None
+                    } else {
+                        Some(MessageContent::text(cleaned))
+                    }
+                } else {
+                    Some(c)
+                }
+            })
+            .collect();
+        self
     }
 
     /// Check if the message is a tool call
@@ -1620,5 +1679,71 @@ mod tests {
                 }
             }
         }
+    }
+
+    #[test]
+    fn test_strip_tool_call_tags_removes_tool_call() {
+        let msg = Message::assistant().with_text(
+            r#"Here is the result
+<tool_call>
+{"name": "shell"}
+</tool_call>"#,
+        );
+        let stripped = msg.strip_tool_call_tags();
+        assert_eq!(stripped.as_concat_text(), "Here is the result");
+    }
+
+    #[test]
+    fn test_strip_tool_call_tags_removes_tool_result() {
+        let msg = Message::assistant().with_text(
+            "Output:
+<tool_result>
+some output
+</tool_result>
+Done.",
+        );
+        let stripped = msg.strip_tool_call_tags();
+        assert_eq!(
+            stripped.as_concat_text(),
+            "Output:
+
+Done."
+        );
+    }
+
+    #[test]
+    fn test_strip_tool_call_tags_removes_both() {
+        let msg = Message::assistant()
+            .with_text(r#"<tool_call>{"name": "test"}</tool_call><tool_result>ok</tool_result>"#);
+        let stripped = msg.strip_tool_call_tags();
+        assert!(stripped.content.is_empty());
+    }
+
+    #[test]
+    fn test_strip_tool_call_tags_preserves_non_text_content() {
+        let msg = Message::assistant()
+            .with_text("<tool_call>remove me</tool_call>")
+            .with_tool_request(
+                "id1",
+                Ok(CallToolRequestParams {
+                    meta: None,
+                    task: None,
+                    name: "test_tool".into(),
+                    arguments: None,
+                }),
+            );
+        let stripped = msg.strip_tool_call_tags();
+        assert_eq!(stripped.content.len(), 1);
+        assert!(matches!(
+            stripped.content[0],
+            MessageContent::ToolRequest(_)
+        ));
+    }
+
+    #[test]
+    fn test_strip_tool_call_tags_no_tags() {
+        let msg = Message::assistant().with_text("Normal text without any tags");
+        let stripped = msg.strip_tool_call_tags();
+        assert_eq!(stripped.as_concat_text(), "Normal text without any tags");
     }
 }

@@ -314,6 +314,42 @@ pub fn render_exit_plan_mode() {
     println!("\n{}\n", style("Exiting plan mode.").green().bold());
 }
 
+pub fn render_plan_proposal(is_compound: bool, tasks: &[crate::goosed_client::PlanProposalTask]) {
+    println!();
+    if is_compound {
+        println!(
+            "{}
+",
+            style(format!("Plan ({} tasks):", tasks.len()))
+                .green()
+                .bold()
+        );
+    } else {
+        println!(
+            "{}
+",
+            style("Plan:").green().bold()
+        );
+    }
+
+    for (i, task) in tasks.iter().enumerate() {
+        println!(
+            "  {} {}",
+            style(format!("{}.", i + 1)).bold(),
+            style(&task.description).white()
+        );
+        println!(
+            "     {} {} (confidence: {:.0}%)",
+            style("→").dim(),
+            style(&task.mode_name).cyan(),
+            task.confidence * 100.0
+        );
+        if !task.reasoning.is_empty() {
+            println!("     {}", style(&task.reasoning).dim());
+        }
+    }
+}
+
 pub fn goose_mode_message(text: &str) {
     println!("\n{}", style(text).yellow(),);
 }
@@ -325,7 +361,7 @@ fn render_tool_request(req: &ToolRequest, theme: Theme, debug: bool) {
             "developer__shell" => render_shell_request(call, debug),
             "execute" | "execute_code" => render_execute_code_request(call, debug),
             "delegate" => render_delegate_request(call, debug),
-            "subagent" => render_delegate_request(call, debug),
+            "specialist" => render_delegate_request(call, debug),
             "todo__write" => render_todo_request(call, debug),
             _ => render_default_request(call, debug),
         },
@@ -633,19 +669,19 @@ fn split_tool_name(tool_name: &str) -> (String, String) {
     (tool.to_string(), extension)
 }
 
-pub fn format_subagent_tool_call_message(subagent_id: &str, tool_name: &str) -> String {
-    let short_id = subagent_id.rsplit('_').next().unwrap_or(subagent_id);
+pub fn format_specialist_tool_call_message(specialist_id: &str, tool_name: &str) -> String {
+    let short_id = specialist_id.rsplit('_').next().unwrap_or(specialist_id);
     let (tool, extension) = split_tool_name(tool_name);
 
     if extension.is_empty() {
-        format!("[subagent:{}] {}", short_id, tool)
+        format!("[specialist:{}] {}", short_id, tool)
     } else {
-        format!("[subagent:{}] {} | {}", short_id, tool, extension)
+        format!("[specialist:{}] {} | {}", short_id, tool, extension)
     }
 }
 
-pub fn render_subagent_tool_call(
-    subagent_id: &str,
+pub fn render_specialist_tool_call(
+    specialist_id: &str,
     tool_name: &str,
     arguments: Option<&JsonObject>,
     debug: bool,
@@ -656,14 +692,17 @@ pub fn render_subagent_tool_call(
             .and_then(Value::as_array)
             .filter(|arr| !arr.is_empty());
         if let Some(tool_graph) = tool_graph {
-            return render_subagent_tool_graph(subagent_id, tool_graph);
+            return render_specialist_tool_graph(specialist_id, tool_graph);
         }
     }
     let tool_header = format!(
         "─── {} ──────────────────────────",
-        style(format_subagent_tool_call_message(subagent_id, tool_name))
-            .magenta()
-            .dim()
+        style(format_specialist_tool_call_message(
+            specialist_id,
+            tool_name
+        ))
+        .magenta()
+        .dim()
     );
     println!();
     println!("{}", tool_header);
@@ -671,14 +710,14 @@ pub fn render_subagent_tool_call(
     println!();
 }
 
-fn render_subagent_tool_graph(subagent_id: &str, tool_graph: &[Value]) {
-    let short_id = subagent_id.rsplit('_').next().unwrap_or(subagent_id);
+fn render_specialist_tool_graph(specialist_id: &str, tool_graph: &[Value]) {
+    let short_id = specialist_id.rsplit('_').next().unwrap_or(specialist_id);
     let count = tool_graph.len();
     let plural = if count == 1 { "" } else { "s" };
     println!();
     println!(
         "─── {} {} tool call{} | {} ──────────────────────────",
-        style(format!("[subagent:{}]", short_id)).cyan(),
+        style(format!("[specialist:{}]", short_id)).cyan(),
         style(count).cyan(),
         plural,
         style("execute_code").magenta().dim()

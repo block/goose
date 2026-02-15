@@ -1,3 +1,4 @@
+pub mod agent_slot_registry;
 pub mod auth;
 pub mod configuration;
 pub mod error;

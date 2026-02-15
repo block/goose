@@ -426,11 +426,9 @@ fn print_help() {
 /prompts [--extension <name>] - List all available prompts, optionally filtered by extension
 /prompt <n> [--info] [key=value...] - Get prompt info or execute a prompt
 /mode <name> - Set the goose mode to use ('auto', 'approve', 'chat', 'smart_approve')
-/plan <message_text> -  Enters 'plan' mode with optional message. Create a plan based on the current messages and asks user if they want to act on it.
-                        If user acts on the plan, goose mode is set to 'auto' and returns to 'normal' goose mode.
+/plan <message_text> -  Enters 'plan' mode with optional message. Creates a structured plan using the orchestrator and asks if you want to act on it.
+                        If you confirm the plan, goose mode is set to 'auto' and the plan is executed.
                         To warm up goose before using '/plan', we recommend setting '/mode approve' & putting appropriate context into goose.
-                        The model is used based on $GOOSE_PLANNER_PROVIDER and $GOOSE_PLANNER_MODEL environment variables.
-                        If no model is set, the default model is used.
 /endplan - Exit plan mode and return to 'normal' goose mode.
 /recipe [filepath] - Generate a recipe from the current conversation and save it to the specified filepath (must end with .yaml).
                        If no filepath is provided, it will be saved to ./recipe.yaml.

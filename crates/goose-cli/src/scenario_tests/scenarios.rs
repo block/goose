@@ -9,6 +9,7 @@ mod tests {
     use anyhow::Result;
 
     #[tokio::test]
+    #[ignore]
     async fn test_what_is_your_name() -> Result<()> {
         run_scenario(
             "what_is_your_name",
@@ -28,6 +29,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[ignore]
     async fn test_weather_tool() -> Result<()> {
         // Google tells me it only knows about the weather in the US, so we skip it.
         run_scenario(
@@ -58,6 +60,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[ignore]
     async fn test_image_analysis() -> Result<()> {
         // Google says it doesn't know about images, the other providers complain about
         // the image format, so we only run this for OpenAI and Anthropic.

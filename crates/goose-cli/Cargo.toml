@@ -21,9 +21,9 @@ path = "src/bin/generate_manpages.rs"
 [dependencies]
 clap_mangen = "0.2.31"
 goose = { path = "../goose" }
-goose-acp = { path = "../goose-acp" }
 goose-mcp = { path = "../goose-mcp" }
 rmcp = { workspace = true }
+reqwest = { workspace = true, features = ["json", "rustls-tls", "stream"], default-features = false }
 clap = { workspace = true }
 cliclack = "0.3.5"
 console = "0.16.1"
@@ -61,6 +61,8 @@ open = "5.3.2"
 url = { workspace = true }
 urlencoding = { workspace = true }
 clap_complete = "4.5.62"
+which.workspace = true
+tokio-stream.workspace = true
 
 [target.'cfg(target_os = "windows")'.dependencies]
 winapi = { version = "0.3", features = ["wincred"] }

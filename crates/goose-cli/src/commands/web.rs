@@ -591,6 +591,23 @@ async fn process_message_streaming(
                     Ok(AgentEvent::ModelChange { model, mode }) => {
                         tracing::info!("Model changed to {} in {} mode", model, mode);
                     }
+                    Ok(AgentEvent::RoutingDecision {
+                        agent_name,
+                        mode_slug,
+                        ..
+                    }) => {
+                        tracing::info!("Routed to {} in mode {}", agent_name, mode_slug);
+                    }
+                    Ok(AgentEvent::ToolAvailabilityChange {
+                        previous_count,
+                        current_count,
+                    }) => {
+                        tracing::warn!(
+                            "Tool availability changed: {} -> {}",
+                            previous_count,
+                            current_count
+                        );
+                    }
                     Err(e) => {
                         error!("Error in message stream: {}", e);
                         send_error(&sender, &format!("Error: {}", e)).await;

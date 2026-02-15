@@ -121,6 +121,7 @@ pub fn handle_list(format: &str, verbose: bool) -> Result<()> {
                     let source_info = match recipe.source {
                         RecipeSource::Local => format!("local: {}", recipe.path),
                         RecipeSource::GitHub => format!("github: {}", recipe.path),
+                        RecipeSource::Registry => format!("registry: {}", recipe.path),
                     };
 
                     let description = if let Some(desc) = &recipe.description {

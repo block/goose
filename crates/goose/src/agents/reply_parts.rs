@@ -158,6 +158,65 @@ impl Agent {
             });
         }
 
+        // When code_execution is active, its own tools (execute, list_functions,
+        // get_function_details) must survive mode-based and extension-scoped filtering.
+        // Without this, modes whose tool_groups don't explicitly list "code_execution"
+        // would strip all tools, leaving the LLM with nothing to call.
+        let code_exec_tools: Vec<Tool> = if code_execution_active {
+            tools
+                .iter()
+                .filter(|tool| {
+                    crate::agents::extension_manager::get_tool_owner(tool)
+                        .map(|o| o == CODE_EXECUTION_EXTENSION)
+                        .unwrap_or(false)
+                })
+                .cloned()
+                .collect()
+        } else {
+            vec![]
+        };
+
+        // Apply mode-based tool filtering
+        let active_groups = self.active_tool_groups.read().await;
+        if !active_groups.is_empty() {
+            tools = super::tool_filter::filter_tools(tools, &active_groups);
+        }
+        drop(active_groups);
+
+        // Apply scope-based filtering: hide orchestrator-only tools when not in orchestrator context
+        let is_orchestrator = *self.is_orchestrator_context.read().await;
+        if !is_orchestrator {
+            tools.retain(|tool| {
+                let owner = crate::agents::extension_manager::get_tool_owner(tool)
+                    .unwrap_or_default()
+                    .to_lowercase();
+                !crate::agents::extension::is_orchestrator_extension(&owner)
+            });
+        }
+
+        // Apply extension-scoped filtering (when agent has bound extensions)
+        let allowed = self.allowed_extensions.read().await;
+        if !allowed.is_empty() {
+            tools.retain(|tool| {
+                let owner = crate::agents::extension_manager::get_tool_owner(tool)
+                    .unwrap_or_default()
+                    .to_lowercase();
+                allowed.iter().any(|ext| ext.to_lowercase() == owner)
+            });
+        }
+        drop(allowed);
+
+        // Re-add code_execution tools that may have been removed by mode/extension filters
+        if code_execution_active {
+            let existing_names: std::collections::HashSet<String> =
+                tools.iter().map(|t| t.name.to_string()).collect();
+            for tool in code_exec_tools {
+                if !existing_names.contains(&*tool.name) {
+                    tools.push(tool);
+                }
+            }
+        }
+
         // Stable tool ordering is important for multi session prompt caching.
         tools.sort_by(|a, b| a.name.cmp(&b.name));
 

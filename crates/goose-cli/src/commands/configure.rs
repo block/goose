@@ -3,7 +3,7 @@ use cliclack::spinner;
 use console::style;
 use goose::agents::extension::ToolInfo;
 use goose::agents::extension_manager::get_parameter_names;
-use goose::agents::Agent;
+use goose::agents::ExtensionManager;
 use goose::agents::{extension::Envs, ExtensionConfig};
 use goose::config::declarative_providers::{
     create_custom_provider, remove_custom_provider, CreateCustomProviderParams,
@@ -23,6 +23,7 @@ use goose::model::ModelConfig;
 use goose::posthog::{get_telemetry_choice, TELEMETRY_ENABLED_KEY};
 use goose::providers::provider_test::test_provider_configuration;
 use goose::providers::{create, providers, retry_operation, RetryConfig};
+use goose::session::SessionManager;
 use goose::session::SessionType;
 use serde_json::Value;
 use std::collections::HashMap;
@@ -1433,22 +1434,8 @@ pub async fn configure_tool_permissions_dialog() -> anyhow::Result<()> {
         .filter_mode()
         .interact()?;
 
-    let config = Config::global();
-
-    let provider_name: String = config
-        .get_goose_provider()
-        .expect("No provider configured. Please set model provider first");
-
-    let model: String = config
-        .get_goose_model()
-        .expect("No model configured. Please set model first");
-    let model_config = ModelConfig::new(&model)?;
-
-    let agent = Agent::new();
-
-    let session = agent
-        .config
-        .session_manager
+    let session_manager = SessionManager::instance();
+    let session = session_manager
         .create_session(
             std::env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from(".")),
             "Tool Permission Configuration".to_string(),
@@ -1457,18 +1444,7 @@ pub async fn configure_tool_permissions_dialog() -> anyhow::Result<()> {
         .await?;
 
     let extension_config = get_extension_by_name(&selected_extension_name);
-    if let Some(config) = extension_config.as_ref() {
-        agent
-            .add_extension(config.clone(), &session.id)
-            .await
-            .unwrap_or_else(|_| {
-                println!(
-                    "{} Failed to check extension: {}",
-                    style("Error").red().italic(),
-                    config.name()
-                );
-            });
-    } else {
+    if extension_config.is_none() {
         println!(
             "{} Configuration not found for extension: {}",
             style("Warning").yellow().italic(),
@@ -1476,15 +1452,32 @@ pub async fn configure_tool_permissions_dialog() -> anyhow::Result<()> {
         );
         return Ok(());
     }
+    let ext_config = extension_config.unwrap();
 
-    let extensions = extension_config.into_iter().collect::<Vec<_>>();
-    let new_provider = create(&provider_name, model_config, extensions).await?;
-    agent.update_provider(new_provider, &session.id).await?;
+    let em = std::sync::Arc::new(ExtensionManager::new(
+        std::sync::Arc::new(tokio::sync::Mutex::new(None)),
+        std::sync::Arc::new(session_manager),
+    ));
+    em.add_extension(
+        ext_config.clone(),
+        Some(session.working_dir.clone()),
+        None,
+        Some(&session.id),
+    )
+    .await
+    .unwrap_or_else(|_| {
+        println!(
+            "{} Failed to check extension: {}",
+            style("Error").red().italic(),
+            ext_config.name()
+        );
+    });
 
     let permission_manager = PermissionManager::instance();
-    let selected_tools = agent
-        .list_tools(&session.id, Some(selected_extension_name.clone()))
+    let selected_tools = em
+        .get_prefixed_tools(&session.id, Some(selected_extension_name.clone()))
         .await
+        .unwrap_or_default()
         .into_iter()
         .map(|tool| {
             ToolInfo::new(

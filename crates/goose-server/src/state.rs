@@ -9,6 +9,8 @@ use std::sync::Arc;
 use tokio::sync::Mutex;
 use tokio::task::JoinHandle;
 
+use crate::agent_slot_registry::AgentSlotRegistry;
+use crate::routes::runs::RunStore;
 use crate::tunnel::TunnelManager;
 use goose::agents::ExtensionLoadResult;
 
@@ -23,6 +25,8 @@ pub struct AppState {
     recipe_session_tracker: Arc<Mutex<HashSet<String>>>,
     pub tunnel_manager: Arc<TunnelManager>,
     pub extension_loading_tasks: ExtensionLoadingTasks,
+    pub agent_slot_registry: AgentSlotRegistry,
+    run_store: RunStore,
 }
 
 impl AppState {
@@ -38,6 +42,8 @@ impl AppState {
             recipe_session_tracker: Arc::new(Mutex::new(HashSet::new())),
             tunnel_manager,
             extension_loading_tasks: Arc::new(Mutex::new(HashMap::new())),
+            agent_slot_registry: AgentSlotRegistry::new(),
+            run_store: RunStore::new(),
         }))
     }
 
@@ -99,6 +105,10 @@ impl AppState {
             sessions.insert(session_id.to_string());
             true
         }
+    }
+
+    pub fn run_store(&self) -> &RunStore {
+        &self.run_store
     }
 
     pub async fn get_agent(&self, session_id: String) -> anyhow::Result<Arc<goose::agents::Agent>> {

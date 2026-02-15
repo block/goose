@@ -837,6 +837,11 @@ impl ExtensionManager {
         Ok(tools)
     }
 
+    /// Invalidate the cached tools, forcing the next call to re-fetch from extensions.
+    pub async fn invalidate_tools_cache(&self) {
+        self.invalidate_tools_cache_and_bump_version().await;
+    }
+
     async fn invalidate_tools_cache_and_bump_version(&self) {
         self.tools_cache_version.fetch_add(1, Ordering::SeqCst);
         *self.tools_cache.lock().await = None;
@@ -1083,6 +1088,7 @@ impl ExtensionManager {
             let extensions = self.extensions.lock().await;
             extensions
                 .iter()
+                .filter(|(_name, ext)| ext.supports_resources())
                 .map(|(name, ext)| (name.clone(), ext.get_client()))
                 .collect()
         };
@@ -1102,7 +1108,11 @@ impl ExtensionManager {
                     }
                 }
                 Err(e) => {
-                    warn!("Failed to list resources for {}: {:?}", extension_name, e);
+                    tracing::debug!(
+                        "Failed to list ui resources for {}: {:?}",
+                        extension_name,
+                        e
+                    );
                 }
             }
         }

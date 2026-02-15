@@ -1,3 +1,4 @@
+mod agent_slot_registry;
 mod commands;
 mod configuration;
 mod error;

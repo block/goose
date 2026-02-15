@@ -1,4 +1,6 @@
+pub mod acp_compat;
 pub mod action_required_manager;
+pub mod agent_manager;
 pub mod agents;
 pub mod builtin_extension;
 pub mod config;
@@ -18,6 +20,7 @@ pub mod prompt_template;
 pub mod providers;
 pub mod recipe;
 pub mod recipe_deeplink;
+pub mod registry;
 pub mod scheduler;
 pub mod scheduler_trait;
 pub mod security;

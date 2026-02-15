@@ -11,8 +11,9 @@ use axum::{
 };
 use bytes::Bytes;
 use futures::{stream::StreamExt, Stream};
+use goose::agents::orchestrator_agent::OrchestratorAgent;
 use goose::agents::{AgentEvent, SessionConfig};
-use goose::conversation::message::{Message, MessageContent, TokenState};
+use goose::conversation::message::{Message, MessageContent, RoutingInfo, TokenState};
 use goose::conversation::Conversation;
 use goose::session::SessionManager;
 use rmcp::model::ServerNotification;
@@ -84,6 +85,14 @@ pub struct ChatRequest {
     session_id: String,
     recipe_name: Option<String>,
     recipe_version: Option<String>,
+    /// Optional mode: "plan" returns a structured plan without executing,
+    /// "execute_plan" executes a previously confirmed plan.
+    /// None or absent = normal reply flow.
+    #[serde(default)]
+    mode: Option<String>,
+    /// The confirmed plan to execute (only used when mode = "execute_plan").
+    #[serde(default)]
+    plan: Option<serde_json::Value>,
 }
 
 pub struct SseResponse {
@@ -138,6 +147,12 @@ pub enum MessageEvent {
         model: String,
         mode: String,
     },
+    RoutingDecision {
+        agent_name: String,
+        mode_slug: String,
+        confidence: f32,
+        reasoning: String,
+    },
     Notification {
         request_id: String,
         #[schema(value_type = Object)]
@@ -146,7 +161,31 @@ pub enum MessageEvent {
     UpdateConversation {
         conversation: Conversation,
     },
+    ToolAvailabilityChange {
+        previous_count: usize,
+        current_count: usize,
+    },
+    #[allow(dead_code)]
+    PlanProposal {
+        is_compound: bool,
+        tasks: Vec<PlanTask>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        clarifying_questions: Option<Vec<String>>,
+    },
     Ping,
+}
+
+/// A task within a plan proposal, serializable for SSE transport.
+#[derive(Debug, Serialize, utoipa::ToSchema)]
+#[allow(dead_code)]
+pub struct PlanTask {
+    pub agent_name: String,
+    pub mode_slug: String,
+    pub mode_name: String,
+    pub confidence: f32,
+    pub reasoning: String,
+    pub description: String,
+    pub tool_groups: Vec<String>,
 }
 
 async fn get_token_state(session_manager: &SessionManager, session_id: &str) -> TokenState {
@@ -241,6 +280,8 @@ pub async fn reply(
 
     let user_message = request.user_message;
     let conversation_so_far = request.conversation_so_far;
+    let request_mode = request.mode;
+    let _request_plan = request.plan;
 
     let task_cancel = cancel_token.clone();
     let task_tx = tx.clone();
@@ -277,6 +318,137 @@ pub async fn reply(
                 return;
             }
         };
+
+        // Route user message to the best agent/mode via IntentRouter
+        {
+            let user_text: String = user_message
+                .content
+                .iter()
+                .filter_map(|c| {
+                    if let MessageContent::Text(t) = c {
+                        Some(t.text.as_str())
+                    } else {
+                        None
+                    }
+                })
+                .collect::<Vec<_>>()
+                .join(" ");
+
+            if !user_text.is_empty() {
+                let provider = Arc::new(tokio::sync::Mutex::new(agent.provider().await.ok()));
+                let mut router = OrchestratorAgent::new(provider);
+
+                // Sync router state from the agent slot registry
+                for slot_name in &["Goose Agent", "Coding Agent"] {
+                    let enabled = state.agent_slot_registry.is_enabled(slot_name).await;
+                    router.set_enabled(slot_name, enabled);
+                    let bound = state
+                        .agent_slot_registry
+                        .get_bound_extensions(slot_name)
+                        .await;
+                    router.set_bound_extensions(slot_name, bound.into_iter().collect());
+                }
+
+                let plan = router.route(&user_text).await;
+                let primary = plan.primary_routing();
+
+                tracing::info!(
+                    agent_name = %primary.agent_name,
+                    mode_slug = %primary.mode_slug,
+                    confidence = %primary.confidence,
+                    is_compound = plan.is_compound,
+                    task_count = plan.tasks.len(),
+                    "Routed message to agent/mode"
+                );
+
+                // Apply bound extensions from the primary routing target
+                if let Some(slot) = router.slots().iter().find(|s| s.name == primary.agent_name) {
+                    if !slot.bound_extensions.is_empty() {
+                        agent
+                            .set_allowed_extensions(slot.bound_extensions.clone())
+                            .await;
+                    }
+                }
+
+                // Set orchestrator context flag for scope-based extension filtering
+                let is_orchestrator_active =
+                    goose::agents::orchestrator_agent::is_orchestrator_enabled();
+                agent.set_orchestrator_context(is_orchestrator_active).await;
+
+                // Apply mode-specific tool_groups from the routing decision
+                let tool_groups =
+                    router.get_tool_groups_for_routing(&primary.agent_name, &primary.mode_slug);
+                if !tool_groups.is_empty() {
+                    agent.set_active_tool_groups(tool_groups).await;
+                }
+
+                // Apply mode-recommended extensions (merge with slot bound_extensions)
+                let recommended = router.get_recommended_extensions_for_routing(
+                    &primary.agent_name,
+                    &primary.mode_slug,
+                );
+                if !recommended.is_empty() {
+                    agent.set_allowed_extensions(recommended).await;
+                }
+
+                // Emit routing decision as SSE event
+                let _ = stream_event(
+                    MessageEvent::RoutingDecision {
+                        agent_name: primary.agent_name.clone(),
+                        mode_slug: primary.mode_slug.clone(),
+                        confidence: primary.confidence,
+                        reasoning: primary.reasoning.clone(),
+                    },
+                    &task_tx,
+                    &task_cancel,
+                )
+                .await;
+
+                // Plan mode: return structured plan without executing
+                if request_mode.as_deref() == Some("plan") {
+                    let proposal = router.plan(&user_text).await;
+
+                    let plan_tasks: Vec<crate::routes::reply::PlanTask> = proposal
+                        .tasks
+                        .iter()
+                        .map(|t| PlanTask {
+                            agent_name: t.agent_name.clone(),
+                            mode_slug: t.mode_slug.clone(),
+                            mode_name: t.mode_name.clone(),
+                            confidence: t.confidence,
+                            reasoning: t.reasoning.clone(),
+                            description: t.description.clone(),
+                            tool_groups: t.tool_groups.clone(),
+                        })
+                        .collect();
+
+                    let _ = stream_event(
+                        MessageEvent::PlanProposal {
+                            is_compound: proposal.is_compound,
+                            tasks: plan_tasks,
+                            clarifying_questions: proposal.clarifying_questions,
+                        },
+                        &task_tx,
+                        &task_cancel,
+                    )
+                    .await;
+
+                    let token_state = get_token_state(state.session_manager(), &session_id).await;
+
+                    let _ = stream_event(
+                        MessageEvent::Finish {
+                            reason: "plan_complete".to_string(),
+                            token_state,
+                        },
+                        &task_tx,
+                        &task_cancel,
+                    )
+                    .await;
+
+                    return;
+                }
+            }
+        }
 
         let session_config = SessionConfig {
             id: session_id.clone(),
@@ -328,6 +500,7 @@ pub async fn reply(
             }
         };
 
+        let mut current_routing_info: Option<RoutingInfo> = None;
         let mut heartbeat_interval = tokio::time::interval(Duration::from_millis(500));
         loop {
             tokio::select! {
@@ -344,6 +517,19 @@ pub async fn reply(
                             for content in &message.content {
                                 track_tool_telemetry(content, all_messages.messages());
                             }
+
+                            // Attach routing info to assistant messages for persistence
+                            let message = if message.role == rmcp::model::Role::Assistant {
+                                if let Some(ref ri) = current_routing_info {
+                                    let mut msg = message;
+                                    msg.metadata.routing_info = Some(ri.clone());
+                                    msg
+                                } else {
+                                    message
+                                }
+                            } else {
+                                message
+                            };
 
                             all_messages.push(message.clone());
 
@@ -364,6 +550,20 @@ pub async fn reply(
                                 request_id: request_id.clone(),
                                 message: n,
                             }, &tx, &cancel_token).await;
+                        }
+                        Ok(Some(Ok(AgentEvent::RoutingDecision { agent_name, mode_slug, confidence, reasoning }))) => {
+                            current_routing_info = Some(RoutingInfo {
+                                agent_name: agent_name.clone(),
+                                mode_slug: mode_slug.clone(),
+                            });
+                            stream_event(MessageEvent::RoutingDecision { agent_name, mode_slug, confidence, reasoning }, &tx, &cancel_token).await;
+                        }
+                        Ok(Some(Ok(AgentEvent::ToolAvailabilityChange { previous_count, current_count }))) => {
+                            tracing::warn!(
+                                "Tool availability changed: {} -> {}",
+                                previous_count, current_count
+                            );
+                            stream_event(MessageEvent::ToolAvailabilityChange { previous_count, current_count }, &tx, &cancel_token).await;
                         }
 
                         Ok(Some(Err(e))) => {
@@ -493,6 +693,8 @@ mod tests {
                         session_id: "test-session".to_string(),
                         recipe_name: None,
                         recipe_version: None,
+                        mode: None,
+                        plan: None,
                     })
                     .unwrap(),
                 ))
