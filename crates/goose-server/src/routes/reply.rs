@@ -361,35 +361,8 @@ pub async fn reply(
                     "Routed message to agent/mode"
                 );
 
-                // Apply bound extensions from the primary routing target
-                if let Some(slot) = router.slots().iter().find(|s| s.name == primary.agent_name) {
-                    if !slot.bound_extensions.is_empty() {
-                        agent
-                            .set_allowed_extensions(slot.bound_extensions.clone())
-                            .await;
-                    }
-                }
-
-                // Set orchestrator context flag for scope-based extension filtering
-                let is_orchestrator_active =
-                    goose::agents::orchestrator_agent::is_orchestrator_enabled();
-                agent.set_orchestrator_context(is_orchestrator_active).await;
-
-                // Apply mode-specific tool_groups from the routing decision
-                let tool_groups =
-                    router.get_tool_groups_for_routing(&primary.agent_name, &primary.mode_slug);
-                if !tool_groups.is_empty() {
-                    agent.set_active_tool_groups(tool_groups).await;
-                }
-
-                // Apply mode-recommended extensions (merge with slot bound_extensions)
-                let recommended = router.get_recommended_extensions_for_routing(
-                    &primary.agent_name,
-                    &primary.mode_slug,
-                );
-                if !recommended.is_empty() {
-                    agent.set_allowed_extensions(recommended).await;
-                }
+                // Apply routing bindings (tool groups, extensions, orchestrator context)
+                router.apply_routing(&agent, &plan).await;
 
                 // Emit routing decision as SSE event
                 let _ = stream_event(

@@ -594,6 +594,53 @@ impl OrchestratorAgent {
             _ => vec![], // external agent → no restrictions
         }
     }
+
+    /// Apply the routing decision to an agent: set tool groups, allowed extensions,
+    /// and orchestrator context based on the primary routing target.
+    ///
+    /// This centralizes the "mode is dispatch" pattern so that all entrypoints
+    /// (reply, runs, ACP-IDE) apply routing consistently.
+    pub async fn apply_routing(
+        &self,
+        agent: &crate::agents::agent::Agent,
+        plan: &OrchestratorPlan,
+    ) {
+        let primary = plan.primary_routing();
+
+        // Apply bound extensions from the agent slot
+        if let Some(slot) = self.slots().iter().find(|s| s.name == primary.agent_name) {
+            if !slot.bound_extensions.is_empty() {
+                agent
+                    .set_allowed_extensions(slot.bound_extensions.clone())
+                    .await;
+            }
+        }
+
+        // Set orchestrator context flag
+        agent
+            .set_orchestrator_context(is_orchestrator_enabled())
+            .await;
+
+        // Apply mode-specific tool groups
+        let tool_groups = self.get_tool_groups_for_routing(&primary.agent_name, &primary.mode_slug);
+        if !tool_groups.is_empty() {
+            agent.set_active_tool_groups(tool_groups).await;
+        }
+
+        // Apply mode-recommended extensions (merge with slot bound)
+        let recommended =
+            self.get_recommended_extensions_for_routing(&primary.agent_name, &primary.mode_slug);
+        if !recommended.is_empty() {
+            agent.set_allowed_extensions(recommended).await;
+        }
+
+        tracing::info!(
+            agent = %primary.agent_name,
+            mode = %primary.mode_slug,
+            confidence = %primary.confidence,
+            "Applied routing bindings to agent"
+        );
+    }
 }
 
 /// Aggregate results from multiple sub-tasks into a coherent response.
