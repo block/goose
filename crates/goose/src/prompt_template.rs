@@ -16,8 +16,8 @@ static TEMPLATE_REGISTRY: &[(&str, &str)] = &[
         "Prompt for summarizing conversation history when context limits are reached",
     ),
     (
-        "subagent_system.md",
-        "System prompt for subagents spawned to handle specific tasks",
+        "specialist.md",
+        "System prompt for specialists spawned to handle specific tasks",
     ),
     (
         "recipe.md",
@@ -38,6 +38,50 @@ static TEMPLATE_REGISTRY: &[(&str, &str)] = &[
     (
         "plan.md",
         "Prompt used when goose creates step-by-step plans. CLI only",
+    ),
+    (
+        "coding_agent/pm.md",
+        "Product Manager — requirements, user stories, and prioritization",
+    ),
+    (
+        "coding_agent/architect.md",
+        "Software Architect — system design, C4 diagrams, and ADRs",
+    ),
+    (
+        "coding_agent/backend.md",
+        "Backend Engineer — APIs, data models, and server-side logic",
+    ),
+    (
+        "coding_agent/frontend.md",
+        "Frontend Engineer — UI components, state management, and accessibility",
+    ),
+    (
+        "coding_agent/qa.md",
+        "Quality Assurance — test planning, automated testing, and bug reporting",
+    ),
+    (
+        "coding_agent/security.md",
+        "Security Champion — OWASP analysis, threat modeling, and code review",
+    ),
+    (
+        "coding_agent/sre.md",
+        "SRE — reliability engineering, SLOs, monitoring, and incident response",
+    ),
+    (
+        "coding_agent/devsecops.md",
+        "DevSecOps — CI/CD security, infrastructure as code, and supply chain",
+    ),
+    (
+        "orchestrator/system.md",
+        "Orchestrator system prompt — meta-coordinator for routing to agents/modes",
+    ),
+    (
+        "orchestrator/routing.md",
+        "Orchestrator routing prompt — structured output for agent/mode selection",
+    ),
+    (
+        "orchestrator/splitting.md",
+        "Orchestrator splitting prompt — detect and decompose compound requests into sub-tasks",
     ),
 ];
 

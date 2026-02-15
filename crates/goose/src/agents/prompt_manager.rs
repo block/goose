@@ -38,7 +38,7 @@ struct SystemPromptContext {
     extension_tool_limits: Option<(usize, usize)>,
     goose_mode: GooseMode,
     is_autonomous: bool,
-    enable_subagents: bool,
+    enable_specialists: bool,
     max_extensions: usize,
     max_tools: usize,
     code_execution_mode: bool,
@@ -50,7 +50,7 @@ pub struct SystemPromptBuilder<'a, M> {
     extensions_info: Vec<ExtensionInfo>,
     frontend_instructions: Option<String>,
     extension_tool_count: Option<(usize, usize)>,
-    subagents_enabled: bool,
+    specialists_enabled: bool,
     hints: Option<String>,
     code_execution_mode: bool,
 }
@@ -114,8 +114,8 @@ impl<'a> SystemPromptBuilder<'a, PromptManager> {
         self
     }
 
-    pub fn with_enable_subagents(mut self, subagents_enabled: bool) -> Self {
-        self.subagents_enabled = subagents_enabled;
+    pub fn with_enable_specialists(mut self, specialists_enabled: bool) -> Self {
+        self.specialists_enabled = specialists_enabled;
         self
     }
 
@@ -154,7 +154,7 @@ impl<'a> SystemPromptBuilder<'a, PromptManager> {
             extension_tool_limits,
             goose_mode,
             is_autonomous: goose_mode == GooseMode::Auto,
-            enable_subagents: self.subagents_enabled,
+            enable_specialists: self.specialists_enabled,
             max_extensions: MAX_EXTENSIONS,
             max_tools: MAX_TOOLS,
             code_execution_mode: self.code_execution_mode,
@@ -240,7 +240,7 @@ impl PromptManager {
             extensions_info: vec![],
             frontend_instructions: None,
             extension_tool_count: None,
-            subagents_enabled: false,
+            specialists_enabled: false,
             hints: None,
             code_execution_mode: false,
         }
