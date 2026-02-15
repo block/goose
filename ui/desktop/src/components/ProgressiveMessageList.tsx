@@ -279,6 +279,14 @@ export default function ProgressiveMessageList({
                   index === messagesToRender.length - 1 &&
                   message.role === 'assistant'
                 }
+                suppressToolCalls={(() => {
+                  // Suppress tool calls on the final answer of a work block
+                  // (the text is shown but tool calls are already collapsed in the WorkBlockIndicator)
+                  for (const block of workBlocks.values()) {
+                    if (block.finalIndex === index) return true;
+                  }
+                  return false;
+                })()}
                 submitElicitationResponse={submitElicitationResponse}
               />
             )}
@@ -302,12 +310,19 @@ export default function ProgressiveMessageList({
   ]);
 
   // Show pending indicator when streaming started but no assistant response yet
+  // Don't show if there's already an active streaming work block
   const lastMessage = messages[messages.length - 1];
   const hasNoAssistantResponse = !lastMessage || lastMessage.role === 'user';
+  const hasStreamingWorkBlock = Array.from(workBlocks.values()).some(
+    (b) => b.isStreaming
+  );
   const showPendingIndicator =
-    isStreamingMessage && messages.length > 0 && hasNoAssistantResponse;
+    isStreamingMessage &&
+    messages.length > 0 &&
+    hasNoAssistantResponse &&
+    !hasStreamingWorkBlock;
 
-  console.log(`[PML] pendingIndicator: showPending=${showPendingIndicator} isStreaming=${isStreamingMessage} lastRole=${lastMessage?.role} msgCount=${messages.length}`);
+  console.log(`[PML] pendingIndicator: showPending=${showPendingIndicator} isStreaming=${isStreamingMessage} lastRole=${lastMessage?.role} msgCount=${messages.length} hasStreamingBlock=${hasStreamingWorkBlock}`);
 
   return (
     <>

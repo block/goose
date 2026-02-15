@@ -113,6 +113,7 @@ interface GooseMessageProps {
   toolCallNotifications: Map<string, NotificationEvent[]>;
   append: (value: string) => void;
   isStreaming: boolean;
+  suppressToolCalls?: boolean;
   submitElicitationResponse?: (
     elicitationId: string,
     userData: Record<string, unknown>
@@ -126,6 +127,7 @@ export default function GooseMessage({
   toolCallNotifications,
   append,
   isStreaming,
+  suppressToolCalls,
   submitElicitationResponse,
 }: GooseMessageProps) {
   const contentRef = useRef<HTMLDivElement | null>(null);
@@ -359,8 +361,10 @@ export default function GooseMessage({
         )}
 
         {toolRequests.length > 0 && (() => {
-          // In hidden mode, only show tool calls that need user approval
-          const visibleToolRequests = hideToolCalls
+          // When suppressToolCalls is set (work block final answer), hide all non-pending tool calls
+          // In hidden response style mode, also hide completed tool calls
+          const shouldHideCompleted = hideToolCalls || suppressToolCalls;
+          const visibleToolRequests = shouldHideCompleted
             ? toolRequests.filter((req) => pendingConfirmationIds.has(req.id))
             : toolRequests;
           if (visibleToolRequests.length === 0) return null;
