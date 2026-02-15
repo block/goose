@@ -165,7 +165,6 @@ pub enum MessageEvent {
         previous_count: usize,
         current_count: usize,
     },
-    #[allow(dead_code)]
     PlanProposal {
         is_compound: bool,
         tasks: Vec<PlanTask>,
@@ -177,7 +176,6 @@ pub enum MessageEvent {
 
 /// A task within a plan proposal, serializable for SSE transport.
 #[derive(Debug, Serialize, utoipa::ToSchema)]
-#[allow(dead_code)]
 pub struct PlanTask {
     pub agent_name: String,
     pub mode_slug: String,
@@ -537,6 +535,16 @@ pub async fn reply(
                                 previous_count, current_count
                             );
                             stream_event(MessageEvent::ToolAvailabilityChange { previous_count, current_count }, &tx, &cancel_token).await;
+                        }
+                        Ok(Some(Ok(AgentEvent::PlanCreated { is_compound, task_count, primary_agent, primary_mode, confidence }))) => {
+                            tracing::info!(
+                                is_compound,
+                                task_count,
+                                primary_agent = %primary_agent,
+                                primary_mode = %primary_mode,
+                                confidence,
+                                "Agent created execution plan"
+                            );
                         }
 
                         Ok(Some(Err(e))) => {

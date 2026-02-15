@@ -966,6 +966,23 @@ fn agent_event_to_acp(event: &AgentEvent, _ctx: &AcpEventContext) -> Vec<AcpEven
                 }
             }))]
         }
+        AgentEvent::PlanCreated {
+            is_compound,
+            task_count,
+            primary_agent,
+            primary_mode,
+            confidence,
+        } => {
+            vec![AcpEvent::generic(serde_json::json!({
+                "goose.plan_created": {
+                    "is_compound": is_compound,
+                    "task_count": task_count,
+                    "primary_agent": primary_agent,
+                    "primary_mode": primary_mode,
+                    "confidence": confidence,
+                }
+            }))]
+        }
     }
 }
 

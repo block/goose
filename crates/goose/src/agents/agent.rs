@@ -176,6 +176,14 @@ pub enum AgentEvent {
         reasoning: String,
     },
     HistoryReplaced(Conversation),
+    /// Emitted when the orchestrator creates a multi-task plan.
+    PlanCreated {
+        is_compound: bool,
+        task_count: usize,
+        primary_agent: String,
+        primary_mode: String,
+        confidence: f32,
+    },
     /// Emitted when the number of available tools changes between iterations,
     /// indicating possible extension disconnection or reconnection.
     ToolAvailabilityChange {

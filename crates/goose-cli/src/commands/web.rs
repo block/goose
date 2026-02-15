@@ -608,6 +608,22 @@ async fn process_message_streaming(
                             current_count
                         );
                     }
+                    Ok(AgentEvent::PlanCreated {
+                        is_compound,
+                        task_count,
+                        primary_agent,
+                        primary_mode,
+                        confidence,
+                    }) => {
+                        tracing::info!(
+                            "Plan created: compound={}, tasks={}, agent={}, mode={}, confidence={}",
+                            is_compound,
+                            task_count,
+                            primary_agent,
+                            primary_mode,
+                            confidence
+                        );
+                    }
                     Err(e) => {
                         error!("Error in message stream: {}", e);
                         send_error(&sender, &format!("Error: {}", e)).await;
