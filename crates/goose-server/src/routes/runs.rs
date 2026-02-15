@@ -235,12 +235,19 @@ fn generate_run_id() -> String {
 
 pub fn routes(state: Arc<crate::state::AppState>) -> axum::Router {
     use axum::routing::{get, post};
+    use tower::limit::ConcurrencyLimitLayer;
+
+    // Concurrency limit: max 10 simultaneous run creations.
+    // This protects against runaway clients spawning unbounded agent sessions.
+    // Unlike RateLimitLayer, ConcurrencyLimitLayer implements Clone (required by axum).
+    let concurrency_limit = ConcurrencyLimitLayer::new(10);
 
     axum::Router::new()
         .route("/runs", post(create_run).get(list_runs))
         .route("/runs/{run_id}", get(get_run).post(resume_run))
         .route("/runs/{run_id}/cancel", post(cancel_run))
         .route("/runs/{run_id}/events", get(get_run_events))
+        .layer(concurrency_limit)
         .with_state((*state).clone())
 }
 
