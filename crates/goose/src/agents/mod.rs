@@ -22,6 +22,7 @@ pub mod platform_tools;
 pub mod prompt_manager;
 mod reply_parts;
 pub mod retry;
+pub mod routing_eval;
 mod schedule_tool;
 pub(crate) mod specialist_config;
 pub(crate) mod specialist_handler;
