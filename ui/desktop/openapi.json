@@ -295,6 +295,81 @@
         ]
       }
     },
+    "/agent/prompts": {
+      "get": {
+        "tags": [
+          "super::routes::agent"
+        ],
+        "operationId": "list_extension_prompts",
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "query",
+            "description": "Required session ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "MCP extension prompts grouped by extension name"
+          },
+          "401": {
+            "description": "Unauthorized - invalid secret key"
+          },
+          "424": {
+            "description": "Agent not initialized"
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        }
+      }
+    },
+    "/agent/prompts/get": {
+      "post": {
+        "tags": [
+          "super::routes::agent"
+        ],
+        "operationId": "get_extension_prompt",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GetPromptRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Prompt messages",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GetPromptResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized - invalid secret key"
+          },
+          "404": {
+            "description": "Prompt not found"
+          },
+          "424": {
+            "description": "Agent not initialized"
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        }
+      }
+    },
     "/agent/read_resource": {
       "post": {
         "tags": [
@@ -694,6 +769,392 @@
           },
           "500": {
             "description": "Internal server error"
+          }
+        }
+      }
+    },
+    "/agents": {
+      "get": {
+        "tags": [
+          "ACP Discovery"
+        ],
+        "summary": "ACP v0.2.0 GET /agents — one manifest per agent persona",
+        "operationId": "list_agents",
+        "responses": {
+          "200": {
+            "description": "List available agents",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgentsListResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/agents/builtin": {
+      "get": {
+        "tags": [
+          "Builtin Agents"
+        ],
+        "operationId": "list_builtin_agents",
+        "responses": {
+          "200": {
+            "description": "List builtin agents with their modes",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BuiltinAgentsResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/agents/builtin/{name}/extensions/bind": {
+      "post": {
+        "tags": [
+          "Builtin Agents"
+        ],
+        "operationId": "bind_extension_to_agent",
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "description": "Agent name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BindExtensionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Extension bound"
+          }
+        }
+      }
+    },
+    "/agents/builtin/{name}/extensions/unbind": {
+      "post": {
+        "tags": [
+          "Builtin Agents"
+        ],
+        "operationId": "unbind_extension_from_agent",
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "description": "Agent name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BindExtensionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Extension unbound"
+          }
+        }
+      }
+    },
+    "/agents/builtin/{name}/toggle": {
+      "post": {
+        "tags": [
+          "Builtin Agents"
+        ],
+        "operationId": "toggle_builtin_agent",
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "description": "Agent name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Agent toggled",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ToggleAgentResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Agent not found"
+          }
+        }
+      }
+    },
+    "/agents/external": {
+      "get": {
+        "tags": [
+          "External Agents"
+        ],
+        "operationId": "list_agents",
+        "responses": {
+          "200": {
+            "description": "List of connected agents",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgentListResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/agents/external/connect": {
+      "post": {
+        "tags": [
+          "External Agents"
+        ],
+        "operationId": "connect_agent",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConnectAgentRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Agent connected",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConnectAgentResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Agent not found"
+          },
+          "422": {
+            "description": "Agent has no distribution"
+          }
+        }
+      }
+    },
+    "/agents/external/{agent_id}": {
+      "delete": {
+        "tags": [
+          "External Agents"
+        ],
+        "operationId": "disconnect_agent",
+        "parameters": [
+          {
+            "name": "agent_id",
+            "in": "path",
+            "description": "Agent identifier",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Agent disconnected"
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        }
+      }
+    },
+    "/agents/external/{agent_id}/mode": {
+      "post": {
+        "tags": [
+          "External Agents"
+        ],
+        "operationId": "set_mode",
+        "parameters": [
+          {
+            "name": "agent_id",
+            "in": "path",
+            "description": "Agent identifier",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetModeAgentRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Mode set"
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        }
+      }
+    },
+    "/agents/external/{agent_id}/prompt": {
+      "post": {
+        "tags": [
+          "External Agents"
+        ],
+        "operationId": "prompt_agent",
+        "parameters": [
+          {
+            "name": "agent_id",
+            "in": "path",
+            "description": "Agent identifier",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PromptAgentRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Prompt response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PromptAgentResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        }
+      }
+    },
+    "/agents/external/{agent_id}/session": {
+      "post": {
+        "tags": [
+          "External Agents"
+        ],
+        "operationId": "create_session",
+        "parameters": [
+          {
+            "name": "agent_id",
+            "in": "path",
+            "description": "Agent identifier",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateSessionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Session created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreateSessionResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        }
+      }
+    },
+    "/agents/{name}": {
+      "get": {
+        "tags": [
+          "ACP Discovery"
+        ],
+        "summary": "ACP v0.2.0 GET /agents/{name}",
+        "operationId": "get_agent",
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "description": "Agent slug (e.g. goose-agent, coding-agent)",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Agent manifest",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgentManifest"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Agent not found"
           }
         }
       }
@@ -1854,6 +2315,38 @@
         }
       }
     },
+    "/orchestrator/status": {
+      "get": {
+        "tags": [
+          "Orchestrator"
+        ],
+        "operationId": "orchestrator_status",
+        "responses": {
+          "200": {
+            "description": "Orchestrator status"
+          }
+        }
+      }
+    },
+    "/ping": {
+      "get": {
+        "tags": [
+          "ACP Discovery"
+        ],
+        "summary": "ACP v0.2.0 GET /ping",
+        "operationId": "ping",
+        "responses": {
+          "200": {
+            "description": "Health check",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
     "/recipes/create": {
       "post": {
         "tags": [
@@ -2291,6 +2784,239 @@
         }
       }
     },
+    "/runs": {
+      "get": {
+        "tags": [
+          "ACP Runs"
+        ],
+        "operationId": "list_runs",
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "description": "Max results",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "nullable": true,
+              "minimum": 0
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "description": "Offset",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "nullable": true,
+              "minimum": 0
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of runs",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/AcpRun"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "ACP Runs"
+        ],
+        "operationId": "create_run",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RunCreateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Run created (stream/sync)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AcpRun"
+                }
+              }
+            }
+          },
+          "202": {
+            "description": "Run created (async)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AcpRun"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/runs/{run_id}": {
+      "get": {
+        "tags": [
+          "ACP Runs"
+        ],
+        "operationId": "get_run",
+        "parameters": [
+          {
+            "name": "run_id",
+            "in": "path",
+            "description": "Run ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Run details",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AcpRun"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Run not found"
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "ACP Runs"
+        ],
+        "operationId": "resume_run",
+        "parameters": [
+          {
+            "name": "run_id",
+            "in": "path",
+            "description": "Run ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RunResumeRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Run resumed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AcpRun"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Run not found"
+          },
+          "409": {
+            "description": "Run not in awaiting state"
+          }
+        }
+      }
+    },
+    "/runs/{run_id}/cancel": {
+      "post": {
+        "tags": [
+          "ACP Runs"
+        ],
+        "operationId": "cancel_run",
+        "parameters": [
+          {
+            "name": "run_id",
+            "in": "path",
+            "description": "Run ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Run cancelled",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AcpRun"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Run not found"
+          }
+        }
+      }
+    },
+    "/runs/{run_id}/events": {
+      "get": {
+        "tags": [
+          "ACP Runs"
+        ],
+        "operationId": "get_run_events",
+        "parameters": [
+          {
+            "name": "run_id",
+            "in": "path",
+            "description": "Run ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Run events",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {}
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Run not found"
+          }
+        }
+      }
+    },
     "/schedule/create": {
       "post": {
         "tags": [
@@ -2639,6 +3365,41 @@
         }
       }
     },
+    "/session/{session_id}": {
+      "get": {
+        "tags": [
+          "ACP Sessions"
+        ],
+        "summary": "ACP-compatible GET /session/{session_id} — returns ACP Session schema.",
+        "operationId": "get_acp_session",
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "path",
+            "description": "Session ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "ACP session view",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AcpSession"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Session not found"
+          }
+        }
+      }
+    },
     "/sessions": {
       "get": {
         "tags": [
@@ -2905,6 +3666,41 @@
         ]
       }
     },
+    "/sessions/{session_id}/clear": {
+      "post": {
+        "tags": [
+          "Session Management"
+        ],
+        "operationId": "clear_session",
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "path",
+            "description": "Unique identifier for the session",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Session cleared successfully"
+          },
+          "404": {
+            "description": "Session not found"
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ]
+      }
+    },
     "/sessions/{session_id}/export": {
       "get": {
         "tags": [
@@ -3038,6 +3834,51 @@
           },
           "401": {
             "description": "Unauthorized - Invalid or missing API key"
+          },
+          "404": {
+            "description": "Session not found"
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ]
+      }
+    },
+    "/sessions/{session_id}/messages": {
+      "post": {
+        "tags": [
+          "Session Management"
+        ],
+        "operationId": "add_message",
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "path",
+            "description": "Unique identifier for the session",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Message"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Message added successfully"
           },
           "404": {
             "description": "Session not found"
@@ -3325,6 +4166,172 @@
   },
   "components": {
     "schemas": {
+      "AcpError": {
+        "type": "object",
+        "description": "ACP error object.",
+        "required": [
+          "code",
+          "message"
+        ],
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "data": {
+            "nullable": true
+          },
+          "message": {
+            "type": "string"
+          }
+        }
+      },
+      "AcpMessage": {
+        "type": "object",
+        "description": "ACP message: role + ordered parts.",
+        "required": [
+          "role",
+          "parts"
+        ],
+        "properties": {
+          "parts": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AcpMessagePart"
+            }
+          },
+          "role": {
+            "$ref": "#/components/schemas/AcpRole"
+          }
+        }
+      },
+      "AcpMessagePart": {
+        "type": "object",
+        "description": "A single part of an ACP message.",
+        "required": [
+          "content_type"
+        ],
+        "properties": {
+          "content": {
+            "type": "string",
+            "nullable": true
+          },
+          "content_encoding": {
+            "type": "string",
+            "nullable": true
+          },
+          "content_type": {
+            "type": "string"
+          },
+          "content_url": {
+            "type": "string",
+            "nullable": true
+          },
+          "metadata": {
+            "nullable": true
+          }
+        }
+      },
+      "AcpRole": {
+        "type": "string",
+        "description": "ACP role — \"user\" or \"agent\" (with optional sub-agent path like \"agent/coding\").",
+        "enum": [
+          "user",
+          "agent"
+        ]
+      },
+      "AcpRun": {
+        "type": "object",
+        "description": "A run object per ACP v0.2.0 spec.",
+        "required": [
+          "run_id",
+          "agent_name",
+          "status",
+          "created_at"
+        ],
+        "properties": {
+          "agent_name": {
+            "type": "string"
+          },
+          "await_request": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/AwaitRequest"
+              }
+            ],
+            "nullable": true
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "error": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/AcpError"
+              }
+            ],
+            "nullable": true
+          },
+          "finished_at": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "metadata": {
+            "nullable": true
+          },
+          "output": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AcpMessage"
+            }
+          },
+          "run_id": {
+            "type": "string"
+          },
+          "session_id": {
+            "type": "string",
+            "nullable": true
+          },
+          "status": {
+            "$ref": "#/components/schemas/AcpRunStatus"
+          }
+        }
+      },
+      "AcpRunStatus": {
+        "type": "string",
+        "description": "Run status per ACP v0.2.0 spec.",
+        "enum": [
+          "created",
+          "in_progress",
+          "awaiting",
+          "completed",
+          "cancelled",
+          "failed"
+        ]
+      },
+      "AcpSession": {
+        "type": "object",
+        "description": "ACP session object.",
+        "required": [
+          "id"
+        ],
+        "properties": {
+          "history": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "id": {
+            "type": "string"
+          },
+          "state": {
+            "type": "string",
+            "nullable": true
+          }
+        }
+      },
       "ActionRequired": {
         "type": "object",
         "required": [
@@ -3432,6 +4439,199 @@
           }
         }
       },
+      "AgentDependency": {
+        "type": "object",
+        "description": "ACP AgentDependency (experimental) — a tool, agent, or model required by this agent.",
+        "required": [
+          "type",
+          "name"
+        ],
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string"
+          }
+        }
+      },
+      "AgentListResponse": {
+        "type": "object",
+        "required": [
+          "agents"
+        ],
+        "properties": {
+          "agents": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "AgentManifest": {
+        "type": "object",
+        "description": "ACP agent manifest per v0.2.0 spec.\n\nEach manifest represents one agent persona. Modes are listed in `modes`\nfollowing the ACP SessionMode pattern (not flattened into separate agents).",
+        "required": [
+          "name",
+          "description"
+        ],
+        "properties": {
+          "default_mode": {
+            "type": "string",
+            "description": "The default mode ID when no explicit mode is requested.",
+            "nullable": true
+          },
+          "description": {
+            "type": "string"
+          },
+          "input_content_types": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "metadata": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/AgentMetadata"
+              }
+            ],
+            "nullable": true
+          },
+          "modes": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AgentModeInfo"
+            },
+            "description": "Session modes this agent supports (ACP SessionMode pattern).\nEach mode represents a different behavior/persona the agent can adopt\nwithin a session (e.g. \"assistant\", \"architect\", \"backend\")."
+          },
+          "name": {
+            "type": "string"
+          },
+          "output_content_types": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "status": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/AgentStatus"
+              }
+            ],
+            "nullable": true
+          }
+        }
+      },
+      "AgentMetadata": {
+        "type": "object",
+        "description": "Metadata about an agent.",
+        "properties": {
+          "annotations": {
+            "type": "object",
+            "description": "ACP-REST Option B: discoverable annotations for roles and behavior modes.\nKeys follow the convention \"goose.<dimension>\" to avoid collisions.",
+            "additionalProperties": {},
+            "nullable": true
+          },
+          "author": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Person"
+              }
+            ],
+            "nullable": true
+          },
+          "dependencies": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AgentDependency"
+            },
+            "nullable": true
+          },
+          "links": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Link"
+            },
+            "nullable": true
+          },
+          "recommended_models": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "nullable": true
+          },
+          "version": {
+            "type": "string",
+            "nullable": true
+          }
+        }
+      },
+      "AgentModeInfo": {
+        "type": "object",
+        "description": "A mode an agent can operate in (maps to ACP SessionMode).",
+        "required": [
+          "id",
+          "name"
+        ],
+        "properties": {
+          "description": {
+            "type": "string",
+            "nullable": true
+          },
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "tool_groups": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Tool groups this mode has access to."
+          }
+        }
+      },
+      "AgentStatus": {
+        "type": "object",
+        "description": "Runtime status metrics for an agent.",
+        "properties": {
+          "avg_run_time_seconds": {
+            "type": "number",
+            "format": "double",
+            "nullable": true
+          },
+          "avg_run_tokens": {
+            "type": "number",
+            "format": "double",
+            "nullable": true
+          },
+          "success_rate": {
+            "type": "number",
+            "format": "double",
+            "nullable": true
+          }
+        }
+      },
+      "AgentsListResponse": {
+        "type": "object",
+        "required": [
+          "agents"
+        ],
+        "properties": {
+          "agents": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AgentManifest"
+            }
+          }
+        }
+      },
       "Annotations": {
         "type": "object",
         "properties": {
@@ -3473,6 +4673,139 @@
           "metadata": {
             "type": "string",
             "nullable": true
+          }
+        }
+      },
+      "AwaitRequest": {
+        "type": "object",
+        "description": "Generic await request — sent when run enters \"awaiting\" state.",
+        "required": [
+          "type"
+        ],
+        "properties": {
+          "message": {
+            "type": "string",
+            "nullable": true
+          },
+          "metadata": {
+            "nullable": true
+          },
+          "schema": {
+            "nullable": true
+          },
+          "type": {
+            "type": "string"
+          }
+        }
+      },
+      "AwaitResume": {
+        "type": "object",
+        "description": "Generic await resume — sent by client to resume an awaiting run.",
+        "properties": {
+          "data": {
+            "nullable": true
+          },
+          "metadata": {
+            "nullable": true
+          }
+        }
+      },
+      "BindExtensionRequest": {
+        "type": "object",
+        "required": [
+          "extension_name"
+        ],
+        "properties": {
+          "extension_name": {
+            "type": "string"
+          }
+        }
+      },
+      "BuiltinAgentInfo": {
+        "type": "object",
+        "required": [
+          "name",
+          "description",
+          "status",
+          "modes",
+          "default_mode",
+          "enabled",
+          "bound_extensions"
+        ],
+        "properties": {
+          "bound_extensions": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "default_mode": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "modes": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BuiltinAgentMode"
+            }
+          },
+          "name": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          }
+        }
+      },
+      "BuiltinAgentMode": {
+        "type": "object",
+        "required": [
+          "slug",
+          "name",
+          "description",
+          "tool_groups",
+          "recommended_extensions"
+        ],
+        "properties": {
+          "description": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "recommended_extensions": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "slug": {
+            "type": "string"
+          },
+          "tool_groups": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "BuiltinAgentsResponse": {
+        "type": "object",
+        "required": [
+          "agents"
+        ],
+        "properties": {
+          "agents": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BuiltinAgentInfo"
+            }
           }
         }
       },
@@ -3529,6 +4862,15 @@
             "items": {
               "$ref": "#/components/schemas/Message"
             },
+            "nullable": true
+          },
+          "mode": {
+            "type": "string",
+            "description": "Optional mode: \"plan\" returns a structured plan without executing,\n\"execute_plan\" executes a previously confirmed plan.\nNone or absent = normal reply flow.",
+            "nullable": true
+          },
+          "plan": {
+            "description": "The confirmed plan to execute (only used when mode = \"execute_plan\").",
             "nullable": true
           },
           "recipe_name": {
@@ -3647,6 +4989,32 @@
           }
         }
       },
+      "ConnectAgentRequest": {
+        "type": "object",
+        "required": [
+          "name"
+        ],
+        "properties": {
+          "name": {
+            "type": "string"
+          }
+        }
+      },
+      "ConnectAgentResponse": {
+        "type": "object",
+        "required": [
+          "agent_id",
+          "connected"
+        ],
+        "properties": {
+          "agent_id": {
+            "type": "string"
+          },
+          "connected": {
+            "type": "boolean"
+          }
+        }
+      },
       "Content": {
         "oneOf": [
           {
@@ -3744,6 +5112,26 @@
           },
           "recipe": {
             "$ref": "#/components/schemas/Recipe"
+          }
+        }
+      },
+      "CreateSessionRequest": {
+        "type": "object",
+        "properties": {
+          "working_dir": {
+            "type": "string",
+            "nullable": true
+          }
+        }
+      },
+      "CreateSessionResponse": {
+        "type": "object",
+        "required": [
+          "session_id"
+        ],
+        "properties": {
+          "session_id": {
+            "type": "string"
           }
         }
       },
@@ -4523,6 +5911,49 @@
           }
         }
       },
+      "GetPromptRequest": {
+        "type": "object",
+        "required": [
+          "session_id",
+          "name"
+        ],
+        "properties": {
+          "arguments": {},
+          "name": {
+            "type": "string"
+          },
+          "session_id": {
+            "type": "string"
+          }
+        }
+      },
+      "GetPromptResponse": {
+        "type": "object",
+        "required": [
+          "messages"
+        ],
+        "properties": {
+          "description": {
+            "type": "string",
+            "nullable": true
+          },
+          "messages": {
+            "type": "array",
+            "items": {}
+          }
+        }
+      },
+      "GetPromptsQuery": {
+        "type": "object",
+        "required": [
+          "session_id"
+        ],
+        "properties": {
+          "session_id": {
+            "type": "string"
+          }
+        }
+      },
       "GetToolsQuery": {
         "type": "object",
         "required": [
@@ -4683,6 +6114,22 @@
         ],
         "properties": {
           "message": {
+            "type": "string"
+          }
+        }
+      },
+      "Link": {
+        "type": "object",
+        "description": "A link reference.",
+        "required": [
+          "url"
+        ],
+        "properties": {
+          "title": {
+            "type": "string",
+            "nullable": true
+          },
+          "url": {
             "type": "string"
           }
         }
@@ -5138,6 +6585,37 @@
           {
             "type": "object",
             "required": [
+              "agent_name",
+              "mode_slug",
+              "confidence",
+              "reasoning",
+              "type"
+            ],
+            "properties": {
+              "agent_name": {
+                "type": "string"
+              },
+              "confidence": {
+                "type": "number",
+                "format": "float"
+              },
+              "mode_slug": {
+                "type": "string"
+              },
+              "reasoning": {
+                "type": "string"
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "RoutingDecision"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
               "request_id",
               "message",
               "type"
@@ -5178,6 +6656,62 @@
           {
             "type": "object",
             "required": [
+              "previous_count",
+              "current_count",
+              "type"
+            ],
+            "properties": {
+              "current_count": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "previous_count": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "ToolAvailabilityChange"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "is_compound",
+              "tasks",
+              "type"
+            ],
+            "properties": {
+              "clarifying_questions": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "nullable": true
+              },
+              "is_compound": {
+                "type": "boolean"
+              },
+              "tasks": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/PlanTask"
+                }
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "PlanProposal"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
               "type"
             ],
             "properties": {
@@ -5205,6 +6739,14 @@
           "agentVisible": {
             "type": "boolean",
             "description": "Whether the message should be included in the agent's context window"
+          },
+          "routingInfo": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/RoutingInfo"
+              }
+            ],
+            "nullable": true
           },
           "userVisible": {
             "type": "boolean",
@@ -5297,6 +6839,57 @@
           }
         }
       },
+      "OrchestratorAgentInfo": {
+        "type": "object",
+        "required": [
+          "name",
+          "enabled",
+          "mode_count",
+          "default_mode"
+        ],
+        "properties": {
+          "default_mode": {
+            "type": "string"
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "mode_count": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "name": {
+            "type": "string"
+          }
+        }
+      },
+      "OrchestratorStatus": {
+        "type": "object",
+        "required": [
+          "enabled",
+          "routing_mode",
+          "agents",
+          "total_modes"
+        ],
+        "properties": {
+          "agents": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/OrchestratorAgentInfo"
+            }
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "routing_mode": {
+            "type": "string"
+          },
+          "total_modes": {
+            "type": "integer",
+            "minimum": 0
+          }
+        }
+      },
       "ParseRecipeRequest": {
         "type": "object",
         "required": [
@@ -5357,6 +6950,62 @@
           "microphone": {
             "type": "boolean",
             "description": "Request microphone access (maps to Permission Policy `microphone` feature)"
+          }
+        }
+      },
+      "Person": {
+        "type": "object",
+        "description": "A person reference.",
+        "required": [
+          "name"
+        ],
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "url": {
+            "type": "string",
+            "nullable": true
+          }
+        }
+      },
+      "PlanTask": {
+        "type": "object",
+        "description": "A task within a plan proposal, serializable for SSE transport.",
+        "required": [
+          "agent_name",
+          "mode_slug",
+          "mode_name",
+          "confidence",
+          "reasoning",
+          "description",
+          "tool_groups"
+        ],
+        "properties": {
+          "agent_name": {
+            "type": "string"
+          },
+          "confidence": {
+            "type": "number",
+            "format": "float"
+          },
+          "description": {
+            "type": "string"
+          },
+          "mode_name": {
+            "type": "string"
+          },
+          "mode_slug": {
+            "type": "string"
+          },
+          "reasoning": {
+            "type": "string"
+          },
+          "tool_groups": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
           }
         }
       },
@@ -5434,6 +7083,85 @@
           "Extension",
           "Tool"
         ]
+      },
+      "Prompt": {
+        "type": "object",
+        "required": [
+          "name"
+        ],
+        "properties": {
+          "_meta": {
+            "type": "object",
+            "additionalProperties": true
+          },
+          "arguments": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PromptArgument"
+            }
+          },
+          "description": {
+            "type": "string"
+          },
+          "icons": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Icon"
+            }
+          },
+          "name": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          }
+        }
+      },
+      "PromptAgentRequest": {
+        "type": "object",
+        "required": [
+          "session_id",
+          "text"
+        ],
+        "properties": {
+          "session_id": {
+            "type": "string"
+          },
+          "text": {
+            "type": "string"
+          }
+        }
+      },
+      "PromptAgentResponse": {
+        "type": "object",
+        "required": [
+          "text"
+        ],
+        "properties": {
+          "text": {
+            "type": "string"
+          }
+        }
+      },
+      "PromptArgument": {
+        "type": "object",
+        "required": [
+          "name"
+        ],
+        "properties": {
+          "description": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "required": {
+            "type": "boolean"
+          },
+          "title": {
+            "type": "string"
+          }
+        }
       },
       "PromptContentResponse": {
         "type": "object",
@@ -6122,6 +7850,59 @@
           }
         ]
       },
+      "RoutingInfo": {
+        "type": "object",
+        "required": [
+          "agentName",
+          "modeSlug"
+        ],
+        "properties": {
+          "agentName": {
+            "type": "string"
+          },
+          "modeSlug": {
+            "type": "string"
+          }
+        }
+      },
+      "RunCreateRequest": {
+        "type": "object",
+        "description": "Request payload for creating a new run.",
+        "required": [
+          "agent_name",
+          "input"
+        ],
+        "properties": {
+          "agent_name": {
+            "type": "string"
+          },
+          "input": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AcpMessage"
+            }
+          },
+          "metadata": {
+            "nullable": true
+          },
+          "mode": {
+            "$ref": "#/components/schemas/RunMode"
+          },
+          "session_id": {
+            "type": "string",
+            "nullable": true
+          }
+        }
+      },
+      "RunMode": {
+        "type": "string",
+        "description": "Run mode per ACP v0.2.0 spec.",
+        "enum": [
+          "sync",
+          "async",
+          "stream"
+        ]
+      },
       "RunNowResponse": {
         "type": "object",
         "required": [
@@ -6129,6 +7910,25 @@
         ],
         "properties": {
           "session_id": {
+            "type": "string"
+          }
+        }
+      },
+      "RunResumeRequest": {
+        "type": "object",
+        "description": "Request payload for resuming an awaiting run.",
+        "required": [
+          "run_id",
+          "await_resume"
+        ],
+        "properties": {
+          "await_resume": {
+            "$ref": "#/components/schemas/AwaitResume"
+          },
+          "mode": {
+            "$ref": "#/components/schemas/RunMode"
+          },
+          "run_id": {
             "type": "string"
           }
         }
@@ -6472,7 +8272,7 @@
         "enum": [
           "user",
           "scheduled",
-          "sub_agent",
+          "specialist",
           "hidden",
           "terminal"
         ]
@@ -6486,6 +8286,21 @@
           "limit": {
             "type": "integer",
             "minimum": 0
+          }
+        }
+      },
+      "SetModeAgentRequest": {
+        "type": "object",
+        "required": [
+          "session_id",
+          "mode_id"
+        ],
+        "properties": {
+          "mode_id": {
+            "type": "string"
+          },
+          "session_id": {
+            "type": "string"
           }
         }
       },
@@ -6847,6 +8662,21 @@
             "type": "string"
           },
           "thinking": {
+            "type": "string"
+          }
+        }
+      },
+      "ToggleAgentResponse": {
+        "type": "object",
+        "required": [
+          "name",
+          "enabled"
+        ],
+        "properties": {
+          "enabled": {
+            "type": "boolean"
+          },
+          "name": {
             "type": "string"
           }
         }

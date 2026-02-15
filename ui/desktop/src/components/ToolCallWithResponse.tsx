@@ -362,7 +362,7 @@ const formatSubagentToolCall = (data: SubagentToolRequestData): string => {
 
   if (toolName === 'execute_code' && toolGraph && toolGraph.length > 0) {
     const plural = toolGraph.length === 1 ? '' : 's';
-    const header = `[subagent:${shortId}] ${toolGraph.length} tool call${plural} | execute_code`;
+    const header = `[specialist:${shortId}] ${toolGraph.length} tool call${plural} | execute_code`;
     const lines = toolGraph.map((node, idx) => {
       const deps =
         node.depends_on && node.depends_on.length > 0
@@ -374,8 +374,8 @@ const formatSubagentToolCall = (data: SubagentToolRequestData): string => {
   }
 
   return extensionName
-    ? `[subagent:${shortId}] ${toolName} | ${extensionName}`
-    : `[subagent:${shortId}] ${toolName}`;
+    ? `[specialist:${shortId}] ${toolName} | ${extensionName}`
+    : `[specialist:${shortId}] ${toolName}`;
 };
 
 const logToString = (logMessage: NotificationEvent) => {
@@ -430,6 +430,15 @@ const getExtensionTooltip = (toolCallName: string): string | null => {
   if (!extensionName) return null;
 
   return `${extensionName} extension`;
+};
+
+// Helper function to extract extension name for display
+const getExtensionName = (toolCallName: string): string | null => {
+  const lastIndex = toolCallName.lastIndexOf('__');
+  if (lastIndex === -1) return null;
+
+  const extensionName = toolCallName.substring(0, lastIndex);
+  return extensionName || null;
 };
 
 function ToolCallView({
@@ -712,6 +721,8 @@ function ToolCallView({
 
   const toolCallStatus = getToolCallStatus(loadingStatus);
 
+  const extensionName = getExtensionName(toolCall.name);
+
   const toolLabel = (
     <span
       className={cn(
@@ -720,6 +731,12 @@ function ToolCallView({
       )}
     >
       <ToolIconWithStatus ToolIcon={getToolCallIcon(toolCall.name)} status={toolCallStatus} />
+      {extensionName && (
+        <>
+          <span className="text-text-muted/60 text-xs shrink-0">{extensionName}</span>
+          <span className="text-text-muted/40 text-xs shrink-0">›</span>
+        </>
+      )}
       <span className="truncate flex-1 min-w-0">{getToolLabelContent()}</span>
     </span>
   );

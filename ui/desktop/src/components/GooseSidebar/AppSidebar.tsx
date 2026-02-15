@@ -2,6 +2,7 @@ import { AppEvents } from '../../constants/events';
 import React, { useEffect, useState } from 'react';
 import {
   AppWindow,
+  Bot,
   ChefHat,
   ChevronRight,
   Clock,
@@ -77,6 +78,13 @@ const menuItems: NavigationEntry[] = [
     label: 'Scheduler',
     icon: Clock,
     tooltip: 'Manage scheduled runs',
+  },
+  {
+    type: 'item',
+    path: '/agents',
+    label: 'Agents',
+    icon: Bot,
+    tooltip: 'Manage external ACP agents',
   },
   {
     type: 'item',

@@ -17,6 +17,11 @@ export const all_response_styles: ResponseStyle[] = [
     label: 'Concise',
     description: 'Tool calls are by default closed and only show the tool used',
   },
+  {
+    key: 'hidden',
+    label: 'Clean',
+    description: 'Tool calls are hidden, only the final response and reasoning are shown',
+  },
 ];
 
 interface ResponseStyleSelectionItemProps {

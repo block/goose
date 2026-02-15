@@ -96,8 +96,8 @@ const CodeBlock = memo(function CodeBlock({
         codeTagProps={{
           style: {
             whiteSpace: 'pre-wrap',
-            wordBreak: 'break-all',
-            overflowWrap: 'break-word',
+            wordBreak: 'break-word',
+            overflowWrap: 'anywhere',
             fontFamily: 'var(--font-mono)',
             fontSize: '14px',
           },
@@ -137,7 +137,7 @@ const MarkdownCode = memo(
     return !inline && match ? (
       <CodeBlock language={match[1]}>{String(children).replace(/\n$/, '')}</CodeBlock>
     ) : (
-      <code ref={ref} {...props} className="break-all bg-inline-code whitespace-pre-wrap font-mono">
+      <code ref={ref} {...props} className="break-words bg-inline-code whitespace-pre-wrap font-mono">
         {children}
       </code>
     );
@@ -179,8 +179,8 @@ const MarkdownContent = memo(function MarkdownContent({
     <div
       className={`w-full overflow-x-hidden prose prose-sm text-text-default dark:prose-invert max-w-full word-break font-sans
       prose-pre:p-0 prose-pre:m-0 !p-0
-      prose-code:break-all prose-code:whitespace-pre-wrap prose-code:font-mono
-      prose-a:break-all prose-a:overflow-wrap-anywhere
+      prose-code:break-words prose-code:whitespace-pre-wrap prose-code:font-mono
+      prose-a:break-words prose-a:overflow-wrap-anywhere
       prose-table:table prose-table:w-full
       prose-blockquote:text-inherit
       prose-td:border prose-td:border-border-default prose-td:p-2

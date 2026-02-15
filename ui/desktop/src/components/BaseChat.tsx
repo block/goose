@@ -28,7 +28,7 @@ import { useNavigation } from '../hooks/useNavigation';
 import { RecipeHeader } from './RecipeHeader';
 import { RecipeWarningModal } from './ui/RecipeWarningModal';
 import { scanRecipe } from '../recipe';
-import { UserInput } from '../types/message';
+import { UserInput, MessageWithAttribution } from '../types/message';
 import { useCostTracking } from '../hooks/useCostTracking';
 import RecipeActivities from './recipes/RecipeActivities';
 import { useToolCount } from './alerts/useToolCount';
@@ -451,18 +451,25 @@ export default function BaseChat({
             ) : null}
           </ScrollArea>
 
-          {chatState !== ChatState.Idle && (
-            <div className="absolute bottom-1 left-4 z-20 pointer-events-none">
-              <LoadingGoose
-                chatState={chatState}
-                message={
-                  messages.length > 0
-                    ? getThinkingMessage(messages[messages.length - 1])
-                    : undefined
-                }
-              />
-            </div>
-          )}
+          {chatState !== ChatState.Idle && (() => {
+            const lastAssistant = [...messages].reverse().find((m) => m.role === 'assistant');
+            const routingInfo = lastAssistant
+              ? (lastAssistant as MessageWithAttribution)._routingInfo
+              : undefined;
+            return (
+              <div className="absolute bottom-1 left-4 z-20 pointer-events-none">
+                <LoadingGoose
+                  chatState={chatState}
+                  routingInfo={routingInfo}
+                  message={
+                    messages.length > 0
+                      ? getThinkingMessage(messages[messages.length - 1])
+                      : undefined
+                  }
+                />
+              </div>
+            );
+          })()}
         </div>
 
         <div

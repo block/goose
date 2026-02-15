@@ -1,8 +1,9 @@
-import { useMemo, useRef } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import ImagePreview from './ImagePreview';
 import { formatMessageTimestamp } from '../utils/timeUtils';
 import MarkdownContent from './MarkdownContent';
 import ToolCallWithResponse from './ToolCallWithResponse';
+import { Brain, ChevronRight } from 'lucide-react';
 import {
   getTextAndImageContent,
   getToolRequests,
@@ -11,6 +12,7 @@ import {
   getElicitationContent,
   getPendingToolConfirmationIds,
   getAnyToolConfirmationData,
+  MessageWithAttribution,
   ToolConfirmationData,
   NotificationEvent,
 } from '../types/message';
@@ -20,6 +22,88 @@ import ElicitationRequest from './ElicitationRequest';
 import MessageCopyLink from './MessageCopyLink';
 import { cn } from '../utils';
 import { identifyConsecutiveToolCalls, shouldHideTimestamp } from '../utils/toolCallChaining';
+import { AppEvents } from '../constants/events';
+import { useReasoningDetail } from '../contexts/ReasoningDetailContext';
+
+function ThinkingSection({
+  cotText,
+  isStreaming,
+  messageId,
+}: {
+  cotText: string;
+  isStreaming: boolean;
+  messageId?: string;
+}) {
+  const { toggleDetail, openDetail, updateContent, isOpen: isPanelOpen, detail } =
+    useReasoningDetail();
+  const hasAutoOpened = useRef(false);
+  const preview = cotText.split('\n').find((l) => l.trim())?.slice(0, 80) || 'Reasoning...';
+  const isThisMessageOpen = isPanelOpen && detail?.messageId === messageId;
+
+  // Auto-open reasoning panel during streaming and live-update content
+  useEffect(() => {
+    if (isStreaming && cotText.length > 0) {
+      if (!hasAutoOpened.current) {
+        hasAutoOpened.current = true;
+        openDetail({ title: 'Thinking...', content: cotText, messageId });
+      } else if (isThisMessageOpen) {
+        updateContent(cotText);
+      }
+    }
+    if (!isStreaming && hasAutoOpened.current) {
+      hasAutoOpened.current = false;
+      if (isThisMessageOpen) {
+        updateContent(cotText);
+      }
+    }
+  }, [isStreaming, cotText, messageId, openDetail, updateContent, isThisMessageOpen]);
+
+  const handleClick = () => {
+    toggleDetail({
+      title: isStreaming ? 'Thinking...' : 'Thought process',
+      content: cotText,
+      messageId,
+    });
+  };
+
+  return (
+    <div className="mb-2">
+      <button
+        onClick={handleClick}
+        className={cn(
+          'flex items-center gap-2 px-3 py-2 rounded-lg border transition-colors select-none group',
+          isStreaming
+            ? 'bg-background-muted/50 border-border-default/50 hover:bg-background-muted cursor-pointer'
+            : 'bg-background-muted/50 border-border-default/50 hover:bg-background-muted cursor-pointer',
+          isThisMessageOpen && 'bg-background-muted border-border-default'
+        )}
+      >
+        <Brain
+          size={16}
+          className={cn(
+            'text-text-muted shrink-0',
+            isStreaming && 'animate-pulse text-amber-400'
+          )}
+        />
+        <span className="text-sm font-medium text-text-muted">
+          {isStreaming ? 'Thinking...' : 'Thought process'}
+        </span>
+        {!isStreaming && (
+          <span className="text-xs text-text-muted/60 truncate text-left max-w-[300px]">
+            — {preview}
+          </span>
+        )}
+        <ChevronRight
+          size={14}
+          className={cn(
+            'text-text-muted/50 shrink-0 transition-transform duration-200',
+            isThisMessageOpen && 'rotate-90'
+          )}
+        />
+      </button>
+    </div>
+  );
+}
 
 interface GooseMessageProps {
   sessionId: string;
@@ -45,18 +129,59 @@ export default function GooseMessage({
   submitElicitationResponse,
 }: GooseMessageProps) {
   const contentRef = useRef<HTMLDivElement | null>(null);
+  const [responseStyle, setResponseStyle] = useState(() => localStorage.getItem('response_style'));
+
+  useEffect(() => {
+    const handleStyleChange = () => {
+      setResponseStyle(localStorage.getItem('response_style'));
+    };
+    window.addEventListener('storage', handleStyleChange);
+    window.addEventListener(AppEvents.RESPONSE_STYLE_CHANGED, handleStyleChange);
+    return () => {
+      window.removeEventListener('storage', handleStyleChange);
+      window.removeEventListener(AppEvents.RESPONSE_STYLE_CHANGED, handleStyleChange);
+    };
+  }, []);
+
+  const hideToolCalls = responseStyle === 'hidden';
 
   let { textContent, imagePaths } = getTextAndImageContent(message);
 
-  const splitChainOfThought = (text: string): { displayText: string; cotText: string | null } => {
+  const stripInternalTags = (text: string, streaming: boolean): string => {
+    let cleaned = text
+      // Strip complete <tool_call>...</tool_call> and <tool_result>...</tool_result> XML tags
+      .replace(/<tool_call>[\s\S]*?<\/tool_call>/gi, '')
+      .replace(/<tool_result>[\s\S]*?<\/tool_result>/gi, '');
+
+    if (streaming) {
+      // During streaming, also strip incomplete/partial tool call tags that haven't closed yet
+      cleaned = cleaned
+        .replace(/<tool_call>[\s\S]*$/gi, '')
+        .replace(/<tool_result>[\s\S]*$/gi, '');
+
+      // Strip partial JSON tool call fragments that appear during streaming
+      // e.g., 'developer.shell", "arguments": {"command": "cd ...'
+      // These are fragments of tool_use blocks being streamed as text
+      cleaned = cleaned.replace(/[a-zA-Z_]+\.\w+",\s*"arguments":\s*\{[\s\S]*$/g, '');
+      // Also strip Ollama-style XML function calls: <function=name><parameter=...>
+      cleaned = cleaned.replace(/<function=[\s\S]*$/gi, '');
+    }
+
+    return cleaned.trim();
+  };
+
+  const splitChainOfThought = (
+    text: string,
+    streaming: boolean
+  ): { displayText: string; cotText: string | null } => {
     const regex = /<think>([\s\S]*?)<\/think>/i;
     const match = text.match(regex);
     if (!match) {
-      return { displayText: text, cotText: null };
+      return { displayText: stripInternalTags(text, streaming), cotText: null };
     }
 
     const cotRaw = match[1].trim();
-    const displayText = text.replace(regex, '').trim();
+    const displayText = stripInternalTags(text.replace(regex, '').trim(), streaming);
 
     return {
       displayText,
@@ -64,9 +189,11 @@ export default function GooseMessage({
     };
   };
 
-  const { displayText, cotText } = splitChainOfThought(textContent);
+  const { displayText, cotText } = splitChainOfThought(textContent, isStreaming);
 
   const timestamp = useMemo(() => formatMessageTimestamp(message.created), [message.created]);
+  const modelInfo = (message as MessageWithAttribution)._modelInfo;
+  const routingInfo = (message as MessageWithAttribution)._routingInfo;
   const toolRequests = getToolRequests(message);
   const messageIndex = messages.findIndex((msg) => msg.id === message.id);
   const toolConfirmationContent = getToolConfirmationContent(message);
@@ -126,18 +253,59 @@ export default function GooseMessage({
 
   const pendingConfirmationIds = getPendingToolConfirmationIds(messages);
 
+  // In hidden mode, if message has only tool calls (no text, images, thinking),
+  // show a minimal indicator with routing info instead of the full tool call panels.
+  // This ensures the user sees that work is being done and which agent is handling it.
+  const isToolOnlyMessage =
+    hideToolCalls &&
+    !displayText.trim() &&
+    imagePaths.length === 0 &&
+    !cotText &&
+    !hasToolConfirmation &&
+    !hasElicitation &&
+    toolRequests.length > 0 &&
+    toolRequests.every((req) => !pendingConfirmationIds.has(req.id));
+
+  if (isToolOnlyMessage && !isStreaming) {
+    // For completed tool-only messages in hidden mode, show routing info if available
+    if (!routingInfo || routingInfo.agentName === 'Goose Agent') {
+      return null;
+    }
+    // Show just the agent badge for non-default agents
+    return (
+      <div className="goose-message flex w-[90%] justify-start min-w-0">
+        <div className="flex flex-col w-full min-w-0">
+          <div className="flex items-center gap-1.5 mb-1">
+            <div className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-blue-500/10 border border-blue-500/20">
+              <span className="text-xs font-medium text-blue-400">{routingInfo.agentName}</span>
+              <span className="text-xs text-blue-300/70">›</span>
+              <span className="text-xs text-blue-300">{routingInfo.modeSlug}</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="goose-message flex w-[90%] justify-start min-w-0">
       <div className="flex flex-col w-full min-w-0">
         {cotText && (
-          <details className="bg-background-muted border border-border-default rounded p-2 mb-2">
-            <summary className="cursor-pointer text-sm text-text-muted select-none">
-              Show thinking
-            </summary>
-            <div className="mt-2">
-              <MarkdownContent content={cotText} />
+          <ThinkingSection
+            cotText={cotText}
+            isStreaming={isStreaming && !displayText.trim()}
+            messageId={message.id ?? undefined}
+          />
+        )}
+
+        {routingInfo && routingInfo.agentName !== 'Goose Agent' && (
+          <div className="flex items-center gap-1.5 mb-1">
+            <div className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-blue-500/10 border border-blue-500/20">
+              <span className="text-xs font-medium text-blue-400">{routingInfo.agentName}</span>
+              <span className="text-xs text-blue-300/70">›</span>
+              <span className="text-xs text-blue-300">{routingInfo.modeSlug}</span>
             </div>
-          </details>
+          </div>
         )}
 
         {(displayText.trim() || imagePaths.length > 0) && (
@@ -161,6 +329,20 @@ export default function GooseMessage({
                 {!isStreaming && (
                   <div className="text-xs font-mono text-text-muted pt-1 transition-all duration-200 group-hover:-translate-y-4 group-hover:opacity-0">
                     {timestamp}
+                    {routingInfo && (
+                      <>
+                        <span className="mx-1 opacity-50">·</span>
+                        <span className="text-blue-400">{routingInfo.agentName}</span>
+                        <span className="mx-1 opacity-50">›</span>
+                        <span className="text-blue-300">{routingInfo.modeSlug}</span>
+                      </>
+                    )}
+                    {modelInfo && (
+                      <>
+                        <span className="mx-1 opacity-50">·</span>
+                        <span>{modelInfo.model}</span>
+                      </>
+                    )}
                   </div>
                 )}
                 {message.content.every((content) => content.type === 'text') && !isStreaming && (
@@ -173,39 +355,46 @@ export default function GooseMessage({
           </div>
         )}
 
-        {toolRequests.length > 0 && (
-          <div className={cn(displayText && 'mt-2')}>
-            <div className="relative flex flex-col w-full">
-              <div className="flex flex-col gap-3">
-                {toolRequests.map((toolRequest) => {
-                  const hasResponse = toolResponsesMap.has(toolRequest.id);
-                  const isPending = pendingConfirmationIds.has(toolRequest.id);
-                  const confirmationContent = findConfirmationForToolAcrossMessages(toolRequest.id);
-                  const isApprovalClicked = confirmationContent && !isPending && hasResponse;
-                  return (
-                    <div className="goose-message-tool" key={toolRequest.id}>
-                      <ToolCallWithResponse
-                        sessionId={sessionId}
-                        isCancelledMessage={false}
-                        toolRequest={toolRequest}
-                        toolResponse={toolResponsesMap.get(toolRequest.id)}
-                        notifications={toolCallNotifications.get(toolRequest.id)}
-                        isStreamingMessage={isStreaming}
-                        isPendingApproval={isPending}
-                        append={append}
-                        confirmationContent={confirmationContent}
-                        isApprovalClicked={isApprovalClicked}
-                      />
-                    </div>
-                  );
-                })}
-              </div>
-              <div className="text-xs text-text-muted transition-all duration-200 group-hover:-translate-y-4 group-hover:opacity-0 pt-1">
-                {!isStreaming && !hideTimestamp && timestamp}
+        {toolRequests.length > 0 && (() => {
+          // In hidden mode, only show tool calls that need user approval
+          const visibleToolRequests = hideToolCalls
+            ? toolRequests.filter((req) => pendingConfirmationIds.has(req.id))
+            : toolRequests;
+          if (visibleToolRequests.length === 0) return null;
+          return (
+            <div className={cn(displayText && 'mt-2')}>
+              <div className="relative flex flex-col w-full">
+                <div className="flex flex-col gap-3">
+                  {visibleToolRequests.map((toolRequest) => {
+                    const hasResponse = toolResponsesMap.has(toolRequest.id);
+                    const isPending = pendingConfirmationIds.has(toolRequest.id);
+                    const confirmationContent = findConfirmationForToolAcrossMessages(toolRequest.id);
+                    const isApprovalClicked = confirmationContent && !isPending && hasResponse;
+                    return (
+                      <div className="goose-message-tool" key={toolRequest.id}>
+                        <ToolCallWithResponse
+                          sessionId={sessionId}
+                          isCancelledMessage={false}
+                          toolRequest={toolRequest}
+                          toolResponse={toolResponsesMap.get(toolRequest.id)}
+                          notifications={toolCallNotifications.get(toolRequest.id)}
+                          isStreamingMessage={isStreaming}
+                          isPendingApproval={isPending}
+                          append={append}
+                          confirmationContent={confirmationContent}
+                          isApprovalClicked={isApprovalClicked}
+                        />
+                      </div>
+                    );
+                  })}
+                </div>
+                <div className="text-xs text-text-muted transition-all duration-200 group-hover:-translate-y-4 group-hover:opacity-0 pt-1">
+                  {!isStreaming && !hideTimestamp && timestamp}
+                </div>
               </div>
             </div>
-          </div>
-        )}
+          );
+        })()}
 
         {hasToolConfirmation && !toolConfirmationShownInline && (
           <ToolCallConfirmation

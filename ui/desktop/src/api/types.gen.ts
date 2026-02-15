@@ -4,6 +4,69 @@ export type ClientOptions = {
     baseUrl: `${string}://${string}` | (string & {});
 };
 
+/**
+ * ACP error object.
+ */
+export type AcpError = {
+    code: string;
+    data?: unknown;
+    message: string;
+};
+
+/**
+ * ACP message: role + ordered parts.
+ */
+export type AcpMessage = {
+    parts: Array<AcpMessagePart>;
+    role: AcpRole;
+};
+
+/**
+ * A single part of an ACP message.
+ */
+export type AcpMessagePart = {
+    content?: string | null;
+    content_encoding?: string | null;
+    content_type: string;
+    content_url?: string | null;
+    metadata?: unknown;
+};
+
+/**
+ * ACP role — "user" or "agent" (with optional sub-agent path like "agent/coding").
+ */
+export type AcpRole = 'user' | 'agent';
+
+/**
+ * A run object per ACP v0.2.0 spec.
+ */
+export type AcpRun = {
+    agent_name: string;
+    await_request?: AwaitRequest | null;
+    created_at: string;
+    error?: AcpError | null;
+    finished_at?: string | null;
+    metadata?: unknown;
+    output?: Array<AcpMessage>;
+    run_id: string;
+    session_id?: string | null;
+    status: AcpRunStatus;
+};
+
+/**
+ * Run status per ACP v0.2.0 spec.
+ */
+export type AcpRunStatus = 'created' | 'in_progress' | 'awaiting' | 'completed' | 'cancelled' | 'failed';
+
+/**
+ * ACP session object.
+ */
+export type AcpSession = {
+    history?: Array<string>;
+    id: string;
+    state?: string | null;
+};
+
 export type ActionRequired = {
     data: ActionRequiredData;
 };
@@ -30,6 +93,87 @@ export type AddExtensionRequest = {
     session_id: string;
 };
 
+/**
+ * ACP AgentDependency (experimental) — a tool, agent, or model required by this agent.
+ */
+export type AgentDependency = {
+    name: string;
+    type: string;
+};
+
+export type AgentListResponse = {
+    agents: Array<string>;
+};
+
+/**
+ * ACP agent manifest per v0.2.0 spec.
+ *
+ * Each manifest represents one agent persona. Modes are listed in `modes`
+ * following the ACP SessionMode pattern (not flattened into separate agents).
+ */
+export type AgentManifest = {
+    /**
+     * The default mode ID when no explicit mode is requested.
+     */
+    default_mode?: string | null;
+    description: string;
+    input_content_types?: Array<string>;
+    metadata?: AgentMetadata | null;
+    /**
+     * Session modes this agent supports (ACP SessionMode pattern).
+     * Each mode represents a different behavior/persona the agent can adopt
+     * within a session (e.g. "assistant", "architect", "backend").
+     */
+    modes?: Array<AgentModeInfo>;
+    name: string;
+    output_content_types?: Array<string>;
+    status?: AgentStatus | null;
+};
+
+/**
+ * Metadata about an agent.
+ */
+export type AgentMetadata = {
+    /**
+     * ACP-REST Option B: discoverable annotations for roles and behavior modes.
+     * Keys follow the convention "goose.<dimension>" to avoid collisions.
+     */
+    annotations?: {
+        [key: string]: unknown;
+    } | null;
+    author?: Person | null;
+    dependencies?: Array<AgentDependency> | null;
+    links?: Array<Link> | null;
+    recommended_models?: Array<string> | null;
+    version?: string | null;
+};
+
+/**
+ * A mode an agent can operate in (maps to ACP SessionMode).
+ */
+export type AgentModeInfo = {
+    description?: string | null;
+    id: string;
+    name: string;
+    /**
+     * Tool groups this mode has access to.
+     */
+    tool_groups?: Array<string>;
+};
+
+/**
+ * Runtime status metrics for an agent.
+ */
+export type AgentStatus = {
+    avg_run_time_seconds?: number | null;
+    avg_run_tokens?: number | null;
+    success_rate?: number | null;
+};
+
+export type AgentsListResponse = {
+    agents: Array<AgentManifest>;
+};
+
 export type Annotations = {
     audience?: Array<Role>;
     lastModified?: string;
@@ -44,6 +188,50 @@ export type Author = {
 export type AuthorRequest = {
     contact?: string | null;
     metadata?: string | null;
+};
+
+/**
+ * Generic await request — sent when run enters "awaiting" state.
+ */
+export type AwaitRequest = {
+    message?: string | null;
+    metadata?: unknown;
+    schema?: unknown;
+    type: string;
+};
+
+/**
+ * Generic await resume — sent by client to resume an awaiting run.
+ */
+export type AwaitResume = {
+    data?: unknown;
+    metadata?: unknown;
+};
+
+export type BindExtensionRequest = {
+    extension_name: string;
+};
+
+export type BuiltinAgentInfo = {
+    bound_extensions: Array<string>;
+    default_mode: string;
+    description: string;
+    enabled: boolean;
+    modes: Array<BuiltinAgentMode>;
+    name: string;
+    status: string;
+};
+
+export type BuiltinAgentMode = {
+    description: string;
+    name: string;
+    recommended_extensions: Array<string>;
+    slug: string;
+    tool_groups: Array<string>;
+};
+
+export type BuiltinAgentsResponse = {
+    agents: Array<BuiltinAgentInfo>;
 };
 
 export type CallToolRequest = {
@@ -61,6 +249,16 @@ export type CallToolResponse = {
 
 export type ChatRequest = {
     conversation_so_far?: Array<Message> | null;
+    /**
+     * Optional mode: "plan" returns a structured plan without executing,
+     * "execute_plan" executes a previously confirmed plan.
+     * None or absent = normal reply flow.
+     */
+    mode?: string | null;
+    /**
+     * The confirmed plan to execute (only used when mode = "execute_plan").
+     */
+    plan?: unknown;
     recipe_name?: string | null;
     recipe_version?: string | null;
     session_id: string;
@@ -118,6 +316,15 @@ export type ConfirmToolActionRequest = {
     sessionId: string;
 };
 
+export type ConnectAgentRequest = {
+    name: string;
+};
+
+export type ConnectAgentResponse = {
+    agent_id: string;
+    connected: boolean;
+};
+
 export type Content = RawTextContent | RawImageContent | RawEmbeddedResource | RawAudioContent | RawResource;
 
 export type Conversation = Array<Message>;
@@ -136,6 +343,14 @@ export type CreateScheduleRequest = {
     cron: string;
     id: string;
     recipe: Recipe;
+};
+
+export type CreateSessionRequest = {
+    working_dir?: string | null;
+};
+
+export type CreateSessionResponse = {
+    session_id: string;
 };
 
 /**
@@ -423,6 +638,21 @@ export type FrontendToolRequest = {
     };
 };
 
+export type GetPromptRequest = {
+    arguments?: unknown;
+    name: string;
+    session_id: string;
+};
+
+export type GetPromptResponse = {
+    description?: string | null;
+    messages: Array<unknown>;
+};
+
+export type GetPromptsQuery = {
+    session_id: string;
+};
+
 export type GetToolsQuery = {
     extension_name?: string | null;
     session_id: string;
@@ -475,6 +705,14 @@ export type JsonObject = {
 
 export type KillJobResponse = {
     message: string;
+};
+
+/**
+ * A link reference.
+ */
+export type Link = {
+    title?: string | null;
+    url: string;
 };
 
 export type ListAppsRequest = {
@@ -582,6 +820,12 @@ export type MessageEvent = {
     model: string;
     type: 'ModelChange';
 } | {
+    agent_name: string;
+    confidence: number;
+    mode_slug: string;
+    reasoning: string;
+    type: 'RoutingDecision';
+} | {
     message: {
         [key: string]: unknown;
     };
@@ -590,6 +834,15 @@ export type MessageEvent = {
 } | {
     conversation: Conversation;
     type: 'UpdateConversation';
+} | {
+    current_count: number;
+    previous_count: number;
+    type: 'ToolAvailabilityChange';
+} | {
+    clarifying_questions?: Array<string> | null;
+    is_compound: boolean;
+    tasks: Array<PlanTask>;
+    type: 'PlanProposal';
 } | {
     type: 'Ping';
 };
@@ -602,6 +855,7 @@ export type MessageMetadata = {
      * Whether the message should be included in the agent's context window
      */
     agentVisible: boolean;
+    routingInfo?: RoutingInfo | null;
     /**
      * Whether the message should be visible to the user in the UI
      */
@@ -654,6 +908,20 @@ export type ModelInfo = {
     supports_cache_control?: boolean | null;
 };
 
+export type OrchestratorAgentInfo = {
+    default_mode: string;
+    enabled: boolean;
+    mode_count: number;
+    name: string;
+};
+
+export type OrchestratorStatus = {
+    agents: Array<OrchestratorAgentInfo>;
+    enabled: boolean;
+    routing_mode: string;
+    total_modes: number;
+};
+
 export type ParseRecipeRequest = {
     content: string;
 };
@@ -693,6 +961,27 @@ export type PermissionsMetadata = {
     microphone?: boolean;
 };
 
+/**
+ * A person reference.
+ */
+export type Person = {
+    name: string;
+    url?: string | null;
+};
+
+/**
+ * A task within a plan proposal, serializable for SSE transport.
+ */
+export type PlanTask = {
+    agent_name: string;
+    confidence: number;
+    description: string;
+    mode_name: string;
+    mode_slug: string;
+    reasoning: string;
+    tool_groups: Array<string>;
+};
+
 export type PricingData = {
     context_length?: number | null;
     currency: string;
@@ -713,6 +1002,33 @@ export type PricingResponse = {
 };
 
 export type PrincipalType = 'Extension' | 'Tool';
+
+export type Prompt = {
+    _meta?: {
+        [key: string]: unknown;
+    };
+    arguments?: Array<PromptArgument>;
+    description?: string;
+    icons?: Array<Icon>;
+    name: string;
+    title?: string;
+};
+
+export type PromptAgentRequest = {
+    session_id: string;
+    text: string;
+};
+
+export type PromptAgentResponse = {
+    text: string;
+};
+
+export type PromptArgument = {
+    description?: string;
+    name: string;
+    required?: boolean;
+    title?: string;
+};
 
 export type PromptContentResponse = {
     content: string;
@@ -961,8 +1277,38 @@ export type RetryConfig = {
 
 export type Role = string;
 
+export type RoutingInfo = {
+    agentName: string;
+    modeSlug: string;
+};
+
+/**
+ * Request payload for creating a new run.
+ */
+export type RunCreateRequest = {
+    agent_name: string;
+    input: Array<AcpMessage>;
+    metadata?: unknown;
+    mode?: RunMode;
+    session_id?: string | null;
+};
+
+/**
+ * Run mode per ACP v0.2.0 spec.
+ */
+export type RunMode = 'sync' | 'async' | 'stream';
+
 export type RunNowResponse = {
     session_id: string;
+};
+
+/**
+ * Request payload for resuming an awaiting run.
+ */
+export type RunResumeRequest = {
+    await_resume: AwaitResume;
+    mode?: RunMode;
+    run_id: string;
 };
 
 export type SavePromptRequest = {
@@ -1059,10 +1405,15 @@ export type SessionListResponse = {
     sessions: Array<Session>;
 };
 
-export type SessionType = 'user' | 'scheduled' | 'sub_agent' | 'hidden' | 'terminal';
+export type SessionType = 'user' | 'scheduled' | 'specialist' | 'hidden' | 'terminal';
 
 export type SessionsQuery = {
     limit: number;
+};
+
+export type SetModeAgentRequest = {
+    mode_id: string;
+    session_id: string;
 };
 
 export type SetProviderRequest = {
@@ -1181,6 +1532,11 @@ export type TextContent = {
 export type ThinkingContent = {
     signature: string;
     thinking: string;
+};
+
+export type ToggleAgentResponse = {
+    enabled: boolean;
+    name: string;
 };
 
 export type TokenState = {
@@ -1596,6 +1952,75 @@ export type ListAppsResponses = {
 
 export type ListAppsResponse2 = ListAppsResponses[keyof ListAppsResponses];
 
+export type ListExtensionPromptsData = {
+    body?: never;
+    path?: never;
+    query: {
+        /**
+         * Required session ID
+         */
+        session_id: string;
+    };
+    url: '/agent/prompts';
+};
+
+export type ListExtensionPromptsErrors = {
+    /**
+     * Unauthorized - invalid secret key
+     */
+    401: unknown;
+    /**
+     * Agent not initialized
+     */
+    424: unknown;
+    /**
+     * Internal server error
+     */
+    500: unknown;
+};
+
+export type ListExtensionPromptsResponses = {
+    /**
+     * MCP extension prompts grouped by extension name
+     */
+    200: unknown;
+};
+
+export type GetExtensionPromptData = {
+    body: GetPromptRequest;
+    path?: never;
+    query?: never;
+    url: '/agent/prompts/get';
+};
+
+export type GetExtensionPromptErrors = {
+    /**
+     * Unauthorized - invalid secret key
+     */
+    401: unknown;
+    /**
+     * Prompt not found
+     */
+    404: unknown;
+    /**
+     * Agent not initialized
+     */
+    424: unknown;
+    /**
+     * Internal server error
+     */
+    500: unknown;
+};
+
+export type GetExtensionPromptResponses = {
+    /**
+     * Prompt messages
+     */
+    200: GetPromptResponse;
+};
+
+export type GetExtensionPromptResponse = GetExtensionPromptResponses[keyof GetExtensionPromptResponses];
+
 export type ReadResourceData = {
     body: ReadResourceRequest;
     path?: never;
@@ -1918,6 +2343,283 @@ export type UpdateWorkingDirResponses = {
      */
     200: unknown;
 };
+
+export type ListAgentsData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/agents';
+};
+
+export type ListAgentsResponses = {
+    /**
+     * List available agents
+     */
+    200: AgentsListResponse;
+};
+
+export type ListAgentsResponse = ListAgentsResponses[keyof ListAgentsResponses];
+
+export type ListBuiltinAgentsData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/agents/builtin';
+};
+
+export type ListBuiltinAgentsResponses = {
+    /**
+     * List builtin agents with their modes
+     */
+    200: BuiltinAgentsResponse;
+};
+
+export type ListBuiltinAgentsResponse = ListBuiltinAgentsResponses[keyof ListBuiltinAgentsResponses];
+
+export type BindExtensionToAgentData = {
+    body: BindExtensionRequest;
+    path: {
+        /**
+         * Agent name
+         */
+        name: string;
+    };
+    query?: never;
+    url: '/agents/builtin/{name}/extensions/bind';
+};
+
+export type BindExtensionToAgentResponses = {
+    /**
+     * Extension bound
+     */
+    200: unknown;
+};
+
+export type UnbindExtensionFromAgentData = {
+    body: BindExtensionRequest;
+    path: {
+        /**
+         * Agent name
+         */
+        name: string;
+    };
+    query?: never;
+    url: '/agents/builtin/{name}/extensions/unbind';
+};
+
+export type UnbindExtensionFromAgentResponses = {
+    /**
+     * Extension unbound
+     */
+    200: unknown;
+};
+
+export type ToggleBuiltinAgentData = {
+    body?: never;
+    path: {
+        /**
+         * Agent name
+         */
+        name: string;
+    };
+    query?: never;
+    url: '/agents/builtin/{name}/toggle';
+};
+
+export type ToggleBuiltinAgentErrors = {
+    /**
+     * Agent not found
+     */
+    404: unknown;
+};
+
+export type ToggleBuiltinAgentResponses = {
+    /**
+     * Agent toggled
+     */
+    200: ToggleAgentResponse;
+};
+
+export type ToggleBuiltinAgentResponse = ToggleBuiltinAgentResponses[keyof ToggleBuiltinAgentResponses];
+
+export type ListAgents2Data = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/agents/external';
+};
+
+export type ListAgents2Responses = {
+    /**
+     * List of connected agents
+     */
+    200: AgentListResponse;
+};
+
+export type ListAgents2Response = ListAgents2Responses[keyof ListAgents2Responses];
+
+export type ConnectAgentData = {
+    body: ConnectAgentRequest;
+    path?: never;
+    query?: never;
+    url: '/agents/external/connect';
+};
+
+export type ConnectAgentErrors = {
+    /**
+     * Agent not found
+     */
+    404: unknown;
+    /**
+     * Agent has no distribution
+     */
+    422: unknown;
+};
+
+export type ConnectAgentResponses = {
+    /**
+     * Agent connected
+     */
+    200: ConnectAgentResponse;
+};
+
+export type ConnectAgentResponse2 = ConnectAgentResponses[keyof ConnectAgentResponses];
+
+export type DisconnectAgentData = {
+    body?: never;
+    path: {
+        /**
+         * Agent identifier
+         */
+        agent_id: string;
+    };
+    query?: never;
+    url: '/agents/external/{agent_id}';
+};
+
+export type DisconnectAgentErrors = {
+    /**
+     * Internal server error
+     */
+    500: unknown;
+};
+
+export type DisconnectAgentResponses = {
+    /**
+     * Agent disconnected
+     */
+    200: unknown;
+};
+
+export type SetModeData = {
+    body: SetModeAgentRequest;
+    path: {
+        /**
+         * Agent identifier
+         */
+        agent_id: string;
+    };
+    query?: never;
+    url: '/agents/external/{agent_id}/mode';
+};
+
+export type SetModeErrors = {
+    /**
+     * Internal server error
+     */
+    500: unknown;
+};
+
+export type SetModeResponses = {
+    /**
+     * Mode set
+     */
+    200: unknown;
+};
+
+export type PromptAgentData = {
+    body: PromptAgentRequest;
+    path: {
+        /**
+         * Agent identifier
+         */
+        agent_id: string;
+    };
+    query?: never;
+    url: '/agents/external/{agent_id}/prompt';
+};
+
+export type PromptAgentErrors = {
+    /**
+     * Internal server error
+     */
+    500: unknown;
+};
+
+export type PromptAgentResponses = {
+    /**
+     * Prompt response
+     */
+    200: PromptAgentResponse;
+};
+
+export type PromptAgentResponse2 = PromptAgentResponses[keyof PromptAgentResponses];
+
+export type CreateSessionData = {
+    body: CreateSessionRequest;
+    path: {
+        /**
+         * Agent identifier
+         */
+        agent_id: string;
+    };
+    query?: never;
+    url: '/agents/external/{agent_id}/session';
+};
+
+export type CreateSessionErrors = {
+    /**
+     * Internal server error
+     */
+    500: unknown;
+};
+
+export type CreateSessionResponses = {
+    /**
+     * Session created
+     */
+    200: CreateSessionResponse;
+};
+
+export type CreateSessionResponse2 = CreateSessionResponses[keyof CreateSessionResponses];
+
+export type GetAgentData = {
+    body?: never;
+    path: {
+        /**
+         * Agent slug (e.g. goose-agent, coding-agent)
+         */
+        name: string;
+    };
+    query?: never;
+    url: '/agents/{name}';
+};
+
+export type GetAgentErrors = {
+    /**
+     * Agent not found
+     */
+    404: unknown;
+};
+
+export type GetAgentResponses = {
+    /**
+     * Agent manifest
+     */
+    200: AgentManifest;
+};
+
+export type GetAgentResponse = GetAgentResponses[keyof GetAgentResponses];
 
 export type ReadAllConfigData = {
     body?: never;
@@ -2321,7 +3023,7 @@ export type GetPromptResponses = {
     200: PromptContentResponse;
 };
 
-export type GetPromptResponse = GetPromptResponses[keyof GetPromptResponses];
+export type GetPromptResponse2 = GetPromptResponses[keyof GetPromptResponses];
 
 export type SavePromptData = {
     body: SavePromptRequest;
@@ -2841,6 +3543,34 @@ export type McpUiProxyResponses = {
     200: unknown;
 };
 
+export type OrchestratorStatusData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/orchestrator/status';
+};
+
+export type OrchestratorStatusResponses = {
+    /**
+     * Orchestrator status
+     */
+    200: unknown;
+};
+
+export type PingData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/ping';
+};
+
+export type PingResponses = {
+    /**
+     * Health check
+     */
+    200: unknown;
+};
+
 export type CreateRecipeData = {
     body: CreateRecipeRequest;
     path?: never;
@@ -3156,6 +3886,167 @@ export type ReplyResponses = {
 
 export type ReplyResponse = ReplyResponses[keyof ReplyResponses];
 
+export type ListRunsData = {
+    body?: never;
+    path?: never;
+    query?: {
+        /**
+         * Max results
+         */
+        limit?: number | null;
+        /**
+         * Offset
+         */
+        offset?: number | null;
+    };
+    url: '/runs';
+};
+
+export type ListRunsResponses = {
+    /**
+     * List of runs
+     */
+    200: Array<AcpRun>;
+};
+
+export type ListRunsResponse = ListRunsResponses[keyof ListRunsResponses];
+
+export type CreateRunData = {
+    body: RunCreateRequest;
+    path?: never;
+    query?: never;
+    url: '/runs';
+};
+
+export type CreateRunResponses = {
+    /**
+     * Run created (stream/sync)
+     */
+    200: AcpRun;
+    /**
+     * Run created (async)
+     */
+    202: AcpRun;
+};
+
+export type CreateRunResponse = CreateRunResponses[keyof CreateRunResponses];
+
+export type GetRunData = {
+    body?: never;
+    path: {
+        /**
+         * Run ID
+         */
+        run_id: string;
+    };
+    query?: never;
+    url: '/runs/{run_id}';
+};
+
+export type GetRunErrors = {
+    /**
+     * Run not found
+     */
+    404: unknown;
+};
+
+export type GetRunResponses = {
+    /**
+     * Run details
+     */
+    200: AcpRun;
+};
+
+export type GetRunResponse = GetRunResponses[keyof GetRunResponses];
+
+export type ResumeRunData = {
+    body: RunResumeRequest;
+    path: {
+        /**
+         * Run ID
+         */
+        run_id: string;
+    };
+    query?: never;
+    url: '/runs/{run_id}';
+};
+
+export type ResumeRunErrors = {
+    /**
+     * Run not found
+     */
+    404: unknown;
+    /**
+     * Run not in awaiting state
+     */
+    409: unknown;
+};
+
+export type ResumeRunResponses = {
+    /**
+     * Run resumed
+     */
+    200: AcpRun;
+};
+
+export type ResumeRunResponse = ResumeRunResponses[keyof ResumeRunResponses];
+
+export type CancelRunData = {
+    body?: never;
+    path: {
+        /**
+         * Run ID
+         */
+        run_id: string;
+    };
+    query?: never;
+    url: '/runs/{run_id}/cancel';
+};
+
+export type CancelRunErrors = {
+    /**
+     * Run not found
+     */
+    404: unknown;
+};
+
+export type CancelRunResponses = {
+    /**
+     * Run cancelled
+     */
+    200: AcpRun;
+};
+
+export type CancelRunResponse = CancelRunResponses[keyof CancelRunResponses];
+
+export type GetRunEventsData = {
+    body?: never;
+    path: {
+        /**
+         * Run ID
+         */
+        run_id: string;
+    };
+    query?: never;
+    url: '/runs/{run_id}/events';
+};
+
+export type GetRunEventsErrors = {
+    /**
+     * Run not found
+     */
+    404: unknown;
+};
+
+export type GetRunEventsResponses = {
+    /**
+     * Run events
+     */
+    200: Array<unknown>;
+};
+
+export type GetRunEventsResponse = GetRunEventsResponses[keyof GetRunEventsResponses];
+
 export type CreateScheduleData = {
     body: CreateScheduleRequest;
     path?: never;
@@ -3456,6 +4347,34 @@ export type UnpauseScheduleResponses = {
 
 export type UnpauseScheduleResponse = UnpauseScheduleResponses[keyof UnpauseScheduleResponses];
 
+export type GetAcpSessionData = {
+    body?: never;
+    path: {
+        /**
+         * Session ID
+         */
+        session_id: string;
+    };
+    query?: never;
+    url: '/session/{session_id}';
+};
+
+export type GetAcpSessionErrors = {
+    /**
+     * Session not found
+     */
+    404: unknown;
+};
+
+export type GetAcpSessionResponses = {
+    /**
+     * ACP session view
+     */
+    200: AcpSession;
+};
+
+export type GetAcpSessionResponse = GetAcpSessionResponses[keyof GetAcpSessionResponses];
+
 export type ListSessionsData = {
     body?: never;
     path?: never;
@@ -3659,6 +4578,36 @@ export type GetSessionResponses = {
 
 export type GetSessionResponse = GetSessionResponses[keyof GetSessionResponses];
 
+export type ClearSessionData = {
+    body?: never;
+    path: {
+        /**
+         * Unique identifier for the session
+         */
+        session_id: string;
+    };
+    query?: never;
+    url: '/sessions/{session_id}/clear';
+};
+
+export type ClearSessionErrors = {
+    /**
+     * Session not found
+     */
+    404: unknown;
+    /**
+     * Internal server error
+     */
+    500: unknown;
+};
+
+export type ClearSessionResponses = {
+    /**
+     * Session cleared successfully
+     */
+    200: unknown;
+};
+
 export type ExportSessionData = {
     body?: never;
     path: {
@@ -3770,6 +4719,36 @@ export type ForkSessionResponses = {
 };
 
 export type ForkSessionResponse = ForkSessionResponses[keyof ForkSessionResponses];
+
+export type AddMessageData = {
+    body: Message;
+    path: {
+        /**
+         * Unique identifier for the session
+         */
+        session_id: string;
+    };
+    query?: never;
+    url: '/sessions/{session_id}/messages';
+};
+
+export type AddMessageErrors = {
+    /**
+     * Session not found
+     */
+    404: unknown;
+    /**
+     * Internal server error
+     */
+    500: unknown;
+};
+
+export type AddMessageResponses = {
+    /**
+     * Message added successfully
+     */
+    200: unknown;
+};
 
 export type UpdateSessionNameData = {
     body: UpdateSessionNameRequest;

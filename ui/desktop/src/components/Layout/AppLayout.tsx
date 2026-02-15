@@ -8,6 +8,8 @@ import { Sidebar, SidebarInset, SidebarProvider, SidebarTrigger, useSidebar } fr
 import ChatSessionsContainer from '../ChatSessionsContainer';
 import { useChatContext } from '../../contexts/ChatContext';
 import { UserInput } from '../../types/message';
+import { ReasoningDetailProvider } from '../../contexts/ReasoningDetailContext';
+import ReasoningDetailPanel from '../ReasoningDetailPanel';
 
 interface AppLayoutContentProps {
   activeSessions: Array<{
@@ -123,6 +125,7 @@ const AppLayoutContent: React.FC<AppLayoutContentProps> = ({ activeSessions }) =
           <ChatSessionsContainer setChat={setChat} activeSessions={activeSessions} />
         </div>
       </SidebarInset>
+      <ReasoningDetailPanel />
     </div>
   );
 };
@@ -136,8 +139,10 @@ interface AppLayoutProps {
 
 export const AppLayout: React.FC<AppLayoutProps> = ({ activeSessions }) => {
   return (
-    <SidebarProvider>
-      <AppLayoutContent activeSessions={activeSessions} />
-    </SidebarProvider>
+    <ReasoningDetailProvider>
+      <SidebarProvider>
+        <AppLayoutContent activeSessions={activeSessions} />
+      </SidebarProvider>
+    </ReasoningDetailProvider>
   );
 };

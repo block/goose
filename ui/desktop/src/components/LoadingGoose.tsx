@@ -2,10 +2,12 @@ import GooseLogo from './GooseLogo';
 import AnimatedIcons from './AnimatedIcons';
 import FlyingBird from './FlyingBird';
 import { ChatState } from '../types/chatState';
+import { RoutingInfo } from '../types/message';
 
 interface LoadingGooseProps {
   message?: string;
   chatState?: ChatState;
+  routingInfo?: RoutingInfo;
 }
 
 const STATE_MESSAGES: Record<ChatState, string> = {
@@ -30,9 +32,14 @@ const STATE_ICONS: Record<ChatState, React.ReactNode> = {
   [ChatState.RestartingAgent]: <AnimatedIcons className="flex-shrink-0" cycleInterval={600} />,
 };
 
-const LoadingGoose = ({ message, chatState = ChatState.Idle }: LoadingGooseProps) => {
+const LoadingGoose = ({ message, chatState = ChatState.Idle, routingInfo }: LoadingGooseProps) => {
   const displayMessage = message || STATE_MESSAGES[chatState];
   const icon = STATE_ICONS[chatState];
+
+  const agentLabel =
+    routingInfo && routingInfo.agentName !== 'Goose Agent'
+      ? `${routingInfo.agentName}${routingInfo.modeSlug ? ` · ${routingInfo.modeSlug}` : ''}`
+      : null;
 
   return (
     <div className="w-full animate-fade-slide-up">
@@ -41,7 +48,12 @@ const LoadingGoose = ({ message, chatState = ChatState.Idle }: LoadingGooseProps
         className="flex items-center gap-2 text-xs text-text-default py-2"
       >
         {icon}
-        {displayMessage}
+        <span>
+          {displayMessage}
+          {agentLabel && (
+            <span className="ml-1 text-text-muted/70 italic">({agentLabel})</span>
+          )}
+        </span>
       </div>
     </div>
   );
