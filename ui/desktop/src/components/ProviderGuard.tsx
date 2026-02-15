@@ -40,6 +40,7 @@ export default function ProviderGuard({ didSelectProvider, children }: ProviderG
   const [isTetrateSetupInProgress, setIsTetrateSetupInProgress] = useState(false);
   const onboardingTracked = useRef(false);
   const tetrateSetupRunId = useRef(0);
+  const tetrateSuccessTimerId = useRef<ReturnType<typeof setTimeout> | null>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const [showScrollIndicator, setShowScrollIndicator] = useState(true);
 
@@ -69,6 +70,7 @@ export default function ProviderGuard({ didSelectProvider, children }: ProviderG
     title: string;
     message: string;
     showProgress?: boolean;
+    showSuccess?: boolean;
     showRetry: boolean;
     closeLabel?: string;
     autoClose?: number;
@@ -107,9 +109,20 @@ export default function ProviderGuard({ didSelectProvider, children }: ProviderG
       setIsTetrateSetupInProgress(false);
 
       if (result.success) {
-        setTetrateSetupState(null);
-        setSwitchModelProvider('tetrate');
-        setShowSwitchModelModal(true);
+        setTetrateSetupState({
+          show: true,
+          title: 'Setup Complete',
+          message: 'Your account has been connected successfully.',
+          showSuccess: true,
+          showProgress: false,
+          showRetry: false,
+        });
+        tetrateSuccessTimerId.current = setTimeout(() => {
+          tetrateSuccessTimerId.current = null;
+          setTetrateSetupState(null);
+          setSwitchModelProvider('tetrate');
+          setShowSwitchModelModal(true);
+        }, 1500);
       } else {
         trackOnboardingSetupFailed('tetrate', result.message);
         setTetrateSetupState({
@@ -165,6 +178,16 @@ export default function ProviderGuard({ didSelectProvider, children }: ProviderG
   };
 
   const handleCancelTetrateSetup = async () => {
+    if (tetrateSuccessTimerId.current) {
+      // User dismissed the success modal early — still advance to model selection
+      clearTimeout(tetrateSuccessTimerId.current);
+      tetrateSuccessTimerId.current = null;
+      setTetrateSetupState(null);
+      setSwitchModelProvider('tetrate');
+      setShowSwitchModelModal(true);
+      return;
+    }
+
     if (!isTetrateSetupInProgress) {
       setTetrateSetupState(null);
       return;
@@ -538,6 +561,7 @@ export default function ProviderGuard({ didSelectProvider, children }: ProviderG
             title={tetrateSetupState.title}
             message={tetrateSetupState.message}
             showProgress={tetrateSetupState.showProgress}
+            showSuccess={tetrateSetupState.showSuccess}
             showRetry={tetrateSetupState.showRetry}
             onRetry={() => handleRetrySetup('tetrate')}
             onClose={() => closeSetupModal('tetrate')}

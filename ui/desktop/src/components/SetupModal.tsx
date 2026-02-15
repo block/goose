@@ -5,6 +5,7 @@ interface SetupModalProps {
   title: string;
   message: string;
   showProgress?: boolean;
+  showSuccess?: boolean;
   showRetry?: boolean;
   onRetry?: () => void;
   autoClose?: number;
@@ -16,6 +17,7 @@ export function SetupModal({
   title,
   message,
   showProgress,
+  showSuccess,
   showRetry,
   onRetry,
   autoClose,
@@ -41,6 +43,15 @@ export function SetupModal({
         {showProgress && (
           <div className="flex justify-center mb-4">
             <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-blue-500"></div>
+          </div>
+        )}
+
+        {showSuccess && (
+          <div className="flex justify-center mb-4">
+            <svg className="h-10 w-10 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <circle cx="12" cy="12" r="10" className="stroke-green-500" fill="none" />
+              <path strokeLinecap="round" strokeLinejoin="round" d="M8 12l2.5 2.5L16 9" />
+            </svg>
           </div>
         )}
 

@@ -194,6 +194,19 @@ if (process.platform !== 'darwin') {
   }
 }
 
+function focusGooseWindow(): void {
+  const windows = BrowserWindow.getAllWindows();
+  if (windows.length > 0) {
+    const win = windows[0];
+    if (win.isMinimized()) win.restore();
+    win.show();
+    win.focus();
+  }
+  if (process.platform === 'darwin') {
+    app.dock?.bounce('informational');
+  }
+}
+
 let firstOpenWindow: BrowserWindow;
 let pendingDeepLink: string | null = null;
 let openUrlHandledLaunch = false;
@@ -206,6 +219,7 @@ async function handleProtocolUrl(url: string) {
       pendingDeepLink = null;
     })
   ) {
+    focusGooseWindow();
     return;
   }
 
@@ -286,6 +300,7 @@ app.on('open-url', async (_event, url) => {
         pendingDeepLink = null;
       })
     ) {
+      focusGooseWindow();
       return;
     }
 
