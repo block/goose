@@ -291,10 +291,7 @@ pub fn render_message_streaming(
                 had_text = true;
                 // Push to buffer and render any safe content
                 if let Some(safe_content) = buffer.push(&text.text) {
-                    eprintln!("[DEBUG] Rendering safe content: {:?}", safe_content);
                     print_markdown(&safe_content, theme);
-                } else {
-                    eprintln!("[DEBUG] Buffering text: {:?}", text.text);
                 }
             }
             // For non-text content, flush the buffer first then render normally
