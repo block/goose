@@ -1,4 +1,5 @@
 mod client;
+pub mod discovery;
 mod handle;
 pub mod types;
 mod utils;

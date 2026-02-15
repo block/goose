@@ -4229,6 +4229,7 @@ dependencies = [
  "clap_mangen",
  "cliclack",
  "console 0.16.2",
+ "dirs 5.0.1",
  "dotenvy",
  "etcetera 0.11.0",
  "futures",
@@ -4236,6 +4237,7 @@ dependencies = [
  "goose-mcp",
  "http 1.4.0",
  "indicatif 0.18.3",
+ "libc",
  "open",
  "rand 0.8.5",
  "regex",
@@ -5465,9 +5467,9 @@ checksum = "7a79a3332a6609480d7d0c9eab957bca6b455b91bb84e66d19f5ff66294b85b8"
 
 [[package]]
 name = "libc"
-version = "0.2.181"
+version = "0.2.182"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "459427e2af2b9c839b132acb702a1c654d95e10f8c326bfc2ad11310e458b1c5"
+checksum = "6800badb6cb2082ffd7b6a67e6125bb39f18782f793520caee8cb8846be06112"
 
 [[package]]
 name = "libdbus-sys"

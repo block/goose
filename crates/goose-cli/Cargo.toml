@@ -63,6 +63,8 @@ urlencoding = { workspace = true }
 clap_complete = "4.5.62"
 which.workspace = true
 tokio-stream.workspace = true
+libc = "0.2.182"
+dirs.workspace = true
 
 [target.'cfg(target_os = "windows")'.dependencies]
 winapi = { version = "0.3", features = ["wincred"] }

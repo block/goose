@@ -12,6 +12,7 @@ use tokio::process::{Child, Command};
 use tokio::sync::mpsc;
 use tokio_stream::wrappers::ReceiverStream;
 
+use super::discovery::{discover_goosed, record_goosed};
 use super::handle::GoosedHandle;
 use super::types::*;
 use super::utils::{find_available_port, find_goosed_binary, generate_secret, process_sse_buffer};
@@ -56,6 +57,34 @@ impl GoosedClient {
         };
 
         client.wait_for_ready().await?;
+        Ok(client)
+    }
+
+    /// Discover a running goosed instance or spawn a new one.
+    /// Persists connection state for future CLI invocations.
+    pub async fn spawn_or_discover(working_dir: &str) -> Result<Self> {
+        // Try to discover an existing instance
+        if let Some((base_url, secret_key)) = discover_goosed().await? {
+            tracing::info!("Reusing existing goosed instance");
+            return Self::connect(&base_url, &secret_key);
+        }
+
+        // No running instance — spawn a new one and record it
+        let client = Self::spawn(working_dir).await?;
+        if let Some(ref proc) = client.process {
+            if let Some(pid) = proc.id() {
+                record_goosed(
+                    client
+                        .base_url
+                        .split(':')
+                        .next_back()
+                        .and_then(|s| s.parse().ok())
+                        .unwrap_or(0),
+                    &client.secret_key,
+                    pid,
+                )?;
+            }
+        }
         Ok(client)
     }
 
