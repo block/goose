@@ -23,6 +23,8 @@ import { NotificationEvent } from '../types/message';
 import LoadingGoose from './LoadingGoose';
 import { ChatType } from '../types/chat';
 import { identifyConsecutiveToolCalls, isInChain } from '../utils/toolCallChaining';
+import { identifyWorkBlocks } from '../utils/assistantWorkBlocks';
+import WorkBlockIndicator from './WorkBlockIndicator';
 
 interface ProgressiveMessageListProps {
   messages: Message[];
@@ -168,9 +170,17 @@ export default function ProgressiveMessageList({
   // Detect tool call chains
   const toolCallChains = useMemo(() => identifyConsecutiveToolCalls(messages), [messages]);
 
+  // Compute work blocks for collapsing intermediate assistant messages
+  const workBlocks = useMemo(
+    () => identifyWorkBlocks(messages, isStreamingMessage),
+    [messages, isStreamingMessage]
+  );
+
   // Render messages up to the current rendered count
   const renderMessages = useCallback(() => {
     const messagesToRender = messages.slice(0, renderedCount);
+    const seenBlocks = new Set<string>();
+
     return messagesToRender
       .map((message, index) => {
         if (!message.metadata.userVisible) {
@@ -199,6 +209,37 @@ export default function ProgressiveMessageList({
               <SystemNotificationInline message={message} />
             </div>
           );
+        }
+
+        // Check if this message is part of a work block
+        const block = workBlocks.get(index);
+        if (block) {
+          // This message is an intermediate message in a work block — collapse it
+          const blockKey = `block-${block.intermediateIndices[0]}`;
+
+          if (!seenBlocks.has(blockKey)) {
+            // First message of this block — render the WorkBlockIndicator
+            seenBlocks.add(blockKey);
+            const blockMessages = block.intermediateIndices.map((i: number) => messages[i]);
+
+            return (
+              <div
+                key={blockKey}
+                className="relative mt-2 assistant"
+                data-testid="work-block-indicator"
+              >
+                <WorkBlockIndicator
+                  messages={blockMessages}
+                  blockId={blockKey}
+                  isStreaming={block.isStreaming}
+                  sessionId={chat.sessionId}
+                  toolCallNotifications={toolCallNotifications}
+                />
+              </div>
+            );
+          }
+          // Subsequent messages in the block — hide them
+          return null;
         }
 
         const isUser = isUserMessage(message);
@@ -245,12 +286,31 @@ export default function ProgressiveMessageList({
     isStreamingMessage,
     onMessageUpdate,
     toolCallChains,
+    workBlocks,
     submitElicitationResponse,
   ]);
+
+  // Show pending indicator when streaming started but no assistant response yet
+  const lastMessage = messages[messages.length - 1];
+  const hasNoAssistantResponse = !lastMessage || lastMessage.role === 'user';
+  const showPendingIndicator =
+    isStreamingMessage && messages.length > 0 && hasNoAssistantResponse;
 
   return (
     <>
       {renderMessages()}
+
+      {/* Pending streaming indicator — shows immediately after user sends */}
+      {showPendingIndicator && (
+        <div className="relative mt-4 assistant">
+          <WorkBlockIndicator
+            messages={[]}
+            blockId="pending"
+            isStreaming={true}
+            sessionId={chat.sessionId}
+          />
+        </div>
+      )}
 
       {/* Loading indicator when progressively rendering */}
       {isLoading && (

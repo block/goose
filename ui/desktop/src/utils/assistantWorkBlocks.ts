@@ -1,31 +1,15 @@
-/**
- * Groups consecutive assistant messages into "work blocks" for hidden mode.
- *
- * In ChatGPT, all intermediate reasoning / tool work is collapsed into a
- * single "Thought for X seconds" toggle. Goose emits multiple assistant
- * messages per turn (narration → tool calls → narration → tool calls → final answer).
- *
- * This utility identifies those runs so the UI can collapse them into one
- * visual block, showing only the final answer normally.
- *
- * A "work block" is a consecutive run of assistant messages between real user
- * messages. User messages that are tool responses or summarized tool results
- * (injected by the system between assistant messages) are treated as part of
- * the work block, not as boundaries.
- */
-
 import { Message } from '../api';
 
 export interface WorkBlock {
-  /** Indices of intermediate assistant messages to collapse */
+  /** Indices of intermediate (collapsed) assistant messages */
   intermediateIndices: number[];
-  /** ALL message indices in this block (assistant + user tool results) to hide */
+  /** All indices in the block range (assistant + user tool results) except final answer */
   allBlockIndices: Set<number>;
-  /** Index of the final answer message (shown normally), or -1 if streaming */
+  /** Index of the "final answer" message shown normally, or -1 if none yet */
   finalIndex: number;
-  /** Total tool calls across all intermediate messages */
+  /** Total tool calls across intermediates */
   toolCallCount: number;
-  /** Whether the block is still streaming (final answer not yet determined) */
+  /** Whether this block is actively streaming */
   isStreaming: boolean;
 }
 
@@ -104,6 +88,11 @@ function isRealUserMessage(
  * Returns a Map from message index → WorkBlock for each intermediate
  * message that should be collapsed. Messages not in the map are rendered
  * normally.
+ *
+ * A "final answer" is the last assistant message in a run that has display
+ * text but no tool requests, confirmations, or elicitations. During streaming,
+ * if no such message exists yet, all messages stay collapsed in the work block
+ * (finalIndex = -1).
  */
 export function identifyWorkBlocks(
   messages: Message[],
@@ -129,6 +118,7 @@ export function identifyWorkBlocks(
       }
     }
   }
+
   // Close final run
   if (blockStart !== -1) {
     assistantRuns.push({ start: blockStart, end: messages.length - 1 });
@@ -143,32 +133,35 @@ export function identifyWorkBlocks(
       }
     }
 
-    // A single assistant message doesn't need grouping
-    if (assistantIndices.length <= 1) continue;
-
-    // Find the last assistant message with display text — that's the "final answer"
-    // Skip messages that also have tool calls (those are intermediate narration+tool combos)
-    // Also skip if it has pending confirmations or elicitations
-    let finalAnswerIdx = -1;
     const isLastRunStreaming = isStreamingLast && run.end === messages.length - 1;
 
-    if (!isLastRunStreaming) {
-      for (let i = assistantIndices.length - 1; i >= 0; i--) {
-        const idx = assistantIndices[i];
-        const msg = messages[idx];
-        if (
-          hasDisplayText(msg) &&
-          !hasToolRequests(msg) &&
-          !hasToolConfirmation(msg) &&
-          !hasElicitation(msg)
-        ) {
-          finalAnswerIdx = idx;
-          break;
-        }
+    // A single assistant message doesn't need grouping — unless it's streaming
+    if (assistantIndices.length <= 1 && !isLastRunStreaming) {
+      continue;
+    }
+
+    // Find the last assistant message with display text and no tool calls —
+    // that's the "final answer" to show outside the collapsed block.
+    // Always search regardless of streaming state.
+    let finalAnswerIdx = -1;
+
+    for (let i = assistantIndices.length - 1; i >= 0; i--) {
+      const idx = assistantIndices[i];
+      const msg = messages[idx];
+      if (
+        hasDisplayText(msg) &&
+        !hasToolRequests(msg) &&
+        !hasToolConfirmation(msg) &&
+        !hasElicitation(msg)
+      ) {
+        finalAnswerIdx = idx;
+        break;
       }
     }
 
-    // If no final answer found and not streaming, the last message IS the final answer
+    // For completed runs, if no clean final answer found, use the last assistant
+    // message as a fallback. For streaming runs, leave finalIndex as -1 to
+    // indicate "no final answer yet" — everything stays collapsed.
     if (finalAnswerIdx === -1 && !isLastRunStreaming) {
       finalAnswerIdx = assistantIndices[assistantIndices.length - 1];
     }

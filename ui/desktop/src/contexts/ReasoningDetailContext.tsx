@@ -1,4 +1,5 @@
 import { createContext, useContext, useState, useCallback, useRef, ReactNode } from 'react';
+import { Message } from '../api';
 
 interface ReasoningDetail {
   title: string;
@@ -6,12 +7,29 @@ interface ReasoningDetail {
   messageId?: string;
 }
 
+export interface WorkBlockDetail {
+  title: string;
+  messageId: string;
+  messages: Message[];
+  toolCount: number;
+  agentName?: string;
+  modeName?: string;
+  sessionId?: string;
+  toolCallNotifications?: Map<string, unknown[]>;
+}
+
+type PanelDetail =
+  | { type: 'reasoning'; data: ReasoningDetail }
+  | { type: 'workblock'; data: WorkBlockDetail };
+
 interface ReasoningDetailContextType {
   detail: ReasoningDetail | null;
+  panelDetail: PanelDetail | null;
   isOpen: boolean;
   openDetail: (detail: ReasoningDetail) => void;
   closeDetail: () => void;
   toggleDetail: (detail: ReasoningDetail) => void;
+  toggleWorkBlock: (detail: WorkBlockDetail) => void;
   updateContent: (content: string) => void;
 }
 
@@ -27,11 +45,13 @@ export function useReasoningDetail() {
 
 export function ReasoningDetailProvider({ children }: { children: ReactNode }) {
   const [detail, setDetail] = useState<ReasoningDetail | null>(null);
+  const [panelDetail, setPanelDetail] = useState<PanelDetail | null>(null);
   const [isOpen, setIsOpen] = useState(false);
   const isOpenRef = useRef(false);
 
   const openDetail = useCallback((newDetail: ReasoningDetail) => {
     setDetail(newDetail);
+    setPanelDetail({ type: 'reasoning', data: newDetail });
     setIsOpen(true);
     isOpenRef.current = true;
   }, []);
@@ -39,7 +59,10 @@ export function ReasoningDetailProvider({ children }: { children: ReactNode }) {
   const closeDetail = useCallback(() => {
     setIsOpen(false);
     isOpenRef.current = false;
-    setTimeout(() => setDetail(null), 300);
+    setTimeout(() => {
+      setDetail(null);
+      setPanelDetail(null);
+    }, 300);
   }, []);
 
   const toggleDetail = useCallback(
@@ -53,13 +76,40 @@ export function ReasoningDetailProvider({ children }: { children: ReactNode }) {
     [detail?.messageId, openDetail, closeDetail]
   );
 
+  const toggleWorkBlock = useCallback(
+    (workBlock: WorkBlockDetail) => {
+      if (
+        isOpenRef.current &&
+        panelDetail?.type === 'workblock' &&
+        panelDetail.data.messageId === workBlock.messageId
+      ) {
+        closeDetail();
+      } else {
+        setDetail(null);
+        setPanelDetail({ type: 'workblock', data: workBlock });
+        setIsOpen(true);
+        isOpenRef.current = true;
+      }
+    },
+    [panelDetail, closeDetail]
+  );
+
   const updateContent = useCallback((content: string) => {
     setDetail((prev) => (prev ? { ...prev, content } : prev));
   }, []);
 
   return (
     <ReasoningDetailContext.Provider
-      value={{ detail, isOpen, openDetail, closeDetail, toggleDetail, updateContent }}
+      value={{
+        detail,
+        panelDetail,
+        isOpen,
+        openDetail,
+        closeDetail,
+        toggleDetail,
+        toggleWorkBlock,
+        updateContent,
+      }}
     >
       {children}
     </ReasoningDetailContext.Provider>

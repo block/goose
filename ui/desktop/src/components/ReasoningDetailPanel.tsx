@@ -1,21 +1,31 @@
 import { useEffect, useRef } from 'react';
-import { X, Brain } from 'lucide-react';
+import { X, Brain, Wrench } from 'lucide-react';
 import { useReasoningDetail } from '../contexts/ReasoningDetailContext';
 import MarkdownContent from './MarkdownContent';
 import { ScrollArea } from './ui/scroll-area';
 import { cn } from '../utils';
+import GooseMessage from './GooseMessage';
 
 export default function ReasoningDetailPanel() {
-  const { detail, isOpen, closeDetail } = useReasoningDetail();
+  const { detail, panelDetail, isOpen, closeDetail } = useReasoningDetail();
   const bottomRef = useRef<HTMLDivElement>(null);
-  const isLiveStreaming = detail?.title === 'Thinking...';
+
+  const isWorkBlock = panelDetail?.type === 'workblock';
+  const isReasoning = panelDetail?.type === 'reasoning' || (!panelDetail && detail);
+  const isLiveStreaming = isWorkBlock
+    ? panelDetail?.data?.messages?.length === 0
+    : detail?.title === 'Thinking...';
+
+  const title = isWorkBlock
+    ? panelDetail.data.title || 'Work Block'
+    : detail?.title || 'Details';
 
   // Auto-scroll to bottom during live streaming
   useEffect(() => {
     if (isLiveStreaming && bottomRef.current) {
       bottomRef.current.scrollIntoView({ behavior: 'smooth' });
     }
-  }, [detail?.content, isLiveStreaming]);
+  }, [detail?.content, panelDetail, isLiveStreaming]);
 
   return (
     <div
@@ -24,20 +34,36 @@ export default function ReasoningDetailPanel() {
         isOpen ? 'w-[400px] min-w-[400px] opacity-100' : 'w-0 min-w-0 opacity-0'
       )}
     >
-      {detail && (
+      {isOpen && (
         <>
           <div className="flex items-center justify-between px-4 py-3 border-b border-border-default shrink-0">
             <div className="flex items-center gap-2 min-w-0">
-              <Brain
-                size={16}
-                className={cn(
-                  'shrink-0',
-                  isLiveStreaming ? 'text-amber-400 animate-pulse' : 'text-text-muted'
-                )}
-              />
+              {isWorkBlock ? (
+                <Wrench
+                  size={16}
+                  className={cn(
+                    'shrink-0',
+                    isLiveStreaming ? 'text-blue-400 animate-pulse' : 'text-text-muted'
+                  )}
+                />
+              ) : (
+                <Brain
+                  size={16}
+                  className={cn(
+                    'shrink-0',
+                    isLiveStreaming ? 'text-amber-400 animate-pulse' : 'text-text-muted'
+                  )}
+                />
+              )}
               <h3 className="text-sm font-medium text-text-default truncate">
-                {detail.title}
+                {title}
               </h3>
+              {isWorkBlock && panelDetail.data.agentName && (
+                <span className="text-xs text-blue-500 font-medium ml-1">
+                  {panelDetail.data.agentName}
+                  {panelDetail.data.modeName && ` · ${panelDetail.data.modeName}`}
+                </span>
+              )}
             </div>
             <button
               onClick={closeDetail}
@@ -46,11 +72,35 @@ export default function ReasoningDetailPanel() {
               <X size={16} className="text-text-muted" />
             </button>
           </div>
+
           <ScrollArea className="flex-1 min-h-0" paddingX={4} paddingY={4}>
-            <div className="text-sm text-text-muted/90">
-              <MarkdownContent content={detail.content} />
-              <div ref={bottomRef} />
-            </div>
+            {isWorkBlock && panelDetail.data.messages ? (
+              <div className="space-y-3">
+                {panelDetail.data.toolCount > 0 && (
+                  <div className="text-xs text-text-muted px-1 py-1.5 border-b border-border-default">
+                    {panelDetail.data.toolCount} tool{panelDetail.data.toolCount !== 1 ? 's' : ''} used
+                  </div>
+                )}
+                {panelDetail.data.messages.map((msg, i) => (
+                  <div key={msg.id ?? `wb-msg-${i}`} className="text-sm">
+                    <GooseMessage
+                      sessionId={panelDetail.data.sessionId || ''}
+                      message={msg}
+                      messages={panelDetail.data.messages}
+                      append={() => {}}
+                      toolCallNotifications={new Map()}
+                      isStreaming={false}
+                    />
+                  </div>
+                ))}
+                <div ref={bottomRef} />
+              </div>
+            ) : isReasoning && detail ? (
+              <div className="text-sm text-text-muted/90">
+                <MarkdownContent content={detail.content} />
+                <div ref={bottomRef} />
+              </div>
+            ) : null}
           </ScrollArea>
         </>
       )}

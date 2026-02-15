@@ -10,7 +10,7 @@ import React, {
 } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { SearchView } from './conversation/SearchView';
-import LoadingGoose from './LoadingGoose';
+
 import PopularChatTopics from './PopularChatTopics';
 import ProgressiveMessageList from './ProgressiveMessageList';
 import { MainPanelLayout } from './Layout/MainPanelLayout';
@@ -28,11 +28,11 @@ import { useNavigation } from '../hooks/useNavigation';
 import { RecipeHeader } from './RecipeHeader';
 import { RecipeWarningModal } from './ui/RecipeWarningModal';
 import { scanRecipe } from '../recipe';
-import { UserInput, MessageWithAttribution } from '../types/message';
+import { UserInput } from '../types/message';
 import { useCostTracking } from '../hooks/useCostTracking';
 import RecipeActivities from './recipes/RecipeActivities';
 import { useToolCount } from './alerts/useToolCount';
-import { getThinkingMessage, getTextAndImageContent } from '../types/message';
+import { getTextAndImageContent } from '../types/message';
 import ParameterInputModal from './ParameterInputModal';
 import { substituteParameters } from '../utils/providerUtils';
 import { useModelAndProvider } from './ModelAndProviderContext';
@@ -451,25 +451,7 @@ export default function BaseChat({
             ) : null}
           </ScrollArea>
 
-          {chatState !== ChatState.Idle && (() => {
-            const lastAssistant = [...messages].reverse().find((m) => m.role === 'assistant');
-            const routingInfo = lastAssistant
-              ? (lastAssistant as MessageWithAttribution)._routingInfo
-              : undefined;
-            return (
-              <div className="absolute bottom-1 left-4 z-20 pointer-events-none">
-                <LoadingGoose
-                  chatState={chatState}
-                  routingInfo={routingInfo}
-                  message={
-                    messages.length > 0
-                      ? getThinkingMessage(messages[messages.length - 1])
-                      : undefined
-                  }
-                />
-              </div>
-            );
-          })()}
+          {/* WorkBlockIndicator in ProgressiveMessageList handles streaming state */}
         </div>
 
         <div

@@ -82,14 +82,20 @@ export default function AgentsView() {
     try {
       const resp = await listAgents();
       if (resp.data?.agents) {
-        for (const agentId of resp.data.agents) {
+        for (const agent of resp.data.agents) {
           allAgents.push({
-            id: agentId,
-            name: agentId,
-            description: 'External ACP agent',
+            id: agent.name,
+            name: agent.name,
+            description: agent.description || 'External ACP agent',
             status: 'connected',
             kind: 'external',
-            modes: [],
+            modes: (agent.modes || []).map((m) => ({
+              slug: m.id,
+              name: m.name,
+              description: m.description || '',
+              tool_groups: m.tool_groups || [],
+              recommended_extensions: [],
+            })),
             enabled: true,
             boundExtensions: [],
           });
