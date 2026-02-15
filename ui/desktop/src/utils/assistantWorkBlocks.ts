@@ -100,6 +100,8 @@ export function identifyWorkBlocks(
 ): Map<number, WorkBlock> {
   const result = new Map<number, WorkBlock>();
 
+  console.log(`[WorkBlocks] identifyWorkBlocks called: messageCount=${messages.length}, isStreamingLast=${isStreamingLast}`);
+
   // Find runs of consecutive assistant messages (with transparent user messages)
   let blockStart = -1;
   const assistantRuns: Array<{ start: number; end: number }> = [];
@@ -122,6 +124,20 @@ export function identifyWorkBlocks(
   // Close final run
   if (blockStart !== -1) {
     assistantRuns.push({ start: blockStart, end: messages.length - 1 });
+  }
+
+  console.log(`[WorkBlocks] assistantRuns: ${JSON.stringify(assistantRuns)}`);
+  if (assistantRuns.length > 0) {
+    // Log message roles/types around run boundaries for debugging
+    for (const run of assistantRuns) {
+      const roles = [];
+      for (let i = run.start; i <= Math.min(run.end, run.start + 5); i++) {
+        const m = messages[i];
+        roles.push(`${i}:${m.role}(${m.content.map(c => c.type).join(',')})`);
+      }
+      if (run.end - run.start > 5) roles.push('...');
+      console.log(`[WorkBlocks] run [${run.start}..${run.end}] messages: ${roles.join(' | ')}`);
+    }
   }
 
   for (const run of assistantRuns) {
@@ -201,11 +217,14 @@ export function identifyWorkBlocks(
       isStreaming: isLastRunStreaming,
     };
 
+    console.log(`[WorkBlocks] block run=[${run.start}..${run.end}] finalIdx=${finalAnswerIdx} intermediateCount=${intermediateIndices.length} toolCalls=${totalToolCalls} isStreaming=${isLastRunStreaming} allBlockSize=${allBlockIndices.size}`);
+
     // Map EVERY index in the block (assistant AND user) to this block
     for (const idx of allBlockIndices) {
       result.set(idx, block);
     }
   }
 
+  console.log(`[WorkBlocks] result: ${result.size} indices mapped to ${new Set([...result.values()]).size} blocks`);
   return result;
 }

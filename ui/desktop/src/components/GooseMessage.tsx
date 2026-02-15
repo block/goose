@@ -196,6 +196,9 @@ export default function GooseMessage({
   const routingInfo = (message as MessageWithAttribution)._routingInfo;
   const toolRequests = getToolRequests(message);
   const messageIndex = messages.findIndex((msg) => msg.id === message.id);
+
+  console.log(`[GooseMsg] render idx=${messageIndex} role=${message.role} isStreaming=${isStreaming} displayLen=${displayText.length} hasCot=${!!cotText} toolReqs=${toolRequests.length} contentTypes=${message.content.map(c => c.type).join(',')}`);
+
   const toolConfirmationContent = getToolConfirmationContent(message);
   const elicitationContent = getElicitationContent(message);
 
