@@ -19,6 +19,8 @@ use std::path::Path;
 use std::sync::Arc;
 use std::time::Duration;
 
+use super::streaming_buffer::MarkdownBuffer;
+
 pub const DEFAULT_MIN_PRIORITY: f32 = 0.0;
 pub const DEFAULT_CLI_LIGHT_THEME: &str = "GitHub";
 pub const DEFAULT_CLI_DARK_THEME: &str = "zenburn";
@@ -270,6 +272,109 @@ pub fn render_message(message: &Message, debug: bool) {
     }
 
     let _ = std::io::stdout().flush();
+}
+
+/// Render a streaming message, using a buffer to accumulate text content
+/// and only render when markdown constructs are complete.
+/// Returns true if the message contained text content (for tracking purposes).
+pub fn render_message_streaming(
+    message: &Message,
+    buffer: &mut MarkdownBuffer,
+    debug: bool,
+) -> bool {
+    let theme = get_theme();
+    let mut had_text = false;
+
+    for content in &message.content {
+        match content {
+            MessageContent::Text(text) => {
+                had_text = true;
+                // Push to buffer and render any safe content
+                if let Some(safe_content) = buffer.push(&text.text) {
+                    eprintln!("[DEBUG] Rendering safe content: {:?}", safe_content);
+                    print_markdown(&safe_content, theme);
+                } else {
+                    eprintln!("[DEBUG] Buffering text: {:?}", text.text);
+                }
+            }
+            // For non-text content, flush the buffer first then render normally
+            MessageContent::ToolRequest(req) => {
+                flush_markdown_buffer(buffer, theme);
+                render_tool_request(req, theme, debug);
+            }
+            MessageContent::ToolResponse(resp) => {
+                flush_markdown_buffer(buffer, theme);
+                render_tool_response(resp, theme, debug);
+            }
+            MessageContent::ActionRequired(action) => {
+                flush_markdown_buffer(buffer, theme);
+                match &action.data {
+                    ActionRequiredData::ToolConfirmation { tool_name, .. } => {
+                        println!("action_required(tool_confirmation): {}", tool_name)
+                    }
+                    ActionRequiredData::Elicitation { message, .. } => {
+                        println!("action_required(elicitation): {}", message)
+                    }
+                    ActionRequiredData::ElicitationResponse { id, .. } => {
+                        println!("action_required(elicitation_response): {}", id)
+                    }
+                }
+            }
+            MessageContent::Image(image) => {
+                flush_markdown_buffer(buffer, theme);
+                println!("Image: [data: {}, type: {}]", image.data, image.mime_type);
+            }
+            MessageContent::Thinking(thinking) => {
+                if std::env::var("GOOSE_CLI_SHOW_THINKING").is_ok()
+                    && std::io::stdout().is_terminal()
+                {
+                    flush_markdown_buffer(buffer, theme);
+                    println!("\n{}", style("Thinking:").dim().italic());
+                    print_markdown(&thinking.thinking, theme);
+                }
+            }
+            MessageContent::RedactedThinking(_) => {
+                flush_markdown_buffer(buffer, theme);
+                println!("\n{}", style("Thinking:").dim().italic());
+                print_markdown("Thinking was redacted", theme);
+            }
+            MessageContent::SystemNotification(notification) => {
+                use goose::conversation::message::SystemNotificationType;
+
+                match notification.notification_type {
+                    SystemNotificationType::ThinkingMessage => {
+                        show_thinking();
+                        set_thinking_message(&notification.msg);
+                    }
+                    SystemNotificationType::InlineMessage => {
+                        flush_markdown_buffer(buffer, theme);
+                        hide_thinking();
+                        println!("\n{}", style(&notification.msg).yellow());
+                    }
+                }
+            }
+            _ => {
+                flush_markdown_buffer(buffer, theme);
+                println!("WARNING: Message content type could not be rendered");
+            }
+        }
+    }
+
+    let _ = std::io::stdout().flush();
+    had_text
+}
+
+/// Flush any remaining content in the markdown buffer
+pub fn flush_markdown_buffer(buffer: &mut MarkdownBuffer, theme: Theme) {
+    let remaining = buffer.flush();
+    if !remaining.is_empty() {
+        print_markdown(&remaining, theme);
+    }
+}
+
+/// Convenience function to flush with the current theme
+pub fn flush_markdown_buffer_current_theme(buffer: &mut MarkdownBuffer) {
+    flush_markdown_buffer(buffer, get_theme());
 }
 
 pub fn render_text(text: &str, color: Option<Color>, dim: bool) {
