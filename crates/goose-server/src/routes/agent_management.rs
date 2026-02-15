@@ -307,7 +307,7 @@ pub async fn list_builtin_agents(
     }
 
     let goose_modes: Vec<BuiltinAgentMode> = goose
-        .to_agent_modes()
+        .to_public_agent_modes()
         .into_iter()
         .map(|m| BuiltinAgentMode {
             slug: m.slug.clone(),

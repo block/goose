@@ -301,6 +301,7 @@ impl CodingAgent {
                 instructions_file: Some(m.template_name.clone()),
                 tool_groups: m.tool_groups.clone(),
                 when_to_use: Some(m.when_to_use.clone()),
+                is_internal: false,
             })
             .collect()
     }

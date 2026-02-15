@@ -1,4 +1,5 @@
 use serde::{Deserialize, Serialize};
+use tracing::{debug, info};
 
 use crate::agents::coding_agent::CodingAgent;
 use crate::agents::goose_agent::GooseAgent;
@@ -99,11 +100,21 @@ impl IntentRouter {
     /// Route a user message to the best agent/mode.
     pub fn route(&self, user_message: &str) -> RoutingDecision {
         let message_lower = user_message.to_lowercase();
+        let message_preview: String = user_message.chars().take(120).collect();
 
         let enabled_slots: Vec<&AgentSlot> = self.slots.iter().filter(|s| s.enabled).collect();
 
         if enabled_slots.is_empty() {
-            return self.fallback_decision("No agents enabled");
+            let decision = self.fallback_decision("No agents enabled");
+            info!(
+                agent = decision.agent_name,
+                mode = decision.mode_slug,
+                confidence = decision.confidence,
+                reasoning = decision.reasoning.as_str(),
+                message_preview = message_preview.as_str(),
+                "routing.decision"
+            );
+            return decision;
         }
 
         // Score each mode against the message
@@ -112,30 +123,60 @@ impl IntentRouter {
         for slot in &enabled_slots {
             for mode in &slot.modes {
                 let score = self.score_mode_match(&message_lower, mode);
-                if score > 0.0 && (best.is_none() || score > best.as_ref().unwrap().0) {
-                    best = Some((score, slot, mode));
+                if score > 0.0 {
+                    debug!(
+                        agent = slot.name.as_str(),
+                        mode = mode.slug.as_str(),
+                        score = score,
+                        "routing.score"
+                    );
+                    if best.is_none() || score > best.as_ref().unwrap().0 {
+                        best = Some((score, slot, mode));
+                    }
                 }
             }
         }
 
-        if let Some((score, slot, mode)) = best {
+        let decision = if let Some((score, slot, mode)) = best {
             if score >= 0.2 {
-                return RoutingDecision {
+                RoutingDecision {
                     agent_name: slot.name.clone(),
                     mode_slug: mode.slug.clone(),
                     confidence: score.min(1.0),
                     reasoning: format!("Matched mode '{}' (score: {:.2})", mode.name, score),
-                };
+                }
+            } else {
+                let default_slot = enabled_slots.first().unwrap();
+                RoutingDecision {
+                    agent_name: default_slot.name.clone(),
+                    mode_slug: default_slot.default_mode.clone(),
+                    confidence: 0.5,
+                    reasoning: format!(
+                        "Best score {:.2} below threshold; using default agent",
+                        score
+                    ),
+                }
             }
-        }
+        } else {
+            let default_slot = enabled_slots.first().unwrap();
+            RoutingDecision {
+                agent_name: default_slot.name.clone(),
+                mode_slug: default_slot.default_mode.clone(),
+                confidence: 0.5,
+                reasoning: "No mode keyword matches; using default agent".into(),
+            }
+        };
 
-        let default_slot = enabled_slots.first().unwrap();
-        RoutingDecision {
-            agent_name: default_slot.name.clone(),
-            mode_slug: default_slot.default_mode.clone(),
-            confidence: 0.5,
-            reasoning: "No strong mode match; using default agent".into(),
-        }
+        info!(
+            agent = decision.agent_name.as_str(),
+            mode = decision.mode_slug.as_str(),
+            confidence = decision.confidence,
+            reasoning = decision.reasoning.as_str(),
+            message_preview = message_preview.as_str(),
+            "routing.decision"
+        );
+
+        decision
     }
 
     fn score_mode_match(&self, message_lower: &str, mode: &AgentMode) -> f32 {

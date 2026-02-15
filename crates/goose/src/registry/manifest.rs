@@ -249,6 +249,10 @@ pub struct AgentMode {
     /// Hint for when this mode should be auto-selected.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub when_to_use: Option<String>,
+
+    /// Internal modes are used by orchestration only, not exposed via ACP/A2A discovery.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub is_internal: bool,
 }
 
 /// Access control for a tool group within a mode.
@@ -596,6 +600,7 @@ mod tests {
                             ToolGroupAccess::Full("mcp".into()),
                         ],
                         when_to_use: Some("When the user wants to write or modify code".into()),
+                        is_internal: false,
                     },
                     AgentMode {
                         slug: "review".into(),
@@ -608,6 +613,7 @@ mod tests {
                             ToolGroupAccess::Full("mcp".into()),
                         ],
                         when_to_use: Some("When the user wants a code review".into()),
+                        is_internal: false,
                     },
                     AgentMode {
                         slug: "architect".into(),
@@ -624,6 +630,7 @@ mod tests {
                             },
                         ],
                         when_to_use: Some("When discussing architecture or design".into()),
+                        is_internal: false,
                     },
                 ],
                 skills: vec![AgentSkill {

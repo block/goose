@@ -31,17 +31,20 @@ fn build_dynamic_agent_card() -> A2aAgentCard {
         .iter()
         .flat_map(|slot| {
             let agent_name = slot.name.clone();
-            slot.modes.iter().map(move |mode| A2aAgentSkill {
-                id: format!("{}.{}", slugify(&agent_name), mode.slug),
-                name: format!("{} — {}", agent_name, mode.name),
-                description: mode.description.clone(),
-                tags: mode
-                    .tool_groups
-                    .iter()
-                    .map(|tg| format!("{tg:?}"))
-                    .collect(),
-                examples: Vec::new(),
-            })
+            slot.modes
+                .iter()
+                .filter(|mode| !mode.is_internal)
+                .map(move |mode| A2aAgentSkill {
+                    id: format!("{}.{}", slugify(&agent_name), mode.slug),
+                    name: format!("{} — {}", agent_name, mode.name),
+                    description: mode.description.clone(),
+                    tags: mode
+                        .tool_groups
+                        .iter()
+                        .map(|tg| format!("{tg:?}"))
+                        .collect(),
+                    examples: Vec::new(),
+                })
         })
         .collect();
 
@@ -86,14 +89,15 @@ mod tests {
         let card = build_dynamic_agent_card();
         assert_eq!(card.name, "Goose");
 
-        // Should have skills from both Goose Agent (7 modes) and Coding Agent (8 modes)
+        // Should have skills from both agents, minus internal modes
+        // GooseAgent: 4 public modes; CodingAgent: 8 modes → 12 total
         assert!(
-            card.skills.len() >= 15,
-            "Expected >= 15 skills, got {}",
+            card.skills.len() >= 12,
+            "Expected >= 12 public skills, got {}",
             card.skills.len()
         );
 
-        // Check specific skills exist
+        // Check specific public skills exist
         let skill_ids: Vec<&str> = card.skills.iter().map(|s| s.id.as_str()).collect();
         assert!(
             skill_ids.contains(&"goose-agent.assistant"),
@@ -104,6 +108,20 @@ mod tests {
             "Missing backend skill"
         );
         assert!(skill_ids.contains(&"coding-agent.qa"), "Missing qa skill");
+
+        // Internal modes must NOT appear as A2A skills
+        assert!(
+            !skill_ids.contains(&"goose-agent.judge"),
+            "Internal mode 'judge' should not be an A2A skill"
+        );
+        assert!(
+            !skill_ids.contains(&"goose-agent.planner"),
+            "Internal mode 'planner' should not be an A2A skill"
+        );
+        assert!(
+            !skill_ids.contains(&"goose-agent.recipe_maker"),
+            "Internal mode 'recipe_maker' should not be an A2A skill"
+        );
     }
 
     #[test]

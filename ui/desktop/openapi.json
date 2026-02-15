@@ -7919,7 +7919,8 @@
         "description": "Request payload for resuming an awaiting run.",
         "required": [
           "run_id",
-          "await_resume"
+          "await_resume",
+          "mode"
         ],
         "properties": {
           "await_resume": {

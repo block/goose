@@ -1307,7 +1307,7 @@ export type RunNowResponse = {
  */
 export type RunResumeRequest = {
     await_resume: AwaitResume;
-    mode?: RunMode;
+    mode: RunMode;
     run_id: string;
 };
 

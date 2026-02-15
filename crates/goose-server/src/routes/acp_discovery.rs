@@ -79,6 +79,7 @@ fn build_agent_manifests() -> Vec<AgentManifest> {
         let modes: Vec<AgentModeInfo> = slot
             .modes
             .iter()
+            .filter(|mode| !mode.is_internal)
             .map(|mode| {
                 let tool_groups: Vec<String> = mode
                     .tool_groups
@@ -268,14 +269,29 @@ mod tests {
         let manifests = build_agent_manifests();
         let goose = manifests.iter().find(|m| m.name == "goose-agent").unwrap();
 
-        // Goose Agent should have 7 modes
+        // Goose Agent: 7 total modes, 3 internal (judge, planner, recipe_maker) → 4 public
         assert!(
-            goose.modes.len() >= 7,
-            "Expected >= 7 modes for Goose Agent, got {}",
+            goose.modes.len() >= 4,
+            "Expected >= 4 public modes for Goose Agent, got {}",
             goose.modes.len()
         );
 
+        // Internal modes must NOT appear in ACP discovery
         let mode_ids: Vec<_> = goose.modes.iter().map(|m| m.id.as_str()).collect();
+        assert!(
+            !mode_ids.contains(&"judge"),
+            "Internal mode 'judge' should not be exposed"
+        );
+        assert!(
+            !mode_ids.contains(&"planner"),
+            "Internal mode 'planner' should not be exposed"
+        );
+        assert!(
+            !mode_ids.contains(&"recipe_maker"),
+            "Internal mode 'recipe_maker' should not be exposed"
+        );
+
+        // Public modes must be present
         assert!(mode_ids.contains(&"assistant"), "Missing assistant mode");
         assert!(mode_ids.contains(&"specialist"), "Missing specialist mode");
         assert_eq!(

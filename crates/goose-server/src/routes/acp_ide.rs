@@ -820,7 +820,7 @@ fn collect_modes() -> Vec<AgentMode> {
     let goose = GooseAgent::new();
     let coding = CodingAgent::new();
 
-    let mut modes = goose.to_agent_modes();
+    let mut modes = goose.to_public_agent_modes();
     modes.extend(coding.to_agent_modes());
     modes
 }
@@ -944,15 +944,27 @@ mod tests {
     #[test]
     fn test_collect_modes() {
         let modes = collect_modes();
+        // GooseAgent: 4 public modes; CodingAgent: 8 modes → 12 total
         assert!(
-            modes.len() >= 15,
-            "Expected at least 15 modes, got {}",
+            modes.len() >= 12,
+            "Expected at least 12 public modes, got {}",
             modes.len()
         );
         let slugs: Vec<&str> = modes.iter().map(|m| m.slug.as_str()).collect();
         assert!(slugs.contains(&"assistant"));
         assert!(slugs.contains(&"backend"));
         assert!(slugs.contains(&"qa"));
+
+        // Internal modes must not be exposed to IDE clients
+        assert!(!slugs.contains(&"judge"), "Internal mode 'judge' leaked");
+        assert!(
+            !slugs.contains(&"planner"),
+            "Internal mode 'planner' leaked"
+        );
+        assert!(
+            !slugs.contains(&"recipe_maker"),
+            "Internal mode 'recipe_maker' leaked"
+        );
     }
 
     #[test]
