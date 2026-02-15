@@ -1,6 +1,7 @@
 use anyhow::Result;
 use fs_err as fs;
 use goose::agents::extension::{Envs, PLATFORM_EXTENSIONS};
+use goose::agents::mcp_client::McpClient;
 use goose::agents::{Agent, AgentConfig, ExtensionConfig, SessionConfig};
 use goose::builtin_extension::register_builtin_extensions;
 use goose::config::base::CONFIG_YAML_NAME;
@@ -10,6 +11,7 @@ use goose::config::permission::PermissionManager;
 use goose::config::Config;
 use goose::conversation::message::{ActionRequiredData, Message, MessageContent};
 use goose::conversation::Conversation;
+
 use goose::mcp_utils::ToolResult;
 use goose::permission::permission_confirmation::PrincipalType;
 use goose::permission::{Permission, PermissionConfirmation};
@@ -17,10 +19,11 @@ use goose::providers::base::Provider;
 use goose::providers::provider_registry::ProviderConstructor;
 use goose::session::session_manager::SessionType;
 use goose::session::{Session, SessionManager};
-use rmcp::model::{CallToolResult, RawContent, ResourceContents, Role};
+use rmcp::model::{CallToolResult, RawContent, RawEmbeddedResource, ResourceContents, Role};
+use rmcp::ServiceExt;
 use sacp::schema::{
     AgentCapabilities, AuthMethod, AuthenticateRequest, AuthenticateResponse, BlobResourceContents,
-    CancelNotification, Content, ContentBlock, ContentChunk, EmbeddedResource,
+    CancelNotification, ClientCapabilities, Content, ContentBlock, ContentChunk, EmbeddedResource,
     EmbeddedResourceResource, ImageContent, InitializeRequest, InitializeResponse,
     LoadSessionRequest, LoadSessionResponse, McpCapabilities, McpServer, ModelId, ModelInfo,
     NewSessionRequest, NewSessionResponse, PermissionOption, PermissionOptionKind,
@@ -28,11 +31,12 @@ use sacp::schema::{
     RequestPermissionRequest, ResourceLink, SessionId, SessionModelState, SessionNotification,
     SessionUpdate, SetSessionModelRequest, SetSessionModelResponse, StopReason, TextContent,
     TextResourceContents, ToolCall, ToolCallContent, ToolCallId, ToolCallLocation, ToolCallStatus,
-    ToolCallUpdate, ToolCallUpdateFields, ToolKind,
+    ToolCallUpdate, ToolCallUpdateFields, ToolKind, WriteTextFileRequest, WriteTextFileResponse,
 };
 use sacp::{AgentToClient, ByteStreams, Handled, JrConnectionCx, JrMessageHandler, MessageCx};
 use std::collections::HashMap;
 use std::sync::Arc;
+use std::time::Duration;
 use tokio::sync::Mutex;
 use tokio_util::compat::{TokioAsyncReadCompatExt as _, TokioAsyncWriteCompatExt as _};
 use tokio_util::sync::CancellationToken;
@@ -48,6 +52,25 @@ struct GooseAcpSession {
     cancel_token: Option<CancellationToken>,
 }
 
+#[derive(Debug, Clone, Default)]
+pub struct AcpClientCapabilities {
+    pub fs_write_text_file: bool,
+    #[allow(dead_code)] // TODO: implement read file gating when ACP supports it
+    pub fs_read_text_file: bool,
+    #[allow(dead_code)] // TODO: implement terminal gating when ACP supports it
+    pub terminal: bool,
+}
+
+impl From<&ClientCapabilities> for AcpClientCapabilities {
+    fn from(caps: &ClientCapabilities) -> Self {
+        Self {
+            fs_write_text_file: caps.fs.write_text_file,
+            fs_read_text_file: caps.fs.read_text_file,
+            terminal: caps.terminal,
+        }
+    }
+}
+
 pub struct GooseAcpAgent {
     sessions: Arc<Mutex<HashMap<String, GooseAcpSession>>>,
     provider_factory: ProviderConstructor,
@@ -57,6 +80,7 @@ pub struct GooseAcpAgent {
     goose_mode: goose::config::GooseMode,
     disable_session_naming: bool,
     builtins: Vec<String>,
+    client_capabilities: tokio::sync::OnceCell<AcpClientCapabilities>,
 }
 
 fn mcp_server_to_extension_config(mcp_server: McpServer) -> Result<ExtensionConfig, String> {
@@ -260,6 +284,50 @@ async fn add_builtins(agent: &Agent, builtins: Vec<String>) {
         }
     }
 }
+
+async fn add_deferred_developer(
+    agent: &Agent,
+) -> Result<(), goose::agents::extension::ExtensionError> {
+    let (server_read, client_write) = tokio::io::duplex(65536);
+    let (client_read, server_write) = tokio::io::duplex(65536);
+
+    let server = goose_mcp::DeveloperServer::new().with_write_mode(WriteMode::Deferred);
+    tokio::spawn(async move {
+        if let Ok(running) = server.serve((server_read, server_write)).await {
+            let _ = running.waiting().await;
+        }
+    });
+
+    let client = McpClient::connect(
+        (client_read, client_write),
+        Duration::from_secs(300),
+        agent.extension_manager.get_provider().clone(),
+    )
+    .await?;
+
+    let config = ExtensionConfig::Builtin {
+        name: "developer".to_string(),
+        display_name: None,
+        timeout: None,
+        bundled: None,
+        description: "developer".to_string(),
+        available_tools: Vec::new(),
+    };
+
+    agent
+        .extension_manager
+        .add_client(
+            "developer".to_string(),
+            config,
+            Arc::new(client),
+            None,
+            None,
+        )
+        .await;
+
+    Ok(())
+}
+
 async fn add_extensions(agent: &Agent, extensions: Vec<ExtensionConfig>) {
     for extension in extensions {
         let name = extension.name().to_string();
@@ -315,6 +383,7 @@ impl GooseAcpAgent {
             goose_mode,
             disable_session_naming,
             builtins,
+            client_capabilities: tokio::sync::OnceCell::new(),
         })
     }
 
@@ -329,11 +398,49 @@ impl GooseAcpAgent {
         let agent = Arc::new(agent);
 
         let config_path = self.config_dir.join(CONFIG_YAML_NAME);
-        if let Ok(config_file) = Config::new(&config_path, "goose") {
-            let extensions = get_enabled_extensions_with_config(&config_file);
-            add_extensions(&agent, extensions).await;
+        let mut extensions = if let Ok(config_file) = Config::new(&config_path, "goose") {
+            get_enabled_extensions_with_config(&config_file)
+        } else {
+            Vec::new()
+        };
+
+        let mut builtins = self.builtins.clone();
+
+        let has_code_execution = builtins.iter().any(|b| b == "code_execution")
+            || extensions.iter().any(|e| e.name() == "code_execution");
+        let client_can_write = self
+            .client_capabilities
+            .get()
+            .is_some_and(|c| c.fs_write_text_file);
+        let write_mode = if client_can_write && !has_code_execution {
+            WriteMode::Deferred
+        } else {
+            WriteMode::Direct
+        };
+        info!(
+            ?write_mode,
+            client_can_write,
+            has_code_execution,
+            client_caps_set = self.client_capabilities.get().is_some(),
+            builtins = ?builtins,
+            "Creating agent for session"
+        );
+
+        if write_mode.is_deferred() {
+            let in_extensions = extensions.iter().any(|e| e.name() == "developer");
+            let in_builtins = builtins.iter().any(|b| b == "developer");
+            if in_extensions || in_builtins {
+                match add_deferred_developer(&agent).await {
+                    Ok(_) => info!("developer extension loaded (deferred writes)"),
+                    Err(e) => warn!(error = %e, "developer extension load failed"),
+                }
+                extensions.retain(|e| e.name() != "developer");
+                builtins.retain(|b| b != "developer");
+            }
         }
-        add_builtins(&agent, self.builtins.clone()).await;
+
+        add_extensions(&agent, extensions).await;
+        add_builtins(&agent, builtins).await;
 
         agent
     }
@@ -473,7 +580,8 @@ impl GooseAcpAgent {
             Err(_) => ToolCallStatus::Failed,
         };
 
-        let content = build_tool_call_content(&tool_response.tool_result);
+        let ToolCallContentWithDiffs { content, diffs } =
+            build_tool_call_content(&tool_response.tool_result);
 
         let locations = if let Some(tool_request) = session.tool_requests.get(&tool_response.id) {
             extract_tool_locations(tool_request, tool_response)
@@ -492,6 +600,46 @@ impl GooseAcpAgent {
                 fields,
             )),
         ))?;
+
+        let supports_write = self.supports_fs_write();
+
+        if !diffs.is_empty() {
+            info!(
+                diff_count = diffs.len(),
+                supports_write,
+                "Processing file diffs from tool result"
+            );
+            if supports_write {
+                for diff in diffs {
+                    if let Err(e) = self
+                        .write_file_via_client(
+                            session_id,
+                            &diff.path,
+                            &diff.new_text,
+                            diff.old_text.as_deref(),
+                            cx,
+                        )
+                        .await
+                    {
+                        warn!(
+                            path = %diff.path.display(),
+                            error = %e,
+                            "Failed to write file via ACP client"
+                        );
+                    }
+                }
+            } else {
+                for diff in diffs {
+                    if let Err(e) = tokio::fs::write(&diff.path, &diff.new_text).await {
+                        warn!(
+                            path = %diff.path.display(),
+                            error = %e,
+                            "Failed to write file directly"
+                        );
+                    }
+                }
+            }
+        }
 
         Ok(())
     }
@@ -597,47 +745,81 @@ fn outcome_to_confirmation(outcome: &RequestPermissionOutcome) -> PermissionConf
     }
 }
 
-fn build_tool_call_content(tool_result: &ToolResult<CallToolResult>) -> Vec<ToolCallContent> {
+use goose_mcp::developer::{FileDiff, WriteMode, FILE_DIFF_MIME_TYPE};
+
+fn try_extract_file_diff(resource: &RawEmbeddedResource) -> Option<FileDiff> {
+    match &resource.resource {
+        ResourceContents::TextResourceContents {
+            mime_type, text, ..
+        } if mime_type.as_deref() == Some(FILE_DIFF_MIME_TYPE) => {
+            serde_json::from_str::<FileDiff>(text).ok()
+        }
+        _ => None,
+    }
+}
+
+struct ToolCallContentWithDiffs {
+    content: Vec<ToolCallContent>,
+    diffs: Vec<FileDiff>,
+}
+
+fn build_tool_call_content(tool_result: &ToolResult<CallToolResult>) -> ToolCallContentWithDiffs {
     match tool_result {
-        Ok(result) => result
-            .content
-            .iter()
-            .filter_map(|content| match &content.raw {
-                RawContent::Text(val) => Some(ToolCallContent::Content(Content::new(
-                    ContentBlock::Text(TextContent::new(val.text.clone())),
-                ))),
-                RawContent::Image(val) => Some(ToolCallContent::Content(Content::new(
-                    ContentBlock::Image(ImageContent::new(val.data.clone(), val.mime_type.clone())),
-                ))),
-                RawContent::Resource(val) => {
-                    let resource = match &val.resource {
-                        ResourceContents::TextResourceContents {
-                            mime_type,
-                            text,
-                            uri,
-                            ..
-                        } => EmbeddedResourceResource::TextResourceContents(
-                            TextResourceContents::new(text.clone(), uri.clone())
-                                .mime_type(mime_type.clone()),
-                        ),
-                        ResourceContents::BlobResourceContents {
-                            mime_type,
-                            blob,
-                            uri,
-                            ..
-                        } => EmbeddedResourceResource::BlobResourceContents(
-                            BlobResourceContents::new(blob.clone(), uri.clone())
-                                .mime_type(mime_type.clone()),
-                        ),
-                    };
-                    Some(ToolCallContent::Content(Content::new(
-                        ContentBlock::Resource(EmbeddedResource::new(resource)),
-                    )))
+        Ok(result) => {
+            let mut content = Vec::new();
+            let mut diffs = Vec::new();
+
+            for item in result.content.iter() {
+                match &item.raw {
+                    RawContent::Text(val) => {
+                        content.push(ToolCallContent::Content(Content::new(ContentBlock::Text(
+                            TextContent::new(val.text.clone()),
+                        ))));
+                    }
+                    RawContent::Image(val) => {
+                        content.push(ToolCallContent::Content(Content::new(ContentBlock::Image(
+                            ImageContent::new(val.data.clone(), val.mime_type.clone()),
+                        ))));
+                    }
+                    RawContent::Resource(val) => {
+                        if let Some(diff) = try_extract_file_diff(val) {
+                            diffs.push(diff);
+                        } else {
+                            let resource = match &val.resource {
+                                ResourceContents::TextResourceContents {
+                                    mime_type,
+                                    text,
+                                    uri,
+                                    ..
+                                } => EmbeddedResourceResource::TextResourceContents(
+                                    TextResourceContents::new(text.clone(), uri.clone())
+                                        .mime_type(mime_type.clone()),
+                                ),
+                                ResourceContents::BlobResourceContents {
+                                    mime_type,
+                                    blob,
+                                    uri,
+                                    ..
+                                } => EmbeddedResourceResource::BlobResourceContents(
+                                    BlobResourceContents::new(blob.clone(), uri.clone())
+                                        .mime_type(mime_type.clone()),
+                                ),
+                            };
+                            content.push(ToolCallContent::Content(Content::new(
+                                ContentBlock::Resource(EmbeddedResource::new(resource)),
+                            )));
+                        }
+                    }
+                    RawContent::Audio(_) | RawContent::ResourceLink(_) => {}
                 }
-                RawContent::Audio(_) | RawContent::ResourceLink(_) => None,
-            })
-            .collect(),
-        Err(_) => Vec::new(),
+            }
+
+            ToolCallContentWithDiffs { content, diffs }
+        }
+        Err(_) => ToolCallContentWithDiffs {
+            content: Vec::new(),
+            diffs: Vec::new(),
+        },
     }
 }
 
@@ -647,6 +829,17 @@ impl GooseAcpAgent {
         args: InitializeRequest,
     ) -> Result<InitializeResponse, sacp::Error> {
         debug!(?args, "initialize request");
+
+        let client_caps = AcpClientCapabilities::from(&args.client_capabilities);
+        info!(
+            fs_write = client_caps.fs_write_text_file,
+            fs_read = client_caps.fs_read_text_file,
+            terminal = client_caps.terminal,
+            "Client capabilities received"
+        );
+        if self.client_capabilities.set(client_caps).is_err() {
+            warn!("Client capabilities already set, ignoring duplicate initialize");
+        }
 
         let capabilities = AgentCapabilities::new()
             .load_session(true)
@@ -666,6 +859,36 @@ impl GooseAcpAgent {
             .description(
                 "Run `goose configure` to set up your AI provider and API key",
             )]))
+    }
+
+    pub fn supports_fs_write(&self) -> bool {
+        self.client_capabilities
+            .get()
+            .is_some_and(|c| c.fs_write_text_file)
+    }
+
+    pub async fn write_file_via_client(
+        &self,
+        session_id: &SessionId,
+        path: &std::path::Path,
+        content: &str,
+        old_text: Option<&str>,
+        cx: &JrConnectionCx<AgentToClient>,
+    ) -> Result<(), sacp::Error> {
+        let mut request =
+            WriteTextFileRequest::new(session_id.clone(), path.to_path_buf(), content.to_owned());
+
+        if let Some(old) = old_text {
+            let mut meta = serde_json::Map::new();
+            meta.insert(
+                "old_text".to_string(),
+                serde_json::Value::String(old.to_string()),
+            );
+            request = request.meta(meta);
+        }
+
+        let _response: WriteTextFileResponse = cx.send_request(request).block_task().await?;
+        Ok(())
     }
 
     async fn on_new_session(
@@ -1339,5 +1562,56 @@ print(\"hello, world\")
     ) -> Result<SessionModelState, sacp::Error> {
         let provider = MockModelProvider { models };
         build_model_state(&provider, current_model).await
+    }
+
+    #[test]
+    fn test_acp_client_capabilities_default() {
+        let caps = AcpClientCapabilities::default();
+        assert!(!caps.fs_write_text_file);
+        assert!(!caps.fs_read_text_file);
+        assert!(!caps.terminal);
+    }
+
+    #[test]
+    fn test_acp_client_capabilities_from_sacp() {
+        use sacp::schema::{ClientCapabilities, FileSystemCapability};
+
+        let sacp_caps = ClientCapabilities::new()
+            .fs(FileSystemCapability::new()
+                .read_text_file(true)
+                .write_text_file(true))
+            .terminal(true);
+
+        let caps = AcpClientCapabilities::from(&sacp_caps);
+        assert!(caps.fs_write_text_file);
+        assert!(caps.fs_read_text_file);
+        assert!(caps.terminal);
+
+        let sacp_caps_disabled = ClientCapabilities::new()
+            .fs(FileSystemCapability::new()
+                .read_text_file(false)
+                .write_text_file(false))
+            .terminal(false);
+
+        let caps_disabled = AcpClientCapabilities::from(&sacp_caps_disabled);
+        assert!(!caps_disabled.fs_write_text_file);
+        assert!(!caps_disabled.fs_read_text_file);
+        assert!(!caps_disabled.terminal);
+    }
+
+    #[test]
+    fn test_acp_client_capabilities_partial() {
+        use sacp::schema::{ClientCapabilities, FileSystemCapability};
+
+        let sacp_caps = ClientCapabilities::new()
+            .fs(FileSystemCapability::new()
+                .write_text_file(true)
+                .read_text_file(false))
+            .terminal(false);
+
+        let caps = AcpClientCapabilities::from(&sacp_caps);
+        assert!(caps.fs_write_text_file);
+        assert!(!caps.fs_read_text_file);
+        assert!(!caps.terminal);
     }
 }

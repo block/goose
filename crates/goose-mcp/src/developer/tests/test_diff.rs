@@ -87,7 +87,7 @@ new file mode 100644
  line3"#;
 
         let history = Arc::new(Mutex::new(HashMap::new()));
-        let result = apply_diff(&file_path, diff, &history).await;
+        let result = apply_diff(&file_path, diff, &history, WriteMode::Direct).await;
 
         assert!(result.is_ok());
         let content = std::fs::read_to_string(&file_path).unwrap();
@@ -120,7 +120,7 @@ new file mode 100644
 +    main()"#;
 
         let history = Arc::new(Mutex::new(HashMap::new()));
-        let result = apply_diff(&file_path, diff, &history).await;
+        let result = apply_diff(&file_path, diff, &history, WriteMode::Direct).await;
 
         if let Err(e) = &result {
             eprintln!("Error in test_add_lines_at_end: {:?}", e);
@@ -150,7 +150,7 @@ new file mode 100644
  keep2"#;
 
         let history = Arc::new(Mutex::new(HashMap::new()));
-        let result = apply_diff(&file_path, diff, &history).await;
+        let result = apply_diff(&file_path, diff, &history, WriteMode::Direct).await;
 
         assert!(result.is_ok());
         let content = std::fs::read_to_string(&file_path).unwrap();
@@ -174,7 +174,7 @@ new file mode 100644
 +new"#;
 
         let history = Arc::new(Mutex::new(HashMap::new()));
-        let result = apply_diff(&file_path, diff, &history).await;
+        let result = apply_diff(&file_path, diff, &history, WriteMode::Direct).await;
 
         // mpatch with fuzzy matching may return OK but with a warning message
         // The test now verifies that if it succeeds, it's a partial application
@@ -208,7 +208,7 @@ new file mode 100644
         let history = Arc::new(Mutex::new(HashMap::new()));
         // For nonexistent files, apply_diff will try to apply the patch
         // which should fail since the file doesn't exist
-        let result = apply_diff(&file_path, diff, &history).await;
+        let result = apply_diff(&file_path, diff, &history, WriteMode::Direct).await;
 
         // The behavior might be different with patcher - it might create the file
         // or it might fail. Let's check what happens.
@@ -245,6 +245,7 @@ new file mode 100644
             Some(diff),
             &None, // editor_model
             &history,
+            WriteMode::Direct,
         )
         .await;
 
@@ -268,7 +269,7 @@ new file mode 100644
 +new content"#;
 
         let history = Arc::new(Mutex::new(HashMap::new()));
-        let result = apply_diff(&file_path, diff, &history).await;
+        let result = apply_diff(&file_path, diff, &history, WriteMode::Direct).await;
 
         assert!(result.is_ok());
         let content = std::fs::read_to_string(&file_path).unwrap();
@@ -292,7 +293,7 @@ new file mode 100644
         let history = Arc::new(Mutex::new(HashMap::new()));
 
         // Apply diff
-        let result = apply_diff(&file_path, diff, &history).await;
+        let result = apply_diff(&file_path, diff, &history, WriteMode::Direct).await;
         if let Err(e) = &result {
             eprintln!("Error applying diff in test_undo_after_diff: {:?}", e);
         }
@@ -302,7 +303,7 @@ new file mode 100644
         assert!(content_after == "modified" || content_after == "modified\n");
 
         // Undo should restore original
-        let undo_result = text_editor_undo(&file_path, &history).await;
+        let undo_result = text_editor_undo(&file_path, &history, WriteMode::Direct).await;
         if let Err(e) = &undo_result {
             eprintln!("Error undoing in test_undo_after_diff: {:?}", e);
         }
@@ -333,7 +334,7 @@ diff --git a/file2.txt b/file2.txt
 +modified2"#;
 
         let history = Arc::new(Mutex::new(HashMap::new()));
-        let result = apply_diff(base_path, diff, &history).await;
+        let result = apply_diff(base_path, diff, &history, WriteMode::Direct).await;
 
         assert!(result.is_ok());
         let content1 = std::fs::read_to_string(base_path.join("file1.txt")).unwrap();
@@ -362,7 +363,7 @@ diff --git a/file2.txt b/file2.txt
  line4"#;
 
         let history = Arc::new(Mutex::new(HashMap::new()));
-        let result = apply_diff(&file_path, diff, &history).await;
+        let result = apply_diff(&file_path, diff, &history, WriteMode::Direct).await;
 
         // mpatch should handle this with fuzzy matching
         assert!(result.is_ok());
@@ -394,7 +395,7 @@ diff --git a/file2.txt b/file2.txt
      return True"#;
 
         let history = Arc::new(Mutex::new(HashMap::new()));
-        let result = apply_diff(&file_path, diff, &history).await;
+        let result = apply_diff(&file_path, diff, &history, WriteMode::Direct).await;
 
         // Should work with fuzzy matching at 70% threshold
         assert!(result.is_ok());
@@ -407,7 +408,7 @@ diff --git a/file2.txt b/file2.txt
         let temp_dir = TempDir::new().unwrap();
         let file_path = temp_dir.path().join("test.txt");
 
-        let result = text_editor_write(&file_path, "Hello, World!").await;
+        let result = text_editor_write(&file_path, "Hello, World!", WriteMode::Direct).await;
 
         assert!(result.is_ok());
         let content = std::fs::read_to_string(&file_path).unwrap();
@@ -420,7 +421,7 @@ diff --git a/file2.txt b/file2.txt
         let temp_dir = TempDir::new().unwrap();
         let file_path = temp_dir.path().join("test.txt");
 
-        let result = text_editor_write(&file_path, "Hello, World!\n").await;
+        let result = text_editor_write(&file_path, "Hello, World!\n", WriteMode::Direct).await;
 
         assert!(result.is_ok());
         let content = std::fs::read_to_string(&file_path).unwrap();
@@ -434,7 +435,8 @@ diff --git a/file2.txt b/file2.txt
         let file_path = temp_dir.path().join("test.txt");
 
         let content_without_newline = "line1\nline2\nline3";
-        let result = text_editor_write(&file_path, content_without_newline).await;
+        let result =
+            text_editor_write(&file_path, content_without_newline, WriteMode::Direct).await;
 
         assert!(result.is_ok());
         let content = std::fs::read_to_string(&file_path).unwrap();
@@ -458,7 +460,7 @@ diff --git a/file2.txt b/file2.txt
  line3"#;
 
         let history = Arc::new(Mutex::new(HashMap::new()));
-        let result = apply_diff(&file_path, diff, &history).await;
+        let result = apply_diff(&file_path, diff, &history, WriteMode::Direct).await;
 
         assert!(result.is_ok());
         let content = std::fs::read_to_string(&file_path).unwrap();
@@ -485,7 +487,7 @@ diff --git a/file2.txt b/file2.txt
  line3"#;
 
         let history = Arc::new(Mutex::new(HashMap::new()));
-        let result = apply_diff(&file_path, diff, &history).await;
+        let result = apply_diff(&file_path, diff, &history, WriteMode::Direct).await;
 
         assert!(result.is_ok());
         let content = std::fs::read_to_string(&file_path).unwrap();
