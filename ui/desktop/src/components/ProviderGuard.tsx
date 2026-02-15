@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useConfig } from './ConfigContext';
 import { SetupModal } from './SetupModal';
 import { startOpenRouterSetup } from '../utils/openRouterSetup';
-import { startTetrateSetup } from '../utils/tetrateSetup';
+import { cancelTetrateSetup, startTetrateSetup } from '../utils/tetrateSetup';
 import { startChatGptCodexSetup } from '../utils/chatgptCodexSetup';
 import WelcomeGooseLogo from './WelcomeGooseLogo';
 import { toastService } from '../toasts';
@@ -37,7 +37,10 @@ export default function ProviderGuard({ didSelectProvider, children }: ProviderG
   const [userInActiveSetup, setUserInActiveSetup] = useState(false);
   const [showSwitchModelModal, setShowSwitchModelModal] = useState(false);
   const [switchModelProvider, setSwitchModelProvider] = useState<string | null>(null);
+  const [isTetrateSetupInProgress, setIsTetrateSetupInProgress] = useState(false);
   const onboardingTracked = useRef(false);
+  const tetrateSetupRunId = useRef(0);
+  const tetrateSuccessTimerId = useRef<ReturnType<typeof setTimeout> | null>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const [showScrollIndicator, setShowScrollIndicator] = useState(true);
 
@@ -66,7 +69,10 @@ export default function ProviderGuard({ didSelectProvider, children }: ProviderG
     show: boolean;
     title: string;
     message: string;
+    showProgress?: boolean;
+    showSuccess?: boolean;
     showRetry: boolean;
+    closeLabel?: string;
     autoClose?: number;
   } | null>(null);
 
@@ -79,12 +85,44 @@ export default function ProviderGuard({ didSelectProvider, children }: ProviderG
   } | null>(null);
 
   const handleTetrateSetup = async () => {
+    if (isTetrateSetupInProgress) {
+      return;
+    }
+
+    const runId = ++tetrateSetupRunId.current;
+    setIsTetrateSetupInProgress(true);
+    setTetrateSetupState({
+      show: true,
+      title: 'Complete setup in your browser',
+      message: 'After finishing sign-in in the browser, return to Goose.',
+      showProgress: true,
+      showRetry: false,
+      closeLabel: 'Cancel Setup',
+    });
     trackOnboardingProviderSelected('tetrate');
     try {
       const result = await startTetrateSetup();
+      if (runId !== tetrateSetupRunId.current) {
+        return;
+      }
+
+      setIsTetrateSetupInProgress(false);
+
       if (result.success) {
-        setSwitchModelProvider('tetrate');
-        setShowSwitchModelModal(true);
+        setTetrateSetupState({
+          show: true,
+          title: 'Setup Complete',
+          message: 'Your account has been connected successfully.',
+          showSuccess: true,
+          showProgress: false,
+          showRetry: false,
+        });
+        tetrateSuccessTimerId.current = setTimeout(() => {
+          tetrateSuccessTimerId.current = null;
+          setTetrateSetupState(null);
+          setSwitchModelProvider('tetrate');
+          setShowSwitchModelModal(true);
+        }, 1500);
       } else {
         trackOnboardingSetupFailed('tetrate', result.message);
         setTetrateSetupState({
@@ -95,6 +133,11 @@ export default function ProviderGuard({ didSelectProvider, children }: ProviderG
         });
       }
     } catch (error) {
+      if (runId !== tetrateSetupRunId.current) {
+        return;
+      }
+
+      setIsTetrateSetupInProgress(false);
       console.error('Tetrate setup error:', error);
       trackOnboardingSetupFailed('tetrate', 'unexpected_error');
       setTetrateSetupState({
@@ -132,6 +175,29 @@ export default function ProviderGuard({ didSelectProvider, children }: ProviderG
         showRetry: true,
       });
     }
+  };
+
+  const handleCancelTetrateSetup = async () => {
+    if (tetrateSuccessTimerId.current) {
+      // User dismissed the success modal early — still advance to model selection
+      clearTimeout(tetrateSuccessTimerId.current);
+      tetrateSuccessTimerId.current = null;
+      setTetrateSetupState(null);
+      setSwitchModelProvider('tetrate');
+      setShowSwitchModelModal(true);
+      return;
+    }
+
+    if (!isTetrateSetupInProgress) {
+      setTetrateSetupState(null);
+      return;
+    }
+
+    tetrateSetupRunId.current += 1;
+    setIsTetrateSetupInProgress(false);
+    setTetrateSetupState(null);
+    trackOnboardingAbandoned('tetrate_setup');
+    await cancelTetrateSetup();
   };
 
   const handleApiKeySuccess = async (provider: string, _model: string, apiKey: string) => {
@@ -217,7 +283,7 @@ export default function ProviderGuard({ didSelectProvider, children }: ProviderG
     if (setupType === 'openrouter') {
       setOpenRouterSetupState(null);
     } else if (setupType === 'tetrate') {
-      setTetrateSetupState(null);
+      void handleCancelTetrateSetup();
     } else {
       setChatgptCodexSetupState(null);
     }
@@ -366,8 +432,12 @@ export default function ProviderGuard({ didSelectProvider, children }: ProviderG
                 </div>
 
                 <div
-                  onClick={handleTetrateSetup}
-                  className="w-full p-4 sm:p-6 bg-transparent border rounded-xl transition-all duration-200 cursor-pointer group"
+                  onClick={isTetrateSetupInProgress ? undefined : handleTetrateSetup}
+                  className={`w-full p-4 sm:p-6 bg-transparent border border-background-hover rounded-xl transition-all duration-200 group ${
+                    isTetrateSetupInProgress
+                      ? 'cursor-not-allowed opacity-70'
+                      : 'cursor-pointer hover:border-text-muted'
+                  }`}
                 >
                   <div className="flex items-start justify-between mb-3">
                     <div className="flex items-center gap-2">
@@ -490,9 +560,12 @@ export default function ProviderGuard({ didSelectProvider, children }: ProviderG
           <SetupModal
             title={tetrateSetupState.title}
             message={tetrateSetupState.message}
+            showProgress={tetrateSetupState.showProgress}
+            showSuccess={tetrateSetupState.showSuccess}
             showRetry={tetrateSetupState.showRetry}
             onRetry={() => handleRetrySetup('tetrate')}
             onClose={() => closeSetupModal('tetrate')}
+            closeLabel={tetrateSetupState.closeLabel}
             autoClose={tetrateSetupState.autoClose}
           />
         )}

@@ -23,6 +23,12 @@ let cfg = {
   ],
   // macOS Info.plist extensions for drag-and-drop support
   extendInfo: {
+    CFBundleURLTypes: [
+      {
+        CFBundleURLName: 'Goose',
+        CFBundleURLSchemes: ['goose'],
+      },
+    ],
     // Document types for drag-and-drop support onto dock icon
     CFBundleDocumentTypes: [
       {

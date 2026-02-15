@@ -112,6 +112,8 @@ type ElectronAPI = {
     theme: string;
   }) => void;
   openExternal: (url: string) => Promise<void>;
+  startTetrateAuth: () => Promise<{ success: boolean; message: string }>;
+  cancelTetrateAuth: () => Promise<boolean>;
   // Update-related functions
   getVersion: () => string;
   checkForUpdates: () => Promise<{ updateInfo: unknown; error: string | null }>;
@@ -228,6 +230,12 @@ const electronAPI: ElectronAPI = {
   },
   openExternal: (url: string): Promise<void> => {
     return ipcRenderer.invoke('open-external', url);
+  },
+  startTetrateAuth: (): Promise<{ success: boolean; message: string }> => {
+    return ipcRenderer.invoke('tetrate-auth-start');
+  },
+  cancelTetrateAuth: (): Promise<boolean> => {
+    return ipcRenderer.invoke('tetrate-auth-cancel');
   },
   getVersion: (): string => {
     return config.GOOSE_VERSION || ipcRenderer.sendSync('get-app-version') || '';

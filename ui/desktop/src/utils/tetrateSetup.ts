@@ -1,17 +1,21 @@
-import { startTetrateSetup as startTetrateSetupApi } from '../api';
-
-export interface TetrateSetupStatus {
-  isRunning: boolean;
-  error: string | null;
-}
-
-export async function startTetrateSetup(): Promise<{ success: boolean; message: string }> {
+export async function startTetrateSetup(): Promise<{
+  success: boolean;
+  message: string;
+}> {
   try {
-    return (await startTetrateSetupApi({ throwOnError: true })).data;
+    return await window.electron.startTetrateAuth();
   } catch (e) {
     return {
       success: false,
-      message: `Failed to start Tetrate setup ['${e}]`,
+      message: `Failed to start Tetrate setup: ${e}`,
     };
+  }
+}
+
+export async function cancelTetrateSetup(): Promise<boolean> {
+  try {
+    return await window.electron.cancelTetrateAuth();
+  } catch {
+    return false;
   }
 }

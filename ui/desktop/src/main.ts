@@ -46,6 +46,11 @@ import { UPDATES_ENABLED } from './updates';
 import './utils/recipeHash';
 import { Client } from './api/client';
 import { GooseApp } from './api';
+import {
+  cancelTetrateAuthFlow,
+  handleTetrateCallbackUrl,
+  runTetrateAuthFlow,
+} from './tetrateAuth';
 import installExtension, { REACT_DEVELOPER_TOOLS } from 'electron-devtools-installer';
 import { BLOCKED_PROTOCOLS, WEB_PROTOCOLS } from './utils/urlSecurity';
 
@@ -189,12 +194,34 @@ if (process.platform !== 'darwin') {
   }
 }
 
+function focusGooseWindow(): void {
+  const windows = BrowserWindow.getAllWindows();
+  if (windows.length > 0) {
+    const win = windows[0];
+    if (win.isMinimized()) win.restore();
+    win.show();
+    win.focus();
+  }
+  if (process.platform === 'darwin') {
+    app.dock?.bounce('informational');
+  }
+}
+
 let firstOpenWindow: BrowserWindow;
 let pendingDeepLink: string | null = null;
 let openUrlHandledLaunch = false;
 
 async function handleProtocolUrl(url: string) {
   if (!url) return;
+
+  if (
+    handleTetrateCallbackUrl(url, () => {
+      pendingDeepLink = null;
+    })
+  ) {
+    focusGooseWindow();
+    return;
+  }
 
   pendingDeepLink = url;
 
@@ -268,6 +295,15 @@ let windowDeeplinkURL: string | null = null;
 
 app.on('open-url', async (_event, url) => {
   if (process.platform !== 'win32') {
+    if (
+      handleTetrateCallbackUrl(url, () => {
+        pendingDeepLink = null;
+      })
+    ) {
+      focusGooseWindow();
+      return;
+    }
+
     const parsedUrl = new URL(url);
 
     log.info('[Main] Received open-url event:', url);
@@ -1228,6 +1264,24 @@ ipcMain.handle('get-goosed-host-port', async (event) => {
     return null;
   }
   return client.getConfig().baseUrl || null;
+});
+
+ipcMain.handle('tetrate-auth-start', async (event) => {
+  const windowId = BrowserWindow.fromWebContents(event.sender)?.id;
+  if (!windowId) {
+    return { success: false, message: 'Unable to start authentication.' };
+  }
+
+  const client = goosedClients.get(windowId);
+  if (!client) {
+    return { success: false, message: 'Backend unavailable.' };
+  }
+
+  return runTetrateAuthFlow(client);
+});
+
+ipcMain.handle('tetrate-auth-cancel', () => {
+  return cancelTetrateAuthFlow();
 });
 
 // Handle menu bar icon visibility

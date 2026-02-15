@@ -3236,6 +3236,36 @@
         }
       }
     },
+    "/tetrate/verify": {
+      "post": {
+        "tags": [
+          "super::routes::setup"
+        ],
+        "operationId": "verify_tetrate_setup",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TetrateVerifyRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SetupResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/tunnel/start": {
       "post": {
         "tags": [
@@ -6856,6 +6886,21 @@
           "user_content": {
             "type": "string",
             "nullable": true
+          }
+        }
+      },
+      "TetrateVerifyRequest": {
+        "type": "object",
+        "required": [
+          "code",
+          "code_verifier"
+        ],
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "code_verifier": {
+            "type": "string"
           }
         }
       },

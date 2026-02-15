@@ -63,7 +63,7 @@ impl PkceAuthFlow {
 
     pub fn get_auth_url(&self) -> String {
         format!(
-            "{}?callback={}&code_challenge={}",
+            "{}?callback={}&code_challenge={}&code_challenge_method=S256&client=goose",
             TETRATE_AUTH_URL,
             urlencoding::encode(CALLBACK_URL),
             urlencoding::encode(&self.code_challenge)
@@ -94,17 +94,19 @@ impl PkceAuthFlow {
     }
 
     pub async fn exchange_code(&self, code: String) -> Result<String> {
+        Self::exchange_code_with_verifier(code, self.code_verifier.clone()).await
+    }
+
+    pub async fn exchange_code_with_verifier(
+        code: String,
+        code_verifier: String,
+    ) -> Result<String> {
         let client = Client::new();
 
         let request_body = TokenRequest {
-            code: code.clone(),
-            code_verifier: self.code_verifier.clone(),
+            code,
+            code_verifier,
         };
-
-        eprintln!("Exchanging code for API key...");
-        eprintln!("Code: {}", code);
-        eprintln!("Code verifier length: {}", self.code_verifier.len());
-        eprintln!("Code challenge: {}", self.code_challenge);
 
         let response = client
             .post(TETRATE_TOKEN_URL)
@@ -117,9 +119,6 @@ impl PkceAuthFlow {
         if !response.status().is_success() {
             let status = response.status();
             let error_text = response.text().await.unwrap_or_default();
-            eprintln!("Token exchange failed!");
-            eprintln!("Status: {}", status);
-            eprintln!("Error response: {}", error_text);
             return Err(anyhow!(
                 "Failed to exchange code: {} - {}",
                 status,

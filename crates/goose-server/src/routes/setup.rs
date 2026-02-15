@@ -4,7 +4,7 @@ use axum::{routing::post, Json, Router};
 use goose::config::signup_openrouter::OpenRouterAuth;
 use goose::config::signup_tetrate::{configure_tetrate, TetrateAuth};
 use goose::config::{configure_openrouter, Config};
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use utoipa::ToSchema;
 
@@ -14,10 +14,17 @@ pub struct SetupResponse {
     pub message: String,
 }
 
+#[derive(Deserialize, ToSchema)]
+pub struct TetrateVerifyRequest {
+    pub code: String,
+    pub code_verifier: String,
+}
+
 pub fn routes(state: Arc<AppState>) -> Router {
     Router::new()
         .route("/handle_openrouter", post(start_openrouter_setup))
         .route("/handle_tetrate", post(start_tetrate_setup))
+        .route("/tetrate/verify", post(verify_tetrate_setup))
         .with_state(state)
 }
 
@@ -53,6 +60,43 @@ async fn start_openrouter_setup() -> Result<Json<SetupResponse>, ErrorResponse> 
             message: format!("Setup failed: {}", e),
         })),
     }
+}
+
+#[utoipa::path(
+    post,
+    path = "/tetrate/verify",
+    request_body = TetrateVerifyRequest,
+    responses(
+        (status = 200, body=SetupResponse)
+    ),
+)]
+async fn verify_tetrate_setup(
+    Json(request): Json<TetrateVerifyRequest>,
+) -> Result<Json<SetupResponse>, ErrorResponse> {
+    let api_key =
+        match TetrateAuth::exchange_code_with_verifier(request.code, request.code_verifier).await {
+            Ok(api_key) => api_key,
+            Err(e) => {
+                return Ok(Json(SetupResponse {
+                    success: false,
+                    message: format!("Setup failed: {}", e),
+                }));
+            }
+        };
+
+    let config = Config::global();
+
+    if let Err(e) = configure_tetrate(config, api_key) {
+        return Ok(Json(SetupResponse {
+            success: false,
+            message: format!("Failed to configure Tetrate Agent Router Service: {}", e),
+        }));
+    }
+
+    Ok(Json(SetupResponse {
+        success: true,
+        message: "Tetrate Agent Router Service setup completed successfully".to_string(),
+    }))
 }
 
 #[utoipa::path(
