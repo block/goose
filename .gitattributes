@@ -1,1 +1,4 @@
 crates/goose/src/agents/snapshots/*.snap linguist-language=Text
+
+# Use bd merge for beads JSONL files
+.beads/issues.jsonl merge=beads
