@@ -23,7 +23,7 @@ import { ChatType } from '../types/chat';
 import { useIsMobile } from '../hooks/use-mobile';
 import { useSidebar } from './ui/sidebar';
 import { cn } from '../utils';
-import { useChatStream } from '../hooks/useChatStream';
+import { useChatStream } from '../hooks/chatStream';
 import { useNavigation } from '../hooks/useNavigation';
 import { RecipeHeader } from './RecipeHeader';
 import { RecipeWarningModal } from './ui/RecipeWarningModal';
