@@ -19,7 +19,7 @@ pub const TETRATE_DEFAULT_MODEL: &str = "claude-haiku-4-5";
 // Auth endpoints are on the main web domain
 const TETRATE_AUTH_URL: &str = "https://router.tetrate.ai/auth";
 const TETRATE_TOKEN_URL: &str = "https://router.tetrate.ai/api/api-keys/verify";
-const CALLBACK_URL: &str = "http://localhost:3000";
+const CALLBACK_BASE: &str = "http://localhost";
 const AUTH_TIMEOUT: Duration = Duration::from_secs(180); // 3 minutes
 
 #[derive(Debug)]
@@ -61,36 +61,14 @@ impl PkceAuthFlow {
         })
     }
 
-    pub fn get_auth_url(&self) -> String {
+    pub fn get_auth_url(&self, port: u16) -> String {
+        let callback_url = format!("{}:{}", CALLBACK_BASE, port);
         format!(
             "{}?callback={}&code_challenge={}",
             TETRATE_AUTH_URL,
-            urlencoding::encode(CALLBACK_URL),
+            urlencoding::encode(&callback_url),
             urlencoding::encode(&self.code_challenge)
         )
-    }
-
-    /// Start local server and wait for callback
-    pub async fn start_server(&mut self) -> Result<String> {
-        let (code_tx, code_rx) = oneshot::channel::<String>();
-        let (shutdown_tx, shutdown_rx) = oneshot::channel::<()>();
-
-        // Store shutdown sender so we can stop the server later
-        self.server_shutdown_tx = Some(shutdown_tx);
-
-        // Start the server in a background task
-        tokio::spawn(async move {
-            if let Err(e) = server::run_callback_server(code_tx, shutdown_rx).await {
-                eprintln!("Server error: {}", e);
-            }
-        });
-
-        // Wait for the authorization code with timeout
-        match timeout(AUTH_TIMEOUT, code_rx).await {
-            Ok(Ok(code)) => Ok(code),
-            Ok(Err(_)) => Err(anyhow!("Failed to receive authorization code")),
-            Err(_) => Err(anyhow!("Authentication timeout - please try again")),
-        }
     }
 
     pub async fn exchange_code(&self, code: String) -> Result<String> {
@@ -131,9 +109,22 @@ impl PkceAuthFlow {
         Ok(token_response.key)
     }
 
-    /// Complete flow: open browser, wait for callback, exchange code
+    /// Complete flow: start server, open browser, wait for callback, exchange code
     pub async fn complete_flow(&mut self) -> Result<String> {
-        let auth_url = self.get_auth_url();
+        let listener = tokio::net::TcpListener::bind(("127.0.0.1", 0)).await?;
+        let port = listener.local_addr()?.port();
+
+        let (code_tx, code_rx) = oneshot::channel::<String>();
+        let (shutdown_tx, shutdown_rx) = oneshot::channel::<()>();
+        self.server_shutdown_tx = Some(shutdown_tx);
+
+        tokio::spawn(async move {
+            if let Err(e) = server::run_callback_server(listener, code_tx, shutdown_rx).await {
+                eprintln!("Server error: {}", e);
+            }
+        });
+
+        let auth_url = self.get_auth_url(port);
 
         println!("Opening browser for Tetrate Agent Router Service authentication...");
         eprintln!("Auth URL: {}", auth_url);
@@ -143,8 +134,13 @@ impl PkceAuthFlow {
             println!("Please open this URL manually: {}", auth_url);
         }
 
-        println!("Waiting for authentication callback...");
-        let code = self.start_server().await?;
+        println!("Waiting for authentication callback on port {}...", port);
+
+        let code = match timeout(AUTH_TIMEOUT, code_rx).await {
+            Ok(Ok(code)) => Ok(code),
+            Ok(Err(_)) => Err(anyhow!("Failed to receive authorization code")),
+            Err(_) => Err(anyhow!("Authentication timeout - please try again")),
+        }?;
 
         println!("Authorization code received. Exchanging for API key...");
         eprintln!("Received code: {}", code);
