@@ -479,6 +479,10 @@ export OTEL_EXPORTER_OTLP_ENDPOINT="http://localhost:4318"
 
 # Debug traces to console (no collector needed)
 export OTEL_TRACES_EXPORTER="console"
+
+# Sample 10% of traces (reduce volume in production)
+export OTEL_TRACES_SAMPLER="parentbased_traceidratio"
+export OTEL_TRACES_SAMPLER_ARG="0.1"
 ```
 
 [otel-env]: https://opentelemetry.io/docs/specs/otel/configuration/sdk-environment-variables/

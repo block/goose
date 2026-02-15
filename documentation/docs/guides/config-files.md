@@ -99,8 +99,8 @@ GOOSE_SEARCH_PATHS:
 # Observability (OpenTelemetry)
 # Prefer ENV, which overrides this configuration and fully supports 
 # OTel semantics. See the environment-variables guide for details.
-OTEL_EXPORTER_OTLP_ENDPOINT: "http://localhost:4318"
-OTEL_EXPORTER_OTLP_TIMEOUT: 20000
+otel_exporter_otlp_endpoint: "http://localhost:4318"
+otel_exporter_otlp_timeout: 20000
 
 # Security Configuration
 SECURITY_PROMPT_ENABLED: true
