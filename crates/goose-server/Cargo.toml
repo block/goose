@@ -65,6 +65,5 @@ name = "generate_schema"
 path = "src/bin/generate_schema.rs"
 
 [dev-dependencies]
-tower = "0.5.2"
 env-lock = { workspace = true }
 wiremock = { workspace = true }
