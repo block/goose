@@ -240,6 +240,53 @@ Sessions are single, continuous conversations between you and goose. Let's start
     </TabItem>
 </Tabs>
 
+## Enable Developer Tools Extension
+
+Before you ask goose to generate code, you need to enable the [`Developer Tools` extension](/docs/mcp/developer-mcp). This extension gives goose the ability to read and write files, execute commands, and more - without it, goose cannot create the tic-tac-toe game.
+
+<Tabs groupId="interface">
+
+    <TabItem value="ui" label="goose Desktop" default>
+        1. Click the <PanelLeft className="inline" size={16} /> button in the top-left to open the sidebar.
+        2. Click `Extensions` in the sidebar menu.
+        3. Toggle the `Developer Tools` extension to enable it. This extension enables code generation, file operations, and terminal commands.
+        4. Return to your session to continue.
+    </TabItem>
+    <TabItem value="cli" label="goose CLI">
+        1. End the current session by entering `Ctrl+C` so that you can return to the terminal's command prompt.
+        2. Run the configuration command:
+        ```sh
+        goose configure
+        ```
+        3. Choose `Add Extension` > `Built-in Extension` > `Developer Tools`, and set the timeout to 300s. This extension enables code generation, file operations, and terminal commands.
+        ```
+        ┌   goose-configure
+        │
+        ◇  What would you like to configure?
+        │  Add Extension
+        │
+        ◇  What type of extension would you like to add?
+        │  Built-in Extension
+        │
+        ◇  Which built-in extension would you like to enable?
+        │  Developer Tools
+        │
+        ◇  Please set the timeout for this tool (in secs):
+        │  300
+        │
+        └  Enabled developer extension
+        ```
+        4. Resume your last session:
+        ```sh
+        goose session -r
+        ```
+    </TabItem>
+</Tabs>
+
+:::tip Important
+Make sure to enable Developer Tools **before** asking goose to generate code. Without this extension, goose will not be able to create files or run commands.
+:::
+
 ## Write Prompt
 
 From the prompt, you can interact with goose by typing your instructions exactly as you would speak to a developer.
