@@ -140,31 +140,38 @@ export function identifyWorkBlocks(
       continue;
     }
 
-    // Find the last assistant message with display text and no tool calls —
-    // that's the "final answer" to show outside the collapsed block.
+    // Find the "final answer" — the message to show outside the collapsed block.
+    // Strategy: prefer a clean text-only message, but accept a message with both
+    // text and tool calls if no pure text message exists.
     // Always search regardless of streaming state.
     let finalAnswerIdx = -1;
+    let textWithToolsIdx = -1;
 
     for (let i = assistantIndices.length - 1; i >= 0; i--) {
       const idx = assistantIndices[i];
       const msg = messages[idx];
-      if (
-        hasDisplayText(msg) &&
-        !hasToolRequests(msg) &&
-        !hasToolConfirmation(msg) &&
-        !hasElicitation(msg)
-      ) {
+
+      if (!hasDisplayText(msg)) continue;
+      if (hasToolConfirmation(msg) || hasElicitation(msg)) continue;
+
+      if (!hasToolRequests(msg)) {
+        // Best case: pure text, no tool requests
         finalAnswerIdx = idx;
         break;
+      } else if (textWithToolsIdx === -1) {
+        // Fallback: has text AND tool requests — still a valid answer
+        textWithToolsIdx = idx;
       }
     }
 
-    // For completed runs, if no clean final answer found, use the last assistant
-    // message as a fallback. For streaming runs, leave finalIndex as -1 to
-    // indicate "no final answer yet" — everything stays collapsed.
-    if (finalAnswerIdx === -1 && !isLastRunStreaming) {
-      finalAnswerIdx = assistantIndices[assistantIndices.length - 1];
+    // Use text-with-tools fallback if no pure text answer found
+    if (finalAnswerIdx === -1 && textWithToolsIdx !== -1) {
+      finalAnswerIdx = textWithToolsIdx;
     }
+
+    // If no message with display text was found at all, keep everything collapsed
+    // (finalIndex = -1). The WorkBlockIndicator will show "Worked on N steps".
+    // For streaming runs, also keep finalIndex as -1 ("no final answer yet").
 
     // Count total tool calls across intermediate messages
     let totalToolCalls = 0;
