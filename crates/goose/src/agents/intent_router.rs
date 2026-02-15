@@ -1,5 +1,5 @@
 use serde::{Deserialize, Serialize};
-use tracing::{debug, info};
+use tracing::{debug, info, instrument, Span};
 
 use crate::agents::coding_agent::CodingAgent;
 use crate::agents::goose_agent::GooseAgent;
@@ -98,7 +98,18 @@ impl IntentRouter {
     }
 
     /// Route a user message to the best agent/mode.
+    #[instrument(
+        name = "intent_router.route",
+        skip(self),
+        fields(
+            router.agent,
+            router.mode,
+            router.confidence,
+            router.strategy = "keyword",
+        )
+    )]
     pub fn route(&self, user_message: &str) -> RoutingDecision {
+        let span = Span::current();
         let message_lower = user_message.to_lowercase();
         let message_preview: String = user_message.chars().take(120).collect();
 
@@ -106,6 +117,9 @@ impl IntentRouter {
 
         if enabled_slots.is_empty() {
             let decision = self.fallback_decision("No agents enabled");
+            span.record("router.agent", decision.agent_name.as_str());
+            span.record("router.mode", decision.mode_slug.as_str());
+            span.record("router.confidence", decision.confidence as f64);
             info!(
                 agent = decision.agent_name,
                 mode = decision.mode_slug,
@@ -166,6 +180,10 @@ impl IntentRouter {
                 reasoning: "No mode keyword matches; using default agent".into(),
             }
         };
+
+        span.record("router.agent", decision.agent_name.as_str());
+        span.record("router.mode", decision.mode_slug.as_str());
+        span.record("router.confidence", decision.confidence as f64);
 
         info!(
             agent = decision.agent_name.as_str(),

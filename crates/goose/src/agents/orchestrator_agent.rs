@@ -44,7 +44,7 @@ use serde::{Deserialize, Serialize};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use tokio::sync::Mutex;
-use tracing::{debug, info, warn};
+use tracing::{debug, info, instrument, warn, Span};
 
 /// Thread-safe flag for LLM-based orchestration.
 /// Initialized from GOOSE_ORCHESTRATOR_DISABLED env var on first access,
@@ -209,35 +209,81 @@ impl OrchestratorAgent {
     ///
     /// Returns an `OrchestratorPlan` that may contain multiple sub-tasks for
     /// compound requests when LLM orchestration is enabled.
+    #[instrument(
+        name = "orchestrator.route",
+        skip(self, user_message),
+        fields(
+            otel.kind = "internal",
+            orchestrator.llm_enabled = is_orchestrator_enabled(),
+            orchestrator.strategy,
+            orchestrator.is_compound,
+            orchestrator.task_count,
+            orchestrator.primary_agent,
+            orchestrator.primary_mode,
+            orchestrator.primary_confidence,
+        )
+    )]
     pub async fn route(&self, user_message: &str) -> OrchestratorPlan {
+        let span = Span::current();
+
         if is_orchestrator_enabled() {
             match self.route_with_llm(user_message).await {
                 Ok(plan) => {
+                    let primary = plan.primary_routing();
+                    span.record("orchestrator.strategy", "llm");
+                    span.record("orchestrator.is_compound", plan.is_compound);
+                    span.record("orchestrator.task_count", plan.tasks.len() as i64);
+                    span.record("orchestrator.primary_agent", primary.agent_name.as_str());
+                    span.record("orchestrator.primary_mode", primary.mode_slug.as_str());
+                    span.record("orchestrator.primary_confidence", primary.confidence as f64);
+
                     info!(
                         is_compound = plan.is_compound,
                         task_count = plan.tasks.len(),
-                        primary_agent = %plan.primary_routing().agent_name,
-                        primary_mode = %plan.primary_routing().mode_slug,
+                        primary_agent = %primary.agent_name,
+                        primary_mode = %primary.mode_slug,
+                        primary_confidence = %primary.confidence,
                         "LLM orchestrator routed message"
                     );
+
+                    for (i, task) in plan.tasks.iter().enumerate() {
+                        info!(
+                            task_index = i,
+                            agent = %task.routing.agent_name,
+                            mode = %task.routing.mode_slug,
+                            confidence = %task.routing.confidence,
+                            description = %task.sub_task_description,
+                            "Orchestrator sub-task"
+                        );
+                    }
+
                     return plan;
                 }
                 Err(e) => {
-                    warn!(
-                        "LLM routing failed, falling back to keyword matching: {}",
-                        e
-                    );
+                    span.record("orchestrator.strategy", "keyword_fallback");
+                    warn!(error = %e, "LLM routing failed, falling back to keyword matching");
                 }
             }
+        } else {
+            span.record("orchestrator.strategy", "keyword");
         }
 
         // Fallback to keyword-based IntentRouter (always single-task)
         let decision = self.intent_router.route(user_message);
+        span.record("orchestrator.is_compound", false);
+        span.record("orchestrator.task_count", 1i64);
+        span.record("orchestrator.primary_agent", decision.agent_name.as_str());
+        span.record("orchestrator.primary_mode", decision.mode_slug.as_str());
+        span.record(
+            "orchestrator.primary_confidence",
+            decision.confidence as f64,
+        );
+
         debug!(
             agent_name = %decision.agent_name,
             mode_slug = %decision.mode_slug,
             confidence = %decision.confidence,
-            "Keyword router fallback"
+            "Keyword router decision"
         );
         OrchestratorPlan::single(decision)
     }
@@ -310,6 +356,14 @@ impl OrchestratorAgent {
     }
 
     /// Use the LLM to classify the user's intent, potentially splitting compound requests.
+    #[instrument(
+        name = "orchestrator.llm_classify",
+        skip(self),
+        fields(
+            orchestrator.catalog_agents = self.catalog.len() as i64,
+            orchestrator.llm_response_parsed,
+        )
+    )]
     async fn route_with_llm(&self, user_message: &str) -> Result<OrchestratorPlan> {
         let provider_guard = self.provider.lock().await;
         let provider = provider_guard
