@@ -39,18 +39,33 @@
           ++ pkgs.lib.optionals pkgs.stdenv.isDarwin darwinInputs;
       in
       {
-        defaultPackage = pkgs.rustPlatform.buildRustPackage {
+        packages.default = pkgs.rustPlatform.buildRustPackage {
           pname = cargoToml.package.name;
           version = workspaceToml.workspace.package.version;
           src = self;
 
-          cargoLock = {
-            lockFile = ./Cargo.lock;
-            outputHashes = {
-              # Patch required for Windows cross-compilation
-              # See: https://github.com/nmathewson/crunchy/tree/cross-compilation-fix
-              "crunchy-0.2.3" = "sha256-CBW3/JuMoNa6MWia6BQo07LQrH5JQbb20vuCqhyFL0Y=";
-            };
+          cargoLock.lockFile = ./Cargo.lock;
+
+          # Pre-fetch rusty_v8 binary to avoid network access during build
+          # Map Nix system to rusty_v8 target triple
+          RUSTY_V8_ARCHIVE = let
+            cargoLock = builtins.fromTOML (builtins.readFile ./Cargo.lock);
+            rustyV8Version = (builtins.head (builtins.filter (p: p.name == "v8") cargoLock.package)).version;
+            rustyV8Target = {
+              "x86_64-linux" = "x86_64-unknown-linux-gnu";
+              "aarch64-linux" = "aarch64-unknown-linux-gnu";
+              "x86_64-darwin" = "x86_64-apple-darwin";
+              "aarch64-darwin" = "aarch64-apple-darwin";
+            }.${system} or (throw "Unsupported system: ${system}");
+            rustyV8Sha256 = {
+              "x86_64-linux" = "sha256-chV1PAx40UH3Ute5k3lLrgfhih39Rm3KqE+mTna6ysE=";
+              "aarch64-linux" = "sha256-4IivYskhUSsMLZY97+g23UtUYh4p5jk7CzhMbMyqXyY=";
+              "x86_64-darwin" = "sha256-1jUuC+z7saQfPYILNyRJanD4+zOOhXU2ac/LFoytwho=";
+              "aarch64-darwin" = "sha256-yHa1eydVCrfYGgrZANbzgmmf25p7ui1VMas2A7BhG6k=";
+            }.${system};
+          in pkgs.fetchurl {
+            url = "https://github.com/denoland/rusty_v8/releases/download/v${rustyV8Version}/librusty_v8_release_${rustyV8Target}.a.gz";
+            sha256 = rustyV8Sha256;
           };
 
           nativeBuildInputs = with pkgs; [
@@ -59,7 +74,7 @@
 
           buildInputs = with pkgs; [
             openssl
-            xorg.libxcb  # Required for xcap screenshot functionality
+            libxcb       # Required for xcap screenshot functionality
             dbus         # Required for system integration features
           ] ++ pkgs.lib.optionals pkgs.stdenv.isDarwin darwinInputs;
 
@@ -100,7 +115,7 @@
             nodejs_24 # 'just' run-ui
             ripgrep
             rustfmt
-            xorg.libxcb
+            libxcb
             dbus
             yarn # 'just' install-deps
           ]);
