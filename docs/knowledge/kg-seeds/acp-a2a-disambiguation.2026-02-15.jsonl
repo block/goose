@@ -1,0 +1,32 @@
+{"type":"Source","id":"src:lf-a2a-press","description":"Linux Foundation press release: launch of Agent2Agent (A2A) project","url":"https://www.linuxfoundation.org/press/linux-foundation-launches-the-agent2agent-protocol-project-to-enable-secure-intelligent-communication-between-ai-agents","timestamp":"2026-02-15T22:40:00Z","confidence":0.9}
+{"type":"Source","id":"src:google-a2a-blog","description":"Google Developers Blog: A2A: A new era of agent interoperability","url":"https://developers.googleblog.com/en/a2a-a-new-era-of-agent-interoperability/","timestamp":"2026-02-15T22:40:00Z","confidence":0.9}
+{"type":"Source","id":"src:a2a-readme","description":"A2A protocol README in a2aproject/A2A","url":"https://raw.githubusercontent.com/a2aproject/A2A/refs/heads/main/README.md","timestamp":"2026-02-15T22:40:00Z","confidence":0.9}
+{"type":"Source","id":"src:acp-mcp-and-a2a","description":"ACP docs page comparing MCP and A2A","url":"https://agentcommunicationprotocol.dev/about/mcp-and-a2a","timestamp":"2026-02-15T22:40:00Z","confidence":0.85}
+{"type":"Source","id":"src:beeai-acp-openapi","description":"BeeAI ACP OpenAPI spec (Agent Communication Protocol)","url":"https://raw.githubusercontent.com/i-am-bee/acp/refs/heads/main/docs/spec/openapi.yaml","timestamp":"2026-02-15T22:40:00Z","confidence":0.9}
+{"type":"Source","id":"src:lf-ibm-beeai","description":"Linux Foundation press page mentioning BeeAI powered by ACP","url":"https://www.linuxfoundation.org/press/ai-workflows-get-new-open-source-tools-to-advance-document-intelligence-data-quality-and-decentralized-ai-with-ibms-contribution-of-3-projects-to-linux-fou-1745937200621","timestamp":"2026-02-15T22:40:00Z","confidence":0.8}
+{"type":"Source","id":"src:docsrs-agent-client-protocol","description":"docs.rs: Rust crate agent-client-protocol (Agent Client Protocol)","url":"https://docs.rs/crate/agent-client-protocol/latest","timestamp":"2026-02-15T22:40:00Z","confidence":0.85}
+
+{"type":"Concept","id":"concept:a2a","description":"A2A (Agent2Agent) protocol for agent-to-agent interoperability","timestamp":"2026-02-15T22:40:00Z","confidence":0.85}
+{"type":"Concept","id":"concept:acp-agent-communication-protocol","description":"ACP = Agent Communication Protocol (IBM/BeeAI ecosystem): agent-to-agent","timestamp":"2026-02-15T22:40:00Z","confidence":0.85}
+{"type":"Concept","id":"concept:acp-agent-client-protocol","description":"ACP = Agent Client Protocol (editor ↔ coding agent)","timestamp":"2026-02-15T22:40:00Z","confidence":0.85}
+
+{"type":"Finding","id":"finding:a2a-google-lf","description":"A2A is an open protocol created by Google and hosted under the Linux Foundation; press page links to https://github.com/a2aproject/A2A","evidence":"src:lf-a2a-press","timestamp":"2026-02-15T22:40:00Z","confidence":0.8}
+{"type":"Finding","id":"finding:a2a-key-concepts","description":"A2A describes Agent Cards, task lifecycle (incl long-running tasks) and artifact outputs; uses JSON-RPC 2.0 over HTTP(S) (per README) and complements MCP (per Google blog)","evidence":"src:a2a-readme","timestamp":"2026-02-15T22:40:00Z","confidence":0.75}
+{"type":"Finding","id":"finding:beeai-acp-openapi-title","description":"BeeAI ACP OpenAPI spec declares openapi 3.1.1 and info.title 'ACP - Agent Communication Protocol'","evidence":"src:beeai-acp-openapi","timestamp":"2026-02-15T22:40:00Z","confidence":0.85}
+{"type":"Finding","id":"finding:acp-docs-agent-to-agent","description":"ACP docs describe ACP as enabling communication between agents; distinguishes ACP (IBM March 2025) vs A2A (Google April 2025) as distinct efforts","evidence":"src:acp-mcp-and-a2a","timestamp":"2026-02-15T22:40:00Z","confidence":0.8}
+{"type":"Finding","id":"finding:acp-acronym-collision","description":"The acronym 'ACP' refers to at least two unrelated protocols: Agent Communication Protocol (agent-to-agent) and Agent Client Protocol (editor↔coding agent)","evidence":"src:docsrs-agent-client-protocol","timestamp":"2026-02-15T22:40:00Z","confidence":0.8}
+
+{"type":"Decision","id":"decision:terminology-rules-acp-a2a","description":"Terminology rule: use 'A2A' for Google/LF agent-to-agent protocol; use 'ACP (Agent Communication Protocol)' or 'BeeAI ACP' for i-am-bee/acp; use 'Agent Client Protocol (ACP)' only for editor/coding-agent contexts","evidence":"docs/knowledge/protocols-acp-vs-a2a-disambiguation.md","timestamp":"2026-02-15T22:40:00Z","confidence":0.8}
+
+{"type":"RepoPath","id":"repopath:protocol-disambiguation-note","description":"Repo knowledge note: protocols ACP vs A2A disambiguation","path":"docs/knowledge/protocols-acp-vs-a2a-disambiguation.md","timestamp":"2026-02-15T22:40:00Z","confidence":0.95}
+{"type":"RepoPath","id":"repopath:kg-seed","description":"KG seed JSONL capturing nodes/relations for ACP/A2A disambiguation","path":"docs/knowledge/kg-seeds/acp-a2a-disambiguation.2026-02-15.jsonl","timestamp":"2026-02-15T22:40:00Z","confidence":0.95}
+
+{"type":"Relation","from":"concept:a2a","rel":"derived_from","to":"src:lf-a2a-press","timestamp":"2026-02-15T22:40:00Z","confidence":0.7}
+{"type":"Relation","from":"concept:a2a","rel":"derived_from","to":"src:google-a2a-blog","timestamp":"2026-02-15T22:40:00Z","confidence":0.7}
+{"type":"Relation","from":"concept:a2a","rel":"derived_from","to":"src:a2a-readme","timestamp":"2026-02-15T22:40:00Z","confidence":0.7}
+
+{"type":"Relation","from":"concept:acp-agent-communication-protocol","rel":"derived_from","to":"src:beeai-acp-openapi","timestamp":"2026-02-15T22:40:00Z","confidence":0.7}
+{"type":"Relation","from":"concept:acp-agent-communication-protocol","rel":"derived_from","to":"src:acp-mcp-and-a2a","timestamp":"2026-02-15T22:40:00Z","confidence":0.7}
+{"type":"Relation","from":"concept:acp-agent-client-protocol","rel":"derived_from","to":"src:docsrs-agent-client-protocol","timestamp":"2026-02-15T22:40:00Z","confidence":0.7}
+
+{"type":"Relation","from":"repopath:kg-seed","rel":"related_to","to":"repopath:protocol-disambiguation-note","timestamp":"2026-02-15T22:40:00Z","confidence":0.8}

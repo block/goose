@@ -110,6 +110,12 @@ mindmap
 2. Say **ACP (Agent Communication Protocol)** or **BeeAI ACP** when referencing `i-am-bee/acp` and the `agentcommunicationprotocol.dev` docs.
 3. Say **Agent Client Protocol (ACP)** only in editor/coding-agent contexts (e.g., docs.rs `agent-client-protocol`).
 
+## Knowledge Graph seed (optional)
+
+If you want to import this evidence into the **Knowledge Graph Memory** MCP server later, a small JSONL seed file is provided:
+
+- `docs/knowledge/kg-seeds/acp-a2a-disambiguation.2026-02-15.jsonl`
+
 ## Local evidence artifacts (repro pointers)
 
 These files were fetched to avoid `curl | head` broken-pipe truncation and to allow later re-grepping/parsing:
