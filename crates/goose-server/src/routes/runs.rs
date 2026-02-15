@@ -12,9 +12,10 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use axum::extract::{Path, Query, State};
-use axum::http::StatusCode;
 use axum::response::sse::{Event as SseEvent, KeepAlive, Sse};
 use axum::response::{IntoResponse, Json};
+
+use super::errors::ErrorResponse;
 use chrono::Utc;
 use futures::stream::{Stream, StreamExt};
 use serde::Deserialize;
@@ -302,7 +303,9 @@ pub async fn create_run(
             process_run(state, run_id.clone(), session_id, req, cancel_token).await;
             match store.get(&run_id).await {
                 Some(r) => Json(r).into_response(),
-                None => StatusCode::INTERNAL_SERVER_ERROR.into_response(),
+                None => {
+                    ErrorResponse::internal("Run vanished after sync processing").into_response()
+                }
             }
         }
     }
@@ -324,11 +327,7 @@ pub async fn get_run(
 ) -> impl IntoResponse {
     match state.run_store().get(&run_id).await {
         Some(run) => Json(run).into_response(),
-        None => (
-            StatusCode::NOT_FOUND,
-            Json(serde_json::json!({"error": "run not found"})),
-        )
-            .into_response(),
+        None => ErrorResponse::not_found(format!("Run {run_id} not found")).into_response(),
     }
 }
 
@@ -354,35 +353,24 @@ pub async fn resume_run(
     // Check existence first for a proper 404.
     let status = match store.get_status(&run_id).await {
         Some(s) => s,
-        None => {
-            return (
-                StatusCode::NOT_FOUND,
-                Json(serde_json::json!({"error": "run not found"})),
-            )
-                .into_response()
-        }
+        None => return ErrorResponse::not_found(format!("Run {run_id} not found")).into_response(),
     };
 
     if status != AcpRunStatus::Awaiting {
-        return (
-            StatusCode::CONFLICT,
-            Json(serde_json::json!({
-                "error": "run is not in awaiting state",
-                "current_status": status
-            })),
-        )
-            .into_response();
+        return ErrorResponse::conflict(format!(
+            "Run is not in awaiting state (current: {status:?})"
+        ))
+        .into_response();
     }
 
     // Atomically verify Awaiting status and take the metadata in one lock.
     let metadata = match store.take_await_if_awaiting(&run_id).await {
         Some(m) => m,
         None => {
-            return (
-                StatusCode::CONFLICT,
-                Json(serde_json::json!({"error": "run is no longer in awaiting state (concurrent resume)"})),
+            return ErrorResponse::conflict(
+                "Run is no longer in awaiting state (concurrent resume)",
             )
-                .into_response()
+            .into_response()
         }
     };
 
@@ -402,10 +390,7 @@ pub async fn resume_run(
             let agent = match state.get_agent(session_id).await {
                 Ok(a) => a,
                 Err(e) => {
-                    return (
-                        StatusCode::INTERNAL_SERVER_ERROR,
-                        Json(serde_json::json!({"error": format!("Failed to get agent: {}", e)})),
-                    )
+                    return ErrorResponse::internal(format!("Failed to get agent: {e}"))
                         .into_response()
                 }
             };
@@ -433,14 +418,10 @@ pub async fn resume_run(
                     store.append_event(&run_id, event).await;
                     Json(r).into_response()
                 }
-                None => StatusCode::INTERNAL_SERVER_ERROR.into_response(),
+                None => ErrorResponse::internal("Run vanished after resume").into_response(),
             }
         }
-        Err(e) => (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(serde_json::json!({"error": format!("Failed to submit resume: {}", e)})),
-        )
-            .into_response(),
+        Err(e) => ErrorResponse::internal(format!("Failed to submit resume: {e}")).into_response(),
     }
 }
 
@@ -487,13 +468,7 @@ pub async fn cancel_run(
 
     let run = match store.get(&run_id).await {
         Some(r) => r,
-        None => {
-            return (
-                StatusCode::NOT_FOUND,
-                Json(serde_json::json!({"error": "run not found"})),
-            )
-                .into_response()
-        }
+        None => return ErrorResponse::not_found(format!("Run {run_id} not found")).into_response(),
     };
 
     match run.status {
@@ -507,14 +482,11 @@ pub async fn cancel_run(
 
             Json(cancelled).into_response()
         }
-        _ => (
-            StatusCode::CONFLICT,
-            Json(serde_json::json!({
-                "error": "run cannot be cancelled in current state",
-                "current_status": run.status
-            })),
-        )
-            .into_response(),
+        _ => ErrorResponse::conflict(format!(
+            "Run cannot be cancelled in current state ({:?})",
+            run.status
+        ))
+        .into_response(),
     }
 }
 
@@ -534,11 +506,7 @@ pub async fn get_run_events(
 ) -> impl IntoResponse {
     match state.run_store().get_events(&run_id).await {
         Some(events) => Json(serde_json::json!({ "events": events })).into_response(),
-        None => (
-            StatusCode::NOT_FOUND,
-            Json(serde_json::json!({"error": "run not found"})),
-        )
-            .into_response(),
+        None => ErrorResponse::not_found(format!("Run {run_id} not found")).into_response(),
     }
 }
 
