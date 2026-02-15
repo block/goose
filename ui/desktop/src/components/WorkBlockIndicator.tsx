@@ -54,7 +54,6 @@ export default function WorkBlockIndicator({
 }: WorkBlockIndicatorProps) {
   const { toggleWorkBlock, panelDetail, isOpen, updateWorkBlock } = useReasoningDetail();
 
-  console.log(`[WBI] render blockId=${blockId} isStreaming=${isStreaming} msgCount=${messages.length} agent=${agentName} mode=${modeName}`);
   const hasAutoOpened = useRef(false);
 
   const oneLiner = useMemo(() => extractOneLiner(messages), [messages]);

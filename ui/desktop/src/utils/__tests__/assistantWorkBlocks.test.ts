@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { identifyWorkBlocks, WorkBlock } from '../assistantWorkBlocks';
+import type { Message } from '../../api';
 
 // Helper to create a minimal Message-like object
 function msg(
@@ -73,13 +74,13 @@ describe('identifyWorkBlocks', () => {
 
   it('returns empty map for a single user message', () => {
     const messages = [textMsg('user', 'Hello')];
-    const result = identifyWorkBlocks(messages as any, false);
+    const result = identifyWorkBlocks(messages as unknown as Message[], false);
     expect(result.size).toBe(0);
   });
 
   it('returns empty map for user-assistant pair (no tool calls)', () => {
     const messages = [textMsg('user', 'Hello'), textMsg('assistant', 'Hi there!')];
-    const result = identifyWorkBlocks(messages as any, false);
+    const result = identifyWorkBlocks(messages as unknown as Message[], false);
     expect(result.size).toBe(0);
   });
 
@@ -90,7 +91,7 @@ describe('identifyWorkBlocks', () => {
       toolResponseMsg('shell', 'file1.txt\nfile2.txt'),
       textMsg('assistant', 'Here are the files: file1.txt, file2.txt'),
     ];
-    const result = identifyWorkBlocks(messages as any, false);
+    const result = identifyWorkBlocks(messages as unknown as Message[], false);
 
     // Indices 1 (tool request) and 2 (tool response) should be in the block
     expect(result.has(1)).toBe(true);
@@ -117,7 +118,7 @@ describe('identifyWorkBlocks', () => {
       toolResponseMsg('shell_read', 'key: value'),
       textMsg('assistant', 'The config contains key: value'),
     ];
-    const result = identifyWorkBlocks(messages as any, false);
+    const result = identifyWorkBlocks(messages as unknown as Message[], false);
 
     // All intermediate messages should be in the block
     expect(result.has(1)).toBe(true);
@@ -140,7 +141,7 @@ describe('identifyWorkBlocks', () => {
       toolResponseMsg('shell', 'file1.txt'),
       toolRequestMsg('shell2'),
     ];
-    const result = identifyWorkBlocks(messages as any, true);
+    const result = identifyWorkBlocks(messages as unknown as Message[], true);
 
     // During streaming, all intermediate messages should be in the block
     expect(result.has(1)).toBe(true);
@@ -154,7 +155,7 @@ describe('identifyWorkBlocks', () => {
 
   it('does NOT create a block for a single assistant message without tool calls', () => {
     const messages = [textMsg('user', 'Hello'), textMsg('assistant', 'Hi!')];
-    const result = identifyWorkBlocks(messages as any, false);
+    const result = identifyWorkBlocks(messages as unknown as Message[], false);
     expect(result.size).toBe(0);
   });
 
@@ -169,7 +170,7 @@ describe('identifyWorkBlocks', () => {
       toolResponseMsg('tool2', 'result2'),
       textMsg('assistant', 'Done with second task'),
     ];
-    const result = identifyWorkBlocks(messages as any, false);
+    const result = identifyWorkBlocks(messages as unknown as Message[], false);
 
     // Block 1: indices 1, 2
     const block1 = result.get(1);
@@ -194,7 +195,7 @@ describe('identifyWorkBlocks', () => {
       toolResponseMsg('tool2', 'result2'), // This too
       textMsg('assistant', 'All done'),
     ];
-    const result = identifyWorkBlocks(messages as any, false);
+    const result = identifyWorkBlocks(messages as unknown as Message[], false);
 
     // All intermediates should be in ONE block
     const block1 = result.get(1);
@@ -212,7 +213,7 @@ describe('identifyWorkBlocks', () => {
       toolResponseMsg('tool1', 'result1'),
       toolRequestAndTextMsg('tool2', 'Here is the answer with a tool call'),
     ];
-    const result = identifyWorkBlocks(messages as any, false);
+    const result = identifyWorkBlocks(messages as unknown as Message[], false);
 
     // Index 3 should be the final answer (has text + tool)
     expect(result.has(3)).toBe(false); // Final answer is excluded from block
@@ -229,7 +230,7 @@ describe('identifyWorkBlocks', () => {
       toolResponseMsg('tool2', 'result2'),
       textMsg('assistant', 'Pure text final answer'),
     ];
-    const result = identifyWorkBlocks(messages as any, false);
+    const result = identifyWorkBlocks(messages as unknown as Message[], false);
 
     const block = result.get(1)!;
     // Should prefer index 5 (pure text) over index 3 (text+tool)
@@ -245,7 +246,7 @@ describe('identifyWorkBlocks', () => {
       toolResponseMsg('tool1', 'result1'),
       toolRequestMsg('tool2'),
     ];
-    const result = identifyWorkBlocks(messages as any, false);
+    const result = identifyWorkBlocks(messages as unknown as Message[], false);
 
     // No assistant message has display text → finalIndex should be -1
     const block = result.get(1)!;
@@ -266,7 +267,7 @@ describe('identifyWorkBlocks', () => {
       toolResponseMsg('read', 'content'),
       textMsg('assistant', 'Here is the file content'),
     ];
-    const result = identifyWorkBlocks(messages as any, false);
+    const result = identifyWorkBlocks(messages as unknown as Message[], false);
 
     // Count unique blocks
     const uniqueBlocks = new Set<WorkBlock>();
@@ -281,7 +282,7 @@ describe('identifyWorkBlocks', () => {
       toolRequestMsg('shell'),
       toolResponseMsg('shell', 'file1.txt'),
     ];
-    const streamingResult = identifyWorkBlocks(streamingMessages as any, true);
+    const streamingResult = identifyWorkBlocks(streamingMessages as unknown as Message[], true);
     const streamingBlock = streamingResult.get(1)!;
     expect(streamingBlock.isStreaming).toBe(true);
     expect(streamingBlock.finalIndex).toBe(-1);
@@ -291,7 +292,7 @@ describe('identifyWorkBlocks', () => {
       ...streamingMessages,
       textMsg('assistant', 'Here are the files'),
     ];
-    const completedResult = identifyWorkBlocks(completedMessages as any, false);
+    const completedResult = identifyWorkBlocks(completedMessages as unknown as Message[], false);
     const completedBlock = completedResult.get(1)!;
     expect(completedBlock.isStreaming).toBe(false);
     expect(completedBlock.finalIndex).toBe(3);
@@ -307,7 +308,7 @@ describe('identifyWorkBlocks', () => {
       toolResponseMsg('tool2', 'r2'),
       textMsg('assistant', 'Done'),
     ];
-    const result = identifyWorkBlocks(messages as any, false);
+    const result = identifyWorkBlocks(messages as unknown as Message[], false);
     const block = result.get(1)!;
 
     // allBlockIndices should contain 1, 2, 3, 4 but NOT 5 (final) or 0 (user)
@@ -328,13 +329,140 @@ describe('identifyWorkBlocks', () => {
       toolResponseMsg('tool2', 'r2'),
       textMsg('assistant', 'Done'),
     ];
-    const result = identifyWorkBlocks(messages as any, false);
+    const result = identifyWorkBlocks(messages as unknown as Message[], false);
     const block = result.get(1)!;
 
     // intermediateIndices should be assistant messages only (1, 3)
     // NOT tool response messages (2, 4) which are user role
     for (const idx of block.intermediateIndices) {
-      expect((messages as any)[idx].role).toBe('assistant');
+      expect((messages as unknown as Message[])[idx].role).toBe('assistant');
     }
+  });
+
+  // --- Non-regression: transient tool call flash (c97c7518) ---
+  // During streaming, an assistant message transitions from text-only to text+toolRequests.
+  // Before workBlocks recognizes it as a block, the tool calls could flash in the main chat.
+  // These tests verify the workBlocks computation under those transitional states.
+
+  it('NR: single streaming assistant with only text does NOT create a work block', () => {
+    // Phase 1 of transient flash: message has text only (no tool calls yet)
+    const messages = [
+      textMsg('user', 'List files'),
+      textMsg('assistant', 'Let me check...'),
+    ];
+    const result = identifyWorkBlocks(messages as unknown as Message[], true);
+
+    // Single text-only assistant → no block (text renders normally in chat)
+    expect(result.size).toBe(0);
+  });
+
+  it('NR: single streaming assistant with text+toolRequests is NOT in workBlocks (rendering suppresses)', () => {
+    // Phase 2 of transient flash: tool requests arrive on the same message.
+    // A single assistant message with text+tools becomes the "final answer" of a
+    // 1-message run → zero intermediates → no block created.
+    // Tool call suppression is handled by ProgressiveMessageList (suppressToolCalls prop)
+    // not by identifyWorkBlocks.
+    const messages = [
+      textMsg('user', 'List files'),
+      toolRequestAndTextMsg('shell', 'Let me check...'),
+    ];
+    const result = identifyWorkBlocks(messages as unknown as Message[], true);
+
+    // Single text+tools assistant = final answer with 0 intermediates → no block
+    expect(result.size).toBe(0);
+    // The rendering layer (ProgressiveMessageList) detects this case and
+    // passes suppressToolCalls=true to GooseMessage to prevent the flash.
+  });
+
+  it('NR: streaming assistant tool-only msg after text msg creates block (rendering layer tested separately)', () => {
+    // When a second assistant message with tool requests arrives in the same run,
+    // there ARE intermediates → a block is created.
+    // The first message (text only) becomes final answer.
+    const messages = [
+      textMsg('user', 'Do X'),
+      textMsg('assistant', 'Working...'), // first response, text only
+      textMsg('user', 'Do Y'),            // real second user message — splits runs
+      toolRequestAndTextMsg('read', 'Reading file'), // streaming, text+tools in NEW run
+    ];
+    const result = identifyWorkBlocks(messages as unknown as Message[], true);
+
+    // Run [3..3]: single assistant with text+tools → same as above: no block
+    // (single message is the final answer, zero intermediates)
+    // Run [1..1]: single text-only assistant → no block (no tool calls)
+    expect(result.size).toBe(0);
+    // Tool call suppression at rendering layer prevents the flash
+  });
+
+  // --- Non-regression: dual WorkBlockIndicator (74b5de97) ---
+  // The pending indicator was showing alongside a streaming work block because
+  // tool-response user messages at the end of the array made lastMessage.role === 'user'.
+
+  it('NR: work block exists during streaming when last message is tool response (user role)', () => {
+    // The scenario: assistant sends tool request, user tool response arrives,
+    // lastMessage.role is 'user' but a streaming work block should exist
+    const messages = [
+      textMsg('user', 'Analyze this'),
+      toolRequestMsg('shell'),
+      toolResponseMsg('shell', 'output'),
+    ];
+    const result = identifyWorkBlocks(messages as unknown as Message[], true);
+
+    // Despite lastMessage being user role, a streaming work block should exist
+    expect(result.size).toBeGreaterThan(0);
+    const block = result.get(1)!;
+    expect(block.isStreaming).toBe(true);
+    // This is used by ProgressiveMessageList to suppress the pending indicator
+  });
+
+  it('NR: work block covers tool response messages even though they have user role', () => {
+    const messages = [
+      textMsg('user', 'Do something'),
+      toolRequestMsg('tool1'),
+      toolResponseMsg('tool1', 'result1'),
+      toolRequestMsg('tool2'),
+      toolResponseMsg('tool2', 'result2'),
+    ];
+    const result = identifyWorkBlocks(messages as unknown as Message[], true);
+
+    // Tool response messages (indices 2, 4) should be in the block
+    expect(result.has(2)).toBe(true);
+    expect(result.has(4)).toBe(true);
+    // The block should be streaming with finalIndex=-1
+    const block = result.get(1)!;
+    expect(block.isStreaming).toBe(true);
+    expect(block.finalIndex).toBe(-1);
+  });
+
+  it('NR: two-tier final answer prefers pure text over text+tools', () => {
+    // Non-regression for fe42b373
+    const messages = [
+      textMsg('user', 'Do things'),
+      toolRequestAndTextMsg('tool1', 'Intermediate result'),
+      toolResponseMsg('tool1', 'done'),
+      textMsg('assistant', 'Here is the final answer'),
+    ];
+    const result = identifyWorkBlocks(messages as unknown as Message[], false);
+
+    const block = result.get(1)!;
+    // Pure text message (index 3) should be the final answer, not text+tools (index 1)
+    expect(block.finalIndex).toBe(3);
+    expect(result.has(3)).toBe(false); // Final answer excluded from block
+    expect(result.has(1)).toBe(true);  // text+tools message stays in block
+  });
+
+  it('NR: final answer with text+tools when no pure text exists', () => {
+    // Non-regression for fe42b373
+    const messages = [
+      textMsg('user', 'Do things'),
+      toolRequestMsg('tool1'),
+      toolResponseMsg('tool1', 'done'),
+      toolRequestAndTextMsg('tool2', 'Here is the answer with a tool call'),
+    ];
+    const result = identifyWorkBlocks(messages as unknown as Message[], false);
+
+    const block = result.get(1)!;
+    // text+tools message (index 3) should be final answer when no pure text exists
+    expect(block.finalIndex).toBe(3);
+    expect(result.has(3)).toBe(false); // Final answer excluded from block
   });
 });

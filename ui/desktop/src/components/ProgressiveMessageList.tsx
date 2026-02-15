@@ -172,16 +172,7 @@ export default function ProgressiveMessageList({
 
   // Compute work blocks for collapsing intermediate assistant messages
   const workBlocks = useMemo(
-    () => {
-      const blocks = identifyWorkBlocks(messages, isStreamingMessage);
-      // Log summary of computed blocks
-      const uniqueBlocks = new Set([...blocks.values()]);
-      console.log(`[PML] workBlocks computed: ${blocks.size} indices → ${uniqueBlocks.size} blocks, isStreaming=${isStreamingMessage}, msgCount=${messages.length}`);
-      for (const b of uniqueBlocks) {
-        console.log(`[PML]   block: intermediates=[${b.intermediateIndices.slice(0, 5).join(',')}${b.intermediateIndices.length > 5 ? '...' : ''}] finalIdx=${b.finalIndex} streaming=${b.isStreaming} toolCalls=${b.toolCallCount}`);
-      }
-      return blocks;
-    },
+    () => identifyWorkBlocks(messages, isStreamingMessage),
     [messages, isStreamingMessage]
   );
 
@@ -230,7 +221,6 @@ export default function ProgressiveMessageList({
             // First message of this block — render the WorkBlockIndicator
             seenBlocks.add(blockKey);
             const blockMessages = block.intermediateIndices.map((i: number) => messages[i]);
-            console.log(`[PML] rendering WorkBlockIndicator blockKey=${blockKey} msgCount=${blockMessages.length} isStreaming=${block.isStreaming} finalIdx=${block.finalIndex}`);
 
             return (
               <div
@@ -254,7 +244,6 @@ export default function ProgressiveMessageList({
 
         const isUser = isUserMessage(message);
         const messageIsInChain = isInChain(index, toolCallChains);
-        console.log(`[PML] rendering message idx=${index} role=${message.role} isUser=${isUser} contentTypes=${message.content.map(c => c.type).join(',')}`);
 
         return (
           <div
@@ -333,7 +322,6 @@ export default function ProgressiveMessageList({
     hasNoAssistantResponse &&
     !hasStreamingWorkBlock;
 
-  console.log(`[PML] pendingIndicator: showPending=${showPendingIndicator} isStreaming=${isStreamingMessage} lastRole=${lastMessage?.role} msgCount=${messages.length} hasStreamingBlock=${hasStreamingWorkBlock}`);
 
   return (
     <>
