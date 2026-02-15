@@ -280,10 +280,21 @@ export default function ProgressiveMessageList({
                   message.role === 'assistant'
                 }
                 suppressToolCalls={(() => {
-                  // Suppress tool calls on the final answer of a work block
-                  // (the text is shown but tool calls are already collapsed in the WorkBlockIndicator)
+                  // 1. Suppress on work block final answer (tool calls already in the indicator)
                   for (const block of workBlocks.values()) {
                     if (block.finalIndex === index) return true;
+                  }
+                  // 2. During streaming, suppress tool calls on assistant messages
+                  //    in the active streaming run — they'll be collapsed into a
+                  //    WorkBlockIndicator once the block is recognized. This prevents
+                  //    the "transient flash" of raw tool calls before collapse.
+                  if (isStreamingMessage && message.role === 'assistant') {
+                    const hasTools = message.content.some(
+                      (c: { type: string }) => c.type === 'toolRequest'
+                    );
+                    if (hasTools && !workBlocks.has(index)) {
+                      return true;
+                    }
                   }
                   return false;
                 })()}
