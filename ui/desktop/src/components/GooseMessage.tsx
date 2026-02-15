@@ -45,7 +45,7 @@ function ThinkingSection({
     if (isStreaming && cotText.length > 0) {
       if (!hasAutoOpened.current) {
         hasAutoOpened.current = true;
-        openDetail({ title: 'Thinking...', content: cotText, messageId });
+        openDetail({ title: 'Thinking...', content: cotText, messageId: messageId ?? '' });
       } else if (isThisMessageOpen) {
         updateContent(cotText);
       }
@@ -62,7 +62,7 @@ function ThinkingSection({
     toggleDetail({
       title: isStreaming ? 'Thinking...' : 'Thought process',
       content: cotText,
-      messageId,
+      messageId: messageId ?? '',
     });
   };
 

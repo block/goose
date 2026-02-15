@@ -1,36 +1,34 @@
-import { useMemo } from 'react';
+import { useMemo, useEffect, useRef } from 'react';
 import { ChevronRight } from 'lucide-react';
-import { useReasoningDetail, WorkBlockDetail } from '../contexts/ReasoningDetailContext';
+import { useReasoningDetail, type WorkBlockDetail } from '../contexts/ReasoningDetailContext';
 import { Message } from '../api';
-import { getToolRequests, getTextAndImageContent } from '../types/message';
 import FlyingBird from './FlyingBird';
 import GooseLogo from './GooseLogo';
 
 /**
- * Extract a short one-liner summary from messages for preview.
+ * Extract a one-liner summary from the last assistant message with text content.
+ * Used as a preview in the collapsed work block indicator.
  */
 function extractOneLiner(messages: Message[]): string {
-  // Iterate in reverse to always show the LATEST narrative message
   for (let i = messages.length - 1; i >= 0; i--) {
     const msg = messages[i];
     if (msg.role !== 'assistant') continue;
-    const { textContent } = getTextAndImageContent(msg);
-    const line = textContent?.trim();
-    if (line && line.length > 0) {
-      const firstLine = line.split('\n').find((l: string) => l.trim().length > 0) || '';
-      return firstLine.length > 120 ? firstLine.slice(0, 117) + '…' : firstLine;
+    for (const c of msg.content) {
+      if (c.type === 'text' && c.text?.trim()) {
+        const clean = c.text.replace(/<[^>]*>/g, '').trim();
+        return clean.length > 120 ? clean.slice(0, 117) + '…' : clean;
+      }
     }
   }
-  return 'Working on your request';
+  return '';
 }
 
-/**
- * Count total tool calls across messages.
- */
 function countToolCalls(messages: Message[]): number {
   let count = 0;
   for (const msg of messages) {
-    count += getToolRequests(msg).length;
+    for (const c of msg.content) {
+      if (c.type === 'toolRequest') count++;
+    }
   }
   return count;
 }
@@ -54,7 +52,8 @@ export default function WorkBlockIndicator({
   sessionId,
   toolCallNotifications,
 }: WorkBlockIndicatorProps) {
-  const { toggleWorkBlock, panelDetail, isOpen } = useReasoningDetail();
+  const { toggleWorkBlock, panelDetail, isOpen, updateWorkBlock } = useReasoningDetail();
+  const hasAutoOpened = useRef(false);
 
   const oneLiner = useMemo(() => extractOneLiner(messages), [messages]);
   const toolCount = useMemo(() => countToolCalls(messages), [messages]);
@@ -62,19 +61,36 @@ export default function WorkBlockIndicator({
   const isActive =
     isOpen && panelDetail?.type === 'workblock' && panelDetail.data.messageId === blockId;
 
+  const buildDetail = (): WorkBlockDetail => ({
+    title: isStreaming ? 'Goose is working on it…' : `Worked on ${messages.length} steps`,
+    messageId: blockId,
+    messages,
+    toolCount,
+    isStreaming,
+    agentName,
+    modeName,
+    sessionId,
+    toolCallNotifications: toolCallNotifications as Map<string, unknown[]> | undefined,
+  });
+
   const handleClick = () => {
-    const detail: WorkBlockDetail = {
-      title: isStreaming ? 'Goose is working on it…' : `Worked on ${messages.length} steps`,
-      messageId: blockId,
-      messages: messages,
-      toolCount,
-      agentName,
-      modeName,
-      sessionId,
-      toolCallNotifications: toolCallNotifications as Map<string, unknown[]> | undefined,
-    };
-    toggleWorkBlock(detail);
+    toggleWorkBlock(buildDetail());
   };
+
+  // Auto-open the panel when streaming starts (once per block)
+  useEffect(() => {
+    if (isStreaming && messages.length > 0 && !hasAutoOpened.current) {
+      hasAutoOpened.current = true;
+      toggleWorkBlock(buildDetail());
+    }
+  }, [isStreaming, messages.length]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Live-update the panel content when messages change during streaming
+  useEffect(() => {
+    if (isActive && isStreaming && updateWorkBlock) {
+      updateWorkBlock(buildDetail());
+    }
+  }, [messages, isStreaming, isActive]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const displayAgent = agentName || 'Goose Agent';
   const displayMode = modeName || 'assistant';

@@ -105,7 +105,16 @@ export default function AgentsView() {
       console.warn('Failed to fetch external agents:', e);
     }
 
-    setAgents(allAgents);
+    // Deduplicate: builtin agents take precedence over external agents with the same id
+    const seen = new Set<string>();
+    const deduped: typeof allAgents = [];
+    for (const agent of allAgents) {
+      if (!seen.has(agent.id)) {
+        seen.add(agent.id);
+        deduped.push(agent);
+      }
+    }
+    setAgents(deduped);
     setLoading(false);
   }, []);
 

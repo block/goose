@@ -12,9 +12,11 @@ export default function ReasoningDetailPanel() {
 
   const isWorkBlock = panelDetail?.type === 'workblock';
   const isReasoning = panelDetail?.type === 'reasoning' || (!panelDetail && detail);
-  const isLiveStreaming = isWorkBlock
-    ? panelDetail?.data?.messages?.length === 0
-    : detail?.title === 'Thinking...';
+
+  // Work block is "live" when it is actively streaming
+  const isWorkBlockStreaming = isWorkBlock && (panelDetail.data.isStreaming ?? false);
+  const isReasoningStreaming = isReasoning && detail?.title === 'Thinking...';
+  const isLiveStreaming = isWorkBlockStreaming || isReasoningStreaming;
 
   const title = isWorkBlock
     ? panelDetail.data.title || 'Work Block'
@@ -73,7 +75,7 @@ export default function ReasoningDetailPanel() {
             </button>
           </div>
 
-          <ScrollArea className="flex-1 min-h-0" paddingX={4} paddingY={4}>
+          <ScrollArea className="flex-1 min-h-0 px-4 py-4">
             {isWorkBlock && panelDetail.data.messages ? (
               <div className="space-y-3">
                 {panelDetail.data.toolCount > 0 && (
@@ -81,18 +83,21 @@ export default function ReasoningDetailPanel() {
                     {panelDetail.data.toolCount} tool{panelDetail.data.toolCount !== 1 ? 's' : ''} used
                   </div>
                 )}
-                {panelDetail.data.messages.map((msg, i) => (
-                  <div key={msg.id ?? `wb-msg-${i}`} className="text-sm">
-                    <GooseMessage
-                      sessionId={panelDetail.data.sessionId || ''}
-                      message={msg}
-                      messages={panelDetail.data.messages}
-                      append={() => {}}
-                      toolCallNotifications={new Map()}
-                      isStreaming={false}
-                    />
-                  </div>
-                ))}
+                {panelDetail.data.messages.map((msg, i) => {
+                  const isLastMsg = i === panelDetail.data.messages.length - 1;
+                  return (
+                    <div key={msg.id ?? `wb-msg-${i}`} className="text-sm">
+                      <GooseMessage
+                        sessionId={panelDetail.data.sessionId || ''}
+                        message={msg}
+                        messages={panelDetail.data.messages}
+                        append={() => {}}
+                        toolCallNotifications={new Map()}
+                        isStreaming={isWorkBlockStreaming && isLastMsg}
+                      />
+                    </div>
+                  );
+                })}
                 <div ref={bottomRef} />
               </div>
             ) : isReasoning && detail ? (

@@ -1,10 +1,10 @@
-import { createContext, useContext, useState, useCallback, useRef, ReactNode } from 'react';
+import { createContext, useContext, useState, useCallback, useRef, type ReactNode } from 'react';
 import { Message } from '../api';
 
-interface ReasoningDetail {
+export interface ReasoningDetail {
   title: string;
   content: string;
-  messageId?: string;
+  messageId: string;
 }
 
 export interface WorkBlockDetail {
@@ -12,6 +12,7 @@ export interface WorkBlockDetail {
   messageId: string;
   messages: Message[];
   toolCount: number;
+  isStreaming?: boolean;
   agentName?: string;
   modeName?: string;
   sessionId?: string;
@@ -31,6 +32,7 @@ interface ReasoningDetailContextType {
   toggleDetail: (detail: ReasoningDetail) => void;
   toggleWorkBlock: (detail: WorkBlockDetail) => void;
   updateContent: (content: string) => void;
+  updateWorkBlock: (detail: WorkBlockDetail) => void;
 }
 
 const ReasoningDetailContext = createContext<ReasoningDetailContextType | null>(null);
@@ -98,6 +100,15 @@ export function ReasoningDetailProvider({ children }: { children: ReactNode }) {
     setDetail((prev) => (prev ? { ...prev, content } : prev));
   }, []);
 
+  const updateWorkBlock = useCallback((workBlock: WorkBlockDetail) => {
+    setPanelDetail((prev) => {
+      if (prev?.type === 'workblock' && prev.data.messageId === workBlock.messageId) {
+        return { type: 'workblock', data: workBlock };
+      }
+      return prev;
+    });
+  }, []);
+
   return (
     <ReasoningDetailContext.Provider
       value={{
@@ -109,6 +120,7 @@ export function ReasoningDetailProvider({ children }: { children: ReactNode }) {
         toggleDetail,
         toggleWorkBlock,
         updateContent,
+        updateWorkBlock,
       }}
     >
       {children}
