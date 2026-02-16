@@ -107,6 +107,15 @@ export type AddExtensionRequest = {
     session_id: string;
 };
 
+export type AgentDelta = {
+    agent: string;
+    baselineAccuracy: number;
+    baselineCases: number;
+    candidateAccuracy: number;
+    candidateCases: number;
+    delta: number;
+};
+
 /**
  * ACP AgentDependency (experimental) — a tool, agent, or model required by this agent.
  */
@@ -366,6 +375,13 @@ export type ConnectAgentResponse = {
 export type Content = RawTextContent | RawImageContent | RawEmbeddedResource | RawAudioContent | RawResource;
 
 export type Conversation = Array<Message>;
+
+export type CorrelationInsight = {
+    gooseVersionDelta: string;
+    summary: string;
+    versionChanged: boolean;
+    versionTagDelta: string;
+};
 
 export type CreateDatasetRequest = {
     cases: Array<CreateTestCaseRequest>;
@@ -804,6 +820,12 @@ export type FailureDetail = {
     expectedMode: string;
     input: string;
     tags: Array<string>;
+};
+
+export type FixedCase = {
+    agent: string;
+    input: string;
+    mode: string;
 };
 
 export type ForkRequest = {
@@ -1486,6 +1508,31 @@ export type Role = string;
 export type RoutingInfo = {
     agentName: string;
     modeSlug: string;
+};
+
+export type RunComparison = {
+    agentDelta: number;
+    baseline: RunComparisonSide;
+    candidate: RunComparisonSide;
+    correlation: CorrelationInsight;
+    fixedCases: Array<FixedCase>;
+    modeDelta: number;
+    newFailures: Array<FailureDetail>;
+    overallDelta: number;
+    perAgentDelta: Array<AgentDelta>;
+};
+
+export type RunComparisonSide = {
+    agentAccuracy: number;
+    correct: number;
+    datasetName: string;
+    gooseVersion: string;
+    modeAccuracy: number;
+    overallAccuracy: number;
+    runId: string;
+    startedAt: string;
+    totalCases: number;
+    versionTag: string;
 };
 
 /**
@@ -2902,6 +2949,22 @@ export type GetAgentResponses = {
 };
 
 export type GetAgentResponse = GetAgentResponses[keyof GetAgentResponses];
+
+export type CompareEvalRunsData = {
+    body?: never;
+    path?: never;
+    query: {
+        baseline_id: string;
+        candidate_id: string;
+    };
+    url: '/analytics/eval/compare';
+};
+
+export type CompareEvalRunsResponses = {
+    200: RunComparison;
+};
+
+export type CompareEvalRunsResponse = CompareEvalRunsResponses[keyof CompareEvalRunsResponses];
 
 export type ListEvalDatasetsData = {
     body?: never;

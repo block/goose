@@ -10,6 +10,7 @@ import type {
   EvalRunDetail,
   EvalDatasetSummary,
 } from "../../api";
+import RunComparisonView from "./RunComparisonView";
 
 function formatPercent(v: number): string {
   return `${(v * 100).toFixed(1)}%`;
@@ -198,6 +199,17 @@ export default function RunHistoryTab() {
   const [running, setRunning] = useState(false);
   const [selectedDataset, setSelectedDataset] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [compareMode, setCompareMode] = useState(false);
+  const [selectedForCompare, setSelectedForCompare] = useState<string[]>([]);
+  const [showComparison, setShowComparison] = useState(false);
+
+  const toggleRunSelection = (runId: string) => {
+    setSelectedForCompare((prev) => {
+      if (prev.includes(runId)) return prev.filter((id) => id !== runId);
+      if (prev.length >= 2) return [prev[1], runId];
+      return [...prev, runId];
+    });
+  };
 
   const fetchData = useCallback(async () => {
     try {
@@ -244,6 +256,20 @@ export default function RunHistoryTab() {
     }
   };
 
+  if (showComparison && selectedForCompare.length === 2) {
+    return (
+      <RunComparisonView
+        baselineId={selectedForCompare[0]}
+        candidateId={selectedForCompare[1]}
+        onClose={() => {
+          setShowComparison(false);
+          setSelectedForCompare([]);
+          setCompareMode(false);
+        }}
+      />
+    );
+  }
+
   if (selectedDetail) {
     return <RunDetailPanel detail={selectedDetail} onClose={() => setSelectedDetail(null)} />;
   }
@@ -257,7 +283,37 @@ export default function RunHistoryTab() {
       )}
 
       <div className="flex items-center justify-between">
-        <h3 className="text-lg font-semibold text-white">Run History</h3>
+        <div className="flex items-center gap-3">
+          <h3 className="text-lg font-semibold text-white">Run History</h3>
+          {runs.length >= 2 && (
+            <button
+              onClick={() => {
+                setCompareMode(!compareMode);
+                if (compareMode) setSelectedForCompare([]);
+              }}
+              className={`px-3 py-1 rounded-lg text-xs font-medium transition-colors ${
+                compareMode
+                  ? "bg-purple-600 text-white"
+                  : "bg-zinc-700 text-zinc-300 hover:bg-zinc-600"
+              }`}
+            >
+              {compareMode ? "Cancel Compare" : "⇆ Compare Runs"}
+            </button>
+          )}
+          {compareMode && selectedForCompare.length === 2 && (
+            <button
+              onClick={() => setShowComparison(true)}
+              className="px-3 py-1 rounded-lg text-xs font-medium bg-green-600 hover:bg-green-700 text-white transition-colors"
+            >
+              Compare Selected →
+            </button>
+          )}
+          {compareMode && selectedForCompare.length < 2 && (
+            <span className="text-xs text-zinc-400">
+              Select {2 - selectedForCompare.length} more run{selectedForCompare.length === 0 ? "s" : ""}
+            </span>
+          )}
+        </div>
         <div className="flex gap-3 items-center">
           <select
             value={selectedDataset}
@@ -297,6 +353,9 @@ export default function RunHistoryTab() {
           <table className="w-full text-sm">
             <thead>
               <tr className="bg-gray-700/50">
+                {compareMode && (
+                  <th className="w-10 px-2 py-3" />
+                )}
                 <th className="text-left px-4 py-3 text-gray-400 font-medium">Run</th>
                 <th className="text-left px-4 py-3 text-gray-400 font-medium">Dataset</th>
                 <th className="text-center px-4 py-3 text-gray-400 font-medium">Overall</th>
@@ -308,12 +367,28 @@ export default function RunHistoryTab() {
               </tr>
             </thead>
             <tbody>
-              {runs.map((run) => (
+              {runs.map((run) => {
+                const isSelected = selectedForCompare.includes(run.id);
+                const selIndex = selectedForCompare.indexOf(run.id);
+                return (
                 <tr
                   key={run.id}
-                  className="border-t border-gray-700/50 hover:bg-gray-800/50 cursor-pointer"
-                  onClick={() => handleViewDetail(run.id)}
+                  className={`border-t border-gray-700/50 hover:bg-gray-800/50 cursor-pointer ${
+                    isSelected ? "bg-purple-900/20 border-purple-500/30" : ""
+                  }`}
+                  onClick={() => compareMode ? toggleRunSelection(run.id) : handleViewDetail(run.id)}
                 >
+                  {compareMode && (
+                    <td className="px-2 py-3 text-center">
+                      <div className={`w-5 h-5 rounded border-2 flex items-center justify-center text-xs font-bold ${
+                        isSelected
+                          ? "border-purple-400 bg-purple-600 text-white"
+                          : "border-zinc-500 bg-zinc-800"
+                      }`}>
+                        {isSelected ? (selIndex === 0 ? "A" : "B") : ""}
+                      </div>
+                    </td>
+                  )}
                   <td className="px-4 py-3 text-white font-mono text-xs">{run.id.slice(0, 8)}</td>
                   <td className="px-4 py-3 text-gray-300">{run.datasetName}</td>
                   <td className="px-4 py-3 text-center"><AccuracyBadge value={run.overallAccuracy} /></td>
@@ -324,10 +399,11 @@ export default function RunHistoryTab() {
                   </td>
                   <td className="px-4 py-3 text-gray-400 text-xs">{formatDate(run.startedAt)}</td>
                   <td className="px-4 py-3 text-right">
-                    <span className="text-blue-400 text-xs">Details →</span>
+                    {!compareMode && <span className="text-blue-400 text-xs">Details →</span>}
                   </td>
                 </tr>
-              ))}
+                );
+              })}
             </tbody>
           </table>
         </div>

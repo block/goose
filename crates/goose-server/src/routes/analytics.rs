@@ -13,7 +13,7 @@ use goose::agents::{
 };
 use goose::session::eval_storage::{
     CreateDatasetRequest, EvalDataset, EvalDatasetSummary, EvalOverview, EvalRunDetail,
-    EvalRunSummary, EvalStorage, RunEvalRequest, TopicAnalytics,
+    EvalRunSummary, EvalStorage, RunComparison, RunEvalRequest, TopicAnalytics,
 };
 use goose::session::tool_analytics::{AgentPerformanceMetrics, ToolAnalytics, ToolAnalyticsStore};
 use serde::{Deserialize, Serialize};
@@ -457,6 +457,39 @@ pub struct ToolAnalyticsQuery {
     days: Option<i32>,
 }
 
+// ── Comparison endpoint ──────────────────────────────────────────
+
+#[derive(Deserialize, utoipa::IntoParams)]
+pub struct CompareRunsQuery {
+    pub baseline_id: String,
+    pub candidate_id: String,
+}
+
+#[utoipa::path(
+    get,
+    path = "/analytics/eval/compare",
+    params(CompareRunsQuery),
+    responses((status = 200, body = RunComparison)),
+    operation_id = "compareEvalRuns"
+)]
+pub async fn compare_runs(
+    State(state): State<Arc<AppState>>,
+    Query(params): Query<CompareRunsQuery>,
+) -> Result<Json<RunComparison>, ErrorResponse> {
+    let pool = state
+        .session_manager()
+        .storage()
+        .pool()
+        .await
+        .map_err(|e| ErrorResponse::internal(e.to_string()))?;
+    let store = EvalStorage::new(pool);
+    let comparison = store
+        .compare_runs(&params.baseline_id, &params.candidate_id)
+        .await
+        .map_err(|e| ErrorResponse::internal(e.to_string()))?;
+    Ok(Json(comparison))
+}
+
 // ── Tool Analytics endpoints ───────────────────────────────────────
 
 #[utoipa::path(
@@ -530,6 +563,8 @@ pub fn routes(state: Arc<AppState>) -> Router {
         // Overview & topics
         .route("/analytics/eval/overview", get(get_overview))
         .route("/analytics/eval/topics", get(get_topics))
+        // Comparison
+        .route("/analytics/eval/compare", get(compare_runs))
         // Tool analytics
         .route("/analytics/tools", get(get_tool_analytics))
         .route("/analytics/tools/agents", get(get_agent_performance))

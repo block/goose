@@ -8,8 +8,9 @@ pub mod tool_analytics;
 
 pub use diagnostics::{generate_diagnostics, get_system_info, SystemInfo};
 pub use eval_storage::{
-    CreateDatasetRequest, EvalDataset, EvalDatasetSummary, EvalOverview, EvalRunDetail,
-    EvalRunSummary, EvalStorage, RunEvalRequest, TopicAnalytics,
+    AgentDelta, CorrelationInsight, CreateDatasetRequest, EvalDataset, EvalDatasetSummary,
+    EvalOverview, EvalRunDetail, EvalRunSummary, EvalStorage, FixedCase, RunComparison,
+    RunComparisonSide, RunEvalRequest, TopicAnalytics,
 };
 pub use extension_data::{EnabledExtensionsState, ExtensionData, ExtensionState, TodoState};
 pub use session_manager::{

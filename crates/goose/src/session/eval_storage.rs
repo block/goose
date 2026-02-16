@@ -198,6 +198,63 @@ pub struct TopicAgentDistribution {
     pub count: i64,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct RunComparison {
+    pub baseline: RunComparisonSide,
+    pub candidate: RunComparisonSide,
+    pub overall_delta: f64,
+    pub agent_delta: f64,
+    pub mode_delta: f64,
+    pub new_failures: Vec<FailureDetail>,
+    pub fixed_cases: Vec<FixedCase>,
+    pub per_agent_delta: Vec<AgentDelta>,
+    pub correlation: CorrelationInsight,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct RunComparisonSide {
+    pub run_id: String,
+    pub version_tag: String,
+    pub goose_version: String,
+    pub dataset_name: String,
+    pub started_at: DateTime<Utc>,
+    pub overall_accuracy: f64,
+    pub agent_accuracy: f64,
+    pub mode_accuracy: f64,
+    pub total_cases: i64,
+    pub correct: i64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct FixedCase {
+    pub input: String,
+    pub agent: String,
+    pub mode: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct AgentDelta {
+    pub agent: String,
+    pub baseline_accuracy: f64,
+    pub candidate_accuracy: f64,
+    pub delta: f64,
+    pub baseline_cases: i64,
+    pub candidate_cases: i64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct CorrelationInsight {
+    pub version_changed: bool,
+    pub goose_version_delta: String,
+    pub version_tag_delta: String,
+    pub summary: String,
+}
+
 // ── Stored run data (JSON blobs in DB) ─────────────────────────────
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -959,5 +1016,222 @@ impl<'a> EvalStorage<'a> {
 
         topics.sort_by(|a, b| b.case_count.cmp(&a.case_count));
         Ok(topics)
+    }
+
+    // ── Run comparison ─────────────────────────────────────────────
+
+    pub async fn compare_runs(
+        &self,
+        baseline_id: &str,
+        candidate_id: &str,
+    ) -> Result<RunComparison> {
+        let baseline = self.get_run_detail(baseline_id).await?;
+        let candidate = self.get_run_detail(candidate_id).await?;
+
+        // Load stored results for both runs
+        let baseline_results_json =
+            sqlx::query_scalar::<_, String>("SELECT results_json FROM eval_runs WHERE id = ?")
+                .bind(baseline_id)
+                .fetch_one(self.pool)
+                .await?;
+
+        let candidate_results_json =
+            sqlx::query_scalar::<_, String>("SELECT results_json FROM eval_runs WHERE id = ?")
+                .bind(candidate_id)
+                .fetch_one(self.pool)
+                .await?;
+
+        let baseline_results: Vec<StoredResult> =
+            serde_json::from_str(&baseline_results_json).unwrap_or_default();
+        let candidate_results: Vec<StoredResult> =
+            serde_json::from_str(&candidate_results_json).unwrap_or_default();
+
+        // Build input→result maps
+        let baseline_map: HashMap<String, &StoredResult> = baseline_results
+            .iter()
+            .map(|r| (r.input.clone(), r))
+            .collect();
+        // candidate_map not needed - we iterate candidate_results directly
+
+        // Find new failures (passed in baseline, failed in candidate)
+        let new_failures: Vec<FailureDetail> = candidate_results
+            .iter()
+            .filter(|c| {
+                !c.fully_correct
+                    && baseline_map
+                        .get(&c.input)
+                        .map(|b| b.fully_correct)
+                        .unwrap_or(false)
+            })
+            .map(|r| FailureDetail {
+                input: r.input.clone(),
+                expected_agent: r.expected_agent.clone(),
+                expected_mode: r.expected_mode.clone(),
+                actual_agent: r.actual_agent.clone(),
+                actual_mode: r.actual_mode.clone(),
+                confidence: r.confidence,
+                tags: r.tags.clone(),
+            })
+            .collect();
+
+        // Find fixed cases (failed in baseline, passed in candidate)
+        let fixed_cases: Vec<FixedCase> = candidate_results
+            .iter()
+            .filter(|c| {
+                c.fully_correct
+                    && baseline_map
+                        .get(&c.input)
+                        .map(|b| !b.fully_correct)
+                        .unwrap_or(false)
+            })
+            .map(|r| FixedCase {
+                input: r.input.clone(),
+                agent: r.actual_agent.clone(),
+                mode: r.actual_mode.clone(),
+            })
+            .collect();
+
+        // Per-agent deltas
+        let mut all_agents: std::collections::HashSet<String> = std::collections::HashSet::new();
+        for r in &baseline_results {
+            all_agents.insert(r.expected_agent.clone());
+        }
+        for r in &candidate_results {
+            all_agents.insert(r.expected_agent.clone());
+        }
+
+        let mut per_agent_delta: Vec<AgentDelta> = Vec::new();
+        for agent in &all_agents {
+            let b_cases: Vec<&StoredResult> = baseline_results
+                .iter()
+                .filter(|r| &r.expected_agent == agent)
+                .collect();
+            let c_cases: Vec<&StoredResult> = candidate_results
+                .iter()
+                .filter(|r| &r.expected_agent == agent)
+                .collect();
+
+            let b_correct = b_cases.iter().filter(|r| r.fully_correct).count() as f64;
+            let c_correct = c_cases.iter().filter(|r| r.fully_correct).count() as f64;
+
+            let b_acc = if b_cases.is_empty() {
+                0.0
+            } else {
+                b_correct / b_cases.len() as f64
+            };
+            let c_acc = if c_cases.is_empty() {
+                0.0
+            } else {
+                c_correct / c_cases.len() as f64
+            };
+
+            per_agent_delta.push(AgentDelta {
+                agent: agent.clone(),
+                baseline_accuracy: b_acc,
+                candidate_accuracy: c_acc,
+                delta: c_acc - b_acc,
+                baseline_cases: b_cases.len() as i64,
+                candidate_cases: c_cases.len() as i64,
+            });
+        }
+
+        per_agent_delta.sort_by(|a, b| {
+            a.delta
+                .partial_cmp(&b.delta)
+                .unwrap_or(std::cmp::Ordering::Equal)
+        });
+
+        // Correlation insight
+        let version_changed = baseline.version_tag != candidate.version_tag;
+        let goose_version_delta = if baseline.goose_version == candidate.goose_version {
+            "same".to_string()
+        } else {
+            format!("{} → {}", baseline.goose_version, candidate.goose_version)
+        };
+        let version_tag_delta = if baseline.version_tag == candidate.version_tag {
+            "same".to_string()
+        } else {
+            format!("{} → {}", baseline.version_tag, candidate.version_tag)
+        };
+
+        let overall_delta = candidate.overall_accuracy - baseline.overall_accuracy;
+        let summary = if overall_delta.abs() < 0.01 {
+            "No significant accuracy change detected.".to_string()
+        } else if overall_delta > 0.0 {
+            let mut msg = format!(
+                "Accuracy improved by {:.1}% ({} fixed cases).",
+                overall_delta * 100.0,
+                fixed_cases.len()
+            );
+            if version_changed {
+                msg.push_str(&format!(
+                    " Version changed from {} to {}.",
+                    baseline.version_tag, candidate.version_tag
+                ));
+            }
+            msg
+        } else {
+            let mut msg = format!(
+                "Accuracy regressed by {:.1}% ({} new failures).",
+                overall_delta.abs() * 100.0,
+                new_failures.len()
+            );
+            if version_changed {
+                msg.push_str(&format!(
+                    " Regression may correlate with version change {} → {}.",
+                    baseline.version_tag, candidate.version_tag
+                ));
+            }
+            if !per_agent_delta.is_empty() {
+                let worst = &per_agent_delta[0];
+                if worst.delta < -0.05 {
+                    msg.push_str(&format!(
+                        " Agent '{}' most affected ({:.1}% drop).",
+                        worst.agent,
+                        worst.delta.abs() * 100.0
+                    ));
+                }
+            }
+            msg
+        };
+
+        Ok(RunComparison {
+            baseline: RunComparisonSide {
+                run_id: baseline.id,
+                version_tag: baseline.version_tag,
+                goose_version: baseline.goose_version,
+                dataset_name: baseline.dataset_name,
+                started_at: baseline.started_at,
+                overall_accuracy: baseline.overall_accuracy,
+                agent_accuracy: baseline.agent_accuracy,
+                mode_accuracy: baseline.mode_accuracy,
+                total_cases: baseline.total_cases,
+                correct: baseline.correct,
+            },
+            candidate: RunComparisonSide {
+                run_id: candidate.id,
+                version_tag: candidate.version_tag,
+                goose_version: candidate.goose_version,
+                dataset_name: candidate.dataset_name,
+                started_at: candidate.started_at,
+                overall_accuracy: candidate.overall_accuracy,
+                agent_accuracy: candidate.agent_accuracy,
+                mode_accuracy: candidate.mode_accuracy,
+                total_cases: candidate.total_cases,
+                correct: candidate.correct,
+            },
+            overall_delta,
+            agent_delta: candidate.agent_accuracy - baseline.agent_accuracy,
+            mode_delta: candidate.mode_accuracy - baseline.mode_accuracy,
+            new_failures,
+            fixed_cases,
+            per_agent_delta,
+            correlation: CorrelationInsight {
+                version_changed,
+                goose_version_delta,
+                version_tag_delta,
+                summary,
+            },
+        })
     }
 }

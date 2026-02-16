@@ -1159,6 +1159,44 @@
         }
       }
     },
+    "/analytics/eval/compare": {
+      "get": {
+        "tags": [
+          "super::routes::analytics"
+        ],
+        "operationId": "compareEvalRuns",
+        "parameters": [
+          {
+            "name": "baseline_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "candidate_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RunComparison"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/analytics/eval/datasets": {
       "get": {
         "tags": [
@@ -4880,6 +4918,42 @@
           }
         }
       },
+      "AgentDelta": {
+        "type": "object",
+        "required": [
+          "agent",
+          "baselineAccuracy",
+          "candidateAccuracy",
+          "delta",
+          "baselineCases",
+          "candidateCases"
+        ],
+        "properties": {
+          "agent": {
+            "type": "string"
+          },
+          "baselineAccuracy": {
+            "type": "number",
+            "format": "double"
+          },
+          "baselineCases": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "candidateAccuracy": {
+            "type": "number",
+            "format": "double"
+          },
+          "candidateCases": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "delta": {
+            "type": "number",
+            "format": "double"
+          }
+        }
+      },
       "AgentDependency": {
         "type": "object",
         "description": "ACP AgentDependency (experimental) — a tool, agent, or model required by this agent.",
@@ -5591,6 +5665,29 @@
         "type": "array",
         "items": {
           "$ref": "#/components/schemas/Message"
+        }
+      },
+      "CorrelationInsight": {
+        "type": "object",
+        "required": [
+          "versionChanged",
+          "gooseVersionDelta",
+          "versionTagDelta",
+          "summary"
+        ],
+        "properties": {
+          "gooseVersionDelta": {
+            "type": "string"
+          },
+          "summary": {
+            "type": "string"
+          },
+          "versionChanged": {
+            "type": "boolean"
+          },
+          "versionTagDelta": {
+            "type": "string"
+          }
         }
       },
       "CreateDatasetRequest": {
@@ -6975,6 +7072,25 @@
             "items": {
               "type": "string"
             }
+          }
+        }
+      },
+      "FixedCase": {
+        "type": "object",
+        "required": [
+          "input",
+          "agent",
+          "mode"
+        ],
+        "properties": {
+          "agent": {
+            "type": "string"
+          },
+          "input": {
+            "type": "string"
+          },
+          "mode": {
+            "type": "string"
           }
         }
       },
@@ -9049,6 +9165,114 @@
             "type": "string"
           },
           "modeSlug": {
+            "type": "string"
+          }
+        }
+      },
+      "RunComparison": {
+        "type": "object",
+        "required": [
+          "baseline",
+          "candidate",
+          "overallDelta",
+          "agentDelta",
+          "modeDelta",
+          "newFailures",
+          "fixedCases",
+          "perAgentDelta",
+          "correlation"
+        ],
+        "properties": {
+          "agentDelta": {
+            "type": "number",
+            "format": "double"
+          },
+          "baseline": {
+            "$ref": "#/components/schemas/RunComparisonSide"
+          },
+          "candidate": {
+            "$ref": "#/components/schemas/RunComparisonSide"
+          },
+          "correlation": {
+            "$ref": "#/components/schemas/CorrelationInsight"
+          },
+          "fixedCases": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/FixedCase"
+            }
+          },
+          "modeDelta": {
+            "type": "number",
+            "format": "double"
+          },
+          "newFailures": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/FailureDetail"
+            }
+          },
+          "overallDelta": {
+            "type": "number",
+            "format": "double"
+          },
+          "perAgentDelta": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AgentDelta"
+            }
+          }
+        }
+      },
+      "RunComparisonSide": {
+        "type": "object",
+        "required": [
+          "runId",
+          "versionTag",
+          "gooseVersion",
+          "datasetName",
+          "startedAt",
+          "overallAccuracy",
+          "agentAccuracy",
+          "modeAccuracy",
+          "totalCases",
+          "correct"
+        ],
+        "properties": {
+          "agentAccuracy": {
+            "type": "number",
+            "format": "double"
+          },
+          "correct": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "datasetName": {
+            "type": "string"
+          },
+          "gooseVersion": {
+            "type": "string"
+          },
+          "modeAccuracy": {
+            "type": "number",
+            "format": "double"
+          },
+          "overallAccuracy": {
+            "type": "number",
+            "format": "double"
+          },
+          "runId": {
+            "type": "string"
+          },
+          "startedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "totalCases": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "versionTag": {
             "type": "string"
           }
         }
