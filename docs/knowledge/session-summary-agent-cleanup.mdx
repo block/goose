@@ -1,0 +1,75 @@
+---
+title: "Session Summary: Agent Persona Cleanup & Architecture Phase 2"
+type: session-summary
+date: 2026-02-16
+epic_ids: [goose4-8rt, goose4-aop5]
+status: complete
+confidence: 0.96
+tags: [agents, modes, architecture, routing, prompts]
+---
+
+# Session Summary: Agent Persona Cleanup
+
+## Objective
+
+Refactor goose agent architecture to enforce **1 Agent = 1 Persona** with universal
+behavioral modes (ask/plan/write/review/debug), aligned with ACP/A2A/Kilo Code SOTA.
+
+## Key Decision (ADR-001)
+
+| Dimension | Meaning | Protocol | Goose |
+|-----------|---------|----------|-------|
+| **Agent** | WHO — persona/role | ACP AgentManifest / A2A AgentCard | `*Agent` struct |
+| **Mode** | HOW — behavioral stance | ACP SessionMode / Kilo customMode | `UniversalMode` enum |
+| **Skill** | WHAT — capability declaration | A2A AgentSkill | `AgentSkill` (future) |
+
+## What Was Built
+
+### Epic 1: Agent Persona Cleanup (goose4-8rt) ✅ CLOSED
+- Created `UniversalMode` enum (ask/plan/write/review/debug)
+- Created `DeveloperAgent` replacing `CodingAgent`
+- Refactored all 6 agents to universal modes
+- Wrote 21 prompt templates with 7-section Persona+Mode structure
+- 50-case routing evaluation matrix
+- 14 child tasks, all closed
+
+### Epic 2: Architecture Phase 2 (goose4-aop5) ✅ CLOSED (75%)
+- Focus 1: GooseAgent → universal modes ✅
+- Focus 3: LLM routing prompts improved ✅
+- Focus 4: CodingAgent fully removed ✅
+- Focus 2: Extension-Agent Separation (deferred — 5350-line refactor)
+
+## Agent×Mode Matrix (Final State)
+
+| Agent | ask | plan | write | review | debug | Internal |
+|-------|-----|------|-------|--------|-------|----------|
+| **Goose** | ✅ (default) | ✅ | ✅ | ✅ | — | judge, planner, recipe_maker, app_maker, app_iterator |
+| **Developer** | ✅ | ✅ | ✅ (default) | ✅ | ✅ | — |
+| **QA** | ✅ (default) | ✅ | ✅ | ✅ | — | — |
+| **PM** | ✅ (default) | ✅ | ✅ | ✅ | — | — |
+| **Security** | ✅ (default) | ✅ | ✅ | ✅ | — | — |
+| **Research** | ✅ (default) | ✅ | ✅ | ✅ | — | — |
+
+## Commits (10 total on feature/cli-via-goosed)
+
+1. `f922fae2` — CodingAgent 8→5 modes
+2. `acfd49c1` — UniversalMode + DeveloperAgent
+3. `00077349` — All agents → universal modes
+4. `cadddd7a` — 50-case routing eval
+5. `a02c3bb7` — ADR-001 + architecture docs
+6. `0de583be` — Agent description keywords
+7. `e011c278` — Remove CodingAgent
+8. `6e2e1c29` — GooseAgent → universal modes
+9. `fdfd54af` — Improved routing prompts + eval
+10. Various intermediate fixes
+
+## Test Results (Final)
+- 258/258 tests pass (218 goose + 40 server)
+- 0 clippy warnings
+- Keyword routing: 32% exact, 46% agent-level (expected for fallback)
+- LLM routing: enabled by default in production
+
+## Remaining Work
+- `goose4-qepm` — Extension-Agent Separation (large, multi-session)
+- GooseAgent internal modes cleanup (app_maker/app_iterator → write mode)
+- LLM routing eval (requires mock provider for unit tests)
