@@ -448,12 +448,37 @@ test_cases:
   - input: "Create fuzzing test scenarios for the file upload endpoint"
     expected_agent: "Security Agent"
     expected_mode: "pentest"
+
+  - input: "research how WebSocket connections work and their security implications"
+    expected_agent: "Research Agent"
+    expected_mode: "investigate"
+  - input: "investigate the internals of the V8 JavaScript engine garbage collector"
+    expected_agent: "Research Agent"
+    expected_mode: "investigate"
+  - input: "compare React vs Vue vs Svelte for a new dashboard project"
+    expected_agent: "Research Agent"
+    expected_mode: "compare"
+  - input: "what are the pros and cons of PostgreSQL versus MySQL for OLTP workloads"
+    expected_agent: "Research Agent"
+    expected_mode: "compare"
+  - input: "summarize this RFC and extract the key decisions and open questions"
+    expected_agent: "Research Agent"
+    expected_mode: "summarize"
+  - input: "TLDR this design doc and list the action items"
+    expected_agent: "Research Agent"
+    expected_mode: "summarize"
+  - input: "explain how Rust's borrow checker works with simple examples"
+    expected_agent: "Research Agent"
+    expected_mode: "learn"
+  - input: "teach me about event sourcing and CQRS patterns with a tutorial"
+    expected_agent: "Research Agent"
+    expected_mode: "learn"
 "#;
 
     #[test]
     fn test_load_eval_set() {
         let set = load_eval_set(TEST_YAML).expect("YAML should parse");
-        assert_eq!(set.test_cases.len(), 53);
+        assert_eq!(set.test_cases.len(), 61);
     }
 
     #[test]
@@ -461,7 +486,7 @@ test_cases:
         let set = load_eval_set(TEST_YAML).unwrap();
         let router = IntentRouter::new();
         let results = evaluate(&router, &set);
-        assert_eq!(results.len(), 53);
+        assert_eq!(results.len(), 61);
         for r in &results {
             assert!(!r.actual_agent.is_empty());
             assert!(!r.actual_mode.is_empty());
@@ -512,7 +537,7 @@ test_cases:
         let router = IntentRouter::new();
         let results = evaluate(&router, &set);
         let metrics = compute_metrics(&results);
-        assert_eq!(metrics.total, 53);
+        assert_eq!(metrics.total, 61);
         assert!(metrics.overall_accuracy >= 0.0 && metrics.overall_accuracy <= 1.0);
         assert!(metrics.agent_accuracy >= 0.0 && metrics.agent_accuracy <= 1.0);
         assert!(!metrics.per_agent.is_empty());

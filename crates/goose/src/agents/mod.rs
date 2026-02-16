@@ -23,6 +23,7 @@ pub mod pm_agent;
 pub mod prompt_manager;
 pub mod qa_agent;
 mod reply_parts;
+pub mod research_agent;
 pub mod retry;
 pub mod routing_eval;
 mod schedule_tool;

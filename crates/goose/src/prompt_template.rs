@@ -120,6 +120,22 @@ static TEMPLATE_REGISTRY: &[(&str, &str)] = &[
         "Security Agent — penetration test planning, attack scenarios",
     ),
     (
+        "research_agent/investigate.md",
+        "Research Agent — deep-dive investigation into technical topics",
+    ),
+    (
+        "research_agent/compare.md",
+        "Research Agent — structured technology and tool comparisons",
+    ),
+    (
+        "research_agent/summarize.md",
+        "Research Agent — document and discussion summarization",
+    ),
+    (
+        "research_agent/learn.md",
+        "Research Agent — concept explanations and learning paths",
+    ),
+    (
         "orchestrator/system.md",
         "Orchestrator system prompt — meta-coordinator for routing to agents/modes",
     ),

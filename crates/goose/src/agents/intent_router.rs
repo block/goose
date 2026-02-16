@@ -5,6 +5,7 @@ use crate::agents::coding_agent::CodingAgent;
 use crate::agents::goose_agent::GooseAgent;
 use crate::agents::pm_agent::PmAgent;
 use crate::agents::qa_agent::QaAgent;
+use crate::agents::research_agent::ResearchAgent;
 use crate::agents::security_agent::SecurityAgent;
 use crate::registry::manifest::AgentMode;
 
@@ -107,6 +108,20 @@ impl IntentRouter {
                 "Security agent for threat modeling, vulnerability analysis, and compliance".into(),
             modes: security_modes,
             default_mode: security.default_mode_slug().into(),
+            enabled: true,
+            bound_extensions: vec![],
+        });
+
+        // Register ResearchAgent
+        let research = ResearchAgent::new();
+        let research_modes = research.to_agent_modes();
+        slots.push(AgentSlot {
+            name: "Research Agent".into(),
+            description:
+                "Research agent for investigating topics, comparing technologies, and learning"
+                    .into(),
+            modes: research_modes,
+            default_mode: research.default_mode_slug().into(),
             enabled: true,
             bound_extensions: vec![],
         });
