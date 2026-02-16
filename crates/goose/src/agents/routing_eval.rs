@@ -286,199 +286,241 @@ mod tests {
 
     const TEST_YAML: &str = r#"
 test_cases:
+  # ══════════════════════════════════════════════════════════════════
+  # Goose Agent — general-purpose assistant (catch-all)
+  # ══════════════════════════════════════════════════════════════════
   - input: "What time is it in Tokyo?"
     expected_agent: "Goose Agent"
     expected_mode: "assistant"
+    tags: [p0, general]
   - input: "Tell me a joke about programming"
     expected_agent: "Goose Agent"
     expected_mode: "assistant"
+    tags: [p1, general]
   - input: "Summarize this article for me"
     expected_agent: "Goose Agent"
     expected_mode: "assistant"
+    tags: [p1, general]
   - input: "What is the meaning of life?"
     expected_agent: "Goose Agent"
     expected_mode: "assistant"
+    tags: [p1, general]
   - input: "Help me write an email to my boss"
     expected_agent: "Goose Agent"
     expected_mode: "assistant"
+    tags: [p1, general]
+  # ══════════════════════════════════════════════════════════════════
+  # Coding Agent — software engineering (write code, debug, deploy)
+  # Mode expectations: code→write, frontend→write, architect→plan,
+  #   debug→debug, devops→write. Router selects agent first, then
+  #   mode is inferred from behavioral intent.
+  # ══════════════════════════════════════════════════════════════════
   - input: "Write a REST API endpoint for user registration"
     expected_agent: "Coding Agent"
-    expected_mode: "backend"
+    expected_mode: "code"
+    tags: [p0, coding, write]
   - input: "Fix the database connection pool timeout issue"
     expected_agent: "Coding Agent"
-    expected_mode: "backend"
+    expected_mode: "code"
+    tags: [p0, coding, write]
   - input: "Implement a caching layer with Redis"
     expected_agent: "Coding Agent"
-    expected_mode: "backend"
+    expected_mode: "code"
+    tags: [p0, coding, write]
   - input: "Create a migration to add a users table"
     expected_agent: "Coding Agent"
-    expected_mode: "backend"
+    expected_mode: "code"
+    tags: [p1, coding, write]
   - input: "Debug the null pointer exception in the payment service"
     expected_agent: "Coding Agent"
-    expected_mode: "backend"
+    expected_mode: "debug"
+    tags: [p0, coding, debug]
   - input: "Build a responsive navigation bar with Tailwind CSS"
     expected_agent: "Coding Agent"
     expected_mode: "frontend"
+    tags: [p1, coding, frontend]
   - input: "Fix the React component re-rendering issue"
     expected_agent: "Coding Agent"
     expected_mode: "frontend"
+    tags: [p1, coding, frontend]
   - input: "Create a dark mode toggle for the dashboard"
     expected_agent: "Coding Agent"
     expected_mode: "frontend"
+    tags: [p1, coding, frontend]
   - input: "Design the microservices architecture for our e-commerce platform"
     expected_agent: "Coding Agent"
     expected_mode: "architect"
+    tags: [p0, coding, plan]
   - input: "Create an architecture decision record for the new auth system"
     expected_agent: "Coding Agent"
     expected_mode: "architect"
-  - input: "Review this code for SQL injection vulnerabilities"
-    expected_agent: "Coding Agent"
-    expected_mode: "security"
-  - input: "Audit the authentication flow for security issues"
-    expected_agent: "Coding Agent"
-    expected_mode: "security"
-  - input: "Check for hardcoded secrets in the repository"
-    expected_agent: "Coding Agent"
-    expected_mode: "security"
-  - input: "Write unit tests for the UserService class"
-    expected_agent: "Coding Agent"
-    expected_mode: "qa"
-  - input: "Create integration tests for the payment API"
-    expected_agent: "Coding Agent"
-    expected_mode: "qa"
-  - input: "Set up end-to-end testing with Playwright"
-    expected_agent: "Coding Agent"
-    expected_mode: "qa"
-  - input: "Create a product requirements document for the new feature"
-    expected_agent: "Coding Agent"
-    expected_mode: "pm"
-  - input: "Write user stories for the shopping cart feature"
-    expected_agent: "Coding Agent"
-    expected_mode: "pm"
+    tags: [p1, coding, plan]
   - input: "Set up Kubernetes deployment manifests for the API"
     expected_agent: "Coding Agent"
-    expected_mode: "sre"
+    expected_mode: "devops"
+    tags: [p1, coding, devops]
   - input: "Configure Prometheus monitoring and alerting"
     expected_agent: "Coding Agent"
-    expected_mode: "sre"
+    expected_mode: "devops"
+    tags: [p1, coding, devops]
   - input: "Create a Dockerfile for the Node.js application"
     expected_agent: "Coding Agent"
-    expected_mode: "sre"
+    expected_mode: "devops"
+    tags: [p1, coding, devops]
   - input: "Set up CI/CD pipeline with GitHub Actions"
     expected_agent: "Coding Agent"
-    expected_mode: "sre"
-  - input: "Set up SAST scanning in the CI pipeline"
-    expected_agent: "Coding Agent"
-    expected_mode: "devsecops"
-  - input: "Configure dependency vulnerability scanning"
-    expected_agent: "Coding Agent"
-    expected_mode: "devsecops"
-  # QA Agent test cases
-  - input: "Analyze the codebase for anti-patterns and code smells"
+    expected_mode: "devops"
+    tags: [p1, coding, devops]
+
+  # ══════════════════════════════════════════════════════════════════
+  # QA Agent — testing, quality, coverage (universal modes)
+  # ══════════════════════════════════════════════════════════════════
+  - input: "Explain how the test fixtures are structured in this project"
     expected_agent: "QA Agent"
-    expected_mode: "analyze"
-  - input: "Find complexity hotspots and maintainability issues"
+    expected_mode: "ask"
+    tags: [p0, qa, ask]
+  - input: "What test coverage do we have for the auth module?"
     expected_agent: "QA Agent"
-    expected_mode: "analyze"
+    expected_mode: "ask"
+    tags: [p1, qa, ask]
   - input: "Design a test strategy for the payment processing module"
     expected_agent: "QA Agent"
-    expected_mode: "test-design"
-  - input: "Generate test cases for the user registration flow"
+    expected_mode: "plan"
+    tags: [p0, qa, plan]
+  - input: "Plan the testing approach for our microservice migration"
     expected_agent: "QA Agent"
-    expected_mode: "test-design"
-  - input: "Audit the test coverage and find gaps in our test suite"
+    expected_mode: "plan"
+    tags: [p1, qa, plan]
+  - input: "Write unit tests for the UserService class"
     expected_agent: "QA Agent"
-    expected_mode: "coverage-audit"
-  - input: "What is the test coverage for the auth module?"
+    expected_mode: "write"
+    tags: [p0, qa, write]
+  - input: "Create integration tests for the payment API"
     expected_agent: "QA Agent"
-    expected_mode: "coverage-audit"
-  - input: "Review this pull request for correctness and reliability"
+    expected_mode: "write"
+    tags: [p0, qa, write]
+  - input: "Set up end-to-end testing with Playwright"
+    expected_agent: "QA Agent"
+    expected_mode: "write"
+    tags: [p1, qa, write]
+  - input: "Review this pull request for correctness and test coverage"
     expected_agent: "QA Agent"
     expected_mode: "review"
-  - input: "Check this code for concurrency bugs and race conditions"
-    expected_agent: "QA Agent"
-    expected_mode: "review"
-  # PM Agent cases
-  - input: "Write user stories and acceptance criteria for the checkout feature"
+    tags: [p0, qa, review]
+
+  # ══════════════════════════════════════════════════════════════════
+  # PM Agent — product management, requirements, roadmap
+  # ══════════════════════════════════════════════════════════════════
+  - input: "What are the acceptance criteria for the checkout feature?"
     expected_agent: "PM Agent"
-    expected_mode: "requirements"
-  - input: "Create a PRD for the new notification system"
+    expected_mode: "ask"
+    tags: [p1, pm, ask]
+  - input: "Plan the phased rollout strategy for our mobile app launch"
     expected_agent: "PM Agent"
-    expected_mode: "requirements"
+    expected_mode: "plan"
+    tags: [p0, pm, plan]
   - input: "Prioritize these features using RICE scoring framework"
     expected_agent: "PM Agent"
-    expected_mode: "prioritize"
-  - input: "Help me decide between MoSCoW priorities for Q3 backlog"
+    expected_mode: "plan"
+    tags: [p1, pm, plan]
+  - input: "Create a product requirements document for the notification system"
     expected_agent: "PM Agent"
-    expected_mode: "prioritize"
+    expected_mode: "write"
+    tags: [p0, pm, write]
+  - input: "Write user stories for the shopping cart feature"
+    expected_agent: "PM Agent"
+    expected_mode: "write"
+    tags: [p0, pm, write]
   - input: "Create a product roadmap with milestones for the next 6 months"
     expected_agent: "PM Agent"
-    expected_mode: "roadmap"
-  - input: "Plan the phased rollout for our mobile app launch"
+    expected_mode: "write"
+    tags: [p1, pm, write]
+  - input: "Review this PRD for completeness and missing edge cases"
     expected_agent: "PM Agent"
-    expected_mode: "roadmap"
-  - input: "Build user personas for our target market segments"
-    expected_agent: "PM Agent"
-    expected_mode: "stakeholder"
-  - input: "Do a competitive analysis of our product vs the top 3 competitors"
-    expected_agent: "PM Agent"
-    expected_mode: "stakeholder"
-  # Security Agent cases
+    expected_mode: "review"
+    tags: [p1, pm, review]
+
+  # ══════════════════════════════════════════════════════════════════
+  # Security Agent — security analysis, threat modeling, compliance
+  # ══════════════════════════════════════════════════════════════════
+  - input: "What are the security implications of using JWT tokens?"
+    expected_agent: "Security Agent"
+    expected_mode: "ask"
+    tags: [p0, security, ask]
   - input: "Perform STRIDE threat modeling on our authentication flow"
     expected_agent: "Security Agent"
-    expected_mode: "threat-model"
+    expected_mode: "plan"
+    tags: [p0, security, plan]
   - input: "Map the attack surface and trust boundaries for this microservice"
     expected_agent: "Security Agent"
-    expected_mode: "threat-model"
+    expected_mode: "plan"
+    tags: [p1, security, plan]
+  - input: "Apply security patches and harden the authentication configuration"
+    expected_agent: "Security Agent"
+    expected_mode: "write"
+    tags: [p0, security, write]
   - input: "Scan this code for SQL injection and XSS vulnerabilities"
     expected_agent: "Security Agent"
-    expected_mode: "vulnerability"
-  - input: "Run a SAST analysis looking for CWE top 25 issues"
-    expected_agent: "Security Agent"
-    expected_mode: "vulnerability"
+    expected_mode: "review"
+    tags: [p0, security, review]
   - input: "Audit this service for PCI-DSS compliance requirements"
     expected_agent: "Security Agent"
-    expected_mode: "compliance"
-  - input: "Check if our authentication meets OWASP ASVS level 2 standards"
+    expected_mode: "review"
+    tags: [p0, security, review]
+  - input: "Check for hardcoded secrets in the repository"
     expected_agent: "Security Agent"
-    expected_mode: "compliance"
-  - input: "Design a penetration test plan for our REST API"
-    expected_agent: "Security Agent"
-    expected_mode: "pentest"
-  - input: "Create fuzzing test scenarios for the file upload endpoint"
-    expected_agent: "Security Agent"
-    expected_mode: "pentest"
+    expected_mode: "review"
+    tags: [p1, security, review]
 
-  - input: "research how WebSocket connections work and their security implications"
+  # ══════════════════════════════════════════════════════════════════
+  # Research Agent — investigation, comparison, learning
+  # ══════════════════════════════════════════════════════════════════
+  - input: "Explain how Rust's borrow checker works with simple examples"
     expected_agent: "Research Agent"
-    expected_mode: "investigate"
-  - input: "investigate the internals of the V8 JavaScript engine garbage collector"
+    expected_mode: "ask"
+    tags: [p0, research, ask]
+  - input: "Research how WebSocket connections work and their security implications"
     expected_agent: "Research Agent"
-    expected_mode: "investigate"
-  - input: "compare React vs Vue vs Svelte for a new dashboard project"
+    expected_mode: "ask"
+    tags: [p1, research, ask]
+  - input: "Plan a literature review on microservice design patterns"
     expected_agent: "Research Agent"
-    expected_mode: "compare"
-  - input: "what are the pros and cons of PostgreSQL versus MySQL for OLTP workloads"
+    expected_mode: "plan"
+    tags: [p1, research, plan]
+  - input: "Write a comparison report of React vs Vue vs Svelte"
     expected_agent: "Research Agent"
-    expected_mode: "compare"
-  - input: "summarize this RFC and extract the key decisions and open questions"
+    expected_mode: "write"
+    tags: [p0, research, write]
+  - input: "Summarize this RFC and extract the key decisions"
     expected_agent: "Research Agent"
-    expected_mode: "summarize"
-  - input: "TLDR this design doc and list the action items"
+    expected_mode: "write"
+    tags: [p1, research, write]
+  - input: "Review this technical report for accuracy and source quality"
     expected_agent: "Research Agent"
-    expected_mode: "summarize"
-  - input: "explain how Rust's borrow checker works with simple examples"
-    expected_agent: "Research Agent"
-    expected_mode: "learn"
-  - input: "teach me about event sourcing and CQRS patterns with a tutorial"
-    expected_agent: "Research Agent"
-    expected_mode: "learn"
+    expected_mode: "review"
+    tags: [p1, research, review]
+
+  # ══════════════════════════════════════════════════════════════════
+  # Ambiguity tests — edge cases requiring correct disambiguation
+  # ══════════════════════════════════════════════════════════════════
+  - input: "Review and fix the authentication code"
+    expected_agent: "Coding Agent"
+    expected_mode: "code"
+    tags: [ambiguity, coding]
+  - input: "Plan tests for the new payment feature"
+    expected_agent: "QA Agent"
+    expected_mode: "plan"
+    tags: [ambiguity, qa]
+  - input: "Create an app that shows weather forecasts"
+    expected_agent: "Goose Agent"
+    expected_mode: "assistant"
+    tags: [ambiguity, goose]
 "#;
 
     #[test]
     fn test_load_eval_set() {
         let set = load_eval_set(TEST_YAML).expect("YAML should parse");
-        assert_eq!(set.test_cases.len(), 61);
+        assert_eq!(set.test_cases.len(), 50);
     }
 
     #[test]
@@ -486,7 +528,7 @@ test_cases:
         let set = load_eval_set(TEST_YAML).unwrap();
         let router = IntentRouter::new();
         let results = evaluate(&router, &set);
-        assert_eq!(results.len(), 61);
+        assert_eq!(results.len(), 50);
         for r in &results {
             assert!(!r.actual_agent.is_empty());
             assert!(!r.actual_mode.is_empty());
@@ -537,7 +579,7 @@ test_cases:
         let router = IntentRouter::new();
         let results = evaluate(&router, &set);
         let metrics = compute_metrics(&results);
-        assert_eq!(metrics.total, 61);
+        assert_eq!(metrics.total, 50);
         assert!(metrics.overall_accuracy >= 0.0 && metrics.overall_accuracy <= 1.0);
         assert!(metrics.agent_accuracy >= 0.0 && metrics.agent_accuracy <= 1.0);
         assert!(!metrics.per_agent.is_empty());
