@@ -14,11 +14,11 @@ goose can automate browsers and generate Playwright tests using [Playwright CLI]
 ## Prerequisites
 
 - [Node.js](https://nodejs.org/) 18 or later
-- A project with [Playwright](https://playwright.dev/) installed (`npm init playwright@latest`)
 - Install Playwright CLI globally:
   ```bash
   npm install -g @playwright/cli@latest
   ```
+- (Optional) [Playwright](https://playwright.dev/) installed if you want to run the generated tests (`npm init playwright@latest`)
 
 ## Configuration
 
@@ -207,6 +207,7 @@ What else can you do with playwright skills?
 | **Storage & Auth** | Save/restore cookies, handle login states |
 | **Network** | Mock APIs, intercept requests |
 | **Input** | Type text, press keys, mouse actions |
+| **Monitoring** | show (visual dashboard to observe all sessions) |
 
 ### Example Use Cases
 
