@@ -336,7 +336,10 @@ impl ProviderDef for LeadWorkerProvider {
         )
     }
 
-    fn from_env(_model: ModelConfig) -> BoxFuture<'static, Result<Self::Provider>> {
+    fn from_env(
+        _model: ModelConfig,
+        _extensions: Vec<crate::config::ExtensionConfig>,
+    ) -> BoxFuture<'static, Result<Self::Provider>> {
         Box::pin(async { Err(anyhow!("LeadWorkerProvider must be constructed explicitly")) })
     }
 }

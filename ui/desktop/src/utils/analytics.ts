@@ -241,10 +241,10 @@ export function trackPageView(page: string, referrer?: string): void {
 export function trackError(
   errorType: string,
   options: {
-    component?: string; // React component name
-    page?: string; // Current route/page
-    action?: string; // What user was doing
-    stackSummary?: string; // Use getStackSummary() to generate
+    component?: string;
+    page?: string;
+    action?: string;
+    stackSummary?: string;
     recoverable?: boolean;
   } = {}
 ): void {

@@ -22,6 +22,20 @@ export function errorMessage(err: Error | unknown, default_value?: string) {
   }
 }
 
+export function formatErrorForLogging(error: unknown): string {
+  if (error instanceof Error) {
+    return `${error.name}: ${error.message}${error.stack ? `\n${error.stack}` : ''}`;
+  }
+  if (typeof error === 'object' && error !== null) {
+    try {
+      return JSON.stringify(error, null, 2);
+    } catch {
+      return String(error);
+    }
+  }
+  return String(error);
+}
+
 export async function compressImageDataUrl(dataUrl: string): Promise<string> {
   return new Promise((resolve, reject) => {
     const img = new globalThis.Image();

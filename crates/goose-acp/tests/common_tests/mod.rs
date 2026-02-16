@@ -63,7 +63,7 @@ pub async fn run_initialize_without_provider() {
     let temp_dir = tempfile::tempdir().unwrap();
 
     let provider_factory: ProviderConstructor =
-        Arc::new(|_| Box::pin(async { Err(anyhow::anyhow!("no provider configured")) }));
+        Arc::new(|_, _| Box::pin(async { Err(anyhow::anyhow!("no provider configured")) }));
 
     let agent = Arc::new(
         GooseAcpAgent::new(
@@ -164,14 +164,14 @@ pub async fn run_model_list<C: Connection>() {
             "o3-mini-2025-01-31",
             "o1",
             "o1-2024-12-17",
-            "gpt-4o",
-            "gpt-4o-2024-05-13",
-            "gpt-4o-2024-08-06",
-            "gpt-4o-2024-11-20",
             "gpt-4o-mini",
             "gpt-4o-mini-2024-07-18",
             "o4-mini-deep-research",
             "o4-mini-deep-research-2025-06-26",
+            "gpt-4o",
+            "gpt-4o-2024-05-13",
+            "gpt-4o-2024-08-06",
+            "gpt-4o-2024-11-20",
             "text-embedding-3-large",
             "text-embedding-3-small",
             "gpt-4",

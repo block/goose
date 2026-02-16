@@ -4,6 +4,8 @@ use crate::config::paths::Paths;
 use crate::config::{get_enabled_extensions, Config};
 use crate::session::session_manager::CURRENT_SCHEMA_VERSION;
 use crate::session::SessionManager;
+#[cfg(target_os = "windows")]
+use crate::subprocess::SubprocessExt;
 use chrono::{DateTime, Utc};
 use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
@@ -141,6 +143,7 @@ fn get_platform_version() -> Option<String> {
     {
         std::process::Command::new("cmd")
             .args(["/C", "ver"])
+            .set_no_window()
             .output()
             .ok()
             .and_then(|o| String::from_utf8(o.stdout).ok())

@@ -58,6 +58,7 @@ indicatif = "0.18.1"
 tokio-util = { workspace = true, features = ["compat", "rt"] }
 anstream = "0.6.18"
 open = "5.3.2"
+url = { workspace = true }
 urlencoding = { workspace = true }
 clap_complete = "4.5.62"
 
@@ -70,4 +71,5 @@ disable-update = []
 
 [dev-dependencies]
 tempfile = { workspace = true }
+test-case = { workspace = true }
 tokio = { workspace = true }

@@ -15,8 +15,8 @@ use super::tool_execution::{ToolCallResult, CHAT_MODE_TOOL_SKIPPED_RESPONSE, DEC
 use crate::action_required_manager::ActionRequiredManager;
 use crate::agents::extension::{ExtensionConfig, ExtensionResult, ToolInfo};
 use crate::agents::extension_manager::{get_parameter_names, ExtensionManager};
-use crate::agents::extension_manager_extension::MANAGE_EXTENSIONS_TOOL_NAME_COMPLETE;
 use crate::agents::final_output_tool::{FINAL_OUTPUT_CONTINUATION_MESSAGE, FINAL_OUTPUT_TOOL_NAME};
+use crate::agents::platform_extensions::MANAGE_EXTENSIONS_TOOL_NAME_COMPLETE;
 use crate::agents::platform_tools::PLATFORM_MANAGE_SCHEDULE_TOOL_NAME;
 use crate::agents::prompt_manager::PromptManager;
 use crate::agents::retry::{RetryManager, RetryResult};
@@ -1577,13 +1577,17 @@ impl Agent {
             None => {
                 let model_name = config
                     .get_goose_model()
-                    .map_err(|_| anyhow!("Could not configure agent: missing model"))?;
+                    .ok()
+                    .ok_or_else(|| anyhow!("Could not configure agent: missing model"))?;
                 crate::model::ModelConfig::new(&model_name)
                     .map_err(|e| anyhow!("Could not configure agent: invalid model {}", e))?
             }
         };
 
-        let provider = crate::providers::create(&provider_name, model_config)
+        let extensions =
+            EnabledExtensionsState::extensions_or_default(Some(&session.extension_data), config);
+
+        let provider = crate::providers::create(&provider_name, model_config, extensions)
             .await
             .map_err(|e| anyhow!("Could not create provider: {}", e))?;
 
