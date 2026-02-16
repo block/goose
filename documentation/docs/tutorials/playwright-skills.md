@@ -132,8 +132,8 @@ Open block.github.io/goose in a headed browser
 Describe what you want to test in plain English:
 
 ```
-Search for a guide on how to use skills, click on the first result, 
-then create a test based on your interactions
+Open block.github.io/goose in the browser, navigate to the Using Skills guide 
+via the Docs menu, then create a test based on your interactions
 ```
 
 ### goose Output
@@ -146,28 +146,31 @@ name: playwright-cli
 Opening browser and navigating to block.github.io/goose
 
 ─── playwright-cli snapshot | developer ───────────────────────
-Captured page structure, found search button at ref e89
+Captured page structure, found Docs link at ref e11
 
 ─── playwright-cli click | developer ──────────────────────────
-Clicking on search button (ref e89)
-
-─── playwright-cli fill | developer ────────────────────────────
-Filling search box with "how to use skills"
+Clicking on "Docs" in navigation
 
 ─── playwright-cli snapshot | developer ───────────────────────
-Found search results, first result at ref e156
+Captured Guides page, found Context Engineering category
 
 ─── playwright-cli click | developer ──────────────────────────
-Clicking on "Using Skills" result (ref e156)
+Expanding "Context Engineering" sidebar category
+
+─── playwright-cli snapshot | developer ───────────────────────
+Found "Using Skills" link at ref e596
+
+─── playwright-cli click | developer ──────────────────────────
+Clicking on "Using Skills"
 
 ─── playwright-cli snapshot | developer ───────────────────────
 Captured page after navigation to Using Skills guide
 
 ─── text_editor | developer ───────────────────────────────────
-writing tests/search-skills-guide.spec.ts
+writing tests/using-skills-navigation.spec.ts
 
 ✅ Test Generated Successfully
-Location: tests/search-skills-guide.spec.ts
+Location: tests/using-skills-navigation.spec.ts
 ```
 
 The generated test might look like:
@@ -175,18 +178,18 @@ The generated test might look like:
 ```typescript
 import { test, expect } from '@playwright/test';
 
-test('search for skills guide and navigate to it', async ({ page }) => {
+test('navigate to Using Skills guide via docs menu', async ({ page }) => {
   await page.goto('https://block.github.io/goose');
-  await expect(page).toHaveTitle(/Goose/);
+  await expect(page).toHaveTitle(/goose/);
   
-  // Open search
-  await page.getByRole('button', { name: 'Search' }).click();
+  // Click on Docs in the navigation
+  await page.getByRole('link', { name: 'Docs' }).click();
   
-  // Search for skills guide
-  await page.getByRole('searchbox').fill('how to use skills');
+  // Expand Context Engineering category
+  await page.getByRole('button', { name: 'Expand sidebar category \'Context Engineering\'' }).click();
   
-  // Click first result
-  await page.getByRole('link', { name: 'Using Skills' }).first().click();
+  // Click on Using Skills
+  await page.getByRole('link', { name: 'Using Skills' }).click();
   
   // Verify navigation
   await expect(page).toHaveURL(/using-skills/);
@@ -196,17 +199,7 @@ test('search for skills guide and navigate to it', async ({ page }) => {
 
 ### Running Tests
 
-After generating a test, run it immediately:
-
-```
-Run the test to verify it works
-```
-
-Or run manually:
-
-```bash
-npx playwright test
-```
+Goose will automatically ask you if you want it to run the test and if you have Playwright already set up it will go ahead and run the test for you. However if you don't have Playwright setup, no worries, goose can go ahead and install it for you and then run the test. 
 
 ## Recording Videos and Traces
 
@@ -229,7 +222,7 @@ Videos are saved to `.playwright-cli/videos/` and are useful for:
 Playwright traces provide a detailed timeline of everything that happened. To view a trace:
 
 ```
-Open the trace in the trace viewer
+Open the trace
 ```
 
 The trace viewer shows:
@@ -241,10 +234,10 @@ The trace viewer shows:
 
 ## Full Capabilities
 
-Ask goose what else it can do:
+If you want to know what else you can do with the PLaywright skills, simply ask goose:
 
 ```
-Playwright CLI, what else can you do?
+What else can you do with playwright skills
 ```
 
 | Category | Capabilities |
