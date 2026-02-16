@@ -211,7 +211,11 @@ impl OpenAiProvider {
     }
 
     fn normalize_base_path(base_path: &str) -> String {
-        base_path.trim_matches('/').to_string()
+        if let Some(path) = base_path.strip_prefix('/') {
+            format!("/{}", path.trim_end_matches('/'))
+        } else {
+            base_path.trim_end_matches('/').to_string()
+        }
     }
 
     fn is_chat_completions_path(base_path: &str) -> bool {
@@ -259,7 +263,11 @@ impl OpenAiProvider {
             return normalized.replacen("responses", target, 1);
         }
 
-        fallback.to_string()
+        if normalized.starts_with('/') {
+            format!("/{}", fallback.trim_start_matches('/'))
+        } else {
+            fallback.to_string()
+        }
     }
 
     async fn post(
@@ -645,5 +653,18 @@ mod tests {
     fn unknown_path_falls_back_to_default_models_path() {
         let models_path = OpenAiProvider::map_base_path("custom/path", "models", "v1/models");
         assert_eq!(models_path, "v1/models");
+    }
+
+    #[test]
+    fn absolute_chat_path_maps_to_absolute_responses_path() {
+        let responses_path =
+            OpenAiProvider::map_base_path("/v1/chat/completions", "responses", "v1/responses");
+        assert_eq!(responses_path, "/v1/responses");
+    }
+
+    #[test]
+    fn unknown_absolute_path_falls_back_to_absolute_models_path() {
+        let models_path = OpenAiProvider::map_base_path("/custom/path", "models", "v1/models");
+        assert_eq!(models_path, "/v1/models");
     }
 }
