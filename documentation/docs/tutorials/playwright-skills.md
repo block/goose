@@ -92,14 +92,7 @@ These reference files teach goose how to:
 
 ## How It Works: Token Efficiency
 
-Unlike the Playwright MCP which puts the entire page structure into the LLM context, Playwright CLI saves the accessibility tree locally as YAML files. This means:
-
-- ✅ Faster responses
-- ✅ Lower token usage
-- ✅ More cost effective
-- ✅ Handles large pages without issues
-
-When goose takes a snapshot, it saves a YAML file containing element references (refs) that it uses to find and interact with elements on the page.
+The Playwright MCP sends the entire page structure to the LLM with every request, which can get expensive fast—especially on large pages. Playwright CLI takes a smarter approach: it saves the accessibility tree locally as YAML files, so goose only needs to reference element IDs instead of processing the whole page. This means faster responses, lower token usage, and no trouble with complex pages.
 
 ## Generate a Test with Video and Traces
 
