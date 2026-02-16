@@ -373,12 +373,37 @@ test_cases:
   - input: "Configure dependency vulnerability scanning"
     expected_agent: "Coding Agent"
     expected_mode: "devsecops"
+  # QA Agent test cases
+  - input: "Analyze the codebase for anti-patterns and code smells"
+    expected_agent: "QA Agent"
+    expected_mode: "analyze"
+  - input: "Find complexity hotspots and maintainability issues"
+    expected_agent: "QA Agent"
+    expected_mode: "analyze"
+  - input: "Design a test strategy for the payment processing module"
+    expected_agent: "QA Agent"
+    expected_mode: "test-design"
+  - input: "Generate test cases for the user registration flow"
+    expected_agent: "QA Agent"
+    expected_mode: "test-design"
+  - input: "Audit the test coverage and find gaps in our test suite"
+    expected_agent: "QA Agent"
+    expected_mode: "coverage-audit"
+  - input: "What is the test coverage for the auth module?"
+    expected_agent: "QA Agent"
+    expected_mode: "coverage-audit"
+  - input: "Review this pull request for correctness and reliability"
+    expected_agent: "QA Agent"
+    expected_mode: "review"
+  - input: "Check this code for concurrency bugs and race conditions"
+    expected_agent: "QA Agent"
+    expected_mode: "review"
 "#;
 
     #[test]
     fn test_load_eval_set() {
         let set = load_eval_set(TEST_YAML).expect("YAML should parse");
-        assert_eq!(set.test_cases.len(), 29);
+        assert_eq!(set.test_cases.len(), 37);
     }
 
     #[test]
@@ -386,7 +411,7 @@ test_cases:
         let set = load_eval_set(TEST_YAML).unwrap();
         let router = IntentRouter::new();
         let results = evaluate(&router, &set);
-        assert_eq!(results.len(), 29);
+        assert_eq!(results.len(), 37);
         for r in &results {
             assert!(!r.actual_agent.is_empty());
             assert!(!r.actual_mode.is_empty());
@@ -437,7 +462,7 @@ test_cases:
         let router = IntentRouter::new();
         let results = evaluate(&router, &set);
         let metrics = compute_metrics(&results);
-        assert_eq!(metrics.total, 29);
+        assert_eq!(metrics.total, 37);
         assert!(metrics.overall_accuracy >= 0.0 && metrics.overall_accuracy <= 1.0);
         assert!(metrics.agent_accuracy >= 0.0 && metrics.agent_accuracy <= 1.0);
         assert!(!metrics.per_agent.is_empty());

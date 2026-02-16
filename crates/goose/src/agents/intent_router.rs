@@ -3,6 +3,7 @@ use tracing::{debug, info, instrument, Span};
 
 use crate::agents::coding_agent::CodingAgent;
 use crate::agents::goose_agent::GooseAgent;
+use crate::agents::qa_agent::QaAgent;
 use crate::registry::manifest::AgentMode;
 
 /// Represents a routing decision: which agent + mode should handle this message.
@@ -66,6 +67,18 @@ impl IntentRouter {
             description: "Software development agent with SDLC-specialized modes".into(),
             modes: coding_modes,
             default_mode: coding.default_mode_slug().into(),
+            enabled: true,
+            bound_extensions: vec![],
+        });
+
+        // Register QaAgent
+        let qa = QaAgent::new();
+        let qa_modes = qa.to_agent_modes();
+        slots.push(AgentSlot {
+            name: "QA Agent".into(),
+            description: "Quality assurance agent for code analysis, testing, and review".into(),
+            modes: qa_modes,
+            default_mode: qa.default_mode_slug().into(),
             enabled: true,
             bound_extensions: vec![],
         });

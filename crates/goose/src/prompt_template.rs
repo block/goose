@@ -72,6 +72,22 @@ static TEMPLATE_REGISTRY: &[(&str, &str)] = &[
         "DevSecOps — CI/CD security, infrastructure as code, and supply chain",
     ),
     (
+        "qa_agent/analyze.md",
+        "QA Analyst — code quality analysis, anti-patterns, and actionable findings",
+    ),
+    (
+        "qa_agent/test_design.md",
+        "Test Designer — test strategies, plans, and case generation",
+    ),
+    (
+        "qa_agent/coverage_audit.md",
+        "Coverage Auditor — test coverage gaps and reliability assessment",
+    ),
+    (
+        "qa_agent/review.md",
+        "Code Reviewer — correctness, reliability, and maintainability review",
+    ),
+    (
         "orchestrator/system.md",
         "Orchestrator system prompt — meta-coordinator for routing to agents/modes",
     ),

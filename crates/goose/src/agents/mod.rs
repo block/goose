@@ -20,6 +20,7 @@ pub mod moim;
 pub mod orchestrator_agent;
 pub mod platform_tools;
 pub mod prompt_manager;
+pub mod qa_agent;
 mod reply_parts;
 pub mod retry;
 pub mod routing_eval;
