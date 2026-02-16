@@ -6,22 +6,19 @@ use serde_json::Value;
 use std::time::Duration;
 
 use super::api_client::{ApiClient, AuthMethod, AuthProvider};
-use super::base::{
-    ConfigKey, MessageStream, Provider, ProviderDef, ProviderMetadata, ProviderUsage, Usage,
-};
+use super::base::{ConfigKey, MessageStream, Provider, ProviderDef, ProviderMetadata};
 use super::embedding::EmbeddingCapable;
 use super::errors::ProviderError;
-use super::formats::databricks::{create_request, response_to_message};
+use super::formats::databricks::create_request;
 use super::oauth;
 use super::openai_compatible::{
     handle_response_openai_compat, map_http_error_to_provider_error, stream_openai_compat,
 };
 use super::retry::ProviderRetry;
-use super::utils::{get_model, ImageFormat, RequestLog};
+use super::utils::{ImageFormat, RequestLog};
 use crate::config::ConfigError;
 use crate::conversation::message::Message;
 use crate::model::ModelConfig;
-use crate::providers::formats::openai::get_usage;
 use crate::providers::retry::{
     RetryConfig, DEFAULT_BACKOFF_MULTIPLIER, DEFAULT_INITIAL_RETRY_INTERVAL_MS,
     DEFAULT_MAX_RETRIES, DEFAULT_MAX_RETRY_INTERVAL_MS,
@@ -284,9 +281,8 @@ impl Provider for DatabricksProvider {
         messages: &[Message],
         tools: &[Tool],
     ) -> Result<MessageStream, ProviderError> {
-
         let mut payload =
-            create_request(&model_config, system, messages, tools, &self.image_format)?;
+            create_request(model_config, system, messages, tools, &self.image_format)?;
         payload
             .as_object_mut()
             .expect("payload should have model key")
@@ -322,7 +318,6 @@ impl Provider for DatabricksProvider {
 
         stream_openai_compat(response, log)
     }
-
 
     fn supports_embeddings(&self) -> bool {
         true

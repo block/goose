@@ -5,7 +5,9 @@ use serde_json::{json, Value};
 use std::collections::HashMap;
 
 use super::api_client::{ApiClient, AuthMethod};
-use super::base::{MessageStream, ConfigKey, ModelInfo, Provider, ProviderDef, ProviderMetadata, ProviderUsage};
+use super::base::{
+    ConfigKey, MessageStream, ModelInfo, Provider, ProviderDef, ProviderMetadata, ProviderUsage,
+};
 use super::embedding::EmbeddingCapable;
 use super::errors::ProviderError;
 use super::openai_compatible::handle_response_openai_compat;
@@ -184,7 +186,11 @@ impl Provider for LiteLLMProvider {
         messages: &[Message],
         tools: &[Tool],
     ) -> Result<MessageStream, ProviderError> {
-        let session_id = if session_id.is_empty() { None } else { Some(session_id) };
+        let session_id = if session_id.is_empty() {
+            None
+        } else {
+            Some(session_id)
+        };
         let mut payload = super::formats::openai::create_request(
             model_config,
             system,
@@ -211,7 +217,10 @@ impl Provider for LiteLLMProvider {
         let mut log = RequestLog::start(model_config, &payload)?;
         log.write(&response, Some(&usage))?;
         let provider_usage = ProviderUsage::new(response_model, usage);
-        Ok(super::base::stream_from_single_message(message, provider_usage))
+        Ok(super::base::stream_from_single_message(
+            message,
+            provider_usage,
+        ))
     }
 
     fn supports_embeddings(&self) -> bool {

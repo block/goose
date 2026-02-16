@@ -17,7 +17,7 @@ use super::base::{
     ProviderUsage, Usage,
 };
 use super::errors::ProviderError;
-use super::utils::{filter_extensions_from_system_prompt, RequestLog};
+use super::utils::filter_extensions_from_system_prompt;
 use crate::config::base::ClaudeCodeCommand;
 use crate::config::paths::Paths;
 use crate::config::search_path::SearchPaths;
@@ -305,72 +305,6 @@ impl ClaudeCodeProvider {
         Ok(())
     }
 
-    fn parse_claude_response(
-        &self,
-        json_lines: &[String],
-    ) -> Result<(Message, Usage), ProviderError> {
-        let mut all_text_content = Vec::new();
-        let mut usage = Usage::default();
-
-        for line in json_lines {
-            if let Ok(parsed) = serde_json::from_str::<Value>(line) {
-                match parsed.get("type").and_then(|t| t.as_str()) {
-                    Some("assistant") => {
-                        if let Some(message) = parsed.get("message") {
-                            if let Some(content) = message.get("content").and_then(|c| c.as_array())
-                            {
-                                for item in content {
-                                    if item.get("type").and_then(|t| t.as_str()) == Some("text") {
-                                        if let Some(text) =
-                                            item.get("text").and_then(|t| t.as_str())
-                                        {
-                                            all_text_content.push(text.to_string());
-                                        }
-                                    }
-                                }
-                            }
-
-                            if let Some(usage_info) = message.get("usage") {
-                                usage = extract_usage_tokens(usage_info);
-                            }
-                        }
-                    }
-                    Some("result") => {
-                        if let Some(result_usage) = parsed.get("usage") {
-                            let new = extract_usage_tokens(result_usage);
-                            usage = Usage::new(
-                                usage.input_tokens.or(new.input_tokens),
-                                usage.output_tokens.or(new.output_tokens),
-                                None,
-                            );
-                        }
-                    }
-                    Some("error") => {
-                        return Err(error_from_event("Claude CLI", &parsed));
-                    }
-                    Some("system") => {}
-                    _ => {}
-                }
-            }
-        }
-
-        let combined_text = all_text_content.join("\n\n");
-        if combined_text.is_empty() {
-            return Err(ProviderError::RequestFailed(
-                "No text content found in response".to_string(),
-            ));
-        }
-
-        let message_content = vec![MessageContent::text(combined_text)];
-
-        let response_message = Message::new(
-            Role::Assistant,
-            chrono::Utc::now().timestamp(),
-            message_content,
-        );
-        Ok((response_message, usage))
-    }
-
     fn spawn_process(&self, filtered_system: &str) -> Result<CliProcess, ProviderError> {
         let mut cmd = self.build_stream_json_command();
 
@@ -436,103 +370,6 @@ impl ClaudeCodeProvider {
                 )))
             })
             .await
-    }
-
-    async fn execute_command(
-        &self,
-        system: &str,
-        messages: &[Message],
-        _tools: &[Tool],
-        session_id: &str,
-        model: &str,
-    ) -> Result<Vec<String>, ProviderError> {
-        let filtered_system = filter_extensions_from_system_prompt(system);
-
-        tracing::debug!(
-            command = ?self.command,
-            system_prompt_len = system.len(),
-            filtered_system_prompt_len = filtered_system.len(),
-            "Executing Claude CLI command"
-        );
-
-        let process_mutex = self.get_or_init_process(&filtered_system).await?;
-        let mut process = process_mutex.lock().await;
-
-        // Drain any pending response from a cancelled stream
-        process.drain_pending_response().await;
-
-        // Switch model if it differs from what the CLI is currently using.
-        process.send_set_model(model).await?;
-
-        let blocks = self.last_user_content_blocks(messages);
-
-        // Write NDJSON line to stdin
-        let ndjson_line = build_stream_json_input(&blocks, session_id);
-        process
-            .stdin
-            .write_all(ndjson_line.as_bytes())
-            .await
-            .map_err(|e| {
-                ProviderError::RequestFailed(format!("Failed to write to stdin: {}", e))
-            })?;
-        process.stdin.write_all(b"\n").await.map_err(|e| {
-            ProviderError::RequestFailed(format!("Failed to write newline to stdin: {}", e))
-        })?;
-
-        // Read lines until we see a "result" or "error" event
-        let mut lines = Vec::new();
-        let mut line = String::new();
-
-        loop {
-            line.clear();
-            match process.reader.read_line(&mut line).await {
-                Ok(0) => {
-                    return Err(ProviderError::RequestFailed(
-                        "Claude CLI process terminated unexpectedly".to_string(),
-                    ));
-                }
-                Ok(_) => {
-                    let trimmed = line.trim();
-                    if trimmed.is_empty() {
-                        continue;
-                    }
-
-                    if let Ok(parsed) = serde_json::from_str::<Value>(trimmed) {
-                        match parsed.get("type").and_then(|t| t.as_str()) {
-                            Some("stream_event") => continue,
-                            Some("result") | Some("error") => {
-                                lines.push(trimmed.to_string());
-                                break;
-                            }
-                            // The system init with the resolved model arrives here,
-                            // not in send_set_model (which only sees control_response).
-                            Some("system") if process.log_model_update => {
-                                if let Some(resolved) = parsed.get("model").and_then(|m| m.as_str())
-                                {
-                                    tracing::debug!(
-                                        from = %process.current_model,
-                                        to = %resolved,
-                                        "set_model resolved"
-                                    );
-                                }
-                                process.log_model_update = false;
-                            }
-                            _ => {}
-                        }
-                    }
-                    lines.push(trimmed.to_string());
-                }
-                Err(e) => {
-                    return Err(ProviderError::RequestFailed(format!(
-                        "Failed to read output: {}",
-                        e
-                    )));
-                }
-            }
-        }
-
-        tracing::debug!("Command executed successfully, got {} lines", lines.len());
-        Ok(lines)
     }
 }
 
@@ -1062,87 +899,6 @@ mod tests {
         let line = build_stream_json_input(blocks, TEST_SESSION_ID);
         let parsed: Value = serde_json::from_str(&line).unwrap();
         assert_eq!(parsed, expected);
-    }
-
-    #[test_case(
-        &[
-            r#"{"type":"assistant","message":{"content":[{"type":"text","text":"Hello! How can I help you today?"}],"usage":{"input_tokens":3,"output_tokens":3}}}"#,
-            r#"{"type":"result","usage":{"input_tokens":3,"output_tokens":16}}"#,
-        ],
-        "Hello! How can I help you today?",
-        Some(3), Some(3)
-        ; "assistant_with_usage"
-    )]
-    #[test_case(
-        &[
-            r#"{"type":"assistant","message":{"role":"assistant","content":[{"type":"text","text":"First"},{"type":"text","text":"Second"}]}}"#,
-        ],
-        "First\n\nSecond",
-        None, None
-        ; "multiple_text_blocks"
-    )]
-    #[test_case(
-        &[
-            r#"{"type":"system","model":"claude-opus-4-6"}"#,
-            r#"{"type":"assistant","message":{"content":[{"type":"text","text":"Hello!"}],"usage":{"input_tokens":3,"output_tokens":3}}}"#,
-            r#"{"type":"result","usage":{"input_tokens":3,"output_tokens":16}}"#,
-        ],
-        "Hello!",
-        Some(3), Some(3)
-        ; "system_init_filtered"
-    )]
-    #[test_case(
-        &[
-            r#"{"type":"stream_event","event":{"type":"content_block_delta","delta":{"type":"text_delta","text":"He"}}}"#,
-            r#"{"type":"stream_event","event":{"type":"content_block_delta","delta":{"type":"text_delta","text":"llo"}}}"#,
-            r#"{"type":"assistant","message":{"role":"assistant","content":[{"type":"text","text":"Hello"}],"usage":{"input_tokens":50,"output_tokens":10}}}"#,
-            r#"{"type":"result","subtype":"success","result":"Hello","session_id":"abc"}"#,
-        ],
-        "Hello",
-        Some(50), Some(10)
-        ; "streaming_events_ignored_by_parse"
-    )]
-    fn test_parse_claude_response_ok(
-        lines: &[&str],
-        expected_text: &str,
-        expected_input: Option<i32>,
-        expected_output: Option<i32>,
-    ) {
-        let provider = make_provider();
-        let lines: Vec<String> = lines.iter().map(|s| s.to_string()).collect();
-        let (message, usage) = provider.parse_claude_response(&lines).unwrap();
-        assert_eq!(message.role, Role::Assistant);
-        if let MessageContent::Text(t) = &message.content[0] {
-            assert_eq!(t.text, expected_text);
-        } else {
-            panic!("expected text content");
-        }
-        assert_eq!(usage.input_tokens, expected_input);
-        assert_eq!(usage.output_tokens, expected_output);
-    }
-
-    #[test_case(
-        &[],
-        ProviderError::RequestFailed("No text content found in response".into())
-        ; "empty_lines"
-    )]
-    #[test_case(
-        &[r#"{"type":"error","error":"context window exceeded"}"#],
-        ProviderError::ContextLengthExceeded("context window exceeded".into())
-        ; "context_length"
-    )]
-    #[test_case(
-        &[r#"{"type":"error","error":"Model not supported"}"#],
-        ProviderError::RequestFailed("Claude CLI error: Model not supported".into())
-        ; "generic_error"
-    )]
-    fn test_parse_claude_response_err(lines: &[&str], expected: ProviderError) {
-        let provider = make_provider();
-        let lines: Vec<String> = lines.iter().map(|s| s.to_string()).collect();
-        assert_eq!(
-            provider.parse_claude_response(&lines).unwrap_err(),
-            expected
-        );
     }
 
     #[test_case(

@@ -9,7 +9,9 @@ use aws_sdk_sagemakerruntime::Client as SageMakerClient;
 use rmcp::model::Tool;
 use serde_json::{json, Value};
 
-use super::base::{MessageStream, ConfigKey, Provider, ProviderDef, ProviderMetadata, ProviderUsage, Usage};
+use super::base::{
+    ConfigKey, MessageStream, Provider, ProviderDef, ProviderMetadata, ProviderUsage, Usage,
+};
 use super::errors::ProviderError;
 use super::retry::ProviderRetry;
 use super::utils::RequestLog;
@@ -319,7 +321,11 @@ impl Provider for SageMakerTgiProvider {
         messages: &[Message],
         tools: &[Tool],
     ) -> Result<MessageStream, ProviderError> {
-        let session_id = if session_id.is_empty() { None } else { Some(session_id) };
+        let session_id = if session_id.is_empty() {
+            None
+        } else {
+            Some(session_id)
+        };
         let model_name = &model_config.model_name;
 
         let request_payload = self.create_tgi_request(system, messages).map_err(|e| {

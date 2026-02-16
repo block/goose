@@ -1,19 +1,15 @@
 use super::api_client::{ApiClient, AuthMethod};
-use super::base::{
-    ConfigKey, MessageStream, Provider, ProviderDef, ProviderMetadata, ProviderUsage, Usage,
-};
+use super::base::{ConfigKey, MessageStream, Provider, ProviderDef, ProviderMetadata};
 use super::errors::ProviderError;
-use super::openai_compatible::{handle_response_openai_compat, handle_status_openai_compat};
+use super::openai_compatible::handle_status_openai_compat;
 use super::retry::ProviderRetry;
-use super::utils::{get_model, ImageFormat, RequestLog};
+use super::utils::{ImageFormat, RequestLog};
 use crate::config::declarative_providers::DeclarativeProviderConfig;
 use crate::config::GooseMode;
 use crate::conversation::message::Message;
 use crate::conversation::Conversation;
 use crate::model::ModelConfig;
-use crate::providers::formats::ollama::{
-    create_request, get_usage, response_to_message, response_to_streaming_message_ollama,
-};
+use crate::providers::formats::ollama::{create_request, response_to_streaming_message_ollama};
 use crate::utils::safe_truncate;
 use anyhow::{Error, Result};
 use async_stream::try_stream;
@@ -140,17 +136,6 @@ impl OllamaProvider {
         })
     }
 
-    async fn post(
-        &self,
-        session_id: Option<&str>,
-        payload: &Value,
-    ) -> Result<Value, ProviderError> {
-        let response = self
-            .api_client
-            .response_post(session_id, "v1/chat/completions", payload)
-            .await?;
-        handle_response_openai_compat(response).await
-    }
 }
 
 impl ProviderDef for OllamaProvider {
@@ -217,7 +202,6 @@ impl Provider for OllamaProvider {
 
         Ok(safe_truncate(&description, 100))
     }
-
 
     async fn stream(
         &self,

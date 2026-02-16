@@ -1,22 +1,17 @@
 use super::api_client::{ApiClient, AuthMethod};
-use super::base::{
-    ConfigKey, MessageStream, Provider, ProviderDef, ProviderMetadata, ProviderUsage, Usage,
-};
+use super::base::{ConfigKey, MessageStream, Provider, ProviderDef, ProviderMetadata};
 use super::errors::ProviderError;
-use super::openai_compatible::{
-    handle_response_openai_compat, handle_status_openai_compat, stream_openai_compat,
-};
+use super::openai_compatible::{handle_status_openai_compat, stream_openai_compat};
 use super::retry::ProviderRetry;
-use super::utils::{get_model, handle_response_google_compat, is_google_model, RequestLog};
+use super::utils::RequestLog;
 use crate::config::signup_tetrate::TETRATE_DEFAULT_MODEL;
 use crate::conversation::message::Message;
 use anyhow::Result;
 use async_trait::async_trait;
 use futures::future::BoxFuture;
-use serde_json::Value;
 
 use crate::model::ModelConfig;
-use crate::providers::formats::openai::{create_request, get_usage, response_to_message};
+use crate::providers::formats::openai::create_request;
 use rmcp::model::Tool;
 
 const TETRATE_PROVIDER_NAME: &str = "tetrate";
@@ -67,67 +62,6 @@ impl TetrateProvider {
         })
     }
 
-    async fn post(
-        &self,
-        session_id: Option<&str>,
-        payload: &Value,
-    ) -> Result<Value, ProviderError> {
-        let response = self
-            .api_client
-            .response_post(session_id, "v1/chat/completions", payload)
-            .await?;
-
-        // Handle Google-compatible model responses differently
-        if is_google_model(payload) {
-            return handle_response_google_compat(response).await;
-        }
-
-        // For OpenAI-compatible models, parse the response body to JSON
-        let response_body = handle_response_openai_compat(response)
-            .await
-            .map_err(|e| ProviderError::RequestFailed(format!("Failed to parse response: {e}")))?;
-
-        let _debug = format!(
-            "Tetrate Agent Router Service request with payload: {} and response: {}",
-            serde_json::to_string_pretty(payload).unwrap_or_else(|_| "Invalid JSON".to_string()),
-            serde_json::to_string_pretty(&response_body)
-                .unwrap_or_else(|_| "Invalid JSON".to_string())
-        );
-
-        // Tetrate Agent Router Service can return errors in 200 OK responses, so we have to check for errors explicitly
-        if let Some(error_obj) = response_body.get("error") {
-            // If there's an error object, extract the error message and code
-            let error_message = error_obj
-                .get("message")
-                .and_then(|m| m.as_str())
-                .unwrap_or("Unknown Tetrate Agent Router Service error");
-
-            let error_code = error_obj.get("code").and_then(|c| c.as_u64()).unwrap_or(0);
-
-            // Check for context length errors in the error message
-            if error_code == 400 && error_message.contains("maximum context length") {
-                return Err(ProviderError::ContextLengthExceeded(
-                    error_message.to_string(),
-                ));
-            }
-
-            // Return appropriate error based on the error code
-            match error_code {
-                401 | 403 => return Err(ProviderError::Authentication(error_message.to_string())),
-                429 => {
-                    return Err(ProviderError::RateLimitExceeded {
-                        details: error_message.to_string(),
-                        retry_delay: None,
-                    })
-                }
-                500 | 503 => return Err(ProviderError::ServerError(error_message.to_string())),
-                _ => return Err(ProviderError::RequestFailed(error_message.to_string())),
-            }
-        }
-
-        // No error detected, return the response body
-        Ok(response_body)
-    }
 }
 
 impl ProviderDef for TetrateProvider {
@@ -170,7 +104,6 @@ impl Provider for TetrateProvider {
     fn get_model_config(&self) -> ModelConfig {
         self.model.clone()
     }
-
 
     async fn stream(
         &self,
@@ -272,5 +205,4 @@ impl Provider for TetrateProvider {
         models.sort();
         Ok(models)
     }
-
 }

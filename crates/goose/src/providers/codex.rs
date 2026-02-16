@@ -10,7 +10,9 @@ use tempfile::NamedTempFile;
 use tokio::io::{AsyncBufReadExt, BufReader};
 use tokio::process::Command;
 
-use super::base::{ConfigKey, MessageStream, Provider, ProviderDef, ProviderMetadata, ProviderUsage, Usage};
+use super::base::{
+    ConfigKey, MessageStream, Provider, ProviderDef, ProviderMetadata, ProviderUsage, Usage,
+};
 use super::errors::ProviderError;
 use super::utils::{filter_extensions_from_system_prompt, RequestLog};
 use crate::config::base::{CodexCommand, CodexReasoningEffort, CodexSkipGitCheck};
@@ -684,7 +686,10 @@ impl Provider for CodexProvider {
                 &model_config.model_name,
                 messages,
             )?;
-            return Ok(super::base::stream_from_single_message(message, provider_usage));
+            return Ok(super::base::stream_from_single_message(
+                message,
+                provider_usage,
+            ));
         }
 
         let lines = self.execute_command(system, messages, tools).await?;
@@ -714,7 +719,10 @@ impl Provider for CodexProvider {
         })?;
 
         let provider_usage = ProviderUsage::new(model_config.model_name.clone(), usage);
-        Ok(super::base::stream_from_single_message(message, provider_usage))
+        Ok(super::base::stream_from_single_message(
+            message,
+            provider_usage,
+        ))
     }
 
     async fn fetch_supported_models(&self) -> Result<Vec<String>, ProviderError> {

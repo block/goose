@@ -4,7 +4,9 @@ use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 
 use super::api_client::{ApiClient, AuthMethod};
-use super::base::{MessageStream, ConfigKey, Provider, ProviderDef, ProviderMetadata, ProviderUsage};
+use super::base::{
+    ConfigKey, MessageStream, Provider, ProviderDef, ProviderMetadata, ProviderUsage,
+};
 use super::errors::ProviderError;
 use super::formats::snowflake::{create_request, get_usage, response_to_message};
 use super::openai_compatible::map_http_error_to_provider_error;
@@ -350,7 +352,11 @@ impl Provider for SnowflakeProvider {
         messages: &[Message],
         tools: &[Tool],
     ) -> Result<MessageStream, ProviderError> {
-        let session_id = if session_id.is_empty() { None } else { Some(session_id) };
+        let session_id = if session_id.is_empty() {
+            None
+        } else {
+            Some(session_id)
+        };
         let payload = create_request(model_config, system, messages, tools)?;
 
         let mut log = RequestLog::start(&self.model, &payload)?;
@@ -369,6 +375,9 @@ impl Provider for SnowflakeProvider {
         log.write(&response, Some(&usage))?;
 
         let provider_usage = ProviderUsage::new(response_model, usage);
-        Ok(super::base::stream_from_single_message(message, provider_usage))
+        Ok(super::base::stream_from_single_message(
+            message,
+            provider_usage,
+        ))
     }
 }

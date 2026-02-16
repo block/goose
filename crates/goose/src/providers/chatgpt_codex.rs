@@ -2,9 +2,7 @@ use crate::config::paths::Paths;
 use crate::conversation::message::{Message, MessageContent};
 use crate::model::ModelConfig;
 use crate::providers::api_client::AuthProvider;
-use crate::providers::base::{
-    ConfigKey, MessageStream, Provider, ProviderDef, ProviderMetadata, ProviderUsage,
-};
+use crate::providers::base::{ConfigKey, MessageStream, Provider, ProviderDef, ProviderMetadata};
 use crate::providers::errors::ProviderError;
 use crate::providers::formats::openai_responses::responses_api_to_streaming_message;
 use crate::providers::openai_compatible::handle_status_openai_compat;
@@ -885,7 +883,6 @@ impl Provider for ChatGptCodexProvider {
     fn get_model_config(&self) -> ModelConfig {
         self.model.clone()
     }
-
 
     async fn stream(
         &self,

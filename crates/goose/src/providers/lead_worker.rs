@@ -5,8 +5,8 @@ use std::sync::Arc;
 use tokio::sync::Mutex;
 
 use super::base::{
-    collect_stream, stream_from_single_message, LeadWorkerProviderTrait, MessageStream,
-    Provider, ProviderDef, ProviderMetadata, ProviderUsage,
+    collect_stream, stream_from_single_message, LeadWorkerProviderTrait, MessageStream, Provider,
+    ProviderDef, ProviderMetadata, ProviderUsage,
 };
 use super::errors::ProviderError;
 use crate::conversation::message::{Message, MessageContent};
@@ -411,7 +411,11 @@ impl Provider for LeadWorkerProvider {
 
         // Make the completion request
         let model_config = provider.get_model_config();
-        let session_opt = if session_id.is_empty() { None } else { Some(session_id) };
+        let _session_opt = if session_id.is_empty() {
+            None
+        } else {
+            Some(session_id)
+        };
         let stream_result = provider
             .stream(&model_config, session_id, system, messages, tools)
             .await;

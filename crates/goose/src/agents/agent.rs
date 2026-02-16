@@ -1747,7 +1747,13 @@ impl Agent {
                 tracing::error!("{}", error);
                 error
             })?
-            .complete(&model_config, session_id, &system_prompt, messages.messages(), &tools)
+            .complete(
+                &model_config,
+                session_id,
+                &system_prompt,
+                messages.messages(),
+                &tools,
+            )
             .await
             .map_err(|e| {
                 tracing::error!("Provider completion failed during recipe creation: {}", e);

@@ -1,6 +1,8 @@
 use std::collections::HashMap;
 
-use super::base::{ConfigKey, MessageStream, Provider, ProviderDef, ProviderMetadata, ProviderUsage};
+use super::base::{
+    ConfigKey, MessageStream, Provider, ProviderDef, ProviderMetadata, ProviderUsage,
+};
 use super::errors::ProviderError;
 use super::retry::{ProviderRetry, RetryConfig};
 use crate::conversation::message::Message;
@@ -320,7 +322,11 @@ impl Provider for BedrockProvider {
         messages: &[Message],
         tools: &[Tool],
     ) -> Result<MessageStream, ProviderError> {
-        let session_id = if session_id.is_empty() { None } else { Some(session_id) };
+        let session_id = if session_id.is_empty() {
+            None
+        } else {
+            Some(session_id)
+        };
         let model_name = model_config.model_name.clone();
 
         let (bedrock_message, bedrock_usage) = self
@@ -347,7 +353,10 @@ impl Provider for BedrockProvider {
         )?;
 
         let provider_usage = ProviderUsage::new(model_name.to_string(), usage);
-        Ok(super::base::stream_from_single_message(message, provider_usage))
+        Ok(super::base::stream_from_single_message(
+            message,
+            provider_usage,
+        ))
     }
 }
 

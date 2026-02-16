@@ -1,19 +1,16 @@
 use super::api_client::{ApiClient, AuthMethod};
-use super::base::{
-    ConfigKey, ModelInfo, Provider, ProviderDef, ProviderMetadata, ProviderUsage, Usage,
-};
+use super::base::{ConfigKey, ModelInfo, Provider, ProviderDef, ProviderMetadata};
 use super::embedding::{EmbeddingCapable, EmbeddingRequest, EmbeddingResponse};
 use super::errors::ProviderError;
-use super::formats::openai::{create_request, get_usage, response_to_message};
+use super::formats::openai::create_request;
 use super::formats::openai_responses::{
-    create_responses_request, get_responses_usage, responses_api_to_message,
-    responses_api_to_streaming_message, ResponsesApiResponse,
+    create_responses_request, responses_api_to_streaming_message,
 };
 use super::openai_compatible::{
     handle_response_openai_compat, handle_status_openai_compat, stream_openai_compat,
 };
 use super::retry::ProviderRetry;
-use super::utils::{get_model, ImageFormat};
+use super::utils::ImageFormat;
 use crate::config::declarative_providers::DeclarativeProviderConfig;
 use crate::conversation::message::Message;
 use anyhow::Result;
@@ -22,7 +19,6 @@ use async_trait::async_trait;
 use futures::future::BoxFuture;
 use futures::{StreamExt, TryStreamExt};
 use reqwest::StatusCode;
-use serde_json::Value;
 use std::collections::HashMap;
 use std::io;
 use tokio::pin;
@@ -209,30 +205,6 @@ impl OpenAiProvider {
 
     fn uses_responses_api(model_name: &str) -> bool {
         model_name.starts_with("gpt-5-codex") || model_name.starts_with("gpt-5.1-codex")
-    }
-
-    async fn post(
-        &self,
-        session_id: Option<&str>,
-        payload: &Value,
-    ) -> Result<Value, ProviderError> {
-        let response = self
-            .api_client
-            .response_post(session_id, &self.base_path, payload)
-            .await?;
-        handle_response_openai_compat(response).await
-    }
-
-    async fn post_responses(
-        &self,
-        session_id: Option<&str>,
-        payload: &Value,
-    ) -> Result<Value, ProviderError> {
-        let response = self
-            .api_client
-            .response_post(session_id, "v1/responses", payload)
-            .await?;
-        handle_response_openai_compat(response).await
     }
 }
 

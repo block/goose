@@ -3,14 +3,12 @@ use super::base::MessageStream;
 use super::errors::ProviderError;
 use super::openai_compatible::handle_status_openai_compat;
 use super::retry::ProviderRetry;
-use super::utils::{handle_response_google_compat, unescape_json_values, RequestLog};
+use super::utils::RequestLog;
 use crate::conversation::message::Message;
 
 use crate::model::ModelConfig;
-use crate::providers::base::{ConfigKey, Provider, ProviderDef, ProviderMetadata, ProviderUsage};
-use crate::providers::formats::google::{
-    create_request, get_usage, response_to_message, response_to_streaming_message,
-};
+use crate::providers::base::{ConfigKey, Provider, ProviderDef, ProviderMetadata};
+use crate::providers::formats::google::{create_request, response_to_streaming_message};
 use anyhow::Result;
 use async_stream::try_stream;
 use async_trait::async_trait;
@@ -92,20 +90,6 @@ impl GoogleProvider {
         })
     }
 
-    async fn post(
-        &self,
-        session_id: Option<&str>,
-        model_name: &str,
-        payload: &Value,
-    ) -> Result<Value, ProviderError> {
-        let path = format!("v1beta/models/{}:generateContent", model_name);
-        let response = self
-            .api_client
-            .response_post(session_id, &path, payload)
-            .await?;
-        handle_response_google_compat(response).await
-    }
-
     async fn post_stream(
         &self,
         session_id: Option<&str>,
@@ -180,7 +164,6 @@ impl Provider for GoogleProvider {
         models.sort();
         Ok(models)
     }
-
 
     async fn stream(
         &self,

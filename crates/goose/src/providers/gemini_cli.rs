@@ -7,7 +7,10 @@ use std::sync::OnceLock;
 use tokio::io::{AsyncBufReadExt, AsyncReadExt, BufReader};
 use tokio::process::Command;
 
-use super::base::{stream_from_single_message, MessageStream, Provider, ProviderDef, ProviderMetadata, ProviderUsage, Usage};
+use super::base::{
+    stream_from_single_message, MessageStream, Provider, ProviderDef, ProviderMetadata,
+    ProviderUsage, Usage,
+};
 use super::cli_common::{error_from_event, extract_usage_tokens};
 use super::errors::ProviderError;
 use super::utils::{filter_extensions_from_system_prompt, RequestLog};

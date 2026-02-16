@@ -456,7 +456,11 @@ impl Provider for GithubCopilotProvider {
             stream_openai_compat(response, log)
         } else {
             // Use non-streaming API and wrap result
-            let session_id_opt = if session_id.is_empty() { None } else { Some(session_id) };
+            let session_id_opt = if session_id.is_empty() {
+                None
+            } else {
+                Some(session_id)
+            };
             let payload = create_request(
                 model_config,
                 system,
@@ -489,7 +493,7 @@ impl Provider for GithubCopilotProvider {
 
             Ok(super::base::stream_from_single_message(
                 message,
-                ProviderUsage::new(response_model, usage)
+                ProviderUsage::new(response_model, usage),
             ))
         }
     }

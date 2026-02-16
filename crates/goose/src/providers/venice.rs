@@ -5,7 +5,9 @@ use serde::Serialize;
 use serde_json::{json, Value};
 
 use super::api_client::{ApiClient, AuthMethod};
-use super::base::{MessageStream, ConfigKey, Provider, ProviderDef, ProviderMetadata, ProviderUsage, Usage};
+use super::base::{
+    ConfigKey, MessageStream, Provider, ProviderDef, ProviderMetadata, ProviderUsage, Usage,
+};
 use super::errors::ProviderError;
 use super::openai_compatible::map_http_error_to_provider_error;
 use super::retry::ProviderRetry;
@@ -282,7 +284,11 @@ impl Provider for VeniceProvider {
         messages: &[Message],
         tools: &[Tool],
     ) -> Result<MessageStream, ProviderError> {
-        let session_id = if session_id.is_empty() { None } else { Some(session_id) };
+        let session_id = if session_id.is_empty() {
+            None
+        } else {
+            Some(session_id)
+        };
         // Create properly formatted messages for Venice API
         let mut formatted_messages = Vec::new();
 
@@ -510,7 +516,10 @@ impl Provider for VeniceProvider {
                     strip_flags(&model_config.model_name).to_string(),
                     Usage::default(),
                 );
-                return Ok(super::base::stream_from_single_message(message, provider_usage));
+                return Ok(super::base::stream_from_single_message(
+                    message,
+                    provider_usage,
+                ));
             }
         }
 
@@ -537,8 +546,12 @@ impl Provider for VeniceProvider {
         );
 
         let message = Message::new(Role::Assistant, Utc::now().timestamp(), content);
-        let provider_usage = ProviderUsage::new(strip_flags(&self.model.model_name).to_string(), usage);
-        Ok(super::base::stream_from_single_message(message, provider_usage))
+        let provider_usage =
+            ProviderUsage::new(strip_flags(&self.model.model_name).to_string(), usage);
+        Ok(super::base::stream_from_single_message(
+            message,
+            provider_usage,
+        ))
     }
 }
 

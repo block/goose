@@ -11,7 +11,9 @@ use super::super::agents::Agent;
 use crate::agents::platform_extensions::code_execution;
 use crate::conversation::message::{Message, MessageContent, ToolRequest};
 use crate::conversation::Conversation;
-use crate::providers::base::{MessageStream, Provider, ProviderUsage, stream_from_single_message};
+use crate::providers::base::{MessageStream, Provider, ProviderUsage};
+#[cfg(test)]
+use crate::providers::base::stream_from_single_message;
 use crate::providers::errors::ProviderError;
 use crate::providers::toolshim::{
     augment_message_with_tool_calls, convert_tool_messages_to_text,

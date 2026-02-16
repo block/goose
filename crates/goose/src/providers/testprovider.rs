@@ -7,7 +7,9 @@ use std::fs;
 use std::path::Path;
 use std::sync::{Arc, Mutex};
 
-use super::base::{stream_from_single_message, MessageStream, Provider, ProviderDef, ProviderMetadata, ProviderUsage};
+use super::base::{MessageStream, Provider, ProviderDef, ProviderMetadata, ProviderUsage};
+#[cfg(test)]
+use super::base::stream_from_single_message;
 use super::errors::ProviderError;
 use crate::conversation::message::Message;
 use crate::model::ModelConfig;
@@ -165,7 +167,9 @@ impl Provider for TestProvider {
 
         if let Some(inner) = &self.inner {
             // Call inner provider's stream and collect it
-            let stream = inner.stream(model_config, session_id, system, messages, tools).await?;
+            let stream = inner
+                .stream(model_config, session_id, system, messages, tools)
+                .await?;
             let (message, usage) = super::base::collect_stream(stream).await?;
 
             let record = TestRecord {
@@ -273,7 +277,13 @@ mod tests {
             let model_config = test_provider.get_model_config();
 
             let result = test_provider
-                .complete(&model_config, "test-session-id", "You are helpful", &[], &[])
+                .complete(
+                    &model_config,
+                    "test-session-id",
+                    "You are helpful",
+                    &[],
+                    &[],
+                )
                 .await;
 
             assert!(result.is_ok());
@@ -292,7 +302,13 @@ mod tests {
             let model_config = replay_provider.get_model_config();
 
             let result = replay_provider
-                .complete(&model_config, "test-session-id", "You are helpful", &[], &[])
+                .complete(
+                    &model_config,
+                    "test-session-id",
+                    "You are helpful",
+                    &[],
+                    &[],
+                )
                 .await;
 
             assert!(result.is_ok());
@@ -318,7 +334,13 @@ mod tests {
         let model_config = replay_provider.get_model_config();
 
         let result = replay_provider
-            .complete(&model_config, "test-session-id", "Different system prompt", &[], &[])
+            .complete(
+                &model_config,
+                "test-session-id",
+                "Different system prompt",
+                &[],
+                &[],
+            )
             .await;
 
         assert!(result.is_err());

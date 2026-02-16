@@ -9,15 +9,13 @@ use tokio_util::codec::{FramedRead, LinesCodec};
 use tokio_util::io::StreamReader;
 
 use super::api_client::ApiClient;
-use super::base::{MessageStream, Provider, ProviderUsage, Usage};
+use super::base::{MessageStream, Provider};
 use super::errors::ProviderError;
 use super::retry::ProviderRetry;
-use super::utils::{get_model, ImageFormat, RequestLog};
+use super::utils::{ImageFormat, RequestLog};
 use crate::conversation::message::Message;
 use crate::model::ModelConfig;
-use crate::providers::formats::openai::{
-    create_request, get_usage, response_to_message, response_to_streaming_message,
-};
+use crate::providers::formats::openai::{create_request, response_to_streaming_message};
 use rmcp::model::Tool;
 
 pub struct OpenAiCompatibleProvider {
@@ -74,7 +72,6 @@ impl Provider for OpenAiCompatibleProvider {
         self.model.clone()
     }
 
-
     async fn fetch_supported_models(&self) -> Result<Vec<String>, ProviderError> {
         let response = self
             .api_client
@@ -101,7 +98,6 @@ impl Provider for OpenAiCompatibleProvider {
         models.sort();
         Ok(models)
     }
-
 
     async fn stream(
         &self,

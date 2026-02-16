@@ -16,14 +16,12 @@ use url::Url;
 
 use crate::conversation::message::Message;
 use crate::model::ModelConfig;
-use crate::providers::base::{
-    ConfigKey, MessageStream, Provider, ProviderDef, ProviderMetadata, ProviderUsage,
-};
+use crate::providers::base::{ConfigKey, MessageStream, Provider, ProviderDef, ProviderMetadata};
 
 use crate::providers::errors::ProviderError;
 use crate::providers::formats::gcpvertexai::{
-    create_request, get_usage, response_to_message, response_to_streaming_message, GcpLocation,
-    ModelProvider, RequestContext, DEFAULT_MODEL, KNOWN_MODELS,
+    create_request, response_to_streaming_message, GcpLocation, ModelProvider, RequestContext,
+    DEFAULT_MODEL, KNOWN_MODELS,
 };
 use crate::providers::gcpauth::GcpAuth;
 use crate::providers::openai_compatible::map_http_error_to_provider_error;
@@ -358,58 +356,6 @@ impl GcpVertexAIProvider {
         }
     }
 
-    async fn post_with_location(
-        &self,
-        session_id: Option<&str>,
-        payload: &Value,
-        context: &RequestContext,
-        location: &str,
-    ) -> Result<Value, ProviderError> {
-        let url = self
-            .build_request_url(context.provider(), location, false)
-            .map_err(|e| ProviderError::RequestFailed(e.to_string()))?;
-
-        let response = self
-            .send_request_with_retry(session_id, url, payload)
-            .await?;
-
-        response
-            .json::<Value>()
-            .await
-            .map_err(|e| ProviderError::RequestFailed(format!("Failed to parse response: {e}")))
-    }
-
-    async fn post(
-        &self,
-        session_id: Option<&str>,
-        payload: &Value,
-        context: &RequestContext,
-    ) -> Result<Value, ProviderError> {
-        let result = self
-            .post_with_location(session_id, payload, context, &self.location)
-            .await;
-
-        if self.location == context.model.known_location().to_string() || result.is_ok() {
-            return result;
-        }
-
-        match &result {
-            Err(ProviderError::RequestFailed(msg)) => {
-                let model_name = context.model.to_string();
-                let configured_location = &self.location;
-                let known_location = context.model.known_location().to_string();
-
-                tracing::warn!(
-                    "Trying known location {known_location} for {model_name} instead of {configured_location}: {msg}"
-                );
-
-                self.post_with_location(session_id, payload, context, &known_location)
-                    .await
-            }
-            _ => result,
-        }
-    }
-
     async fn post_stream_with_location(
         &self,
         session_id: Option<&str>,
@@ -618,10 +564,9 @@ impl Provider for GcpVertexAIProvider {
         self.model.clone()
     }
 
-
     async fn stream(
         &self,
-        model_config: &ModelConfig,
+        _model_config: &ModelConfig,
         session_id: &str,
         system: &str,
         messages: &[Message],

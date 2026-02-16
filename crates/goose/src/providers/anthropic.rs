@@ -8,21 +8,15 @@ use std::io;
 use tokio::pin;
 use tokio_util::io::StreamReader;
 
-use super::api_client::{ApiClient, ApiResponse, AuthMethod};
-use super::base::{
-    ConfigKey, MessageStream, ModelInfo, Provider, ProviderDef, ProviderMetadata, ProviderUsage,
-};
+use super::api_client::{ApiClient, AuthMethod};
+use super::base::{ConfigKey, MessageStream, ModelInfo, Provider, ProviderDef, ProviderMetadata};
 use super::errors::ProviderError;
-use super::formats::anthropic::{
-    create_request, get_usage, response_to_message, response_to_streaming_message,
-};
+use super::formats::anthropic::{create_request, response_to_streaming_message};
 use super::openai_compatible::handle_status_openai_compat;
 use super::openai_compatible::map_http_error_to_provider_error;
-use super::utils::get_model;
 use crate::config::declarative_providers::DeclarativeProviderConfig;
 use crate::conversation::message::Message;
 use crate::model::ModelConfig;
-use crate::providers::retry::ProviderRetry;
 use crate::providers::utils::RequestLog;
 use futures::future::BoxFuture;
 use rmcp::model::Tool;
@@ -130,50 +124,6 @@ impl AnthropicProvider {
         }
 
         headers
-    }
-
-    async fn post(
-        &self,
-        session_id: Option<&str>,
-        payload: &Value,
-    ) -> Result<ApiResponse, ProviderError> {
-        let mut request = self.api_client.request(session_id, "v1/messages");
-
-        for (key, value) in self.get_conditional_headers() {
-            request = request.header(key, value)?;
-        }
-
-        Ok(request.api_post(payload).await?)
-    }
-
-    fn anthropic_api_call_result(response: ApiResponse) -> Result<Value, ProviderError> {
-        match response.status {
-            StatusCode::OK => response.payload.ok_or_else(|| {
-                ProviderError::RequestFailed("Response body is not valid JSON".to_string())
-            }),
-            _ => {
-                if response.status == StatusCode::BAD_REQUEST {
-                    if let Some(error_msg) = response
-                        .payload
-                        .as_ref()
-                        .and_then(|p| p.get("error"))
-                        .and_then(|e| e.get("message"))
-                        .and_then(|m| m.as_str())
-                    {
-                        let msg = error_msg.to_string();
-                        if msg.to_lowercase().contains("too long")
-                            || msg.to_lowercase().contains("too many")
-                        {
-                            return Err(ProviderError::ContextLengthExceeded(msg));
-                        }
-                    }
-                }
-                Err(map_http_error_to_provider_error(
-                    response.status,
-                    response.payload,
-                ))
-            }
-        }
     }
 }
 

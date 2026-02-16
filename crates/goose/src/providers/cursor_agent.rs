@@ -7,7 +7,10 @@ use std::process::Stdio;
 use tokio::io::{AsyncBufReadExt, BufReader};
 use tokio::process::Command;
 
-use super::base::{stream_from_single_message, MessageStream, ConfigKey, Provider, ProviderDef, ProviderMetadata, ProviderUsage, Usage};
+use super::base::{
+    stream_from_single_message, ConfigKey, MessageStream, Provider, ProviderDef, ProviderMetadata,
+    ProviderUsage, Usage,
+};
 use super::errors::ProviderError;
 use super::utils::{filter_extensions_from_system_prompt, RequestLog};
 use crate::config::base::CursorAgentCommand;
