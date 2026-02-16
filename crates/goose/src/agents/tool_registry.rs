@@ -61,6 +61,16 @@ impl ToolRegistry {
         *cache = None;
     }
 
+    /// Set cache only if version hasn't changed since the caller read it.
+    /// Prevents stale data from overwriting a newer invalidation.
+    pub async fn set_cache_if_current(&self, expected_version: u64, tools: Arc<Vec<Tool>>) {
+        let mut cache = self.tools_cache.lock().await;
+        let current = self.cache_version.load(Ordering::Acquire);
+        if current == expected_version && cache.is_none() {
+            *cache = Some(tools);
+        }
+    }
+
     /// Get the current cache version (for change detection).
     pub fn version(&self) -> u64 {
         self.cache_version.load(Ordering::Acquire)

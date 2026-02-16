@@ -13,7 +13,6 @@ use rmcp::transport::{
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::process::Stdio;
-use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
 use tempfile::{tempdir, TempDir};
@@ -97,8 +96,7 @@ pub struct ExtensionManager {
     extensions: Mutex<HashMap<String, Extension>>,
     context: PlatformExtensionContext,
     provider: SharedProvider,
-    tools_cache: Mutex<Option<Arc<Vec<Tool>>>>,
-    tools_cache_version: AtomicU64,
+    tool_registry: super::tool_registry::ToolRegistry,
 }
 
 /// A flattened representation of a resource used by the agent to prepare inference
@@ -452,8 +450,7 @@ impl ExtensionManager {
                 session_manager,
             },
             provider,
-            tools_cache: Mutex::new(None),
-            tools_cache_version: AtomicU64::new(0),
+            tool_registry: super::tool_registry::ToolRegistry::new(),
         }
     }
 
@@ -816,35 +813,26 @@ impl ExtensionManager {
     }
 
     async fn get_all_tools_cached(&self, session_id: &str) -> ExtensionResult<Arc<Vec<Tool>>> {
-        {
-            let cache = self.tools_cache.lock().await;
-            if let Some(ref tools) = *cache {
-                return Ok(Arc::clone(tools));
-            }
+        if let Some(cached) = self.tool_registry.get_cached().await {
+            return Ok(cached);
         }
 
-        let version_before = self.tools_cache_version.load(Ordering::SeqCst);
+        let version_before = self.tool_registry.version();
         let tools = Arc::new(self.fetch_all_tools(session_id).await?);
-
-        {
-            let mut cache = self.tools_cache.lock().await;
-            let version_after = self.tools_cache_version.load(Ordering::SeqCst);
-            if version_after == version_before && cache.is_none() {
-                *cache = Some(Arc::clone(&tools));
-            }
-        }
+        self.tool_registry
+            .set_cache_if_current(version_before, Arc::clone(&tools))
+            .await;
 
         Ok(tools)
     }
 
     /// Invalidate the cached tools, forcing the next call to re-fetch from extensions.
     pub async fn invalidate_tools_cache(&self) {
-        self.invalidate_tools_cache_and_bump_version().await;
+        self.tool_registry.invalidate().await;
     }
 
     async fn invalidate_tools_cache_and_bump_version(&self) {
-        self.tools_cache_version.fetch_add(1, Ordering::SeqCst);
-        *self.tools_cache.lock().await = None;
+        self.tool_registry.invalidate().await;
     }
 
     async fn fetch_all_tools(&self, session_id: &str) -> ExtensionResult<Vec<Tool>> {
