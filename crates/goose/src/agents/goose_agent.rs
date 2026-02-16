@@ -47,6 +47,8 @@ pub struct BuiltinMode {
     pub when_to_use: String,
     /// Internal modes are used by orchestration only, not exposed via ACP/A2A discovery.
     pub is_internal: bool,
+    /// If set, this mode is deprecated and the message explains what replaces it.
+    pub deprecated: Option<String>,
 }
 
 /// How the mode is executed.
@@ -86,6 +88,7 @@ impl GooseAgent {
                 recommended_extensions: vec!["developer".into(), "memory".into(), "todo".into()],
                 when_to_use: "General conversation, Q&A, brainstorming, or any request that doesn't fit a specialized mode".into(),
                 is_internal: false,
+                deprecated: None,
             },
             BuiltinMode {
                 slug: "specialist".into(),
@@ -104,6 +107,7 @@ impl GooseAgent {
                 recommended_extensions: vec!["developer".into(), "memory".into()],
                 when_to_use: "Delegated sub-tasks requiring focused execution within bounded scope".into(),
                 is_internal: false,
+                deprecated: Some("Use dedicated agents instead: QA Agent (analyze, test-design, coverage-audit, review), Security Agent (threat-model, vulnerability, compliance, pentest), PM Agent (requirements, prioritize, roadmap, stakeholder), or Research Agent (investigate, compare, summarize, learn)".into()),
             },
             BuiltinMode {
                 slug: "recipe_maker".into(),
@@ -115,6 +119,7 @@ impl GooseAgent {
                 recommended_extensions: vec![],
                 when_to_use: "Generating reusable recipe YAML from a conversation".into(),
                 is_internal: true,
+                deprecated: None,
             },
             BuiltinMode {
                 slug: "app_maker".into(),
@@ -126,6 +131,7 @@ impl GooseAgent {
                 recommended_extensions: vec!["apps".into()],
                 when_to_use: "User asks to create a new standalone HTML/CSS/JS app".into(),
                 is_internal: false,
+                deprecated: None,
             },
             BuiltinMode {
                 slug: "app_iterator".into(),
@@ -137,6 +143,7 @@ impl GooseAgent {
                 recommended_extensions: vec!["apps".into()],
                 when_to_use: "User asks to modify or improve an existing Goose app".into(),
                 is_internal: false,
+                deprecated: None,
             },
             BuiltinMode {
                 slug: "judge".into(),
@@ -148,6 +155,7 @@ impl GooseAgent {
                 recommended_extensions: vec![],
                 when_to_use: "Internal: classify tool calls as read-only or write for permission gating".into(),
                 is_internal: true,
+                deprecated: None,
             },
             BuiltinMode {
                 slug: "planner".into(),
@@ -159,6 +167,7 @@ impl GooseAgent {
                 recommended_extensions: vec![],
                 when_to_use: "Internal: generate step-by-step plans for complex multi-step tasks".into(),
                 is_internal: true,
+                deprecated: None,
             },
         ];
 
@@ -211,6 +220,7 @@ impl GooseAgent {
                 tool_groups: m.tool_groups.clone(),
                 when_to_use: Some(m.when_to_use.clone()),
                 is_internal: m.is_internal,
+                deprecated: m.deprecated.clone(),
             })
             .collect()
     }
@@ -229,6 +239,7 @@ impl GooseAgent {
                 tool_groups: m.tool_groups.clone(),
                 when_to_use: Some(m.when_to_use.clone()),
                 is_internal: false,
+                deprecated: m.deprecated.clone(),
             })
             .collect()
     }
@@ -336,6 +347,43 @@ mod tests {
         let specialist = agent.mode("specialist").unwrap();
         assert!(specialist.is_session_mode());
         assert_eq!(specialist.template_name, "specialist.md");
+    }
+
+    #[test]
+    fn test_specialist_is_deprecated() {
+        let agent = GooseAgent::new();
+        let specialist = agent.mode("specialist").unwrap();
+        assert!(specialist.deprecated.is_some());
+        assert!(specialist.deprecated.as_ref().unwrap().contains("QA Agent"));
+        assert!(specialist
+            .deprecated
+            .as_ref()
+            .unwrap()
+            .contains("Security Agent"));
+    }
+
+    #[test]
+    fn test_non_specialist_modes_not_deprecated() {
+        let agent = GooseAgent::new();
+        for mode in agent.list_modes() {
+            if mode.slug != "specialist" {
+                assert!(
+                    mode.deprecated.is_none(),
+                    "mode '{}' should not be deprecated",
+                    mode.slug
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn test_deprecated_propagated_to_agent_modes() {
+        let agent = GooseAgent::new();
+        let modes = agent.to_agent_modes();
+        let specialist = modes.iter().find(|m| m.slug == "specialist").unwrap();
+        assert!(specialist.deprecated.is_some());
+        let assistant = modes.iter().find(|m| m.slug == "assistant").unwrap();
+        assert!(assistant.deprecated.is_none());
     }
 
     #[test]

@@ -152,6 +152,7 @@ impl SecurityAgent {
                 tool_groups: m.tool_groups.clone(),
                 when_to_use: Some(m.when_to_use.to_string()),
                 is_internal: false,
+                deprecated: None,
             })
             .collect()
     }

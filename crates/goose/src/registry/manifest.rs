@@ -253,6 +253,10 @@ pub struct AgentMode {
     /// Internal modes are used by orchestration only, not exposed via ACP/A2A discovery.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub is_internal: bool,
+
+    /// If set, this mode is deprecated. The message explains what to use instead.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub deprecated: Option<String>,
 }
 
 /// Access control for a tool group within a mode.
@@ -601,6 +605,7 @@ mod tests {
                         ],
                         when_to_use: Some("When the user wants to write or modify code".into()),
                         is_internal: false,
+                        deprecated: None,
                     },
                     AgentMode {
                         slug: "review".into(),
@@ -614,6 +619,7 @@ mod tests {
                         ],
                         when_to_use: Some("When the user wants a code review".into()),
                         is_internal: false,
+                        deprecated: None,
                     },
                     AgentMode {
                         slug: "architect".into(),
@@ -631,6 +637,7 @@ mod tests {
                         ],
                         when_to_use: Some("When discussing architecture or design".into()),
                         is_internal: false,
+                        deprecated: None,
                     },
                 ],
                 skills: vec![AgentSkill {
