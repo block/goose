@@ -1,0 +1,71 @@
+---
+title: "ADR-001: Mode vs Agent Separation"
+description: "Architectural decision to separate behavioral modes from agent personas"
+date: "2025-07-23"
+status: "accepted"
+tags: ["adr", "agents", "modes", "architecture"]
+decision_makers: ["goose"]
+context: "CodingAgent had 8 modes representing different personas (PM, QA, Security) conflated with behaviors"
+---
+
+# ADR-001: Mode ≠ Persona — Agent × Mode Orthogonality
+
+## Status
+
+**Accepted** — Implemented in `feature/cli-via-goosed` branch.
+
+## Context
+
+Goose's `CodingAgent` had 8 "modes" that were actually different personas (PM, Architect, Backend, Frontend, QA, Security, SRE, DevSecOps). Three of these (`pm`, `qa`, `security`) directly overlapped with dedicated agents (`PmAgent`, `QaAgent`, `SecurityAgent`), causing:
+
+- **Routing ambiguity**: "review security vulnerabilities" could route to `CodingAgent/security` or `SecurityAgent/vulnerability`
+- **Prompt identity crisis**: Each mode had a different persona ("You are a Product Manager" vs "You are a Security Champion")
+- **Violated 1-agent-1-persona**: A single agent pretended to be 8 different people
+
+## Decision
+
+**Agent = WHO (persona/role). Mode = HOW (behavioral stance). These are orthogonal.**
+
+Every agent gets the **same universal mode set**:
+- `ask` — Read-only exploration, Q&A
+- `plan` — Design and reason without producing deliverables
+- `write` — Produce deliverables (code, docs, configs)
+- `review` — Evaluate existing work without modifying it
+- `debug` — Diagnose and fix (developer-only)
+
+The persona-specific behavior comes from **prompt templates** (`{agent}/{mode}.md`), not from mode definitions.
+
+## Consequences
+
+### Positive
+
+- **Clean routing**: Agent = persona-level routing, Mode = behavior-level switching
+- **Protocol alignment**: Maps 1:1 to ACP `SessionMode` and Kilo Code `customMode`
+- **Consistent UX**: Users learn 5 modes once, applicable to all agents
+- **Composable**: New agents automatically get all modes
+
+### Negative
+
+- **Less granular control**: Can't have "QA/coverage-audit" as a distinct mode anymore
+- **Prompt complexity**: Each agent needs N mode templates (currently 4-5 per agent = 21 total)
+- **Keyword routing weakness**: Universal modes have identical keywords, requiring agent-level description scoring
+
+### Risks
+
+- **Risk**: Users may expect domain-specific modes (e.g., "threat-model" as a Security mode)
+  - **Mitigation**: Agent-specific prompt templates provide the same depth; mode just controls tool access
+- **Risk**: 42% keyword routing accuracy may frustrate users
+  - **Mitigation**: LLM orchestrator handles real routing; keyword router is fast-path only
+
+## Alternatives Considered
+
+1. **Keep ad-hoc modes per agent** — Rejected: violates 1-agent-1-persona, causes routing ambiguity
+2. **Hybrid model (universal + domain-specific)** — Rejected: adds complexity without clear benefit
+3. **No modes, just agents** — Rejected: loses behavioral switching (read-only vs full access)
+
+## Evidence
+
+- [Kilo Code](https://kilo.ai/docs/customize/custom-modes): Code/Ask/Architect/Debug/Orchestrator/Review
+- [Cursor](https://cursor.com/docs/agent/modes): Ask/Agent/Manual
+- [ACP SessionMode](https://docs.rs/agent-client-protocol/latest/agent_client_protocol/struct.SessionMode.html): `id`, `name`, `description`
+- [Anthropic](https://www.anthropic.com/research/building-effective-agents): Orchestrator-workers pattern

@@ -1,0 +1,110 @@
+---
+title: "Agent × Mode Architecture"
+description: "How Goose separates persona (Agent) from behavior (Mode), aligned with ACP/A2A/Kilo Code"
+date: "2025-07-23"
+status: "implemented"
+tags: ["architecture", "agents", "modes", "acp", "a2a"]
+authors: ["goose"]
+related:
+  - docs/architecture/agent-persona-cleanup.md
+  - docs/architecture/extension-agent-separation.md
+  - docs/knowledge/protocols-acp-a2a-sota-goose.md
+evidence:
+  - crates/goose/src/agents/universal_mode.rs
+  - crates/goose/src/agents/developer_agent.rs
+  - crates/goose/src/agents/routing_eval.rs
+---
+
+# Agent × Mode Architecture
+
+## Core Principle
+
+**Agent = WHO (persona/role)**. **Mode = HOW (behavioral stance)**. These are orthogonal dimensions.
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                    Agent × Mode Matrix                         │
+├──────────────┬────────┬────────┬────────┬────────┬─────────────┤
+│ Agent\Mode   │  Ask   │  Plan  │ Write  │ Review │   Debug     │
+├──────────────┼────────┼────────┼────────┼────────┼─────────────┤
+│ Developer    │ R/O    │ R/O+md │ Full   │ R/O    │ Full+diag   │
+│ QA           │ R/O    │ R/O+md │ Test   │ R/O    │ —           │
+│ PM           │ R/O    │ R/O+md │ Docs   │ R/O    │ —           │
+│ Security     │ R/O    │ R/O+md │ Sec    │ R/O    │ —           │
+│ Research     │ R/O    │ R/O+md │ Docs   │ R/O    │ —           │
+│ Goose        │ catch-all conversational agent                  │
+└──────────────┴────────┴────────┴────────┴────────┴─────────────┘
+```
+
+## Protocol Alignment
+
+| Concept | ACP | A2A | Kilo Code | Goose |
+|---------|-----|-----|-----------|-------|
+| Persona | `AgentManifest` | `AgentCard` | Agent | `*Agent` struct |
+| Behavior | `SessionMode` | — | `customMode` | `UniversalMode` enum |
+| Capability | — | `AgentSkill` | — | `AgentSkill` (future) |
+
+## Universal Modes
+
+| Mode | Slug | Stance | Tool Access | Output |
+|------|------|--------|-------------|--------|
+| 🔍 Ask | `ask` | Read-only exploration | read, fetch, memory | Explanations, citations |
+| 📐 Plan | `plan` | Design without writing | read, fetch, memory | Plans, diagrams, ADRs |
+| ✏️ Write | `write` | Produce deliverables | Full per-agent | Code, docs, configs |
+| 🔎 Review | `review` | Evaluate without modifying | read, command (test/lint) | Findings, verdicts |
+| 🐛 Debug | `debug` | Diagnose and fix | Full + diagnostics | Root cause + fix |
+
+## Implementation
+
+### Key Files
+
+| File | Purpose |
+|------|---------|
+| `crates/goose/src/agents/universal_mode.rs` | `UniversalMode` enum with 5 variants |
+| `crates/goose/src/agents/developer_agent.rs` | Developer persona with universal modes |
+| `crates/goose/src/agents/qa_agent.rs` | QA persona with 4 universal modes |
+| `crates/goose/src/agents/pm_agent.rs` | PM persona with 4 universal modes |
+| `crates/goose/src/agents/security_agent.rs` | Security persona with 4 universal modes |
+| `crates/goose/src/agents/research_agent.rs` | Research persona with 4 universal modes |
+| `crates/goose/src/agents/intent_router.rs` | Agent×Mode routing with description bonus |
+| `crates/goose/src/agents/routing_eval.rs` | 50-case routing accuracy test matrix |
+
+### Prompt Template Structure (7 sections)
+
+Each prompt template follows:
+
+1. **Identity** — Who the agent is (persona declaration)
+2. **Expertise** — Domain knowledge areas
+3. **Mode Behavior** — What this mode does and doesn't do
+4. **Tools** — Which tools to use and avoid
+5. **Approach** — Step-by-step methodology
+6. **Boundaries** — Negative constraints (what NOT to do)
+7. **Communication** — Output format and style
+
+Templates live at: `crates/goose/src/prompts/{agent_name}/{mode_slug}.md`
+
+## Routing
+
+Two-tier routing strategy:
+
+1. **Fast-path**: Keyword router scores agent descriptions + mode keywords
+2. **LLM fallback**: Orchestrator uses `splitting.md` prompt for complex routing
+
+Keyword router baseline: **42% agent accuracy** (expected for fast-path).
+The LLM orchestrator handles the remaining cases.
+
+## SOTA Sources
+
+- [Kilo Code Custom Modes](https://kilo.ai/docs/customize/custom-modes) — YAML schema for modes
+- [Cursor Agent Modes](https://cursor.com/docs/agent/modes) — Ask/Agent/Manual distinction
+- [GitHub Copilot Prompt Structure](https://dev.to/seiwan-maikuma/a-deep-dive-into-github-copilot-agent-modes-prompt-structure-2i4g) — 3-layer prompt architecture
+- [Anthropic Building Effective Agents](https://www.anthropic.com/research/building-effective-agents) — Orchestrator-workers pattern
+- [ACP SessionMode](https://docs.rs/agent-client-protocol/latest/agent_client_protocol/struct.SessionMode.html) — Protocol struct
+- [A2A Protocol](https://github.com/a2aproject/A2A) — AgentCard + AgentSkill model
+
+## Open Work
+
+1. **Enable DeveloperAgent** — flip `enabled: true` in intent_router, deprecate CodingAgent
+2. **GooseAgent refactor** — split into proper universal modes (currently legacy)
+3. **LLM-based routing** — replace keyword scorer with LLM classification
+4. **Extension-Agent separation** — shared ExtensionRegistry (see `extension-agent-separation.md`)

@@ -1,0 +1,88 @@
+---
+title: "Routing Evaluation Baseline"
+description: "Keyword router accuracy baseline after universal mode refactor"
+date: "2025-07-23"
+status: "baseline"
+tags: ["routing", "evaluation", "metrics", "agents"]
+evidence:
+  - crates/goose/src/agents/routing_eval.rs
+  - crates/goose/src/agents/intent_router.rs
+---
+
+# Routing Evaluation Baseline
+
+## Test Matrix
+
+50 test cases across 6 agents + 3 ambiguity edge cases:
+
+| Agent | Cases | Modes Tested |
+|-------|-------|-------------|
+| Goose Agent | 5 | assistant |
+| Coding Agent | 14 | code, frontend, architect, debug, devops |
+| QA Agent | 8 | ask, plan, write, review |
+| PM Agent | 7 | ask, plan, write, review |
+| Security Agent | 7 | ask, plan, write, review |
+| Research Agent | 6 | ask, plan, write, review |
+| Ambiguity | 3 | mixed |
+
+## Keyword Router Results
+
+| Metric | Value | Notes |
+|--------|-------|-------|
+| **Agent accuracy** | 42% | Correct agent selected |
+| **Full accuracy** | 42% | Correct agent AND mode |
+| **Goose fallback rate** | ~30% | Messages defaulting to Goose |
+
+### Per-Agent Accuracy
+
+| Agent | Accuracy | Notes |
+|-------|----------|-------|
+| Coding Agent | 64.3% | Domain keywords work well |
+| QA Agent | 75.0% | Strong test/quality keywords |
+| Architect mode | 100% | Distinctive vocabulary |
+| Debug mode | 100% | Distinctive vocabulary |
+| DevOps mode | 75% | Good infra keywords |
+| Security Agent | ~28% | Weak — "security" too generic |
+| PM Agent | ~14% | Weak — product keywords overlap |
+| Research Agent | ~17% | Weak — generic exploration words |
+| Ask mode | 0% | Universal keywords can't differentiate |
+
+### Known Weaknesses
+
+1. **Ask mode never routes correctly** — all agents share the same `when_to_use` keywords for ask
+2. **Security → Goose misroutes** — "security" appears in many agent descriptions
+3. **PM → QA confusion** — "review", "quality", "criteria" overlap between PM and QA
+4. **Research → Goose fallback** — exploration keywords too generic
+
+## Architecture
+
+```
+User message
+    │
+    ▼
+┌─────────────────────┐
+│   Keyword Router     │  ← Fast path (< 1ms)
+│   (intent_router.rs) │
+│                       │
+│ Score = 0.5 × when_to_use_match
+│       + 0.2 × description_match
+│       + 0.1 × name_match
+│       + agent_description_bonus
+│       + absolute_match_bonus
+└────────┬────────────┘
+         │ threshold > 0.2?
+    ┌────┴────┐
+    │ Yes     │ No
+    ▼         ▼
+  Route    ┌──────────────┐
+           │ LLM Orchestr. │  ← Fallback (200-500ms)
+           │ (splitting.md) │
+           └──────────────┘
+```
+
+## Improvement Path
+
+1. **Enable LLM routing** — Use orchestrator's `routing.md` prompt for all non-trivial messages
+2. **Embedding-based scoring** — Replace keyword matching with semantic similarity
+3. **History-aware routing** — Consider conversation context, not just current message
+4. **Feedback loop** — Track user mode-switches to improve routing over time
