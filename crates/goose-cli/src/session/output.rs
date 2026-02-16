@@ -839,7 +839,7 @@ fn print_markdown(content: &str, theme: Theme) {
             if !before.is_empty() {
                 print_markdown_raw(&before, theme);
             }
-            print_table(&table);
+            print_table(&table, theme);
             if !after.is_empty() {
                 print_markdown(after, theme);
             }
@@ -913,7 +913,7 @@ fn extract_markdown_table(content: &str) -> Option<(String, Vec<&str>, &str)> {
     Some((before, table, after))
 }
 
-fn print_table(table_lines: &[&str]) {
+fn print_table(table_lines: &[&str], theme: Theme) {
     use comfy_table::{presets, Cell, CellAlignment, ContentArrangement, Table};
 
     let mut table = Table::new();
@@ -994,7 +994,7 @@ fn print_table(table_lines: &[&str]) {
     }
 
     let table_str = table.to_string();
-    println!("{table_str}");
+    print_markdown_raw(&table_str, theme);
 }
 
 const INDENT: &str = "    ";

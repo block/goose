@@ -61,14 +61,11 @@ pub struct MarkdownBuffer {
 /// Tracks the current parsing state for markdown constructs.
 #[derive(Default, Debug, Clone, PartialEq)]
 struct ParseState {
-    // Block-level state (line-aware)
     in_code_block: bool,
     code_fence_char: char,
     code_fence_len: usize,
     in_table: bool,
     pending_heading: bool,
-
-    // Inline state (regex tokenizer)
     in_inline_code: bool,
     inline_code_len: usize,
     in_bold: bool,
@@ -144,15 +141,11 @@ impl MarkdownBuffer {
         let mut pos: usize = 0;
 
         while pos < len {
-            // Check for block-level constructs at line starts
             let at_line_start = pos == 0 || bytes[pos - 1] == b'\n';
 
             if at_line_start {
-                // Process block-level constructs
                 if let Some(new_pos) = self.process_line_start(&mut state, pos) {
                     pos = new_pos;
-
-                    // After processing line start, check if state is clean
                     if state.is_clean() {
                         last_safe = pos;
                     }
@@ -160,25 +153,18 @@ impl MarkdownBuffer {
                 }
             }
 
-            // Inside a code block, just scan for newlines
             if state.in_code_block {
-                // Find next newline or end of buffer
                 while pos < len && bytes[pos] != b'\n' {
                     pos += 1;
                 }
                 if pos < len {
-                    pos += 1; // Skip the newline
+                    pos += 1;
                 }
                 continue;
             }
 
-            // Process inline constructs using the regex tokenizer
             let remaining = &self.buffer[pos..];
-
-            // Find next newline to bound our inline processing
             let line_end = remaining.find('\n').map(|i| pos + i + 1).unwrap_or(len);
-
-            // Tokenize up to the newline
             let line_content = &self.buffer[pos..line_end];
 
             for cap in INLINE_TOKEN_RE.find_iter(line_content) {
@@ -192,10 +178,8 @@ impl MarkdownBuffer {
                 }
             }
 
-            // If we processed a complete line (ending with newline), clear pending_heading
             if line_end <= len && line_end > pos && bytes[line_end - 1] == b'\n' {
                 state.pending_heading = false;
-                // Update last_safe if state is now clean after clearing heading
                 if state.is_clean() {
                     last_safe = line_end;
                 }
@@ -213,26 +197,20 @@ impl MarkdownBuffer {
     fn process_line_start(&self, state: &mut ParseState, pos: usize) -> Option<usize> {
         let remaining = &self.buffer[pos..];
 
-        // If we were pending a heading, the newline completes it
         if state.pending_heading {
             state.pending_heading = false;
         }
 
-        // Check for code fence (``` or ~~~)
         if let Some(fence_result) = self.check_code_fence(remaining, state) {
             return Some(pos + fence_result);
         }
 
-        // If in code block, don't process other block constructs
         if state.in_code_block {
             return None;
         }
 
-        // Check for heading (# at start of line)
         if remaining.starts_with('#') {
-            // Count the # characters
             let hashes = remaining.chars().take_while(|&c| c == '#').count();
-            // Valid heading: 1-6 hashes followed by space or newline
             if hashes <= 6 {
                 let after_hashes = &remaining[hashes..];
                 if after_hashes.is_empty()
@@ -240,25 +218,21 @@ impl MarkdownBuffer {
                     || after_hashes.starts_with('\n')
                 {
                     state.pending_heading = true;
-                    // Don't advance pos, let inline processing handle the content
                     return None;
                 }
             }
         }
 
-        // Check for table row (| at start of line)
         if remaining.starts_with('|') {
             state.in_table = true;
-            return None; // Let inline processing handle the row
+            return None;
         }
 
-        // Check for blank line (closes table)
         if (remaining.starts_with('\n') || remaining.is_empty()) && state.in_table {
             state.in_table = false;
             return Some(pos + 1);
         }
 
-        // If in table but line doesn't start with |, close table
         if state.in_table && !remaining.starts_with('|') {
             state.in_table = false;
         }
@@ -272,7 +246,6 @@ impl MarkdownBuffer {
     fn check_code_fence(&self, line: &str, state: &mut ParseState) -> Option<usize> {
         let trimmed = line.trim_start();
 
-        // Determine fence character and count
         let fence_char = trimmed.chars().next()?;
         if fence_char != '`' && fence_char != '~' {
             return None;
@@ -286,19 +259,16 @@ impl MarkdownBuffer {
         let after_fence = &trimmed[fence_len..];
 
         if state.in_code_block {
-            // Check if this is a valid closing fence
             if fence_char == state.code_fence_char
                 && fence_len >= state.code_fence_len
                 && (after_fence.is_empty()
                     || after_fence.starts_with('\n')
                     || after_fence.trim().is_empty())
             {
-                // Valid closing fence
                 state.in_code_block = false;
                 state.code_fence_char = '\0';
                 state.code_fence_len = 0;
 
-                // Return position after the fence line
                 if let Some(newline_pos) = line.find('\n') {
                     return Some(newline_pos + 1);
                 } else {
@@ -306,12 +276,10 @@ impl MarkdownBuffer {
                 }
             }
         } else {
-            // Opening fence - can have info string after it
             state.in_code_block = true;
             state.code_fence_char = fence_char;
             state.code_fence_len = fence_len;
 
-            // Don't return safe position - we're now in a code block
             if let Some(newline_pos) = line.find('\n') {
                 return Some(newline_pos + 1);
             } else {
@@ -324,12 +292,10 @@ impl MarkdownBuffer {
 
     /// Process an inline token and update state.
     fn process_inline_token(&self, state: &mut ParseState, token: &str) {
-        // Escaped characters don't affect state
         if token.starts_with('\\') && token.len() == 2 {
             return;
         }
 
-        // Inline code (backticks)
         if token.starts_with('`') {
             let tick_count = token.len();
             if state.in_inline_code {
@@ -344,15 +310,12 @@ impl MarkdownBuffer {
             return;
         }
 
-        // Inside inline code, nothing else matters
         if state.in_inline_code {
             return;
         }
 
-        // Bold/italic markers
         match token {
             "***" | "___" => {
-                // Toggle both bold and italic
                 if state.in_bold && state.in_italic {
                     state.in_bold = false;
                     state.in_italic = false;
@@ -391,10 +354,7 @@ impl MarkdownBuffer {
                     state.in_link_url = true;
                 }
             }
-            "]" => {
-                // Unmatched ] - could be part of incomplete link
-                // Don't close link_text here, wait for ]( or next chunk
-            }
+            "]" => {}
             ")" => {
                 if state.in_link_url {
                     state.in_link_url = false;
