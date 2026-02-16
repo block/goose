@@ -208,8 +208,11 @@ What else can you do with playwright skills?
 | **Network** | Mock APIs, intercept requests |
 | **Input** | Type text, press keys, mouse actions |
 
-:::tip Visual Dashboard
-Use `playwright-cli show` to open a visual dashboard that displays all running browser sessions with live screencast previews. This is useful when you want to observe what goose is doing in the background or take over control manually.
+:::tip Headed Mode for Debugging
+Use `--headed` flag when opening a browser to watch what's happening in real-time:
+```
+Open block.github.io/goose --headed
+```
 :::
 
 ### Example Use Cases
