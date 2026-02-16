@@ -202,12 +202,7 @@ When you have goose running several browser tasks at once, it can be hard to kee
 playwright-cli show
 ```
 
-The dashboard provides two ways to interact with your sessions:
-
-- **Session grid** — See all your running browsers at a glance with live previews. Each tile shows the workspace, current URL, and page title. Click any session to focus on it.
-- **Session detail** — Get a full-size view of a single session with browser controls (back, forward, reload). You can take over the mouse and keyboard by clicking in the browser window—press **Escape** when you want to hand control back to goose.
-
-You can also close sessions or clear saved data directly from the dashboard, making it simple to manage everything without switching between windows.
+From here you can see live previews of every browser goose is controlling. Click into any session to watch it full-size, or take over the mouse and keyboard yourself if goose needs a hand. Press **Escape** when you're done and goose picks up right where you left off.
 
 :::note
 The `show` command requires playwright-cli version 0.2.0 or later.
