@@ -98,15 +98,38 @@ impl TelegramGateway {
     }
 
     async fn send_text(&self, chat_id: i64, text: &str) -> anyhow::Result<()> {
-        for chunk in split_message(text, MAX_MESSAGE_LENGTH) {
-            self.client
+        let html = super::telegram_format::markdown_to_telegram_html(text);
+        for chunk in split_message(&html, MAX_MESSAGE_LENGTH) {
+            let resp = self
+                .client
                 .post(self.api_url("sendMessage"))
                 .json(&serde_json::json!({
                     "chat_id": chat_id,
                     "text": chunk,
+                    "parse_mode": "HTML",
                 }))
                 .send()
                 .await?;
+
+            if let Ok(body) = resp.json::<TelegramResponse<serde_json::Value>>().await {
+                if !body.ok {
+                    tracing::warn!(
+                        error = body.description.as_deref().unwrap_or("unknown"),
+                        "Telegram rejected HTML, falling back to plain text"
+                    );
+                    for plain_chunk in split_message(text, MAX_MESSAGE_LENGTH) {
+                        self.client
+                            .post(self.api_url("sendMessage"))
+                            .json(&serde_json::json!({
+                                "chat_id": chat_id,
+                                "text": plain_chunk,
+                            }))
+                            .send()
+                            .await?;
+                    }
+                    return Ok(());
+                }
+            }
         }
         Ok(())
     }

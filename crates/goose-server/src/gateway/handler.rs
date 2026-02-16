@@ -206,10 +206,7 @@ impl GatewayHandler {
 
         let provider_changed = current_provider.as_deref() != session.provider_name.as_deref();
         let model_changed = current_model_name.as_deref()
-            != session
-                .model_config
-                .as_ref()
-                .map(|m| m.model_name.as_str());
+            != session.model_config.as_ref().map(|m| m.model_name.as_str());
         let extensions_changed = current_extensions != session_extensions;
 
         if !provider_changed && !model_changed && !extensions_changed {
@@ -386,9 +383,6 @@ impl GatewayHandler {
                             match content {
                                 MessageContent::Text(t) => {
                                     if !t.text.is_empty() {
-                                        if !pending_text.is_empty() {
-                                            pending_text.push('\n');
-                                        }
                                         pending_text.push_str(&t.text);
                                     }
                                 }
@@ -450,9 +444,15 @@ impl GatewayHandler {
                     }
                 }
                 Ok(AgentEvent::McpNotification(_)) => {
-                    tracing::debug!(session_id, "gateway stream: mcp notification #{event_count}");
+                    tracing::debug!(
+                        session_id,
+                        "gateway stream: mcp notification #{event_count}"
+                    );
                 }
-                Ok(AgentEvent::ModelChange { ref model, ref mode }) => {
+                Ok(AgentEvent::ModelChange {
+                    ref model,
+                    ref mode,
+                }) => {
                     tracing::debug!(
                         session_id,
                         model,
@@ -500,12 +500,7 @@ impl GatewayHandler {
         // assistant response after the last tool round-trip).
         if !pending_text.is_empty() {
             self.gateway
-                .send_message(
-                    &message.user,
-                    OutgoingMessage::Text {
-                        body: pending_text,
-                    },
-                )
+                .send_message(&message.user, OutgoingMessage::Text { body: pending_text })
                 .await?;
         } else if !sent_any {
             // Nothing was ever sent — let the user know.
