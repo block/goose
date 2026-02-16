@@ -277,24 +277,16 @@ pub fn render_message(message: &Message, debug: bool) {
 /// Render a streaming message, using a buffer to accumulate text content
 /// and only render when markdown constructs are complete.
 /// Returns true if the message contained text content (for tracking purposes).
-pub fn render_message_streaming(
-    message: &Message,
-    buffer: &mut MarkdownBuffer,
-    debug: bool,
-) -> bool {
+pub fn render_message_streaming(message: &Message, buffer: &mut MarkdownBuffer, debug: bool) {
     let theme = get_theme();
-    let mut had_text = false;
 
     for content in &message.content {
         match content {
             MessageContent::Text(text) => {
-                had_text = true;
-                // Push to buffer and render any safe content
                 if let Some(safe_content) = buffer.push(&text.text) {
                     print_markdown(&safe_content, theme);
                 }
             }
-            // For non-text content, flush the buffer first then render normally
             MessageContent::ToolRequest(req) => {
                 flush_markdown_buffer(buffer, theme);
                 render_tool_request(req, theme, debug);
@@ -358,10 +350,8 @@ pub fn render_message_streaming(
     }
 
     let _ = std::io::stdout().flush();
-    had_text
 }
 
-/// Flush any remaining content in the markdown buffer
 pub fn flush_markdown_buffer(buffer: &mut MarkdownBuffer, theme: Theme) {
     let remaining = buffer.flush();
     if !remaining.is_empty() {
@@ -369,7 +359,6 @@ pub fn flush_markdown_buffer(buffer: &mut MarkdownBuffer, theme: Theme) {
     }
 }
 
-/// Convenience function to flush with the current theme
 pub fn flush_markdown_buffer_current_theme(buffer: &mut MarkdownBuffer) {
     flush_markdown_buffer(buffer, get_theme());
 }
@@ -846,15 +835,11 @@ pub fn env_no_color() -> bool {
 
 fn print_markdown(content: &str, theme: Theme) {
     if std::io::stdout().is_terminal() {
-        // Check if content contains a markdown table and render it specially
         if let Some((before, table, after)) = extract_markdown_table(content) {
-            // Print content before table
             if !before.is_empty() {
                 print_markdown_raw(&before, theme);
             }
-            // Render table with comfy-table
             print_table(&table);
-            // Print content after table
             if !after.is_empty() {
                 print_markdown(after, theme);
             }
@@ -878,7 +863,6 @@ fn print_markdown_raw(content: &str, theme: Theme) {
         .unwrap();
 }
 
-/// Extracts a markdown table from content, returning (before, table_lines, after)
 fn extract_markdown_table(content: &str) -> Option<(String, Vec<&str>, &str)> {
     let lines: Vec<&str> = content.lines().collect();
     let mut table_start = None;
@@ -892,19 +876,16 @@ fn extract_markdown_table(content: &str) -> Option<(String, Vec<&str>, &str)> {
             }
             table_end = Some(i);
         } else if table_start.is_some() {
-            // Line doesn't look like a table row, table has ended
             break;
         }
     }
 
-    // Need at least 2 rows (header + separator or header + data)
     let start = table_start?;
     let end = table_end?;
     if end < start + 1 {
         return None;
     }
 
-    // Verify we have a separator row (contains |---|)
     let has_separator = lines[start..=end]
         .iter()
         .any(|line| line.contains("---") || line.contains(":-") || line.contains("-:"));
@@ -921,28 +902,23 @@ fn extract_markdown_table(content: &str) -> Option<(String, Vec<&str>, &str)> {
     let table = lines[start..=end].to_vec();
     let after_lines = &lines[end + 1..];
 
-    // Calculate byte offset for after content
     let after = if after_lines.is_empty() {
         ""
     } else {
-        // Find where the remaining content starts in the original string
         let table_end_line = lines[end];
         let table_end_pos = content.find(table_end_line).unwrap() + table_end_line.len();
-        // Skip the newline after the table (safely handle UTF-8)
         content.get(table_end_pos + 1..).unwrap_or("")
     };
 
     Some((before, table, after))
 }
 
-/// Parses and renders a markdown table using comfy-table (ASCII format for valid markdown)
 fn print_table(table_lines: &[&str]) {
     use comfy_table::{presets, Cell, CellAlignment, ContentArrangement, Table};
 
     let mut table = Table::new();
     table.set_content_arrangement(ContentArrangement::Dynamic);
 
-    // Use ASCII markdown preset - output remains valid markdown
     table.load_preset(presets::ASCII_MARKDOWN);
 
     let mut rows: Vec<Vec<String>> = Vec::new();
@@ -957,13 +933,12 @@ fn print_table(table_lines: &[&str]) {
             .map(|s| s.trim().to_string())
             .collect();
 
-        // Check if this is the separator row
-        if cells.iter().all(|c| {
+        let is_separator = cells.iter().all(|c| {
             let t = c.trim();
             t.chars().all(|ch| ch == '-' || ch == ':') && t.contains('-')
-        }) {
+        });
+        if is_separator {
             separator_idx = Some(i);
-            // Parse alignments from separator
             alignments = cells
                 .iter()
                 .map(|c| {
@@ -982,12 +957,10 @@ fn print_table(table_lines: &[&str]) {
         }
     }
 
-    // If no separator found, treat first row as header anyway
     if separator_idx.is_none() && !rows.is_empty() {
         alignments = vec![CellAlignment::Left; rows[0].len()];
     }
 
-    // Set header (first row)
     if let Some(header) = rows.first() {
         let header_cells: Vec<Cell> = header
             .iter()
@@ -1004,7 +977,6 @@ fn print_table(table_lines: &[&str]) {
         table.set_header(header_cells);
     }
 
-    // Add data rows
     for row in rows.iter().skip(1) {
         let cells: Vec<Cell> = row
             .iter()
