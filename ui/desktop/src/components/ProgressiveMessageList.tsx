@@ -207,7 +207,7 @@ export default function ProgressiveMessageList({
         if (notification) {
           return (
             <div
-              key={`notification-${index}`}
+              key={`notification-${message.id ?? `msg-${index}-${message.created}`}`}
               className={`relative ${index === 0 ? 'mt-0' : 'mt-4'} assistant`}
               data-testid="message-container"
             >

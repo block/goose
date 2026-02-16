@@ -20,18 +20,6 @@ use crate::providers::formats::openai::{create_request, get_usage, response_to_m
 use rmcp::model::Tool;
 
 const TETRATE_PROVIDER_NAME: &str = "tetrate";
-pub const TETRATE_KNOWN_MODELS: &[&str] = &[
-    "claude-opus-4-1",
-    "claude-3-7-sonnet-latest",
-    "claude-sonnet-4-20250514",
-    "gemini-2.5-pro",
-    "gemini-2.0-flash",
-    "gemini-2.0-flash-lite",
-    "gpt-5",
-    "gpt-5-mini",
-    "gpt-5-nano",
-    "gpt-4.1",
-];
 pub const TETRATE_DOC_URL: &str = "https://router.tetrate.ai";
 pub const TETRATE_DASHBOARD_URL: &str = "https://router.tetrate.ai/dashboard";
 
@@ -107,7 +95,7 @@ impl ProviderDef for TetrateProvider {
             "Tetrate Agent Router Service",
             "Enterprise router for AI models",
             TETRATE_DEFAULT_MODEL,
-            TETRATE_KNOWN_MODELS.to_vec(),
+            vec![],
             TETRATE_DOC_URL,
             vec![
                 ConfigKey::new("TETRATE_API_KEY", true, true, None),
@@ -214,68 +202,30 @@ impl Provider for TetrateProvider {
         stream_openai_compat(response, log)
     }
 
-    /// Fetch supported models from Tetrate Agent Router Service API (only models with tool support)
+    /// Fetch supported models from Tetrate Agent Router Service API
     async fn fetch_supported_models(&self) -> Result<Vec<String>, ProviderError> {
-        // Use the existing api_client which already has authentication configured
-        let response = match self
+        let response = self
             .api_client
-            .request(None, "v1/models")
-            .response_get()
+            .response_get(None, "v1/models")
             .await
-        {
-            Ok(response) => response,
-            Err(e) => {
-                return Err(ProviderError::ExecutionError(format!(
-                    "Failed to fetch models from Tetrate API: {}. Please check your API key and account at {}",
-                    e, TETRATE_DOC_URL
-                )));
-            }
-        };
+            .map_err(|e| ProviderError::RequestFailed(e.to_string()))?;
+        let json = handle_response_openai_compat(response).await?;
 
-        let json: serde_json::Value = response.json().await.map_err(|e| {
-            ProviderError::ExecutionError(format!(
-                "Failed to parse Tetrate API response: {}. Please check your API key and account at {}",
-                e, TETRATE_DOC_URL
-            ))
-        })?;
-
-        // Check for error in response
         if let Some(err_obj) = json.get("error") {
             let msg = err_obj
                 .get("message")
                 .and_then(|v| v.as_str())
                 .unwrap_or("unknown error");
-            return Err(ProviderError::ExecutionError(format!(
-                "Tetrate API error: {}. Please check your API key and account at {}",
-                msg, TETRATE_DOC_URL
-            )));
+            return Err(ProviderError::Authentication(msg.to_string()));
         }
 
-        // The response format from /v1/models is expected to be OpenAI-compatible
-        // It should have a "data" field with an array of model objects
-        let data = json.get("data").and_then(|v| v.as_array()).ok_or_else(|| {
-            ProviderError::ExecutionError(format!(
-                "Tetrate API response missing 'data' field. Please check your API key and account at {}",
-                TETRATE_DOC_URL
-            ))
+        let arr = json.get("data").and_then(|v| v.as_array()).ok_or_else(|| {
+            ProviderError::RequestFailed("Missing 'data' array in models response".to_string())
         })?;
-
-        let mut models: Vec<String> = data
+        let mut models: Vec<String> = arr
             .iter()
-            .filter_map(|model| {
-                let id = model.get("id").and_then(|v| v.as_str())?;
-                let supports_computer_use = model
-                    .get("supports_computer_use")
-                    .and_then(|v| v.as_bool())
-                    .unwrap_or(false);
-                if supports_computer_use {
-                    Some(id.to_string())
-                } else {
-                    None
-                }
-            })
+            .filter_map(|m| m.get("id").and_then(|v| v.as_str()).map(str::to_string))
             .collect();
-
         models.sort();
         Ok(models)
     }
