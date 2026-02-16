@@ -24,10 +24,9 @@ const TETRATE_PROVIDER_NAME: &str = "tetrate";
 pub const TETRATE_DOC_URL: &str = "https://router.tetrate.ai";
 pub const TETRATE_DASHBOARD_URL: &str = "https://router.tetrate.ai/dashboard";
 
-/// Known models for Tetrate - used as fallback when dynamic fetch isn't available
-const TETRATE_KNOWN_MODELS: &[&str] = &[
-    "claude-3-5-sonnet-20241022",
-    "claude-3-7-sonnet-20250219",
+pub const TETRATE_KNOWN_MODELS: &[&str] = &[
+    "claude-opus-4-1",
+    "claude-3-7-sonnet-latest",
     "claude-sonnet-4-20250514",
     "gemini-2.5-pro",
     "gemini-2.0-flash",
