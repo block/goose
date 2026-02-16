@@ -132,8 +132,8 @@ Open block.github.io/goose in a headed browser
 Describe what you want to test in plain English:
 
 ```
-Open block.github.io/goose in the browser, navigate to the Using Skills guide 
-via the Docs menu, then create a test based on your interactions
+Open block.github.io/goose, click on the Docs menu, click on Context Engineering, 
+then click on Using Skills and create a test based on your interactions
 ```
 
 ### goose Output
