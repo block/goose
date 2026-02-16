@@ -36,8 +36,13 @@ impl AgentManager {
             .unwrap_or_else(|| NonZeroUsize::new(100).unwrap());
 
         let provider = Arc::new(tokio::sync::Mutex::new(None));
-        let shared_extension_manager =
-            Arc::new(ExtensionManager::new(provider, session_manager.clone()));
+        let extension_registry =
+            Arc::new(crate::agents::extension_registry::ExtensionRegistry::new());
+        let shared_extension_manager = Arc::new(ExtensionManager::with_registry(
+            extension_registry.clone(),
+            provider,
+            session_manager.clone(),
+        ));
         let manager = Self {
             sessions: Arc::new(RwLock::new(LruCache::new(capacity))),
             scheduler,
