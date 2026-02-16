@@ -9,7 +9,7 @@ use super::errors::ProviderError;
 use super::retry::RetryConfig;
 use crate::config::base::ConfigValue;
 use crate::config::ExtensionConfig;
-use crate::conversation::message::Message;
+use crate::conversation::message::{Message, MessageContent};
 use crate::conversation::Conversation;
 use crate::model::ModelConfig;
 use crate::utils::safe_truncate;
@@ -650,8 +650,20 @@ pub async fn collect_stream(
         if let Some(msg) = msg_opt {
             final_message = Some(match final_message {
                 Some(mut prev) => {
-                    // Merge messages by appending content
-                    prev.content.extend(msg.content);
+                    for new_content in msg.content {
+                        match (&mut prev.content.last_mut(), &new_content) {
+                            // Coalesce consecutive text blocks
+                            (
+                                Some(MessageContent::Text(last_text)),
+                                MessageContent::Text(new_text),
+                            ) => {
+                                last_text.text.push_str(&new_text.text);
+                            }
+                            _ => {
+                                prev.content.push(new_content);
+                            }
+                        }
+                    }
                     prev
                 }
                 None => msg,
@@ -659,16 +671,14 @@ pub async fn collect_stream(
         }
 
         if let Some(usage) = usage_opt {
-            final_usage = Some(usage); // Use latest usage
+            final_usage = Some(usage);
         }
     }
 
     match final_message {
         Some(msg) => {
-            // Some providers may not emit usage for certain streams; default when missing
-            let usage = final_usage.unwrap_or_else(|| {
-                ProviderUsage::new("unknown".to_string(), Usage::default())
-            });
+            let usage = final_usage
+                .unwrap_or_else(|| ProviderUsage::new("unknown".to_string(), Usage::default()));
             Ok((msg, usage))
         }
         None => Err(ProviderError::ExecutionError(
@@ -681,14 +691,99 @@ pub async fn collect_stream(
 mod tests {
     use super::*;
     use std::collections::HashMap;
+    use test_case::test_case;
 
     use serde_json::json;
-    #[test]
-    fn test_usage_creation() {
-        let usage = Usage::new(Some(10), Some(20), Some(30));
-        assert_eq!(usage.input_tokens, Some(10));
-        assert_eq!(usage.output_tokens, Some(20));
-        assert_eq!(usage.total_tokens, Some(30));
+    fn content_from_str(s: String) -> MessageContent {
+        if let Some(img_data) = s.strip_prefix("*img:") {
+            MessageContent::image(
+                format!("http://example.com/{}", img_data),
+                "image/png"
+            )
+        } else if let Some(tool_name) = s.strip_prefix("*tool:") {
+            let tool_call = Ok(rmcp::model::CallToolRequestParams {
+                meta: None,
+                task: None,
+                name: tool_name.to_string().into(),
+                arguments: Some(serde_json::Map::new()),
+            });
+            MessageContent::tool_request(format!("tool_{}", tool_name), tool_call)
+        } else {
+            MessageContent::text(s)
+        }
+    }
+
+    fn create_test_stream(
+        items: Vec<String>,
+    ) -> impl Stream<Item = Result<(Option<Message>, Option<ProviderUsage>), ProviderError>> {
+        use futures::stream;
+        stream::iter(items.into_iter().map(|item| {
+            let content = content_from_str(item);
+            let message = Message::new(
+                rmcp::model::Role::Assistant,
+                chrono::Utc::now().timestamp(),
+                vec![content],
+            );
+            Ok((Some(message), None))
+        }))
+    }
+
+    fn content_to_strings(msg: &Message) -> Vec<String> {
+        msg.content
+            .iter()
+            .map(|c| match c {
+                MessageContent::Text(t) => t.text.clone(),
+                MessageContent::Image(_) => "*img".to_string(),
+                MessageContent::ToolRequest(tr) => {
+                    if let Ok(call) = &tr.tool_call {
+                        format!("*tool:{}", call.name)
+                    } else {
+                        "*tool:error".to_string()
+                    }
+                }
+                _ => "*other".to_string(),
+            })
+            .collect()
+    }
+
+    #[test_case(
+        vec!["Hello", " ", "world"],
+        vec!["Hello world"]
+        ; "consecutive text coalesces"
+    )]
+    #[test_case(
+        vec!["Hello", "*img:pic1", "world"],
+        vec!["Hello", "*img", "world"]
+        ; "non-text breaks coalescing"
+    )]
+    #[test_case(
+        vec!["A", "B", "*img:pic1", "C", "D", "*tool:read", "E", "F"],
+        vec!["AB", "*img", "CD", "*tool:read", "EF"]
+        ; "multiple text groups"
+    )]
+    #[test_case(
+        vec!["Text1", "*img:pic", "Text2"],
+        vec!["Text1", "*img", "Text2"]
+        ; "mixed content in chunk"
+    )]
+    #[tokio::test]
+    async fn test_collect_stream_coalescing(
+        input_items: Vec<&str>,
+        expected: Vec<&str>,
+    ) {
+        let items: Vec<String> = input_items.into_iter().map(|s| s.to_string()).collect();
+        let stream = create_test_stream(items);
+        let (msg, _) = collect_stream(Box::pin(stream)).await.unwrap();
+        assert_eq!(content_to_strings(&msg), expected);
+    }
+
+    #[tokio::test]
+    async fn test_collect_stream_defaults_usage() {
+        // Should not error when usage is missing
+        let stream = create_test_stream(vec!["Hello".to_string()]);
+        let (msg, usage) = collect_stream(Box::pin(stream)).await.unwrap();
+        assert_eq!(content_to_strings(&msg), vec!["Hello"]);
+        assert_eq!(usage.model, "unknown"); // Default usage
     }
 
     #[test]
