@@ -743,6 +743,7 @@ export type ModelSettings = {
     repeat_last_n?: number;
     repeat_penalty?: number;
     sampling?: SamplingConfig;
+    use_jinja?: boolean;
     use_mlock?: boolean;
 };
 

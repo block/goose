@@ -99,29 +99,6 @@ pub struct AppsManagerClient {
 
 impl AppsManagerClient {
     pub fn new(context: PlatformExtensionContext) -> Result<Self, String> {
-        let (model_name, context_limit) = if let Ok(guard) = context.provider.try_lock() {
-            if let Some(provider) = guard.as_ref() {
-                let cfg = provider.get_model_config();
-                (Some(cfg.model_name.clone()), Some(cfg.context_limit()))
-            } else {
-                (None, None)
-            }
-        } else {
-            (None, None)
-        };
-        eprintln!(
-            "DEBUG: AppsManagerClient::new - model: {:?}, context_limit: {:?}",
-            model_name, context_limit
-        );
-
-        match context.require_min_context(10_000, EXTENSION_NAME) {
-            Ok(_) => eprintln!("DEBUG: AppsManagerClient context check PASSED"),
-            Err(e) => {
-                eprintln!("DEBUG: AppsManagerClient context check FAILED: {}", e);
-                return Err(e.to_string());
-            }
-        }
-
         let apps_dir = Paths::in_data_dir(EXTENSION_NAME);
 
         fs::create_dir_all(&apps_dir)
@@ -173,7 +150,7 @@ impl AppsManagerClient {
 
     fn ensure_default_apps(&self) -> Result<(), String> {
         // TODO(Douwe): we have the same check in cache, consider unifying that
-        const CLOCK_HTML: &str = include_str!("../goose_apps/clock.html");
+        const CLOCK_HTML: &str = include_str!("../../goose_apps/clock.html");
 
         // Check if clock app exists
         let clock_path = self.apps_dir.join("clock.html");
