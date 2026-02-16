@@ -18,7 +18,7 @@ use std::sync::{Arc, LazyLock};
 use tracing::{info, warn};
 use utoipa::ToSchema;
 
-pub const CURRENT_SCHEMA_VERSION: i32 = 7;
+pub const CURRENT_SCHEMA_VERSION: i32 = 8;
 pub const SESSIONS_FOLDER: &str = "sessions";
 pub const DB_NAME: &str = "sessions.db";
 
@@ -118,6 +118,48 @@ pub struct SessionUpdateBuilder<'a> {
 pub struct SessionInsights {
     pub total_sessions: usize,
     pub total_tokens: i64,
+}
+
+#[derive(Serialize, ToSchema, Debug, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct DailyActivity {
+    pub date: String,
+    pub sessions: i64,
+    pub messages: i64,
+    pub input_tokens: i64,
+    pub output_tokens: i64,
+    pub total_tokens: i64,
+}
+
+#[derive(Serialize, ToSchema, Debug, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct ProviderUsage {
+    pub provider: String,
+    pub sessions: i64,
+    pub total_tokens: i64,
+}
+
+#[derive(Serialize, ToSchema, Debug, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct DirectoryUsage {
+    pub directory: String,
+    pub sessions: i64,
+}
+
+#[derive(Serialize, ToSchema, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionAnalytics {
+    pub total_sessions: i64,
+    pub total_tokens: i64,
+    pub total_input_tokens: i64,
+    pub total_output_tokens: i64,
+    pub total_messages: i64,
+    pub active_days: i64,
+    pub avg_tokens_per_session: f64,
+    pub avg_messages_per_session: f64,
+    pub daily_activity: Vec<DailyActivity>,
+    pub provider_usage: Vec<ProviderUsage>,
+    pub top_directories: Vec<DirectoryUsage>,
 }
 
 impl<'a> SessionUpdateBuilder<'a> {
@@ -306,6 +348,10 @@ impl SessionManager {
 
     pub async fn get_insights(&self) -> Result<SessionInsights> {
         self.storage.get_insights().await
+    }
+
+    pub async fn get_analytics(&self) -> Result<SessionAnalytics> {
+        self.storage.get_analytics().await
     }
 
     pub async fn export_session(&self, id: &str) -> Result<String> {
@@ -507,7 +553,7 @@ impl SessionStorage {
         }
     }
 
-    async fn pool(&self) -> Result<&Pool<Sqlite>> {
+    pub async fn pool(&self) -> Result<&Pool<Sqlite>> {
         self.initialized
             .get_or_try_init(|| async {
                 let schema_exists = sqlx::query_scalar::<_, bool>(
@@ -614,6 +660,73 @@ impl SessionStorage {
             .execute(pool)
             .await?;
         sqlx::query("CREATE INDEX idx_sessions_type ON sessions(session_type)")
+            .execute(pool)
+            .await?;
+
+        // Eval tables
+        sqlx::query(
+            r#"
+            CREATE TABLE eval_datasets (
+                id TEXT PRIMARY KEY,
+                name TEXT NOT NULL,
+                description TEXT NOT NULL DEFAULT '',
+                tags_json TEXT NOT NULL DEFAULT '[]',
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        "#,
+        )
+        .execute(pool)
+        .await?;
+
+        sqlx::query(
+            r#"
+            CREATE TABLE eval_test_cases (
+                id TEXT PRIMARY KEY,
+                dataset_id TEXT NOT NULL REFERENCES eval_datasets(id) ON DELETE CASCADE,
+                input TEXT NOT NULL,
+                expected_agent TEXT NOT NULL,
+                expected_mode TEXT NOT NULL,
+                tags_json TEXT NOT NULL DEFAULT '[]',
+                sort_order INTEGER NOT NULL DEFAULT 0
+            )
+        "#,
+        )
+        .execute(pool)
+        .await?;
+
+        sqlx::query("CREATE INDEX idx_eval_cases_dataset ON eval_test_cases(dataset_id)")
+            .execute(pool)
+            .await?;
+
+        sqlx::query(
+            r#"
+            CREATE TABLE eval_runs (
+                id TEXT PRIMARY KEY,
+                dataset_id TEXT NOT NULL REFERENCES eval_datasets(id),
+                version_tag TEXT NOT NULL DEFAULT '',
+                goose_version TEXT NOT NULL DEFAULT '',
+                started_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                duration_ms INTEGER NOT NULL DEFAULT 0,
+                total_cases INTEGER NOT NULL DEFAULT 0,
+                correct INTEGER NOT NULL DEFAULT 0,
+                agent_correct INTEGER NOT NULL DEFAULT 0,
+                overall_accuracy REAL NOT NULL DEFAULT 0.0,
+                agent_accuracy REAL NOT NULL DEFAULT 0.0,
+                mode_accuracy REAL NOT NULL DEFAULT 0.0,
+                status TEXT NOT NULL DEFAULT 'pass',
+                metrics_json TEXT NOT NULL DEFAULT '{}',
+                results_json TEXT NOT NULL DEFAULT '[]'
+            )
+        "#,
+        )
+        .execute(pool)
+        .await?;
+
+        sqlx::query("CREATE INDEX idx_eval_runs_dataset ON eval_runs(dataset_id)")
+            .execute(pool)
+            .await?;
+        sqlx::query("CREATE INDEX idx_eval_runs_started ON eval_runs(started_at DESC)")
             .execute(pool)
             .await?;
 
@@ -881,6 +994,73 @@ impl SessionStorage {
                 .await?;
 
                 sqlx::query("CREATE INDEX idx_messages_message_id ON messages(message_id)")
+                    .execute(&mut **tx)
+                    .await?;
+            }
+            8 => {
+                sqlx::query(
+                    r#"
+                    CREATE TABLE eval_datasets (
+                        id TEXT PRIMARY KEY,
+                        name TEXT NOT NULL,
+                        description TEXT NOT NULL DEFAULT '',
+                        tags_json TEXT NOT NULL DEFAULT '[]',
+                        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                    )
+                "#,
+                )
+                .execute(&mut **tx)
+                .await?;
+
+                sqlx::query(
+                    r#"
+                    CREATE TABLE eval_test_cases (
+                        id TEXT PRIMARY KEY,
+                        dataset_id TEXT NOT NULL REFERENCES eval_datasets(id) ON DELETE CASCADE,
+                        input TEXT NOT NULL,
+                        expected_agent TEXT NOT NULL,
+                        expected_mode TEXT NOT NULL,
+                        tags_json TEXT NOT NULL DEFAULT '[]',
+                        sort_order INTEGER NOT NULL DEFAULT 0
+                    )
+                "#,
+                )
+                .execute(&mut **tx)
+                .await?;
+
+                sqlx::query("CREATE INDEX idx_eval_cases_dataset ON eval_test_cases(dataset_id)")
+                    .execute(&mut **tx)
+                    .await?;
+
+                sqlx::query(
+                    r#"
+                    CREATE TABLE eval_runs (
+                        id TEXT PRIMARY KEY,
+                        dataset_id TEXT NOT NULL REFERENCES eval_datasets(id),
+                        version_tag TEXT NOT NULL DEFAULT '',
+                        goose_version TEXT NOT NULL DEFAULT '',
+                        started_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                        duration_ms INTEGER NOT NULL DEFAULT 0,
+                        total_cases INTEGER NOT NULL DEFAULT 0,
+                        correct INTEGER NOT NULL DEFAULT 0,
+                        agent_correct INTEGER NOT NULL DEFAULT 0,
+                        overall_accuracy REAL NOT NULL DEFAULT 0.0,
+                        agent_accuracy REAL NOT NULL DEFAULT 0.0,
+                        mode_accuracy REAL NOT NULL DEFAULT 0.0,
+                        status TEXT NOT NULL DEFAULT 'pass',
+                        metrics_json TEXT NOT NULL DEFAULT '{}',
+                        results_json TEXT NOT NULL DEFAULT '[]'
+                    )
+                "#,
+                )
+                .execute(&mut **tx)
+                .await?;
+
+                sqlx::query("CREATE INDEX idx_eval_runs_dataset ON eval_runs(dataset_id)")
+                    .execute(&mut **tx)
+                    .await?;
+                sqlx::query("CREATE INDEX idx_eval_runs_started ON eval_runs(started_at DESC)")
                     .execute(&mut **tx)
                     .await?;
             }
@@ -1278,6 +1458,156 @@ impl SessionStorage {
         Ok(SessionInsights {
             total_sessions: row.0 as usize,
             total_tokens: row.1.unwrap_or(0),
+        })
+    }
+
+    async fn get_analytics(&self) -> Result<SessionAnalytics> {
+        let pool = self.pool().await?;
+
+        // Aggregated totals
+        let totals = sqlx::query_as::<_, (i64, Option<i64>, Option<i64>, Option<i64>, i64)>(
+            r#"
+            SELECT
+                COUNT(*) as total_sessions,
+                COALESCE(SUM(COALESCE(accumulated_total_tokens, total_tokens, 0)), 0) as total_tokens,
+                COALESCE(SUM(COALESCE(accumulated_input_tokens, input_tokens, 0)), 0) as total_input,
+                COALESCE(SUM(COALESCE(accumulated_output_tokens, output_tokens, 0)), 0) as total_output,
+                COUNT(DISTINCT DATE(created_at)) as active_days
+            FROM sessions
+            "#,
+        )
+        .fetch_one(pool)
+        .await?;
+
+        let total_sessions = totals.0;
+        let total_tokens = totals.1.unwrap_or(0);
+        let total_input_tokens = totals.2.unwrap_or(0);
+        let total_output_tokens = totals.3.unwrap_or(0);
+        let active_days = totals.4;
+
+        let total_messages = sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM messages")
+            .fetch_one(pool)
+            .await?;
+
+        let avg_tokens_per_session = if total_sessions > 0 {
+            total_tokens as f64 / total_sessions as f64
+        } else {
+            0.0
+        };
+
+        let avg_messages_per_session = if total_sessions > 0 {
+            total_messages as f64 / total_sessions as f64
+        } else {
+            0.0
+        };
+
+        // Daily activity for last 30 days
+        let daily_rows = sqlx::query_as::<_, (String, i64, Option<i64>, Option<i64>, Option<i64>)>(
+            r#"
+            SELECT
+                DATE(s.created_at) as day,
+                COUNT(DISTINCT s.id) as sessions,
+                COALESCE(SUM(COALESCE(s.accumulated_input_tokens, s.input_tokens, 0)), 0) as input_tokens,
+                COALESCE(SUM(COALESCE(s.accumulated_output_tokens, s.output_tokens, 0)), 0) as output_tokens,
+                COALESCE(SUM(COALESCE(s.accumulated_total_tokens, s.total_tokens, 0)), 0) as total_tokens
+            FROM sessions s
+            WHERE s.created_at >= DATE('now', '-30 days')
+            GROUP BY DATE(s.created_at)
+            ORDER BY day ASC
+            "#,
+        )
+        .fetch_all(pool)
+        .await?;
+
+        // Message counts per day (separate query for accuracy)
+        let msg_per_day = sqlx::query_as::<_, (String, i64)>(
+            r#"
+            SELECT DATE(m.timestamp) as day, COUNT(*) as msg_count
+            FROM messages m
+            WHERE m.timestamp >= DATE('now', '-30 days')
+            GROUP BY DATE(m.timestamp)
+            "#,
+        )
+        .fetch_all(pool)
+        .await?;
+
+        let msg_map: std::collections::HashMap<String, i64> = msg_per_day.into_iter().collect();
+
+        let daily_activity: Vec<DailyActivity> = daily_rows
+            .into_iter()
+            .map(
+                |(date, sessions, input_tokens, output_tokens, total_tokens)| {
+                    let messages = msg_map.get(&date).copied().unwrap_or(0);
+                    DailyActivity {
+                        date,
+                        sessions,
+                        messages,
+                        input_tokens: input_tokens.unwrap_or(0),
+                        output_tokens: output_tokens.unwrap_or(0),
+                        total_tokens: total_tokens.unwrap_or(0),
+                    }
+                },
+            )
+            .collect();
+
+        // Provider usage breakdown
+        let provider_rows = sqlx::query_as::<_, (String, i64, Option<i64>)>(
+            r#"
+            SELECT
+                COALESCE(provider_name, 'unknown') as provider,
+                COUNT(*) as sessions,
+                COALESCE(SUM(COALESCE(accumulated_total_tokens, total_tokens, 0)), 0) as total_tokens
+            FROM sessions
+            WHERE provider_name IS NOT NULL AND provider_name != ''
+            GROUP BY provider_name
+            ORDER BY sessions DESC
+            "#,
+        )
+        .fetch_all(pool)
+        .await?;
+
+        let provider_usage: Vec<ProviderUsage> = provider_rows
+            .into_iter()
+            .map(|(provider, sessions, total_tokens)| ProviderUsage {
+                provider,
+                sessions,
+                total_tokens: total_tokens.unwrap_or(0),
+            })
+            .collect();
+
+        // Top working directories
+        let dir_rows = sqlx::query_as::<_, (String, i64)>(
+            r#"
+            SELECT working_dir as directory, COUNT(*) as sessions
+            FROM sessions
+            GROUP BY working_dir
+            ORDER BY sessions DESC
+            LIMIT 10
+            "#,
+        )
+        .fetch_all(pool)
+        .await?;
+
+        let top_directories: Vec<DirectoryUsage> = dir_rows
+            .into_iter()
+            .map(|(directory, sessions)| DirectoryUsage {
+                directory,
+                sessions,
+            })
+            .collect();
+
+        Ok(SessionAnalytics {
+            total_sessions,
+            total_tokens,
+            total_input_tokens,
+            total_output_tokens,
+            total_messages,
+            active_days,
+            avg_tokens_per_session,
+            avg_messages_per_session,
+            daily_activity,
+            provider_usage,
+            top_directories,
         })
     }
 

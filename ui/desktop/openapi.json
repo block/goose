@@ -1159,6 +1159,299 @@
         }
       }
     },
+    "/analytics/eval/datasets": {
+      "get": {
+        "tags": [
+          "super::routes::analytics"
+        ],
+        "operationId": "listEvalDatasets",
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/EvalDatasetSummary"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "super::routes::analytics"
+        ],
+        "operationId": "createEvalDataset",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateDatasetRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EvalDataset"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/analytics/eval/datasets/{id}": {
+      "get": {
+        "tags": [
+          "super::routes::analytics"
+        ],
+        "operationId": "getEvalDataset",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Dataset ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EvalDataset"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "super::routes::analytics"
+        ],
+        "operationId": "updateEvalDataset",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Dataset ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateDatasetRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EvalDataset"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "super::routes::analytics"
+        ],
+        "operationId": "deleteEvalDataset",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Dataset ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        }
+      }
+    },
+    "/analytics/eval/overview": {
+      "get": {
+        "tags": [
+          "super::routes::analytics"
+        ],
+        "operationId": "getEvalOverview",
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EvalOverview"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/analytics/eval/run": {
+      "post": {
+        "tags": [
+          "super::routes::analytics"
+        ],
+        "operationId": "runEval",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RunEvalRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EvalRunDetail"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/analytics/eval/runs": {
+      "get": {
+        "tags": [
+          "super::routes::analytics"
+        ],
+        "operationId": "listEvalRuns",
+        "parameters": [
+          {
+            "name": "dataset_id",
+            "in": "query",
+            "description": "Filter by dataset ID",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "description": "Max results",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64",
+              "nullable": true
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/EvalRunSummary"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/analytics/eval/runs/{id}": {
+      "get": {
+        "tags": [
+          "super::routes::analytics"
+        ],
+        "operationId": "getEvalRun",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Run ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EvalRunDetail"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/analytics/eval/topics": {
+      "get": {
+        "tags": [
+          "super::routes::analytics"
+        ],
+        "operationId": "getEvalTopics",
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/TopicAnalytics"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/config": {
       "get": {
         "tags": [
@@ -3431,6 +3724,37 @@
         ]
       }
     },
+    "/sessions/analytics": {
+      "get": {
+        "tags": [
+          "Session Management"
+        ],
+        "operationId": "get_session_analytics",
+        "responses": {
+          "200": {
+            "description": "Session analytics retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionAnalytics"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized - Invalid or missing API key"
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ]
+      }
+    },
     "/sessions/import": {
       "post": {
         "tags": [
@@ -4166,6 +4490,41 @@
   },
   "components": {
     "schemas": {
+      "AccuracyTrendPoint": {
+        "type": "object",
+        "required": [
+          "runId",
+          "date",
+          "versionTag",
+          "overallAccuracy",
+          "agentAccuracy",
+          "modeAccuracy"
+        ],
+        "properties": {
+          "agentAccuracy": {
+            "type": "number",
+            "format": "double"
+          },
+          "date": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "modeAccuracy": {
+            "type": "number",
+            "format": "double"
+          },
+          "overallAccuracy": {
+            "type": "number",
+            "format": "double"
+          },
+          "runId": {
+            "type": "string"
+          },
+          "versionTag": {
+            "type": "string"
+          }
+        }
+      },
       "AcpError": {
         "type": "object",
         "description": "ACP error object.",
@@ -4597,6 +4956,32 @@
           }
         }
       },
+      "AgentResult": {
+        "type": "object",
+        "required": [
+          "agent",
+          "pass",
+          "fail",
+          "accuracy"
+        ],
+        "properties": {
+          "accuracy": {
+            "type": "number",
+            "format": "double"
+          },
+          "agent": {
+            "type": "string"
+          },
+          "fail": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "pass": {
+            "type": "integer",
+            "format": "int64"
+          }
+        }
+      },
       "AgentStatus": {
         "type": "object",
         "description": "Runtime status metrics for an agent.",
@@ -4989,6 +5374,31 @@
           }
         }
       },
+      "ConfusionMatrix": {
+        "type": "object",
+        "required": [
+          "labels",
+          "matrix"
+        ],
+        "properties": {
+          "labels": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "matrix": {
+            "type": "array",
+            "items": {
+              "type": "array",
+              "items": {
+                "type": "integer",
+                "format": "int64"
+              }
+            }
+          }
+        }
+      },
       "ConnectAgentRequest": {
         "type": "object",
         "required": [
@@ -5058,6 +5468,33 @@
         "type": "array",
         "items": {
           "$ref": "#/components/schemas/Message"
+        }
+      },
+      "CreateDatasetRequest": {
+        "type": "object",
+        "required": [
+          "name",
+          "cases"
+        ],
+        "properties": {
+          "cases": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CreateTestCaseRequest"
+            }
+          },
+          "description": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
         }
       },
       "CreateRecipeRequest": {
@@ -5135,6 +5572,31 @@
           }
         }
       },
+      "CreateTestCaseRequest": {
+        "type": "object",
+        "required": [
+          "input",
+          "expectedAgent",
+          "expectedMode"
+        ],
+        "properties": {
+          "expectedAgent": {
+            "type": "string"
+          },
+          "expectedMode": {
+            "type": "string"
+          },
+          "input": {
+            "type": "string"
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
       "CspMetadata": {
         "type": "object",
         "description": "Content Security Policy metadata for MCP Apps\nSpecifies allowed domains for network connections and resource loading",
@@ -5154,6 +5616,42 @@
             },
             "description": "Domains allowed for resource loading (scripts, styles, images, fonts, media)",
             "nullable": true
+          }
+        }
+      },
+      "DailyActivity": {
+        "type": "object",
+        "required": [
+          "date",
+          "sessions",
+          "messages",
+          "inputTokens",
+          "outputTokens",
+          "totalTokens"
+        ],
+        "properties": {
+          "date": {
+            "type": "string"
+          },
+          "inputTokens": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "messages": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "outputTokens": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "sessions": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "totalTokens": {
+            "type": "integer",
+            "format": "int64"
           }
         }
       },
@@ -5322,6 +5820,22 @@
           }
         }
       },
+      "DirectoryUsage": {
+        "type": "object",
+        "required": [
+          "directory",
+          "sessions"
+        ],
+        "properties": {
+          "directory": {
+            "type": "string"
+          },
+          "sessions": {
+            "type": "integer",
+            "format": "int64"
+          }
+        }
+      },
       "DownloadProgress": {
         "type": "object",
         "required": [
@@ -5448,6 +5962,362 @@
         "properties": {
           "message": {
             "type": "string"
+          }
+        }
+      },
+      "EvalDataset": {
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "description",
+          "tags",
+          "cases",
+          "createdAt",
+          "updatedAt"
+        ],
+        "properties": {
+          "cases": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/EvalTestCase"
+            }
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "description": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "EvalDatasetSummary": {
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "description",
+          "tags",
+          "caseCount",
+          "createdAt",
+          "updatedAt"
+        ],
+        "properties": {
+          "caseCount": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "description": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "lastRunAccuracy": {
+            "type": "number",
+            "format": "double",
+            "nullable": true
+          },
+          "lastRunAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "name": {
+            "type": "string"
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "EvalOverview": {
+        "type": "object",
+        "required": [
+          "overallAccuracy",
+          "agentAccuracy",
+          "modeAccuracy",
+          "totalTestCases",
+          "totalRuns",
+          "lastRunStatus",
+          "accuracyDelta",
+          "agentAccuracyDelta",
+          "modeAccuracyDelta",
+          "accuracyTrend",
+          "perAgentAccuracy",
+          "regressions"
+        ],
+        "properties": {
+          "accuracyDelta": {
+            "type": "number",
+            "format": "double"
+          },
+          "accuracyTrend": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AccuracyTrendPoint"
+            }
+          },
+          "agentAccuracy": {
+            "type": "number",
+            "format": "double"
+          },
+          "agentAccuracyDelta": {
+            "type": "number",
+            "format": "double"
+          },
+          "lastRunAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "lastRunStatus": {
+            "type": "string"
+          },
+          "modeAccuracy": {
+            "type": "number",
+            "format": "double"
+          },
+          "modeAccuracyDelta": {
+            "type": "number",
+            "format": "double"
+          },
+          "overallAccuracy": {
+            "type": "number",
+            "format": "double"
+          },
+          "perAgentAccuracy": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AgentResult"
+            }
+          },
+          "regressions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RegressionAlert"
+            }
+          },
+          "totalRuns": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "totalTestCases": {
+            "type": "integer",
+            "format": "int64"
+          }
+        }
+      },
+      "EvalRunDetail": {
+        "type": "object",
+        "required": [
+          "id",
+          "datasetId",
+          "datasetName",
+          "versionTag",
+          "gooseVersion",
+          "startedAt",
+          "durationMs",
+          "totalCases",
+          "correct",
+          "agentCorrect",
+          "overallAccuracy",
+          "agentAccuracy",
+          "modeAccuracy",
+          "status",
+          "perAgent",
+          "failures",
+          "confusionMatrix"
+        ],
+        "properties": {
+          "agentAccuracy": {
+            "type": "number",
+            "format": "double"
+          },
+          "agentCorrect": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "confusionMatrix": {
+            "$ref": "#/components/schemas/ConfusionMatrix"
+          },
+          "correct": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "datasetId": {
+            "type": "string"
+          },
+          "datasetName": {
+            "type": "string"
+          },
+          "durationMs": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "failures": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/FailureDetail"
+            }
+          },
+          "gooseVersion": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "modeAccuracy": {
+            "type": "number",
+            "format": "double"
+          },
+          "overallAccuracy": {
+            "type": "number",
+            "format": "double"
+          },
+          "perAgent": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AgentResult"
+            }
+          },
+          "startedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "status": {
+            "type": "string"
+          },
+          "totalCases": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "versionTag": {
+            "type": "string"
+          }
+        }
+      },
+      "EvalRunSummary": {
+        "type": "object",
+        "required": [
+          "id",
+          "datasetId",
+          "datasetName",
+          "versionTag",
+          "gooseVersion",
+          "startedAt",
+          "durationMs",
+          "totalCases",
+          "correct",
+          "overallAccuracy",
+          "agentAccuracy",
+          "modeAccuracy",
+          "status"
+        ],
+        "properties": {
+          "agentAccuracy": {
+            "type": "number",
+            "format": "double"
+          },
+          "correct": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "datasetId": {
+            "type": "string"
+          },
+          "datasetName": {
+            "type": "string"
+          },
+          "durationMs": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "gooseVersion": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "modeAccuracy": {
+            "type": "number",
+            "format": "double"
+          },
+          "overallAccuracy": {
+            "type": "number",
+            "format": "double"
+          },
+          "startedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "status": {
+            "type": "string"
+          },
+          "totalCases": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "versionTag": {
+            "type": "string"
+          }
+        }
+      },
+      "EvalTestCase": {
+        "type": "object",
+        "required": [
+          "id",
+          "input",
+          "expectedAgent",
+          "expectedMode",
+          "tags"
+        ],
+        "properties": {
+          "expectedAgent": {
+            "type": "string"
+          },
+          "expectedMode": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "input": {
+            "type": "string"
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
           }
         }
       },
@@ -5858,6 +6728,45 @@
             }
           },
           "warnings": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "FailureDetail": {
+        "type": "object",
+        "required": [
+          "input",
+          "expectedAgent",
+          "expectedMode",
+          "actualAgent",
+          "actualMode",
+          "confidence",
+          "tags"
+        ],
+        "properties": {
+          "actualAgent": {
+            "type": "string"
+          },
+          "actualMode": {
+            "type": "string"
+          },
+          "confidence": {
+            "type": "number",
+            "format": "float"
+          },
+          "expectedAgent": {
+            "type": "string"
+          },
+          "expectedMode": {
+            "type": "string"
+          },
+          "input": {
+            "type": "string"
+          },
+          "tags": {
             "type": "array",
             "items": {
               "type": "string"
@@ -7293,6 +8202,27 @@
           "Custom"
         ]
       },
+      "ProviderUsage": {
+        "type": "object",
+        "required": [
+          "provider",
+          "sessions",
+          "totalTokens"
+        ],
+        "properties": {
+          "provider": {
+            "type": "string"
+          },
+          "sessions": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "totalTokens": {
+            "type": "integer",
+            "format": "int64"
+          }
+        }
+      },
       "ProvidersResponse": {
         "type": "object",
         "required": [
@@ -7655,6 +8585,34 @@
           }
         }
       },
+      "RegressionAlert": {
+        "type": "object",
+        "required": [
+          "description",
+          "severity",
+          "runId",
+          "versionTag",
+          "delta"
+        ],
+        "properties": {
+          "delta": {
+            "type": "number",
+            "format": "double"
+          },
+          "description": {
+            "type": "string"
+          },
+          "runId": {
+            "type": "string"
+          },
+          "severity": {
+            "type": "string"
+          },
+          "versionTag": {
+            "type": "string"
+          }
+        }
+      },
       "RemoveExtensionRequest": {
         "type": "object",
         "required": [
@@ -7891,6 +8849,20 @@
           "session_id": {
             "type": "string",
             "nullable": true
+          }
+        }
+      },
+      "RunEvalRequest": {
+        "type": "object",
+        "required": [
+          "datasetId"
+        ],
+        "properties": {
+          "datasetId": {
+            "type": "string"
+          },
+          "versionTag": {
+            "type": "string"
           }
         }
       },
@@ -8157,6 +9129,74 @@
           },
           "working_dir": {
             "type": "string"
+          }
+        }
+      },
+      "SessionAnalytics": {
+        "type": "object",
+        "required": [
+          "totalSessions",
+          "totalTokens",
+          "totalInputTokens",
+          "totalOutputTokens",
+          "totalMessages",
+          "activeDays",
+          "avgTokensPerSession",
+          "avgMessagesPerSession",
+          "dailyActivity",
+          "providerUsage",
+          "topDirectories"
+        ],
+        "properties": {
+          "activeDays": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "avgMessagesPerSession": {
+            "type": "number",
+            "format": "double"
+          },
+          "avgTokensPerSession": {
+            "type": "number",
+            "format": "double"
+          },
+          "dailyActivity": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DailyActivity"
+            }
+          },
+          "providerUsage": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ProviderUsage"
+            }
+          },
+          "topDirectories": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DirectoryUsage"
+            }
+          },
+          "totalInputTokens": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "totalMessages": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "totalOutputTokens": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "totalSessions": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "totalTokens": {
+            "type": "integer",
+            "format": "int64"
           }
         }
       },
@@ -8915,6 +9955,50 @@
           },
           "toolResult": {
             "type": "object"
+          }
+        }
+      },
+      "TopicAgentDistribution": {
+        "type": "object",
+        "required": [
+          "agent",
+          "count"
+        ],
+        "properties": {
+          "agent": {
+            "type": "string"
+          },
+          "count": {
+            "type": "integer",
+            "format": "int64"
+          }
+        }
+      },
+      "TopicAnalytics": {
+        "type": "object",
+        "required": [
+          "topic",
+          "caseCount",
+          "accuracy",
+          "agentDistribution"
+        ],
+        "properties": {
+          "accuracy": {
+            "type": "number",
+            "format": "double"
+          },
+          "agentDistribution": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TopicAgentDistribution"
+            }
+          },
+          "caseCount": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "topic": {
+            "type": "string"
           }
         }
       },

@@ -4,6 +4,15 @@ export type ClientOptions = {
     baseUrl: `${string}://${string}` | (string & {});
 };
 
+export type AccuracyTrendPoint = {
+    agentAccuracy: number;
+    date: string;
+    modeAccuracy: number;
+    overallAccuracy: number;
+    runId: string;
+    versionTag: string;
+};
+
 /**
  * ACP error object.
  */
@@ -161,6 +170,13 @@ export type AgentModeInfo = {
     tool_groups?: Array<string>;
 };
 
+export type AgentResult = {
+    accuracy: number;
+    agent: string;
+    fail: number;
+    pass: number;
+};
+
 /**
  * Runtime status metrics for an agent.
  */
@@ -316,6 +332,11 @@ export type ConfirmToolActionRequest = {
     sessionId: string;
 };
 
+export type ConfusionMatrix = {
+    labels: Array<string>;
+    matrix: Array<Array<number>>;
+};
+
 export type ConnectAgentRequest = {
     name: string;
 };
@@ -328,6 +349,13 @@ export type ConnectAgentResponse = {
 export type Content = RawTextContent | RawImageContent | RawEmbeddedResource | RawAudioContent | RawResource;
 
 export type Conversation = Array<Message>;
+
+export type CreateDatasetRequest = {
+    cases: Array<CreateTestCaseRequest>;
+    description?: string;
+    name: string;
+    tags?: Array<string>;
+};
 
 export type CreateRecipeRequest = {
     author?: AuthorRequest | null;
@@ -353,6 +381,13 @@ export type CreateSessionResponse = {
     session_id: string;
 };
 
+export type CreateTestCaseRequest = {
+    expectedAgent: string;
+    expectedMode: string;
+    input: string;
+    tags?: Array<string>;
+};
+
 /**
  * Content Security Policy metadata for MCP Apps
  * Specifies allowed domains for network connections and resource loading
@@ -366,6 +401,15 @@ export type CspMetadata = {
      * Domains allowed for resource loading (scripts, styles, images, fonts, media)
      */
     resourceDomains?: Array<string> | null;
+};
+
+export type DailyActivity = {
+    date: string;
+    inputTokens: number;
+    messages: number;
+    outputTokens: number;
+    sessions: number;
+    totalTokens: number;
 };
 
 export type DeclarativeProviderConfig = {
@@ -434,6 +478,11 @@ export type DictationProviderStatus = {
     uses_provider_config: boolean;
 };
 
+export type DirectoryUsage = {
+    directory: string;
+    sessions: number;
+};
+
 export type DownloadProgress = {
     /**
      * Bytes downloaded so far
@@ -492,6 +541,88 @@ export type Envs = {
 
 export type ErrorResponse = {
     message: string;
+};
+
+export type EvalDataset = {
+    cases: Array<EvalTestCase>;
+    createdAt: string;
+    description: string;
+    id: string;
+    name: string;
+    tags: Array<string>;
+    updatedAt: string;
+};
+
+export type EvalDatasetSummary = {
+    caseCount: number;
+    createdAt: string;
+    description: string;
+    id: string;
+    lastRunAccuracy?: number | null;
+    lastRunAt?: string | null;
+    name: string;
+    tags: Array<string>;
+    updatedAt: string;
+};
+
+export type EvalOverview = {
+    accuracyDelta: number;
+    accuracyTrend: Array<AccuracyTrendPoint>;
+    agentAccuracy: number;
+    agentAccuracyDelta: number;
+    lastRunAt?: string | null;
+    lastRunStatus: string;
+    modeAccuracy: number;
+    modeAccuracyDelta: number;
+    overallAccuracy: number;
+    perAgentAccuracy: Array<AgentResult>;
+    regressions: Array<RegressionAlert>;
+    totalRuns: number;
+    totalTestCases: number;
+};
+
+export type EvalRunDetail = {
+    agentAccuracy: number;
+    agentCorrect: number;
+    confusionMatrix: ConfusionMatrix;
+    correct: number;
+    datasetId: string;
+    datasetName: string;
+    durationMs: number;
+    failures: Array<FailureDetail>;
+    gooseVersion: string;
+    id: string;
+    modeAccuracy: number;
+    overallAccuracy: number;
+    perAgent: Array<AgentResult>;
+    startedAt: string;
+    status: string;
+    totalCases: number;
+    versionTag: string;
+};
+
+export type EvalRunSummary = {
+    agentAccuracy: number;
+    correct: number;
+    datasetId: string;
+    datasetName: string;
+    durationMs: number;
+    gooseVersion: string;
+    id: string;
+    modeAccuracy: number;
+    overallAccuracy: number;
+    startedAt: string;
+    status: string;
+    totalCases: number;
+    versionTag: string;
+};
+
+export type EvalTestCase = {
+    expectedAgent: string;
+    expectedMode: string;
+    id: string;
+    input: string;
+    tags: Array<string>;
 };
 
 /**
@@ -619,6 +750,16 @@ export type ExtensionQuery = {
 export type ExtensionResponse = {
     extensions: Array<ExtensionEntry>;
     warnings?: Array<string>;
+};
+
+export type FailureDetail = {
+    actualAgent: string;
+    actualMode: string;
+    confidence: number;
+    expectedAgent: string;
+    expectedMode: string;
+    input: string;
+    tags: Array<string>;
 };
 
 export type ForkRequest = {
@@ -1090,6 +1231,12 @@ export type ProviderMetadata = {
 
 export type ProviderType = 'Preferred' | 'Builtin' | 'Declarative' | 'Custom';
 
+export type ProviderUsage = {
+    provider: string;
+    sessions: number;
+    totalTokens: number;
+};
+
 export type ProvidersResponse = {
     providers: Array<ProviderDetails>;
 };
@@ -1199,6 +1346,14 @@ export type RedactedThinkingContent = {
     data: string;
 };
 
+export type RegressionAlert = {
+    delta: number;
+    description: string;
+    runId: string;
+    severity: string;
+    versionTag: string;
+};
+
 export type RemoveExtensionRequest = {
     name: string;
     session_id: string;
@@ -1293,6 +1448,11 @@ export type RunCreateRequest = {
     session_id?: string | null;
 };
 
+export type RunEvalRequest = {
+    datasetId: string;
+    versionTag?: string;
+};
+
 /**
  * Run mode per ACP v0.2.0 spec.
  */
@@ -1372,6 +1532,20 @@ export type Session = {
     } | null;
     user_set_name?: boolean;
     working_dir: string;
+};
+
+export type SessionAnalytics = {
+    activeDays: number;
+    avgMessagesPerSession: number;
+    avgTokensPerSession: number;
+    dailyActivity: Array<DailyActivity>;
+    providerUsage: Array<ProviderUsage>;
+    topDirectories: Array<DirectoryUsage>;
+    totalInputTokens: number;
+    totalMessages: number;
+    totalOutputTokens: number;
+    totalSessions: number;
+    totalTokens: number;
 };
 
 export type SessionDisplayInfo = {
@@ -1627,6 +1801,18 @@ export type ToolResponse = {
     toolResult: {
         [key: string]: unknown;
     };
+};
+
+export type TopicAgentDistribution = {
+    agent: string;
+    count: number;
+};
+
+export type TopicAnalytics = {
+    accuracy: number;
+    agentDistribution: Array<TopicAgentDistribution>;
+    caseCount: number;
+    topic: string;
 };
 
 export type TranscribeRequest = {
@@ -2620,6 +2806,163 @@ export type GetAgentResponses = {
 };
 
 export type GetAgentResponse = GetAgentResponses[keyof GetAgentResponses];
+
+export type ListEvalDatasetsData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/analytics/eval/datasets';
+};
+
+export type ListEvalDatasetsResponses = {
+    200: Array<EvalDatasetSummary>;
+};
+
+export type ListEvalDatasetsResponse = ListEvalDatasetsResponses[keyof ListEvalDatasetsResponses];
+
+export type CreateEvalDatasetData = {
+    body: CreateDatasetRequest;
+    path?: never;
+    query?: never;
+    url: '/analytics/eval/datasets';
+};
+
+export type CreateEvalDatasetResponses = {
+    200: EvalDataset;
+};
+
+export type CreateEvalDatasetResponse = CreateEvalDatasetResponses[keyof CreateEvalDatasetResponses];
+
+export type DeleteEvalDatasetData = {
+    body?: never;
+    path: {
+        /**
+         * Dataset ID
+         */
+        id: string;
+    };
+    query?: never;
+    url: '/analytics/eval/datasets/{id}';
+};
+
+export type DeleteEvalDatasetResponses = {
+    200: unknown;
+};
+
+export type GetEvalDatasetData = {
+    body?: never;
+    path: {
+        /**
+         * Dataset ID
+         */
+        id: string;
+    };
+    query?: never;
+    url: '/analytics/eval/datasets/{id}';
+};
+
+export type GetEvalDatasetResponses = {
+    200: EvalDataset;
+};
+
+export type GetEvalDatasetResponse = GetEvalDatasetResponses[keyof GetEvalDatasetResponses];
+
+export type UpdateEvalDatasetData = {
+    body: CreateDatasetRequest;
+    path: {
+        /**
+         * Dataset ID
+         */
+        id: string;
+    };
+    query?: never;
+    url: '/analytics/eval/datasets/{id}';
+};
+
+export type UpdateEvalDatasetResponses = {
+    200: EvalDataset;
+};
+
+export type UpdateEvalDatasetResponse = UpdateEvalDatasetResponses[keyof UpdateEvalDatasetResponses];
+
+export type GetEvalOverviewData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/analytics/eval/overview';
+};
+
+export type GetEvalOverviewResponses = {
+    200: EvalOverview;
+};
+
+export type GetEvalOverviewResponse = GetEvalOverviewResponses[keyof GetEvalOverviewResponses];
+
+export type RunEvalData = {
+    body: RunEvalRequest;
+    path?: never;
+    query?: never;
+    url: '/analytics/eval/run';
+};
+
+export type RunEvalResponses = {
+    200: EvalRunDetail;
+};
+
+export type RunEvalResponse = RunEvalResponses[keyof RunEvalResponses];
+
+export type ListEvalRunsData = {
+    body?: never;
+    path?: never;
+    query?: {
+        /**
+         * Filter by dataset ID
+         */
+        dataset_id?: string | null;
+        /**
+         * Max results
+         */
+        limit?: number | null;
+    };
+    url: '/analytics/eval/runs';
+};
+
+export type ListEvalRunsResponses = {
+    200: Array<EvalRunSummary>;
+};
+
+export type ListEvalRunsResponse = ListEvalRunsResponses[keyof ListEvalRunsResponses];
+
+export type GetEvalRunData = {
+    body?: never;
+    path: {
+        /**
+         * Run ID
+         */
+        id: string;
+    };
+    query?: never;
+    url: '/analytics/eval/runs/{id}';
+};
+
+export type GetEvalRunResponses = {
+    200: EvalRunDetail;
+};
+
+export type GetEvalRunResponse = GetEvalRunResponses[keyof GetEvalRunResponses];
+
+export type GetEvalTopicsData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/analytics/eval/topics';
+};
+
+export type GetEvalTopicsResponses = {
+    200: Array<TopicAnalytics>;
+};
+
+export type GetEvalTopicsResponse = GetEvalTopicsResponses[keyof GetEvalTopicsResponses];
 
 export type ReadAllConfigData = {
     body?: never;
@@ -4401,6 +4744,33 @@ export type ListSessionsResponses = {
 };
 
 export type ListSessionsResponse = ListSessionsResponses[keyof ListSessionsResponses];
+
+export type GetSessionAnalyticsData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/sessions/analytics';
+};
+
+export type GetSessionAnalyticsErrors = {
+    /**
+     * Unauthorized - Invalid or missing API key
+     */
+    401: unknown;
+    /**
+     * Internal server error
+     */
+    500: unknown;
+};
+
+export type GetSessionAnalyticsResponses = {
+    /**
+     * Session analytics retrieved successfully
+     */
+    200: SessionAnalytics;
+};
+
+export type GetSessionAnalyticsResponse = GetSessionAnalyticsResponses[keyof GetSessionAnalyticsResponses];
 
 export type ImportSessionData = {
     body: ImportSessionRequest;

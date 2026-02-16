@@ -2,6 +2,7 @@ import { AppEvents } from '../../constants/events';
 import React, { useEffect, useState } from 'react';
 import {
   AppWindow,
+  BarChart3,
   Bot,
   ChefHat,
   ChevronRight,
@@ -92,6 +93,13 @@ const menuItems: NavigationEntry[] = [
     label: 'Extensions',
     icon: Puzzle,
     tooltip: 'Manage your extensions',
+  },
+  {
+    type: 'item',
+    path: '/analytics',
+    label: 'Analytics',
+    icon: BarChart3,
+    tooltip: 'View usage analytics and insights',
   },
   { type: 'separator' },
   {

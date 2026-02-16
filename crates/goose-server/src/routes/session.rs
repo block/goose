@@ -11,7 +11,7 @@ use axum::{
 };
 use goose::agents::ExtensionConfig;
 use goose::recipe::Recipe;
-use goose::session::session_manager::SessionInsights;
+use goose::session::session_manager::{SessionAnalytics, SessionInsights};
 use goose::session::{EnabledExtensionsState, Session};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -142,6 +142,30 @@ async fn get_session_insights(
         .await
         .map_err(|e| ErrorResponse::internal(e.to_string()))?;
     Ok(Json(insights))
+}
+
+#[utoipa::path(
+    get,
+    path = "/sessions/analytics",
+    responses(
+        (status = 200, description = "Session analytics retrieved successfully", body = SessionAnalytics),
+        (status = 401, description = "Unauthorized - Invalid or missing API key"),
+        (status = 500, description = "Internal server error")
+    ),
+    security(
+        ("api_key" = [])
+    ),
+    tag = "Session Management"
+)]
+async fn get_session_analytics(
+    State(state): State<Arc<AppState>>,
+) -> Result<Json<SessionAnalytics>, ErrorResponse> {
+    let analytics = state
+        .session_manager()
+        .get_analytics()
+        .await
+        .map_err(|e| ErrorResponse::internal(e.to_string()))?;
+    Ok(Json(analytics))
 }
 
 #[utoipa::path(
@@ -617,6 +641,7 @@ pub fn routes(state: Arc<AppState>) -> Router {
             post(import_session).layer(DefaultBodyLimit::max(25 * 1024 * 1024)),
         )
         .route("/sessions/insights", get(get_session_insights))
+        .route("/sessions/analytics", get(get_session_analytics))
         .route("/sessions/{session_id}/name", put(update_session_name))
         .route(
             "/sessions/{session_id}/user_recipe_values",

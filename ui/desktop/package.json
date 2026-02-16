@@ -77,6 +77,7 @@
     "react-select": "^5.10.2",
     "react-syntax-highlighter": "^16.1.0",
     "react-toastify": "^11.0.5",
+    "recharts": "^3.7.0",
     "rehype-katex": "^7.0.1",
     "remark-breaks": "^4.0.0",
     "remark-gfm": "^4.0.1",
