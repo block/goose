@@ -310,7 +310,7 @@ test_cases:
     expected_mode: "assistant"
     tags: [p1, general]
   # ══════════════════════════════════════════════════════════════════
-  # Coding Agent — software engineering (write code, debug, deploy)
+  # Developer Agent — software engineering (write code, debug, deploy)
   # Mode expectations: code→write, frontend→write, architect→plan,
   #   debug→debug, devops→write. Router selects agent first, then
   #   mode is inferred from behavioral intent.
@@ -568,7 +568,7 @@ test_cases:
         // This is a regression guard, not a quality target.
         assert!(
             acc >= 0.25,
-            "Coding prompts should route to Coding Agent >= 25% (baseline), got {:.1}%",
+            "Coding prompts should route to Developer Agent >= 25% (baseline), got {:.1}%",
             acc * 100.0
         );
     }

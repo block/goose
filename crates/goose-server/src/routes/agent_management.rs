@@ -291,11 +291,11 @@ pub struct BuiltinAgentsResponse {
 pub async fn list_builtin_agents(
     State(state): State<Arc<AppState>>,
 ) -> Json<BuiltinAgentsResponse> {
-    use goose::agents::coding_agent::CodingAgent;
+    use goose::agents::developer_agent::DeveloperAgent;
     use goose::agents::goose_agent::GooseAgent;
 
     let goose = GooseAgent::new();
-    let coding = CodingAgent::new();
+    let dev = DeveloperAgent::new();
 
     fn format_tool_group(tg: &goose::registry::manifest::ToolGroupAccess) -> String {
         match tg {
@@ -318,11 +318,11 @@ pub async fn list_builtin_agents(
         })
         .collect();
 
-    let coding_modes: Vec<BuiltinAgentMode> = coding
+    let dev_modes: Vec<BuiltinAgentMode> = dev
         .to_agent_modes()
         .into_iter()
         .map(|m| {
-            let rec_ext = coding.recommended_extensions(&m.slug);
+            let rec_ext = dev.recommended_extensions(&m.slug);
             BuiltinAgentMode {
                 slug: m.slug.clone(),
                 name: m.name.clone(),
@@ -334,16 +334,19 @@ pub async fn list_builtin_agents(
         .collect();
 
     let goose_enabled = state.agent_slot_registry.is_enabled("Goose Agent").await;
-    let coding_enabled = state.agent_slot_registry.is_enabled("Coding Agent").await;
+    let dev_enabled = state
+        .agent_slot_registry
+        .is_enabled("Developer Agent")
+        .await;
     let goose_exts: Vec<String> = state
         .agent_slot_registry
         .get_bound_extensions("Goose Agent")
         .await
         .into_iter()
         .collect();
-    let coding_exts: Vec<String> = state
+    let dev_exts: Vec<String> = state
         .agent_slot_registry
-        .get_bound_extensions("Coding Agent")
+        .get_bound_extensions("Developer Agent")
         .await
         .into_iter()
         .collect();
@@ -359,13 +362,13 @@ pub async fn list_builtin_agents(
             bound_extensions: goose_exts,
         },
         BuiltinAgentInfo {
-            name: "Coding Agent".into(),
-            description: "SDLC specialist modes for software development lifecycle".into(),
+            name: "Developer Agent".into(),
+            description: "Software engineer for writing, debugging, and deploying code".into(),
             status: "active".into(),
-            modes: coding_modes,
-            default_mode: coding.default_mode_slug().into(),
-            enabled: coding_enabled,
-            bound_extensions: coding_exts,
+            modes: dev_modes,
+            default_mode: dev.default_mode().into(),
+            enabled: dev_enabled,
+            bound_extensions: dev_exts,
         },
     ];
 
@@ -392,7 +395,7 @@ pub async fn toggle_builtin_agent(
     State(state): State<Arc<AppState>>,
     Path(name): Path<String>,
 ) -> Result<Json<ToggleAgentResponse>, StatusCode> {
-    let valid_names = ["Goose Agent", "Coding Agent"];
+    let valid_names = ["Goose Agent", "Developer Agent"];
     if !valid_names.contains(&name.as_str()) {
         return Err(StatusCode::NOT_FOUND);
     }
@@ -418,7 +421,7 @@ pub async fn bind_extension_to_agent(
     Path(name): Path<String>,
     Json(body): Json<BindExtensionRequest>,
 ) -> Result<StatusCode, StatusCode> {
-    let valid_names = ["Goose Agent", "Coding Agent"];
+    let valid_names = ["Goose Agent", "Developer Agent"];
     if !valid_names.contains(&name.as_str()) {
         return Err(StatusCode::NOT_FOUND);
     }
@@ -442,7 +445,7 @@ pub async fn unbind_extension_from_agent(
     Path(name): Path<String>,
     Json(body): Json<BindExtensionRequest>,
 ) -> Result<StatusCode, StatusCode> {
-    let valid_names = ["Goose Agent", "Coding Agent"];
+    let valid_names = ["Goose Agent", "Developer Agent"];
     if !valid_names.contains(&name.as_str()) {
         return Err(StatusCode::NOT_FOUND);
     }

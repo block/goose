@@ -814,14 +814,14 @@ fn is_notification(value: &Value) -> bool {
 }
 
 fn collect_modes() -> Vec<AgentMode> {
-    use goose::agents::coding_agent::CodingAgent;
+    use goose::agents::developer_agent::DeveloperAgent;
     use goose::agents::goose_agent::GooseAgent;
 
     let goose = GooseAgent::new();
-    let coding = CodingAgent::new();
+    let dev = DeveloperAgent::new();
 
     let mut modes = goose.to_public_agent_modes();
-    modes.extend(coding.to_agent_modes());
+    modes.extend(dev.to_agent_modes());
     modes
 }
 
@@ -944,7 +944,7 @@ mod tests {
     #[test]
     fn test_collect_modes() {
         let modes = collect_modes();
-        // GooseAgent: 4 public modes; CodingAgent: 5 modes → 9 total for IDE switching
+        // GooseAgent: 4 public modes; DeveloperAgent: 5 modes → 9 total for IDE switching
         assert!(
             modes.len() >= 9,
             "Expected at least 9 public modes, got {}",
@@ -952,7 +952,7 @@ mod tests {
         );
         let slugs: Vec<&str> = modes.iter().map(|m| m.slug.as_str()).collect();
         assert!(slugs.contains(&"assistant"));
-        assert!(slugs.contains(&"code"));
+        assert!(slugs.contains(&"write"));
 
         // Internal modes must not be exposed to IDE clients
         assert!(!slugs.contains(&"judge"), "Internal mode 'judge' leaked");

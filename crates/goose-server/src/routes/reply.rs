@@ -337,7 +337,7 @@ pub async fn reply(
                 let mut router = OrchestratorAgent::new(provider);
 
                 // Sync router state from the agent slot registry
-                for slot_name in &["Goose Agent", "Coding Agent"] {
+                for slot_name in &["Goose Agent", "Developer Agent"] {
                     let enabled = state.agent_slot_registry.is_enabled(slot_name).await;
                     router.set_enabled(slot_name, enabled);
                     let bound = state

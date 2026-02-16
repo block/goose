@@ -3,7 +3,6 @@ pub(crate) mod apps_extension;
 pub(crate) mod builtin_skills;
 pub(crate) mod chatrecall_extension;
 pub(crate) mod code_execution_extension;
-pub mod coding_agent;
 pub mod container;
 pub mod delegation;
 pub mod developer_agent;

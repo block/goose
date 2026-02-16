@@ -2,7 +2,8 @@
 //!
 //! Aligned with ACP / A2A protocol: 1 agent = 1 persona with N session modes.
 //!   - Goose Agent: general-purpose agent (modes: assistant, specialist, recipe_maker, …)
-//!   - Coding Agent: software engineering agent (modes: pm, architect, backend, …)
+//!   - Developer Agent: software engineering agent (modes: ask, plan, write, review, debug)
+//!   - QA/PM/Security/Research Agents: specialist agents (modes: ask, plan, write, review)
 //!
 //! Modes are switched per-session via `session/setMode`, NOT flattened into separate agents.
 //!
@@ -53,7 +54,7 @@ fn slugify_agent_name(name: &str) -> String {
 }
 
 /// Resolve a mode slug to its parent agent.
-/// e.g. "backend" → Some(("Coding Agent", "backend"))
+/// e.g. "write" → Some(("Developer Agent", "write"))
 pub fn resolve_mode_to_agent(mode_slug: &str) -> Option<(String, String)> {
     let router = IntentRouter::new();
     for slot in router.slots() {
@@ -177,7 +178,7 @@ async fn list_agents() -> Json<AgentsListResponse> {
 /// ACP v0.2.0 GET /agents/{name}
 #[utoipa::path(get, path = "/agents/{name}",
     tag = "ACP Discovery",
-    params(("name" = String, Path, description = "Agent slug (e.g. goose-agent, coding-agent)")),
+    params(("name" = String, Path, description = "Agent slug (e.g. goose-agent, developer-agent)")),
     responses(
         (status = 200, description = "Agent manifest", body = AgentManifest),
         (status = 404, description = "Agent not found"),
@@ -251,7 +252,7 @@ mod tests {
     #[test]
     fn test_build_agent_manifests_returns_agents_not_modes() {
         let manifests = build_agent_manifests();
-        // Should have 6 agents (Goose, Coding, QA, PM, Security, Research)
+        // Should have 6 agents (Goose, Developer, QA, PM, Security, Research)
         assert!(
             manifests.len() >= 6,
             "Expected >= 6 agent personas, got {}",
@@ -260,7 +261,10 @@ mod tests {
 
         let names: Vec<_> = manifests.iter().map(|m| m.name.as_str()).collect();
         assert!(names.contains(&"goose-agent"), "Missing goose-agent");
-        assert!(names.contains(&"coding-agent"), "Missing coding-agent");
+        assert!(
+            names.contains(&"developer-agent"),
+            "Missing developer-agent"
+        );
     }
 
     #[test]
@@ -301,44 +305,50 @@ mod tests {
     }
 
     #[test]
-    fn test_coding_agent_has_modes() {
+    fn test_developer_agent_has_modes() {
         let manifests = build_agent_manifests();
-        let coding = manifests.iter().find(|m| m.name == "coding-agent").unwrap();
+        let dev = manifests
+            .iter()
+            .find(|m| m.name == "developer-agent")
+            .unwrap();
 
-        // Coding Agent now has 5 focused modes (code, architect, frontend, debug, devops)
+        // Developer Agent has 5 universal modes (ask, plan, write, review, debug)
         assert!(
-            coding.modes.len() >= 5,
-            "Expected >= 5 modes for Coding Agent, got {}",
-            coding.modes.len()
+            dev.modes.len() >= 5,
+            "Expected >= 5 modes for Developer Agent, got {}",
+            dev.modes.len()
         );
 
-        let mode_ids: Vec<_> = coding.modes.iter().map(|m| m.id.as_str()).collect();
-        assert!(mode_ids.contains(&"code"), "Missing code mode");
-        assert!(mode_ids.contains(&"frontend"), "Missing frontend mode");
-        assert!(mode_ids.contains(&"architect"), "Missing architect mode");
+        let mode_ids: Vec<_> = dev.modes.iter().map(|m| m.id.as_str()).collect();
+        assert!(mode_ids.contains(&"ask"), "Missing ask mode");
+        assert!(mode_ids.contains(&"plan"), "Missing plan mode");
+        assert!(mode_ids.contains(&"write"), "Missing write mode");
+        assert!(mode_ids.contains(&"review"), "Missing review mode");
         assert!(mode_ids.contains(&"debug"), "Missing debug mode");
-        assert!(mode_ids.contains(&"devops"), "Missing devops mode");
     }
 
     #[test]
     fn test_modes_have_tool_groups() {
         let manifests = build_agent_manifests();
-        let coding = manifests.iter().find(|m| m.name == "coding-agent").unwrap();
+        let dev = manifests
+            .iter()
+            .find(|m| m.name == "developer-agent")
+            .unwrap();
 
-        let code = coding.modes.iter().find(|m| m.id == "code").unwrap();
+        let write = dev.modes.iter().find(|m| m.id == "write").unwrap();
         assert!(
-            !code.tool_groups.is_empty(),
-            "Code mode should have tool groups"
+            !write.tool_groups.is_empty(),
+            "Write mode should have tool groups"
         );
     }
 
     #[test]
     fn test_resolve_mode_to_agent() {
-        let result = resolve_mode_to_agent("code");
+        let result = resolve_mode_to_agent("write");
         assert!(result.is_some());
         let (slot, mode) = result.unwrap();
-        assert_eq!(slot, "Coding Agent");
-        assert_eq!(mode, "code");
+        assert_eq!(slot, "Developer Agent");
+        assert_eq!(mode, "write");
 
         let result = resolve_mode_to_agent("assistant");
         assert!(result.is_some());

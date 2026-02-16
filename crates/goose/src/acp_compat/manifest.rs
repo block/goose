@@ -1,7 +1,7 @@
 //! ACP Agent Manifest — describes agent capabilities for discovery.
 //!
 //! Aligned with ACP v0.2.0 / A2A protocol:
-//!   - 1 agent = 1 persona (e.g. "Goose Agent", "Coding Agent")
+//!   - 1 agent = 1 persona (e.g. "Goose Agent", "Developer Agent")
 //!   - Each agent advertises N session modes (e.g. ask, architect, code)
 //!   - Modes are switched per-session via `session/setMode`
 

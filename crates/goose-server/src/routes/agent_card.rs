@@ -90,7 +90,7 @@ mod tests {
         assert_eq!(card.name, "Goose");
 
         // Should have skills from both agents, minus internal modes
-        // GooseAgent: 4 public; CodingAgent: 5; QA: 4; PM: 4; Security: 4; Research: 4 → 25+ total
+        // GooseAgent: 4 public; DeveloperAgent: 5; QA: 4; PM: 4; Security: 4; Research: 4 → 25+ total
         assert!(
             card.skills.len() >= 9,
             "Expected >= 9 public skills, got {}",
@@ -104,8 +104,8 @@ mod tests {
             "Missing assistant skill"
         );
         assert!(
-            skill_ids.contains(&"coding-agent.code"),
-            "Missing code skill"
+            skill_ids.contains(&"developer-agent.write"),
+            "Missing write skill"
         );
 
         // Internal modes must NOT appear as A2A skills

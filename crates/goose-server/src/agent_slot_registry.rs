@@ -20,7 +20,7 @@ impl AgentSlotRegistry {
     pub fn new() -> Self {
         let mut enabled = HashMap::new();
         enabled.insert("Goose Agent".to_string(), true);
-        enabled.insert("Coding Agent".to_string(), true);
+        enabled.insert("Developer Agent".to_string(), true);
 
         Self {
             enabled_agents: Arc::new(RwLock::new(enabled)),

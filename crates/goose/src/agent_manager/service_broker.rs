@@ -124,7 +124,7 @@ impl ServiceBroker {
         }
     }
 
-    /// Resolve a list of dependency names (convenience for CodingAgent tool_groups).
+    /// Resolve a list of dependency names (convenience for DeveloperAgent tool_groups).
     pub fn resolve_names(&self, names: &[String]) -> ResolutionResult {
         let deps: Vec<AgentDependency> = names
             .iter()

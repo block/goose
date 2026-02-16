@@ -39,26 +39,6 @@ static TEMPLATE_REGISTRY: &[(&str, &str)] = &[
         "plan.md",
         "Prompt used when goose creates step-by-step plans. CLI only",
     ),
-    (
-        "coding_agent/code.md",
-        "Code — implementation, APIs, business logic, and server-side code",
-    ),
-    (
-        "coding_agent/architect.md",
-        "Architect — system design, C4 diagrams, and ADRs",
-    ),
-    (
-        "coding_agent/frontend.md",
-        "Frontend — UI components, state management, and accessibility",
-    ),
-    (
-        "coding_agent/debug.md",
-        "Debug — systematic diagnosis, profiling, and bug fixing",
-    ),
-    (
-        "coding_agent/devops.md",
-        "DevOps — CI/CD pipelines, IaC, containers, and monitoring",
-    ),
     // Developer Agent (universal modes)
     (
         "developer/ask.md",

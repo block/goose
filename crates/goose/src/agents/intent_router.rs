@@ -1,7 +1,6 @@
 use serde::{Deserialize, Serialize};
 use tracing::{debug, info, instrument, Span};
 
-use crate::agents::coding_agent::CodingAgent;
 use crate::agents::developer_agent::DeveloperAgent;
 use crate::agents::goose_agent::GooseAgent;
 use crate::agents::pm_agent::PmAgent;
@@ -72,18 +71,6 @@ impl IntentRouter {
             modes: dev_modes,
             default_mode: dev.default_mode().into(),
             enabled: true,
-            bound_extensions: vec![],
-        });
-
-        // Register CodingAgent (legacy — deprecated, kept for backward compat)
-        let coding = CodingAgent::new();
-        let coding_modes = coding.to_agent_modes();
-        slots.push(AgentSlot {
-            name: "Coding Agent".into(),
-            description: "[DEPRECATED] Legacy coding agent with SDLC modes".into(),
-            modes: coding_modes,
-            default_mode: coding.default_mode_slug().into(),
-            enabled: false, // deprecated — use Developer Agent instead
             bound_extensions: vec![],
         });
 
