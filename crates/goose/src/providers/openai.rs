@@ -47,6 +47,7 @@ pub const OPEN_AI_KNOWN_MODELS: &[(&str, usize)] = &[
     ("gpt-3.5-turbo", 16_385),
     ("gpt-4-turbo", 128_000),
     ("o4-mini", 128_000),
+    ("gpt-5-nano", 400_000),
     ("gpt-5.1-codex", 400_000),
     ("gpt-5-codex", 400_000),
 ];
@@ -277,7 +278,7 @@ impl Provider for OpenAiProvider {
         self.model.clone()
     }
 
-    async fn fetch_supported_models(&self) -> Result<Option<Vec<String>>, ProviderError> {
+    async fn fetch_supported_models(&self) -> Result<Vec<String>, ProviderError> {
         let models_path = self.base_path.replace("v1/chat/completions", "v1/models");
         let response = self
             .api_client
@@ -301,7 +302,7 @@ impl Provider for OpenAiProvider {
             .filter_map(|m| m.get("id").and_then(|v| v.as_str()).map(str::to_string))
             .collect();
         models.sort();
-        Ok(Some(models))
+        Ok(models)
     }
 
     fn supports_embeddings(&self) -> bool {

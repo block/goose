@@ -14,7 +14,7 @@ use crate::config::base::CursorAgentCommand;
 use crate::config::search_path::SearchPaths;
 use crate::conversation::message::{Message, MessageContent};
 use crate::model::ModelConfig;
-use crate::subprocess::configure_command_no_window;
+use crate::subprocess::configure_subprocess;
 use futures::future::BoxFuture;
 use rmcp::model::Tool;
 
@@ -161,7 +161,7 @@ impl CursorAgentProvider {
             }
         }
 
-        // If no valid result line found, fallback to joining all lines
+        // If no valid result line found, fall back to joining all lines
         let response_text = lines.join("\n");
 
         let message_content = vec![MessageContent::text(response_text)];
@@ -196,7 +196,7 @@ impl CursorAgentProvider {
         }
 
         let mut cmd = Command::new(&self.command);
-        configure_command_no_window(&mut cmd);
+        configure_subprocess(&mut cmd);
 
         if let Ok(path) = SearchPaths::builder().with_npm().path() {
             cmd.env("PATH", path);
@@ -334,6 +334,7 @@ impl ProviderDef for CursorAgentProvider {
                 true, false,
             )],
         )
+        .with_unlisted_models()
     }
 
     fn from_env(model: ModelConfig) -> BoxFuture<'static, Result<Self::Provider>> {
@@ -350,6 +351,13 @@ impl Provider for CursorAgentProvider {
     fn get_model_config(&self) -> ModelConfig {
         // Return the model config with appropriate context limit for Cursor models
         self.model.clone()
+    }
+
+    async fn fetch_supported_models(&self) -> Result<Vec<String>, ProviderError> {
+        Ok(CURSOR_AGENT_KNOWN_MODELS
+            .iter()
+            .map(|s| s.to_string())
+            .collect())
     }
 
     #[tracing::instrument(

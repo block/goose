@@ -239,7 +239,7 @@ impl Provider for VeniceProvider {
         self.model.clone()
     }
 
-    async fn fetch_supported_models(&self) -> Result<Option<Vec<String>>, ProviderError> {
+    async fn fetch_supported_models(&self) -> Result<Vec<String>, ProviderError> {
         let response = self
             .api_client
             .request(None, &self.models_path)
@@ -264,7 +264,7 @@ impl Provider for VeniceProvider {
             })
             .collect::<Vec<String>>();
         models.sort();
-        Ok(Some(models))
+        Ok(models)
     }
 
     #[tracing::instrument(

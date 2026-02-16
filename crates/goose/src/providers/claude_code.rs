@@ -16,22 +16,116 @@ use crate::config::search_path::SearchPaths;
 use crate::config::{Config, GooseMode};
 use crate::conversation::message::{Message, MessageContent};
 use crate::model::ModelConfig;
-use crate::subprocess::configure_command_no_window;
+use crate::subprocess::configure_subprocess;
 use rmcp::model::Tool;
 
 const CLAUDE_CODE_PROVIDER_NAME: &str = "claude-code";
-pub const CLAUDE_CODE_DEFAULT_MODEL: &str = "claude-sonnet-4-20250514";
-pub const CLAUDE_CODE_KNOWN_MODELS: &[&str] = &["sonnet", "opus"];
+pub const CLAUDE_CODE_DEFAULT_MODEL: &str = "default";
 pub const CLAUDE_CODE_DOC_URL: &str = "https://code.claude.com/docs/en/setup";
 
-#[derive(Debug)]
 struct CliProcess {
     child: tokio::process::Child,
-    stdin: tokio::process::ChildStdin,
-    reader: BufReader<tokio::process::ChildStdout>,
+    stdin: Box<dyn tokio::io::AsyncWrite + Unpin + Send>,
+    reader: BufReader<Box<dyn tokio::io::AsyncRead + Unpin + Send>>,
     #[allow(dead_code)]
     stderr_handle: tokio::task::JoinHandle<String>,
-    messages_sent: usize,
+    current_model: String,
+    log_model_update: bool,
+    next_request_id: u64,
+}
+
+impl std::fmt::Debug for CliProcess {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("CliProcess")
+            .field("current_model", &self.current_model)
+            .field("next_request_id", &self.next_request_id)
+            .finish_non_exhaustive()
+    }
+}
+
+impl CliProcess {
+    fn next_request_id(&mut self) -> String {
+        let id = self.next_request_id;
+        self.next_request_id += 1;
+        format!("req_{id}")
+    }
+
+    /// Send a `set_model` control request and wait for the response before returning.
+    /// Skips the request if the model is already active.
+    async fn send_set_model(&mut self, model: &str) -> Result<(), ProviderError> {
+        if model == self.current_model {
+            return Ok(());
+        }
+
+        let request_id = self.next_request_id();
+        let req = json!({
+            "type": "control_request",
+            "request_id": request_id,
+            "request": {"subtype": "set_model", "model": model}
+        });
+        let mut req_str = serde_json::to_string(&req).map_err(|e| {
+            ProviderError::RequestFailed(format!("Failed to serialize set_model request: {e}"))
+        })?;
+        req_str.push('\n');
+        self.stdin
+            .write_all(req_str.as_bytes())
+            .await
+            .map_err(|e| {
+                ProviderError::RequestFailed(format!("Failed to write set_model request: {e}"))
+            })?;
+
+        // Read lines until we get the control_response for our request.
+        let mut line = String::new();
+        loop {
+            line.clear();
+            match self.reader.read_line(&mut line).await {
+                Ok(0) => {
+                    return Err(ProviderError::RequestFailed(
+                        "CLI process terminated while waiting for set_model response".to_string(),
+                    ));
+                }
+                Ok(_) => {
+                    let trimmed = line.trim();
+                    if trimmed.is_empty() {
+                        continue;
+                    }
+                    if let Ok(parsed) = serde_json::from_str::<Value>(trimmed) {
+                        if parsed.get("type").and_then(|t| t.as_str()) == Some("control_response") {
+                            // Skip responses that don't match our request_id
+                            if parsed
+                                .pointer("/response/request_id")
+                                .and_then(|id| id.as_str())
+                                != Some(request_id.as_str())
+                            {
+                                continue;
+                            }
+                            let success =
+                                parsed.pointer("/response/subtype").and_then(|s| s.as_str())
+                                    == Some("success");
+                            if success {
+                                self.current_model = model.to_string();
+                                self.log_model_update = true;
+                                return Ok(());
+                            } else {
+                                let err = parsed
+                                    .pointer("/response/error")
+                                    .and_then(|e| e.as_str())
+                                    .unwrap_or("unknown");
+                                return Err(ProviderError::RequestFailed(format!(
+                                    "set_model failed: {err}"
+                                )));
+                            }
+                        }
+                    }
+                }
+                Err(e) => {
+                    return Err(ProviderError::RequestFailed(format!(
+                        "Failed to read set_model response: {e}"
+                    )));
+                }
+            }
+        }
+    }
 }
 
 impl Drop for CliProcess {
@@ -56,23 +150,15 @@ pub struct ClaudeCodeProvider {
 }
 
 impl ClaudeCodeProvider {
-    pub async fn from_env(model: ModelConfig) -> Result<Self> {
-        let config = crate::config::Config::global();
-        let command: String = config.get_claude_code_command().unwrap_or_default().into();
-        let resolved_command = SearchPaths::builder().with_npm().resolve(&command)?;
-
-        Ok(Self {
-            command: resolved_command,
-            model,
-            name: CLAUDE_CODE_PROVIDER_NAME.to_string(),
-            cli_process: tokio::sync::OnceCell::new(),
-        })
-    }
-
-    /// Build Anthropic content blocks from goose messages, supporting text and images.
-    fn messages_to_content_blocks(&self, messages: &[Message]) -> Vec<Value> {
+    /// Build content blocks from the last user message only — the CLI maintains
+    /// conversation context internally per session_id.
+    fn last_user_content_blocks(&self, messages: &[Message]) -> Vec<Value> {
+        let msgs = match messages.iter().rev().find(|m| m.role == Role::User) {
+            Some(msg) => std::slice::from_ref(msg),
+            None => messages,
+        };
         let mut blocks: Vec<Value> = Vec::new();
-        for message in messages.iter().filter(|m| m.is_agent_visible()) {
+        for message in msgs.iter().filter(|m| m.is_agent_visible()) {
             let prefix = match message.role {
                 Role::User => "Human: ",
                 Role::Assistant => "Assistant: ",
@@ -117,6 +203,20 @@ impl ClaudeCodeProvider {
             }
         }
         blocks
+    }
+
+    fn build_stream_json_command(&self) -> Command {
+        let mut cmd = Command::new(&self.command);
+        configure_subprocess(&mut cmd);
+        cmd.arg("--input-format")
+            .arg("stream-json")
+            .arg("--output-format")
+            .arg("stream-json")
+            .arg("--verbose")
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped());
+        cmd
     }
 
     fn apply_permission_flags(cmd: &mut Command) -> Result<(), ProviderError> {
@@ -217,11 +317,6 @@ impl ClaudeCodeProvider {
                             .get("error")
                             .and_then(|e| e.as_str())
                             .unwrap_or("Unknown error");
-                        if error_msg.contains("context") && error_msg.contains("exceeded") {
-                            return Err(ProviderError::ContextLengthExceeded(
-                                error_msg.to_string(),
-                            ));
-                        }
                         return Err(ProviderError::RequestFailed(format!(
                             "Claude CLI error: {}",
                             error_msg
@@ -256,6 +351,8 @@ impl ClaudeCodeProvider {
         system: &str,
         messages: &[Message],
         _tools: &[Tool],
+        session_id: &str,
+        model: &str,
     ) -> Result<Vec<String>, ProviderError> {
         let filtered_system = filter_extensions_from_system_prompt(system);
 
@@ -275,30 +372,14 @@ impl ClaudeCodeProvider {
         let process_mutex = self
             .cli_process
             .get_or_try_init(|| async {
-                let mut cmd = Command::new(&self.command);
-                // NO -p flag — persistent mode
-                configure_command_no_window(&mut cmd);
-                cmd.arg("--input-format")
-                    .arg("stream-json")
-                    .arg("--output-format")
-                    .arg("stream-json")
-                    .arg("--verbose")
-                    // System prompt is set once at process start. The provider
-                    // instance is not reused across sessions with different prompts.
-                    .arg("--system-prompt")
-                    .arg(&filtered_system);
+                let mut cmd = self.build_stream_json_command();
+                // System prompt is set once at process start and cannot be updated at runtime.
+                cmd.arg("--system-prompt").arg(&filtered_system);
 
-                // Only pass model parameter if it's in the known models list
-                if CLAUDE_CODE_KNOWN_MODELS.contains(&self.model.model_name.as_str()) {
-                    cmd.arg("--model").arg(&self.model.model_name);
-                }
+                // The initial model can be updated later.
+                cmd.arg("--model").arg(&self.model.model_name);
 
-                // Add permission mode based on GOOSE_MODE setting
                 Self::apply_permission_flags(&mut cmd)?;
-
-                cmd.stdin(Stdio::piped())
-                    .stdout(Stdio::piped())
-                    .stderr(Stdio::piped());
 
                 let mut child = cmd.spawn().map_err(|e| {
                     ProviderError::RequestFailed(format!(
@@ -327,28 +408,25 @@ impl ClaudeCodeProvider {
 
                 Ok::<_, ProviderError>(tokio::sync::Mutex::new(CliProcess {
                     child,
-                    stdin,
-                    reader: BufReader::new(stdout),
+                    stdin: Box::new(stdin),
+                    reader: BufReader::new(Box::new(stdout)),
                     stderr_handle,
-                    messages_sent: 0,
+                    current_model: String::new(),
+                    log_model_update: false,
+                    next_request_id: 0,
                 }))
             })
             .await?;
 
         let mut process = process_mutex.lock().await;
 
-        // Build content from new messages only (skip already-sent ones).
-        // If messages is shorter than messages_sent, the caller started a fresh
-        // conversation on the same provider instance — send everything.
-        let new_messages = if process.messages_sent > 0 && process.messages_sent < messages.len() {
-            &messages[process.messages_sent..]
-        } else {
-            messages
-        };
-        let new_blocks = self.messages_to_content_blocks(new_messages);
+        // Switch model if it differs from what the CLI is currently using.
+        process.send_set_model(model).await?;
+
+        let blocks = self.last_user_content_blocks(messages);
 
         // Write NDJSON line to stdin
-        let ndjson_line = build_stream_json_input(&new_blocks);
+        let ndjson_line = build_stream_json_input(&blocks, session_id);
         process
             .stdin
             .write_all(ndjson_line.as_bytes())
@@ -380,11 +458,26 @@ impl ClaudeCodeProvider {
                     }
                     lines.push(trimmed.to_string());
 
-                    // Check if this is a result event (end of turn)
                     if let Ok(parsed) = serde_json::from_str::<Value>(trimmed) {
                         match parsed.get("type").and_then(|t| t.as_str()) {
                             Some("result") => break,
                             Some("error") => break,
+                            // The system init with the resolved model arrives here,
+                            // not in send_set_model (which only sees control_response):
+                            //   send_set_model:  {"type":"control_response",...}
+                            //   execute_command: {"type":"system",...,"model":"claude-sonnet-4-5-20250929",...}
+                            Some("system") if process.log_model_update => {
+                                if let Some(resolved) = parsed.get("model").and_then(|m| m.as_str())
+                                {
+                                    if std::env::var("GOOSE_CLAUDE_CODE_DEBUG").is_ok() {
+                                        println!(
+                                            "set_model: {} resolved to {}",
+                                            process.current_model, resolved
+                                        );
+                                    }
+                                }
+                                process.log_model_update = false;
+                            }
                             _ => {}
                         }
                     }
@@ -397,9 +490,6 @@ impl ClaudeCodeProvider {
                 }
             }
         }
-
-        // Update messages_sent for next turn
-        process.messages_sent = messages.len();
 
         tracing::debug!("Command executed successfully, got {} lines", lines.len());
         for (i, line) in lines.iter().enumerate() {
@@ -453,8 +543,34 @@ impl ClaudeCodeProvider {
     }
 }
 
-fn build_stream_json_input(content_blocks: &[Value]) -> String {
-    let msg = json!({"type":"user","message":{"role":"user","content":content_blocks}});
+/// Extract model aliases from the CLI's initialize control_response.
+fn parse_models_from_lines(lines: &[String]) -> Vec<String> {
+    for line in lines {
+        if let Ok(parsed) = serde_json::from_str::<Value>(line) {
+            if parsed.get("type").and_then(|t| t.as_str()) != Some("control_response") {
+                continue;
+            }
+            let success =
+                parsed.pointer("/response/subtype").and_then(|s| s.as_str()) == Some("success");
+            if !success {
+                continue;
+            }
+            if let Some(models) = parsed
+                .pointer("/response/response/models")
+                .and_then(|m| m.as_array())
+            {
+                return models
+                    .iter()
+                    .filter_map(|m| m.get("value").and_then(|v| v.as_str()).map(String::from))
+                    .collect();
+            }
+        }
+    }
+    Vec::new()
+}
+
+fn build_stream_json_input(content_blocks: &[Value], session_id: &str) -> String {
+    let msg = json!({"type":"user","session_id":session_id,"message":{"role":"user","content":content_blocks}});
     serde_json::to_string(&msg).expect("serializing JSON content blocks cannot fail")
 }
 
@@ -468,14 +584,30 @@ impl ProviderDef for ClaudeCodeProvider {
             "Claude Code CLI",
             "Requires claude CLI installed, no MCPs. Use Anthropic provider for full features.",
             CLAUDE_CODE_DEFAULT_MODEL,
-            CLAUDE_CODE_KNOWN_MODELS.to_vec(),
+            // Only a few agentic choices; fetched dynamically via fetch_supported_models.
+            vec![],
             CLAUDE_CODE_DOC_URL,
             vec![ConfigKey::from_value_type::<ClaudeCodeCommand>(true, false)],
         )
+        // The model list only returns aliases the `claude` CLI uses, such as "default"
+        // and "haiku". There is no listing that includes full names like
+        // "claude-sonnet-4-5-20250929". However, they are permitted.
+        .with_unlisted_models()
     }
 
     fn from_env(model: ModelConfig) -> BoxFuture<'static, Result<Self::Provider>> {
-        Box::pin(Self::from_env(model))
+        Box::pin(async move {
+            let config = crate::config::Config::global();
+            let command: String = config.get_claude_code_command().unwrap_or_default().into();
+            let resolved_command = SearchPaths::builder().with_npm().resolve(command)?;
+
+            Ok(Self {
+                command: resolved_command,
+                model,
+                name: CLAUDE_CODE_PROVIDER_NAME.to_string(),
+                cli_process: tokio::sync::OnceCell::new(),
+            })
+        })
     }
 }
 
@@ -488,6 +620,67 @@ impl Provider for ClaudeCodeProvider {
     fn get_model_config(&self) -> ModelConfig {
         // Return the model config with appropriate context limit for Claude models
         self.model.clone()
+    }
+
+    async fn fetch_supported_models(&self) -> Result<Vec<String>, ProviderError> {
+        // Uses a separate short-lived process because --system-prompt is a CLI-only
+        // flag with no NDJSON equivalent. The persistent process needs it at spawn,
+        // but it's unavailable during model listing.
+        // See: https://code.claude.com/docs/en/cli-reference#system-prompt-flags
+        let mut cmd = self.build_stream_json_command();
+        let mut child = cmd.spawn().map_err(|e| {
+            ProviderError::RequestFailed(format!("Failed to spawn CLI for model listing: {e}"))
+        })?;
+
+        let mut stdin = child
+            .stdin
+            .take()
+            .ok_or_else(|| ProviderError::RequestFailed("Failed to capture stdin".to_string()))?;
+        let stdout = child
+            .stdout
+            .take()
+            .ok_or_else(|| ProviderError::RequestFailed("Failed to capture stdout".to_string()))?;
+
+        let request = json!({
+            "type": "control_request",
+            "request_id": "model_list",
+            "request": {"subtype": "initialize"}
+        });
+        let mut request_str = serde_json::to_string(&request).map_err(|e| {
+            ProviderError::RequestFailed(format!("Failed to serialize initialize request: {e}"))
+        })?;
+        request_str.push('\n');
+        stdin.write_all(request_str.as_bytes()).await.map_err(|e| {
+            ProviderError::RequestFailed(format!("Failed to write initialize request: {e}"))
+        })?;
+
+        let mut reader = BufReader::new(stdout);
+        let mut lines = Vec::new();
+        let mut line = String::new();
+
+        // Read until we see a control_response or hit EOF
+        loop {
+            line.clear();
+            match reader.read_line(&mut line).await {
+                Ok(0) => break,
+                Ok(_) => {
+                    let trimmed = line.trim();
+                    if trimmed.is_empty() {
+                        continue;
+                    }
+                    lines.push(trimmed.to_string());
+                    if let Ok(parsed) = serde_json::from_str::<Value>(trimmed) {
+                        if parsed.get("type").and_then(|t| t.as_str()) == Some("control_response") {
+                            break;
+                        }
+                    }
+                }
+                Err(_) => break,
+            }
+        }
+
+        let _ = child.kill().await;
+        Ok(parse_models_from_lines(&lines))
     }
 
     #[tracing::instrument(
@@ -507,7 +700,11 @@ impl Provider for ClaudeCodeProvider {
             return self.generate_simple_session_description(messages);
         }
 
-        let json_lines = self.execute_command(system, messages, tools).await?;
+        // Use "default" if session_id is empty
+        let sid = if _session_id.is_empty() { "default" } else { _session_id };
+        let json_lines = self
+            .execute_command(system, messages, tools, sid, &model_config.model_name)
+            .await?;
 
         let (message, usage) = self.parse_claude_response(&json_lines)?;
 
@@ -535,6 +732,7 @@ impl Provider for ClaudeCodeProvider {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use goose_test_support::session::TEST_SESSION_ID;
     use serde_json::json;
     use test_case::test_case;
 
@@ -563,109 +761,86 @@ mod tests {
     }
 
     #[test_case(
-        &[],
+        build_messages(&[]),
         &[]
         ; "empty"
     )]
     #[test_case(
-        &[("user", "Hello", None)],
+        build_messages(&[("user", "Hello", None)]),
         &[json!({"type":"text","text":"Human: Hello"})]
         ; "single_user"
     )]
     #[test_case(
-        &[("user", "Hello", None), ("assistant", "Hi there!", None)],
-        &[json!({"type":"text","text":"Human: Hello"}), json!({"type":"text","text":"Assistant: Hi there!"})]
-        ; "user_and_assistant"
+        build_messages(&[("user", "Hello", None), ("assistant", "Hi there!", None)]),
+        &[json!({"type":"text","text":"Human: Hello"})]
+        ; "picks_last_user_ignores_assistant"
     )]
     #[test_case(
-        &[("user", "Describe this", Some(("base64data", "image/png")))],
+        build_messages(&[("user", "First", None), ("assistant", "Reply", None), ("user", "Second", None)]),
+        &[json!({"type":"text","text":"Human: Second"})]
+        ; "multi_turn_picks_last_user"
+    )]
+    #[test_case(
+        build_messages(&[("user", "Describe this", Some(("base64data", "image/png")))]),
         &[json!({"type":"text","text":"Human: Describe this"}),
           json!({"type":"image","source":{"type":"base64","media_type":"image/png","data":"base64data"}})]
         ; "user_with_image"
     )]
     #[test_case(
-        &[("user", "", Some(("iVBORw0KGgo", "image/png")))],
+        build_messages(&[("user", "", Some(("iVBORw0KGgo", "image/png")))]),
         &[json!({"type":"image","source":{"type":"base64","media_type":"image/png","data":"iVBORw0KGgo"}})]
         ; "image_only"
     )]
-    fn test_messages_to_content_blocks(pairs: &[MsgSpec], expected: &[Value]) {
+    #[test_case(
+        vec![Message::new(Role::Assistant, 0, vec![
+            MessageContent::tool_request("call_123", Ok(rmcp::model::CallToolRequestParams {
+                name: "developer__shell".into(),
+                arguments: Some(serde_json::from_value(json!({"cmd": "ls"})).unwrap()),
+                meta: None, task: None,
+            }))
+        ])],
+        &[json!({"type":"text","text":"Assistant: [tool_use: developer__shell id=call_123]"})]
+        ; "tool_request_no_user_fallback"
+    )]
+    #[test_case(
+        vec![Message::new(Role::User, 0, vec![
+            MessageContent::tool_response("call_123", Ok(rmcp::model::CallToolResult {
+                content: vec![rmcp::model::Content::text("file1.txt\nfile2.txt")],
+                is_error: None, structured_content: None, meta: None,
+            }))
+        ])],
+        &[json!({"type":"text","text":"Human: [tool_result id=call_123] file1.txt\nfile2.txt"})]
+        ; "tool_response"
+    )]
+    fn test_last_user_content_blocks(messages: Vec<Message>, expected: &[Value]) {
         let provider = make_provider();
-        let messages = build_messages(pairs);
-        let blocks = provider.messages_to_content_blocks(&messages);
+        let blocks = provider.last_user_content_blocks(&messages);
         assert_eq!(blocks, expected);
-    }
-
-    #[test]
-    fn test_messages_to_content_blocks_tool_request() {
-        use rmcp::model::CallToolRequestParams;
-        let provider = make_provider();
-        let tool_call = Ok(CallToolRequestParams {
-            name: "developer__shell".into(),
-            arguments: Some(serde_json::from_value(json!({"cmd": "ls"})).unwrap()),
-            meta: None,
-            task: None,
-        });
-        let msg = Message::new(
-            Role::Assistant,
-            0,
-            vec![MessageContent::tool_request("call_123", tool_call)],
-        );
-        let blocks = provider.messages_to_content_blocks(&[msg]);
-        assert_eq!(
-            blocks,
-            vec![
-                json!({"type":"text","text":"Assistant: [tool_use: developer__shell id=call_123]"})
-            ]
-        );
-    }
-
-    #[test]
-    fn test_messages_to_content_blocks_tool_response() {
-        use rmcp::model::{CallToolResult, Content};
-        let provider = make_provider();
-        let result = CallToolResult {
-            content: vec![Content::text("file1.txt\nfile2.txt")],
-            is_error: None,
-            structured_content: None,
-            meta: None,
-        };
-        let msg = Message::new(
-            Role::User,
-            0,
-            vec![MessageContent::tool_response("call_123", Ok(result))],
-        );
-        let blocks = provider.messages_to_content_blocks(&[msg]);
-        assert_eq!(
-            blocks,
-            vec![
-                json!({"type":"text","text":"Human: [tool_result id=call_123] file1.txt\nfile2.txt"})
-            ]
-        );
     }
 
     #[test_case(
         &[json!({"type":"text","text":"Hello"})],
-        json!({"type":"user","message":{"role":"user","content":[{"type":"text","text":"Hello"}]}})
+        json!({"type":"user","session_id":TEST_SESSION_ID,"message":{"role":"user","content":[{"type":"text","text":"Hello"}]}})
         ; "text_block"
     )]
     #[test_case(
         &[json!({"type":"text","text":"Look"}), json!({"type":"image","source":{"type":"base64","media_type":"image/png","data":"abc"}})],
-        json!({"type":"user","message":{"role":"user","content":[{"type":"text","text":"Look"},{"type":"image","source":{"type":"base64","media_type":"image/png","data":"abc"}}]}})
+        json!({"type":"user","session_id":TEST_SESSION_ID,"message":{"role":"user","content":[{"type":"text","text":"Look"},{"type":"image","source":{"type":"base64","media_type":"image/png","data":"abc"}}]}})
         ; "text_and_image_blocks"
     )]
     fn test_build_stream_json_input(blocks: &[Value], expected: Value) {
-        let line = build_stream_json_input(blocks);
+        let line = build_stream_json_input(blocks, TEST_SESSION_ID);
         let parsed: Value = serde_json::from_str(&line).unwrap();
         assert_eq!(parsed, expected);
     }
 
     #[test_case(
         &[
-            r#"{"type":"assistant","message":{"role":"assistant","content":[{"type":"text","text":"The answer is 2."}],"usage":{"input_tokens":100,"output_tokens":20}}}"#,
-            r#"{"type":"result","subtype":"success","result":"The answer is 2.","session_id":"abc"}"#,
+            r#"{"type":"assistant","message":{"content":[{"type":"text","text":"Hello! How can I help you today?"}],"usage":{"input_tokens":3,"output_tokens":3}}}"#,
+            r#"{"type":"result","usage":{"input_tokens":3,"output_tokens":16}}"#,
         ],
-        "The answer is 2.",
-        Some(100), Some(20)
+        "Hello! How can I help you today?",
+        Some(3), Some(3)
         ; "assistant_with_usage"
     )]
     #[test_case(
@@ -678,12 +853,12 @@ mod tests {
     )]
     #[test_case(
         &[
-            r#"{"type":"system","subtype":"init","session_id":"abc"}"#,
-            r#"{"type":"assistant","message":{"role":"assistant","content":[{"type":"text","text":"Hello"}]}}"#,
-            r#"{"type":"result","subtype":"success","result":"Hello","session_id":"abc"}"#,
+            r#"{"type":"system","model":"claude-opus-4-6"}"#,
+            r#"{"type":"assistant","message":{"content":[{"type":"text","text":"Hello!"}],"usage":{"input_tokens":3,"output_tokens":3}}}"#,
+            r#"{"type":"result","usage":{"input_tokens":3,"output_tokens":16}}"#,
         ],
-        "Hello",
-        None, None
+        "Hello!",
+        Some(3), Some(3)
         ; "system_init_filtered"
     )]
     fn test_parse_claude_response_ok(
@@ -712,7 +887,7 @@ mod tests {
     )]
     #[test_case(
         &[r#"{"type":"error","error":"context window exceeded"}"#],
-        ProviderError::ContextLengthExceeded("context window exceeded".into())
+        ProviderError::RequestFailed("Claude CLI error: context window exceeded".into())
         ; "context_length"
     )]
     #[test_case(
@@ -729,12 +904,124 @@ mod tests {
         );
     }
 
+    #[test_case(
+        &[
+            r#"{"type":"control_response","response":{"subtype":"success","request_id":"model_list","response":{"models":[{"value":"default","displayName":"Default (recommended)","description":"Opus 4.6 · Most capable for complex work"},{"value":"sonnet","displayName":"Sonnet","description":"Sonnet 4.5 · Best for everyday tasks"},{"value":"haiku","displayName":"Haiku","description":"Haiku 4.5 · Fastest for quick answers"}]}}}"#,
+        ],
+        &["default", "sonnet", "haiku"]
+        ; "success"
+    )]
+    #[test_case(
+        &[
+            r#"{"type":"control_response","response":{"subtype":"success","request_id":"model_list","response":{"models":[{"value":"default","displayName":"Default","description":"..."},{"value":null,"displayName":"Bad","description":"..."}]}}}"#,
+        ],
+        &["default"]
+        ; "filters_null_values"
+    )]
+    #[test_case(
+        &[r#"{"type":"system","subtype":"init","session_id":"abc"}"#],
+        &[]
+        ; "no_control_response"
+    )]
+    #[test_case(
+        &[r#"{"type":"control_response","response":{"subtype":"error","request_id":"req_1","error":"fail"}}"#],
+        &[]
+        ; "error_response"
+    )]
+    fn test_parse_models_from_lines(lines: &[&str], expected: &[&str]) {
+        let lines: Vec<String> = lines.iter().map(|s| s.to_string()).collect();
+        let result = parse_models_from_lines(&lines);
+        let expected: Vec<String> = expected.iter().map(|s| s.to_string()).collect();
+        assert_eq!(result, expected);
+    }
+
     fn make_provider() -> ClaudeCodeProvider {
         ClaudeCodeProvider {
             command: PathBuf::from("claude"),
-            model: ModelConfig::new("sonnet").unwrap(),
+            model: ModelConfig::new(CLAUDE_CODE_DEFAULT_MODEL).unwrap(),
             name: "claude-code".to_string(),
             cli_process: tokio::sync::OnceCell::new(),
         }
+    }
+
+    fn make_test_process(canned_stdout: &str) -> (CliProcess, tokio::io::DuplexStream) {
+        let child = tokio::process::Command::new("true")
+            .spawn()
+            .expect("failed to spawn `true`");
+        let (stdin_writer, stdin_reader) = tokio::io::duplex(1024);
+        let process = CliProcess {
+            child,
+            stdin: Box::new(stdin_writer),
+            reader: BufReader::new(Box::new(std::io::Cursor::new(
+                canned_stdout.as_bytes().to_vec(),
+            ))),
+            stderr_handle: tokio::spawn(async { String::new() }),
+            current_model: String::new(),
+            log_model_update: false,
+            next_request_id: 0,
+        };
+        (process, stdin_reader)
+    }
+
+    #[test_case(
+        &[r#"{"type":"control_response","response":{"subtype":"success","request_id":"req_0"}}"#],
+        Some("default"), "sonnet",
+        Ok(()),
+        "{\"type\":\"control_request\",\"request_id\":\"req_0\",\"request\":{\"subtype\":\"set_model\",\"model\":\"sonnet\"}}\n"
+        ; "default_to_sonnet"
+    )]
+    #[test_case(
+        &[r#"{"type":"control_response","response":{"subtype":"success","request_id":"req_0"}}"#],
+        Some("sonnet"), "default",
+        Ok(()),
+        "{\"type\":\"control_request\",\"request_id\":\"req_0\",\"request\":{\"subtype\":\"set_model\",\"model\":\"default\"}}\n"
+        ; "sonnet_to_default"
+    )]
+    #[test_case(
+        &[r#"{"type":"control_response","response":{"subtype":"error","request_id":"req_0","error":"bad model"}}"#],
+        None, "bad",
+        Err(ProviderError::RequestFailed("set_model failed: bad model".into())),
+        "{\"type\":\"control_request\",\"request_id\":\"req_0\",\"request\":{\"subtype\":\"set_model\",\"model\":\"bad\"}}\n"
+        ; "failure"
+    )]
+    #[test_case(
+        &[],
+        Some("sonnet"), "sonnet",
+        Ok(()), ""
+        ; "skip_when_same_model"
+    )]
+    #[test_case(
+        &[],
+        None, "sonnet",
+        Err(ProviderError::RequestFailed("CLI process terminated while waiting for set_model response".into())),
+        "{\"type\":\"control_request\",\"request_id\":\"req_0\",\"request\":{\"subtype\":\"set_model\",\"model\":\"sonnet\"}}\n"
+        ; "eof"
+    )]
+    #[tokio::test]
+    async fn test_send_set_model(
+        lines: &[&str],
+        initial_model: Option<&str>,
+        target_model: &str,
+        expected: Result<(), ProviderError>,
+        expected_stdin: &str,
+    ) {
+        use tokio::io::AsyncReadExt;
+
+        let stdout = lines.join("\n");
+        let (mut process, mut stdin_reader) = make_test_process(&stdout);
+        if let Some(m) = initial_model {
+            process.current_model = m.to_string();
+        }
+
+        let result = process.send_set_model(target_model).await;
+        process.stdin = Box::new(tokio::io::sink());
+        let mut stdin_bytes = Vec::new();
+        stdin_reader.read_to_end(&mut stdin_bytes).await.unwrap();
+
+        assert_eq!(result, expected);
+        if expected.is_ok() {
+            assert_eq!(process.current_model, target_model);
+        }
+        assert_eq!(String::from_utf8(stdin_bytes).unwrap(), expected_stdin);
     }
 }

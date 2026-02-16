@@ -27,7 +27,7 @@ use goose::session::SessionType;
 use serde_json::Value;
 use std::collections::HashMap;
 
-// useful for light themes where there is no dicernible colour contrast between
+// useful for light themes where there is no discernible colour contrast between
 // cursor-selected and cursor-unselected items.
 const MULTISELECT_VISIBILITY_HINT: &str = "<";
 
@@ -691,15 +691,15 @@ pub async fn configure_provider_dialog() -> anyhow::Result<bool> {
     };
     spin.stop(style("Model fetch complete").green());
 
-    // Select a model: on fetch error show styled error and abort; if Some(models), show list; if None, free-text input
+    // Select a model: on fetch error show styled error and abort; if models available, show list; otherwise free-text input
     let model: String = match models_res {
         Err(e) => {
             // Provider hook error
             cliclack::outro(style(e.to_string()).on_red().white())?;
             return Ok(false);
         }
-        Ok(Some(models)) => select_model_from_list(&models, provider_meta)?,
-        Ok(None) => {
+        Ok(models) if !models.is_empty() => select_model_from_list(&models, provider_meta)?,
+        Ok(_) => {
             let default_model =
                 std::env::var("GOOSE_MODEL").unwrap_or(provider_meta.default_model.clone());
             cliclack::input("Enter a model from that provider:")
@@ -1587,7 +1587,7 @@ fn configure_recipe_dialog() -> anyhow::Result<()> {
         .ok()
         .or_else(|| config.get_param(key_name).unwrap_or(None));
     let mut recipe_repo_input = cliclack::input(
-        "Enter your goose recipe Github repo (owner/repo): eg: my_org/goose-recipes",
+        "Enter your goose recipe GitHub repo (owner/repo): eg: my_org/goose-recipes",
     )
     .required(false);
     if let Some(recipe_repo) = default_recipe_repo {

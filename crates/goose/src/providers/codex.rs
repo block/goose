@@ -19,7 +19,7 @@ use crate::config::search_path::SearchPaths;
 use crate::config::{Config, GooseMode};
 use crate::conversation::message::{Message, MessageContent};
 use crate::model::ModelConfig;
-use crate::subprocess::configure_command_no_window;
+use crate::subprocess::configure_subprocess;
 use rmcp::model::Role;
 use rmcp::model::Tool;
 
@@ -53,45 +53,6 @@ pub struct CodexProvider {
 }
 
 impl CodexProvider {
-    pub async fn from_env(model: ModelConfig) -> Result<Self> {
-        let config = Config::global();
-        let command: String = config.get_codex_command().unwrap_or_default().into();
-        let resolved_command = SearchPaths::builder().with_npm().resolve(&command)?;
-
-        // Get reasoning effort from config, default to "high"
-        let reasoning_effort = config
-            .get_codex_reasoning_effort()
-            .map(String::from)
-            .unwrap_or_else(|_| "high".to_string());
-
-        // Validate reasoning effort
-        let reasoning_effort =
-            if Self::supports_reasoning_effort(&model.model_name, &reasoning_effort) {
-                reasoning_effort
-            } else {
-                tracing::warn!(
-                    "Invalid CODEX_REASONING_EFFORT '{}' for model '{}', using 'high'",
-                    reasoning_effort,
-                    model.model_name
-                );
-                "high".to_string()
-            };
-
-        // Get skip_git_check from config, default to false
-        let skip_git_check = config
-            .get_codex_skip_git_check()
-            .map(|s| s.to_lowercase() == "true")
-            .unwrap_or(false);
-
-        Ok(Self {
-            command: resolved_command,
-            model,
-            name: CODEX_PROVIDER_NAME.to_string(),
-            reasoning_effort,
-            skip_git_check,
-        })
-    }
-
     fn supports_reasoning_effort(model_name: &str, reasoning_effort: &str) -> bool {
         if !CODEX_REASONING_LEVELS.contains(&reasoning_effort) {
             return false;
@@ -155,7 +116,7 @@ impl CodexProvider {
         }
 
         let mut cmd = Command::new(&self.command);
-        configure_command_no_window(&mut cmd);
+        configure_subprocess(&mut cmd);
 
         // Propagate extended PATH so the codex subprocess can find Node.js
         // and other dependencies (especially when launched from the desktop app
@@ -594,10 +555,48 @@ impl ProviderDef for CodexProvider {
                 ConfigKey::from_value_type::<CodexSkipGitCheck>(false, false),
             ],
         )
+        .with_unlisted_models()
     }
 
     fn from_env(model: ModelConfig) -> BoxFuture<'static, Result<Self::Provider>> {
-        Box::pin(Self::from_env(model))
+        Box::pin(async move {
+            let config = Config::global();
+            let command: String = config.get_codex_command().unwrap_or_default().into();
+            let resolved_command = SearchPaths::builder().with_npm().resolve(command)?;
+
+            // Get reasoning effort from config, default to "high"
+            let reasoning_effort = config
+                .get_codex_reasoning_effort()
+                .map(String::from)
+                .unwrap_or_else(|_| "high".to_string());
+
+            // Validate reasoning effort
+            let reasoning_effort =
+                if Self::supports_reasoning_effort(&model.model_name, &reasoning_effort) {
+                    reasoning_effort
+                } else {
+                    tracing::warn!(
+                        "Invalid CODEX_REASONING_EFFORT '{}' for model '{}', using 'high'",
+                        reasoning_effort,
+                        model.model_name
+                    );
+                    "high".to_string()
+                };
+
+            // Get skip_git_check from config, default to false
+            let skip_git_check = config
+                .get_codex_skip_git_check()
+                .map(|s| s.to_lowercase() == "true")
+                .unwrap_or(false);
+
+            Ok(Self {
+                command: resolved_command,
+                model,
+                name: CODEX_PROVIDER_NAME.to_string(),
+                reasoning_effort,
+                skip_git_check,
+            })
+        })
     }
 }
 
@@ -658,20 +657,16 @@ impl Provider for CodexProvider {
         Ok(super::base::stream_from_single_message(message, provider_usage))
     }
 
-    async fn fetch_supported_models(&self) -> Result<Option<Vec<String>>, ProviderError> {
-        Ok(Some(
-            CODEX_KNOWN_MODELS.iter().map(|s| s.to_string()).collect(),
-        ))
+    async fn fetch_supported_models(&self) -> Result<Vec<String>, ProviderError> {
+        Ok(CODEX_KNOWN_MODELS.iter().map(|s| s.to_string()).collect())
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use goose_test_support::TEST_IMAGE_B64;
     use test_case::test_case;
-
-    /// 1x1 transparent PNG, base64-encoded.
-    const TINY_PNG_B64: &str = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR4nGNgYAAAAAMAASsJTYQAAAAASUVORK5CYII=";
 
     #[test]
     fn test_codex_metadata() {
@@ -692,7 +687,7 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let messages = vec![Message::user()
             .with_text("Describe")
-            .with_image(TINY_PNG_B64, mime)];
+            .with_image(TEST_IMAGE_B64, mime)];
         let (_prompt, temp_files) = prepare_input("", &messages, dir.path()).unwrap();
         assert_eq!(temp_files.len(), 1);
         let path = temp_files[0].path();
@@ -710,7 +705,7 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let messages = vec![Message::user()
             .with_text("Describe")
-            .with_image(TINY_PNG_B64, mime)];
+            .with_image(TEST_IMAGE_B64, mime)];
         let err = prepare_input("", &messages, dir.path()).unwrap_err();
         assert!(
             err.to_string().contains("Unsupported image MIME type"),
