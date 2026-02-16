@@ -97,6 +97,11 @@ export type ActionRequiredData = {
     user_data: unknown;
 };
 
+export type ActiveExtensionStat = {
+    extension: string;
+    session_count: number;
+};
+
 export type AddExtensionRequest = {
     config: ExtensionConfig;
     session_id: string;
@@ -168,6 +173,18 @@ export type AgentModeInfo = {
      * Tool groups this mode has access to.
      */
     tool_groups?: Array<string>;
+};
+
+/**
+ * Agent performance metrics extracted from session data
+ */
+export type AgentPerformanceMetrics = {
+    active_extensions: Array<ActiveExtensionStat>;
+    avg_messages_per_session: number;
+    avg_tokens_per_session: number;
+    avg_tools_per_session: number;
+    session_duration_stats: DurationStats;
+    sessions_by_provider: Array<ProviderSessionStat>;
 };
 
 export type AgentResult = {
@@ -412,6 +429,16 @@ export type DailyActivity = {
     totalTokens: number;
 };
 
+/**
+ * Daily tool activity
+ */
+export type DailyToolActivity = {
+    date: string;
+    tool_calls: number;
+    tool_errors: number;
+    unique_tools: number;
+};
+
 export type DeclarativeProviderConfig = {
     api_key_env?: string;
     base_url: string;
@@ -516,6 +543,12 @@ export type DownloadProgress = {
 };
 
 export type DownloadStatus = 'downloading' | 'completed' | 'failed' | 'cancelled';
+
+export type DurationStats = {
+    avg_seconds: number;
+    median_seconds: number;
+    p90_seconds: number;
+};
 
 export type EmbeddedResource = {
     _meta?: {
@@ -750,6 +783,17 @@ export type ExtensionQuery = {
 export type ExtensionResponse = {
     extensions: Array<ExtensionEntry>;
     warnings?: Array<string>;
+};
+
+/**
+ * Per-extension usage statistics
+ */
+export type ExtensionUsageStat = {
+    extension: string;
+    success_rate: number;
+    tool_count: number;
+    total_calls: number;
+    total_errors: number;
 };
 
 export type FailureDetail = {
@@ -1229,6 +1273,13 @@ export type ProviderMetadata = {
     name: string;
 };
 
+export type ProviderSessionStat = {
+    avg_messages: number;
+    avg_tokens: number;
+    provider: string;
+    session_count: number;
+};
+
 export type ProviderType = 'Preferred' | 'Builtin' | 'Declarative' | 'Custom';
 
 export type ProviderUsage = {
@@ -1579,6 +1630,19 @@ export type SessionListResponse = {
     sessions: Array<Session>;
 };
 
+/**
+ * Tool summary for a specific session
+ */
+export type SessionToolSummary = {
+    created_at: string;
+    most_used_tool: string;
+    session_id: string;
+    session_name: string;
+    tool_calls: number;
+    tool_errors: number;
+    unique_tools: number;
+};
+
 export type SessionType = 'user' | 'scheduled' | 'specialist' | 'hidden' | 'terminal';
 
 export type SessionsQuery = {
@@ -1744,6 +1808,19 @@ export type Tool = {
     title?: string;
 };
 
+/**
+ * Analytics for tool usage extracted from stored messages
+ */
+export type ToolAnalytics = {
+    daily_tool_activity: Array<DailyToolActivity>;
+    extension_usage: Array<ExtensionUsageStat>;
+    session_tool_summary: Array<SessionToolSummary>;
+    success_rate: number;
+    tool_usage: Array<ToolUsageStat>;
+    total_tool_calls: number;
+    total_tool_errors: number;
+};
+
 export type ToolAnnotations = {
     destructiveHint?: boolean;
     idempotentHint?: boolean;
@@ -1801,6 +1878,17 @@ export type ToolResponse = {
     toolResult: {
         [key: string]: unknown;
     };
+};
+
+/**
+ * Per-tool usage statistics
+ */
+export type ToolUsageStat = {
+    call_count: number;
+    error_count: number;
+    extension: string;
+    success_rate: number;
+    tool_name: string;
 };
 
 export type TopicAgentDistribution = {
@@ -1923,6 +2011,14 @@ export type UpsertConfigQuery = {
 
 export type UpsertPermissionsQuery = {
     tool_permissions: Array<ToolPermission>;
+};
+
+/**
+ * Version info for correlation tracking
+ */
+export type VersionInfo = {
+    active_extensions: Array<string>;
+    goose_version: string;
 };
 
 export type WhisperModelResponse = {
@@ -2963,6 +3059,42 @@ export type GetEvalTopicsResponses = {
 };
 
 export type GetEvalTopicsResponse = GetEvalTopicsResponses[keyof GetEvalTopicsResponses];
+
+export type GetToolAnalyticsData = {
+    body?: never;
+    path?: never;
+    query?: {
+        /**
+         * Days to look back
+         */
+        days?: number | null;
+    };
+    url: '/analytics/tools';
+};
+
+export type GetToolAnalyticsResponses = {
+    200: ToolAnalytics;
+};
+
+export type GetToolAnalyticsResponse = GetToolAnalyticsResponses[keyof GetToolAnalyticsResponses];
+
+export type GetAgentPerformanceData = {
+    body?: never;
+    path?: never;
+    query?: {
+        /**
+         * Days to look back
+         */
+        days?: number | null;
+    };
+    url: '/analytics/tools/agents';
+};
+
+export type GetAgentPerformanceResponses = {
+    200: AgentPerformanceMetrics;
+};
+
+export type GetAgentPerformanceResponse = GetAgentPerformanceResponses[keyof GetAgentPerformanceResponses];
 
 export type ReadAllConfigData = {
     body?: never;

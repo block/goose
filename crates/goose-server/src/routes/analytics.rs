@@ -15,6 +15,7 @@ use goose::session::eval_storage::{
     CreateDatasetRequest, EvalDataset, EvalDatasetSummary, EvalOverview, EvalRunDetail,
     EvalRunSummary, EvalStorage, RunEvalRequest, TopicAnalytics,
 };
+use goose::session::tool_analytics::{AgentPerformanceMetrics, ToolAnalytics, ToolAnalyticsStore};
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 
@@ -448,6 +449,66 @@ pub async fn get_topics(
     Ok(Json(topics))
 }
 
+// ── Tool Analytics Query Params ─────────────────────────────────────
+
+#[derive(Deserialize, ToSchema)]
+pub struct ToolAnalyticsQuery {
+    /// Number of days to look back (default 30)
+    days: Option<i32>,
+}
+
+// ── Tool Analytics endpoints ───────────────────────────────────────
+
+#[utoipa::path(
+    get,
+    path = "/analytics/tools",
+    params(("days" = Option<i32>, Query, description = "Days to look back")),
+    responses((status = 200, body = ToolAnalytics)),
+    operation_id = "getToolAnalytics"
+)]
+pub async fn get_tool_analytics(
+    State(state): State<Arc<AppState>>,
+    Query(params): Query<ToolAnalyticsQuery>,
+) -> Result<Json<ToolAnalytics>, ErrorResponse> {
+    let sm = state.session_manager();
+    let pool = sm
+        .storage()
+        .pool()
+        .await
+        .map_err(|e| ErrorResponse::internal(e.to_string()))?;
+    let store = ToolAnalyticsStore::new(pool);
+    let analytics = store
+        .get_tool_analytics(params.days.unwrap_or(30))
+        .await
+        .map_err(|e| ErrorResponse::internal(e.to_string()))?;
+    Ok(Json(analytics))
+}
+
+#[utoipa::path(
+    get,
+    path = "/analytics/tools/agents",
+    params(("days" = Option<i32>, Query, description = "Days to look back")),
+    responses((status = 200, body = AgentPerformanceMetrics)),
+    operation_id = "getAgentPerformance"
+)]
+pub async fn get_agent_performance(
+    State(state): State<Arc<AppState>>,
+    Query(params): Query<ToolAnalyticsQuery>,
+) -> Result<Json<AgentPerformanceMetrics>, ErrorResponse> {
+    let sm = state.session_manager();
+    let pool = sm
+        .storage()
+        .pool()
+        .await
+        .map_err(|e| ErrorResponse::internal(e.to_string()))?;
+    let store = ToolAnalyticsStore::new(pool);
+    let metrics = store
+        .get_agent_performance(params.days.unwrap_or(30))
+        .await
+        .map_err(|e| ErrorResponse::internal(e.to_string()))?;
+    Ok(Json(metrics))
+}
+
 // ── Router ─────────────────────────────────────────────────────────
 
 pub fn routes(state: Arc<AppState>) -> Router {
@@ -469,5 +530,8 @@ pub fn routes(state: Arc<AppState>) -> Router {
         // Overview & topics
         .route("/analytics/eval/overview", get(get_overview))
         .route("/analytics/eval/topics", get(get_topics))
+        // Tool analytics
+        .route("/analytics/tools", get(get_tool_analytics))
+        .route("/analytics/tools/agents", get(get_agent_performance))
         .with_state(state)
 }

@@ -1452,6 +1452,72 @@
         }
       }
     },
+    "/analytics/tools": {
+      "get": {
+        "tags": [
+          "super::routes::analytics"
+        ],
+        "operationId": "getToolAnalytics",
+        "parameters": [
+          {
+            "name": "days",
+            "in": "query",
+            "description": "Days to look back",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "nullable": true
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ToolAnalytics"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/analytics/tools/agents": {
+      "get": {
+        "tags": [
+          "super::routes::analytics"
+        ],
+        "operationId": "getAgentPerformance",
+        "parameters": [
+          {
+            "name": "days",
+            "in": "query",
+            "description": "Days to look back",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "nullable": true
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgentPerformanceMetrics"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/config": {
       "get": {
         "tags": [
@@ -4783,6 +4849,22 @@
           "propertyName": "actionType"
         }
       },
+      "ActiveExtensionStat": {
+        "type": "object",
+        "required": [
+          "extension",
+          "session_count"
+        ],
+        "properties": {
+          "extension": {
+            "type": "string"
+          },
+          "session_count": {
+            "type": "integer",
+            "format": "int64"
+          }
+        }
+      },
       "AddExtensionRequest": {
         "type": "object",
         "required": [
@@ -4953,6 +5035,47 @@
               "type": "string"
             },
             "description": "Tool groups this mode has access to."
+          }
+        }
+      },
+      "AgentPerformanceMetrics": {
+        "type": "object",
+        "description": "Agent performance metrics extracted from session data",
+        "required": [
+          "sessions_by_provider",
+          "avg_messages_per_session",
+          "avg_tools_per_session",
+          "avg_tokens_per_session",
+          "session_duration_stats",
+          "active_extensions"
+        ],
+        "properties": {
+          "active_extensions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ActiveExtensionStat"
+            }
+          },
+          "avg_messages_per_session": {
+            "type": "number",
+            "format": "double"
+          },
+          "avg_tokens_per_session": {
+            "type": "number",
+            "format": "double"
+          },
+          "avg_tools_per_session": {
+            "type": "number",
+            "format": "double"
+          },
+          "session_duration_stats": {
+            "$ref": "#/components/schemas/DurationStats"
+          },
+          "sessions_by_provider": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ProviderSessionStat"
+            }
           }
         }
       },
@@ -5655,6 +5778,33 @@
           }
         }
       },
+      "DailyToolActivity": {
+        "type": "object",
+        "description": "Daily tool activity",
+        "required": [
+          "date",
+          "tool_calls",
+          "tool_errors",
+          "unique_tools"
+        ],
+        "properties": {
+          "date": {
+            "type": "string"
+          },
+          "tool_calls": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "tool_errors": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "unique_tools": {
+            "type": "integer",
+            "format": "int64"
+          }
+        }
+      },
       "DeclarativeProviderConfig": {
         "type": "object",
         "required": [
@@ -5899,6 +6049,28 @@
           "failed",
           "cancelled"
         ]
+      },
+      "DurationStats": {
+        "type": "object",
+        "required": [
+          "avg_seconds",
+          "median_seconds",
+          "p90_seconds"
+        ],
+        "properties": {
+          "avg_seconds": {
+            "type": "number",
+            "format": "double"
+          },
+          "median_seconds": {
+            "type": "number",
+            "format": "double"
+          },
+          "p90_seconds": {
+            "type": "number",
+            "format": "double"
+          }
+        }
       },
       "EmbeddedResource": {
         "type": "object",
@@ -6732,6 +6904,38 @@
             "items": {
               "type": "string"
             }
+          }
+        }
+      },
+      "ExtensionUsageStat": {
+        "type": "object",
+        "description": "Per-extension usage statistics",
+        "required": [
+          "extension",
+          "tool_count",
+          "total_calls",
+          "total_errors",
+          "success_rate"
+        ],
+        "properties": {
+          "extension": {
+            "type": "string"
+          },
+          "success_rate": {
+            "type": "number",
+            "format": "double"
+          },
+          "tool_count": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "total_calls": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "total_errors": {
+            "type": "integer",
+            "format": "int64"
           }
         }
       },
@@ -8193,6 +8397,32 @@
           }
         }
       },
+      "ProviderSessionStat": {
+        "type": "object",
+        "required": [
+          "provider",
+          "session_count",
+          "avg_tokens",
+          "avg_messages"
+        ],
+        "properties": {
+          "avg_messages": {
+            "type": "number",
+            "format": "double"
+          },
+          "avg_tokens": {
+            "type": "number",
+            "format": "double"
+          },
+          "provider": {
+            "type": "string"
+          },
+          "session_count": {
+            "type": "integer",
+            "format": "int64"
+          }
+        }
+      },
       "ProviderType": {
         "type": "string",
         "enum": [
@@ -9308,6 +9538,45 @@
           }
         }
       },
+      "SessionToolSummary": {
+        "type": "object",
+        "description": "Tool summary for a specific session",
+        "required": [
+          "session_id",
+          "session_name",
+          "tool_calls",
+          "tool_errors",
+          "unique_tools",
+          "most_used_tool",
+          "created_at"
+        ],
+        "properties": {
+          "created_at": {
+            "type": "string"
+          },
+          "most_used_tool": {
+            "type": "string"
+          },
+          "session_id": {
+            "type": "string"
+          },
+          "session_name": {
+            "type": "string"
+          },
+          "tool_calls": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "tool_errors": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "unique_tools": {
+            "type": "integer",
+            "format": "int64"
+          }
+        }
+      },
       "SessionType": {
         "type": "string",
         "enum": [
@@ -9815,6 +10084,57 @@
           }
         }
       },
+      "ToolAnalytics": {
+        "type": "object",
+        "description": "Analytics for tool usage extracted from stored messages",
+        "required": [
+          "total_tool_calls",
+          "total_tool_errors",
+          "success_rate",
+          "tool_usage",
+          "daily_tool_activity",
+          "extension_usage",
+          "session_tool_summary"
+        ],
+        "properties": {
+          "daily_tool_activity": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DailyToolActivity"
+            }
+          },
+          "extension_usage": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ExtensionUsageStat"
+            }
+          },
+          "session_tool_summary": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SessionToolSummary"
+            }
+          },
+          "success_rate": {
+            "type": "number",
+            "format": "double"
+          },
+          "tool_usage": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ToolUsageStat"
+            }
+          },
+          "total_tool_calls": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "total_tool_errors": {
+            "type": "integer",
+            "format": "int64"
+          }
+        }
+      },
       "ToolAnnotations": {
         "type": "object",
         "properties": {
@@ -9955,6 +10275,37 @@
           },
           "toolResult": {
             "type": "object"
+          }
+        }
+      },
+      "ToolUsageStat": {
+        "type": "object",
+        "description": "Per-tool usage statistics",
+        "required": [
+          "tool_name",
+          "extension",
+          "call_count",
+          "error_count",
+          "success_rate"
+        ],
+        "properties": {
+          "call_count": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "error_count": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "extension": {
+            "type": "string"
+          },
+          "success_rate": {
+            "type": "number",
+            "format": "double"
+          },
+          "tool_name": {
+            "type": "string"
           }
         }
       },
@@ -10271,6 +10622,25 @@
             "items": {
               "$ref": "#/components/schemas/ToolPermission"
             }
+          }
+        }
+      },
+      "VersionInfo": {
+        "type": "object",
+        "description": "Version info for correlation tracking",
+        "required": [
+          "goose_version",
+          "active_extensions"
+        ],
+        "properties": {
+          "active_extensions": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "goose_version": {
+            "type": "string"
           }
         }
       },
