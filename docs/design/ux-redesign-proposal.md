@@ -1,271 +1,121 @@
-# Goose UX Redesign Proposal
+# Goose Desktop UX Redesign Proposal
+
+## Status: Draft
+## Date: 2025-02-16
+
+---
 
 ## Problem Statement
 
-The current sidebar has **9 menu items** that grew organically:
-```
-Home → Hub with session insights + chat input
-Chat → Active conversation (pair view)
-Recipes → Conversational workflow templates
-Apps → MCP app gallery
-Scheduler → Cron-like task scheduling
-Agents → Agent registry & modes
-Analytics → Eval/tool/routing analytics (NEW)
-Extensions → MCP extension management
-Settings → Provider, model, preferences
-```
+The current sidebar has 9 menu items (Home, Chat, Recipes, Apps, Scheduler, Agents, Analytics, Extensions, Settings) that feel like a flat list of features rather than a coherent workflow. Users need to:
 
-**Issues:**
-1. **Too many items** — 9 entries creates cognitive overload
-2. **Home ≠ Chat** — starting a conversation requires navigating between views
-3. **No persistent prompt** — the chat input disappears when browsing other pages
-4. **Flat hierarchy** — Recipes, Scheduler, and Agents are related but scattered
-5. **No workflow builder** — only conversational (recipe) workflows, no visual DAG editor
-6. **Analytics buried** — insights should surface proactively, not require navigation
-
----
+1. **Work on projects** — open projects, create sessions, use history
+2. **Create reusable workflows** — both conversational (prompts/recipes) and visual DAGs
+3. **Monitor & evaluate** — track routing accuracy, tool performance, regressions
+4. **Configure** — agents, extensions, settings
+5. **Get help from anywhere** — a persistent prompt bar that's always available
 
 ## Design Principles
 
-1. **Conversation-first**: The prompt bar is always visible, everywhere
-2. **Progressive disclosure**: Show what matters, hide complexity
-3. **Connected flow**: See problem → investigate → fix → verify
-4. **Adaptive context**: The prompt bar adapts to what you're doing
-5. **Generative UI**: Rich responses inline in conversation (charts, forms, tables)
+1. **Intent-based navigation** — organize by "what am I trying to do" not "what feature exists"
+2. **Progressive disclosure** — overview → drill-down, never overwhelm
+3. **Prompt-first** — the prompt bar is the primary interaction, pages are secondary
+4. **Connected flow** — see a problem → investigate → fix → verify, without context switching
 
 ---
 
-## Proposed Information Architecture
+## Proposed Navigation: 4 Zones
 
-### Navigation: 4 Primary Zones
+### Current → New Mapping
 
-```
-┌─────────────────────────────────────────────────────────┐
-│  ┌──────┐                                               │
-│  │ Logo │  ← Goose brand, collapse toggle               │
-│  ├──────┤                                               │
-│  │  ⌂   │  Home / Workspace                             │
-│  │  ◉   │  Workflows (Recipes + DAG Builder)            │
-│  │  ◈   │  Observatory (Analytics + Monitoring)          │
-│  │  ⚙   │  Platform (Extensions + Agents + Settings)    │
-│  ├──────┤                                               │
-│  │ Hist │  Recent Sessions (collapsible)                │
-│  └──────┘                                               │
-│                                                         │
-│  ┌─────────────────────────────────────────────────┐    │
-│  │                Main Content                      │    │
-│  │                                                  │    │
-│  │  (adapts to selected zone)                       │    │
-│  │                                                  │    │
-│  └─────────────────────────────────────────────────┘    │
-│  ┌─────────────────────────────────────────────────┐    │
-│  │  🔍 Ask anything... (Persistent Prompt Bar)      │    │
-│  └─────────────────────────────────────────────────┘    │
-└─────────────────────────────────────────────────────────┘
-```
+| Current (9 items) | New Zone | Sub-area |
+|---|---|---|
+| Home + Chat (merged) | **Home** | Project workspace + sessions |
+| Recipes | **Workflows** | Conversational tab |
+| *(new)* DAG Builder | **Workflows** | Visual tab |
+| Apps | **Workflows** | Apps tab |
+| Scheduler | **Workflows** | Scheduler tab |
+| Analytics (eval) | **Observatory** | Evaluation tab |
+| Analytics (tools) | **Observatory** | Performance tab |
+| Analytics (dashboard) | **Observatory** | Dashboard tab |
+| Agents | **Platform** | Agents tab |
+| Extensions | **Platform** | Extensions tab |
+| Settings | **Platform** | Settings tab |
 
-### Zone 1: Home / Workspace (⌂)
-**Purpose**: Start working immediately. Merges current Home + Chat.
+### Zone Details
 
-- **Default view**: Chat conversation (replaces the separate Hub/Pair split)
-- When no active session: shows quick-start cards (recent projects, pinned recipes)
-- Session history integrated as a sidebar panel
-- Project context (working directory) visible at top
+#### 1. Home (Project Workspace)
+- **Sessions are per-project** — each project directory has its own session history
+- Merge Home + Chat into a single workspace view
+- Shows: recent sessions, project stats, quick actions
+- Multi-session support for multitasking (multiple active conversations)
 
-### Zone 2: Workflows (◉)
-**Purpose**: Create, manage, and run reusable workflows.
+#### 2. Workflows (Create & Reuse)
+Two kinds of reusable workflows coexist:
 
-Sub-tabs:
-- **Recipes** (existing) — Conversational prompt workflows
-- **Pipelines** (NEW) — Visual DAG workflow builder
-  - Drag-and-drop nodes: Agent, Tool, Condition, Transform, Human-in-loop
-  - Visual graph rendering (React Flow)
-  - Connect agents/tools together with data flow edges
-  - Run/debug pipelines with step-by-step execution view
-- **Schedules** (existing, moved here) — Cron triggers for both recipes and pipelines
-- **Templates** — Community/shared workflow gallery
+**Conversational workflows** (existing recipes/sub-recipes):
+- Prompt-based, primarily text
+- Formats: `.md`, `.mdx` (YAML frontmatter), `.yaml`, `.json`, `.toon`
+- Current recipe system already handles this well
 
-### Zone 3: Observatory (◈)
-**Purpose**: Monitor, evaluate, and understand your agents.
+**Visual DAG workflows** (new):
+- No-code graph editor connecting agents/tools
+- Typed nodes: Agent, Tool, Condition, Transform, Human-in-Loop, Trigger
+- See [DAG Format section](#dag-workflow-format) below
 
-Sub-tabs:
-- **Dashboard** — KPIs, health indicators, recent alerts
-  - Routing accuracy, tool success rate, sessions today
-  - Regression alerts (prominent, actionable)
-  - Quick sparklines for trends
-- **Evaluate** — Test datasets, run evals, compare versions
-  - Dataset CRUD, run history, topics
-- **Tools** — Tool usage analytics, error patterns
-  - Per-tool call counts, error rates
-  - Extension health
-- **Inspect** — Live routing inspector, agent catalog
-  - Routing decisions debugger
-  - Agent registry viewer
+#### 3. Observatory (Monitor & Evaluate)
+Everything about "how well is my system performing":
+- **Dashboard**: KPI cards, accuracy trends, regression alerts
+- **Evaluation**: Datasets, run history, confusion matrices, topics
+- **Performance**: Tool analytics, agent metrics, latency, success rates
 
-### Zone 4: Platform (⚙)
-**Purpose**: Configure the system.
-
-Sub-tabs:
-- **Extensions** (existing) — MCP extension management
-- **Agents** (existing) — Agent registry & modes
-- **Apps** (existing) — MCP app gallery
-- **Settings** (existing) — Provider, model, preferences
+#### 4. Platform (Configure)
+Infrastructure and configuration:
+- **Agents**: Registry, modes, capabilities
+- **Extensions**: MCP servers, enable/disable
+- **Settings**: Provider, model, preferences
 
 ---
 
-## The Persistent Prompt Bar
+## Persistent Context-Adaptive Prompt Bar
 
-The most important UX change: **the prompt bar is always visible at the bottom of every view**.
+The prompt bar appears on **every page** and adapts to the current context:
 
-### Context-Adaptive Behavior
+| Context | Prompt Bar Behavior |
+|---------|-------------------|
+| Home | Full chat — creates/continues sessions |
+| Workflows | "Describe a workflow..." — helps build recipes/DAGs |
+| Observatory | "Show me routing accuracy for last week" — queries analytics |
+| Platform | "Enable the GitHub extension" — modifies configuration |
 
-| Current Zone | Prompt Behavior |
-|-------------|-----------------|
-| Home | Standard chat — creates/continues sessions |
-| Workflows | "Create a recipe that...", "Run pipeline X with..." |
-| Observatory | "Show me routing accuracy for last week", "What tools failed today?" |
-| Platform | "Enable the GitHub extension", "Change model to Claude" |
+The prompt bar uses **Generative UI** to render rich inline responses (charts, tables, action buttons) rather than just text.
 
-### How It Works
-
-1. **Always visible** — fixed at bottom of every page
-2. **Smart routing** — detects intent from context:
-   - `/search` prefix → search across everything
-   - `/settings` prefix → navigate to settings
-   - Natural language → either chat or command depending on context
-3. **Generative UI responses** — when on Observatory, analytics queries return inline charts/tables
-4. **Slash commands** — quick access to any action:
-   - `/new` — new session
-   - `/recipe create` — new recipe
-   - `/eval run` — run evaluation
-   - `/settings model` — change model
-   - `/help` — contextual help
-
-### Generative UI Integration
-
-When the prompt bar returns structured data (e.g., analytics queries), it renders rich UI inline:
-
-```
-User: "Show me tool error rates this week"
-AI: [Renders inline chart showing error rates]
-    [Action button: "View full analytics →"]
-    [Action button: "Create alert for >5% error rate"]
-```
-
-This uses the MCP Apps renderer pattern — the response contains structured HTML/components
-that render in the conversation thread, not as a separate page navigation.
-
----
-
-## Visual DAG Workflow Builder
-
-### Concept
-
-A no-code visual editor where users connect agents, tools, conditions, and transforms
-into executable pipelines.
-
-```
-┌──────────┐     ┌──────────┐     ┌──────────┐
-│ Trigger   │────▶│ Coding   │────▶│ QA Agent │
-│ (webhook) │     │ Agent    │     │ (review) │
-└──────────┘     └──────────┘     └─────┬────┘
-                                        │
-                                   ┌────▼────┐
-                                   │ Condition│
-                                   │ pass?    │
-                                   └────┬────┘
-                                   yes │  │ no
-                               ┌──────▼┐ ┌▼──────┐
-                               │ Deploy │ │ Fix   │
-                               │ Tool   │ │ Agent │
-                               └────────┘ └───────┘
-```
-
-### Node Types
-- **Agent Node**: Select agent + mode, configure instructions
-- **Tool Node**: Select specific tool from extensions
-- **Condition Node**: If/else branching on output
-- **Transform Node**: Map/filter/format data between steps
-- **Human Node**: Pause for human review/approval
-- **Trigger Node**: Webhook, schedule, event, manual
-
-### Implementation
-- Use React Flow (https://reactflow.dev) for the graph editor
-- Store as JSON/YAML in the same recipe format (extended)
-- Execute via a new DAG executor in the Rust backend
-- Each node execution is tracked for analytics
-
----
-
-## Mapping: Old → New
-
-| Old Menu Item | New Location | Notes |
-|--------------|-------------|-------|
-| Home | **Home** (⌂) | Merged with Chat |
-| Chat | **Home** (⌂) | Same view, always available |
-| Recipes | **Workflows** (◉) > Recipes | Grouped with related items |
-| Apps | **Platform** (⚙) > Apps | Configuration concern |
-| Scheduler | **Workflows** (◉) > Schedules | Triggers for workflows |
-| Agents | **Platform** (⚙) > Agents | Configuration concern |
-| Analytics | **Observatory** (◈) | Promoted to top-level zone |
-| Extensions | **Platform** (⚙) > Extensions | Configuration concern |
-| Settings | **Platform** (⚙) > Settings | Configuration concern |
-
-**Result: 9 items → 4 zones** + persistent prompt bar
-
----
-
-## Implementation Phases
-
-### Phase 1: Navigation Restructure (1-2 weeks)
-- Consolidate sidebar to 4 zones
-- Move existing pages into zone sub-tabs
-- Keep existing components, just reorganize routing
-- Add persistent prompt bar (extract ChatInput to a global position)
-
-### Phase 2: Adaptive Prompt Bar (2-3 weeks)
-- Context detection based on current zone
-- Slash command system
-- Generative UI responses for analytics queries
-- Search across sessions, recipes, settings
-
-### Phase 3: Visual Workflow Builder (4-6 weeks)
-- React Flow integration
-- Node palette (agents, tools, conditions)
-- Pipeline execution engine (Rust backend)
-- Step-by-step execution debugging
-
-### Phase 4: Live Observatory (2-3 weeks)
-- Real-time event streaming
-- Live routing confidence scores
-- Tool execution monitoring
-- Automated alert rules
+### Slash Commands (available everywhere)
+- `/new` — new session
+- `/recipe <name>` — run a recipe
+- `/eval <dataset>` — run evaluation
+- `/search <query>` — search across sessions/recipes/settings
+- `/help` — contextual help
 
 ---
 
 ## Generative UI with json-render
 
-### Concept
+### Architecture
 
-The persistent prompt bar doesn't just navigate — it **generates UI inline**.
-Using [json-render](https://github.com/vercel-labs/json-render), we define a catalog
-of safe, schema-validated components that the AI can compose in response to natural
-language queries.
-
-### Component Catalog
+Use Vercel's [json-render](https://github.com/vercel-labs/json-render) to define a **component catalog** that the AI can generate against:
 
 ```typescript
-const gooseCatalog = defineCatalog(schema, {
+const catalog = defineCatalog({
   components: {
-    // Analytics widgets
     MetricCard: {
       props: z.object({
-        label: z.string(),
+        title: z.string(),
         value: z.string(),
-        delta: z.number().nullable(),
-        trend: z.enum(['up', 'down', 'flat']).nullable(),
+        delta: z.number().optional(),
+        trend: z.enum(['up', 'down', 'flat']).optional(),
+        sparkline: z.array(z.number()).optional(),
       }),
-      description: "Display a KPI metric with optional trend indicator",
     },
     Chart: {
       props: z.object({
@@ -273,101 +123,318 @@ const gooseCatalog = defineCatalog(schema, {
         data: z.array(z.record(z.unknown())),
         xKey: z.string(),
         yKeys: z.array(z.string()),
-        title: z.string().nullable(),
+        title: z.string().optional(),
       }),
-      description: "Render a chart from data",
     },
     DataTable: {
       props: z.object({
         columns: z.array(z.object({ key: z.string(), label: z.string() })),
         rows: z.array(z.record(z.unknown())),
-        sortable: z.boolean().nullable(),
+        sortable: z.boolean().optional(),
       }),
-      description: "Render a sortable data table",
     },
-    // Workflow widgets
     RecipeCard: {
       props: z.object({
         name: z.string(),
         description: z.string(),
-        runCount: z.number().nullable(),
+        tags: z.array(z.string()).optional(),
       }),
-      slots: ["actions"],
-      description: "Display a recipe with action buttons",
     },
-    // Action widgets
     ActionButton: {
       props: z.object({
         label: z.string(),
         action: z.string(),
-        variant: z.enum(['primary', 'secondary', 'danger']).nullable(),
+        variant: z.enum(['primary', 'secondary', 'destructive']).optional(),
       }),
-      description: "Button that triggers a platform action",
     },
     AlertCard: {
       props: z.object({
         severity: z.enum(['info', 'warning', 'error', 'success']),
         title: z.string(),
-        message: z.string(),
+        description: z.string(),
       }),
-      description: "Display an alert or notification",
     },
   },
   actions: {
-    navigate: {
-      params: z.object({ path: z.string() }),
-      description: "Navigate to a page in the app",
-    },
-    run_recipe: {
-      params: z.object({ recipeId: z.string() }),
-      description: "Execute a recipe",
-    },
-    run_eval: {
-      params: z.object({ datasetId: z.string() }),
-      description: "Run an evaluation on a dataset",
-    },
-    create_session: {
-      params: z.object({ workingDir: z.string().nullable() }),
-      description: "Start a new chat session",
-    },
-    change_model: {
-      params: z.object({ provider: z.string(), model: z.string() }),
-      description: "Switch the active model",
-    },
-    enable_extension: {
-      params: z.object({ name: z.string() }),
-      description: "Enable an MCP extension",
-    },
+    navigate: { path: z.string() },
+    run_recipe: { name: z.string(), params: z.record(z.string()).optional() },
+    run_eval: { datasetId: z.string() },
+    create_session: { projectDir: z.string().optional() },
+    change_model: { provider: z.string(), model: z.string() },
+    enable_extension: { name: z.string() },
   },
 });
 ```
 
-### Flow
+### How It Works
 
-1. User types in persistent prompt bar: "Show me tool error rates this week"
-2. AI detects this is an analytics query (not a chat message)
-3. AI generates a json-render spec with MetricCard + Chart components
-4. Components render inline in a response panel (not a full page navigation)
-5. User can interact (click chart points, drill down) or ask follow-up
+1. User types in prompt bar: "How did routing accuracy change this week?"
+2. Backend queries analytics data
+3. AI generates a json-render spec: `[MetricCard(accuracy), Chart(trend), AlertCard(regression)]`
+4. Frontend renders native React components inline in the chat
+5. User can interact (click action buttons, sort tables, drill into charts)
 
-### MCP Apps Integration
+### Relationship to MCP Apps
 
-The existing MCP Apps renderer (`McpAppRenderer.tsx`) already handles sandboxed
-HTML rendering. json-render adds a **structured, validated** layer on top:
-- MCP Apps: arbitrary HTML in iframe (powerful but unvalidated)
-- json-render: schema-validated component trees (safe, predictable, themed)
+| | Generative UI (json-render) | MCP Apps |
+|---|---|---|
+| **Scope** | Predefined component catalog | Arbitrary HTML/CSS/JS |
+| **Safety** | Constrained to catalog (guardrailed) | Sandboxed iframe |
+| **Use case** | Analytics, status, quick actions | Complex interactive apps |
+| **Performance** | Native React rendering | iframe overhead |
+| **When to use** | AI-generated responses | Extension-provided UIs |
 
-Both can coexist — json-render for standard analytics/workflow widgets,
-MCP Apps for custom rich experiences.
+They coexist — Generative UI for structured responses, MCP Apps for complex custom UIs.
+
+---
+
+## DAG Workflow Format
+
+### Research: Existing Standards
+
+| Standard | Type | Format | Agent-specific? | Suitability |
+|----------|------|--------|-----------------|-------------|
+| Argo Workflows | K8s-native DAG | YAML | No (containers) | Template for YAML structure |
+| CWL (Common Workflow Language) | Scientific workflows | YAML/JSON | No | Too scientific-focused |
+| LangGraph | Agent orchestration | Python code | Yes | Not declarative |
+| CrewAI | Agent crews | Python code | Yes | Not declarative |
+| AutoGen | Multi-agent | Python code | Yes | Not declarative |
+| n8n | Visual automation | JSON | No (HTTP/services) | Closest visual model |
+| Make (Integromat) | Visual automation | Proprietary | No | Good UX reference |
+| Copilot Studio | Agent topics | Proprietary | Yes | Good UX reference |
+| A2A Protocol | Agent-to-agent | JSON-RPC | Yes | Communication, not orchestration |
+| ACP | Agent communication | HTTP/JSON | Yes | Already in goose |
+
+**Key finding**: No established declarative standard exists for AI agent DAG workflows. The closest are:
+- **Argo Workflows** for YAML DAG structure (depends/template pattern)
+- **n8n** for visual node-based JSON format
+- **React Flow** for visual graph editing UX
+
+### Proposed: Goose Pipeline Format
+
+A YAML-based declarative format that extends the existing recipe concept:
+
+```yaml
+# .goose/pipelines/code-review.yaml
+apiVersion: goose/v1
+kind: Pipeline
+metadata:
+  name: code-review-pipeline
+  description: Automated code review with security and quality checks
+  tags: [code-quality, security, ci]
+
+# Node type definitions reference goose agents, tools, and conditions
+nodes:
+  - id: trigger
+    type: trigger
+    config:
+      event: pull_request  # or: manual, schedule, webhook
+      
+  - id: fetch-diff
+    type: tool
+    config:
+      extension: developer
+      tool: shell
+      arguments:
+        command: "git diff main...HEAD"
+    depends: [trigger]
+
+  - id: security-review
+    type: agent
+    config:
+      agent: qa_agent
+      mode: security
+      prompt: |
+        Review the following diff for security vulnerabilities:
+        {{fetch-diff.output}}
+    depends: [fetch-diff]
+
+  - id: code-quality
+    type: agent
+    config:
+      agent: coding_agent
+      mode: code
+      prompt: |
+        Review the following diff for code quality issues:
+        {{fetch-diff.output}}
+    depends: [fetch-diff]
+
+  - id: gate
+    type: condition
+    config:
+      expression: |
+        security-review.severity != "critical" 
+        AND code-quality.score >= 0.7
+    depends: [security-review, code-quality]
+
+  - id: approve
+    type: tool
+    config:
+      extension: developer
+      tool: shell
+      arguments:
+        command: "gh pr review --approve"
+    depends: [gate]
+    condition: gate.passed
+
+  - id: request-changes
+    type: human
+    config:
+      prompt: |
+        Security or quality issues found:
+        - Security: {{security-review.summary}}
+        - Quality: {{code-quality.summary}}
+        
+        Please review and decide.
+    depends: [gate]
+    condition: "!gate.passed"
+
+# Edges are implicit from `depends` + `condition`
+# Data flows through {{node-id.output}} template references
+```
+
+### Node Types
+
+| Type | Description | Config |
+|------|-------------|--------|
+| `trigger` | Entry point | `event`: manual, schedule, webhook, pull_request |
+| `agent` | Run a goose agent in a specific mode | `agent`, `mode`, `prompt`, `max_turns` |
+| `tool` | Call a specific MCP tool | `extension`, `tool`, `arguments` |
+| `condition` | Boolean gate/branch | `expression` with references to upstream outputs |
+| `transform` | Data transformation | `template` (Jinja2/Handlebars) |
+| `human` | Human-in-the-loop approval | `prompt`, `timeout`, `default_action` |
+| `subpipeline` | Nest another pipeline | `pipeline`, `arguments` |
+| `a2a` | Call an external A2A agent | `agent_card_url`, `task` |
+
+### Visual Editor (React Flow)
+
+The visual editor provides a drag-and-drop interface for building pipelines:
+- **Node palette** on the left with all node types
+- **Canvas** in the center for the graph
+- **Properties panel** on the right for node configuration
+- **Run/Debug toolbar** at the top with step-by-step execution
+
+The editor reads/writes the same YAML format — visual editing and YAML editing are interchangeable.
+
+### Implementation: React Flow
+
+[React Flow](https://reactflow.dev/) is the standard library for node-based graph editors:
+- 20k+ GitHub stars, actively maintained
+- Built for React, TypeScript-first
+- Custom node types, handles, edges
+- Minimap, controls, background grid
+- Used by: Stripe, n8n, Langflow, many others
+
+---
+
+## Conversational Workflow Formats
+
+For conversational workflows (current recipes), support multiple formats:
+
+| Format | Extension | Use Case |
+|--------|-----------|----------|
+| Markdown | `.md` | Simple prompts with instructions |
+| MDX | `.mdx` | Markdown + YAML frontmatter for metadata |
+| YAML | `.yaml` | Current recipe format (keep as-is) |
+| JSON | `.json` | Programmatic generation |
+| TOON | `.toon` | Token-efficient for LLM consumption |
+
+### TOON Format
+
+[TOON](https://github.com/toon-format/toon) is an LLM-optimized data format that:
+- Uses **~40% fewer tokens** than JSON with equal or better accuracy
+- Combines YAML-like indentation with CSV-style tabular arrays
+- Deterministic, lossless JSON round-trips
+- Multi-language ecosystem (TypeScript, Python, Go, Rust)
+
+Useful for:
+- Storing evaluation datasets (tabular test cases)
+- Large recipe parameter sets
+- Analytics data export/import
+
+---
+
+## Goose's 3-Tier Architecture
+
+```
+┌─────────────────────────────────────────────────────┐
+│  Tier 1: Interfaces                                  │
+│  ┌──────────┐ ┌──────────┐ ┌──────────┐            │
+│  │ Desktop  │ │   CLI    │ │   Web    │  (future)   │
+│  │ Electron │ │  goose   │ │ browser  │             │
+│  └────┬─────┘ └────┬─────┘ └────┬─────┘            │
+│       │             │            │                   │
+├───────┼─────────────┼────────────┼───────────────────┤
+│  Tier 2: Server                                      │
+│  ┌──────────────────────────────────────────┐        │
+│  │           goosed (goose-server)           │        │
+│  │  ┌──────┐  ┌──────┐  ┌──────┐           │        │
+│  │  │ ACP  │  │ A2A  │  │ REST │           │        │
+│  │  └──────┘  └──────┘  └──────┘           │        │
+│  │  Sessions | Analytics | Recipes | Eval   │        │
+│  └────────────────────┬─────────────────────┘        │
+│                       │                              │
+├───────────────────────┼──────────────────────────────┤
+│  Tier 3: Agents & Tools                              │
+│  ┌────────────────────┴───────────────────────┐      │
+│  │              IntentRouter                   │      │
+│  │  ┌──────┐ ┌──────┐ ┌──────┐ ┌──────────┐  │      │
+│  │  │Goose │ │Coding│ │  QA  │ │ Research │  │      │
+│  │  │Agent │ │Agent │ │Agent │ │  Agent   │  │      │
+│  │  └──┬───┘ └──┬───┘ └──┬───┘ └────┬─────┘  │      │
+│  │     │        │        │          │         │      │
+│  │  ┌──┴────────┴────────┴──────────┴──┐      │      │
+│  │  │     MCP Extensions (Tools)        │      │      │
+│  │  │  developer | fetch | context7 ... │      │      │
+│  │  └──────────────────────────────────┘      │      │
+│  └────────────────────────────────────────────┘      │
+└──────────────────────────────────────────────────────┘
+```
+
+The UX redesign affects **Tier 1 only** — the navigation, prompt bar, and generative UI are purely frontend concerns. The DAG executor would be a Tier 2 addition.
+
+---
+
+## Implementation Phases
+
+### Phase 1: Navigation Restructure (P1)
+- Consolidate sidebar: 9 items → 4 zones
+- Each zone has sub-tabs
+- Move existing components into new structure
+- **No new features** — just reorganization
+- *Depends on*: nothing
+- *Effort*: ~1 week
+
+### Phase 2: Persistent Prompt Bar (P1)
+- Extract `ChatInput` from page-level to layout-level
+- Make it context-adaptive (different behavior per zone)
+- Add slash command system
+- **Foundation for Generative UI**
+- *Depends on*: Phase 1
+- *Effort*: ~2 weeks
+
+### Phase 3: Generative UI (P2)
+- Integrate json-render component catalog
+- Define goose-specific components (MetricCard, Chart, DataTable, etc.)
+- Wire prompt bar to generate structured UI responses
+- *Depends on*: Phase 2
+- *Effort*: ~3 weeks
+
+### Phase 4: Visual DAG Builder (P2)
+- Install React Flow
+- Implement node types (agent, tool, condition, human, etc.)
+- Implement pipeline YAML serialization/deserialization
+- Add pipeline executor in Rust (Tier 2)
+- *Depends on*: Phase 1
+- *Effort*: ~4-6 weeks
 
 ---
 
 ## Open Questions
 
-1. **Session management**: Should sessions be per-project or global?
-2. **Multi-session**: Should users be able to have multiple active conversations?
-3. **DAG persistence**: Store pipelines as extended recipes or new entity type?
-4. **Generative UI scope**: How much analytics should render inline vs dedicated page?
-5. **Mobile/responsive**: Is the desktop-only or should it work in browser too?
-6. **json-render integration**: Should it be a new MCP extension or built into the agent?
-7. **Prompt bar routing**: How to distinguish "chat with AI" from "search/command"?
+1. **Project discovery**: How does goose discover/switch between projects? (working_dir in session?)
+2. **Multi-session UX**: Tabs? Split pane? Session switcher in sidebar?
+3. **TOON adoption**: Worth adding TOON support for recipe format, or just use it for eval datasets?
+4. **Pipeline executor**: Build in Rust (Tier 2) or delegate to agents (Tier 3)?
+5. **json-render integration**: Render in chat bubbles or in a separate response panel?
+6. **Prompt bar routing**: How to decide if input goes to chat vs command vs analytics query?
