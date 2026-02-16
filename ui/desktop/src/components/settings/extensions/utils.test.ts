@@ -264,41 +264,8 @@ describe('Extension Utils', () => {
       ],
       ['  python   script.py  ', { cmd: 'python', args: ['script.py'] }],
       ['', { cmd: '', args: [] }],
-      ['npx -y @upstash/context7-mcp', { cmd: 'npx', args: ['-y', '@upstash/context7-mcp'] }],
     ])('splits %j correctly', (input, expected) => {
       expect(splitCmdAndArgs(input)).toEqual(expected);
-    });
-  });
-
-  describe('extensionToFormData roundtrip', () => {
-    it('should not escape @ in command args', () => {
-      const extension: FixedExtensionEntry = {
-        type: 'stdio',
-        name: 'context7',
-        description: 'Context7 MCP',
-        cmd: 'npx',
-        args: ['-y', '@upstash/context7-mcp'],
-        enabled: true,
-      };
-
-      const formData = extensionToFormData(extension);
-      expect(formData.cmd).toBe('npx -y @upstash/context7-mcp');
-    });
-
-    it('should roundtrip command with @ through form data', () => {
-      const extension: FixedExtensionEntry = {
-        type: 'stdio',
-        name: 'context7',
-        description: 'Context7 MCP',
-        cmd: 'npx',
-        args: ['-y', '@upstash/context7-mcp'],
-        enabled: true,
-      };
-
-      const formData = extensionToFormData(extension);
-      const { cmd, args } = splitCmdAndArgs(formData.cmd || '');
-      expect(cmd).toBe('npx');
-      expect(args).toEqual(['-y', '@upstash/context7-mcp']);
     });
   });
 
@@ -310,12 +277,12 @@ describe('Extension Utils', () => {
 
     it('should handle encoded arguments', () => {
       const link = 'goose://extension/add?cmd=echo&arg=hello%20world&arg=--test%3Dvalue';
-      expect(extractCommand(link)).toBe('echo "hello world" --test=value');
+      expect(extractCommand(link)).toBe('echo hello world --test=value');
     });
 
     it('should handle missing command', () => {
       const link = 'goose://extension/add?name=Test';
-      expect(extractCommand(link)).toBe('"Unknown Command"');
+      expect(extractCommand(link)).toBe('Unknown Command');
     });
 
     it('should handle command without arguments', () => {

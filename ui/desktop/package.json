@@ -85,6 +85,7 @@
     "remark-breaks": "^4.0.0",
     "remark-gfm": "^4.0.1",
     "remark-math": "^6.0.0",
+    "shell-quote": "^1.8.3",
     "split-type": "^0.3.4",
     "swr": "^2.4.0",
     "tailwind-merge": "^3.4.0",
