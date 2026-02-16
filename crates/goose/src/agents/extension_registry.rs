@@ -65,6 +65,12 @@ impl ExtensionRegistry {
         self.extensions.lock().await.remove(name)
     }
 
+    /// Disconnect (remove) an extension by name. Returns true if it existed.
+    /// This is the public API — avoids exposing the private Extension type.
+    pub async fn disconnect(&self, name: &str) -> bool {
+        self.extensions.lock().await.remove(name).is_some()
+    }
+
     /// Check if an extension exists by normalized name.
     pub async fn contains(&self, name: &str) -> bool {
         self.extensions.lock().await.contains_key(name)

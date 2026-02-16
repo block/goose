@@ -12,6 +12,7 @@ use tokio::task::JoinHandle;
 use crate::agent_slot_registry::AgentSlotRegistry;
 use crate::routes::runs::RunStore;
 use crate::tunnel::TunnelManager;
+use goose::agents::extension_registry::ExtensionRegistry;
 use goose::agents::ExtensionLoadResult;
 
 type ExtensionLoadingTasks =
@@ -26,6 +27,8 @@ pub struct AppState {
     pub tunnel_manager: Arc<TunnelManager>,
     pub extension_loading_tasks: ExtensionLoadingTasks,
     pub agent_slot_registry: AgentSlotRegistry,
+    /// Shared extension registry — live MCP connections shared across agents
+    pub extension_registry: Arc<ExtensionRegistry>,
     run_store: RunStore,
 }
 
@@ -34,6 +37,7 @@ impl AppState {
         register_builtin_extensions(goose_mcp::BUILTIN_EXTENSIONS.clone());
 
         let agent_manager = AgentManager::instance().await?;
+        let extension_registry = agent_manager.extension_registry();
         let tunnel_manager = Arc::new(TunnelManager::new());
 
         Ok(Arc::new(Self {
@@ -43,6 +47,7 @@ impl AppState {
             tunnel_manager,
             extension_loading_tasks: Arc::new(Mutex::new(HashMap::new())),
             agent_slot_registry: AgentSlotRegistry::new(),
+            extension_registry,
             run_store: RunStore::new(),
         }))
     }

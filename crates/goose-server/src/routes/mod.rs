@@ -8,6 +8,7 @@ pub mod analytics;
 pub mod config_management;
 pub mod dictation;
 pub mod errors;
+pub mod extension_routes;
 pub mod mcp_app_proxy;
 pub mod mcp_ui_proxy;
 pub mod prompts;
@@ -50,6 +51,7 @@ pub fn configure(state: Arc<crate::state::AppState>, secret_key: String) -> Rout
         .merge(runs::routes(state.clone()))
         .merge(acp_ide::routes(state.clone()))
         .merge(analytics::routes(state.clone()))
+        .merge(extension_routes::routes(state.clone()))
         .merge(mcp_ui_proxy::routes(secret_key.clone()))
         .merge(mcp_app_proxy::routes(secret_key))
 }

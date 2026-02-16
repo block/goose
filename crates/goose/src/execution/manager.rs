@@ -22,6 +22,7 @@ pub struct AgentManager {
     session_manager: Arc<SessionManager>,
     default_provider: Arc<RwLock<Option<Arc<dyn crate::providers::base::Provider>>>>,
     shared_extension_manager: Arc<ExtensionManager>,
+    extension_registry: Arc<crate::agents::extension_registry::ExtensionRegistry>,
 }
 
 impl AgentManager {
@@ -49,6 +50,7 @@ impl AgentManager {
             session_manager,
             default_provider: Arc::new(RwLock::new(None)),
             shared_extension_manager,
+            extension_registry,
         };
 
         Ok(manager)
@@ -76,6 +78,11 @@ impl AgentManager {
 
     pub fn extension_manager(&self) -> Arc<ExtensionManager> {
         Arc::clone(&self.shared_extension_manager)
+    }
+
+    /// Get the shared extension registry for server-level extension management
+    pub fn extension_registry(&self) -> Arc<crate::agents::extension_registry::ExtensionRegistry> {
+        Arc::clone(&self.extension_registry)
     }
 
     /// Get the shared SessionManager for session-only operations
