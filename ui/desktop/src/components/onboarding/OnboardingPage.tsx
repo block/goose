@@ -1,0 +1,84 @@
+import { useState, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { SwitchModelModal } from '../settings/models/subcomponents/SwitchModelModal';
+import { createNavigationHandler } from '../../utils/navigationUtils';
+import { Goose } from '../icons';
+import ProviderSelector from './ProviderSelector';
+
+export default function OnboardingPage({
+  onProviderSetup,
+}: {
+  onProviderSetup?: () => void;
+}) {
+  const navigate = useNavigate();
+  const setView = useMemo(() => createNavigationHandler(navigate), [navigate]);
+
+  const [showSwitchModelModal, setShowSwitchModelModal] = useState(false);
+  const [switchModelProvider, setSwitchModelProvider] = useState<string | null>(null);
+  const [hasSelection, setHasSelection] = useState(false);
+
+  const handleConfigured = (providerName: string) => {
+    setSwitchModelProvider(providerName);
+    setShowSwitchModelModal(true);
+  };
+
+  const handleModelSelected = () => {
+    setShowSwitchModelModal(false);
+    onProviderSetup?.();
+    navigate('/', { replace: true });
+  };
+
+  const handleOllamaSetup = () => {
+    // TODO: integrate with existing OllamaSetup component
+    navigate('/', { replace: true });
+  };
+
+  return (
+    <div className="h-screen w-full bg-background-default overflow-hidden">
+      <div className="h-full overflow-y-auto">
+        <div className={`flex flex-col items-center p-4 pb-8 transition-all duration-500 ease-in-out ${hasSelection ? 'pt-8' : 'pt-[15vh]'}`}>
+          <div className="max-w-2xl w-full mx-auto">
+            <div className={`text-left transition-all duration-500 ease-in-out overflow-hidden ${hasSelection ? 'max-h-0 opacity-0 mb-0' : 'max-h-60 opacity-100 mb-8'}`}>
+              <div className="mb-4">
+                <Goose className="size-8" />
+              </div>
+              <h1 className="text-2xl sm:text-4xl font-light mb-3">Welcome to Goose</h1>
+              <p className="text-text-muted text-base sm:text-lg">
+                Your local AI agent, automating tasks seamlessly.
+              </p>
+              <p className="text-text-muted text-base sm:text-lg mt-1">
+                Select an AI provider to power Goose.
+              </p>
+            </div>
+
+            <ProviderSelector
+              onConfigured={handleConfigured}
+              onOllamaSetup={handleOllamaSetup}
+              onFirstSelection={() => setHasSelection(true)}
+            />
+
+            <div className="mt-8 text-center">
+              <button
+                onClick={() => navigate('/getting-started')}
+                className="text-blue-600 hover:text-blue-500 text-sm font-medium transition-colors"
+              >
+                New to AI? Get started here →
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {showSwitchModelModal && (
+        <SwitchModelModal
+          sessionId={null}
+          onClose={() => setShowSwitchModelModal(false)}
+          setView={setView}
+          onModelSelected={handleModelSelected}
+          initialProvider={switchModelProvider}
+          titleOverride="Choose Model"
+        />
+      )}
+    </div>
+  );
+}

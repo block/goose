@@ -16,6 +16,8 @@ import { ToastContainer } from 'react-toastify';
 import AnnouncementModal from './components/AnnouncementModal';
 import TelemetryOptOutModal from './components/TelemetryOptOutModal';
 import ProviderGuard from './components/ProviderGuard';
+import OnboardingPage from './components/onboarding/OnboardingPage';
+import GettingStartedPage from './components/onboarding/GettingStartedPage';
 import { createSession } from './sessions';
 
 import { ChatType } from './types/chat';
@@ -633,6 +635,8 @@ export function AppInner() {
               element={<WelcomeRoute onSelectProvider={() => setDidSelectProvider(true)} />}
             />
             <Route path="configure-providers" element={<ConfigureProvidersRoute />} />
+            <Route path="onboarding" element={<OnboardingPage />} />
+            <Route path="getting-started" element={<GettingStartedPage />} />
             <Route path="standalone-app" element={<StandaloneAppView />} />
             <Route
               path="/"
