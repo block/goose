@@ -67,7 +67,6 @@ impl OpenRouterProvider {
             name: OPENROUTER_PROVIDER_NAME.to_string(),
         })
     }
-
 }
 
 /// Update the request when using anthropic model.

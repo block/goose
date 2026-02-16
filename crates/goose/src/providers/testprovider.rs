@@ -7,9 +7,9 @@ use std::fs;
 use std::path::Path;
 use std::sync::{Arc, Mutex};
 
-use super::base::{MessageStream, Provider, ProviderDef, ProviderMetadata, ProviderUsage};
 #[cfg(test)]
 use super::base::stream_from_single_message;
+use super::base::{MessageStream, Provider, ProviderDef, ProviderMetadata, ProviderUsage};
 use super::errors::ProviderError;
 use crate::conversation::message::Message;
 use crate::model::ModelConfig;

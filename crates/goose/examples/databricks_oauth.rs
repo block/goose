@@ -17,7 +17,13 @@ async fn main() -> Result<()> {
 
     let model_config = provider.get_model_config();
     let (response, usage) = provider
-        .complete(&model_config, "", "You are a helpful assistant.", &[message], &[])
+        .complete(
+            &model_config,
+            "",
+            "You are a helpful assistant.",
+            &[message],
+            &[],
+        )
         .await?;
 
     println!("\nResponse from AI:");

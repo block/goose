@@ -358,6 +358,9 @@ impl Provider for SageMakerTgiProvider {
         )?;
 
         let provider_usage = ProviderUsage::new(model_name.to_string(), usage);
-        Ok(super::base::stream_from_single_message(message, provider_usage))
+        Ok(super::base::stream_from_single_message(
+            message,
+            provider_usage,
+        ))
     }
 }

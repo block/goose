@@ -61,7 +61,6 @@ impl TetrateProvider {
             name: TETRATE_PROVIDER_NAME.to_string(),
         })
     }
-
 }
 
 impl ProviderDef for TetrateProvider {

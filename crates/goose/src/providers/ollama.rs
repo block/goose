@@ -135,7 +135,6 @@ impl OllamaProvider {
             name: config.name.clone(),
         })
     }
-
 }
 
 impl ProviderDef for OllamaProvider {
