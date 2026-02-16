@@ -10,6 +10,8 @@ import { useChatContext } from '../../contexts/ChatContext';
 import { UserInput } from '../../types/message';
 import { ReasoningDetailProvider } from '../../contexts/ReasoningDetailContext';
 import ReasoningDetailPanel from '../ReasoningDetailPanel';
+import { PromptBarProvider } from '../../contexts/PromptBarContext';
+import PromptBar from '../prompt_bar/PromptBar';
 
 interface AppLayoutContentProps {
   activeSessions: Array<{
@@ -124,6 +126,7 @@ const AppLayoutContent: React.FC<AppLayoutContentProps> = ({ activeSessions }) =
         <div className={isOnPairRoute ? 'contents' : 'hidden'}>
           <ChatSessionsContainer setChat={setChat} activeSessions={activeSessions} />
         </div>
+        <PromptBar />
       </SidebarInset>
       <ReasoningDetailPanel />
     </div>
@@ -141,7 +144,9 @@ export const AppLayout: React.FC<AppLayoutProps> = ({ activeSessions }) => {
   return (
     <ReasoningDetailProvider>
       <SidebarProvider>
-        <AppLayoutContent activeSessions={activeSessions} />
+        <PromptBarProvider>
+          <AppLayoutContent activeSessions={activeSessions} />
+        </PromptBarProvider>
       </SidebarProvider>
     </ReasoningDetailProvider>
   );
