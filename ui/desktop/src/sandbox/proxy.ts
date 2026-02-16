@@ -25,7 +25,11 @@ import os from 'node:os';
 import crypto from 'node:crypto';
 import { URL } from 'node:url';
 import { Buffer } from 'node:buffer';
-import log from '../utils/logger';
+const log = {
+  info: (...args: unknown[]) => console.log('[sandbox-proxy]', ...args),
+  warn: (...args: unknown[]) => console.warn('[sandbox-proxy]', ...args),
+  error: (...args: unknown[]) => console.error('[sandbox-proxy]', ...args),
+};
 
 // ---------------------------------------------------------------------------
 // Types

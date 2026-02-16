@@ -25,8 +25,6 @@
 import path from 'node:path';
 import fs from 'node:fs';
 import os from 'node:os';
-import { app } from 'electron';
-import log from '../utils/logger';
 import { startProxy, ProxyInstance } from './proxy';
 
 export { startProxy } from './proxy';
@@ -116,8 +114,13 @@ export function isSandboxAvailable(): boolean {
 }
 
 function bundledPath(filename: string): string {
-  if (app.isPackaged) {
-    return path.join(process.resourcesPath, 'sandbox', filename);
+  // In packaged apps, process.resourcesPath points to the app resources directory.
+  // In development, fall back to the source tree.
+  const packagedPath = process.resourcesPath
+    ? path.join(process.resourcesPath, 'sandbox', filename)
+    : '';
+  if (packagedPath && fs.existsSync(packagedPath)) {
+    return packagedPath;
   }
   return path.join(process.cwd(), 'src', 'sandbox', filename);
 }
@@ -128,7 +131,7 @@ function materialise(filename: string): string {
     fs.mkdirSync(sandboxDir, { recursive: true });
     const content = fs.readFileSync(bundledPath(filename), 'utf-8');
     fs.writeFileSync(runtimePath, content);
-    log.info(`[sandbox] Materialised ${filename}`);
+    console.log(`[sandbox] Materialised ${filename}`);
   }
   return runtimePath;
 }
@@ -169,9 +172,9 @@ export function buildSandboxSpawn(
   const proxyUrl = `http://127.0.0.1:${proxyPort}`;
   const connectProxy = writeConnectProxy();
 
-  log.info(`[sandbox] Profile: ${sandboxProfile}`);
-  log.info(`[sandbox] Proxy port: ${proxyPort}`);
-  log.info(
+  console.log(`[sandbox] Profile: ${sandboxProfile}`);
+  console.log(`[sandbox] Proxy port: ${proxyPort}`);
+  console.log(
     `[sandbox] Config: protectSensitiveFiles=${profileOptions.protectSensitiveFiles}, blockRawSockets=${profileOptions.blockRawSockets}, blockTunnelingTools=${profileOptions.blockTunnelingTools}`
   );
 
@@ -223,14 +226,14 @@ export async function ensureProxy(): Promise<ProxyInstance> {
     allowSSHToAllHosts: process.env.GOOSE_SANDBOX_SSH_ALL_HOSTS === 'true',
   });
 
-  log.info(`[sandbox] Proxy started on port ${activeProxy.port}`);
+  console.log(`[sandbox] Proxy started on port ${activeProxy.port}`);
   return activeProxy;
 }
 
 export async function stopProxy(): Promise<void> {
   if (activeProxy) {
     await activeProxy.close();
-    log.info('[sandbox] Proxy stopped');
+    console.log('[sandbox] Proxy stopped');
     activeProxy = null;
   }
 }
