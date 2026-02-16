@@ -196,18 +196,18 @@ The trace viewer shows:
 
 ## Visual Dashboard for Multiple Sessions
 
-If you're running multiple agent tasks with browser automation in the background, you can use the visual dashboard to monitor and control all running sessions from one place. This is especially useful when you want to observe what your agents are doing or step in to help when needed.
+When you have goose running several browser tasks at once, it can be hard to keep track of what's happening. The visual dashboard gives you a bird's-eye view of all your active browser sessions, letting you watch progress in real-time or jump in and take control when needed.
 
 ```bash
 playwright-cli show
 ```
 
-The dashboard opens a window with two views:
+The dashboard provides two ways to interact with your sessions:
 
-- **Session grid** — Shows all active sessions grouped by workspace, each with a live screencast preview, session name, current URL, and page title. Click any session to zoom in.
-- **Session detail** — Shows a live view of the selected session with navigation controls (back, forward, reload, address bar) and full remote control. Click into the viewport to take over mouse and keyboard input; press **Escape** to release control back to the agent.
+- **Session grid** — See all your running browsers at a glance with live previews. Each tile shows the workspace, current URL, and page title. Click any session to focus on it.
+- **Session detail** — Get a full-size view of a single session with browser controls (back, forward, reload). You can take over the mouse and keyboard by clicking in the browser window—press **Escape** when you want to hand control back to goose.
 
-From the grid you can also close running sessions or delete data for inactive ones. This makes it easy to manage multiple parallel browser automations without losing track of what's happening.
+You can also close sessions or clear saved data directly from the dashboard, making it simple to manage everything without switching between windows.
 
 :::note
 The `show` command requires playwright-cli version 0.2.0 or later.
