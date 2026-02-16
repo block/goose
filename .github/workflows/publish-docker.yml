@@ -15,6 +15,8 @@ on:
 permissions:
   contents: read
   packages: write
+  id-token: write      # Required for Sigstore OIDC signing
+  attestations: write  # Required for SLSA build provenance attestations
 
 jobs:
   docker:
@@ -51,6 +53,7 @@ jobs:
             type=raw,value={{tag}},enable=${{ startsWith(github.ref, 'refs/tags/v') }}
       
       - name: Build and push Docker image
+        id: docker-push
         uses: docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83 # pin@v6.18.0
         with:
           context: .
@@ -60,3 +63,10 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
           platforms: linux/amd64,linux/arm64
+
+      - name: Attest Docker image
+        uses: actions/attest-build-provenance@96278af6caaf10aea03fd8d33a09a777ca52d62f  # v3.2.0
+        with:
+          subject-name: ghcr.io/${{ github.repository_owner }}/goose
+          subject-digest: ${{ steps.docker-push.outputs.digest }}
+          push-to-registry: true

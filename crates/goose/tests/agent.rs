@@ -510,7 +510,7 @@ mod tests {
     mod extension_manager_tests {
         use super::*;
         use goose::agents::extension::ExtensionConfig;
-        use goose::agents::extension_manager_extension::{
+        use goose::agents::platform_extensions::{
             MANAGE_EXTENSIONS_TOOL_NAME, SEARCH_AVAILABLE_EXTENSIONS_TOOL_NAME,
         };
         use goose::agents::AgentConfig;

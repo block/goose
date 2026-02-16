@@ -56,10 +56,6 @@ The Developer extension is already enabled by default when goose is installed.
 
 In this example, I'm going to have goose automate setting up my JavaScript developer environment with Express, Mongoose, Nodemon, Dotenv and initialize Git.
 
-:::info LLM
-Anthropic's Claude 4 Sonnet was used for this task.
-:::
-
 
 <Tabs groupId="interface">
   <TabItem value="ui" label="goose Desktop" default>
