@@ -1,7 +1,7 @@
 //! ACP v0.2.0 discovery and compatibility endpoints.
 //!
 //! Aligned with ACP / A2A protocol: 1 agent = 1 persona with N session modes.
-//!   - Goose Agent: general-purpose agent (modes: assistant, specialist, recipe_maker, …)
+//!   - Goose Agent: general-purpose agent (modes: ask, plan, write, review, app_maker, app_iterator)
 //!   - Developer Agent: software engineering agent (modes: ask, plan, write, review, debug)
 //!   - QA/PM/Security/Research Agents: specialist agents (modes: ask, plan, write, review)
 //!
@@ -295,12 +295,14 @@ mod tests {
         );
 
         // Public modes must be present
-        assert!(mode_ids.contains(&"assistant"), "Missing assistant mode");
-        assert!(mode_ids.contains(&"specialist"), "Missing specialist mode");
+        assert!(mode_ids.contains(&"ask"), "Missing ask mode");
+        assert!(mode_ids.contains(&"plan"), "Missing plan mode");
+        assert!(mode_ids.contains(&"write"), "Missing write mode");
+        assert!(mode_ids.contains(&"review"), "Missing review mode");
         assert_eq!(
             goose.default_mode.as_deref(),
-            Some("assistant"),
-            "Default mode should be assistant"
+            Some("ask"),
+            "Default mode should be ask"
         );
     }
 
@@ -344,17 +346,21 @@ mod tests {
 
     #[test]
     fn test_resolve_mode_to_agent() {
-        let result = resolve_mode_to_agent("write");
-        assert!(result.is_some());
-        let (slot, mode) = result.unwrap();
-        assert_eq!(slot, "Developer Agent");
-        assert_eq!(mode, "write");
-
-        let result = resolve_mode_to_agent("assistant");
+        // With universal modes, multiple agents share "ask"/"write"/"plan"/"review".
+        // resolve_mode_to_agent returns the first registered agent that has the mode.
+        // GooseAgent is registered first, so universal slugs resolve to it.
+        let result = resolve_mode_to_agent("ask");
         assert!(result.is_some());
         let (slot, mode) = result.unwrap();
         assert_eq!(slot, "Goose Agent");
-        assert_eq!(mode, "assistant");
+        assert_eq!(mode, "ask");
+
+        // "debug" is only on Developer Agent (not on GooseAgent)
+        let result = resolve_mode_to_agent("debug");
+        assert!(result.is_some());
+        let (slot, mode) = result.unwrap();
+        assert_eq!(slot, "Developer Agent");
+        assert_eq!(mode, "debug");
 
         assert!(resolve_mode_to_agent("nonexistent").is_none());
     }

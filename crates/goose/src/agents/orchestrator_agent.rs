@@ -710,7 +710,7 @@ mod tests {
 
         assert!(catalog.contains("Goose Agent"));
         assert!(catalog.contains("Developer Agent"));
-        assert!(catalog.contains("assistant"));
+        assert!(catalog.contains("ask"));
         assert!(catalog.contains("code"));
         assert!(catalog.contains("architect"));
     }
@@ -786,7 +786,7 @@ mod tests {
         let response = crate::conversation::message::Message::assistant().with_text(
             r#"{"is_compound": true, "tasks": [
                 {"agent_name": "NonExistent Agent", "mode_slug": "foo", "confidence": 0.5, "reasoning": "test", "sub_task": "invalid"},
-                {"agent_name": "Goose Agent", "mode_slug": "assistant", "confidence": 0.8, "reasoning": "fallback", "sub_task": "valid task"}
+                {"agent_name": "Goose Agent", "mode_slug": "ask", "confidence": 0.8, "reasoning": "fallback", "sub_task": "valid task"}
             ]}"#,
         );
 
@@ -820,7 +820,7 @@ mod tests {
     fn test_orchestrator_plan_single() {
         let decision = RoutingDecision {
             agent_name: "Goose Agent".into(),
-            mode_slug: "assistant".into(),
+            mode_slug: "ask".into(),
             confidence: 0.9,
             reasoning: "General question".into(),
         };
@@ -836,7 +836,7 @@ mod tests {
         let tasks = vec![SubTask {
             routing: RoutingDecision {
                 agent_name: "Goose Agent".into(),
-                mode_slug: "assistant".into(),
+                mode_slug: "ask".into(),
                 confidence: 0.9,
                 reasoning: "test".into(),
             },
@@ -1035,10 +1035,10 @@ mod tests {
     #[test]
     fn test_get_mode_name_found() {
         let orch = make_orchestrator();
-        let name = orch.get_mode_name("Goose Agent", "assistant");
+        let name = orch.get_mode_name("Goose Agent", "ask");
         assert!(
-            name.contains("Assistant"),
-            "Expected mode name containing 'Assistant', got: {}",
+            name.contains("Ask"),
+            "Expected mode name containing 'Ask', got: {}",
             name
         );
     }

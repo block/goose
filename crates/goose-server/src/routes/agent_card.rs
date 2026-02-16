@@ -100,7 +100,7 @@ mod tests {
         // Check specific public skills exist
         let skill_ids: Vec<&str> = card.skills.iter().map(|s| s.id.as_str()).collect();
         assert!(
-            skill_ids.contains(&"goose-agent.assistant"),
+            skill_ids.contains(&"goose-agent.ask"),
             "Missing assistant skill"
         );
         assert!(

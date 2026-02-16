@@ -291,23 +291,23 @@ test_cases:
   # ══════════════════════════════════════════════════════════════════
   - input: "What time is it in Tokyo?"
     expected_agent: "Goose Agent"
-    expected_mode: "assistant"
+    expected_mode: "ask"
     tags: [p0, general]
   - input: "Tell me a joke about programming"
     expected_agent: "Goose Agent"
-    expected_mode: "assistant"
+    expected_mode: "ask"
     tags: [p1, general]
   - input: "Summarize this article for me"
     expected_agent: "Goose Agent"
-    expected_mode: "assistant"
+    expected_mode: "ask"
     tags: [p1, general]
   - input: "What is the meaning of life?"
     expected_agent: "Goose Agent"
-    expected_mode: "assistant"
+    expected_mode: "ask"
     tags: [p1, general]
   - input: "Help me write an email to my boss"
     expected_agent: "Goose Agent"
-    expected_mode: "assistant"
+    expected_mode: "ask"
     tags: [p1, general]
   # ══════════════════════════════════════════════════════════════════
   # Developer Agent — software engineering (write code, debug, deploy)
@@ -513,7 +513,7 @@ test_cases:
     tags: [ambiguity, qa]
   - input: "Create an app that shows weather forecasts"
     expected_agent: "Goose Agent"
-    expected_mode: "assistant"
+    expected_mode: "ask"
     tags: [ambiguity, goose]
 "#;
 

@@ -514,7 +514,7 @@ async fn handle_initialize(
             // Backward-compatible modes list
             "modes": {
                 "available": mode_list,
-                "default": "assistant",
+                "default": "ask",
             },
         }),
     )
@@ -557,7 +557,7 @@ async fn handle_new_session(
         serde_json::json!({
             "session_id": session_id,
             "modes": {
-                "current_mode_id": "assistant",
+                "current_mode_id": "ask",
                 "available_modes": mode_list,
             },
         }),
@@ -605,7 +605,7 @@ async fn handle_load_session(
                 serde_json::json!({
                     "session_id": session_id,
                     "modes": {
-                        "current_mode_id": "assistant",
+                        "current_mode_id": "ask",
                         "available_modes": mode_list,
                     },
                 }),
@@ -951,7 +951,7 @@ mod tests {
             modes.len()
         );
         let slugs: Vec<&str> = modes.iter().map(|m| m.slug.as_str()).collect();
-        assert!(slugs.contains(&"assistant"));
+        assert!(slugs.contains(&"ask"));
         assert!(slugs.contains(&"write"));
 
         // Internal modes must not be exposed to IDE clients

@@ -403,7 +403,7 @@ impl IntentRouter {
     fn fallback_decision(&self, reason: &str) -> RoutingDecision {
         RoutingDecision {
             agent_name: "Goose Agent".into(),
-            mode_slug: "assistant".into(),
+            mode_slug: "ask".into(),
             confidence: 0.1,
             reasoning: reason.into(),
         }

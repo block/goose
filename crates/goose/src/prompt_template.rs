@@ -39,6 +39,23 @@ static TEMPLATE_REGISTRY: &[(&str, &str)] = &[
         "plan.md",
         "Prompt used when goose creates step-by-step plans. CLI only",
     ),
+    // Goose Agent (universal public modes)
+    (
+        "goose/ask.md",
+        "Goose Ask — read-only exploration, search, and Q&A",
+    ),
+    (
+        "goose/plan.md",
+        "Goose Plan — strategy, architecture, and step-by-step plans",
+    ),
+    (
+        "goose/write.md",
+        "Goose Write — create/edit files, run commands, build artifacts",
+    ),
+    (
+        "goose/review.md",
+        "Goose Review — evaluate code, docs, and artifacts for quality",
+    ),
     // Developer Agent (universal modes)
     (
         "developer/ask.md",
