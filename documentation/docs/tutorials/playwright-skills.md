@@ -9,9 +9,9 @@ import GooseBuiltinInstaller from '@site/src/components/GooseBuiltinInstaller';
 
 <iframe width="560" height="315" src="https://www.youtube.com/embed/_MpbmD_unnU?si=dpHvuLVkbONN_0Hk" title="YouTube video player" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" referrerpolicy="strict-origin-when-cross-origin" allowfullscreen></iframe>
 
-goose can automate browsers and generate Playwright tests using [Playwright CLI](https://github.com/microsoft/playwright-cli). By loading Playwright CLI Skills, goose gains the ability to navigate websites, interact with elements, take screenshots, record videos, and generate test code all from natural language instructions whilst also saving on tokens compared to when using the Playwright MCP.
+goose can automate browsers and generate Playwright tests using [Playwright CLI](https://github.com/microsoft/playwright-cli). By loading Playwright CLI Skills, goose gains the ability to navigate websites, interact with elements, take screenshots, record videos, and generate test code—all from natural language instructions while saving on tokens compared to using the Playwright MCP.
 
-### Prerequisites
+## Prerequisites
 
 - [Node.js](https://nodejs.org/) 18 or later
 - A project with [Playwright](https://playwright.dev/) installed (`npm init playwright@latest`)
@@ -92,7 +92,7 @@ These reference files teach goose how to:
 
 ## How It Works: Token Efficiency
 
-Unlike with the Playwright MCP whcih puts the entire page structure into the LLM context, Playwright CLI saves the accessibility tree locally as YAML files. This means:
+Unlike the Playwright MCP which puts the entire page structure into the LLM context, Playwright CLI saves the accessibility tree locally as YAML files. This means:
 
 - ✅ Faster responses
 - ✅ Lower token usage
@@ -101,77 +101,45 @@ Unlike with the Playwright MCP whcih puts the entire page structure into the LLM
 
 When goose takes a snapshot, it saves a YAML file containing element references (refs) that it uses to find and interact with elements on the page.
 
-## Example Usage
+## Generate a Test with Video and Traces
 
-### Opening a Browser and Taking Screenshots
-
-Ask goose to open a website:
-
-```
-Open block.github.io/goose in the browser
-```
-
-goose will navigate to the site and report the browser session is active. You can then:
-
-```
-Take a screenshot
-```
-
-The screenshot is saved to `.playwright-cli/` in your project.
-
-:::tip Headed Mode
-By default, the browser runs headless (no visible window). If you want to watch the automation, use:
-```
-Open block.github.io/goose in a headed browser
-```
-
-:::
-
-### Generating Tests with Natural Language
-
-Describe what you want to test in plain English:
+Give goose a single prompt that describes what you want to test:
 
 ```
 Open block.github.io/goose, click on the Docs menu, click on Context Engineering, 
-then click on Using Skills and create a test based on your interactions
+then click on Using Skills and generate a test with video and traces
 ```
 
-### goose Output
+### How It Works
 
+Each `playwright-cli` command automatically outputs the corresponding Playwright code. For example:
+
+```bash
+playwright-cli click e11
+# Ran Playwright code:
+# await page.getByRole('link', { name: 'Docs' }).click();
 ```
-─── load_skill | skills ───────────────────────────────────────
-name: playwright-cli
 
-─── playwright-cli open | developer ───────────────────────────
-Opening browser and navigating to block.github.io/goose
+goose collects these code snippets as it performs actions and assembles them into a complete test file.
 
-─── playwright-cli snapshot | developer ───────────────────────
-Captured page structure, found Docs link at ref e11
+### What goose Does
 
-─── playwright-cli click | developer ──────────────────────────
-Clicking on "Docs" in navigation
+1. Opens the browser: `playwright-cli open block.github.io/goose`
+2. Starts recording: `playwright-cli video-start` and `playwright-cli tracing-start`
+3. Takes snapshots to find elements: `playwright-cli snapshot`
+4. Performs clicks: `playwright-cli click <ref>`
+5. Stops recording: `playwright-cli video-stop` and `playwright-cli tracing-stop`
+6. Assembles the generated code into a test file
 
-─── playwright-cli snapshot | developer ───────────────────────
-Captured Guides page, found Context Engineering category
+### Generated Files
 
-─── playwright-cli click | developer ──────────────────────────
-Expanding "Context Engineering" sidebar category
+| File | Description |
+|------|-------------|
+| `tests/using-skills-navigation.spec.ts` | Your Playwright test |
+| `.playwright-cli/video-*.webm` | Video recording of the session |
+| `.playwright-cli/traces/*.trace` | Trace file for debugging |
 
-─── playwright-cli snapshot | developer ───────────────────────
-Found "Using Skills" link at ref e596
-
-─── playwright-cli click | developer ──────────────────────────
-Clicking on "Using Skills"
-
-─── playwright-cli snapshot | developer ───────────────────────
-Captured page after navigation to Using Skills guide
-
-─── text_editor | developer ───────────────────────────────────
-writing tests/using-skills-navigation.spec.ts
-
-✅ Test Generated Successfully
-Location: tests/using-skills-navigation.spec.ts
-```
+### Generated Test Code
 
 The generated test might look like:
 
@@ -197,29 +165,13 @@ test('navigate to Using Skills guide via docs menu', async ({ page }) => {
 });
 ```
 
-### Running Tests
+### Running the Test
 
-Goose will automatically ask you if you want it to run the test and if you have Playwright already set up it will go ahead and run the test for you. However if you don't have Playwright setup, no worries, goose can go ahead and install it for you and then run the test. 
+goose will ask if you want to run the test. If Playwright is already set up, it runs immediately. If not, goose can install Playwright for you first.
 
-## Recording Videos and Traces
+### Viewing the Trace
 
-For debugging or documentation, ask goose to record the session:
-
-```
-Create a video and trace for the actions we just performed
-```
-
-### Video Recording
-
-Videos are saved to `.playwright-cli/videos/` and are useful for:
-- Debugging test failures
-- Verifying agent behavior
-- Including in pull requests
-- Creating demos
-
-### Viewing Traces
-
-Playwright traces provide a detailed timeline of everything that happened. To view a trace:
+To debug or review what happened, ask goose:
 
 ```
 Open the trace
@@ -232,12 +184,19 @@ The trace viewer shows:
 - Network requests
 - Element locators used
 
+:::tip Headed Mode
+By default, the browser runs headless (no visible window). If you want to watch the automation in real-time:
+```
+Open block.github.io/goose in a headed browser
+```
+:::
+
 ## Full Capabilities
 
-If you want to know what else you can do with the PLaywright skills, simply ask goose:
+Want to know what else you can do? Ask goose:
 
 ```
-What else can you do with playwright skills
+What else can you do with playwright skills?
 ```
 
 | Category | Capabilities |
@@ -261,8 +220,8 @@ What else can you do with playwright skills
 
 ## Tips and Best Practices
 
-1. **Start simple** - Begin with basic navigation and screenshots before complex test generation
-2. **Use headed mode for debugging** - Add `--headed` when you need to see what's happening
+1. **Start simple** - Begin with basic navigation before complex test generation
+2. **Use headed mode for debugging** - Watch what's happening in real-time
 3. **Review generated tests** - Always review and refine the generated test code
 4. **Leverage traces** - Use traces to understand exactly what the agent did
 5. **Iterate quickly** - Run tests immediately after generation to catch issues early
