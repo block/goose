@@ -6,6 +6,7 @@ import RunHistoryTab from "./RunHistoryTab";
 import TopicsTab from "./TopicsTab";
 import ToolAnalyticsTab from "./ToolAnalyticsTab";
 import LiveMonitoringTab from "./LiveMonitoringTab";
+import ResponseQualityTab from "./ResponseQualityTab";
 import RoutingInspector from "./RoutingInspector";
 import EvalRunner from "./EvalRunner";
 import AgentCatalog from "./AgentCatalog";
@@ -23,6 +24,7 @@ const TABS: TabDef[] = [
   { id: "dashboard", label: "Dashboard", group: "observe" },
   { id: "tools", label: "Tool Analytics", group: "observe" },
   { id: "monitoring", label: "Live", group: "observe" },
+  { id: "quality", label: "Quality", group: "observe" },
   // Evaluate
   { id: "overview", label: "Overview", group: "evaluate" },
   { id: "datasets", label: "Datasets", group: "evaluate" },
@@ -44,6 +46,7 @@ const COMPONENTS: Record<string, React.FC> = {
   dashboard: AnalyticsDashboard,
   tools: ToolAnalyticsTab,
   monitoring: LiveMonitoringTab,
+  quality: ResponseQualityTab,
   overview: EvalOverviewTab,
   datasets: DatasetsTab,
   runs: RunHistoryTab,

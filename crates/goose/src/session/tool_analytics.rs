@@ -144,6 +144,43 @@ pub struct MinuteActivity {
     pub messages: i32,
 }
 
+/// Response quality proxy metrics derived from session/message patterns
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+pub struct ResponseQualityMetrics {
+    pub total_sessions: i64,
+    pub avg_session_duration_secs: f64,
+    pub avg_messages_per_session: f64,
+    pub avg_user_messages_per_session: f64,
+    pub retry_rate: f64,
+    pub avg_tool_errors_per_session: f64,
+    pub avg_tokens_per_session: f64,
+    pub completion_rate: f64,
+    pub sessions_with_errors: i64,
+    pub daily_quality: Vec<DailyQuality>,
+    pub quality_by_provider: Vec<ProviderQuality>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+pub struct DailyQuality {
+    pub date: String,
+    pub sessions: i64,
+    pub avg_duration_secs: f64,
+    pub avg_messages: f64,
+    pub retry_rate: f64,
+    pub error_rate: f64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+pub struct ProviderQuality {
+    pub provider: String,
+    pub sessions: i64,
+    pub avg_duration_secs: f64,
+    pub avg_messages: f64,
+    pub avg_tokens: f64,
+    pub retry_rate: f64,
+    pub error_rate: f64,
+}
+
 pub struct ToolAnalyticsStore<'a> {
     pool: &'a Pool<Sqlite>,
 }
@@ -731,6 +768,205 @@ impl<'a> ToolAnalyticsStore<'a> {
                     minute,
                     tool_calls: calls,
                     messages: msgs,
+                })
+                .collect(),
+        })
+    }
+
+    /// Get response quality proxy metrics from session patterns
+    pub async fn get_response_quality(&self, days: i32) -> Result<ResponseQualityMetrics> {
+        // Overall session metrics
+        let overall: (i64, f64, f64, f64, f64, i64) = sqlx::query_as(
+            r#"
+            SELECT
+                COUNT(*) as total_sessions,
+                AVG(COALESCE(
+                    julianday(updated_at) - julianday(created_at), 0
+                ) * 86400) as avg_duration_secs,
+                AVG(COALESCE(message_count, 0)) as avg_messages,
+                AVG(COALESCE(total_tokens, 0)) as avg_tokens,
+                0.0 as placeholder,
+                0 as placeholder2
+            FROM sessions
+            WHERE created_at > datetime('now', '-' || ? || ' days')
+              AND message_count > 0
+            "#,
+        )
+        .bind(days)
+        .fetch_one(self.pool)
+        .await?;
+
+        // Retry rate: consecutive user messages (user sent >1 message before assistant responded)
+        let retry_data: (f64,) = sqlx::query_as(
+            r#"
+            WITH msg_pairs AS (
+                SELECT
+                    session_id,
+                    role,
+                    LAG(role) OVER (PARTITION BY session_id ORDER BY created_timestamp) as prev_role
+                FROM messages
+                WHERE created_timestamp > unixepoch() - (? * 86400)
+            )
+            SELECT
+                COALESCE(
+                    CAST(SUM(CASE WHEN role = 'user' AND prev_role = 'user' THEN 1 ELSE 0 END) AS REAL) /
+                    NULLIF(CAST(SUM(CASE WHEN role = 'user' THEN 1 ELSE 0 END) AS REAL), 0),
+                    0.0
+                ) as retry_rate
+            FROM msg_pairs
+            "#,
+        )
+        .bind(days)
+        .fetch_one(self.pool)
+        .await?;
+
+        // Average user messages per session
+        let user_msgs: (f64,) = sqlx::query_as(
+            r#"
+            SELECT COALESCE(AVG(user_count), 0.0) FROM (
+                SELECT session_id, COUNT(*) as user_count
+                FROM messages
+                WHERE role = 'user'
+                  AND created_timestamp > unixepoch() - (? * 86400)
+                GROUP BY session_id
+            )
+            "#,
+        )
+        .bind(days)
+        .fetch_one(self.pool)
+        .await?;
+
+        // Tool errors per session
+        let tool_errors: (f64,) = sqlx::query_as(
+            r#"
+            SELECT COALESCE(AVG(err_count), 0.0) FROM (
+                SELECT m.session_id, COUNT(*) as err_count
+                FROM messages m, json_each(m.content_json) je
+                WHERE m.role = 'user'
+                  AND json_extract(je.value, '$.type') = 'toolResponse'
+                  AND (json_extract(je.value, '$.toolResult.value.isError') = 1
+                       OR json_extract(je.value, '$.toolResult.error') IS NOT NULL)
+                  AND m.created_timestamp > unixepoch() - (? * 86400)
+                GROUP BY m.session_id
+            )
+            "#,
+        )
+        .bind(days)
+        .fetch_one(self.pool)
+        .await?;
+
+        // Sessions with errors
+        let (sessions_with_errors,): (i64,) = sqlx::query_as(
+            r#"
+            SELECT COUNT(DISTINCT m.session_id)
+            FROM messages m, json_each(m.content_json) je
+            WHERE m.role = 'user'
+              AND json_extract(je.value, '$.type') = 'toolResponse'
+              AND (json_extract(je.value, '$.toolResult.value.isError') = 1
+                   OR json_extract(je.value, '$.toolResult.error') IS NOT NULL)
+              AND m.created_timestamp > unixepoch() - (? * 86400)
+            "#,
+        )
+        .bind(days)
+        .fetch_one(self.pool)
+        .await?;
+
+        // Completion rate: sessions with >2 messages and last message from assistant
+        let completion: (f64,) = sqlx::query_as(
+            r#"
+            WITH session_last AS (
+                SELECT
+                    session_id,
+                    role as last_role,
+                    ROW_NUMBER() OVER (PARTITION BY session_id ORDER BY created_timestamp DESC) as rn
+                FROM messages
+                WHERE created_timestamp > unixepoch() - (? * 86400)
+            ),
+            completed AS (
+                SELECT session_id, last_role
+                FROM session_last WHERE rn = 1
+            )
+            SELECT COALESCE(
+                CAST(SUM(CASE WHEN last_role = 'assistant' THEN 1 ELSE 0 END) AS REAL) /
+                NULLIF(CAST(COUNT(*) AS REAL), 0),
+                0.0
+            ) FROM completed
+            "#,
+        )
+        .bind(days)
+        .fetch_one(self.pool)
+        .await?;
+
+        // Daily quality trend
+        let daily: Vec<(String, i64, f64, f64)> = sqlx::query_as(
+            r#"
+            SELECT
+                date(created_at) as day,
+                COUNT(*) as sessions,
+                AVG(COALESCE(julianday(updated_at) - julianday(created_at), 0) * 86400) as avg_duration,
+                AVG(COALESCE(message_count, 0)) as avg_messages
+            FROM sessions
+            WHERE created_at > datetime('now', '-' || ? || ' days')
+              AND message_count > 0
+            GROUP BY day
+            ORDER BY day ASC
+            "#,
+        )
+        .bind(days)
+        .fetch_all(self.pool)
+        .await?;
+
+        // Quality by provider
+        let by_provider: Vec<(String, i64, f64, f64, f64)> = sqlx::query_as(
+            r#"
+            SELECT
+                COALESCE(provider_name, 'unknown') as provider,
+                COUNT(*) as sessions,
+                AVG(COALESCE(julianday(updated_at) - julianday(created_at), 0) * 86400) as avg_duration,
+                AVG(COALESCE(message_count, 0)) as avg_messages,
+                AVG(COALESCE(total_tokens, 0)) as avg_tokens
+            FROM sessions
+            WHERE created_at > datetime('now', '-' || ? || ' days')
+              AND message_count > 0
+            GROUP BY provider
+            ORDER BY sessions DESC
+            "#,
+        )
+        .bind(days)
+        .fetch_all(self.pool)
+        .await?;
+
+        Ok(ResponseQualityMetrics {
+            total_sessions: overall.0,
+            avg_session_duration_secs: overall.1,
+            avg_messages_per_session: overall.2,
+            avg_user_messages_per_session: user_msgs.0,
+            retry_rate: retry_data.0,
+            avg_tool_errors_per_session: tool_errors.0,
+            avg_tokens_per_session: overall.3,
+            completion_rate: completion.0,
+            sessions_with_errors,
+            daily_quality: daily
+                .into_iter()
+                .map(|(date, sessions, dur, msgs)| DailyQuality {
+                    date,
+                    sessions,
+                    avg_duration_secs: dur,
+                    avg_messages: msgs,
+                    retry_rate: 0.0,
+                    error_rate: 0.0,
+                })
+                .collect(),
+            quality_by_provider: by_provider
+                .into_iter()
+                .map(|(provider, sessions, dur, msgs, tokens)| ProviderQuality {
+                    provider,
+                    sessions,
+                    avg_duration_secs: dur,
+                    avg_messages: msgs,
+                    avg_tokens: tokens,
+                    retry_rate: 0.0,
+                    error_rate: 0.0,
                 })
                 .collect(),
         })

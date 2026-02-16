@@ -445,6 +445,15 @@ export type DailyActivity = {
     totalTokens: number;
 };
 
+export type DailyQuality = {
+    avg_duration_secs: number;
+    avg_messages: number;
+    date: string;
+    error_rate: number;
+    retry_rate: number;
+    sessions: number;
+};
+
 /**
  * Daily tool activity
  */
@@ -1357,6 +1366,16 @@ export type ProviderMetadata = {
     name: string;
 };
 
+export type ProviderQuality = {
+    avg_duration_secs: number;
+    avg_messages: number;
+    avg_tokens: number;
+    error_rate: number;
+    provider: string;
+    retry_rate: number;
+    sessions: number;
+};
+
 export type ProviderSessionStat = {
     avg_messages: number;
     avg_tokens: number;
@@ -1525,6 +1544,23 @@ export type ResourceMetadata = {
 
 export type Response = {
     json_schema?: unknown;
+};
+
+/**
+ * Response quality proxy metrics derived from session/message patterns
+ */
+export type ResponseQualityMetrics = {
+    avg_messages_per_session: number;
+    avg_session_duration_secs: number;
+    avg_tokens_per_session: number;
+    avg_tool_errors_per_session: number;
+    avg_user_messages_per_session: number;
+    completion_rate: number;
+    daily_quality: Array<DailyQuality>;
+    quality_by_provider: Array<ProviderQuality>;
+    retry_rate: number;
+    sessions_with_errors: number;
+    total_sessions: number;
 };
 
 export type RestartAgentRequest = {
@@ -2994,7 +3030,7 @@ export type GetAgentData = {
     body?: never;
     path: {
         /**
-         * Agent slug (e.g. goose-agent, coding-agent)
+         * Agent slug (e.g. goose-agent, developer-agent)
          */
         name: string;
     };
@@ -3206,6 +3242,24 @@ export type GetLiveMonitoringResponses = {
 };
 
 export type GetLiveMonitoringResponse = GetLiveMonitoringResponses[keyof GetLiveMonitoringResponses];
+
+export type GetResponseQualityData = {
+    body?: never;
+    path?: never;
+    query?: {
+        /**
+         * Number of days to analyze
+         */
+        days?: number | null;
+    };
+    url: '/analytics/quality';
+};
+
+export type GetResponseQualityResponses = {
+    200: ResponseQualityMetrics;
+};
+
+export type GetResponseQualityResponse = GetResponseQualityResponses[keyof GetResponseQualityResponses];
 
 export type GetToolAnalyticsData = {
     body?: never;

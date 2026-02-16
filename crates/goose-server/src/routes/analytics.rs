@@ -16,7 +16,7 @@ use goose::session::eval_storage::{
     EvalRunSummary, EvalStorage, RunComparison, RunEvalRequest, TopicAnalytics,
 };
 use goose::session::tool_analytics::{
-    AgentPerformanceMetrics, LiveMetrics, ToolAnalytics, ToolAnalyticsStore,
+    AgentPerformanceMetrics, LiveMetrics, ResponseQualityMetrics, ToolAnalytics, ToolAnalyticsStore,
 };
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
@@ -571,6 +571,31 @@ pub async fn get_live_monitoring(
     Ok(Json(metrics))
 }
 
+/// Get response quality metrics
+#[utoipa::path(
+    get,
+    path = "/analytics/quality",
+    params(("days" = Option<i32>, Query, description = "Number of days to analyze")),
+    responses((status = 200, body = ResponseQualityMetrics))
+)]
+pub async fn get_response_quality(
+    State(state): State<Arc<AppState>>,
+    Query(params): Query<ToolAnalyticsQuery>,
+) -> Result<Json<ResponseQualityMetrics>, ErrorResponse> {
+    let sm = state.session_manager();
+    let pool = sm
+        .storage()
+        .pool()
+        .await
+        .map_err(|e| ErrorResponse::internal(e.to_string()))?;
+    let store = ToolAnalyticsStore::new(pool);
+    let metrics = store
+        .get_response_quality(params.days.unwrap_or(30))
+        .await
+        .map_err(|e| ErrorResponse::internal(e.to_string()))?;
+    Ok(Json(metrics))
+}
+
 // ── Router ─────────────────────────────────────────────────────────
 
 pub fn routes(state: Arc<AppState>) -> Router {
@@ -599,5 +624,7 @@ pub fn routes(state: Arc<AppState>) -> Router {
         .route("/analytics/tools/agents", get(get_agent_performance))
         // Live monitoring
         .route("/analytics/monitoring/live", get(get_live_monitoring))
+        // Response quality
+        .route("/analytics/quality", get(get_response_quality))
         .with_state(state)
 }

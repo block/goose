@@ -1135,7 +1135,7 @@
           {
             "name": "name",
             "in": "path",
-            "description": "Agent slug (e.g. goose-agent, coding-agent)",
+            "description": "Agent slug (e.g. goose-agent, developer-agent)",
             "required": true,
             "schema": {
               "type": "string"
@@ -1504,6 +1504,40 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/LiveMetrics"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/analytics/quality": {
+      "get": {
+        "tags": [
+          "super::routes::analytics"
+        ],
+        "summary": "Get response quality metrics",
+        "operationId": "get_response_quality",
+        "parameters": [
+          {
+            "name": "days",
+            "in": "query",
+            "description": "Number of days to analyze",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "nullable": true
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResponseQualityMetrics"
                 }
               }
             }
@@ -5896,6 +5930,42 @@
           }
         }
       },
+      "DailyQuality": {
+        "type": "object",
+        "required": [
+          "date",
+          "sessions",
+          "avg_duration_secs",
+          "avg_messages",
+          "retry_rate",
+          "error_rate"
+        ],
+        "properties": {
+          "avg_duration_secs": {
+            "type": "number",
+            "format": "double"
+          },
+          "avg_messages": {
+            "type": "number",
+            "format": "double"
+          },
+          "date": {
+            "type": "string"
+          },
+          "error_rate": {
+            "type": "number",
+            "format": "double"
+          },
+          "retry_rate": {
+            "type": "number",
+            "format": "double"
+          },
+          "sessions": {
+            "type": "integer",
+            "format": "int64"
+          }
+        }
+      },
       "DailyToolActivity": {
         "type": "object",
         "description": "Daily tool activity",
@@ -8656,6 +8726,47 @@
           }
         }
       },
+      "ProviderQuality": {
+        "type": "object",
+        "required": [
+          "provider",
+          "sessions",
+          "avg_duration_secs",
+          "avg_messages",
+          "avg_tokens",
+          "retry_rate",
+          "error_rate"
+        ],
+        "properties": {
+          "avg_duration_secs": {
+            "type": "number",
+            "format": "double"
+          },
+          "avg_messages": {
+            "type": "number",
+            "format": "double"
+          },
+          "avg_tokens": {
+            "type": "number",
+            "format": "double"
+          },
+          "error_rate": {
+            "type": "number",
+            "format": "double"
+          },
+          "provider": {
+            "type": "string"
+          },
+          "retry_rate": {
+            "type": "number",
+            "format": "double"
+          },
+          "sessions": {
+            "type": "integer",
+            "format": "int64"
+          }
+        }
+      },
       "ProviderSessionStat": {
         "type": "object",
         "required": [
@@ -9203,6 +9314,73 @@
         "properties": {
           "json_schema": {
             "nullable": true
+          }
+        }
+      },
+      "ResponseQualityMetrics": {
+        "type": "object",
+        "description": "Response quality proxy metrics derived from session/message patterns",
+        "required": [
+          "total_sessions",
+          "avg_session_duration_secs",
+          "avg_messages_per_session",
+          "avg_user_messages_per_session",
+          "retry_rate",
+          "avg_tool_errors_per_session",
+          "avg_tokens_per_session",
+          "completion_rate",
+          "sessions_with_errors",
+          "daily_quality",
+          "quality_by_provider"
+        ],
+        "properties": {
+          "avg_messages_per_session": {
+            "type": "number",
+            "format": "double"
+          },
+          "avg_session_duration_secs": {
+            "type": "number",
+            "format": "double"
+          },
+          "avg_tokens_per_session": {
+            "type": "number",
+            "format": "double"
+          },
+          "avg_tool_errors_per_session": {
+            "type": "number",
+            "format": "double"
+          },
+          "avg_user_messages_per_session": {
+            "type": "number",
+            "format": "double"
+          },
+          "completion_rate": {
+            "type": "number",
+            "format": "double"
+          },
+          "daily_quality": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DailyQuality"
+            }
+          },
+          "quality_by_provider": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ProviderQuality"
+            }
+          },
+          "retry_rate": {
+            "type": "number",
+            "format": "double"
+          },
+          "sessions_with_errors": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "total_sessions": {
+            "type": "integer",
+            "format": "int64"
           }
         }
       },
