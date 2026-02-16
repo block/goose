@@ -36,6 +36,7 @@ pub(crate) mod todo_extension;
 pub(crate) mod tom_extension;
 mod tool_execution;
 pub mod tool_filter;
+pub mod tool_registry;
 pub mod types;
 pub mod universal_mode;
 
