@@ -1,0 +1,409 @@
+import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
+import {
+  Wrench,
+  Bot,
+  FileText,
+  ChevronRight,
+  Package,
+  Download,
+  Plus,
+  Search,
+  RefreshCw,
+  ExternalLink,
+  CheckCircle2,
+  AlertCircle,
+} from 'lucide-react';
+import { ScrollArea } from '../ui/scroll-area';
+import { getExtensions, listBuiltinAgents } from '../../api';
+import { listSavedRecipes } from '../../recipe/recipe_management';
+
+interface CatalogItem {
+  id: string;
+  name: string;
+  description: string;
+  status: 'installed' | 'available' | 'error';
+  type: string;
+}
+
+interface CatalogCategory {
+  id: string;
+  label: string;
+  description: string;
+  icon: React.ReactNode;
+  route: string;
+  color: string;
+  items: CatalogItem[];
+  loading: boolean;
+  actions: { label: string; icon: React.ReactNode; onClick: () => void }[];
+}
+
+function CatalogCard({ category }: { category: CatalogCategory }) {
+  const navigate = useNavigate();
+  const installed = category.items.filter((i) => i.status === 'installed').length;
+  const errors = category.items.filter((i) => i.status === 'error').length;
+
+  return (
+    <div
+      className="group relative bg-bgApp border border-borderSubtle rounded-xl p-6 hover:border-borderStandard hover:shadow-lg transition-all cursor-pointer"
+      onClick={() => navigate(category.route)}
+    >
+      <div className="flex items-start justify-between mb-4">
+        <div className="flex items-center gap-3">
+          <div
+            className="w-10 h-10 rounded-lg flex items-center justify-center"
+            style={{ backgroundColor: `${category.color}20`, color: category.color }}
+          >
+            {category.icon}
+          </div>
+          <div>
+            <h3 className="text-lg font-semibold text-textStandard">{category.label}</h3>
+            <p className="text-sm text-textSubtle">{category.description}</p>
+          </div>
+        </div>
+        <ChevronRight className="w-5 h-5 text-textSubtle opacity-0 group-hover:opacity-100 transition-opacity" />
+      </div>
+
+      <div className="flex items-center gap-4 mb-4">
+        <div className="flex items-center gap-1.5 text-sm">
+          <CheckCircle2 className="w-4 h-4 text-green-500" />
+          <span className="text-textStandard font-medium">{installed}</span>
+          <span className="text-textSubtle">installed</span>
+        </div>
+        {errors > 0 && (
+          <div className="flex items-center gap-1.5 text-sm">
+            <AlertCircle className="w-4 h-4 text-red-500" />
+            <span className="text-red-400 font-medium">{errors}</span>
+            <span className="text-textSubtle">issues</span>
+          </div>
+        )}
+        <div className="flex items-center gap-1.5 text-sm">
+          <Package className="w-4 h-4 text-textSubtle" />
+          <span className="text-textStandard font-medium">{category.items.length}</span>
+          <span className="text-textSubtle">total</span>
+        </div>
+      </div>
+
+      <div className="space-y-1.5">
+        {category.items.slice(0, 3).map((item) => (
+          <div
+            key={item.id}
+            className="flex items-center justify-between text-sm px-2 py-1.5 rounded-md bg-bgSubtle"
+          >
+            <div className="flex items-center gap-2 min-w-0">
+              <div
+                className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${
+                  item.status === 'installed'
+                    ? 'bg-green-500'
+                    : item.status === 'error'
+                      ? 'bg-red-500'
+                      : 'bg-gray-400'
+                }`}
+              />
+              <span className="text-textStandard truncate">{item.name}</span>
+            </div>
+            {item.type && (
+              <span className="text-xs text-textSubtle px-1.5 py-0.5 rounded bg-bgApp flex-shrink-0">
+                {item.type}
+              </span>
+            )}
+          </div>
+        ))}
+        {category.items.length > 3 && (
+          <div className="text-xs text-textSubtle text-center py-1">
+            +{category.items.length - 3} more
+          </div>
+        )}
+        {category.items.length === 0 && !category.loading && (
+          <div className="text-sm text-textSubtle text-center py-3">
+            No items yet — click to browse
+          </div>
+        )}
+        {category.loading && (
+          <div className="space-y-1.5">
+            {[1, 2, 3].map((i) => (
+              <div key={i} className="h-8 bg-bgSubtle rounded-md animate-pulse" />
+            ))}
+          </div>
+        )}
+      </div>
+
+      {category.actions.length > 0 && (
+        <div className="flex items-center gap-2 mt-4 pt-4 border-t border-borderSubtle">
+          {category.actions.map((action, i) => (
+            <button
+              key={i}
+              className="flex items-center gap-1.5 text-xs text-textSubtle hover:text-textStandard px-2 py-1 rounded-md hover:bg-bgSubtle transition-colors"
+              onClick={(e) => {
+                e.stopPropagation();
+                action.onClick();
+              }}
+            >
+              {action.icon}
+              {action.label}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+export default function CatalogsOverview() {
+  const navigate = useNavigate();
+  const [categories, setCategories] = useState<CatalogCategory[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [searchTerm, setSearchTerm] = useState('');
+
+  useEffect(() => {
+    loadCatalogs();
+  }, []);
+
+  async function loadCatalogs() {
+    setLoading(true);
+
+    const initial: CatalogCategory[] = [
+      {
+        id: 'tools',
+        label: 'Tools',
+        description: 'MCP extensions that provide capabilities to agents',
+        icon: <Wrench className="w-5 h-5" />,
+        route: '/extensions',
+        color: '#8b5cf6',
+        items: [],
+        loading: true,
+        actions: [
+          {
+            label: 'Add Tool',
+            icon: <Plus className="w-3.5 h-3.5" />,
+            onClick: () => navigate('/extensions'),
+          },
+          {
+            label: 'Browse Registry',
+            icon: <ExternalLink className="w-3.5 h-3.5" />,
+            onClick: () =>
+              window.open('https://block.github.io/goose/v1/extensions/', '_blank'),
+          },
+        ],
+      },
+      {
+        id: 'agents',
+        label: 'Agents',
+        description: 'AI agents with specialized modes and capabilities',
+        icon: <Bot className="w-5 h-5" />,
+        route: '/agents',
+        color: '#3b82f6',
+        items: [],
+        loading: true,
+        actions: [
+          {
+            label: 'View Agents',
+            icon: <Bot className="w-3.5 h-3.5" />,
+            onClick: () => navigate('/agents'),
+          },
+        ],
+      },
+      {
+        id: 'workflows',
+        label: 'Workflows',
+        description: 'Reusable prompts and automation pipelines',
+        icon: <FileText className="w-5 h-5" />,
+        route: '/recipes',
+        color: '#10b981',
+        items: [],
+        loading: true,
+        actions: [
+          {
+            label: 'Create Workflow',
+            icon: <Plus className="w-3.5 h-3.5" />,
+            onClick: () => navigate('/recipes'),
+          },
+          {
+            label: 'Import',
+            icon: <Download className="w-3.5 h-3.5" />,
+            onClick: () => navigate('/recipes'),
+          },
+        ],
+      },
+    ];
+    setCategories(initial);
+
+    // Load tools (extensions)
+    try {
+      const resp = await getExtensions();
+      const extensions = resp.data?.extensions || [];
+      const toolItems: CatalogItem[] = extensions.map((ext) => ({
+        id: ext.name,
+        name: ext.name,
+        description: ext.description || '',
+        status: ext.enabled ? ('installed' as const) : ('available' as const),
+        type: ext.type,
+      }));
+      setCategories((prev) =>
+        prev.map((c) => (c.id === 'tools' ? { ...c, items: toolItems, loading: false } : c))
+      );
+    } catch {
+      setCategories((prev) =>
+        prev.map((c) => (c.id === 'tools' ? { ...c, loading: false } : c))
+      );
+    }
+
+    // Load agents
+    try {
+      const resp = await listBuiltinAgents();
+      const agents = resp.data?.agents || [];
+      const agentItems: CatalogItem[] = agents.map((a) => ({
+        id: a.name,
+        name: a.name,
+        description: a.description || '',
+        status: a.enabled ? ('installed' as const) : ('available' as const),
+        type: `${a.modes.length} modes`,
+      }));
+      setCategories((prev) =>
+        prev.map((c) => (c.id === 'agents' ? { ...c, items: agentItems, loading: false } : c))
+      );
+    } catch {
+      setCategories((prev) =>
+        prev.map((c) => (c.id === 'agents' ? { ...c, loading: false } : c))
+      );
+    }
+
+    // Load workflows (recipes)
+    try {
+      const recipes = await listSavedRecipes();
+      const workflowItems: CatalogItem[] = (recipes || []).map((r) => ({
+        id: r.recipe.title || r.id,
+        name: r.recipe.title || 'Untitled',
+        description: r.recipe.description || '',
+        status: 'installed' as const,
+        type: 'recipe',
+      }));
+      setCategories((prev) =>
+        prev.map((c) =>
+          c.id === 'workflows' ? { ...c, items: workflowItems, loading: false } : c
+        )
+      );
+    } catch {
+      setCategories((prev) =>
+        prev.map((c) => (c.id === 'workflows' ? { ...c, loading: false } : c))
+      );
+    }
+
+    setLoading(false);
+  }
+
+  const totalInstalled = categories.reduce(
+    (sum, c) => sum + c.items.filter((i) => i.status === 'installed').length,
+    0
+  );
+  const totalItems = categories.reduce((sum, c) => sum + c.items.length, 0);
+
+  const filteredCategories = searchTerm
+    ? categories.map((c) => ({
+        ...c,
+        items: c.items.filter(
+          (i) =>
+            i.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            i.description.toLowerCase().includes(searchTerm.toLowerCase())
+        ),
+      }))
+    : categories;
+
+  return (
+    <ScrollArea className="h-full">
+      <div className="max-w-5xl mx-auto p-8 space-y-8">
+        {/* Header */}
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-2xl font-bold text-textStandard">Catalogs</h1>
+            <p className="text-sm text-textSubtle mt-1">
+              {totalInstalled} installed across {categories.length} catalogs • {totalItems} total
+              packages
+            </p>
+          </div>
+          <div className="flex items-center gap-3">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-textSubtle" />
+              <input
+                type="text"
+                placeholder="Search all catalogs..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="pl-9 pr-4 py-2 bg-bgSubtle border border-borderSubtle rounded-lg text-sm text-textStandard placeholder-textSubtle focus:outline-none focus:border-borderStandard w-64"
+              />
+            </div>
+            <button
+              onClick={loadCatalogs}
+              className="p-2 text-textSubtle hover:text-textStandard rounded-lg hover:bg-bgSubtle transition-colors"
+              title="Refresh"
+            >
+              <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+            </button>
+          </div>
+        </div>
+
+        {/* Catalog cards grid */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          {filteredCategories.map((category) => (
+            <CatalogCard key={category.id} category={category} />
+          ))}
+        </div>
+
+        {/* Search results flat view */}
+        {searchTerm && (
+          <div className="bg-bgApp border border-borderSubtle rounded-xl p-6">
+            <h3 className="text-sm font-semibold text-textSubtle uppercase tracking-wider mb-4">
+              Search Results
+            </h3>
+            <div className="space-y-2">
+              {filteredCategories.flatMap((c) =>
+                c.items.map((item) => (
+                  <div
+                    key={`${c.id}-${item.id}`}
+                    className="flex items-center justify-between p-3 rounded-lg hover:bg-bgSubtle cursor-pointer"
+                    onClick={() => navigate(c.route)}
+                  >
+                    <div className="flex items-center gap-3">
+                      <div
+                        className="w-8 h-8 rounded-lg flex items-center justify-center"
+                        style={{
+                          backgroundColor: `${c.color}20`,
+                          color: c.color,
+                        }}
+                      >
+                        {c.icon}
+                      </div>
+                      <div>
+                        <div className="text-sm font-medium text-textStandard">{item.name}</div>
+                        <div className="text-xs text-textSubtle">{item.description}</div>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs px-2 py-0.5 rounded bg-bgSubtle text-textSubtle">
+                        {c.label}
+                      </span>
+                      <div
+                        className={`w-2 h-2 rounded-full ${
+                          item.status === 'installed'
+                            ? 'bg-green-500'
+                            : item.status === 'error'
+                              ? 'bg-red-500'
+                              : 'bg-gray-400'
+                        }`}
+                      />
+                    </div>
+                  </div>
+                ))
+              )}
+              {filteredCategories.every((c) => c.items.length === 0) && (
+                <div className="text-sm text-textSubtle text-center py-6">
+                  No results for &quot;{searchTerm}&quot;
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+      </div>
+    </ScrollArea>
+  );
+}

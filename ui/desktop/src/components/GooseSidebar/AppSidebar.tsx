@@ -62,6 +62,7 @@ interface NavigationZone {
   label: string;
   icon: React.ComponentType<{ className?: string }>;
   items: NavigationItem[];
+  route?: string;
 }
 
 // Zone-based navigation: Workflows → Observatory → Platform
@@ -121,6 +122,7 @@ const navigationZones: NavigationZone[] = [
     id: 'platform',
     label: 'Catalogs',
     icon: Puzzle,
+    route: '/catalogs',
     items: [
       {
         path: '/extensions',
@@ -704,13 +706,29 @@ const AppSidebar: React.FC<SidebarProps> = ({ currentPath }) => {
             return (
               <SidebarGroup key={zone.id} className="px-2">
                 <Collapsible defaultOpen={zoneActive}>
-                  <CollapsibleTrigger asChild>
-                    <SidebarGroupLabel className="flex items-center gap-2 px-3 py-1.5 text-xs font-medium text-text-muted uppercase tracking-wider cursor-pointer hover:text-text-default transition-colors select-none">
-                      <ZoneIcon className="w-3.5 h-3.5" />
-                      <span>{zone.label}</span>
-                      <ChevronRight className="w-3 h-3 ml-auto transition-transform duration-200 [[data-state=open]>&]:rotate-90" />
-                    </SidebarGroupLabel>
-                  </CollapsibleTrigger>
+                  <div className="flex items-center">
+                    {zone.route ? (
+                      <SidebarGroupLabel
+                        className="flex-1 flex items-center gap-2 px-3 py-1.5 text-xs font-medium text-text-muted uppercase tracking-wider cursor-pointer hover:text-text-default transition-colors select-none"
+                        onClick={() => navigate(zone.route!)}
+                      >
+                        <ZoneIcon className="w-3.5 h-3.5" />
+                        <span>{zone.label}</span>
+                      </SidebarGroupLabel>
+                    ) : (
+                      <CollapsibleTrigger asChild>
+                        <SidebarGroupLabel className="flex-1 flex items-center gap-2 px-3 py-1.5 text-xs font-medium text-text-muted uppercase tracking-wider cursor-pointer hover:text-text-default transition-colors select-none">
+                          <ZoneIcon className="w-3.5 h-3.5" />
+                          <span>{zone.label}</span>
+                        </SidebarGroupLabel>
+                      </CollapsibleTrigger>
+                    )}
+                    <CollapsibleTrigger asChild>
+                      <button className="px-1.5 py-1.5 hover:bg-background-medium/50 rounded transition-colors">
+                        <ChevronRight className="w-3 h-3 text-text-muted transition-transform duration-200 [[data-state=open]>&]:rotate-90" />
+                      </button>
+                    </CollapsibleTrigger>
+                  </div>
                   <CollapsibleContent className="overflow-hidden transition-all data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:animate-in data-[state=open]:fade-in-0">
                     <SidebarGroupContent className="space-y-0.5 mt-1">
                       {visibleItems.map((item) => {
