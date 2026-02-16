@@ -1,6 +1,6 @@
 ---
 title: Agentic Testing with Playwright Skills
-description: Use goose with Playwright CLI agent skills to automate browsers and generate tests using natural language
+description: Use goose with the Playwright CLI agent skill to automate browsers and generate tests using natural language
 ---
 
 import Tabs from '@theme/Tabs';
@@ -17,7 +17,7 @@ import GooseBuiltinInstaller from '@site/src/components/GooseBuiltinInstaller';
   allowFullScreen
 ></iframe>
 
-With [Playwright CLI](https://github.com/microsoft/playwright-cli) skills, goose can navigate websites, click buttons, fill forms, and turn those interactions into Playwright tests, all from plain English. Unlike the Playwright MCP, which sends the full page structure to the LLM on every request, Playwright CLI stores the accessibility tree locally. That means faster responses, lower costs, and no issues with large pages.
+With the [Playwright CLI](https://github.com/microsoft/playwright-cli) skill, goose can navigate websites, click buttons, fill forms, and turn those interactions into Playwright tests, all from plain English. Unlike the Playwright MCP, which sends the full page structure to the LLM on every request, Playwright CLI stores the accessibility tree locally. That means faster responses, lower costs, and no issues with large pages.
 
 ## Prerequisites
 
@@ -30,13 +30,13 @@ With [Playwright CLI](https://github.com/microsoft/playwright-cli) skills, goose
 
 ## Configuration
 
-First, install the Playwright skills in your project directory:
+First, install the Playwright skill in your project directory:
 
 ```bash
-install playwright skills
+install playwright skill
 ```
 
-This creates a `.claude/` folder with skills and reference files that teach goose how to use Playwright CLI capabilities.
+This creates a `.claude/` folder with SKILL.md file and reference files that teach goose how to use the Playwright CLI capabilities.
 
 Then, enable the [Skills extension](/docs/mcp/skills-mcp) to allow goose to load and use Agent Skills.
 
@@ -174,10 +174,10 @@ From here you can see live previews of every browser goose is controlling. Click
 
 ## Full Capabilities
 
-Want to know what else the Playwright skills can do? Ask goose:
+Want to know what else the Playwright skill can do? Ask goose:
 
 ```
-What else can you do with playwright skills?
+What else can you do with the Playwright skill?
 ```
 
 | Category | Capabilities |
@@ -201,7 +201,7 @@ What else can you do with playwright skills?
 
 ## Conclusion
 
-Getting started with Playwright skills is easy and opens up powerful browser automation capabilities directly from natural language prompts. Whether you're generating tests, debugging with videos and traces, or automating complex interactions, the Playwright CLI skills provide a token-efficient way to leverage Playwright's full power with goose.
+Getting started with the Playwright CLI agent skill is easy and opens up powerful browser automation capabilities directly from natural language prompts. Whether you're generating tests, debugging with videos and traces, or automating complex interactions, the Playwright CLI agent skill provides a token-efficient way to leverage Playwright's full power with goose.
 
 ## Resources
 
