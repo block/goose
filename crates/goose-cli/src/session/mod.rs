@@ -159,7 +159,7 @@ pub struct CliSession {
     completion_cache: Arc<std::sync::RwLock<CompletionCache>>,
     debug: bool,
     run_mode: RunMode,
-    scheduled_job_id: Option<String>, // ID of the scheduled job that triggered this session
+    scheduled_job_id: Option<String>,
     max_turns: Option<u32>,
     edit_mode: Option<EditMode>,
     retry_config: Option<RetryConfig>,
@@ -479,7 +479,6 @@ impl CliSession {
         loop {
             self.display_context_usage().await?;
 
-            // Convert conversation messages to strings for editor mode
             let conversation_strings: Vec<String> = self
                 .messages
                 .iter()
@@ -502,8 +501,9 @@ impl CliSession {
         }
 
         println!(
-            "Closing session. Session ID: {}",
-            console::style(&self.session_id).cyan()
+            "\n  {} {}",
+            console::style("●").red(),
+            console::style(format!("session closed · {}", &self.session_id)).dim()
         );
 
         Ok(())
@@ -636,10 +636,7 @@ impl CliSession {
 
                 let elapsed = start_time.elapsed();
                 let elapsed_str = format_elapsed_time(elapsed);
-                println!(
-                    "\n{}",
-                    console::style(format!("⏱️  Elapsed time: {}", elapsed_str)).dim()
-                );
+                println!("{}", console::style(format!("  ⏱ {}", elapsed_str)).dim());
             }
             RunMode::Plan => {
                 let mut plan_messages = self.messages.clone();
@@ -1152,20 +1149,10 @@ impl CliSession {
                     .collect()
             });
 
+        let interrupt_prompt = "Yes — what would you like me to do?";
+
         if !tool_requests.is_empty() {
-            // Interrupted during a tool request
-            // Create tool responses for all interrupted tool requests
-            // TODO(Douwe): if we need this, it should happen in agent reply
             let mut response_message = Message::user();
-            let last_tool_name = tool_requests
-                .last()
-                .and_then(|(_, tool_call)| {
-                    tool_call
-                        .as_ref()
-                        .ok()
-                        .map(|tool| tool.name.to_string().clone())
-                })
-                .unwrap_or_else(|| "tool".to_string());
 
             let notification = if interrupt {
                 "Interrupted by the user to make a correction".to_string()
@@ -1183,36 +1170,29 @@ impl CliSession {
                 ));
             }
             self.push_message(response_message);
-            let prompt = format!(
-                "The existing call to {} was interrupted. How would you like to proceed?",
-                last_tool_name
+            self.push_message(Message::assistant().with_text(interrupt_prompt));
+            output::render_message(
+                &Message::assistant().with_text(interrupt_prompt),
+                self.debug,
             );
-            self.push_message(Message::assistant().with_text(&prompt));
-            output::render_message(&Message::assistant().with_text(&prompt), self.debug);
-        } else {
-            // An interruption occurred outside of a tool request-response.
-            if let Some(last_msg) = self.messages.last() {
-                if last_msg.role == rmcp::model::Role::User {
-                    match last_msg.content.first() {
-                        Some(MessageContent::ToolResponse(_)) => {
-                            // Interruption occurred after a tool had completed but not assistant reply
-                            let prompt = "The tool calling loop was interrupted. How would you like to proceed?";
-                            self.push_message(Message::assistant().with_text(prompt));
-                            output::render_message(
-                                &Message::assistant().with_text(prompt),
-                                self.debug,
-                            );
-                        }
-                        Some(_) => {
-                            // A real users message
-                            self.messages.pop();
-                            let prompt = "Interrupted before the model replied and removed the last message.";
-                            output::render_message(
-                                &Message::assistant().with_text(prompt),
-                                self.debug,
-                            );
-                        }
-                        None => panic!("No content in last message"),
+        } else if let Some(last_msg) = self.messages.last() {
+            if last_msg.role == rmcp::model::Role::User {
+                match last_msg.content.first() {
+                    Some(MessageContent::ToolResponse(_)) => {
+                        self.push_message(Message::assistant().with_text(interrupt_prompt));
+                        output::render_message(
+                            &Message::assistant().with_text(interrupt_prompt),
+                            self.debug,
+                        );
+                    }
+                    Some(_) => {
+                        self.messages.pop();
+                        let assistant_msg = Message::assistant().with_text(interrupt_prompt);
+                        self.push_message(assistant_msg.clone());
+                        output::render_message(&assistant_msg, self.debug);
+                    }
+                    None => {
+                        // Empty message content — nothing to do, just continue gracefully
                     }
                 }
             }
@@ -1271,11 +1251,10 @@ impl CliSession {
             return;
         }
 
-        // Print session restored message
         println!(
-            "\n{} {} messages loaded into context.",
-            console::style("Session restored:").green().bold(),
-            console::style(self.messages.len()).green()
+            "\n  {} {}",
+            console::style("↻").cyan(),
+            console::style(format!("{} messages restored", self.messages.len())).dim()
         );
 
         // Render each message
@@ -1283,11 +1262,7 @@ impl CliSession {
             output::render_message(message, self.debug);
         }
 
-        // Add a visual separator after restored messages
-        println!(
-            "\n{}\n",
-            console::style("──────── New Messages ────────").dim()
-        );
+        println!();
     }
 
     pub async fn get_session(&self) -> Result<goose::session::Session> {

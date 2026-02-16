@@ -76,10 +76,6 @@ Let's use the Cloudinary extension to find and transform product images with adv
 2. Apply complex transformations including background removal
 3. Add text overlays with precise positioning
 
-:::info LLM
-Anthropic's Claude 4 Sonnet was used for this task.
-:::
-
 ### goose Prompt
 ```
 1. find shoe images in my Cloudinary samples that have 'shoe' in the filename or public ID.
