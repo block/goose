@@ -294,7 +294,13 @@ impl AppsManagerClient {
         model_config.max_tokens = Some(16384);
 
         let (response, _usage) = provider
-            .complete_with_model(Some(session_id), &model_config, &system_prompt, &messages, &tools)
+            .complete_with_model(
+                Some(session_id),
+                &model_config,
+                &system_prompt,
+                &messages,
+                &tools,
+            )
             .await
             .map_err(|e| format!("LLM call failed: {}", e))?;
 
@@ -328,7 +334,13 @@ impl AppsManagerClient {
         model_config.max_tokens = Some(16384);
 
         let (response, _usage) = provider
-            .complete_with_model(Some(session_id), &model_config, &system_prompt, &messages, &tools)
+            .complete_with_model(
+                Some(session_id),
+                &model_config,
+                &system_prompt,
+                &messages,
+                &tools,
+            )
             .await
             .map_err(|e| format!("LLM call failed: {}", e))?;
 
