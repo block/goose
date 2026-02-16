@@ -8,6 +8,7 @@ import { startChatGptCodexSetup } from '../utils/chatgptCodexSetup';
 import WelcomeGooseLogo from './WelcomeGooseLogo';
 import { toastService } from '../toasts';
 import { OllamaSetup } from './OllamaSetup';
+import { LocalModelSetup } from './LocalModelSetup';
 import ApiKeyTester from './ApiKeyTester';
 import { SwitchModelModal } from './settings/models/subcomponents/SwitchModelModal';
 import { createNavigationHandler } from '../utils/navigationUtils';
@@ -34,6 +35,7 @@ export default function ProviderGuard({ didSelectProvider, children }: ProviderG
   const [hasProvider, setHasProvider] = useState(false);
   const [showFirstTimeSetup, setShowFirstTimeSetup] = useState(false);
   const [showOllamaSetup, setShowOllamaSetup] = useState(false);
+  const [showLocalModelSetup, setShowLocalModelSetup] = useState(false);
   const [userInActiveSetup, setUserInActiveSetup] = useState(false);
   const [showSwitchModelModal, setShowSwitchModelModal] = useState(false);
   const [switchModelProvider, setSwitchModelProvider] = useState<string | null>(null);
@@ -200,6 +202,19 @@ export default function ProviderGuard({ didSelectProvider, children }: ProviderG
     setShowOllamaSetup(false);
   };
 
+  const handleLocalModelComplete = () => {
+    trackOnboardingCompleted('local');
+    setShowLocalModelSetup(false);
+    setShowFirstTimeSetup(false);
+    setHasProvider(true);
+    navigate('/', { replace: true });
+  };
+
+  const handleLocalModelCancel = () => {
+    trackOnboardingAbandoned('local_model_setup');
+    setShowLocalModelSetup(false);
+  };
+
   const handleRetrySetup = (setupType: 'openrouter' | 'tetrate' | 'chatgpt_codex') => {
     if (setupType === 'openrouter') {
       setOpenRouterSetupState(null);
@@ -285,6 +300,23 @@ export default function ProviderGuard({ didSelectProvider, children }: ProviderG
     return <OllamaSetup onSuccess={handleOllamaComplete} onCancel={handleOllamaCancel} />;
   }
 
+  if (showLocalModelSetup) {
+    return (
+      <div className="h-screen w-full bg-background-default overflow-hidden">
+        <div className="h-full overflow-y-auto">
+          <div className="min-h-full flex flex-col items-center justify-center p-4 py-8">
+            <div className="max-w-2xl w-full mx-auto p-8">
+              <LocalModelSetup
+                onSuccess={handleLocalModelComplete}
+                onCancel={handleLocalModelCancel}
+              />
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   if (!hasProvider && showFirstTimeSetup) {
     return (
       <div className="h-screen w-full bg-background-default overflow-hidden relative">
@@ -315,6 +347,48 @@ export default function ProviderGuard({ didSelectProvider, children }: ProviderG
                   setUserInActiveSetup(true);
                 }}
               />
+
+              {/* Run Locally Card */}
+              <div className="relative w-full mb-4">
+                <div className="absolute -top-2 -right-2 sm:-top-3 sm:-right-3 z-20">
+                  <span className="inline-block px-2 py-1 text-xs font-medium bg-green-600 text-white rounded-full">
+                    Free &amp; Private
+                  </span>
+                </div>
+                <div
+                  onClick={() => {
+                    trackOnboardingProviderSelected('local');
+                    setShowLocalModelSetup(true);
+                  }}
+                  className="w-full p-4 sm:p-6 bg-transparent border rounded-xl transition-all duration-200 cursor-pointer group"
+                >
+                  <div className="flex items-start justify-between mb-3">
+                    <div className="flex items-center gap-2">
+                      <span className="font-medium text-text-default text-sm sm:text-base">
+                        Run Locally
+                      </span>
+                    </div>
+                    <div className="text-text-muted group-hover:text-text-default transition-colors">
+                      <svg
+                        className="w-4 h-4 sm:w-5 sm:h-5"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M9 5l7 7-7 7"
+                        />
+                      </svg>
+                    </div>
+                  </div>
+                  <p className="text-text-muted text-sm sm:text-base">
+                    Download a model and run entirely on your machine. No API keys, no accounts.
+                  </p>
+                </div>
+              </div>
 
               {/* ChatGPT Subscription Card - Full Width */}
               <div className="relative w-full mb-4">

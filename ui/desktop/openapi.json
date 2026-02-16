@@ -10,7 +10,7 @@
     "license": {
       "name": "Apache-2.0"
     },
-    "version": "1.23.0"
+    "version": "1.24.0"
   },
   "paths": {
     "/action-required/tool-confirmation": {
@@ -5959,6 +5959,9 @@
           },
           "sampling": {
             "$ref": "#/components/schemas/SamplingConfig"
+          },
+          "use_jinja": {
+            "type": "boolean"
           },
           "use_mlock": {
             "type": "boolean"
