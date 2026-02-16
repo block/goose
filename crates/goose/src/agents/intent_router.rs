@@ -2,6 +2,7 @@ use serde::{Deserialize, Serialize};
 use tracing::{debug, info, instrument, Span};
 
 use crate::agents::coding_agent::CodingAgent;
+use crate::agents::developer_agent::DeveloperAgent;
 use crate::agents::goose_agent::GooseAgent;
 use crate::agents::pm_agent::PmAgent;
 use crate::agents::qa_agent::QaAgent;
@@ -62,7 +63,7 @@ impl IntentRouter {
             bound_extensions: vec![],
         });
 
-        // Register CodingAgent
+        // Register CodingAgent (legacy — will be replaced by DeveloperAgent)
         let coding = CodingAgent::new();
         let coding_modes = coding.to_agent_modes();
         slots.push(AgentSlot {
@@ -71,6 +72,19 @@ impl IntentRouter {
             modes: coding_modes,
             default_mode: coding.default_mode_slug().into(),
             enabled: true,
+            bound_extensions: vec![],
+        });
+
+        // Register DeveloperAgent (universal modes)
+        let dev = DeveloperAgent::new();
+        let dev_modes = dev.to_agent_modes();
+        slots.push(AgentSlot {
+            name: "Developer Agent".into(),
+            description: "Software engineer using universal modes (ask/plan/write/review/debug)"
+                .into(),
+            modes: dev_modes,
+            default_mode: dev.default_mode().into(),
+            enabled: false, // disabled until fully replacing CodingAgent
             bound_extensions: vec![],
         });
 

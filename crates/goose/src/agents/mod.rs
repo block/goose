@@ -6,6 +6,7 @@ pub(crate) mod code_execution_extension;
 pub mod coding_agent;
 pub mod container;
 pub mod delegation;
+pub mod developer_agent;
 pub mod execute_commands;
 pub mod extension;
 pub mod extension_malware_check;
@@ -37,6 +38,7 @@ pub(crate) mod tom_extension;
 mod tool_execution;
 pub mod tool_filter;
 pub mod types;
+pub mod universal_mode;
 
 pub use agent::{Agent, AgentConfig, AgentEvent, ExtensionLoadResult};
 pub use container::Container;

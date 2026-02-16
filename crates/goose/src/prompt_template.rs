@@ -59,6 +59,27 @@ static TEMPLATE_REGISTRY: &[(&str, &str)] = &[
         "coding_agent/devops.md",
         "DevOps — CI/CD pipelines, IaC, containers, and monitoring",
     ),
+    // Developer Agent (universal modes)
+    (
+        "developer/ask.md",
+        "Developer Ask — read-only exploration, search, and Q&A",
+    ),
+    (
+        "developer/plan.md",
+        "Developer Plan — design, architecture, ADRs, and implementation plans",
+    ),
+    (
+        "developer/write.md",
+        "Developer Write — implement code, configs, tests with full tool access",
+    ),
+    (
+        "developer/review.md",
+        "Developer Review — code review, audit, and quality assessment",
+    ),
+    (
+        "developer/debug.md",
+        "Developer Debug — systematic diagnosis and root-cause analysis",
+    ),
     (
         "qa_agent/analyze.md",
         "QA Analyst — code quality analysis, anti-patterns, and actionable findings",
