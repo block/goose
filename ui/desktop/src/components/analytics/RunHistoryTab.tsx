@@ -11,6 +11,7 @@ import type {
   EvalDatasetSummary,
 } from "../../api";
 import RunComparisonView from "./RunComparisonView";
+import SankeyDiagram from "./SankeyDiagram";
 
 function formatPercent(v: number): string {
   return `${(v * 100).toFixed(1)}%`;
@@ -142,6 +143,17 @@ function RunDetailPanel({
               </div>
             ))}
           </div>
+        </div>
+      )}
+
+      {/* Routing Flow (Sankey) */}
+      {detail.confusionMatrix.labels.length > 0 && (
+        <div className="rounded-lg border border-gray-600/40 bg-gray-800/50 p-4">
+          <h4 className="text-sm font-medium text-gray-300 mb-3">Routing Flow</h4>
+          <SankeyDiagram
+            labels={detail.confusionMatrix.labels}
+            matrix={detail.confusionMatrix.matrix}
+          />
         </div>
       )}
 
