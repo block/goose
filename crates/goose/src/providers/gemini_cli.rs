@@ -289,7 +289,6 @@ impl ProviderDef for GeminiCliProvider {
             GEMINI_CLI_DOC_URL,
             vec![ConfigKey::from_value_type::<GeminiCliCommand>(true, false)],
         )
-        .with_unlisted_models()
     }
 
     fn from_env(

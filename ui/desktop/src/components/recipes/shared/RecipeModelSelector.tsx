@@ -60,13 +60,11 @@ export const RecipeModelSelector = ({
             provider: p.name,
           }));
 
-          if (p.metadata.allows_unlisted_models) {
-            options.push({
-              value: `__custom__:${p.name}`,
-              label: 'Enter a model not listed...',
-              provider: p.name,
-            });
-          }
+          options.push({
+            value: `__custom__:${p.name}`,
+            label: 'Enter a model not listed...',
+            provider: p.name,
+          });
 
           if (options.length > 0) {
             groupedOptions.push({ options });
