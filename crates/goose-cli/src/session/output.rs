@@ -865,11 +865,31 @@ fn print_markdown_raw(content: &str, theme: Theme) {
 
 fn extract_markdown_table(content: &str) -> Option<(String, Vec<&str>, &str)> {
     let lines: Vec<&str> = content.lines().collect();
+
+    // Track newline positions for safe slicing later
+    let newline_indices: Vec<usize> = content
+        .bytes()
+        .enumerate()
+        .filter_map(|(i, b)| if b == b'\n' { Some(i) } else { None })
+        .collect();
+
+    // Skip tables inside code blocks
+    let mut in_code_block = false;
     let mut table_start = None;
     let mut table_end = None;
 
     for (i, line) in lines.iter().enumerate() {
         let trimmed = line.trim();
+
+        if trimmed.starts_with("```") || trimmed.starts_with("~~~") {
+            in_code_block = !in_code_block;
+            continue;
+        }
+
+        if in_code_block {
+            continue;
+        }
+
         if trimmed.starts_with('|') && trimmed.ends_with('|') {
             if table_start.is_none() {
                 table_start = Some(i);
@@ -882,14 +902,26 @@ fn extract_markdown_table(content: &str) -> Option<(String, Vec<&str>, &str)> {
 
     let start = table_start?;
     let end = table_end?;
+
+    // Need at least header + separator (2 rows minimum)
     if end < start + 1 {
         return None;
     }
 
-    let has_separator = lines[start..=end]
-        .iter()
-        .any(|line| line.contains("---") || line.contains(":-") || line.contains("-:"));
-    if !has_separator {
+    // Require separator to be the second row with proper format
+    let separator_line = lines.get(start + 1)?;
+    let is_valid_separator = separator_line.trim().starts_with('|')
+        && separator_line.trim().ends_with('|')
+        && separator_line
+            .trim()
+            .trim_matches('|')
+            .split('|')
+            .all(|cell| {
+                let t = cell.trim();
+                !t.is_empty() && t.chars().all(|c| c == '-' || c == ':' || c == ' ')
+            });
+
+    if !is_valid_separator {
         return None;
     }
 
@@ -900,14 +932,13 @@ fn extract_markdown_table(content: &str) -> Option<(String, Vec<&str>, &str)> {
         before + "\n"
     };
     let table = lines[start..=end].to_vec();
-    let after_lines = &lines[end + 1..];
 
-    let after = if after_lines.is_empty() {
+    let after = if end + 1 >= lines.len() {
         ""
+    } else if let Some(&newline_pos) = newline_indices.get(end) {
+        content.get(newline_pos + 1..).unwrap_or("")
     } else {
-        let table_end_line = lines[end];
-        let table_end_pos = content.find(table_end_line).unwrap() + table_end_line.len();
-        content.get(table_end_pos + 1..).unwrap_or("")
+        ""
     };
 
     Some((before, table, after))
