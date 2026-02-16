@@ -1,7 +1,7 @@
 pub mod edit;
-pub mod explore;
 pub mod read;
 pub mod shell;
+pub mod tree;
 
 use std::sync::Arc;
 
@@ -13,9 +13,9 @@ use rmcp::{
 };
 
 use edit::{EditTools, FileEditParams, FileWriteParams};
-use explore::{TreeParams, TreeTool};
 use read::{ReadParams, ReadTool};
 use shell::{ShellParams, ShellTool};
+use tree::{TreeParams, TreeTool};
 
 pub struct DevelopServer {
     tool_router: ToolRouter<Self>,
