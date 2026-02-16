@@ -316,59 +316,59 @@ test_cases:
   #   mode is inferred from behavioral intent.
   # ══════════════════════════════════════════════════════════════════
   - input: "Write a REST API endpoint for user registration"
-    expected_agent: "Coding Agent"
+    expected_agent: "Developer Agent"
     expected_mode: "code"
     tags: [p0, coding, write]
   - input: "Fix the database connection pool timeout issue"
-    expected_agent: "Coding Agent"
+    expected_agent: "Developer Agent"
     expected_mode: "code"
     tags: [p0, coding, write]
   - input: "Implement a caching layer with Redis"
-    expected_agent: "Coding Agent"
+    expected_agent: "Developer Agent"
     expected_mode: "code"
     tags: [p0, coding, write]
   - input: "Create a migration to add a users table"
-    expected_agent: "Coding Agent"
+    expected_agent: "Developer Agent"
     expected_mode: "code"
     tags: [p1, coding, write]
   - input: "Debug the null pointer exception in the payment service"
-    expected_agent: "Coding Agent"
+    expected_agent: "Developer Agent"
     expected_mode: "debug"
     tags: [p0, coding, debug]
   - input: "Build a responsive navigation bar with Tailwind CSS"
-    expected_agent: "Coding Agent"
+    expected_agent: "Developer Agent"
     expected_mode: "frontend"
     tags: [p1, coding, frontend]
   - input: "Fix the React component re-rendering issue"
-    expected_agent: "Coding Agent"
+    expected_agent: "Developer Agent"
     expected_mode: "frontend"
     tags: [p1, coding, frontend]
   - input: "Create a dark mode toggle for the dashboard"
-    expected_agent: "Coding Agent"
+    expected_agent: "Developer Agent"
     expected_mode: "frontend"
     tags: [p1, coding, frontend]
   - input: "Design the microservices architecture for our e-commerce platform"
-    expected_agent: "Coding Agent"
+    expected_agent: "Developer Agent"
     expected_mode: "architect"
     tags: [p0, coding, plan]
   - input: "Create an architecture decision record for the new auth system"
-    expected_agent: "Coding Agent"
+    expected_agent: "Developer Agent"
     expected_mode: "architect"
     tags: [p1, coding, plan]
   - input: "Set up Kubernetes deployment manifests for the API"
-    expected_agent: "Coding Agent"
+    expected_agent: "Developer Agent"
     expected_mode: "devops"
     tags: [p1, coding, devops]
   - input: "Configure Prometheus monitoring and alerting"
-    expected_agent: "Coding Agent"
+    expected_agent: "Developer Agent"
     expected_mode: "devops"
     tags: [p1, coding, devops]
   - input: "Create a Dockerfile for the Node.js application"
-    expected_agent: "Coding Agent"
+    expected_agent: "Developer Agent"
     expected_mode: "devops"
     tags: [p1, coding, devops]
   - input: "Set up CI/CD pipeline with GitHub Actions"
-    expected_agent: "Coding Agent"
+    expected_agent: "Developer Agent"
     expected_mode: "devops"
     tags: [p1, coding, devops]
 
@@ -504,7 +504,7 @@ test_cases:
   # Ambiguity tests — edge cases requiring correct disambiguation
   # ══════════════════════════════════════════════════════════════════
   - input: "Review and fix the authentication code"
-    expected_agent: "Coding Agent"
+    expected_agent: "Developer Agent"
     expected_mode: "code"
     tags: [ambiguity, coding]
   - input: "Plan tests for the new payment feature"
@@ -560,7 +560,7 @@ test_cases:
         let results = evaluate(&router, &set);
         let coding: Vec<_> = results
             .iter()
-            .filter(|r| r.expected_agent == "Coding Agent")
+            .filter(|r| r.expected_agent == "Developer Agent")
             .collect();
         let correct = coding.iter().filter(|r| r.agent_correct).count();
         let acc = correct as f64 / coding.len() as f64;

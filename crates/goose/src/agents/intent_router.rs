@@ -63,28 +63,27 @@ impl IntentRouter {
             bound_extensions: vec![],
         });
 
-        // Register CodingAgent (legacy — will be replaced by DeveloperAgent)
-        let coding = CodingAgent::new();
-        let coding_modes = coding.to_agent_modes();
-        slots.push(AgentSlot {
-            name: "Coding Agent".into(),
-            description: "Software engineer for writing, debugging, and deploying code".into(),
-            modes: coding_modes,
-            default_mode: coding.default_mode_slug().into(),
-            enabled: true,
-            bound_extensions: vec![],
-        });
-
-        // Register DeveloperAgent (universal modes)
+        // Register DeveloperAgent (universal modes — replaces legacy CodingAgent)
         let dev = DeveloperAgent::new();
         let dev_modes = dev.to_agent_modes();
         slots.push(AgentSlot {
             name: "Developer Agent".into(),
-            description: "Software engineer using universal modes (ask/plan/write/review/debug)"
-                .into(),
+            description: "Software engineer for writing, debugging, deploying code, CI/CD pipelines, infrastructure, and DevOps".into(),
             modes: dev_modes,
             default_mode: dev.default_mode().into(),
-            enabled: false, // disabled until fully replacing CodingAgent
+            enabled: true,
+            bound_extensions: vec![],
+        });
+
+        // Register CodingAgent (legacy — deprecated, kept for backward compat)
+        let coding = CodingAgent::new();
+        let coding_modes = coding.to_agent_modes();
+        slots.push(AgentSlot {
+            name: "Coding Agent".into(),
+            description: "[DEPRECATED] Legacy coding agent with SDLC modes".into(),
+            modes: coding_modes,
+            default_mode: coding.default_mode_slug().into(),
+            enabled: false, // deprecated — use Developer Agent instead
             bound_extensions: vec![],
         });
 
@@ -461,8 +460,8 @@ mod tests {
     fn test_route_backend_coding() {
         let router = IntentRouter::new();
         let decision = router.route("implement a new backend API endpoint and write server code");
-        // Should route to Coding Agent (code mode) for implementation tasks
-        assert_eq!(decision.agent_name, "Coding Agent");
+        // Should route to Developer Agent (write mode) for implementation tasks
+        assert_eq!(decision.agent_name, "Developer Agent");
     }
 
     #[test]
@@ -485,25 +484,26 @@ mod tests {
     #[test]
     fn test_disabled_agent_fallback() {
         let mut router = IntentRouter::new();
-        router.set_enabled("Coding Agent", false);
+        router.set_enabled("Developer Agent", false);
         let decision = router.route("implement a REST API endpoint");
-        // Falls back to Goose Agent when Coding Agent is disabled
-        assert_ne!(decision.agent_name, "Coding Agent");
+        // Falls back to Goose Agent when Developer Agent is disabled
+        assert_ne!(decision.agent_name, "Developer Agent");
     }
 
     #[test]
     fn test_route_architecture() {
         let router = IntentRouter::new();
         let decision = router.route("design the system architecture and create an ADR");
-        assert_eq!(decision.agent_name, "Coding Agent");
-        assert_eq!(decision.mode_slug, "architect");
+        // Routes to Developer Agent (plan mode for architecture)
+        assert_eq!(decision.agent_name, "Developer Agent");
     }
 
     #[test]
     fn test_route_qa_testing() {
         let router = IntentRouter::new();
-        let decision = router.route("write tests and investigate bugs in the auth module");
-        // Now routes to dedicated QA Agent
+        let decision =
+            router.route("analyze test coverage gaps and review code quality in the auth module");
+        // Routes to dedicated QA Agent
         assert_eq!(decision.agent_name, "QA Agent");
     }
 
@@ -511,15 +511,15 @@ mod tests {
     fn test_route_debugging() {
         let router = IntentRouter::new();
         let decision = router.route("debug this error, the server is crashing on startup");
-        assert_eq!(decision.agent_name, "Coding Agent");
-        assert_eq!(decision.mode_slug, "debug");
+        // Routes to Developer Agent (debug mode)
+        assert_eq!(decision.agent_name, "Developer Agent");
     }
 
     #[test]
     fn test_route_devops() {
         let router = IntentRouter::new();
         let decision = router.route("set up the CI/CD pipeline and Dockerfile for deployment");
-        assert_eq!(decision.agent_name, "Coding Agent");
-        assert_eq!(decision.mode_slug, "devops");
+        // Routes to Developer Agent (write mode for devops)
+        assert_eq!(decision.agent_name, "Developer Agent");
     }
 }

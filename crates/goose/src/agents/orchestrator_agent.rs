@@ -7,7 +7,7 @@
 //!
 //! ```text
 //! User Message → OrchestratorAgent.route()
-//!   ├─ Build agent catalog from GooseAgent + CodingAgent + external agents
+//!   ├─ Build agent catalog from GooseAgent + DeveloperAgent + external agents
 //!   ├─ Render routing prompt with catalog + user message
 //!   ├─ LLM classifies intent → RoutingDecision (single or compound)
 //!   ├─ (fallback) IntentRouter keyword matching
@@ -27,7 +27,7 @@
 //! Set `GOOSE_ORCHESTRATOR_DISABLED=true` to fall back to keyword routing.
 //! When disabled (default), falls back to IntentRouter for backward compatibility.
 
-use crate::agents::coding_agent::CodingAgent;
+use crate::agents::developer_agent::DeveloperAgent;
 use crate::agents::goose_agent::GooseAgent;
 use crate::agents::intent_router::{IntentRouter, RoutingDecision};
 use crate::context_mgmt::{
@@ -145,7 +145,7 @@ struct CatalogEntry {
 
 /// The OrchestratorAgent coordinates routing decisions using LLM intelligence.
 ///
-/// It maintains an agent catalog built from builtin agents (GooseAgent, CodingAgent)
+/// It maintains an agent catalog built from builtin agents (GooseAgent, DeveloperAgent)
 /// and any externally registered agents. The catalog is rendered into the LLM prompt
 /// so it can make informed routing decisions.
 pub struct OrchestratorAgent {
@@ -157,7 +157,7 @@ pub struct OrchestratorAgent {
 impl OrchestratorAgent {
     pub fn new(provider: Arc<Mutex<Option<Arc<dyn Provider>>>>) -> Self {
         let goose = GooseAgent::new();
-        let coding = CodingAgent::new();
+        let dev = DeveloperAgent::new();
 
         let catalog = vec![
             CatalogEntry {
@@ -169,10 +169,10 @@ impl OrchestratorAgent {
                 default_mode: goose.default_mode_slug().to_string(),
             },
             CatalogEntry {
-                name: "Coding Agent".into(),
+                name: "Developer Agent".into(),
                 description: "Software engineer for writing, debugging, and deploying code".into(),
-                modes: coding.to_agent_modes(),
-                default_mode: "code".into(),
+                modes: dev.to_agent_modes(),
+                default_mode: dev.default_mode().into(),
             },
         ];
 
@@ -537,7 +537,7 @@ impl OrchestratorAgent {
 
     /// Get the tool_groups for a given routing decision.
     ///
-    /// Looks up the mode's tool_groups from GooseAgent or CodingAgent
+    /// Looks up the mode's tool_groups from GooseAgent or DeveloperAgent
     /// based on the routing decision's agent_name and mode_slug.
     /// Returns empty Vec if the mode isn't found (which means "all tools" — backward compatible).
     pub fn get_tool_groups_for_routing(
@@ -554,13 +554,9 @@ impl OrchestratorAgent {
                     vec![] // unknown mode → all tools (backward compatible)
                 }
             }
-            "Coding Agent" => {
-                let coding = CodingAgent::new();
-                if let Some(mode) = coding.mode(mode_slug) {
-                    mode.tool_groups.clone()
-                } else {
-                    vec![]
-                }
+            "Developer Agent" => {
+                let dev = DeveloperAgent::new();
+                dev.tool_groups_for(mode_slug)
             }
             _ => vec![], // external agent → all tools
         }
@@ -582,13 +578,9 @@ impl OrchestratorAgent {
                     vec![]
                 }
             }
-            "Coding Agent" => {
-                let coding = CodingAgent::new();
-                if let Some(mode) = coding.mode(mode_slug) {
-                    mode.recommended_extensions.clone()
-                } else {
-                    vec![]
-                }
+            "Developer Agent" => {
+                let dev = DeveloperAgent::new();
+                dev.recommended_extensions(mode_slug)
             }
             _ => vec![], // external agent → no restrictions
         }
@@ -717,7 +709,7 @@ mod tests {
         let catalog = orch.build_catalog_text();
 
         assert!(catalog.contains("Goose Agent"));
-        assert!(catalog.contains("Coding Agent"));
+        assert!(catalog.contains("Developer Agent"));
         assert!(catalog.contains("assistant"));
         assert!(catalog.contains("code"));
         assert!(catalog.contains("architect"));
@@ -728,13 +720,13 @@ mod tests {
         let orch = make_orchestrator();
 
         let response = crate::conversation::message::Message::assistant().with_text(
-            r#"{"is_compound": false, "tasks": [{"agent_name": "Coding Agent", "mode_slug": "code", "confidence": 0.9, "reasoning": "API implementation task", "sub_task": "implement a REST API endpoint"}]}"#,
+            r#"{"is_compound": false, "tasks": [{"agent_name": "Developer Agent", "mode_slug": "code", "confidence": 0.9, "reasoning": "API implementation task", "sub_task": "implement a REST API endpoint"}]}"#,
         );
 
         let plan = orch.parse_splitting_response(&response).unwrap();
         assert!(!plan.is_compound);
         assert_eq!(plan.tasks.len(), 1);
-        assert_eq!(plan.primary_routing().agent_name, "Coding Agent");
+        assert_eq!(plan.primary_routing().agent_name, "Developer Agent");
         assert_eq!(plan.primary_routing().mode_slug, "code");
         assert_eq!(
             plan.tasks[0].sub_task_description,
@@ -748,15 +740,15 @@ mod tests {
 
         let response = crate::conversation::message::Message::assistant().with_text(
             r#"{"is_compound": true, "tasks": [
-                {"agent_name": "Coding Agent", "mode_slug": "code", "confidence": 0.85, "reasoning": "Bug fix", "sub_task": "Fix the login endpoint bug"},
-                {"agent_name": "Coding Agent", "mode_slug": "frontend", "confidence": 0.8, "reasoning": "UI feature", "sub_task": "Add dark theme toggle to settings"}
+                {"agent_name": "Developer Agent", "mode_slug": "code", "confidence": 0.85, "reasoning": "Bug fix", "sub_task": "Fix the login endpoint bug"},
+                {"agent_name": "Developer Agent", "mode_slug": "frontend", "confidence": 0.8, "reasoning": "UI feature", "sub_task": "Add dark theme toggle to settings"}
             ]}"#,
         );
 
         let plan = orch.parse_splitting_response(&response).unwrap();
         assert!(plan.is_compound);
         assert_eq!(plan.tasks.len(), 2);
-        assert_eq!(plan.tasks[0].routing.agent_name, "Coding Agent");
+        assert_eq!(plan.tasks[0].routing.agent_name, "Developer Agent");
         assert_eq!(plan.tasks[0].routing.mode_slug, "code");
         assert_eq!(
             plan.tasks[0].sub_task_description,
@@ -861,7 +853,7 @@ mod tests {
         let tasks = vec![
             SubTask {
                 routing: RoutingDecision {
-                    agent_name: "Coding Agent".into(),
+                    agent_name: "Developer Agent".into(),
                     mode_slug: "code".into(),
                     confidence: 0.8,
                     reasoning: "bug fix".into(),
@@ -870,7 +862,7 @@ mod tests {
             },
             SubTask {
                 routing: RoutingDecision {
-                    agent_name: "Coding Agent".into(),
+                    agent_name: "Developer Agent".into(),
                     mode_slug: "frontend".into(),
                     confidence: 0.8,
                     reasoning: "UI feature".into(),
@@ -983,7 +975,7 @@ mod tests {
             is_compound: true,
             tasks: vec![
                 PlanProposalTask {
-                    agent_name: "Coding Agent".into(),
+                    agent_name: "Developer Agent".into(),
                     mode_slug: "code".into(),
                     mode_name: "💻 Code".into(),
                     confidence: 0.85,
@@ -1009,7 +1001,7 @@ mod tests {
 
         assert!(deserialized.is_compound);
         assert_eq!(deserialized.tasks.len(), 2);
-        assert_eq!(deserialized.tasks[0].agent_name, "Coding Agent");
+        assert_eq!(deserialized.tasks[0].agent_name, "Developer Agent");
         assert_eq!(deserialized.tasks[0].mode_slug, "code");
         assert_eq!(deserialized.tasks[0].mode_name, "💻 Code");
         assert_eq!(

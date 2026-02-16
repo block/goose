@@ -173,6 +173,17 @@ impl DeveloperAgent {
             })
             .unwrap_or_default()
     }
+
+    pub fn tool_groups_for(&self, slug: &str) -> Vec<crate::registry::manifest::ToolGroupAccess> {
+        self.modes
+            .get(slug)
+            .map(|dm| {
+                let mut tg = dm.mode.base_tool_groups();
+                tg.extend(dm.extra_tools.clone());
+                tg
+            })
+            .unwrap_or_default()
+    }
 }
 
 #[cfg(test)]
