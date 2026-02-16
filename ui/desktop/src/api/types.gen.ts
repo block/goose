@@ -144,9 +144,17 @@ export type CreateScheduleRequest = {
  */
 export type CspMetadata = {
     /**
+     * Domains allowed for base-uri
+     */
+    baseUriDomains?: Array<string> | null;
+    /**
      * Domains allowed for connect-src (fetch, XHR, WebSocket)
      */
     connectDomains?: Array<string> | null;
+    /**
+     * Domains allowed for frame-src (nested iframes)
+     */
+    frameDomains?: Array<string> | null;
     /**
      * Domains allowed for resource loading (scripts, styles, images, fonts, media)
      */
@@ -628,6 +636,8 @@ export type MessageContent = (TextContent & {
     type: 'redactedThinking';
 }) | (SystemNotificationContent & {
     type: 'systemNotification';
+}) | (ReasoningContent & {
+    type: 'reasoning';
 });
 
 export type MessageEvent = {
@@ -915,6 +925,10 @@ export type ReadResourceResponse = {
     mimeType?: string | null;
     text: string;
     uri: string;
+};
+
+export type ReasoningContent = {
+    text: string;
 };
 
 export type Recipe = {

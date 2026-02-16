@@ -12,6 +12,12 @@ pub struct CspMetadata {
     /// Domains allowed for resource loading (scripts, styles, images, fonts, media)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub resource_domains: Option<Vec<String>>,
+    /// Domains allowed for frame-src (nested iframes)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub frame_domains: Option<Vec<String>>,
+    /// Domains allowed for base-uri
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub base_uri_domains: Option<Vec<String>>,
 }
 
 /// Sandbox permissions for MCP Apps

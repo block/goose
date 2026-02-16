@@ -106,8 +106,10 @@ pub trait McpClientTrait: Send + Sync {
 pub struct GooseClient {
     notification_handlers: Arc<Mutex<Vec<Sender<ServerNotification>>>>,
     provider: SharedProvider,
-    // Single-slot because calls are serialized per MCP client.
-    current_session_id: Arc<Mutex<Option<String>>>,
+    /// Fallback session_id for server-initiated callbacks (e.g. sampling/createMessage)
+    /// that don't include the session_id in their MCP extensions metadata.
+    /// Set once on first request; never cleared (the id is invariant per McpClient).
+    session_id: Mutex<Option<String>>,
 }
 
 impl GooseClient {
@@ -118,23 +120,21 @@ impl GooseClient {
         GooseClient {
             notification_handlers: handlers,
             provider,
-            current_session_id: Arc::new(Mutex::new(None)),
+            session_id: Mutex::new(None),
         }
     }
 
-    async fn set_current_session_id(&self, session_id: &str) {
-        let mut slot = self.current_session_id.lock().await;
+    async fn set_session_id(&self, session_id: &str) {
+        let mut slot = self.session_id.lock().await;
+        assert!(
+            slot.as_deref().is_none_or(|s| s == session_id),
+            "McpClient received requests from different sessions"
+        );
         *slot = Some(session_id.to_string());
     }
 
-    async fn clear_current_session_id(&self) {
-        let mut slot = self.current_session_id.lock().await;
-        *slot = None;
-    }
-
     async fn current_session_id(&self) -> Option<String> {
-        let slot = self.current_session_id.lock().await;
-        slot.clone()
+        self.session_id.lock().await.clone()
     }
 
     async fn resolve_session_id(&self, extensions: &Extensions) -> Option<String> {
@@ -416,31 +416,17 @@ impl McpClient {
         cancel_token: CancellationToken,
     ) -> Result<ServerResult, Error> {
         let request = inject_session_context_into_request(request, Some(session_id), working_dir);
-        // ExtensionManager serializes calls per MCP connection, so one current_session_id slot
-        // is sufficient for mapping callbacks to the active request session.
+        // The inner mutex is held only for the send; the actual response wait
+        // happens outside the lock so concurrent calls can overlap.
         let handle = {
             let client = self.client.lock().await;
-            client.service().set_current_session_id(session_id).await;
+            client.service().set_session_id(session_id).await;
             client
                 .send_cancellable_request(request, PeerRequestOptions::no_options())
                 .await
-        };
+        }?;
 
-        let handle = match handle {
-            Ok(handle) => handle,
-            Err(err) => {
-                let client = self.client.lock().await;
-                client.service().clear_current_session_id().await;
-                return Err(err);
-            }
-        };
-
-        let result = await_response(handle, self.timeout, &cancel_token).await;
-
-        let client = self.client.lock().await;
-        client.service().clear_current_session_id().await;
-
-        result
+        await_response(handle, self.timeout, &cancel_token).await
     }
 }
 
@@ -857,8 +843,7 @@ mod tests {
         runtime.block_on(async {
             let client = new_client();
             if let Some(session_id) = current_session {
-                let mut slot = client.current_session_id.lock().await;
-                *slot = Some(session_id.to_string());
+                client.set_session_id(session_id).await;
             }
 
             let extensions =

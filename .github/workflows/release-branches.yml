@@ -28,3 +28,8 @@ jobs:
 
             **Instructions:**
             After downloading, unzip the file and drag the goose.app to a location you prefer. The app is unsigned, so to run it run `xattr -r -d com.apple.quarantine '/path/to/goose.app'` and then open the app
+
+            **To test speech-to-text**, you also need to codesign the app with the microphone entitlement:
+            ```
+            codesign --force --deep --sign - --entitlements ui/desktop/entitlements.plist '/path/to/Goose.app'
+            ```

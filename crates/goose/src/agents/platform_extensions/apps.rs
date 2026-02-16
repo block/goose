@@ -173,7 +173,7 @@ impl AppsManagerClient {
 
     fn ensure_default_apps(&self) -> Result<(), String> {
         // TODO(Douwe): we have the same check in cache, consider unifying that
-        const CLOCK_HTML: &str = include_str!("../goose_apps/clock.html");
+        const CLOCK_HTML: &str = include_str!("../../goose_apps/clock.html");
 
         // Check if clock app exists
         let clock_path = self.apps_dir.join("clock.html");
