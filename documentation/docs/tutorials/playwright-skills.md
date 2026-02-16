@@ -33,10 +33,10 @@ With the [Playwright CLI](https://github.com/microsoft/playwright-cli) skill, go
 First, install the Playwright skill in your project directory:
 
 ```bash
-install playwright skill
+npx skills add https://github.com/microsoft/playwright-cli --skill playwright-cli
 ```
 
-This creates a `.claude/` folder with SKILL.md file and reference files that teach goose how to use the Playwright CLI capabilities.
+This creates a `.agents/` folder with a SKILL.md file and reference files that teach goose how to use the Playwright CLI capabilities.
 
 Then, enable the [Skills extension](/docs/mcp/skills-mcp) to allow goose to load and use Agent Skills.
 
