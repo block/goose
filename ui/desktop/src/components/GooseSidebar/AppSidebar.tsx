@@ -9,11 +9,13 @@ import {
   Clock,
   Eye,
   FileText,
+  FolderOpen,
   History,
   Home,
   MessageSquarePlus,
   Puzzle,
   Workflow,
+  Wrench,
 } from 'lucide-react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
@@ -102,6 +104,12 @@ const navigationZones: NavigationZone[] = [
         tooltip: 'View usage analytics and insights',
       },
       {
+        path: '/tools',
+        label: 'Tools',
+        icon: Wrench,
+        tooltip: 'Monitor tool health and performance',
+      },
+      {
         path: '/agents',
         label: 'Agents',
         icon: Bot,
@@ -141,6 +149,103 @@ const getSessionDisplayName = (session: Session): string => {
   return session.name;
 };
 
+const getProjectName = (workingDir: string | undefined | null): string => {
+  if (!workingDir) return 'General';
+  const home = typeof window !== 'undefined' ? getInitialWorkingDir() : '';
+  if (workingDir === home || workingDir === '~') return 'General';
+  const parts = workingDir.replace(/\/$/, '').split('/');
+  return parts[parts.length - 1] || 'General';
+};
+
+interface ProjectGroup {
+  project: string;
+  sessions: Session[];
+}
+
+const groupSessionsByProject = (sessions: Session[]): ProjectGroup[] => {
+  const groups = new Map<string, Session[]>();
+
+  for (const session of sessions) {
+    const project = getProjectName(session.working_dir);
+    const existing = groups.get(project) || [];
+    existing.push(session);
+    groups.set(project, existing);
+  }
+
+  // Sort: "General" always last, others by most recent session
+  return Array.from(groups.entries())
+    .map(([project, projectSessions]) => ({ project, sessions: projectSessions }))
+    .sort((a, b) => {
+      if (a.project === 'General') return 1;
+      if (b.project === 'General') return -1;
+      return 0;
+    });
+};
+
+const SessionItem: React.FC<{
+  session: Session;
+  isLast: boolean;
+  activeSessionId: string | undefined;
+  getSessionStatus: (
+    sessionId: string
+  ) => { streamState: string; hasUnreadActivity: boolean } | undefined;
+  onSessionClick: (session: Session) => void;
+}> = ({ session, isLast, activeSessionId, getSessionStatus, onSessionClick }) => {
+  const status = getSessionStatus(session.id);
+  const isStreaming = status?.streamState === 'streaming';
+  const hasError = status?.streamState === 'error';
+  const hasUnread = status?.hasUnreadActivity ?? false;
+  const displayName = getSessionDisplayName(session);
+  const canRename = !session.recipe?.title;
+
+  const handleRenameSession = async (sessionId: string, newName: string) => {
+    await updateSessionName({
+      path: { session_id: sessionId },
+      body: { name: newName },
+      throwOnError: true,
+    });
+    window.dispatchEvent(
+      new CustomEvent(AppEvents.SESSION_RENAMED, { detail: { sessionId, newName } })
+    );
+  };
+
+  return (
+    <div className="relative flex items-center">
+      <div
+        className={`absolute left-0 w-px bg-border-strong ${
+          isLast ? 'top-0 h-1/2' : 'top-0 h-full'
+        }`}
+      />
+      <div className="absolute left-0 w-2 h-px bg-border-strong top-1/2" />
+      <button
+        onClick={() => onSessionClick(session)}
+        className={`w-full text-left ml-3 px-1.5 py-1.5 pr-2 rounded-md text-sm transition-colors flex items-center gap-1 min-w-0 ${
+          activeSessionId === session.id
+            ? 'bg-background-medium text-text-default'
+            : 'text-text-muted hover:bg-background-medium/50 hover:text-text-default'
+        }`}
+        title={displayName}
+      >
+        {session.recipe && <ChefHat className="w-3.5 h-3.5 flex-shrink-0" />}
+        <div className="flex-1 min-w-0">
+          {canRename ? (
+            <InlineEditText
+              value={displayName}
+              onSave={(newName) => handleRenameSession(session.id, newName)}
+              className="text-sm -mx-2 -my-1"
+              editClassName="text-sm"
+              singleClickEdit={false}
+            />
+          ) : (
+            <span className="truncate block">{displayName}</span>
+          )}
+        </div>
+        <SessionIndicators isStreaming={isStreaming} hasUnread={hasUnread} hasError={hasError} />
+      </button>
+    </div>
+  );
+};
+
 const SessionList = React.memo<{
   sessions: Session[];
   activeSessionId: string | undefined;
@@ -160,72 +265,63 @@ const SessionList = React.memo<{
       });
     }, [sessions]);
 
-    const handleRenameSession = async (sessionId: string, newName: string) => {
-      await updateSessionName({
-        path: { session_id: sessionId },
-        body: { name: newName },
-        throwOnError: true,
-      });
+    const projectGroups = React.useMemo(
+      () => groupSessionsByProject(sortedSessions),
+      [sortedSessions]
+    );
 
-      // Dispatch event to update all components
-      window.dispatchEvent(
-        new CustomEvent(AppEvents.SESSION_RENAMED, {
-          detail: { sessionId, newName },
-        })
+    const hasMultipleProjects = projectGroups.length > 1;
+
+    if (!hasMultipleProjects) {
+      // Single project or no sessions — flat list (no grouping header)
+      return (
+        <div className="relative ml-3">
+          {sortedSessions.map((session, index) => (
+            <SessionItem
+              key={session.id}
+              session={session}
+              isLast={index === sortedSessions.length - 1}
+              activeSessionId={activeSessionId}
+              getSessionStatus={getSessionStatus}
+              onSessionClick={onSessionClick}
+            />
+          ))}
+        </div>
       );
-    };
+    }
 
+    // Multiple projects — group with collapsible project headers
     return (
-      <div className="relative ml-3">
-        {sortedSessions.map((session, index) => {
-          const status = getSessionStatus(session.id);
-          const isStreaming = status?.streamState === 'streaming';
-          const hasError = status?.streamState === 'error';
-          const hasUnread = status?.hasUnreadActivity ?? false;
-          const displayName = getSessionDisplayName(session);
-          const isLast = index === sortedSessions.length - 1;
-          const canRename = !session.recipe?.title;
-
+      <div className="space-y-1">
+        {projectGroups.map((group) => {
+          const hasActiveSession = group.sessions.some((s) => s.id === activeSessionId);
           return (
-            <div key={session.id} className="relative flex items-center">
-              {/* Vertical line segment - full height except last item stops at middle */}
-              <div
-                className={`absolute left-0 w-px bg-border-strong ${
-                  isLast ? 'top-0 h-1/2' : 'top-0 h-full'
-                }`}
-              />
-              {/* Horizontal branch line */}
-              <div className="absolute left-0 w-2 h-px bg-border-strong top-1/2" />
-              <button
-                onClick={() => onSessionClick(session)}
-                className={`w-full text-left ml-3 px-1.5 py-1.5 pr-2 rounded-md text-sm transition-colors flex items-center gap-1 min-w-0 ${
-                  activeSessionId === session.id
-                    ? 'bg-background-medium text-text-default'
-                    : 'text-text-muted hover:bg-background-medium/50 hover:text-text-default'
-                }`}
-                title={displayName}
-              >
-                {session.recipe && <ChefHat className="w-3.5 h-3.5 flex-shrink-0" />}
-                <div className="flex-1 min-w-0">
-                  {canRename ? (
-                    <InlineEditText
-                      value={displayName}
-                      onSave={(newName) => handleRenameSession(session.id, newName)}
-                      className="text-sm -mx-2 -my-1"
-                      editClassName="text-sm"
-                      singleClickEdit={false}
+            <Collapsible key={group.project} defaultOpen={hasActiveSession || group.project !== 'General'}>
+              <CollapsibleTrigger asChild>
+                <button className="flex items-center gap-1.5 w-full px-2 py-1 text-xs font-medium text-text-muted hover:text-text-default transition-colors rounded-md hover:bg-background-medium/30">
+                  <FolderOpen className="w-3 h-3 flex-shrink-0" />
+                  <span className="truncate">{group.project}</span>
+                  <span className="text-[10px] opacity-60 ml-auto flex-shrink-0">
+                    {group.sessions.length}
+                  </span>
+                  <ChevronRight className="w-3 h-3 flex-shrink-0 transition-transform duration-200 [[data-state=open]>&]:rotate-90" />
+                </button>
+              </CollapsibleTrigger>
+              <CollapsibleContent className="overflow-hidden transition-all data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:animate-in data-[state=open]:fade-in-0">
+                <div className="relative ml-3">
+                  {group.sessions.map((session, index) => (
+                    <SessionItem
+                      key={session.id}
+                      session={session}
+                      isLast={index === group.sessions.length - 1}
+                      activeSessionId={activeSessionId}
+                      getSessionStatus={getSessionStatus}
+                      onSessionClick={onSessionClick}
                     />
-                  ) : (
-                    <span className="truncate block">{displayName}</span>
-                  )}
+                  ))}
                 </div>
-                <SessionIndicators
-                  isStreaming={isStreaming}
-                  hasUnread={hasUnread}
-                  hasError={hasError}
-                />
-              </button>
-            </div>
+              </CollapsibleContent>
+            </Collapsible>
           );
         })}
       </div>
@@ -239,17 +335,14 @@ const SessionList = React.memo<{
     const nextIds = nextProps.sessions.map((s) => s.id).join(',');
     if (prevIds !== nextIds) return false;
 
-    // Check if any session name or message_count changed
     for (let i = 0; i < prevProps.sessions.length; i++) {
       if (prevProps.sessions[i].name !== nextProps.sessions[i].name) return false;
       if (prevProps.sessions[i].message_count !== nextProps.sessions[i].message_count) return false;
     }
 
-    // Check if any session's status has changed
     for (const session of prevProps.sessions) {
       const prevStatus = prevProps.getSessionStatus(session.id);
       const nextStatus = nextProps.getSessionStatus(session.id);
-
       if (prevStatus?.hasUnreadActivity !== nextStatus?.hasUnreadActivity) return false;
       if (prevStatus?.streamState !== nextStatus?.streamState) return false;
     }
