@@ -18,5 +18,6 @@ pub use session_manager::{
     SessionManager, SessionType, SessionUpdateBuilder,
 };
 pub use tool_analytics::{
-    AgentPerformanceMetrics, ToolAnalytics, ToolAnalyticsStore, ToolUsageStat,
+    AgentPerformanceMetrics, HotTool, LiveMetrics, MinuteActivity, RecentError, ToolAnalytics,
+    ToolAnalyticsStore, ToolUsageStat,
 };

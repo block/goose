@@ -870,6 +870,12 @@ export type GooseApp = McpAppResource & (WindowProps | null) & {
     prd?: string | null;
 };
 
+export type HotTool = {
+    calls_1h: number;
+    errors_1h: number;
+    tool_name: string;
+};
+
 export type Icon = {
     mimeType?: string;
     sizes?: Array<string>;
@@ -936,6 +942,56 @@ export type ListRecipeResponse = {
 
 export type ListSchedulesResponse = {
     jobs: Array<ScheduledJob>;
+};
+
+/**
+ * Live monitoring metrics — recent activity snapshot
+ */
+export type LiveMetrics = {
+    /**
+     * Active sessions in the last hour
+     */
+    active_sessions_1h: number;
+    /**
+     * Active sessions in the last 24 hours
+     */
+    active_sessions_24h: number;
+    /**
+     * Per-minute activity for the last 60 minutes
+     */
+    activity_timeline: Array<MinuteActivity>;
+    /**
+     * Most active tools in the last hour
+     */
+    hot_tools: Array<HotTool>;
+    /**
+     * Messages processed in the last hour
+     */
+    messages_1h: number;
+    /**
+     * Recent errors (last 10)
+     */
+    recent_errors: Array<RecentError>;
+    /**
+     * Success rate in the last hour (0.0-1.0)
+     */
+    success_rate_1h: number;
+    /**
+     * Tool calls in the last hour
+     */
+    tool_calls_1h: number;
+    /**
+     * Tool calls in the last 24 hours
+     */
+    tool_calls_24h: number;
+    /**
+     * Tool errors in the last hour
+     */
+    tool_errors_1h: number;
+    /**
+     * Tool errors in the last 24 hours
+     */
+    tool_errors_24h: number;
 };
 
 export type LoadedProvider = {
@@ -1067,6 +1123,12 @@ export type MessageMetadata = {
      * Whether the message should be visible to the user in the UI
      */
     userVisible: boolean;
+};
+
+export type MinuteActivity = {
+    messages: number;
+    minute: string;
+    tool_calls: number;
 };
 
 export type ModelConfig = {
@@ -1367,6 +1429,12 @@ export type ReadResourceResponse = {
     mimeType?: string | null;
     text: string;
     uri: string;
+};
+
+export type RecentError = {
+    session_id: string;
+    timestamp: string;
+    tool_name: string;
 };
 
 export type Recipe = {
@@ -3122,6 +3190,22 @@ export type GetEvalTopicsResponses = {
 };
 
 export type GetEvalTopicsResponse = GetEvalTopicsResponses[keyof GetEvalTopicsResponses];
+
+export type GetLiveMonitoringData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/analytics/monitoring/live';
+};
+
+export type GetLiveMonitoringResponses = {
+    /**
+     * Live monitoring metrics
+     */
+    200: LiveMetrics;
+};
+
+export type GetLiveMonitoringResponse = GetLiveMonitoringResponses[keyof GetLiveMonitoringResponses];
 
 export type GetToolAnalyticsData = {
     body?: never;

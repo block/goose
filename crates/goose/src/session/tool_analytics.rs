@@ -96,6 +96,54 @@ pub struct VersionInfo {
     pub active_extensions: Vec<String>,
 }
 
+/// Live monitoring metrics — recent activity snapshot
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+pub struct LiveMetrics {
+    /// Active sessions in the last hour
+    pub active_sessions_1h: i32,
+    /// Active sessions in the last 24 hours
+    pub active_sessions_24h: i32,
+    /// Tool calls in the last hour
+    pub tool_calls_1h: i32,
+    /// Tool errors in the last hour
+    pub tool_errors_1h: i32,
+    /// Tool calls in the last 24 hours
+    pub tool_calls_24h: i32,
+    /// Tool errors in the last 24 hours
+    pub tool_errors_24h: i32,
+    /// Success rate in the last hour (0.0-1.0)
+    pub success_rate_1h: f64,
+    /// Messages processed in the last hour
+    pub messages_1h: i32,
+    /// Most active tools in the last hour
+    pub hot_tools: Vec<HotTool>,
+    /// Recent errors (last 10)
+    pub recent_errors: Vec<RecentError>,
+    /// Per-minute activity for the last 60 minutes
+    pub activity_timeline: Vec<MinuteActivity>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+pub struct HotTool {
+    pub tool_name: String,
+    pub calls_1h: i32,
+    pub errors_1h: i32,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+pub struct RecentError {
+    pub tool_name: String,
+    pub session_id: String,
+    pub timestamp: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+pub struct MinuteActivity {
+    pub minute: String,
+    pub tool_calls: i32,
+    pub messages: i32,
+}
+
 pub struct ToolAnalyticsStore<'a> {
     pool: &'a Pool<Sqlite>,
 }
@@ -516,6 +564,175 @@ impl<'a> ToolAnalyticsStore<'a> {
             avg_tokens_per_session: avg_stats.1,
             session_duration_stats: duration,
             active_extensions: Vec::new(),
+        })
+    }
+
+    /// Get live monitoring metrics — recent activity snapshot
+    pub async fn get_live_metrics(&self) -> Result<LiveMetrics> {
+        // Active sessions in last 1h and 24h
+        let (sessions_1h,): (i32,) = sqlx::query_as(
+            "SELECT COUNT(DISTINCT session_id) FROM messages WHERE created_timestamp > unixepoch() - 3600",
+        )
+        .fetch_one(self.pool)
+        .await?;
+
+        let (sessions_24h,): (i32,) = sqlx::query_as(
+            "SELECT COUNT(DISTINCT session_id) FROM messages WHERE created_timestamp > unixepoch() - 86400",
+        )
+        .fetch_one(self.pool)
+        .await?;
+
+        // Tool calls in last 1h
+        let (calls_1h,): (i32,) = sqlx::query_as(
+            r#"
+            SELECT COUNT(*) FROM messages m, json_each(m.content_json) je
+            WHERE m.role = 'assistant'
+              AND json_extract(je.value, '$.type') = 'toolRequest'
+              AND json_extract(je.value, '$.toolCall.value.name') IS NOT NULL
+              AND m.created_timestamp > unixepoch() - 3600
+            "#,
+        )
+        .fetch_one(self.pool)
+        .await?;
+
+        // Tool errors in last 1h
+        let (errors_1h,): (i32,) = sqlx::query_as(
+            r#"
+            SELECT COUNT(*) FROM messages m, json_each(m.content_json) je
+            WHERE m.role = 'user'
+              AND json_extract(je.value, '$.type') = 'toolResponse'
+              AND (json_extract(je.value, '$.toolResult.value.isError') = 1
+                   OR json_extract(je.value, '$.toolResult.error') IS NOT NULL)
+              AND m.created_timestamp > unixepoch() - 3600
+            "#,
+        )
+        .fetch_one(self.pool)
+        .await?;
+
+        // Tool calls/errors in last 24h
+        let (calls_24h,): (i32,) = sqlx::query_as(
+            r#"
+            SELECT COUNT(*) FROM messages m, json_each(m.content_json) je
+            WHERE m.role = 'assistant'
+              AND json_extract(je.value, '$.type') = 'toolRequest'
+              AND json_extract(je.value, '$.toolCall.value.name') IS NOT NULL
+              AND m.created_timestamp > unixepoch() - 86400
+            "#,
+        )
+        .fetch_one(self.pool)
+        .await?;
+
+        let (errors_24h,): (i32,) = sqlx::query_as(
+            r#"
+            SELECT COUNT(*) FROM messages m, json_each(m.content_json) je
+            WHERE m.role = 'user'
+              AND json_extract(je.value, '$.type') = 'toolResponse'
+              AND (json_extract(je.value, '$.toolResult.value.isError') = 1
+                   OR json_extract(je.value, '$.toolResult.error') IS NOT NULL)
+              AND m.created_timestamp > unixepoch() - 86400
+            "#,
+        )
+        .fetch_one(self.pool)
+        .await?;
+
+        // Messages in last 1h
+        let (messages_1h,): (i32,) = sqlx::query_as(
+            "SELECT COUNT(*) FROM messages WHERE created_timestamp > unixepoch() - 3600",
+        )
+        .fetch_one(self.pool)
+        .await?;
+
+        let success_rate_1h = if calls_1h > 0 {
+            (calls_1h - errors_1h) as f64 / calls_1h as f64
+        } else {
+            1.0
+        };
+
+        // Hot tools (most active in last 1h)
+        let hot_tools: Vec<(String, i32)> = sqlx::query_as(
+            r#"
+            SELECT json_extract(je.value, '$.toolCall.value.name'), COUNT(*)
+            FROM messages m, json_each(m.content_json) je
+            WHERE m.role = 'assistant'
+              AND json_extract(je.value, '$.type') = 'toolRequest'
+              AND json_extract(je.value, '$.toolCall.value.name') IS NOT NULL
+              AND m.created_timestamp > unixepoch() - 3600
+            GROUP BY 1 ORDER BY 2 DESC LIMIT 10
+            "#,
+        )
+        .fetch_all(self.pool)
+        .await?;
+
+        // Recent errors (last 10)
+        let recent_errors: Vec<(String, String, i64)> = sqlx::query_as(
+            r#"
+            SELECT
+                COALESCE(json_extract(je.value, '$.id'), '') as response_id,
+                m.session_id,
+                m.created_timestamp
+            FROM messages m, json_each(m.content_json) je
+            WHERE m.role = 'user'
+              AND json_extract(je.value, '$.type') = 'toolResponse'
+              AND (json_extract(je.value, '$.toolResult.value.isError') = 1
+                   OR json_extract(je.value, '$.toolResult.error') IS NOT NULL)
+            ORDER BY m.created_timestamp DESC
+            LIMIT 10
+            "#,
+        )
+        .fetch_all(self.pool)
+        .await?;
+
+        // Per-minute activity for last 60 minutes
+        let timeline: Vec<(String, i32, i32)> = sqlx::query_as(
+            r#"
+            SELECT
+                strftime('%H:%M', created_timestamp, 'unixepoch') as minute,
+                SUM(CASE WHEN role = 'assistant' THEN 1 ELSE 0 END) as tool_calls,
+                COUNT(*) as messages
+            FROM messages
+            WHERE created_timestamp > unixepoch() - 3600
+            GROUP BY minute
+            ORDER BY minute ASC
+            "#,
+        )
+        .fetch_all(self.pool)
+        .await?;
+
+        Ok(LiveMetrics {
+            active_sessions_1h: sessions_1h,
+            active_sessions_24h: sessions_24h,
+            tool_calls_1h: calls_1h,
+            tool_errors_1h: errors_1h,
+            tool_calls_24h: calls_24h,
+            tool_errors_24h: errors_24h,
+            success_rate_1h,
+            messages_1h,
+            hot_tools: hot_tools
+                .into_iter()
+                .map(|(name, calls)| HotTool {
+                    tool_name: name,
+                    calls_1h: calls,
+                    errors_1h: 0,
+                })
+                .collect(),
+            recent_errors: recent_errors
+                .into_iter()
+                .map(|(id, session, ts)| RecentError {
+                    tool_name: id,
+                    session_id: session,
+                    timestamp: chrono::DateTime::from_timestamp(ts, 0)
+                        .map(|dt| dt.format("%Y-%m-%d %H:%M:%S").to_string())
+                        .unwrap_or_default(),
+                })
+                .collect(),
+            activity_timeline: timeline
+                .into_iter()
+                .map(|(minute, calls, msgs)| MinuteActivity {
+                    minute,
+                    tool_calls: calls,
+                    messages: msgs,
+                })
+                .collect(),
         })
     }
 }

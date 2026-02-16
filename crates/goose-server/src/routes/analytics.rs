@@ -15,7 +15,9 @@ use goose::session::eval_storage::{
     CreateDatasetRequest, EvalDataset, EvalDatasetSummary, EvalOverview, EvalRunDetail,
     EvalRunSummary, EvalStorage, RunComparison, RunEvalRequest, TopicAnalytics,
 };
-use goose::session::tool_analytics::{AgentPerformanceMetrics, ToolAnalytics, ToolAnalyticsStore};
+use goose::session::tool_analytics::{
+    AgentPerformanceMetrics, LiveMetrics, ToolAnalytics, ToolAnalyticsStore,
+};
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 
@@ -542,6 +544,33 @@ pub async fn get_agent_performance(
     Ok(Json(metrics))
 }
 
+// ── Live Monitoring ────────────────────────────────────────────────
+
+/// Get live monitoring metrics (recent activity snapshot)
+#[utoipa::path(
+    get,
+    path = "/analytics/monitoring/live",
+    responses(
+        (status = 200, description = "Live monitoring metrics", body = LiveMetrics)
+    )
+)]
+pub async fn get_live_monitoring(
+    State(state): State<Arc<AppState>>,
+) -> Result<Json<LiveMetrics>, ErrorResponse> {
+    let sm = state.session_manager();
+    let pool = sm
+        .storage()
+        .pool()
+        .await
+        .map_err(|e| ErrorResponse::internal(e.to_string()))?;
+    let store = ToolAnalyticsStore::new(pool);
+    let metrics = store
+        .get_live_metrics()
+        .await
+        .map_err(|e| ErrorResponse::internal(e.to_string()))?;
+    Ok(Json(metrics))
+}
+
 // ── Router ─────────────────────────────────────────────────────────
 
 pub fn routes(state: Arc<AppState>) -> Router {
@@ -568,5 +597,7 @@ pub fn routes(state: Arc<AppState>) -> Router {
         // Tool analytics
         .route("/analytics/tools", get(get_tool_analytics))
         .route("/analytics/tools/agents", get(get_agent_performance))
+        // Live monitoring
+        .route("/analytics/monitoring/live", get(get_live_monitoring))
         .with_state(state)
 }

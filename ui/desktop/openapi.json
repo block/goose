@@ -1490,6 +1490,27 @@
         }
       }
     },
+    "/analytics/monitoring/live": {
+      "get": {
+        "tags": [
+          "super::routes::analytics"
+        ],
+        "summary": "Get live monitoring metrics (recent activity snapshot)",
+        "operationId": "get_live_monitoring",
+        "responses": {
+          "200": {
+            "description": "Live monitoring metrics",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LiveMetrics"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/analytics/tools": {
       "get": {
         "tags": [
@@ -7228,6 +7249,27 @@
           }
         ]
       },
+      "HotTool": {
+        "type": "object",
+        "required": [
+          "tool_name",
+          "calls_1h",
+          "errors_1h"
+        ],
+        "properties": {
+          "calls_1h": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "errors_1h": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "tool_name": {
+            "type": "string"
+          }
+        }
+      },
       "Icon": {
         "type": "object",
         "required": [
@@ -7411,6 +7453,86 @@
             "items": {
               "$ref": "#/components/schemas/ScheduledJob"
             }
+          }
+        }
+      },
+      "LiveMetrics": {
+        "type": "object",
+        "description": "Live monitoring metrics — recent activity snapshot",
+        "required": [
+          "active_sessions_1h",
+          "active_sessions_24h",
+          "tool_calls_1h",
+          "tool_errors_1h",
+          "tool_calls_24h",
+          "tool_errors_24h",
+          "success_rate_1h",
+          "messages_1h",
+          "hot_tools",
+          "recent_errors",
+          "activity_timeline"
+        ],
+        "properties": {
+          "active_sessions_1h": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Active sessions in the last hour"
+          },
+          "active_sessions_24h": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Active sessions in the last 24 hours"
+          },
+          "activity_timeline": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MinuteActivity"
+            },
+            "description": "Per-minute activity for the last 60 minutes"
+          },
+          "hot_tools": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/HotTool"
+            },
+            "description": "Most active tools in the last hour"
+          },
+          "messages_1h": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Messages processed in the last hour"
+          },
+          "recent_errors": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RecentError"
+            },
+            "description": "Recent errors (last 10)"
+          },
+          "success_rate_1h": {
+            "type": "number",
+            "format": "double",
+            "description": "Success rate in the last hour (0.0-1.0)"
+          },
+          "tool_calls_1h": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Tool calls in the last hour"
+          },
+          "tool_calls_24h": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Tool calls in the last 24 hours"
+          },
+          "tool_errors_1h": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Tool errors in the last hour"
+          },
+          "tool_errors_24h": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Tool errors in the last 24 hours"
           }
         }
       },
@@ -7980,6 +8102,27 @@
           "userVisible": {
             "type": "boolean",
             "description": "Whether the message should be visible to the user in the UI"
+          }
+        }
+      },
+      "MinuteActivity": {
+        "type": "object",
+        "required": [
+          "minute",
+          "tool_calls",
+          "messages"
+        ],
+        "properties": {
+          "messages": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "minute": {
+            "type": "string"
+          },
+          "tool_calls": {
+            "type": "integer",
+            "format": "int32"
           }
         }
       },
@@ -8724,6 +8867,25 @@
             "type": "string"
           },
           "uri": {
+            "type": "string"
+          }
+        }
+      },
+      "RecentError": {
+        "type": "object",
+        "required": [
+          "tool_name",
+          "session_id",
+          "timestamp"
+        ],
+        "properties": {
+          "session_id": {
+            "type": "string"
+          },
+          "timestamp": {
+            "type": "string"
+          },
+          "tool_name": {
             "type": "string"
           }
         }
