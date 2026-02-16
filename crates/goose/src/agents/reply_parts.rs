@@ -230,37 +230,17 @@ impl Agent {
         // Capture errors during stream creation and return them as part of the stream
         // so they can be handled by the existing error handling logic in the agent
         let model_config = provider.get_model_config();
-        let stream_result = if provider.supports_streaming() {
-            debug!("WAITING_LLM_STREAM_START");
-            let result = provider
-                .stream(
-                    &model_config,
-                    session_id,
-                    system_prompt.as_str(),
-                    messages_for_provider.messages(),
-                    &tools,
-                )
-                .await;
-            debug!("WAITING_LLM_STREAM_END");
-            result
-        } else {
-            debug!("WAITING_LLM_START");
-            let complete_result = provider
-                .complete(
-                    &model_config,
-                    session_id,
-                    system_prompt.as_str(),
-                    messages_for_provider.messages(),
-                    &tools,
-                )
-                .await;
-            debug!("WAITING_LLM_END");
-
-            match complete_result {
-                Ok((message, usage)) => Ok(stream_from_single_message(message, usage)),
-                Err(e) => Err(e),
-            }
-        };
+        debug!("WAITING_LLM_STREAM_START");
+        let stream_result = provider
+            .stream(
+                &model_config,
+                session_id,
+                system_prompt.as_str(),
+                messages_for_provider.messages(),
+                &tools,
+            )
+            .await;
+        debug!("WAITING_LLM_STREAM_END");
 
         // If there was an error creating the stream, return a stream that yields that error
         let mut stream = match stream_result {
@@ -465,17 +445,17 @@ mod tests {
             self.model_config.clone()
         }
 
-        async fn complete_with_model(
+        async fn stream(
             &self,
-            _session_id: Option<&str>,
             _model_config: &ModelConfig,
+            _session_id: &str,
             _system: &str,
             _messages: &[Message],
             _tools: &[Tool],
-        ) -> anyhow::Result<(Message, ProviderUsage), ProviderError> {
+        ) -> Result<MessageStream, ProviderError> {
             let message = Message::assistant().with_text("ok");
             let usage = ProviderUsage::new("mock".to_string(), Usage::default());
-            Ok((message, usage))
+            Ok(stream_from_single_message(message, usage))
         }
     }
 

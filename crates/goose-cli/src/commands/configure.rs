@@ -1676,7 +1676,7 @@ pub async fn handle_openrouter_auth() -> anyhow::Result<()> {
             let test_result = provider
                 .complete(
                     &provider_model_config,
-                    "", // Empty session ID for configuration test
+                    "",
                     "You are goose, an AI assistant.",
                     &[Message::user().with_text("Say 'Configuration test successful!'")],
                     &[],

@@ -378,7 +378,6 @@ pub trait Provider: Send + Sync {
     fn get_name(&self) -> &str;
 
     /// Primary streaming method that all providers must implement.
-    /// Takes an explicit model_config parameter for model routing.
     async fn stream(
         &self,
         model_config: &ModelConfig,
@@ -389,8 +388,6 @@ pub trait Provider: Send + Sync {
     ) -> Result<MessageStream, ProviderError>;
 
     /// Complete with a specific model config.
-    /// Default implementation collects the stream.
-    /// Providers can override this for non-streaming models or optimization.
     async fn complete(
         &self,
         model_config: &ModelConfig,
@@ -414,7 +411,6 @@ pub trait Provider: Send + Sync {
         let model_config = self.get_model_config();
         let fast_config = model_config.use_fast_model();
 
-        // Try with fast model
         let result = self
             .complete(&fast_config, session_id, system, messages, tools)
             .await;
@@ -429,7 +425,6 @@ pub trait Provider: Send + Sync {
                         e,
                         model_config.model_name
                     );
-                    // Fallback to regular model
                     self.complete(&model_config, session_id, system, messages, tools)
                         .await
                 } else {
@@ -541,12 +536,6 @@ pub trait Provider: Send + Sync {
     /// This is used for logging model information at startup
     fn as_lead_worker(&self) -> Option<&dyn LeadWorkerProviderTrait> {
         None
-    }
-
-    /// Check if this provider supports streaming responses.
-    /// Used by reply_parts to decide whether to use stream() or complete().
-    fn supports_streaming(&self) -> bool {
-        true // Default to true since stream() is now required
     }
 
     /// Get the currently active model name

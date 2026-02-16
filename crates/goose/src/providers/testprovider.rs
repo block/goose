@@ -7,7 +7,7 @@ use std::fs;
 use std::path::Path;
 use std::sync::{Arc, Mutex};
 
-use super::base::{MessageStream, Provider, ProviderDef, ProviderMetadata, ProviderUsage};
+use super::base::{stream_from_single_message, MessageStream, Provider, ProviderDef, ProviderMetadata, ProviderUsage};
 use super::errors::ProviderError;
 use crate::conversation::message::Message;
 use crate::model::ModelConfig;
@@ -227,28 +227,27 @@ mod tests {
             "mock-testprovider"
         }
 
-        async fn complete_with_model(
+        async fn stream(
             &self,
-            _session_id: Option<&str>,
             _model_config: &ModelConfig,
+            _session_id: &str,
             _system: &str,
             _messages: &[Message],
             _tools: &[Tool],
-        ) -> Result<(Message, ProviderUsage), ProviderError> {
-            Ok((
-                Message::new(
-                    Role::Assistant,
-                    Utc::now().timestamp(),
-                    vec![MessageContent::Text(TextContent {
-                        raw: RawTextContent {
-                            text: self.response.clone(),
-                            meta: None,
-                        },
-                        annotations: None,
-                    })],
-                ),
-                ProviderUsage::new("mock-model".to_string(), Usage::default()),
-            ))
+        ) -> Result<MessageStream, ProviderError> {
+            let message = Message::new(
+                Role::Assistant,
+                Utc::now().timestamp(),
+                vec![MessageContent::Text(TextContent {
+                    raw: RawTextContent {
+                        text: self.response.clone(),
+                        meta: None,
+                    },
+                    annotations: None,
+                })],
+            );
+            let usage = ProviderUsage::new("mock-model".to_string(), Usage::default());
+            Ok(stream_from_single_message(message, usage))
         }
 
         fn get_model_config(&self) -> ModelConfig {
@@ -271,9 +270,10 @@ mod tests {
 
         {
             let test_provider = TestProvider::new_recording(mock, &temp_file);
+            let model_config = test_provider.get_model_config();
 
             let result = test_provider
-                .complete("test-session-id", "You are helpful", &[], &[])
+                .complete(&model_config, "test-session-id", "You are helpful", &[], &[])
                 .await;
 
             assert!(result.is_ok());
@@ -289,9 +289,10 @@ mod tests {
 
         {
             let replay_provider = TestProvider::new_replaying(&temp_file).unwrap();
+            let model_config = replay_provider.get_model_config();
 
             let result = replay_provider
-                .complete("test-session-id", "You are helpful", &[], &[])
+                .complete(&model_config, "test-session-id", "You are helpful", &[], &[])
                 .await;
 
             assert!(result.is_ok());
@@ -314,9 +315,10 @@ mod tests {
         );
 
         let replay_provider = TestProvider::new_replaying(&temp_file).unwrap();
+        let model_config = replay_provider.get_model_config();
 
         let result = replay_provider
-            .complete("test-session-id", "Different system prompt", &[], &[])
+            .complete(&model_config, "test-session-id", "Different system prompt", &[], &[])
             .await;
 
         assert!(result.is_err());

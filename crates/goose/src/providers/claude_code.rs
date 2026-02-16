@@ -752,10 +752,6 @@ impl Provider for ClaudeCodeProvider {
         Ok(parse_models_from_lines(&lines))
     }
 
-    fn supports_streaming(&self) -> bool {
-        true
-    }
-
     async fn stream(
         &self,
         model_config: &ModelConfig,
