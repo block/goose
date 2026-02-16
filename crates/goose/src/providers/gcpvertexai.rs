@@ -590,7 +590,6 @@ impl ProviderDef for GcpVertexAIProvider {
                 ),
             ],
         )
-        .with_unlisted_models()
     }
 
     fn from_env(
@@ -824,6 +823,5 @@ mod tests {
         assert!(!metadata.known_models.is_empty());
         assert_eq!(metadata.default_model, "gemini-2.5-flash");
         assert_eq!(metadata.config_keys.len(), 6);
-        assert!(metadata.allows_unlisted_models);
     }
 }
