@@ -276,7 +276,7 @@ pub fn render_message(message: &Message, debug: bool) {
 
 /// Render a streaming message, using a buffer to accumulate text content
 /// and only render when markdown constructs are complete.
-/// Returns true if the message contained text content (for tracking purposes).
+
 pub fn render_message_streaming(message: &Message, buffer: &mut MarkdownBuffer, debug: bool) {
     let theme = get_theme();
 
@@ -906,8 +906,13 @@ fn extract_markdown_table(content: &str) -> Option<(String, Vec<&str>, &str)> {
         ""
     } else {
         let table_end_line = lines[end];
-        let table_end_pos = content.find(table_end_line).unwrap() + table_end_line.len();
-        content.get(table_end_pos + 1..).unwrap_or("")
+        let content_ptr = content.as_ptr() as usize;
+        let line_ptr = table_end_line.as_ptr() as usize;
+        let table_end_pos = line_ptr.saturating_sub(content_ptr) + table_end_line.len();
+        content
+            .get(table_end_pos..)
+            .and_then(|s| s.strip_prefix('\n'))
+            .unwrap_or("")
     };
 
     Some((before, table, after))
