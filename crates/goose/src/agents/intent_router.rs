@@ -197,6 +197,52 @@ impl IntentRouter {
         decision
     }
 
+    /// Score a mode against a message, returning the score and matched keywords.
+    pub fn score_mode_detail(&self, message: &str, mode: &AgentMode) -> (f32, Vec<String>) {
+        let message_lower = message.to_lowercase();
+        let message_words = Self::extract_keywords(&message_lower);
+        let mut matched = Vec::new();
+
+        let mut score: f32 = 0.0;
+
+        if let Some(ref when) = mode.when_to_use {
+            let keywords = Self::extract_keywords(when);
+            for kw in &keywords {
+                if message_words.iter().any(|mw| Self::words_match(mw, kw)) {
+                    matched.push(kw.clone());
+                }
+            }
+            if !keywords.is_empty() {
+                score += (matched.len() as f32 / keywords.len() as f32) * 0.6;
+            }
+        }
+
+        let desc_keywords = Self::extract_keywords(&mode.description);
+        let desc_matched: Vec<_> = desc_keywords
+            .iter()
+            .filter(|kw| message_words.iter().any(|mw| Self::words_match(mw, kw)))
+            .cloned()
+            .collect();
+        if !desc_keywords.is_empty() {
+            score += (desc_matched.len() as f32 / desc_keywords.len() as f32) * 0.3;
+        }
+        matched.extend(desc_matched);
+
+        let name_clean = mode
+            .name
+            .to_lowercase()
+            .replace(|c: char| !c.is_alphanumeric() && c != ' ', "");
+        let name_trimmed = name_clean.trim();
+        if !name_trimmed.is_empty() && message_lower.contains(name_trimmed) {
+            score += 0.1;
+            matched.push(name_trimmed.to_string());
+        }
+
+        matched.sort();
+        matched.dedup();
+        (score, matched)
+    }
+
     fn score_mode_match(&self, message_lower: &str, mode: &AgentMode) -> f32 {
         let mut score: f32 = 0.0;
         let message_words = Self::extract_keywords(message_lower);
