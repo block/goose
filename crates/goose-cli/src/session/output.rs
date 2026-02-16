@@ -276,7 +276,6 @@ pub fn render_message(message: &Message, debug: bool) {
 
 /// Render a streaming message, using a buffer to accumulate text content
 /// and only render when markdown constructs are complete.
-/// Returns true if the message contained text content (for tracking purposes).
 pub fn render_message_streaming(message: &Message, buffer: &mut MarkdownBuffer, debug: bool) {
     let theme = get_theme();
 
