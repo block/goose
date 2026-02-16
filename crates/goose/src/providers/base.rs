@@ -696,10 +696,7 @@ mod tests {
     use serde_json::json;
     fn content_from_str(s: String) -> MessageContent {
         if let Some(img_data) = s.strip_prefix("*img:") {
-            MessageContent::image(
-                format!("http://example.com/{}", img_data),
-                "image/png"
-            )
+            MessageContent::image(format!("http://example.com/{}", img_data), "image/png")
         } else if let Some(tool_name) = s.strip_prefix("*tool:") {
             let tool_call = Ok(rmcp::model::CallToolRequestParams {
                 meta: None,
@@ -767,10 +764,7 @@ mod tests {
         ; "mixed content in chunk"
     )]
     #[tokio::test]
-    async fn test_collect_stream_coalescing(
-        input_items: Vec<&str>,
-        expected: Vec<&str>,
-    ) {
+    async fn test_collect_stream_coalescing(input_items: Vec<&str>, expected: Vec<&str>) {
         let items: Vec<String> = input_items.into_iter().map(|s| s.to_string()).collect();
         let stream = create_test_stream(items);
         let (msg, _) = collect_stream(Box::pin(stream)).await.unwrap();
