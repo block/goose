@@ -11,6 +11,7 @@ pub mod extension;
 pub mod extension_malware_check;
 pub mod extension_manager;
 pub mod extension_manager_extension;
+pub mod extension_registry;
 pub mod final_output_tool;
 pub mod goose_agent;
 pub mod intent_router;

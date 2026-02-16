@@ -50,12 +50,12 @@ use serde_json::Value;
 
 type McpClientBox = Arc<Mutex<Box<dyn McpClientTrait>>>;
 
-struct Extension {
+pub(crate) struct Extension {
     pub config: ExtensionConfig,
 
-    client: McpClientBox,
-    server_info: Option<ServerInfo>,
-    _temp_dir: Option<tempfile::TempDir>,
+    pub(crate) client: McpClientBox,
+    pub(crate) server_info: Option<ServerInfo>,
+    pub(crate) _temp_dir: Option<tempfile::TempDir>,
 }
 
 impl Extension {
@@ -93,7 +93,7 @@ impl Extension {
 
 /// Manages goose extensions / MCP clients and their interactions
 pub struct ExtensionManager {
-    extensions: Mutex<HashMap<String, Extension>>,
+    registry: Arc<super::extension_registry::ExtensionRegistry>,
     context: PlatformExtensionContext,
     provider: SharedProvider,
     tool_registry: super::tool_registry::ToolRegistry,
@@ -444,7 +444,7 @@ impl ExtensionManager {
         session_manager: Arc<crate::session::SessionManager>,
     ) -> Self {
         Self {
-            extensions: Mutex::new(HashMap::new()),
+            registry: Arc::new(super::extension_registry::ExtensionRegistry::new()),
             context: PlatformExtensionContext {
                 extension_manager: None,
                 session_manager,
@@ -452,6 +452,33 @@ impl ExtensionManager {
             provider,
             tool_registry: super::tool_registry::ToolRegistry::new(),
         }
+    }
+
+    /// Create with a shared registry (for server-level extension sharing)
+    pub fn with_registry(
+        registry: Arc<super::extension_registry::ExtensionRegistry>,
+        provider: SharedProvider,
+        session_manager: Arc<crate::session::SessionManager>,
+    ) -> Self {
+        Self {
+            registry,
+            context: PlatformExtensionContext {
+                extension_manager: None,
+                session_manager,
+            },
+            provider,
+            tool_registry: super::tool_registry::ToolRegistry::new(),
+        }
+    }
+
+    /// Get a reference to the shared extension registry
+    pub fn registry(&self) -> &super::extension_registry::ExtensionRegistry {
+        &self.registry
+    }
+
+    /// Convenience: lock the extensions map
+    async fn extensions(&self) -> tokio::sync::MutexGuard<'_, HashMap<String, Extension>> {
+        self.registry.extensions().lock().await
     }
 
     #[cfg(test)]
@@ -469,8 +496,7 @@ impl ExtensionManager {
     }
 
     pub async fn supports_resources(&self) -> bool {
-        self.extensions
-            .lock()
+        self.extensions()
             .await
             .values()
             .any(|ext| ext.supports_resources())
@@ -488,7 +514,7 @@ impl ExtensionManager {
     ) -> ExtensionResult<()> {
         let sanitized_name = config.key();
 
-        if self.extensions.lock().await.contains_key(&sanitized_name) {
+        if self.extensions().await.contains_key(&sanitized_name) {
             return Ok(());
         }
 
@@ -680,7 +706,7 @@ impl ExtensionManager {
 
         let server_info = client.get_info().cloned();
 
-        let mut extensions = self.extensions.lock().await;
+        let mut extensions = self.extensions().await;
         extensions.insert(
             sanitized_name,
             Extension::new(config, Arc::new(Mutex::new(client)), server_info, temp_dir),
@@ -700,8 +726,7 @@ impl ExtensionManager {
         temp_dir: Option<TempDir>,
     ) {
         let normalized = name_to_key(&name);
-        self.extensions
-            .lock()
+        self.extensions()
             .await
             .insert(normalized, Extension::new(config, client, info, temp_dir));
         self.invalidate_tools_cache_and_bump_version().await;
@@ -709,8 +734,7 @@ impl ExtensionManager {
 
     /// Get extensions info for building the system prompt
     pub async fn get_extensions_info(&self) -> Vec<ExtensionInfo> {
-        self.extensions
-            .lock()
+        self.extensions()
             .await
             .iter()
             .map(|(name, ext)| {
@@ -726,13 +750,13 @@ impl ExtensionManager {
     /// Get aggregated usage statistics
     pub async fn remove_extension(&self, name: &str) -> ExtensionResult<()> {
         let sanitized_name = name_to_key(name);
-        self.extensions.lock().await.remove(&sanitized_name);
+        self.extensions().await.remove(&sanitized_name);
         self.invalidate_tools_cache_and_bump_version().await;
         Ok(())
     }
 
     pub async fn get_extension_and_tool_counts(&self, session_id: &str) -> (usize, usize) {
-        let enabled_extensions_count = self.extensions.lock().await.len();
+        let enabled_extensions_count = self.extensions().await.len();
 
         let total_tools = self
             .get_prefixed_tools(session_id, None)
@@ -744,17 +768,16 @@ impl ExtensionManager {
     }
 
     pub async fn list_extensions(&self) -> ExtensionResult<Vec<String>> {
-        Ok(self.extensions.lock().await.keys().cloned().collect())
+        Ok(self.extensions().await.keys().cloned().collect())
     }
 
     pub async fn is_extension_enabled(&self, name: &str) -> bool {
         let normalized = name_to_key(name);
-        self.extensions.lock().await.contains_key(&normalized)
+        self.extensions().await.contains_key(&normalized)
     }
 
     pub async fn get_extension_configs(&self) -> Vec<ExtensionConfig> {
-        self.extensions
-            .lock()
+        self.extensions()
             .await
             .values()
             .map(|ext| ext.config.clone())
@@ -837,8 +860,7 @@ impl ExtensionManager {
 
     async fn fetch_all_tools(&self, session_id: &str) -> ExtensionResult<Vec<Tool>> {
         let clients: Vec<_> = self
-            .extensions
-            .lock()
+            .extensions()
             .await
             .iter()
             .map(|(name, ext)| (name.clone(), ext.config.clone(), ext.get_client()))
@@ -980,8 +1002,7 @@ impl ExtensionManager {
         // TODO: do we want to find if a provided uri is in multiple extensions?
         // currently it will return the first match and skip any others
         let extension_names: Vec<String> = self
-            .extensions
-            .lock()
+            .extensions()
             .await
             .iter()
             .filter(|(_name, ext)| ext.supports_resources())
@@ -1009,8 +1030,7 @@ impl ExtensionManager {
 
         // None of the extensions had the resource so we raise an error
         let available_extensions = self
-            .extensions
-            .lock()
+            .extensions()
             .await
             .keys()
             .map(|s| s.as_str())
@@ -1036,8 +1056,7 @@ impl ExtensionManager {
         cancellation_token: CancellationToken,
     ) -> Result<rmcp::model::ReadResourceResult, ErrorData> {
         let available_extensions = self
-            .extensions
-            .lock()
+            .extensions()
             .await
             .keys()
             .map(|s| s.as_str())
@@ -1073,7 +1092,7 @@ impl ExtensionManager {
         let mut ui_resources = Vec::new();
 
         let extensions_to_check: Vec<(String, McpClientBox)> = {
-            let extensions = self.extensions.lock().await;
+            let extensions = self.extensions().await;
             extensions
                 .iter()
                 .filter(|(_name, ext)| ext.supports_resources())
@@ -1167,8 +1186,7 @@ impl ExtensionManager {
                 let mut futures = FuturesUnordered::new();
 
                 // Create futures for each resource_capable_extension
-                self.extensions
-                    .lock()
+                self.extensions()
                     .await
                     .iter()
                     .filter(|(_name, ext)| ext.supports_resources())
@@ -1281,7 +1299,7 @@ impl ExtensionManager {
         let tool_name_str = tool_call.name.to_string();
         let resolved = self.resolve_tool(session_id, &tool_name_str).await?;
 
-        if let Some(extension) = self.extensions.lock().await.get(&resolved.extension_name) {
+        if let Some(extension) = self.extensions().await.get(&resolved.extension_name) {
             if !extension
                 .config
                 .is_tool_available(&resolved.actual_tool_name)
@@ -1374,7 +1392,7 @@ impl ExtensionManager {
     ) -> Result<HashMap<String, Vec<Prompt>>, ErrorData> {
         let mut futures = FuturesUnordered::new();
 
-        let names: Vec<_> = self.extensions.lock().await.keys().cloned().collect();
+        let names: Vec<_> = self.extensions().await.keys().cloned().collect();
         for extension_name in names {
             let token = cancellation_token.clone();
             futures.push(async move {
@@ -1467,8 +1485,7 @@ impl ExtensionManager {
         }
 
         // Get currently enabled extensions that can be disabled
-        let enabled_extensions: Vec<String> =
-            self.extensions.lock().await.keys().cloned().collect();
+        let enabled_extensions: Vec<String> = self.extensions().await.keys().cloned().collect();
 
         // Build output string
         if !disabled_extensions.is_empty() {
@@ -1498,8 +1515,7 @@ impl ExtensionManager {
 
     async fn get_server_client(&self, name: impl Into<String>) -> Option<McpClientBox> {
         let normalized = name_to_key(&name.into());
-        self.extensions
-            .lock()
+        self.extensions()
             .await
             .get(&normalized)
             .map(|ext| ext.get_client())
@@ -1519,7 +1535,7 @@ impl ExtensionManager {
         );
 
         let platform_clients: Vec<(String, McpClientBox)> = {
-            let extensions = self.extensions.lock().await;
+            let extensions = self.extensions().await;
             extensions
                 .iter()
                 .filter_map(|(name, extension)| {
@@ -1584,10 +1600,7 @@ mod tests {
                 available_tools,
             };
             let extension = Extension::new(config, client, None, None);
-            self.extensions
-                .lock()
-                .await
-                .insert(sanitized_name, extension);
+            self.extensions().await.insert(sanitized_name, extension);
             self.invalidate_tools_cache_and_bump_version().await;
         }
     }
