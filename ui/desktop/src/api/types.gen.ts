@@ -954,6 +954,34 @@ export type ListSchedulesResponse = {
 };
 
 /**
+ * Summary of a live MCP extension connection
+ */
+export type LiveExtensionInfo = {
+    /**
+     * Whether the MCP connection is active
+     */
+    connected: boolean;
+    /**
+     * Extension name (e.g. "developer", "memory", "fetch")
+     */
+    name: string;
+};
+
+/**
+ * Response for listing live extensions
+ */
+export type LiveExtensionsResponse = {
+    /**
+     * Total count
+     */
+    count: number;
+    /**
+     * List of active extensions
+     */
+    extensions: Array<LiveExtensionInfo>;
+};
+
+/**
  * Live monitoring metrics — recent activity snapshot
  */
 export type LiveMetrics = {
@@ -4166,6 +4194,76 @@ export type TranscribeDictationResponses = {
 };
 
 export type TranscribeDictationResponse = TranscribeDictationResponses[keyof TranscribeDictationResponses];
+
+export type ListLiveExtensionsData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/extensions/live';
+};
+
+export type ListLiveExtensionsResponses = {
+    /**
+     * List of active MCP extension connections
+     */
+    200: LiveExtensionsResponse;
+};
+
+export type ListLiveExtensionsResponse = ListLiveExtensionsResponses[keyof ListLiveExtensionsResponses];
+
+export type GetLiveExtensionData = {
+    body?: never;
+    path: {
+        /**
+         * Extension name to check
+         */
+        name: string;
+    };
+    query?: never;
+    url: '/extensions/live/{name}';
+};
+
+export type GetLiveExtensionErrors = {
+    /**
+     * Extension not found
+     */
+    404: unknown;
+};
+
+export type GetLiveExtensionResponses = {
+    /**
+     * Extension connection status
+     */
+    200: LiveExtensionInfo;
+};
+
+export type GetLiveExtensionResponse = GetLiveExtensionResponses[keyof GetLiveExtensionResponses];
+
+export type DisconnectExtensionData = {
+    body?: never;
+    path: {
+        /**
+         * Extension name to disconnect
+         */
+        name: string;
+    };
+    query?: never;
+    url: '/extensions/live/{name}/disconnect';
+};
+
+export type DisconnectExtensionErrors = {
+    /**
+     * Extension not found or already disconnected
+     */
+    404: unknown;
+};
+
+export type DisconnectExtensionResponses = {
+    /**
+     * Extension disconnected successfully
+     */
+    200: unknown;
+};
 
 export type StartOpenrouterSetupData = {
     body?: never;

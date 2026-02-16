@@ -2700,6 +2700,90 @@
         }
       }
     },
+    "/extensions/live": {
+      "get": {
+        "tags": [
+          "extensions"
+        ],
+        "summary": "List all active MCP connections",
+        "operationId": "list_live_extensions",
+        "responses": {
+          "200": {
+            "description": "List of active MCP extension connections",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LiveExtensionsResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/extensions/live/{name}": {
+      "get": {
+        "tags": [
+          "extensions"
+        ],
+        "summary": "Check if a specific extension is connected",
+        "operationId": "get_live_extension",
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "description": "Extension name to check",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Extension connection status",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LiveExtensionInfo"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Extension not found"
+          }
+        }
+      }
+    },
+    "/extensions/live/{name}/disconnect": {
+      "delete": {
+        "tags": [
+          "extensions"
+        ],
+        "summary": "Disconnect (stop) an active MCP extension",
+        "operationId": "disconnect_extension",
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "description": "Extension name to disconnect",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Extension disconnected successfully"
+          },
+          "404": {
+            "description": "Extension not found or already disconnected"
+          }
+        }
+      }
+    },
     "/handle_openrouter": {
       "post": {
         "tags": [
@@ -7523,6 +7607,46 @@
             "items": {
               "$ref": "#/components/schemas/ScheduledJob"
             }
+          }
+        }
+      },
+      "LiveExtensionInfo": {
+        "type": "object",
+        "description": "Summary of a live MCP extension connection",
+        "required": [
+          "name",
+          "connected"
+        ],
+        "properties": {
+          "connected": {
+            "type": "boolean",
+            "description": "Whether the MCP connection is active"
+          },
+          "name": {
+            "type": "string",
+            "description": "Extension name (e.g. \"developer\", \"memory\", \"fetch\")"
+          }
+        }
+      },
+      "LiveExtensionsResponse": {
+        "type": "object",
+        "description": "Response for listing live extensions",
+        "required": [
+          "extensions",
+          "count"
+        ],
+        "properties": {
+          "count": {
+            "type": "integer",
+            "description": "Total count",
+            "minimum": 0
+          },
+          "extensions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/LiveExtensionInfo"
+            },
+            "description": "List of active extensions"
           }
         }
       },

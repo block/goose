@@ -7,7 +7,6 @@
 //! Routes:
 //!   GET    /extensions/live          — list active MCP connections
 //!   GET    /extensions/live/:name    — get details for one extension
-//!   POST   /extensions/live/:name/connect    — connect (start) an extension
 //!   DELETE /extensions/live/:name/disconnect  — disconnect (stop) an extension
 
 use std::sync::Arc;
@@ -19,25 +18,40 @@ use axum::{
     Json, Router,
 };
 use serde::Serialize;
+use utoipa::ToSchema;
 
 use crate::state::AppState;
 
 /// Summary of a live MCP extension connection
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, ToSchema)]
 pub struct LiveExtensionInfo {
+    /// Extension name (e.g. "developer", "memory", "fetch")
     pub name: String,
+    /// Whether the MCP connection is active
     pub connected: bool,
 }
 
 /// Response for listing live extensions
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, ToSchema)]
 pub struct LiveExtensionsResponse {
+    /// List of active extensions
     pub extensions: Vec<LiveExtensionInfo>,
+    /// Total count
     pub count: usize,
 }
 
-/// GET /extensions/live — list all active MCP connections
-async fn list_live_extensions(State(state): State<Arc<AppState>>) -> Json<LiveExtensionsResponse> {
+/// List all active MCP connections
+#[utoipa::path(
+    get,
+    path = "/extensions/live",
+    responses(
+        (status = 200, description = "List of active MCP extension connections", body = LiveExtensionsResponse)
+    ),
+    tag = "extensions"
+)]
+pub async fn list_live_extensions(
+    State(state): State<Arc<AppState>>,
+) -> Json<LiveExtensionsResponse> {
     let names = state.extension_registry.list_names().await;
     let count = names.len();
     let extensions = names
@@ -51,8 +65,20 @@ async fn list_live_extensions(State(state): State<Arc<AppState>>) -> Json<LiveEx
     Json(LiveExtensionsResponse { extensions, count })
 }
 
-/// GET /extensions/live/:name — check if a specific extension is connected
-async fn get_live_extension(
+/// Check if a specific extension is connected
+#[utoipa::path(
+    get,
+    path = "/extensions/live/{name}",
+    params(
+        ("name" = String, Path, description = "Extension name to check")
+    ),
+    responses(
+        (status = 200, description = "Extension connection status", body = LiveExtensionInfo),
+        (status = 404, description = "Extension not found")
+    ),
+    tag = "extensions"
+)]
+pub async fn get_live_extension(
     State(state): State<Arc<AppState>>,
     Path(name): Path<String>,
 ) -> Result<Json<LiveExtensionInfo>, StatusCode> {
@@ -67,14 +93,25 @@ async fn get_live_extension(
     }
 }
 
-/// DELETE /extensions/live/:name/disconnect — disconnect an extension
-async fn disconnect_extension(
+/// Disconnect (stop) an active MCP extension
+#[utoipa::path(
+    delete,
+    path = "/extensions/live/{name}/disconnect",
+    params(
+        ("name" = String, Path, description = "Extension name to disconnect")
+    ),
+    responses(
+        (status = 200, description = "Extension disconnected successfully"),
+        (status = 404, description = "Extension not found or already disconnected")
+    ),
+    tag = "extensions"
+)]
+pub async fn disconnect_extension(
     State(state): State<Arc<AppState>>,
     Path(name): Path<String>,
 ) -> Result<Json<serde_json::Value>, StatusCode> {
     let disconnected = state.extension_registry.disconnect(&name).await;
     if disconnected {
-        // Invalidate tool caches since an extension was removed
         Ok(Json(serde_json::json!({
             "name": name,
             "status": "disconnected"

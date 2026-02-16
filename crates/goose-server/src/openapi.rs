@@ -347,6 +347,9 @@ derive_utoipa!(PromptArgument as PromptArgumentSchema);
         super::routes::config_management::add_extension,
         super::routes::config_management::remove_extension,
         super::routes::config_management::get_extensions,
+        super::routes::extension_routes::list_live_extensions,
+        super::routes::extension_routes::get_live_extension,
+        super::routes::extension_routes::disconnect_extension,
         super::routes::config_management::read_all_config,
         super::routes::config_management::providers,
         super::routes::config_management::get_provider_models,
@@ -701,6 +704,8 @@ derive_utoipa!(PromptArgument as PromptArgumentSchema);
         super::routes::agent_management::BuiltinAgentsResponse,
         super::routes::agent_management::ToggleAgentResponse,
         super::routes::agent_management::BindExtensionRequest,
+        super::routes::extension_routes::LiveExtensionInfo,
+        super::routes::extension_routes::LiveExtensionsResponse,
         // ACP types
         goose::acp_compat::AcpRun,
         goose::acp_compat::AcpRunStatus,
