@@ -207,7 +207,10 @@ What else can you do with playwright skills?
 | **Storage & Auth** | Save/restore cookies, handle login states |
 | **Network** | Mock APIs, intercept requests |
 | **Input** | Type text, press keys, mouse actions |
-| **Monitoring** | show (visual dashboard to observe all sessions) |
+
+:::tip Visual Dashboard
+Use `playwright-cli show` to open a visual dashboard that displays all running browser sessions with live screencast previews. This is useful when you want to observe what goose is doing in the background or take over control manually.
+:::
 
 ### Example Use Cases
 
