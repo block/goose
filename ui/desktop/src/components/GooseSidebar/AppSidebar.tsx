@@ -73,9 +73,9 @@ const navigationZones: NavigationZone[] = [
     items: [
       {
         path: '/recipes',
-        label: 'Recipes',
+        label: 'Workflows',
         icon: FileText,
-        tooltip: 'Browse your saved recipes',
+        tooltip: 'Browse and run workflows',
       },
       {
         path: '/apps',
@@ -111,22 +111,22 @@ const navigationZones: NavigationZone[] = [
       },
       {
         path: '/agents',
-        label: 'Agents',
+        label: 'Agent Catalog',
         icon: Bot,
-        tooltip: 'Manage external ACP agents',
+        tooltip: 'Browse and manage agents',
       },
     ],
   },
   {
     id: 'platform',
-    label: 'Platform',
+    label: 'Catalogs',
     icon: Puzzle,
     items: [
       {
         path: '/extensions',
-        label: 'Extensions',
+        label: 'Tools Catalog',
         icon: Puzzle,
-        tooltip: 'Manage your extensions',
+        tooltip: 'Browse and manage tool extensions',
       },
       {
         path: '/settings',
