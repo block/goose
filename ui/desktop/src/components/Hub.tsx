@@ -15,7 +15,7 @@ import { AppEvents } from '../constants/events';
  * Hub (input submission) → Create Session → Pair (with session ID and initial message)
  */
 
-import { useState } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { SessionInsights } from './sessions/SessionsInsights';
 import ChatInput from './ChatInput';
 import { ChatState } from '../types/chatState';
@@ -40,7 +40,7 @@ export default function Hub({
   const [workingDir, setWorkingDir] = useState(getInitialWorkingDir());
   const [isCreatingSession, setIsCreatingSession] = useState(false);
 
-  const handleSubmit = async (input: UserInput) => {
+  const handleSubmit = useCallback(async (input: UserInput) => {
     const { msg: userMessage, images } = input;
     if ((images.length > 0 || userMessage.trim()) && !isCreatingSession) {
       const extensionConfigs = getExtensionConfigsWithOverrides(extensionsList);
@@ -70,7 +70,19 @@ export default function Hub({
         setIsCreatingSession(false);
       }
     }
-  };
+  }, [extensionsList, workingDir, isCreatingSession, setView]);
+
+  // Listen for PROMPT_BAR_SUBMIT events from the persistent prompt bar
+  useEffect(() => {
+    const handlePromptBarSubmit = (e: Event) => {
+      const message = (e as CustomEvent<string>).detail;
+      if (message) {
+        handleSubmit({ msg: message, images: [] });
+      }
+    };
+    window.addEventListener('PROMPT_BAR_SUBMIT', handlePromptBarSubmit);
+    return () => window.removeEventListener('PROMPT_BAR_SUBMIT', handlePromptBarSubmit);
+  }, [handleSubmit]);
 
   return (
     <div className="flex flex-col h-full min-h-0 bg-background-muted">
