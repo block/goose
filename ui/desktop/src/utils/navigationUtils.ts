@@ -18,6 +18,8 @@ export type View =
   | 'sharedSession'
   | 'loading'
   | 'recipes'
+  | 'agents'
+  | 'analytics'
   | 'permission';
 
 export type ViewOptions = {
@@ -66,6 +68,12 @@ export const createNavigationHandler = (navigate: NavigateFunction) => {
         break;
       case 'recipes':
         navigate('/recipes', { state: options });
+        break;
+      case 'agents':
+        navigate('/agents', { state: options });
+        break;
+      case 'analytics':
+        navigate('/analytics', { state: options });
         break;
       case 'permission':
         navigate('/permission', { state: options });

@@ -44,6 +44,7 @@ import PermissionSettingsView from './components/settings/permission/PermissionS
 import ExtensionsView, { ExtensionsViewOptions } from './components/extensions/ExtensionsView';
 import RecipesView from './components/recipes/RecipesView';
 import AgentsView from './components/agents/AgentsView';
+import AnalyticsView from './components/analytics/AnalyticsView';
 import AppsView from './components/apps/AppsView';
 import StandaloneAppView from './components/apps/StandaloneAppView';
 import { View, ViewOptions } from './utils/navigationUtils';
@@ -180,6 +181,10 @@ const RecipesRoute = () => {
 
 const AgentsRoute = () => {
   return <AgentsView />;
+};
+
+const AnalyticsRoute = () => {
+  return <AnalyticsView />;
 };
 
 const PermissionRoute = () => {
@@ -673,6 +678,7 @@ export function AppInner() {
               <Route path="schedules" element={<SchedulesRoute />} />
               <Route path="recipes" element={<RecipesRoute />} />
               <Route path="agents" element={<AgentsRoute />} />
+              <Route path="analytics" element={<AnalyticsRoute />} />
               <Route
                 path="shared-session"
                 element={
