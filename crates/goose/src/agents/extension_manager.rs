@@ -221,11 +221,16 @@ async fn child_process_client(
     provider: SharedProvider,
     working_dir: Option<&PathBuf>,
     docker_container: Option<String>,
+    session_id: Option<&str>,
 ) -> ExtensionResult<McpClient> {
     configure_subprocess(&mut command);
 
     if let Ok(path) = SearchPaths::builder().path() {
         command.env("PATH", path);
+    }
+
+    if let Some(id) = session_id {
+        command.env("AGENT_SESSION_ID", id);
     }
 
     if let Some(dir) = working_dir {
@@ -504,6 +509,9 @@ impl ExtensionManager {
         let effective_working_dir =
             working_dir.unwrap_or_else(|| std::env::current_dir().unwrap_or_default());
 
+        // Get session_id for AGENT_SESSION_ID env var in child processes
+        let session_id = crate::session_context::current_session_id();
+
         let mut temp_dir = None;
 
         let client: Box<dyn McpClientTrait> = match &config {
@@ -584,6 +592,7 @@ impl ExtensionManager {
                     self.provider.clone(),
                     Some(&effective_working_dir),
                     container.map(|c| c.id().to_string()),
+                    session_id.as_deref(),
                 )
                 .await?;
                 Box::new(client)
@@ -620,6 +629,7 @@ impl ExtensionManager {
                         self.provider.clone(),
                         Some(&effective_working_dir),
                         Some(container_id.to_string()),
+                        session_id.as_deref(),
                     )
                     .await?;
                     Box::new(client)
@@ -674,6 +684,7 @@ impl ExtensionManager {
                     self.provider.clone(),
                     Some(&effective_working_dir),
                     container.map(|c| c.id().to_string()),
+                    session_id.as_deref(),
                 )
                 .await?;
 
