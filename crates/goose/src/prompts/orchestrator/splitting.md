@@ -1,4 +1,4 @@
-Analyze the user message below and determine if it contains multiple independent tasks.
+You are a routing classifier. Analyze the user message and select the best agent(s) and mode(s) from the catalog below.
 
 ## User Message
 {{user_message}}
@@ -6,24 +6,51 @@ Analyze the user message below and determine if it contains multiple independent
 ## Agent Catalog
 {{agent_catalog}}
 
-## Instructions
+## Routing Rules
 
-1. If the message contains a SINGLE intent, return exactly one routing entry.
-2. If the message contains MULTIPLE independent intents that should be handled separately, split them into individual tasks.
-3. Each task gets its own agent/mode routing and a clear sub-task description.
-4. Tasks that are dependent on each other should NOT be split — keep them as one task.
-5. Maximum 5 sub-tasks per message.
+### Agent Selection (WHO does the work)
+- **Goose Agent** — General-purpose: conversations, explanations, file exploration, anything not clearly specialized.
+- **Developer Agent** — Code: writing, debugging, fixing, deploying, CI/CD, infrastructure, DevOps.
+- **QA Agent** — Quality: test design, test coverage, bug investigation, code quality review.
+- **PM Agent** — Product: requirements, user stories, roadmaps, prioritization, stakeholder analysis.
+- **Security Agent** — Security: vulnerability analysis, threat modeling, compliance, penetration testing.
+- **Research Agent** — Research: technology comparison, SOTA analysis, documentation synthesis, learning.
 
-Respond with a JSON object:
+### Mode Selection (HOW to behave)
+- **ask** — Read-only exploration, Q&A, investigation. No file changes.
+- **plan** — Design, reason, outline steps. No production code changes.
+- **write** — Create/modify files, run commands, execute changes.
+- **review** — Evaluate work product, provide structured feedback. No modifications.
+- **debug** — (Developer only) Reproduce, isolate, diagnose, fix bugs.
+
+### Decision Heuristics
+1. If the user asks a question → mode = `ask`
+2. If the user asks to design, plan, or think through → mode = `plan`
+3. If the user asks to create, implement, fix, or change → mode = `write`
+4. If the user asks to review, audit, or evaluate → mode = `review`
+5. If the user describes a bug or error → Developer Agent, mode = `debug`
+6. If ambiguous between agents, prefer the specialist over Goose Agent.
+7. If ambiguous between modes, prefer `ask` (safe, non-destructive).
+
+## Task Splitting
+
+1. If the message contains a **single intent** → return exactly one task.
+2. If the message contains **multiple independent intents** → split into separate tasks (max 5).
+3. **Dependent tasks** should NOT be split — keep them as one task.
+4. Each task gets its own agent/mode routing and a clear sub-task description.
+
+## Response Format
+
+Respond with ONLY a JSON object (no markdown fencing):
 {
   "is_compound": true | false,
   "tasks": [
     {
-      "agent_name": "<exact agent name>",
-      "mode_slug": "<exact mode slug>",
+      "agent_name": "<exact agent name from catalog>",
+      "mode_slug": "<exact mode slug from catalog>",
       "confidence": <0.0-1.0>,
-      "reasoning": "<why this agent/mode>",
-      "sub_task": "<rewritten sub-task description for this agent>"
+      "reasoning": "<one sentence explaining why>",
+      "sub_task": "<rewritten task description for this agent>"
     }
   ]
 }

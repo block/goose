@@ -307,7 +307,7 @@ test_cases:
     tags: [p1, general]
   - input: "Help me write an email to my boss"
     expected_agent: "Goose Agent"
-    expected_mode: "ask"
+    expected_mode: "write"
     tags: [p1, general]
   # ══════════════════════════════════════════════════════════════════
   # Developer Agent — software engineering (write code, debug, deploy)
@@ -317,19 +317,19 @@ test_cases:
   # ══════════════════════════════════════════════════════════════════
   - input: "Write a REST API endpoint for user registration"
     expected_agent: "Developer Agent"
-    expected_mode: "code"
+    expected_mode: "write"
     tags: [p0, coding, write]
   - input: "Fix the database connection pool timeout issue"
     expected_agent: "Developer Agent"
-    expected_mode: "code"
+    expected_mode: "write"
     tags: [p0, coding, write]
   - input: "Implement a caching layer with Redis"
     expected_agent: "Developer Agent"
-    expected_mode: "code"
+    expected_mode: "write"
     tags: [p0, coding, write]
   - input: "Create a migration to add a users table"
     expected_agent: "Developer Agent"
-    expected_mode: "code"
+    expected_mode: "write"
     tags: [p1, coding, write]
   - input: "Debug the null pointer exception in the payment service"
     expected_agent: "Developer Agent"
@@ -337,39 +337,39 @@ test_cases:
     tags: [p0, coding, debug]
   - input: "Build a responsive navigation bar with Tailwind CSS"
     expected_agent: "Developer Agent"
-    expected_mode: "frontend"
+    expected_mode: "write"
     tags: [p1, coding, frontend]
   - input: "Fix the React component re-rendering issue"
     expected_agent: "Developer Agent"
-    expected_mode: "frontend"
+    expected_mode: "write"
     tags: [p1, coding, frontend]
   - input: "Create a dark mode toggle for the dashboard"
     expected_agent: "Developer Agent"
-    expected_mode: "frontend"
+    expected_mode: "write"
     tags: [p1, coding, frontend]
   - input: "Design the microservices architecture for our e-commerce platform"
     expected_agent: "Developer Agent"
-    expected_mode: "architect"
+    expected_mode: "plan"
     tags: [p0, coding, plan]
   - input: "Create an architecture decision record for the new auth system"
     expected_agent: "Developer Agent"
-    expected_mode: "architect"
+    expected_mode: "plan"
     tags: [p1, coding, plan]
   - input: "Set up Kubernetes deployment manifests for the API"
     expected_agent: "Developer Agent"
-    expected_mode: "devops"
+    expected_mode: "write"
     tags: [p1, coding, devops]
   - input: "Configure Prometheus monitoring and alerting"
     expected_agent: "Developer Agent"
-    expected_mode: "devops"
+    expected_mode: "write"
     tags: [p1, coding, devops]
   - input: "Create a Dockerfile for the Node.js application"
     expected_agent: "Developer Agent"
-    expected_mode: "devops"
+    expected_mode: "write"
     tags: [p1, coding, devops]
   - input: "Set up CI/CD pipeline with GitHub Actions"
     expected_agent: "Developer Agent"
-    expected_mode: "devops"
+    expected_mode: "write"
     tags: [p1, coding, devops]
 
   # ══════════════════════════════════════════════════════════════════
@@ -505,7 +505,7 @@ test_cases:
   # ══════════════════════════════════════════════════════════════════
   - input: "Review and fix the authentication code"
     expected_agent: "Developer Agent"
-    expected_mode: "code"
+    expected_mode: "write"
     tags: [ambiguity, coding]
   - input: "Plan tests for the new payment feature"
     expected_agent: "QA Agent"
@@ -513,7 +513,7 @@ test_cases:
     tags: [ambiguity, qa]
   - input: "Create an app that shows weather forecasts"
     expected_agent: "Goose Agent"
-    expected_mode: "ask"
+    expected_mode: "write"
     tags: [ambiguity, goose]
 "#;
 
