@@ -422,8 +422,13 @@ mod tests {
 
         // Should have thinking content followed by text content
         assert_eq!(message.content.len(), 2);
-        let thinking = message.content[0].as_thinking().expect("first content should be thinking");
-        assert_eq!(thinking.thinking, "Let me reason about this... Step 1: analyze the problem.");
+        let thinking = message.content[0]
+            .as_thinking()
+            .expect("first content should be thinking");
+        assert_eq!(
+            thinking.thinking,
+            "Let me reason about this... Step 1: analyze the problem."
+        );
         assert_eq!(message.as_concat_text(), "Here is the answer.");
         assert_eq!(usage.input_tokens, Some(30));
         assert_eq!(usage.output_tokens, Some(15));
