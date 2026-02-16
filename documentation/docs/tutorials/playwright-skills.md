@@ -1,5 +1,5 @@
 ---
-title: Agentic Testing with Playwright Skills
+title: Agentic Testing with Playwright Skill
 description: Use goose with the Playwright CLI agent skill to automate browsers and generate tests using natural language
 ---
 
@@ -167,7 +167,7 @@ The trace viewer shows:
 When you have goose running several browser tasks at once, it can be hard to keep track of what's happening. The visual dashboard gives you a bird's-eye view of all your active browser sessions, letting you watch progress in real-time or jump in and take control when needed.
 
 ```bash
-playwright-cli show
+show playwright dashboard
 ```
 
 From here you can see live previews of every browser goose is controlling. Click into any session to watch it full-size, or take over the mouse and keyboard yourself if goose needs a hand. Press **Escape** when you're done and goose picks up right where you left off.
@@ -205,7 +205,6 @@ Getting started with the Playwright CLI agent skill is easy and opens up powerfu
 
 ## Resources
 
-- [Playwright Documentation](https://playwright.dev)
-- [Playwright CLI GitHub](https://github.com/microsoft/playwright-cli)
-- [Using Skills Guide](/docs/guides/context-engineering/using-skills) - Learn how to create and use skills with goose
 - [Skills Extension Documentation](/docs/mcp/skills-mcp)
+- [Using Skills Guide](/docs/guides/context-engineering/using-skills) - Learn how to create and use skills with goose
+- [Playwright CLI GitHub](https://github.com/microsoft/playwright-cli)
