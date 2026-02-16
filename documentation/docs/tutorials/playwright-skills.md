@@ -139,7 +139,7 @@ Show me the video
 
 goose will open the recorded video so you can see exactly what happened during the session.
 
-### Viewing the Trace
+## Viewing the Trace
 
 To debug or review what happened, ask goose:
 
