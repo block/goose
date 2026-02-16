@@ -283,6 +283,13 @@ impl Provider for OpenRouterProvider {
             true,
         )?;
 
+        // Add user field for OpenRouter attribution/rate-limiting
+        if !session_id.is_empty() {
+            if let Some(obj) = payload.as_object_mut() {
+                obj.insert("user".to_string(), Value::String(session_id.to_string()));
+            }
+        }
+
         if self.supports_cache_control().await {
             payload = update_request_for_anthropic(&payload);
         }

@@ -663,9 +663,15 @@ pub async fn collect_stream(
         }
     }
 
-    match (final_message, final_usage) {
-        (Some(msg), Some(usage)) => Ok((msg, usage)),
-        _ => Err(ProviderError::ExecutionError(
+    match final_message {
+        Some(msg) => {
+            // Some providers may not emit usage for certain streams; default when missing
+            let usage = final_usage.unwrap_or_else(|| {
+                ProviderUsage::new("unknown".to_string(), Usage::default())
+            });
+            Ok((msg, usage))
+        }
+        None => Err(ProviderError::ExecutionError(
             "Stream yielded no message".to_string(),
         )),
     }
