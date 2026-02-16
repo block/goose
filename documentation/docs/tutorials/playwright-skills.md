@@ -1,15 +1,23 @@
 ---
 title: Agentic Testing with Playwright Skills
-description: Use goose with Playwright CLI skills to automate browsers and generate tests using natural language
+description: Use goose with Playwright CLI agent skills to automate browsers and generate tests using natural language
 ---
 
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
 import GooseBuiltinInstaller from '@site/src/components/GooseBuiltinInstaller';
 
-<iframe width="560" height="315" src="https://www.youtube.com/embed/_MpbmD_unnU?si=dpHvuLVkbONN_0Hk" title="YouTube video player" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" referrerpolicy="strict-origin-when-cross-origin" allowfullscreen></iframe>
+<iframe
+  class="aspect-ratio"
+  src="https://www.youtube.com/embed/_MpbmD_unnU?si=dpHvuLVkbONN_0Hk"
+  title="YouTube video player"
+  frameBorder="0"
+  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+  referrerPolicy="strict-origin-when-cross-origin"
+  allowFullScreen
+></iframe>
 
-With [Playwright CLI](https://github.com/microsoft/playwright-cli) skills, goose can navigate websites, click buttons, fill forms, and turn those interactions into Playwright tests—all from plain English. Unlike the Playwright MCP, which sends the full page structure to the LLM on every request, Playwright CLI stores the accessibility tree locally. That means faster responses, lower costs, and no issues with large pages.
+With [Playwright CLI](https://github.com/microsoft/playwright-cli) skills, goose can navigate websites, click buttons, fill forms, and turn those interactions into Playwright tests, all from plain English. Unlike the Playwright MCP, which sends the full page structure to the LLM on every request, Playwright CLI stores the accessibility tree locally. That means faster responses, lower costs, and no issues with large pages.
 
 ## Prerequisites
 
@@ -25,7 +33,7 @@ With [Playwright CLI](https://github.com/microsoft/playwright-cli) skills, goose
 First, install the Playwright skills in your project directory:
 
 ```bash
-playwright-cli install --skills
+install playwright skills
 ```
 
 This creates a `.claude/` folder with skills and reference files that teach goose how to use Playwright CLI capabilities.
