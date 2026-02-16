@@ -94,9 +94,21 @@ impl TetrateProvider {
                 .map_err(Self::enrich_credits_error);
         }
 
-        handle_response_openai_compat(response)
+        let response_body = handle_response_openai_compat(response)
             .await
-            .map_err(Self::enrich_credits_error)
+            .map_err(Self::enrich_credits_error)?;
+
+        // Tetrate can return errors in 200 OK responses, so check explicitly
+        if let Some(err_obj) = response_body.get("error") {
+            let code = err_obj.get("code").and_then(|c| c.as_u64()).unwrap_or(500) as u16;
+            let status = reqwest::StatusCode::from_u16(code)
+                .unwrap_or(reqwest::StatusCode::INTERNAL_SERVER_ERROR);
+            return Err(Self::enrich_credits_error(
+                map_http_error_to_provider_error(status, Some(response_body)),
+            ));
+        }
+
+        Ok(response_body)
     }
 }
 
