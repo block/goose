@@ -163,9 +163,16 @@ pub struct DetectProviderResponse {
 pub async fn upsert_config(
     Json(query): Json<UpsertConfigQuery>,
 ) -> Result<Json<Value>, ErrorResponse> {
+    let key = query.key.trim();
+    if !is_valid_config_key(key) {
+        return Err(ErrorResponse::bad_request(
+            "Config key must be non-empty, at most 256 characters, and contain only alphanumeric characters, hyphens, underscores, dots, or slashes",
+        ));
+    }
+
     let config = Config::global();
-    config.set(&query.key, &query.value, query.is_secret)?;
-    Ok(Json(Value::String(format!("Upserted key {}", query.key))))
+    config.set(key, &query.value, query.is_secret)?;
+    Ok(Json(Value::String(format!("Upserted key {}", key))))
 }
 
 #[utoipa::path(
@@ -181,15 +188,22 @@ pub async fn upsert_config(
 pub async fn remove_config(
     Json(query): Json<ConfigKeyQuery>,
 ) -> Result<Json<String>, ErrorResponse> {
+    let key = query.key.trim();
+    if !is_valid_config_key(key) {
+        return Err(ErrorResponse::bad_request(
+            "Config key must be non-empty, at most 256 characters, and contain only alphanumeric characters, hyphens, underscores, dots, or slashes",
+        ));
+    }
+
     let config = Config::global();
 
     if query.is_secret {
-        config.delete_secret(&query.key)?;
+        config.delete_secret(key)?;
     } else {
-        config.delete(&query.key)?;
+        config.delete(key)?;
     }
 
-    Ok(Json(format!("Removed key {}", query.key)))
+    Ok(Json(format!("Removed key {}", key)))
 }
 
 const SECRET_MASK_SHOW_LEN: usize = 8;
@@ -210,9 +224,63 @@ fn mask_secret(secret: Value) -> String {
 
 fn is_valid_provider_name(provider_name: &str) -> bool {
     !provider_name.is_empty()
+        && provider_name.len() <= 256
         && provider_name
             .chars()
             .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_')
+}
+
+fn is_valid_config_key(key: &str) -> bool {
+    !key.is_empty()
+        && key.len() <= 256
+        && key
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_' || c == '.' || c == '/')
+}
+
+fn validate_custom_provider_request(request: &UpdateCustomProviderRequest) -> Result<(), ErrorResponse> {
+    let display_name = request.display_name.trim();
+    if display_name.is_empty() {
+        return Err(ErrorResponse::bad_request("Display name must not be empty"));
+    }
+    if display_name.len() > 256 {
+        return Err(ErrorResponse::bad_request(
+            "Display name exceeds maximum length of 256 characters",
+        ));
+    }
+
+    let engine = request.engine.trim();
+    if engine.is_empty() {
+        return Err(ErrorResponse::bad_request("Engine must not be empty"));
+    }
+    if !engine.chars().all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_') {
+        return Err(ErrorResponse::bad_request(
+            "Engine must contain only alphanumeric characters, hyphens, or underscores",
+        ));
+    }
+
+    let api_url = request.api_url.trim();
+    if api_url.is_empty() {
+        return Err(ErrorResponse::bad_request("API URL must not be empty"));
+    }
+    if !api_url.starts_with("https://") && !api_url.starts_with("http://") {
+        return Err(ErrorResponse::bad_request(
+            "API URL must start with http:// or https://",
+        ));
+    }
+
+    if request.models.is_empty() {
+        return Err(ErrorResponse::bad_request(
+            "At least one model must be specified",
+        ));
+    }
+    for model in &request.models {
+        if model.trim().is_empty() {
+            return Err(ErrorResponse::bad_request("Model name must not be empty"));
+        }
+    }
+
+    Ok(())
 }
 
 #[utoipa::path(
@@ -227,7 +295,14 @@ fn is_valid_provider_name(provider_name: &str) -> bool {
 pub async fn read_config(
     Json(query): Json<ConfigKeyQuery>,
 ) -> Result<Json<ConfigValueResponse>, ErrorResponse> {
-    if query.key == "model-limits" {
+    let key = query.key.trim();
+    if !is_valid_config_key(key) {
+        return Err(ErrorResponse::bad_request(
+            "Config key must be non-empty, at most 256 characters, and contain only alphanumeric characters, hyphens, underscores, dots, or slashes",
+        ));
+    }
+
+    if key == "model-limits" {
         let limits = ModelConfig::get_all_model_limits();
         return Ok(Json(ConfigValueResponse::Value(serde_json::to_value(
             limits,
@@ -236,7 +311,7 @@ pub async fn read_config(
 
     let config = Config::global();
 
-    let response_value = match config.get(&query.key, query.is_secret) {
+    let response_value = match config.get(key, query.is_secret) {
         Ok(value) => {
             if query.is_secret {
                 ConfigValueResponse::MaskedValue(MaskedSecret {
@@ -283,8 +358,18 @@ pub async fn get_extensions() -> Result<Json<ExtensionResponse>, ErrorResponse> 
 pub async fn add_extension(
     Json(extension_query): Json<ExtensionQuery>,
 ) -> Result<Json<String>, ErrorResponse> {
+    let name = extension_query.name.trim();
+    if name.is_empty() {
+        return Err(ErrorResponse::bad_request("Extension name must not be empty"));
+    }
+    if name.len() > 256 {
+        return Err(ErrorResponse::bad_request(
+            "Extension name exceeds maximum length of 256 characters",
+        ));
+    }
+
     let extensions = goose::config::get_all_extensions();
-    let key = goose::config::extensions::name_to_key(&extension_query.name);
+    let key = goose::config::extensions::name_to_key(name);
 
     let is_update = extensions.iter().any(|e| e.config.key() == key);
 
@@ -294,9 +379,9 @@ pub async fn add_extension(
     });
 
     if is_update {
-        Ok(Json(format!("Updated extension {}", extension_query.name)))
+        Ok(Json(format!("Updated extension {}", name)))
     } else {
-        Ok(Json(format!("Added extension {}", extension_query.name)))
+        Ok(Json(format!("Added extension {}", name)))
     }
 }
 
@@ -310,7 +395,17 @@ pub async fn add_extension(
     )
 )]
 pub async fn remove_extension(Path(name): Path<String>) -> Result<Json<String>, ErrorResponse> {
-    let key = goose::config::extensions::name_to_key(&name);
+    let name = name.trim();
+    if name.is_empty() {
+        return Err(ErrorResponse::bad_request("Extension name must not be empty"));
+    }
+    if name.len() > 256 {
+        return Err(ErrorResponse::bad_request(
+            "Extension name exceeds maximum length of 256 characters",
+        ));
+    }
+
+    let key = goose::config::extensions::name_to_key(name);
     goose::config::remove_extension(&key);
     Ok(Json(format!("Removed extension {}", name)))
 }
@@ -458,11 +553,20 @@ pub struct PricingQuery {
 pub async fn get_pricing(
     Json(query): Json<PricingQuery>,
 ) -> Result<Json<PricingResponse>, ErrorResponse> {
+    let provider = query.provider.trim();
+    let model = query.model.trim();
+    if provider.is_empty() {
+        return Err(ErrorResponse::bad_request("Provider name must not be empty"));
+    }
+    if model.is_empty() {
+        return Err(ErrorResponse::bad_request("Model name must not be empty"));
+    }
+
     let canonical_model =
-        maybe_get_canonical_model(&query.provider, &query.model).ok_or_else(|| {
+        maybe_get_canonical_model(provider, model).ok_or_else(|| {
             ErrorResponse::not_found(format!(
                 "Model '{}/{}' not found",
-                query.provider, query.model
+                provider, model
             ))
         })?;
 
@@ -472,8 +576,8 @@ pub async fn get_pricing(
         (canonical_model.cost.input, canonical_model.cost.output)
     {
         pricing_data.push(PricingData {
-            provider: query.provider.clone(),
-            model: query.model.clone(),
+            provider: provider.to_string(),
+            model: model.to_string(),
             // Canonical model costs are per million tokens, convert to per-token
             input_token_cost: input_cost / 1_000_000.0,
             output_token_cost: output_cost / 1_000_000.0,
@@ -527,11 +631,27 @@ pub async fn init_config() -> Result<Json<String>, ErrorResponse> {
 pub async fn upsert_permissions(
     Json(query): Json<UpsertPermissionsQuery>,
 ) -> Result<Json<String>, ErrorResponse> {
+    if query.tool_permissions.is_empty() {
+        return Err(ErrorResponse::bad_request("Tool permissions list must not be empty"));
+    }
+    for tool_permission in &query.tool_permissions {
+        let tool_name = tool_permission.tool_name.trim();
+        if tool_name.is_empty() {
+            return Err(ErrorResponse::bad_request("Tool name must not be empty"));
+        }
+        if tool_name.len() > 256 {
+            return Err(ErrorResponse::bad_request(format!(
+                "Tool name '{}...' exceeds maximum length of 256 characters",
+                &tool_name[..64]
+            )));
+        }
+    }
+
     let permission_manager = goose::config::PermissionManager::instance();
 
     for tool_permission in &query.tool_permissions {
         permission_manager.update_user_permission(
-            &tool_permission.tool_name,
+            tool_permission.tool_name.trim(),
             tool_permission.permission.clone(),
         );
     }
@@ -651,6 +771,8 @@ pub async fn validate_config() -> Result<Json<String>, ErrorResponse> {
 pub async fn create_custom_provider(
     Json(request): Json<UpdateCustomProviderRequest>,
 ) -> Result<Json<String>, ErrorResponse> {
+    validate_custom_provider_request(&request)?;
+
     let config = goose::config::declarative_providers::create_custom_provider(
         goose::config::declarative_providers::CreateCustomProviderParams {
             engine: request.engine,
@@ -681,7 +803,14 @@ pub async fn create_custom_provider(
 pub async fn get_custom_provider(
     Path(id): Path<String>,
 ) -> Result<Json<LoadedProvider>, ErrorResponse> {
-    let loaded_provider = goose::config::declarative_providers::load_provider(id.as_str())
+    if !is_valid_provider_name(id.trim()) {
+        return Err(ErrorResponse::bad_request(format!(
+            "Invalid custom provider ID: '{}'",
+            id
+        )));
+    }
+
+    let loaded_provider = goose::config::declarative_providers::load_provider(id.trim())
         .map_err(|e| {
             ErrorResponse::not_found(format!("Custom provider '{}' not found: {}", id, e))
         })?;
@@ -699,7 +828,14 @@ pub async fn get_custom_provider(
     )
 )]
 pub async fn remove_custom_provider(Path(id): Path<String>) -> Result<Json<String>, ErrorResponse> {
-    goose::config::declarative_providers::remove_custom_provider(&id)?;
+    if !is_valid_provider_name(id.trim()) {
+        return Err(ErrorResponse::bad_request(format!(
+            "Invalid custom provider ID: '{}'",
+            id
+        )));
+    }
+
+    goose::config::declarative_providers::remove_custom_provider(id.trim())?;
 
     goose::providers::refresh_custom_providers().await?;
 
@@ -720,6 +856,14 @@ pub async fn update_custom_provider(
     Path(id): Path<String>,
     Json(request): Json<UpdateCustomProviderRequest>,
 ) -> Result<Json<String>, ErrorResponse> {
+    if !is_valid_provider_name(id.trim()) {
+        return Err(ErrorResponse::bad_request(format!(
+            "Invalid custom provider ID: '{}'",
+            id
+        )));
+    }
+    validate_custom_provider_request(&request)?;
+
     goose::config::declarative_providers::update_custom_provider(
         goose::config::declarative_providers::UpdateCustomProviderParams {
             id: id.clone(),
@@ -747,6 +891,14 @@ pub async fn update_custom_provider(
 pub async fn check_provider(
     Json(CheckProviderRequest { provider }): Json<CheckProviderRequest>,
 ) -> Result<(), ErrorResponse> {
+    let provider = provider.trim().to_string();
+    if !is_valid_provider_name(&provider) {
+        return Err(ErrorResponse::bad_request(format!(
+            "Invalid provider name: '{}'",
+            provider
+        )));
+    }
+
     // Provider check does not use extensions.
     create_with_default_model(&provider, Vec::new())
         .await
@@ -764,6 +916,23 @@ pub async fn check_provider(
 pub async fn set_config_provider(
     Json(SetProviderRequest { provider, model }): Json<SetProviderRequest>,
 ) -> Result<(), ErrorResponse> {
+    let provider = provider.trim().to_string();
+    let model = model.trim().to_string();
+    if !is_valid_provider_name(&provider) {
+        return Err(ErrorResponse::bad_request(format!(
+            "Invalid provider name: '{}'",
+            provider
+        )));
+    }
+    if model.is_empty() {
+        return Err(ErrorResponse::bad_request("Model name must not be empty"));
+    }
+    if model.len() > 256 {
+        return Err(ErrorResponse::bad_request(
+            "Model name exceeds maximum length of 256 characters",
+        ));
+    }
+
     // Provider validation does not use extensions.
     create_with_default_model(&provider, Vec::new())
         .await
