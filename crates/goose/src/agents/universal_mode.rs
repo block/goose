@@ -11,10 +11,12 @@
 /// | write  | Produce artifacts| full access    | Code, configs |
 /// | review | Evaluate work    | read           | Feedback      |
 /// | debug  | Diagnose issues  | full access    | Root cause    |
+use serde::Serialize;
+
 use crate::registry::manifest::{AgentMode, ToolGroupAccess};
 
 /// The five universal behavioral modes every agent can operate in.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize)]
 pub enum UniversalMode {
     Ask,
     Plan,

@@ -95,7 +95,7 @@ impl IntentRouter {
             name: "QA Agent".into(),
             description: "Quality assurance agent for code analysis, testing, and review".into(),
             modes: qa_modes,
-            default_mode: qa.default_mode_slug().into(),
+            default_mode: qa.default_mode().into(),
             enabled: true,
             bound_extensions: vec![],
         });
@@ -108,7 +108,7 @@ impl IntentRouter {
             description: "Product management agent for requirements, prioritization, and roadmaps"
                 .into(),
             modes: pm_modes,
-            default_mode: pm.default_mode_slug().into(),
+            default_mode: pm.default_mode().into(),
             enabled: true,
             bound_extensions: vec![],
         });
@@ -121,7 +121,7 @@ impl IntentRouter {
             description:
                 "Security agent for threat modeling, vulnerability analysis, and compliance".into(),
             modes: security_modes,
-            default_mode: security.default_mode_slug().into(),
+            default_mode: security.default_mode().into(),
             enabled: true,
             bound_extensions: vec![],
         });
@@ -135,7 +135,7 @@ impl IntentRouter {
                 "Research agent for investigating topics, comparing technologies, and learning"
                     .into(),
             modes: research_modes,
-            default_mode: research.default_mode_slug().into(),
+            default_mode: research.default_mode().into(),
             enabled: true,
             bound_extensions: vec![],
         });
@@ -201,17 +201,40 @@ impl IntentRouter {
             return decision;
         }
 
-        // Score each mode against the message
+        // Score each mode against the message, with agent-level description bonus.
+        // With universal modes, all agents share the same mode keywords.
+        // The agent slot description provides the persona-level differentiation.
         let mut best: Option<(f32, &AgentSlot, &AgentMode)> = None;
 
         for slot in &enabled_slots {
+            // Compute agent-level bonus from the slot description
+            let agent_bonus = {
+                let desc_keywords = Self::extract_keywords(&slot.description);
+                let matched = desc_keywords
+                    .iter()
+                    .filter(|kw| {
+                        Self::extract_keywords(&message_lower)
+                            .iter()
+                            .any(|mw| Self::words_match(mw, kw))
+                    })
+                    .count();
+                if desc_keywords.is_empty() {
+                    0.0f32
+                } else {
+                    (matched as f32 / desc_keywords.len() as f32) * 0.3
+                        + (matched as f32).min(4.0) * 0.05
+                }
+            };
+
             for mode in &slot.modes {
-                let score = self.score_mode_match(&message_lower, mode);
+                let mode_score = self.score_mode_match(&message_lower, mode);
+                let score = mode_score + agent_bonus;
                 if score > 0.0 {
                     debug!(
                         agent = slot.name.as_str(),
                         mode = mode.slug.as_str(),
                         score = score,
+                        agent_bonus = agent_bonus,
                         "routing.score"
                     );
                     if best.is_none() || score > best.as_ref().unwrap().0 {

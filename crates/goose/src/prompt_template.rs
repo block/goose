@@ -80,69 +80,73 @@ static TEMPLATE_REGISTRY: &[(&str, &str)] = &[
         "developer/debug.md",
         "Developer Debug — systematic diagnosis and root-cause analysis",
     ),
+    // QA Agent — universal modes
     (
-        "qa_agent/analyze.md",
-        "QA Analyst — code quality analysis, anti-patterns, and actionable findings",
+        "qa/ask.md",
+        "QA Agent Ask — read-only exploration of testing and quality",
     ),
     (
-        "qa_agent/test_design.md",
-        "Test Designer — test strategies, plans, and case generation",
+        "qa/plan.md",
+        "QA Agent Plan — test strategy and test plan design",
     ),
     (
-        "qa_agent/coverage_audit.md",
-        "Coverage Auditor — test coverage gaps and reliability assessment",
+        "qa/write.md",
+        "QA Agent Write — implement tests and quality infrastructure",
     ),
     (
-        "qa_agent/review.md",
-        "Code Reviewer — correctness, reliability, and maintainability review",
+        "qa/review.md",
+        "QA Agent Review — evaluate test adequacy and code quality",
+    ),
+    // PM Agent — universal modes
+    (
+        "pm/ask.md",
+        "PM Agent Ask — product questions, requirements exploration",
     ),
     (
-        "pm_agent/requirements.md",
-        "PM Agent — requirements analyst, user stories, acceptance criteria",
+        "pm/plan.md",
+        "PM Agent Plan — PRDs, roadmaps, prioritization",
     ),
     (
-        "pm_agent/prioritize.md",
-        "PM Agent — prioritization strategist, RICE/MoSCoW scoring",
+        "pm/write.md",
+        "PM Agent Write — produce product documents and specs",
     ),
     (
-        "pm_agent/roadmap.md",
-        "PM Agent — roadmap planner, milestones, phased rollout",
+        "pm/review.md",
+        "PM Agent Review — evaluate requirements and specs quality",
+    ),
+    // Security Agent — universal modes
+    (
+        "security/ask.md",
+        "Security Agent Ask — security questions and analysis",
     ),
     (
-        "pm_agent/stakeholder.md",
-        "PM Agent — stakeholder analyst, personas, competitive analysis",
+        "security/plan.md",
+        "Security Agent Plan — threat models and remediation plans",
     ),
     (
-        "security_agent/threat_model.md",
-        "Security Agent — STRIDE threat modeling, attack surface mapping",
+        "security/write.md",
+        "Security Agent Write — security patches and hardening",
     ),
     (
-        "security_agent/vulnerability.md",
-        "Security Agent — SAST-style vulnerability analysis, CWE classification",
+        "security/review.md",
+        "Security Agent Review — security code review and audit",
+    ),
+    // Research Agent — universal modes
+    (
+        "research/ask.md",
+        "Research Agent Ask — answer questions with evidence",
     ),
     (
-        "security_agent/compliance.md",
-        "Security Agent — compliance auditing, OWASP ASVS, PCI-DSS, SOC 2",
+        "research/plan.md",
+        "Research Agent Plan — research strategy and investigation design",
     ),
     (
-        "security_agent/pentest.md",
-        "Security Agent — penetration test planning, attack scenarios",
+        "research/write.md",
+        "Research Agent Write — produce research reports and comparisons",
     ),
     (
-        "research_agent/investigate.md",
-        "Research Agent — deep-dive investigation into technical topics",
-    ),
-    (
-        "research_agent/compare.md",
-        "Research Agent — structured technology and tool comparisons",
-    ),
-    (
-        "research_agent/summarize.md",
-        "Research Agent — document and discussion summarization",
-    ),
-    (
-        "research_agent/learn.md",
-        "Research Agent — concept explanations and learning paths",
+        "research/review.md",
+        "Research Agent Review — evaluate research quality and sources",
     ),
     (
         "orchestrator/system.md",

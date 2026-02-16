@@ -1,32 +1,24 @@
+//! Security Agent — application security persona with universal behavioral modes.
+//!
+//! The Security Agent is a specialist in vulnerability analysis, threat modeling,
+//! and security architecture. It uses the universal mode set (ask/plan/write/review)
+//! to adapt its behavior. The persona stays constant; the mode changes HOW it works.
+
 use std::collections::HashMap;
 
 use serde::Serialize;
 
-use crate::prompt_template::render_template;
+use crate::agents::universal_mode::UniversalMode;
+use crate::prompt_template;
 use crate::registry::manifest::{AgentMode, ToolGroupAccess};
 
-/// A mode definition for the Security Agent.
-pub struct SecurityMode {
-    slug: &'static str,
-    name: &'static str,
-    description: &'static str,
-    template_name: &'static str,
-    tool_groups: Vec<ToolGroupAccess>,
-    when_to_use: &'static str,
-    recommended_extensions: Vec<&'static str>,
-}
+const SECURITY_EXTRA_TOOLS: &[&str] = &["memory"];
+const SECURITY_EXTENSIONS: &[&str] = &["developer", "memory", "fetch"];
 
-/// Security Agent — identifies vulnerabilities, models threats, audits
-/// compliance, and plans security testing.
-///
-/// Four specialized modes:
-/// - **threat-model**: STRIDE analysis, attack surface mapping, risk assessment
-/// - **vulnerability**: SAST-style code review, injection analysis, CVE scanning
-/// - **compliance**: OWASP ASVS, PCI-DSS, SOC 2, HIPAA/GDPR auditing
-/// - **pentest**: Security test plan design, attack scenario creation
+#[derive(Debug, Clone, Serialize)]
 pub struct SecurityAgent {
-    modes: HashMap<&'static str, SecurityMode>,
-    default_mode: &'static str,
+    modes: HashMap<String, UniversalMode>,
+    default_mode: String,
 }
 
 impl Default for SecurityAgent {
@@ -37,135 +29,79 @@ impl Default for SecurityAgent {
 
 impl SecurityAgent {
     pub fn new() -> Self {
-        let mut modes = HashMap::new();
+        let mode_list = vec![
+            UniversalMode::Ask,
+            UniversalMode::Plan,
+            UniversalMode::Write,
+            UniversalMode::Review,
+        ];
 
-        modes.insert(
-            "threat-model",
-            SecurityMode {
-                slug: "threat-model",
-                name: "🛡️ Threat Modeler",
-                description: "STRIDE analysis, attack surface mapping, and risk assessment",
-                template_name: "security_agent/threat_model.md",
-                tool_groups: vec![
-                    ToolGroupAccess::Full("developer".into()),
-                    ToolGroupAccess::Full("memory".into()),
-                ],
-                when_to_use: "threat model STRIDE DREAD attack surface trust boundary \
-                    risk assessment threat actor data flow security architecture",
-                recommended_extensions: vec!["developer", "memory"],
-            },
-        );
-
-        modes.insert(
-            "vulnerability",
-            SecurityMode {
-                slug: "vulnerability",
-                name: "🔍 Vulnerability Analyst",
-                description: "SAST-style code review, injection analysis, and CVE scanning",
-                template_name: "security_agent/vulnerability.md",
-                tool_groups: vec![
-                    ToolGroupAccess::Full("developer".into()),
-                    ToolGroupAccess::Full("memory".into()),
-                ],
-                when_to_use: "vulnerability SAST injection XSS SQL OWASP CWE CVE \
-                    security review code audit taint analysis secrets hardcoded",
-                recommended_extensions: vec!["developer", "memory"],
-            },
-        );
-
-        modes.insert(
-            "compliance",
-            SecurityMode {
-                slug: "compliance",
-                name: "📜 Compliance Auditor",
-                description: "Audit against OWASP ASVS, PCI-DSS, SOC 2, HIPAA, GDPR",
-                template_name: "security_agent/compliance.md",
-                tool_groups: vec![
-                    ToolGroupAccess::Full("developer".into()),
-                    ToolGroupAccess::Full("memory".into()),
-                ],
-                when_to_use: "compliance audit PCI HIPAA GDPR SOC ASVS regulation \
-                    standard certification control framework policy",
-                recommended_extensions: vec!["developer", "memory"],
-            },
-        );
-
-        modes.insert(
-            "pentest",
-            SecurityMode {
-                slug: "pentest",
-                name: "⚔️ Penetration Test Planner",
-                description: "Design security test plans and attack scenarios",
-                template_name: "security_agent/pentest.md",
-                tool_groups: vec![
-                    ToolGroupAccess::Full("developer".into()),
-                    ToolGroupAccess::Full("memory".into()),
-                ],
-                when_to_use: "penetration test pentest security testing attack scenario \
-                    fuzzing exploit proof of concept red team assessment",
-                recommended_extensions: vec!["developer", "memory"],
-            },
-        );
+        let modes = mode_list
+            .into_iter()
+            .map(|m| (m.slug().to_string(), m))
+            .collect();
 
         Self {
             modes,
-            default_mode: "vulnerability",
+            default_mode: "ask".into(),
         }
     }
 
-    pub fn mode(&self, slug: &str) -> Option<&SecurityMode> {
+    pub fn mode(&self, slug: &str) -> Option<&UniversalMode> {
         self.modes.get(slug)
     }
 
-    pub fn modes(&self) -> Vec<&SecurityMode> {
-        let order = ["threat-model", "vulnerability", "compliance", "pentest"];
-        order.iter().filter_map(|s| self.modes.get(s)).collect()
+    pub fn default_mode(&self) -> &str {
+        &self.default_mode
     }
 
-    pub fn default_mode_slug(&self) -> &str {
-        self.default_mode
+    pub fn modes(&self) -> Vec<&UniversalMode> {
+        let order = ["ask", "plan", "write", "review"];
+        order.iter().filter_map(|s| self.modes.get(*s)).collect()
     }
 
-    pub fn render_mode<T: Serialize>(
+    pub fn render_mode(
         &self,
         slug: &str,
-        context: &T,
-    ) -> Result<String, minijinja::Error> {
-        let mode = self.mode(slug).ok_or_else(|| {
-            minijinja::Error::new(
-                minijinja::ErrorKind::TemplateNotFound,
-                format!("Security mode '{}' not found", slug),
-            )
-        })?;
-        render_template(mode.template_name, context)
+        context: &HashMap<String, String>,
+    ) -> anyhow::Result<String> {
+        if self.modes.contains_key(slug) {
+            let template_name = format!("security/{slug}.md");
+            Ok(prompt_template::render_template(&template_name, context)?)
+        } else {
+            anyhow::bail!("Unknown Security mode: {slug}")
+        }
     }
 
     pub fn to_agent_modes(&self) -> Vec<AgentMode> {
         self.modes()
             .iter()
-            .map(|m| AgentMode {
-                slug: m.slug.to_string(),
-                name: m.name.to_string(),
-                description: m.description.to_string(),
-                instructions: None,
-                instructions_file: Some(m.template_name.to_string()),
-                tool_groups: m.tool_groups.clone(),
-                when_to_use: Some(m.when_to_use.to_string()),
-                is_internal: false,
-                deprecated: None,
+            .map(|m| {
+                let mut tool_groups = m.base_tool_groups();
+                for tool in SECURITY_EXTRA_TOOLS {
+                    let tg = ToolGroupAccess::Full(tool.to_string());
+                    if !tool_groups.iter().any(|t| format!("{t:?}").contains(tool)) {
+                        tool_groups.push(tg);
+                    }
+                }
+
+                AgentMode {
+                    slug: m.slug().to_string(),
+                    name: m.display_name().to_string(),
+                    description: m.description().to_string(),
+                    instructions: None,
+                    instructions_file: Some(format!("security/{}.md", m.slug())),
+                    tool_groups,
+                    when_to_use: Some(m.when_to_use().to_string()),
+                    is_internal: false,
+                    deprecated: None,
+                }
             })
             .collect()
     }
 
-    pub fn recommended_extensions(&self, slug: &str) -> Vec<String> {
-        self.mode(slug)
-            .map(|m| {
-                m.recommended_extensions
-                    .iter()
-                    .map(|s| s.to_string())
-                    .collect()
-            })
-            .unwrap_or_default()
+    pub fn recommended_extensions(&self, _slug: &str) -> Vec<String> {
+        SECURITY_EXTENSIONS.iter().map(|s| s.to_string()).collect()
     }
 }
 
@@ -175,72 +111,61 @@ mod tests {
 
     #[test]
     fn test_default_mode() {
-        let agent = SecurityAgent::new();
-        assert_eq!(agent.default_mode_slug(), "vulnerability");
+        let sec = SecurityAgent::new();
+        assert_eq!(sec.default_mode(), "ask");
     }
 
     #[test]
     fn test_mode_lookup() {
-        let agent = SecurityAgent::new();
-        let mode = agent.mode("threat-model").unwrap();
-        assert_eq!(mode.name, "🛡️ Threat Modeler");
+        let sec = SecurityAgent::new();
+        assert!(sec.mode("ask").is_some());
+        assert!(sec.mode("plan").is_some());
+        assert!(sec.mode("write").is_some());
+        assert!(sec.mode("review").is_some());
+        assert!(sec.mode("vulnerability").is_none()); // old slug
+        assert!(sec.mode("threat-model").is_none()); // old slug
     }
 
     #[test]
-    fn test_mode_order() {
-        let agent = SecurityAgent::new();
-        let slugs: Vec<&str> = agent.modes().iter().map(|m| m.slug).collect();
-        assert_eq!(
-            slugs,
-            vec!["threat-model", "vulnerability", "compliance", "pentest"]
-        );
-    }
-
-    #[test]
-    fn test_four_modes() {
-        let agent = SecurityAgent::new();
-        assert_eq!(agent.modes().len(), 4);
-    }
-
-    #[test]
-    fn test_agent_modes_conversion() {
-        let agent = SecurityAgent::new();
-        let modes = agent.to_agent_modes();
+    fn test_mode_count_and_order() {
+        let sec = SecurityAgent::new();
+        let modes = sec.modes();
         assert_eq!(modes.len(), 4);
-        for mode in &modes {
-            assert!(mode.instructions_file.is_some());
-            assert!(mode.when_to_use.is_some());
-            assert!(!mode.is_internal);
+        let slugs: Vec<&str> = modes.iter().map(|m| m.slug()).collect();
+        assert_eq!(slugs, vec!["ask", "plan", "write", "review"]);
+    }
+
+    #[test]
+    fn test_to_agent_modes() {
+        let sec = SecurityAgent::new();
+        let agent_modes = sec.to_agent_modes();
+        assert_eq!(agent_modes.len(), 4);
+        for am in &agent_modes {
+            assert!(!am.name.is_empty());
+            assert!(am.when_to_use.is_some());
         }
     }
 
     #[test]
-    fn test_tool_groups_read_only() {
-        let agent = SecurityAgent::new();
-        let vuln = agent.mode("vulnerability").unwrap();
-        assert!(!vuln.tool_groups.is_empty());
-    }
-
-    #[test]
     fn test_recommended_extensions() {
-        let agent = SecurityAgent::new();
-        let exts = agent.recommended_extensions("vulnerability");
+        let sec = SecurityAgent::new();
+        let exts = sec.recommended_extensions("ask");
         assert!(exts.contains(&"developer".to_string()));
         assert!(exts.contains(&"memory".to_string()));
     }
 
     #[test]
-    fn test_unknown_mode() {
-        let agent = SecurityAgent::new();
-        assert!(agent.mode("nonexistent").is_none());
+    fn test_unknown_mode_returns_none() {
+        let sec = SecurityAgent::new();
+        assert!(sec.mode("nonexistent").is_none());
     }
 
     #[test]
     fn test_render_mode() {
-        let agent = SecurityAgent::new();
-        let ctx = std::collections::HashMap::<String, String>::new();
-        let rendered = agent.render_mode("vulnerability", &ctx);
-        assert!(rendered.is_ok());
-        assert!(rendered.unwrap().contains("Vulnerability Analyst"));
+        let sec = SecurityAgent::new();
+        let ctx = HashMap::new();
+        let result = sec.render_mode("ask", &ctx);
+        assert!(result.is_ok());
+        assert!(result.unwrap().contains("Security Agent"));
     }
 }
