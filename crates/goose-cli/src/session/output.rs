@@ -8,7 +8,7 @@ use goose::conversation::message::{
 use goose::providers::canonical::maybe_get_canonical_model;
 #[cfg(target_os = "windows")]
 use goose::subprocess::SubprocessExt;
-use goose::utils::safe_truncate;
+use goose::utils::{safe_truncate, truncate_tool_text_for_display};
 use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
 use rmcp::model::{CallToolRequestParams, JsonObject, PromptArgument};
 use serde_json::Value;
@@ -363,7 +363,13 @@ fn render_tool_response(resp: &ToolResponse, theme: Theme, debug: bool) {
                 if debug {
                     println!("{:#?}", content);
                 } else if let Some(text) = content.as_text() {
-                    print_markdown(&text.text, theme);
+                    let display_text = if get_show_full_tool_output() {
+                        text.text.clone()
+                    } else {
+                        truncate_tool_text_for_display(&text.text)
+                            .unwrap_or_else(|| text.text.clone())
+                    };
+                    print_markdown(&display_text, theme);
                 }
             }
         }

@@ -15,6 +15,7 @@ use goose::agents::{AgentEvent, SessionConfig};
 use goose::conversation::message::{Message, MessageContent, TokenState};
 use goose::conversation::Conversation;
 use goose::session::SessionManager;
+use goose::utils::truncate_message_for_display;
 use rmcp::model::ServerNotification;
 use serde::{Deserialize, Serialize};
 use std::{
@@ -348,8 +349,9 @@ pub async fn reply(
                             all_messages.push(message.clone());
 
                             let token_state = get_token_state(state.session_manager(), &session_id).await;
+                            let display_message = truncate_message_for_display(&message);
 
-                            stream_event(MessageEvent::Message { message, token_state }, &tx, &cancel_token).await;
+                            stream_event(MessageEvent::Message { message: display_message, token_state }, &tx, &cancel_token).await;
                         }
                         Ok(Some(Ok(AgentEvent::HistoryReplaced(new_messages)))) => {
                             all_messages = new_messages.clone();

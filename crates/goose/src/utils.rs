@@ -1,5 +1,11 @@
+use crate::conversation::message::{Message, MessageContent};
+use rmcp::model::{CallToolResult, Content};
 use tokio_util::sync::CancellationToken;
 use unicode_normalization::UnicodeNormalization;
+
+/// Maximum number of characters to show for tool output in user-facing displays.
+/// Content exceeding this is truncated with a message indicating the full length.
+const MAX_TOOL_OUTPUT_DISPLAY_CHARS: usize = 10_000;
 
 /// Check if a character is in the Unicode Tags Block range (U+E0000-U+E007F)
 /// These characters are invisible and can be used for steganographic attacks
@@ -38,6 +44,75 @@ pub fn safe_truncate(s: &str, max_chars: usize) -> String {
     } else {
         let truncated: String = s.chars().take(max_chars.saturating_sub(3)).collect();
         format!("{}...", truncated)
+    }
+}
+
+/// Truncate tool output text for user display, preserving the original for agent processing.
+/// Returns None if no truncation was needed.
+pub fn truncate_tool_text_for_display(text: &str) -> Option<String> {
+    let char_count = text.chars().count();
+    if char_count <= MAX_TOOL_OUTPUT_DISPLAY_CHARS {
+        return None;
+    }
+    let truncated: String = text.chars().take(MAX_TOOL_OUTPUT_DISPLAY_CHARS).collect();
+    Some(format!(
+        "{}\n\n... [output truncated: showing {MAX_TOOL_OUTPUT_DISPLAY_CHARS} of {char_count} characters]",
+        truncated
+    ))
+}
+
+/// Create a clone of a Message with tool response text truncated for user display.
+/// Only modifies ToolResponse content; all other content types pass through unchanged.
+pub fn truncate_message_for_display(message: &Message) -> Message {
+    let mut any_changed = false;
+    let truncated_content: Vec<MessageContent> = message
+        .content
+        .iter()
+        .map(|c| match c {
+            MessageContent::ToolResponse(resp) => match &resp.tool_result {
+                Ok(result) => {
+                    let mut content_changed = false;
+                    let new_content: Vec<Content> = result
+                        .content
+                        .iter()
+                        .map(|content| {
+                            if let Some(text) = content.as_text() {
+                                if let Some(truncated) =
+                                    truncate_tool_text_for_display(&text.text)
+                                {
+                                    content_changed = true;
+                                    return Content::text(truncated);
+                                }
+                            }
+                            content.clone()
+                        })
+                        .collect();
+                    if !content_changed {
+                        return c.clone();
+                    }
+                    any_changed = true;
+                    MessageContent::ToolResponse(crate::conversation::message::ToolResponse {
+                        id: resp.id.clone(),
+                        tool_result: Ok(CallToolResult {
+                            content: new_content,
+                            ..result.clone()
+                        }),
+                        metadata: resp.metadata.clone(),
+                    })
+                }
+                Err(_) => c.clone(),
+            },
+            _ => c.clone(),
+        })
+        .collect();
+
+    if !any_changed {
+        return message.clone();
+    }
+
+    Message {
+        content: truncated_content,
+        ..message.clone()
     }
 }
 
@@ -124,5 +199,69 @@ mod tests {
         let mixed = "Hello こんにちは";
         assert_eq!(safe_truncate(mixed, 20), mixed);
         assert_eq!(safe_truncate(mixed, 8), "Hello...");
+    }
+
+    #[test]
+    fn test_truncate_tool_text_short() {
+        let short = "Hello world";
+        assert!(truncate_tool_text_for_display(short).is_none());
+    }
+
+    #[test]
+    fn test_truncate_tool_text_long() {
+        let long: String = "x".repeat(20_000);
+        let result = truncate_tool_text_for_display(&long).unwrap();
+        assert!(result.contains("output truncated"));
+        assert!(result.contains("10000 of 20000 characters"));
+        // Should start with the first 10000 chars
+        assert!(result.starts_with(&"x".repeat(10_000)));
+    }
+
+    #[test]
+    fn test_truncate_message_no_tool_response() {
+        use rmcp::model::Role;
+        let msg = Message::new(Role::Assistant, 0, vec![MessageContent::text("Hello")]);
+        let truncated = truncate_message_for_display(&msg);
+        assert_eq!(truncated.content.len(), 1);
+        assert_eq!(truncated.as_concat_text(), "Hello");
+    }
+
+    #[test]
+    fn test_truncate_message_with_long_tool_response() {
+        use rmcp::model::{CallToolResult, Content, Role};
+        let long_text: String = "line\n".repeat(5000);
+        let tool_resp = MessageContent::tool_response(
+            "test-id".to_string(),
+            Ok(CallToolResult::success(vec![Content::text(long_text.clone())])),
+        );
+        let msg = Message::new(Role::Assistant, 0, vec![tool_resp]);
+        let truncated = truncate_message_for_display(&msg);
+        assert_eq!(truncated.content.len(), 1);
+        if let MessageContent::ToolResponse(resp) = &truncated.content[0] {
+            let result = resp.tool_result.as_ref().unwrap();
+            let text = result.content[0].as_text().unwrap();
+            assert!(text.text.contains("output truncated"));
+            assert!(text.text.len() < long_text.len());
+        } else {
+            panic!("Expected ToolResponse");
+        }
+    }
+
+    #[test]
+    fn test_truncate_message_short_tool_response_unchanged() {
+        use rmcp::model::{CallToolResult, Content, Role};
+        let tool_resp = MessageContent::tool_response(
+            "test-id".to_string(),
+            Ok(CallToolResult::success(vec![Content::text("short output")])),
+        );
+        let msg = Message::new(Role::Assistant, 0, vec![tool_resp]);
+        let truncated = truncate_message_for_display(&msg);
+        if let MessageContent::ToolResponse(resp) = &truncated.content[0] {
+            let result = resp.tool_result.as_ref().unwrap();
+            let text = result.content[0].as_text().unwrap();
+            assert_eq!(text.text, "short output");
+        } else {
+            panic!("Expected ToolResponse");
+        }
     }
 }
