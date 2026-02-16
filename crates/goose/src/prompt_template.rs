@@ -88,6 +88,38 @@ static TEMPLATE_REGISTRY: &[(&str, &str)] = &[
         "Code Reviewer — correctness, reliability, and maintainability review",
     ),
     (
+        "pm_agent/requirements.md",
+        "PM Agent — requirements analyst, user stories, acceptance criteria",
+    ),
+    (
+        "pm_agent/prioritize.md",
+        "PM Agent — prioritization strategist, RICE/MoSCoW scoring",
+    ),
+    (
+        "pm_agent/roadmap.md",
+        "PM Agent — roadmap planner, milestones, phased rollout",
+    ),
+    (
+        "pm_agent/stakeholder.md",
+        "PM Agent — stakeholder analyst, personas, competitive analysis",
+    ),
+    (
+        "security_agent/threat_model.md",
+        "Security Agent — STRIDE threat modeling, attack surface mapping",
+    ),
+    (
+        "security_agent/vulnerability.md",
+        "Security Agent — SAST-style vulnerability analysis, CWE classification",
+    ),
+    (
+        "security_agent/compliance.md",
+        "Security Agent — compliance auditing, OWASP ASVS, PCI-DSS, SOC 2",
+    ),
+    (
+        "security_agent/pentest.md",
+        "Security Agent — penetration test planning, attack scenarios",
+    ),
+    (
         "orchestrator/system.md",
         "Orchestrator system prompt — meta-coordinator for routing to agents/modes",
     ),

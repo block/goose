@@ -398,12 +398,62 @@ test_cases:
   - input: "Check this code for concurrency bugs and race conditions"
     expected_agent: "QA Agent"
     expected_mode: "review"
+  # PM Agent cases
+  - input: "Write user stories and acceptance criteria for the checkout feature"
+    expected_agent: "PM Agent"
+    expected_mode: "requirements"
+  - input: "Create a PRD for the new notification system"
+    expected_agent: "PM Agent"
+    expected_mode: "requirements"
+  - input: "Prioritize these features using RICE scoring framework"
+    expected_agent: "PM Agent"
+    expected_mode: "prioritize"
+  - input: "Help me decide between MoSCoW priorities for Q3 backlog"
+    expected_agent: "PM Agent"
+    expected_mode: "prioritize"
+  - input: "Create a product roadmap with milestones for the next 6 months"
+    expected_agent: "PM Agent"
+    expected_mode: "roadmap"
+  - input: "Plan the phased rollout for our mobile app launch"
+    expected_agent: "PM Agent"
+    expected_mode: "roadmap"
+  - input: "Build user personas for our target market segments"
+    expected_agent: "PM Agent"
+    expected_mode: "stakeholder"
+  - input: "Do a competitive analysis of our product vs the top 3 competitors"
+    expected_agent: "PM Agent"
+    expected_mode: "stakeholder"
+  # Security Agent cases
+  - input: "Perform STRIDE threat modeling on our authentication flow"
+    expected_agent: "Security Agent"
+    expected_mode: "threat-model"
+  - input: "Map the attack surface and trust boundaries for this microservice"
+    expected_agent: "Security Agent"
+    expected_mode: "threat-model"
+  - input: "Scan this code for SQL injection and XSS vulnerabilities"
+    expected_agent: "Security Agent"
+    expected_mode: "vulnerability"
+  - input: "Run a SAST analysis looking for CWE top 25 issues"
+    expected_agent: "Security Agent"
+    expected_mode: "vulnerability"
+  - input: "Audit this service for PCI-DSS compliance requirements"
+    expected_agent: "Security Agent"
+    expected_mode: "compliance"
+  - input: "Check if our authentication meets OWASP ASVS level 2 standards"
+    expected_agent: "Security Agent"
+    expected_mode: "compliance"
+  - input: "Design a penetration test plan for our REST API"
+    expected_agent: "Security Agent"
+    expected_mode: "pentest"
+  - input: "Create fuzzing test scenarios for the file upload endpoint"
+    expected_agent: "Security Agent"
+    expected_mode: "pentest"
 "#;
 
     #[test]
     fn test_load_eval_set() {
         let set = load_eval_set(TEST_YAML).expect("YAML should parse");
-        assert_eq!(set.test_cases.len(), 37);
+        assert_eq!(set.test_cases.len(), 53);
     }
 
     #[test]
@@ -411,7 +461,7 @@ test_cases:
         let set = load_eval_set(TEST_YAML).unwrap();
         let router = IntentRouter::new();
         let results = evaluate(&router, &set);
-        assert_eq!(results.len(), 37);
+        assert_eq!(results.len(), 53);
         for r in &results {
             assert!(!r.actual_agent.is_empty());
             assert!(!r.actual_mode.is_empty());
@@ -462,7 +512,7 @@ test_cases:
         let router = IntentRouter::new();
         let results = evaluate(&router, &set);
         let metrics = compute_metrics(&results);
-        assert_eq!(metrics.total, 37);
+        assert_eq!(metrics.total, 53);
         assert!(metrics.overall_accuracy >= 0.0 && metrics.overall_accuracy <= 1.0);
         assert!(metrics.agent_accuracy >= 0.0 && metrics.agent_accuracy <= 1.0);
         assert!(!metrics.per_agent.is_empty());

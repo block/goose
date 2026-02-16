@@ -3,7 +3,9 @@ use tracing::{debug, info, instrument, Span};
 
 use crate::agents::coding_agent::CodingAgent;
 use crate::agents::goose_agent::GooseAgent;
+use crate::agents::pm_agent::PmAgent;
 use crate::agents::qa_agent::QaAgent;
+use crate::agents::security_agent::SecurityAgent;
 use crate::registry::manifest::AgentMode;
 
 /// Represents a routing decision: which agent + mode should handle this message.
@@ -79,6 +81,32 @@ impl IntentRouter {
             description: "Quality assurance agent for code analysis, testing, and review".into(),
             modes: qa_modes,
             default_mode: qa.default_mode_slug().into(),
+            enabled: true,
+            bound_extensions: vec![],
+        });
+
+        // Register PmAgent
+        let pm = PmAgent::new();
+        let pm_modes = pm.to_agent_modes();
+        slots.push(AgentSlot {
+            name: "PM Agent".into(),
+            description: "Product management agent for requirements, prioritization, and roadmaps"
+                .into(),
+            modes: pm_modes,
+            default_mode: pm.default_mode_slug().into(),
+            enabled: true,
+            bound_extensions: vec![],
+        });
+
+        // Register SecurityAgent
+        let security = SecurityAgent::new();
+        let security_modes = security.to_agent_modes();
+        slots.push(AgentSlot {
+            name: "Security Agent".into(),
+            description:
+                "Security agent for threat modeling, vulnerability analysis, and compliance".into(),
+            modes: security_modes,
+            default_mode: security.default_mode_slug().into(),
             enabled: true,
             bound_extensions: vec![],
         });
