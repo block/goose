@@ -68,7 +68,7 @@ impl IntentRouter {
         let dev_modes = dev.to_agent_modes();
         slots.push(AgentSlot {
             name: "Developer Agent".into(),
-            description: "Software engineer for writing, debugging, deploying code, CI/CD pipelines, infrastructure, and DevOps".into(),
+            description: "Software engineer for implementing features, fixing bugs, debugging errors, CI/CD pipelines, infrastructure, and DevOps".into(),
             modes: dev_modes,
             default_mode: dev.default_mode().into(),
             enabled: true,
@@ -92,7 +92,7 @@ impl IntentRouter {
         let qa_modes = qa.to_agent_modes();
         slots.push(AgentSlot {
             name: "QA Agent".into(),
-            description: "Quality assurance agent for code analysis, testing, and review".into(),
+            description: "Quality assurance agent for test coverage analysis, testing strategy, bug investigation, and code quality review".into(),
             modes: qa_modes,
             default_mode: qa.default_mode().into(),
             enabled: true,
