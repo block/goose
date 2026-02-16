@@ -251,11 +251,10 @@ mod tests {
     #[test]
     fn test_build_agent_manifests_returns_agents_not_modes() {
         let manifests = build_agent_manifests();
-        // Should have 2 agents (Goose Agent + Coding Agent), NOT 15 modes
-        assert_eq!(
-            manifests.len(),
-            2,
-            "Expected 2 agent personas, got {}",
+        // Should have 6 agents (Goose, Coding, QA, PM, Security, Research)
+        assert!(
+            manifests.len() >= 6,
+            "Expected >= 6 agent personas, got {}",
             manifests.len()
         );
 
@@ -306,19 +305,19 @@ mod tests {
         let manifests = build_agent_manifests();
         let coding = manifests.iter().find(|m| m.name == "coding-agent").unwrap();
 
-        // Coding Agent should have 8 modes
+        // Coding Agent now has 5 focused modes (code, architect, frontend, debug, devops)
         assert!(
-            coding.modes.len() >= 8,
-            "Expected >= 8 modes for Coding Agent, got {}",
+            coding.modes.len() >= 5,
+            "Expected >= 5 modes for Coding Agent, got {}",
             coding.modes.len()
         );
 
         let mode_ids: Vec<_> = coding.modes.iter().map(|m| m.id.as_str()).collect();
-        assert!(mode_ids.contains(&"backend"), "Missing backend mode");
+        assert!(mode_ids.contains(&"code"), "Missing code mode");
         assert!(mode_ids.contains(&"frontend"), "Missing frontend mode");
         assert!(mode_ids.contains(&"architect"), "Missing architect mode");
-        assert!(mode_ids.contains(&"qa"), "Missing qa mode");
-        assert!(mode_ids.contains(&"security"), "Missing security mode");
+        assert!(mode_ids.contains(&"debug"), "Missing debug mode");
+        assert!(mode_ids.contains(&"devops"), "Missing devops mode");
     }
 
     #[test]
@@ -326,20 +325,20 @@ mod tests {
         let manifests = build_agent_manifests();
         let coding = manifests.iter().find(|m| m.name == "coding-agent").unwrap();
 
-        let backend = coding.modes.iter().find(|m| m.id == "backend").unwrap();
+        let code = coding.modes.iter().find(|m| m.id == "code").unwrap();
         assert!(
-            !backend.tool_groups.is_empty(),
-            "Backend mode should have tool groups"
+            !code.tool_groups.is_empty(),
+            "Code mode should have tool groups"
         );
     }
 
     #[test]
     fn test_resolve_mode_to_agent() {
-        let result = resolve_mode_to_agent("backend");
+        let result = resolve_mode_to_agent("code");
         assert!(result.is_some());
         let (slot, mode) = result.unwrap();
         assert_eq!(slot, "Coding Agent");
-        assert_eq!(mode, "backend");
+        assert_eq!(mode, "code");
 
         let result = resolve_mode_to_agent("assistant");
         assert!(result.is_some());

@@ -170,10 +170,9 @@ impl OrchestratorAgent {
             },
             CatalogEntry {
                 name: "Coding Agent".into(),
-                description:
-                    "SDLC specialist for code, architecture, testing, security, and DevOps".into(),
+                description: "Software engineer for writing, debugging, and deploying code".into(),
                 modes: coding.to_agent_modes(),
-                default_mode: "backend".into(),
+                default_mode: "code".into(),
             },
         ];
 
@@ -720,7 +719,7 @@ mod tests {
         assert!(catalog.contains("Goose Agent"));
         assert!(catalog.contains("Coding Agent"));
         assert!(catalog.contains("assistant"));
-        assert!(catalog.contains("backend"));
+        assert!(catalog.contains("code"));
         assert!(catalog.contains("architect"));
     }
 
@@ -729,14 +728,14 @@ mod tests {
         let orch = make_orchestrator();
 
         let response = crate::conversation::message::Message::assistant().with_text(
-            r#"{"is_compound": false, "tasks": [{"agent_name": "Coding Agent", "mode_slug": "backend", "confidence": 0.9, "reasoning": "API implementation task", "sub_task": "implement a REST API endpoint"}]}"#,
+            r#"{"is_compound": false, "tasks": [{"agent_name": "Coding Agent", "mode_slug": "code", "confidence": 0.9, "reasoning": "API implementation task", "sub_task": "implement a REST API endpoint"}]}"#,
         );
 
         let plan = orch.parse_splitting_response(&response).unwrap();
         assert!(!plan.is_compound);
         assert_eq!(plan.tasks.len(), 1);
         assert_eq!(plan.primary_routing().agent_name, "Coding Agent");
-        assert_eq!(plan.primary_routing().mode_slug, "backend");
+        assert_eq!(plan.primary_routing().mode_slug, "code");
         assert_eq!(
             plan.tasks[0].sub_task_description,
             "implement a REST API endpoint"
@@ -749,7 +748,7 @@ mod tests {
 
         let response = crate::conversation::message::Message::assistant().with_text(
             r#"{"is_compound": true, "tasks": [
-                {"agent_name": "Coding Agent", "mode_slug": "backend", "confidence": 0.85, "reasoning": "Bug fix", "sub_task": "Fix the login endpoint bug"},
+                {"agent_name": "Coding Agent", "mode_slug": "code", "confidence": 0.85, "reasoning": "Bug fix", "sub_task": "Fix the login endpoint bug"},
                 {"agent_name": "Coding Agent", "mode_slug": "frontend", "confidence": 0.8, "reasoning": "UI feature", "sub_task": "Add dark theme toggle to settings"}
             ]}"#,
         );
@@ -758,7 +757,7 @@ mod tests {
         assert!(plan.is_compound);
         assert_eq!(plan.tasks.len(), 2);
         assert_eq!(plan.tasks[0].routing.agent_name, "Coding Agent");
-        assert_eq!(plan.tasks[0].routing.mode_slug, "backend");
+        assert_eq!(plan.tasks[0].routing.mode_slug, "code");
         assert_eq!(
             plan.tasks[0].sub_task_description,
             "Fix the login endpoint bug"
@@ -863,7 +862,7 @@ mod tests {
             SubTask {
                 routing: RoutingDecision {
                     agent_name: "Coding Agent".into(),
-                    mode_slug: "backend".into(),
+                    mode_slug: "code".into(),
                     confidence: 0.8,
                     reasoning: "bug fix".into(),
                 },
@@ -985,17 +984,17 @@ mod tests {
             tasks: vec![
                 PlanProposalTask {
                     agent_name: "Coding Agent".into(),
-                    mode_slug: "backend".into(),
-                    mode_name: "Backend Developer".into(),
+                    mode_slug: "code".into(),
+                    mode_name: "💻 Code".into(),
                     confidence: 0.85,
                     reasoning: "API implementation".into(),
                     description: "Build the REST endpoint".into(),
                     tool_groups: vec!["developer".into(), "command".into()],
                 },
                 PlanProposalTask {
-                    agent_name: "Coding Agent".into(),
-                    mode_slug: "qa".into(),
-                    mode_name: "QA Engineer".into(),
+                    agent_name: "QA Agent".into(),
+                    mode_slug: "analyze".into(),
+                    mode_name: "QA Analyst".into(),
                     confidence: 0.75,
                     reasoning: "Testing needed".into(),
                     description: "Write integration tests".into(),
@@ -1011,13 +1010,13 @@ mod tests {
         assert!(deserialized.is_compound);
         assert_eq!(deserialized.tasks.len(), 2);
         assert_eq!(deserialized.tasks[0].agent_name, "Coding Agent");
-        assert_eq!(deserialized.tasks[0].mode_slug, "backend");
-        assert_eq!(deserialized.tasks[0].mode_name, "Backend Developer");
+        assert_eq!(deserialized.tasks[0].mode_slug, "code");
+        assert_eq!(deserialized.tasks[0].mode_name, "💻 Code");
         assert_eq!(
             deserialized.tasks[0].tool_groups,
             vec!["developer", "command"]
         );
-        assert_eq!(deserialized.tasks[1].mode_slug, "qa");
+        assert_eq!(deserialized.tasks[1].mode_slug, "analyze");
     }
 
     #[test]

@@ -944,16 +944,15 @@ mod tests {
     #[test]
     fn test_collect_modes() {
         let modes = collect_modes();
-        // GooseAgent: 4 public modes; CodingAgent: 8 modes → 12 total
+        // GooseAgent: 4 public modes; CodingAgent: 5 modes → 9 total for IDE switching
         assert!(
-            modes.len() >= 12,
-            "Expected at least 12 public modes, got {}",
+            modes.len() >= 9,
+            "Expected at least 9 public modes, got {}",
             modes.len()
         );
         let slugs: Vec<&str> = modes.iter().map(|m| m.slug.as_str()).collect();
         assert!(slugs.contains(&"assistant"));
-        assert!(slugs.contains(&"backend"));
-        assert!(slugs.contains(&"qa"));
+        assert!(slugs.contains(&"code"));
 
         // Internal modes must not be exposed to IDE clients
         assert!(!slugs.contains(&"judge"), "Internal mode 'judge' leaked");
