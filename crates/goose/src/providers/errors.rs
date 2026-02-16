@@ -34,7 +34,6 @@ pub enum ProviderError {
     #[error("Credits exhausted: {details}")]
     CreditsExhausted {
         details: String,
-        /// URL where the user can add more credits / top up
         top_up_url: Option<String>,
     },
 }

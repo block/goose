@@ -4,7 +4,8 @@ use super::base::{
 };
 use super::errors::ProviderError;
 use super::openai_compatible::{
-    handle_response_openai_compat, handle_status_openai_compat, stream_openai_compat,
+    handle_response_openai_compat, handle_status_openai_compat, map_http_error_to_provider_error,
+    stream_openai_compat,
 };
 use super::retry::ProviderRetry;
 use super::utils::{get_model, handle_response_google_compat, is_google_model, RequestLog};
@@ -22,6 +23,20 @@ use rmcp::model::Tool;
 const TETRATE_PROVIDER_NAME: &str = "tetrate";
 pub const TETRATE_DOC_URL: &str = "https://router.tetrate.ai";
 pub const TETRATE_DASHBOARD_URL: &str = "https://router.tetrate.ai/dashboard";
+
+/// Known models for Tetrate - used as fallback when dynamic fetch isn't available
+const TETRATE_KNOWN_MODELS: &[&str] = &[
+    "claude-3-5-sonnet-20241022",
+    "claude-3-7-sonnet-20250219",
+    "claude-sonnet-4-20250514",
+    "gemini-2.5-pro",
+    "gemini-2.0-flash",
+    "gemini-2.0-flash-lite",
+    "gpt-5",
+    "gpt-5-mini",
+    "gpt-5-nano",
+    "gpt-4.1",
+];
 
 #[derive(serde::Serialize)]
 pub struct TetrateProvider {
@@ -95,7 +110,7 @@ impl ProviderDef for TetrateProvider {
             "Tetrate Agent Router Service",
             "Enterprise router for AI models",
             TETRATE_DEFAULT_MODEL,
-            vec![],
+            TETRATE_KNOWN_MODELS.to_vec(),
             TETRATE_DOC_URL,
             vec![
                 ConfigKey::new("TETRATE_API_KEY", true, true, None),
@@ -211,12 +226,12 @@ impl Provider for TetrateProvider {
             .map_err(|e| ProviderError::RequestFailed(e.to_string()))?;
         let json = handle_response_openai_compat(response).await?;
 
+        // Tetrate can return errors in 200 OK responses, so check explicitly
         if let Some(err_obj) = json.get("error") {
-            let msg = err_obj
-                .get("message")
-                .and_then(|v| v.as_str())
-                .unwrap_or("unknown error");
-            return Err(ProviderError::Authentication(msg.to_string()));
+            let code = err_obj.get("code").and_then(|c| c.as_u64()).unwrap_or(500) as u16;
+            let status = reqwest::StatusCode::from_u16(code)
+                .unwrap_or(reqwest::StatusCode::INTERNAL_SERVER_ERROR);
+            return Err(map_http_error_to_provider_error(status, Some(json)));
         }
 
         let arr = json.get("data").and_then(|v| v.as_array()).ok_or_else(|| {
