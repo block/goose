@@ -1,0 +1,53 @@
+{"type":"Concept","id":"concept:agentic-implementation-2026","description":"Agentic implementation knowledge map (protocols + Goose architecture + audit/debug retrieval hooks)","timestamp":"2026-02-15T23:38:00","confidence":0.7}
+
+{"type":"RepoPath","id":"repopath:goose-protocol-disambiguation","description":"Protocol disambiguation note: ACP (Agent Communication Protocol) vs ACP (Agent Client Protocol) vs A2A","path":"docs/knowledge/protocols-acp-vs-a2a-disambiguation.md","timestamp":"2026-02-15T23:38:00","confidence":0.95}
+{"type":"RepoPath","id":"repopath:kg-seed-acp-a2a","description":"KG seed: ACP vs A2A evidence nodes/relations","path":"docs/knowledge/kg-seeds/acp-a2a-disambiguation.2026-02-15.jsonl","timestamp":"2026-02-15T23:38:00","confidence":0.9}
+
+{"type":"RepoPath","id":"repopath:goose-arch-unified-acp-api","description":"Goose internal docs: unified ACP-superset API","path":"docs/architecture/unified-acp-api.md","timestamp":"2026-02-15T23:38:00","confidence":0.85}
+{"type":"RepoPath","id":"repopath:goose-arch-extension-agent-separation","description":"Goose internal docs: extension/agent separation","path":"docs/architecture/extension-agent-separation.md","timestamp":"2026-02-15T23:38:00","confidence":0.85}
+
+{"type":"RepoPath","id":"repopath:goose-design-meta-orchestrator","description":"Goose design: meta-orchestrator architecture","path":"docs/design/meta-orchestrator-architecture.md","timestamp":"2026-02-15T23:38:00","confidence":0.8}
+{"type":"RepoPath","id":"repopath:goose-design-multi-layer","description":"Goose design: multi-layer orchestrator","path":"docs/design/multi-layer-orchestrator.md","timestamp":"2026-02-15T23:38:00","confidence":0.8}
+{"type":"RepoPath","id":"repopath:goose-design-multi-agent","description":"Goose design: multi-agent architecture","path":"docs/design/goose-multi-agent-architecture.md","timestamp":"2026-02-15T23:38:00","confidence":0.8}
+
+{"type":"Concept","id":"concept:protocol-taxonomy","description":"Protocol taxonomy used in Goose work: A2A vs BeeAI ACP (Agent Communication Protocol) vs Agent Client Protocol (editor↔agent)","timestamp":"2026-02-15T23:38:00","confidence":0.75}
+{"type":"Concept","id":"concept:acp-agent-communication-protocol","description":"ACP = Agent Communication Protocol (agent-to-agent; BeeAI/IBM ecosystem)","timestamp":"2026-02-15T23:38:00","confidence":0.75}
+{"type":"Concept","id":"concept:a2a","description":"A2A = Agent2Agent Protocol (agent-to-agent interoperability; Linux Foundation hosted)","timestamp":"2026-02-15T23:38:00","confidence":0.75}
+{"type":"Concept","id":"concept:agent-client-protocol","description":"Agent Client Protocol (ACP acronym collision): editor ↔ AI coding agent protocol","timestamp":"2026-02-15T23:38:00","confidence":0.75}
+
+{"type":"Component","id":"component:goose-server","description":"goose-server (goosed): backend exposing routes (ACP-superset, registry, sessions/runs)","timestamp":"2026-02-15T23:38:00","confidence":0.6}
+{"type":"Component","id":"component:goose-core","description":"goose core crate: agent/orchestrator logic, registry sources, protocol compat types","timestamp":"2026-02-15T23:38:00","confidence":0.6}
+{"type":"Component","id":"component:goose-cli","description":"goose-cli: CLI client using goosed API","timestamp":"2026-02-15T23:38:00","confidence":0.6}
+{"type":"Component","id":"component:ui-desktop","description":"Desktop UI (Electron): consumes OpenAPI-generated TS client","timestamp":"2026-02-15T23:38:00","confidence":0.6}
+
+{"type":"Finding","id":"finding:retrieval-hook-protocols","description":"Use protocol disambiguation note + seeds to avoid 'ACP' acronym confusion during audits/debugging","evidence":"repopath:goose-protocol-disambiguation","timestamp":"2026-02-15T23:38:00","confidence":0.8}
+
+{"type":"Relation","from":"concept:agentic-implementation-2026","rel":"related_to","to":"concept:protocol-taxonomy","timestamp":"2026-02-15T23:38:00","confidence":0.8}
+{"type":"Relation","from":"concept:protocol-taxonomy","rel":"related_to","to":"concept:a2a","timestamp":"2026-02-15T23:38:00","confidence":0.8}
+{"type":"Relation","from":"concept:protocol-taxonomy","rel":"related_to","to":"concept:acp-agent-communication-protocol","timestamp":"2026-02-15T23:38:00","confidence":0.8}
+{"type":"Relation","from":"concept:protocol-taxonomy","rel":"related_to","to":"concept:agent-client-protocol","timestamp":"2026-02-15T23:38:00","confidence":0.8}
+
+{"type":"Relation","from":"concept:agentic-implementation-2026","rel":"located_at","to":"repopath:goose-protocol-disambiguation","timestamp":"2026-02-15T23:38:00","confidence":0.9}
+{"type":"Relation","from":"repopath:goose-protocol-disambiguation","rel":"related_to","to":"repopath:kg-seed-acp-a2a","timestamp":"2026-02-15T23:38:00","confidence":0.9}
+
+{"type":"Relation","from":"concept:agentic-implementation-2026","rel":"related_to","to":"component:goose-server","timestamp":"2026-02-15T23:38:00","confidence":0.7}
+{"type":"Relation","from":"concept:agentic-implementation-2026","rel":"related_to","to":"component:goose-core","timestamp":"2026-02-15T23:38:00","confidence":0.7}
+{"type":"Relation","from":"concept:agentic-implementation-2026","rel":"related_to","to":"component:goose-cli","timestamp":"2026-02-15T23:38:00","confidence":0.7}
+{"type":"Relation","from":"concept:agentic-implementation-2026","rel":"related_to","to":"component:ui-desktop","timestamp":"2026-02-15T23:38:00","confidence":0.7}
+
+{"type":"Relation","from":"component:goose-server","rel":"related_to","to":"repopath:goose-arch-unified-acp-api","timestamp":"2026-02-15T23:38:00","confidence":0.6}
+{"type":"Relation","from":"component:goose-server","rel":"related_to","to":"repopath:goose-arch-extension-agent-separation","timestamp":"2026-02-15T23:38:00","confidence":0.6}
+
+{"type":"Relation","from":"component:goose-core","rel":"related_to","to":"repopath:goose-design-meta-orchestrator","timestamp":"2026-02-15T23:38:00","confidence":0.6}
+{"type":"Relation","from":"component:goose-core","rel":"related_to","to":"repopath:goose-design-multi-layer","timestamp":"2026-02-15T23:38:00","confidence":0.6}
+{"type":"Relation","from":"component:goose-core","rel":"related_to","to":"repopath:goose-design-multi-agent","timestamp":"2026-02-15T23:38:00","confidence":0.6}
+
+{"type":"Source","id":"src:cratesio-page-agent-client-protocol","description":"crates.io HTML page for agent-client-protocol (status observed in environment)","url":"https://crates.io/crates/agent-client-protocol","timestamp":"2026-02-15T23:40:00","confidence":0.6}
+{"type":"Source","id":"src:cratesio-page-a2a-client","description":"crates.io HTML page for a2a-client (status observed in environment)","url":"https://crates.io/crates/a2a-client","timestamp":"2026-02-15T23:40:00","confidence":0.6}
+{"type":"Source","id":"src:cratesio-api-agent-client-protocol","description":"crates.io API JSON endpoint for agent-client-protocol (status observed in environment)","url":"https://crates.io/api/v1/crates/agent-client-protocol","timestamp":"2026-02-15T23:40:00","confidence":0.7}
+
+{"type":"Finding","id":"finding:cratesio-html-vs-api","description":"Observation (environment-specific, verified via curl): crates.io HTML pages for a2a-client and agent-client-protocol returned HTTP 404, while the crates.io API endpoint for agent-client-protocol returned HTTP 200 with JSON.","evidence":"src:cratesio-api-agent-client-protocol","timestamp":"2026-02-15T23:52:00","confidence":0.65}
+
+{"type":"Relation","from":"finding:cratesio-html-vs-api","rel":"derived_from","to":"src:cratesio-page-agent-client-protocol","timestamp":"2026-02-15T23:40:00","confidence":0.55}
+{"type":"Relation","from":"finding:cratesio-html-vs-api","rel":"derived_from","to":"src:cratesio-page-a2a-client","timestamp":"2026-02-15T23:40:00","confidence":0.55}
+{"type":"Relation","from":"finding:cratesio-html-vs-api","rel":"derived_from","to":"src:cratesio-api-agent-client-protocol","timestamp":"2026-02-15T23:40:00","confidence":0.55}
