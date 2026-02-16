@@ -547,8 +547,8 @@ export default function McpAppRenderer({
   const containerStyle = isExpandedView
     ? { width: '100%', height: '100%' }
     : {
-        width: iframeWidth !== null ? `${iframeWidth}px` : '100%',
-        maxWidth: '100%',
+        width: '100%',
+        maxWidth: iframeWidth !== null ? `${iframeWidth}px` : '100%',
         height: `${iframeHeight || DEFAULT_IFRAME_HEIGHT}px`,
       };
 
