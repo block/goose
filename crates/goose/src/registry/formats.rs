@@ -252,6 +252,10 @@ pub struct A2aAgentCard {
 
     #[serde(default, skip_serializing_if = "HashMap::is_empty")]
     pub security_schemes: HashMap<String, A2aSecurityScheme>,
+
+    /// A2A extensions declared by this agent (MCP extensions mapped to A2A AgentExtension).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub extensions: Vec<A2aAgentExtension>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -290,6 +294,23 @@ pub struct A2aAgentSkill {
 
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub examples: Vec<String>,
+}
+
+/// A2A AgentExtension — declares an extension (MCP tool provider) available to this agent.
+/// Maps to A2A spec §4.4.4 AgentExtension.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct A2aAgentExtension {
+    /// URI identifying the extension (e.g., "mcp://developer", "mcp://memory").
+    pub uri: String,
+
+    /// Human-readable description.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
+
+    /// Whether this extension is required for the agent to function.
+    #[serde(default)]
+    pub required: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -472,6 +493,7 @@ pub fn generate_a2a_agent_card(entry: &RegistryEntry, agent_url: &str) -> anyhow
         documentation_url: entry.repository.clone(),
         icon_url: entry.icon.clone(),
         security_schemes,
+        extensions: Vec::new(),
     };
 
     Ok(serde_json::to_string_pretty(&card)?)

@@ -40,7 +40,7 @@ pub fn configure(state: Arc<crate::state::AppState>, secret_key: String) -> Rout
         .merge(config_management::routes(state.clone()))
         .merge(prompts::routes())
         .merge(registry::routes())
-        .merge(agent_card::routes())
+        .merge(agent_card::routes(state.clone()))
         .merge(agent_management::routes(state.clone()))
         .merge(recipe::routes(state.clone()))
         .merge(session::routes(state.clone()))
