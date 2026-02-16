@@ -1,190 +1,388 @@
+use std::path::PathBuf;
+use std::process::Stdio;
+use std::sync::Mutex;
+use std::time::Duration;
+
+use rmcp::model::{CallToolResult, Content};
+use schemars::JsonSchema;
+use serde::Deserialize;
+use tokio::io::{AsyncBufReadExt, BufReader};
+use tokio_stream::{wrappers::SplitStream, StreamExt};
+
 use crate::subprocess::SubprocessExt;
-use std::{env, ffi::OsString, process::Stdio};
 
-#[cfg(unix)]
-#[allow(unused_imports)] // False positive: trait is used for process_group method
-use std::os::unix::process::CommandExt;
+const OUTPUT_LIMIT_LINES: usize = 2000;
+const OUTPUT_LIMIT_BYTES: usize = 50_000;
+const OUTPUT_PREVIEW_LINES: usize = 50;
 
-#[derive(Debug, Clone)]
-pub struct ShellConfig {
-    pub executable: String,
-    pub args: Vec<String>,
-    pub envs: Vec<(OsString, OsString)>,
+#[derive(Debug, Deserialize, JsonSchema)]
+pub struct ShellParams {
+    pub command: String,
+    #[serde(default)]
+    pub timeout_secs: Option<u64>,
 }
 
-impl Default for ShellConfig {
+pub struct ShellTool;
+
+impl ShellTool {
+    pub fn new() -> Self {
+        Self
+    }
+
+    pub async fn shell(&self, params: ShellParams) -> CallToolResult {
+        self.shell_with_cwd(params, None).await
+    }
+
+    pub async fn shell_with_cwd(
+        &self,
+        params: ShellParams,
+        working_dir: Option<&std::path::Path>,
+    ) -> CallToolResult {
+        if params.command.trim().is_empty() {
+            return CallToolResult::error(vec![Content::text(
+                "Command cannot be empty.".to_string(),
+            )]);
+        }
+
+        let execution = match run_command(&params.command, params.timeout_secs, working_dir).await {
+            Ok(execution) => execution,
+            Err(error) => return CallToolResult::error(vec![Content::text(error)]),
+        };
+
+        let mut rendered = match render_output(&execution.output) {
+            Ok(rendered) => rendered,
+            Err(error) => return CallToolResult::error(vec![Content::text(error)]),
+        };
+
+        if execution.timed_out {
+            if let Some(timeout_secs) = params.timeout_secs {
+                rendered.push_str(&format!(
+                    "\n\nCommand timed out after {} seconds",
+                    timeout_secs
+                ));
+            } else {
+                rendered.push_str("\n\nCommand timed out");
+            }
+            return CallToolResult::error(vec![Content::text(rendered)]);
+        }
+
+        if execution.exit_code.unwrap_or(1) != 0 {
+            rendered.push_str(&format!(
+                "\n\nCommand exited with code {}",
+                execution.exit_code.unwrap_or(1)
+            ));
+            return CallToolResult::error(vec![Content::text(rendered)]);
+        }
+
+        CallToolResult::success(vec![Content::text(rendered)])
+    }
+}
+
+impl Default for ShellTool {
     fn default() -> Self {
-        #[cfg(windows)]
-        {
-            Self::detect_windows_shell()
-        }
-        #[cfg(not(windows))]
-        {
-            let shell = env::var("SHELL").unwrap_or_else(|_| "bash".to_string());
-            Self {
-                executable: shell,
-                args: vec!["-c".to_string()], // -c is standard across bash/zsh/fish
-                envs: vec![],
-            }
-        }
+        Self::new()
     }
 }
 
-impl ShellConfig {
-    #[cfg(windows)]
-    fn detect_windows_shell() -> Self {
-        // Check for PowerShell first (more modern)
-        if let Ok(ps_path) = which::which("pwsh") {
-            // PowerShell 7+ (cross-platform PowerShell)
-            Self {
-                executable: ps_path.to_string_lossy().to_string(),
-                args: vec![
-                    "-NoProfile".to_string(),
-                    "-NonInteractive".to_string(),
-                    "-Command".to_string(),
-                ],
-                envs: vec![],
-            }
-        } else if let Ok(ps_path) = which::which("powershell") {
-            // Windows PowerShell 5.1
-            Self {
-                executable: ps_path.to_string_lossy().to_string(),
-                args: vec![
-                    "-NoProfile".to_string(),
-                    "-NonInteractive".to_string(),
-                    "-Command".to_string(),
-                ],
-                envs: vec![],
-            }
-        } else {
-            // Fall back to cmd.exe
-            Self {
-                executable: "cmd".to_string(),
-                args: vec!["/c".to_string()],
-                envs: vec![],
-            }
-        }
-    }
+struct ExecutionOutput {
+    output: String,
+    exit_code: Option<i32>,
+    timed_out: bool,
 }
 
-pub fn expand_path(path_str: &str) -> String {
-    if cfg!(windows) {
-        // Expand Windows environment variables (%VAR%)
-        let with_userprofile = path_str.replace(
-            "%USERPROFILE%",
-            &env::var("USERPROFILE").unwrap_or_default(),
-        );
-        // Add more Windows environment variables as needed
-        with_userprofile.replace("%APPDATA%", &env::var("APPDATA").unwrap_or_default())
-    } else {
-        // Unix-style expansion
-        shellexpand::tilde(path_str).into_owned()
-    }
-}
-
-pub fn is_absolute_path(path_str: &str) -> bool {
-    if cfg!(windows) {
-        // Check for Windows absolute paths (drive letters and UNC)
-        path_str.contains(":\\") || path_str.starts_with("\\\\")
-    } else {
-        // Unix absolute paths start with /
-        path_str.starts_with('/')
-    }
-}
-
-pub fn normalize_line_endings(text: &str) -> String {
-    if cfg!(windows) {
-        // Ensure CRLF line endings on Windows
-        text.replace("\r\n", "\n").replace("\n", "\r\n")
-    } else {
-        // Ensure LF line endings on Unix
-        text.replace("\r\n", "\n")
-    }
-}
-
-/// Configure a shell command with process group support for proper child process tracking.
-///
-/// On Unix systems, creates a new process group so child processes can be killed together.
-/// On Windows, the default behavior already supports process tree termination.
-pub fn configure_shell_command(
-    shell_config: &ShellConfig,
-    command: &str,
+async fn run_command(
+    command_line: &str,
+    timeout_secs: Option<u64>,
     working_dir: Option<&std::path::Path>,
-) -> tokio::process::Command {
-    let mut command_builder = tokio::process::Command::new(&shell_config.executable);
-    command_builder.set_no_window();
-
-    if let Some(dir) = working_dir {
-        command_builder.current_dir(dir);
+) -> Result<ExecutionOutput, String> {
+    let mut command = build_shell_command(command_line);
+    if let Some(path) = working_dir {
+        command.current_dir(path);
     }
+    command.stdout(Stdio::piped());
+    command.stderr(Stdio::piped());
+    command.stdin(Stdio::null());
 
-    command_builder
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .stdin(Stdio::null())
-        .kill_on_drop(true)
-        .env("GOOSE_TERMINAL", "1")
-        .env("AGENT", "goose")
-        .env("GIT_EDITOR", "sh -c 'echo \"Interactive Git commands are not supported in this environment.\" >&2; exit 1'")
-        .env("GIT_SEQUENCE_EDITOR", "sh -c 'echo \"Interactive Git commands are not supported in this environment.\" >&2; exit 1'")
-        .env("VISUAL", "sh -c 'echo \"Interactive editor not available in this environment.\" >&2; exit 1'")
-        .env("EDITOR", "sh -c 'echo \"Interactive editor not available in this environment.\" >&2; exit 1'")
-        .env("GIT_TERMINAL_PROMPT", "0")
-        .env("GIT_PAGER", "cat")
-        .args(&shell_config.args);
+    let mut child = command
+        .spawn()
+        .map_err(|error| format!("Failed to spawn shell command: {}", error))?;
 
-    for (key, value) in &shell_config.envs {
-        command_builder.env(key, value);
-    }
+    let stdout = child
+        .stdout
+        .take()
+        .ok_or_else(|| "Failed to capture stdout".to_string())?;
+    let stderr = child
+        .stderr
+        .take()
+        .ok_or_else(|| "Failed to capture stderr".to_string())?;
 
-    command_builder.arg(command);
+    let output_task = tokio::spawn(async move { collect_merged_output(stdout, stderr).await });
 
-    // On Unix systems, create a new process group so we can kill child processes
-    #[cfg(unix)]
-    {
-        command_builder.process_group(0);
-    }
+    let mut timed_out = false;
+    let exit_code = if let Some(timeout_secs) = timeout_secs.filter(|value| *value > 0) {
+        match tokio::time::timeout(Duration::from_secs(timeout_secs), child.wait()).await {
+            Ok(wait_result) => wait_result
+                .map_err(|error| format!("Failed waiting on shell command: {}", error))?
+                .code(),
+            Err(_) => {
+                timed_out = true;
+                let _ = child.start_kill();
+                let _ = child.wait().await;
+                None
+            }
+        }
+    } else {
+        child
+            .wait()
+            .await
+            .map_err(|error| format!("Failed waiting on shell command: {}", error))?
+            .code()
+    };
 
-    command_builder
+    let output = output_task
+        .await
+        .map_err(|error| format!("Failed to collect shell output: {}", error))?
+        .map_err(|error| format!("Failed to collect shell output: {}", error))?;
+
+    Ok(ExecutionOutput {
+        output,
+        exit_code,
+        timed_out,
+    })
 }
 
-/// Kill a process and all its child processes using platform-specific approaches.
-///
-/// On Unix systems, kills the entire process group.
-/// On Windows, kills the process tree.
-pub async fn kill_process_group(
-    child: &mut tokio::process::Child,
-    pid: Option<u32>,
-) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-    #[cfg(unix)]
-    {
-        if let Some(pid) = pid {
-            // Try SIGTERM first
-            let _sigterm_result = unsafe { libc::kill(-(pid as i32), libc::SIGTERM) };
+fn build_shell_command(command_line: &str) -> tokio::process::Command {
+    #[cfg(windows)]
+    let mut command = {
+        let mut command = tokio::process::Command::new("cmd");
+        command.arg("/C").arg(command_line);
+        command
+    };
 
-            // Wait a brief moment for graceful shutdown
-            tokio::time::sleep(tokio::time::Duration::from_millis(1000)).await;
+    #[cfg(not(windows))]
+    let mut command = {
+        let shell = if PathBuf::from("/bin/bash").is_file() {
+            "/bin/bash".to_string()
+        } else {
+            std::env::var("SHELL").unwrap_or_else(|_| "sh".to_string())
+        };
+        let mut command = tokio::process::Command::new(shell);
+        command.arg("-c").arg(command_line);
+        command
+    };
 
-            // Force kill with SIGKILL
-            let _sigkill_result = unsafe { libc::kill(-(pid as i32), libc::SIGKILL) };
-        }
+    command.set_no_window();
+    command
+}
 
-        // Last fallback, return the result of tokio's kill
-        child.kill().await.map_err(|e| e.into())
+async fn collect_merged_output(
+    stdout: tokio::process::ChildStdout,
+    stderr: tokio::process::ChildStderr,
+) -> Result<String, std::io::Error> {
+    let stdout = BufReader::new(stdout);
+    let stderr = BufReader::new(stderr);
+    let stdout = SplitStream::new(stdout.split(b'\n')).map(|line| ("stdout", line));
+    let stderr = SplitStream::new(stderr.split(b'\n')).map(|line| ("stderr", line));
+    let mut merged = stdout.merge(stderr);
+
+    let mut output = String::new();
+    while let Some((_stream, line)) = merged.next().await {
+        let mut line = line?;
+        line.push(b'\n');
+        output.push_str(&String::from_utf8_lossy(&line));
     }
 
-    #[cfg(windows)]
-    {
-        if let Some(pid) = pid {
-            // Use taskkill to kill the process tree on Windows
-            let _kill_result = tokio::process::Command::new("taskkill")
-                .args(&["/F", "/T", "/PID", &pid.to_string()])
-                .set_no_window()
-                .output()
-                .await;
-        }
+    Ok(output.trim_end_matches('\n').to_string())
+}
 
-        // Return the result of tokio's kill
-        child.kill().await.map_err(|e| e.into())
+fn render_output(full_output: &str) -> Result<String, String> {
+    if full_output.is_empty() {
+        return Ok("(no output)".to_string());
+    }
+
+    let lines: Vec<&str> = full_output.split('\n').collect();
+    let total_lines = lines.len();
+    let total_bytes = full_output.len();
+
+    let exceeded_lines = total_lines > OUTPUT_LIMIT_LINES;
+    let exceeded_bytes = total_bytes > OUTPUT_LIMIT_BYTES;
+
+    if !exceeded_lines && !exceeded_bytes {
+        return Ok(full_output.to_string());
+    }
+
+    // Output exceeds limit — save full output to temp file and show tail preview
+    let output_path = save_full_output(full_output)?;
+
+    let preview_start = total_lines.saturating_sub(OUTPUT_PREVIEW_LINES);
+    let preview = lines[preview_start..].join("\n");
+
+    let reason = if exceeded_lines {
+        format!(
+            "Output exceeded {OUTPUT_LIMIT_LINES} line limit ({total_lines} lines total)."
+        )
+    } else {
+        format!(
+            "Output exceeded {} byte limit ({total_bytes} bytes total).",
+            OUTPUT_LIMIT_BYTES
+        )
+    };
+
+    Ok(format!(
+        "{preview}\n\n[{reason} Full output saved to {path}. \
+         Read it with shell commands like `head`, `tail`, or `sed -n '100,200p'` \
+         up to 2000 lines at a time.]",
+        path = output_path.display(),
+    ))
+}
+
+/// Returns the path to a single reusable temp file for shell output.
+/// The file is created once and rewritten on each call with large output.
+fn output_buffer_path() -> Result<PathBuf, String> {
+    static PATH: Mutex<Option<PathBuf>> = Mutex::new(None);
+    let mut guard = PATH.lock().map_err(|e| format!("Lock poisoned: {e}"))?;
+    if let Some(path) = guard.as_ref() {
+        return Ok(path.clone());
+    }
+    let temp_file = tempfile::NamedTempFile::new()
+        .map_err(|e| format!("Failed to create temp file: {e}"))?;
+    let (_, path) = temp_file
+        .keep()
+        .map_err(|e| format!("Failed to persist temp file: {}", e.error))?;
+    *guard = Some(path.clone());
+    Ok(path)
+}
+
+fn save_full_output(output: &str) -> Result<PathBuf, String> {
+    let path = output_buffer_path()?;
+    std::fs::write(&path, output)
+        .map_err(|e| format!("Failed to write output buffer: {e}"))?;
+    Ok(path)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use rmcp::model::RawContent;
+
+    fn extract_text(result: &CallToolResult) -> &str {
+        match &result.content[0].raw {
+            RawContent::Text(text) => &text.text,
+            _ => panic!("expected text"),
+        }
+    }
+
+    #[tokio::test]
+    async fn shell_executes_command() {
+        let tool = ShellTool::new();
+        let result = tool
+            .shell(ShellParams {
+                command: "echo hello".to_string(),
+                timeout_secs: None,
+            })
+            .await;
+
+        assert_eq!(result.is_error, Some(false));
+        assert!(extract_text(&result).contains("hello"));
+    }
+
+    #[cfg(not(windows))]
+    #[tokio::test]
+    async fn shell_returns_error_for_non_zero_exit() {
+        let tool = ShellTool::new();
+        let result = tool
+            .shell(ShellParams {
+                command: "echo fail && exit 7".to_string(),
+                timeout_secs: None,
+            })
+            .await;
+
+        assert_eq!(result.is_error, Some(true));
+        assert!(extract_text(&result).contains("Command exited with code 7"));
+    }
+
+    #[cfg(not(windows))]
+    #[tokio::test]
+    async fn shell_uses_working_dir_for_relative_execution() {
+        let dir = tempfile::tempdir().unwrap();
+        let tool = ShellTool::new();
+        let result = tool
+            .shell_with_cwd(
+                ShellParams {
+                    command: "pwd".to_string(),
+                    timeout_secs: None,
+                },
+                Some(dir.path()),
+            )
+            .await;
+
+        assert_eq!(result.is_error, Some(false));
+        let observed = std::fs::canonicalize(extract_text(&result)).unwrap();
+        let expected = std::fs::canonicalize(dir.path()).unwrap();
+        assert_eq!(observed, expected);
+    }
+
+    #[test]
+    fn render_output_returns_full_output_when_under_limit() {
+        let input = (0..100)
+            .map(|i| format!("line {}", i))
+            .collect::<Vec<_>>()
+            .join("\n");
+
+        let rendered = render_output(&input).unwrap();
+        assert_eq!(rendered, input);
+    }
+
+    #[test]
+    fn render_output_shows_empty_message() {
+        let rendered = render_output("").unwrap();
+        assert_eq!(rendered, "(no output)");
+    }
+
+    #[test]
+    fn render_output_truncates_when_lines_exceeded() {
+        let input = (0..2500)
+            .map(|i| format!("line {}", i))
+            .collect::<Vec<_>>()
+            .join("\n");
+
+        let rendered = render_output(&input).unwrap();
+        let (preview, metadata) = rendered.split_once("\n\n[").unwrap();
+
+        assert_eq!(preview.lines().count(), OUTPUT_PREVIEW_LINES);
+        assert!(preview.starts_with("line 2450"));
+        assert!(preview.contains("line 2499"));
+        assert!(metadata.contains("2000 line limit"));
+        assert!(metadata.contains("2500 lines total"));
+        assert!(metadata.contains("Full output saved to"));
+        assert!(metadata.contains("head"));
+        assert!(metadata.contains("sed -n"));
+    }
+
+    #[test]
+    fn render_output_truncates_when_bytes_exceeded() {
+        // Create output that is under line limit but over byte limit
+        let long_line = "x".repeat(1000);
+        let input = (0..100)
+            .map(|_| long_line.clone())
+            .collect::<Vec<_>>()
+            .join("\n");
+        assert!(input.len() > OUTPUT_LIMIT_BYTES);
+        assert!(input.lines().count() <= OUTPUT_LIMIT_LINES);
+
+        let rendered = render_output(&input).unwrap();
+        let (_preview, metadata) = rendered.split_once("\n\n[").unwrap();
+
+        assert!(metadata.contains("byte limit"));
+        assert!(metadata.contains("bytes total"));
+        assert!(metadata.contains("Full output saved to"));
+    }
+
+    #[test]
+    fn save_full_output_reuses_same_path() {
+        let path1 = save_full_output("first").unwrap();
+        let path2 = save_full_output("second").unwrap();
+        assert_eq!(path1, path2);
+        assert_eq!(std::fs::read_to_string(&path2).unwrap(), "second");
     }
 }

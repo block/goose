@@ -21,8 +21,8 @@ pub mod tutorial;
 
 pub use autovisualiser::AutoVisualiserRouter;
 pub use computercontroller::ComputerControllerServer;
-pub use developer::rmcp_developer::DeveloperServer;
-pub use developer::rmcp_developer::WORKING_DIR_PLACEHOLDER;
+pub use developer::DeveloperServer;
+pub const WORKING_DIR_PLACEHOLDER: &str = "{{WORKING_DIR}}";
 pub use memory::MemoryServer;
 pub use tutorial::TutorialServer;
 
