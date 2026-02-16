@@ -1,6 +1,5 @@
 import type { FixedExtensionEntry } from '../../ConfigContext';
 import type { ExtensionConfig } from '../../../api/types.gen';
-import { parse as parseShellQuote, quote as quoteShell } from 'shell-quote';
 
 // Default extension timeout in seconds
 // TODO: keep in sync with rust better
@@ -100,11 +99,11 @@ export function extensionToFormData(extension: FixedExtensionEntry): ExtensionFo
     description: extension.description || '',
     type:
       extension.type === 'frontend' ||
-        extension.type === 'inline_python' ||
-        extension.type === 'platform'
+      extension.type === 'inline_python' ||
+      extension.type === 'platform'
         ? 'stdio'
         : extension.type,
-    cmd: extension.type === 'stdio' ? quoteShell([extension.cmd, ...extension.args]) : undefined,
+    cmd: extension.type === 'stdio' ? combineCmdAndArgs(extension.cmd, extension.args) : undefined,
     endpoint:
       extension.type === 'streamable_http' || extension.type === 'sse'
         ? (extension.uri ?? undefined)
@@ -170,24 +169,46 @@ export function createExtensionConfig(formData: ExtensionFormData): ExtensionCon
 
 export function splitCmdAndArgs(str: string): { cmd: string; args: string[] } {
   const trimmed = str.trim();
-  if (!trimmed) {
-    return { cmd: '', args: [] };
+  if (!trimmed) return { cmd: '', args: [] };
+
+  const parts: string[] = [];
+  let current = '';
+  let inSingle = false;
+  let inDouble = false;
+
+  for (const ch of trimmed) {
+    if (inSingle) {
+      if (ch === "'") inSingle = false;
+      else current += ch;
+    } else if (inDouble) {
+      if (ch === '"') inDouble = false;
+      else current += ch;
+    } else if (ch === "'") {
+      inSingle = true;
+    } else if (ch === '"') {
+      inDouble = true;
+    } else if (/\s/.test(ch)) {
+      if (current) {
+        parts.push(current);
+        current = '';
+      }
+    } else {
+      current += ch;
+    }
   }
+  if (current) parts.push(current);
 
-  const parsed = parseShellQuote(trimmed);
-  const words = parsed.filter((item): item is string => typeof item === 'string').map(String);
-
-  const cmd = words[0] || '';
-  const args = words.slice(1);
-
-  return {
-    cmd,
-    args,
-  };
+  return { cmd: parts[0] || '', args: parts.slice(1) };
 }
 
 export function combineCmdAndArgs(cmd: string, args: string[]): string {
-  return quoteShell([cmd, ...args]);
+  return [cmd, ...args]
+    .map((a) => {
+      if (!a.includes(' ')) return a;
+      if (a.includes('"')) return `'${a}'`;
+      return `"${a}"`;
+    })
+    .join(' ');
 }
 
 export function extractCommand(link: string): string {
@@ -196,7 +217,7 @@ export function extractCommand(link: string): string {
   const args = url.searchParams.getAll('arg').map(decodeURIComponent);
 
   // Combine the command and its arguments into a reviewable format
-  return `${cmd} ${args.join(' ')}`.trim();
+  return combineCmdAndArgs(cmd, args);
 }
 
 export function extractExtensionName(link: string): string {
