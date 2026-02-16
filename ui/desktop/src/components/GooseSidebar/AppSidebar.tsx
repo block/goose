@@ -7,17 +7,20 @@ import {
   ChefHat,
   ChevronRight,
   Clock,
+  Eye,
   FileText,
   History,
   Home,
   MessageSquarePlus,
   Puzzle,
+  Workflow,
 } from 'lucide-react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
   SidebarContent,
   SidebarGroup,
   SidebarGroupContent,
+  SidebarGroupLabel,
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
@@ -45,69 +48,85 @@ interface SidebarProps {
 }
 
 interface NavigationItem {
-  type: 'item';
   path: string;
   label: string;
   icon: React.ComponentType<{ className?: string }>;
   tooltip: string;
+  condition?: string;
 }
 
-interface NavigationSeparator {
-  type: 'separator';
+interface NavigationZone {
+  id: string;
+  label: string;
+  icon: React.ComponentType<{ className?: string }>;
+  items: NavigationItem[];
 }
 
-type NavigationEntry = NavigationItem | NavigationSeparator;
-
-const menuItems: NavigationEntry[] = [
+// Zone-based navigation: Workflows → Observatory → Platform
+const navigationZones: NavigationZone[] = [
   {
-    type: 'item',
-    path: '/recipes',
-    label: 'Recipes',
-    icon: FileText,
-    tooltip: 'Browse your saved recipes',
+    id: 'workflows',
+    label: 'Workflows',
+    icon: Workflow,
+    items: [
+      {
+        path: '/recipes',
+        label: 'Recipes',
+        icon: FileText,
+        tooltip: 'Browse your saved recipes',
+      },
+      {
+        path: '/apps',
+        label: 'Apps',
+        icon: AppWindow,
+        tooltip: 'MCP and custom apps',
+        condition: 'apps',
+      },
+      {
+        path: '/schedules',
+        label: 'Scheduler',
+        icon: Clock,
+        tooltip: 'Manage scheduled runs',
+      },
+    ],
   },
   {
-    type: 'item',
-    path: '/apps',
-    label: 'Apps',
-    icon: AppWindow,
-    tooltip: 'MCP and custom apps',
+    id: 'observatory',
+    label: 'Observatory',
+    icon: Eye,
+    items: [
+      {
+        path: '/analytics',
+        label: 'Analytics',
+        icon: BarChart3,
+        tooltip: 'View usage analytics and insights',
+      },
+      {
+        path: '/agents',
+        label: 'Agents',
+        icon: Bot,
+        tooltip: 'Manage external ACP agents',
+      },
+    ],
   },
   {
-    type: 'item',
-    path: '/schedules',
-    label: 'Scheduler',
-    icon: Clock,
-    tooltip: 'Manage scheduled runs',
-  },
-  {
-    type: 'item',
-    path: '/agents',
-    label: 'Agents',
-    icon: Bot,
-    tooltip: 'Manage external ACP agents',
-  },
-  {
-    type: 'item',
-    path: '/extensions',
-    label: 'Extensions',
+    id: 'platform',
+    label: 'Platform',
     icon: Puzzle,
-    tooltip: 'Manage your extensions',
-  },
-  {
-    type: 'item',
-    path: '/analytics',
-    label: 'Analytics',
-    icon: BarChart3,
-    tooltip: 'View usage analytics and insights',
-  },
-  { type: 'separator' },
-  {
-    type: 'item',
-    path: '/settings',
-    label: 'Settings',
-    icon: Gear,
-    tooltip: 'Configure Goose settings',
+    items: [
+      {
+        path: '/extensions',
+        label: 'Extensions',
+        icon: Puzzle,
+        tooltip: 'Manage your extensions',
+      },
+      {
+        path: '/settings',
+        label: 'Settings',
+        icon: Gear,
+        tooltip: 'Configure Goose settings',
+      },
+    ],
   },
 ];
 
@@ -407,10 +426,10 @@ const AppSidebar: React.FC<SidebarProps> = ({ currentPath }) => {
     };
   }, []);
 
+  // Find current navigation item across all zones for window title
   useEffect(() => {
-    const currentItem = menuItems.find(
-      (item) => item.type === 'item' && item.path === currentPath
-    ) as NavigationItem | undefined;
+    const allItems = navigationZones.flatMap((z) => z.items);
+    const currentItem = allItems.find((item) => item.path === currentPath);
 
     const titleBits = ['Goose'];
 
@@ -487,50 +506,27 @@ const AppSidebar: React.FC<SidebarProps> = ({ currentPath }) => {
     navigate('/sessions');
   }, [navigate]);
 
-  const renderMenuItem = (entry: NavigationEntry, index: number) => {
-    if (entry.type === 'separator') {
-      return <SidebarSeparator key={index} />;
-    }
-
-    const IconComponent = entry.icon;
-
-    return (
-      <SidebarGroup key={entry.path} className="px-2">
-        <SidebarGroupContent className="space-y-1">
-          <div className="sidebar-item">
-            <SidebarMenuItem>
-              <SidebarMenuButton
-                data-testid={`sidebar-${entry.label.toLowerCase()}-button`}
-                onClick={() => navigate(entry.path)}
-                isActive={isActivePath(entry.path)}
-                tooltip={entry.tooltip}
-                className="w-full justify-start px-3 rounded-lg h-fit hover:bg-background-medium/50 transition-all duration-200 data-[active=true]:bg-background-medium"
-              >
-                <IconComponent className="w-4 h-4" />
-                <span>{entry.label}</span>
-              </SidebarMenuButton>
-            </SidebarMenuItem>
-          </div>
-        </SidebarGroupContent>
-      </SidebarGroup>
-    );
+  // Check if any item in a zone is currently active
+  const isZoneActive = (zone: NavigationZone) => {
+    return zone.items.some((item) => isActivePath(item.path));
   };
 
-  const visibleMenuItems = menuItems.filter((entry) => {
-    // Filter out Apps if extension is not enabled
-    if (entry.type === 'item' && entry.path === '/apps') {
-      return appsExtensionEnabled;
-    }
-    return true;
-  });
+  // Filter zone items based on conditions (e.g., apps extension)
+  const getVisibleItems = (zone: NavigationZone): NavigationItem[] => {
+    return zone.items.filter((item) => {
+      if (item.condition === 'apps') return appsExtensionEnabled;
+      return true;
+    });
+  };
 
   return (
     <>
       <SidebarContent className="pt-12">
         <SidebarMenu>
-          {/* Home */}
+          {/* Home + Chat Zone */}
           <SidebarGroup className="px-2">
             <SidebarGroupContent className="space-y-1">
+              {/* Home */}
               <div className="sidebar-item">
                 <SidebarMenuItem>
                   <SidebarMenuButton
@@ -545,12 +541,8 @@ const AppSidebar: React.FC<SidebarProps> = ({ currentPath }) => {
                   </SidebarMenuButton>
                 </SidebarMenuItem>
               </div>
-            </SidebarGroupContent>
-          </SidebarGroup>
 
-          {/* Chat with Collapsible Sessions */}
-          <SidebarGroup className="px-2">
-            <SidebarGroupContent className="space-y-1">
+              {/* Chat with Collapsible Sessions */}
               <Collapsible open={isChatExpanded} onOpenChange={setIsChatExpanded}>
                 <div className="sidebar-item">
                   <SidebarMenuItem>
@@ -592,7 +584,6 @@ const AppSidebar: React.FC<SidebarProps> = ({ currentPath }) => {
                         getSessionStatus={getSessionStatus}
                         onSessionClick={handleSessionClick}
                       />
-                      {/* View All Link */}
                       <button
                         onClick={handleViewAllClick}
                         className="w-full text-left px-3 py-1.5 rounded-md text-sm text-text-muted hover:bg-background-medium/50 hover:text-text-default transition-colors flex items-center gap-2"
@@ -609,7 +600,51 @@ const AppSidebar: React.FC<SidebarProps> = ({ currentPath }) => {
 
           <SidebarSeparator />
 
-          {visibleMenuItems.map((entry, index) => renderMenuItem(entry, index))}
+          {/* Navigation Zones */}
+          {navigationZones.map((zone) => {
+            const visibleItems = getVisibleItems(zone);
+            if (visibleItems.length === 0) return null;
+
+            const zoneActive = isZoneActive(zone);
+            const ZoneIcon = zone.icon;
+
+            return (
+              <SidebarGroup key={zone.id} className="px-2">
+                <Collapsible defaultOpen={zoneActive}>
+                  <CollapsibleTrigger asChild>
+                    <SidebarGroupLabel className="flex items-center gap-2 px-3 py-1.5 text-xs font-medium text-text-muted uppercase tracking-wider cursor-pointer hover:text-text-default transition-colors select-none">
+                      <ZoneIcon className="w-3.5 h-3.5" />
+                      <span>{zone.label}</span>
+                      <ChevronRight className="w-3 h-3 ml-auto transition-transform duration-200 [[data-state=open]>&]:rotate-90" />
+                    </SidebarGroupLabel>
+                  </CollapsibleTrigger>
+                  <CollapsibleContent className="overflow-hidden transition-all data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:animate-in data-[state=open]:fade-in-0">
+                    <SidebarGroupContent className="space-y-0.5 mt-1">
+                      {visibleItems.map((item) => {
+                        const ItemIcon = item.icon;
+                        return (
+                          <div key={item.path} className="sidebar-item">
+                            <SidebarMenuItem>
+                              <SidebarMenuButton
+                                data-testid={`sidebar-${item.label.toLowerCase()}-button`}
+                                onClick={() => navigate(item.path)}
+                                isActive={isActivePath(item.path)}
+                                tooltip={item.tooltip}
+                                className="w-full justify-start px-3 pl-7 rounded-lg h-fit hover:bg-background-medium/50 transition-all duration-200 data-[active=true]:bg-background-medium"
+                              >
+                                <ItemIcon className="w-4 h-4" />
+                                <span>{item.label}</span>
+                              </SidebarMenuButton>
+                            </SidebarMenuItem>
+                          </div>
+                        );
+                      })}
+                    </SidebarGroupContent>
+                  </CollapsibleContent>
+                </Collapsible>
+              </SidebarGroup>
+            );
+          })}
         </SidebarMenu>
       </SidebarContent>
     </>
