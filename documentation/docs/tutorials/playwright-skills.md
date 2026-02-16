@@ -120,8 +120,6 @@ playwright-cli click e11
 # await page.getByRole('link', { name: 'Docs' }).click();
 ```
 
-goose collects these code snippets as it performs actions and assembles them into a complete test file.
-
 ### What goose Does
 
 1. Opens the browser: `playwright-cli open block.github.io/goose`
@@ -167,7 +165,17 @@ test('navigate to Using Skills guide via docs menu', async ({ page }) => {
 
 ### Running the Test
 
-goose will ask if you want to run the test. If Playwright is already set up, it runs immediately. If not, goose can install Playwright for you first.
+goose can even run the test for you to make sure it works as expected. If Playwright is already set up, just ask it to run the test. If not, goose can install Playwright for you and then run the test.
+
+## Viewing the Video
+
+To see a video of what happened, ask goose:
+
+```
+Show me the video
+```
+
+Goose will open the recorded video so you can see exactly what happened during the session.
 
 ### Viewing the Trace
 
@@ -184,16 +192,30 @@ The trace viewer shows:
 - Network requests
 - Element locators used
 
-:::tip Headed Mode
-By default, the browser runs headless (no visible window). If you want to watch the automation in real-time:
+
+
+## Visual Dashboard for Multiple Sessions
+
+If you're running multiple agent tasks with browser automation in the background, you can use the visual dashboard to monitor and control all running sessions from one place. This is especially useful when you want to observe what your agents are doing or step in to help when needed.
+
+```bash
+playwright-cli show
 ```
-Open block.github.io/goose in a headed browser
-```
+
+The dashboard opens a window with two views:
+
+- **Session grid** — Shows all active sessions grouped by workspace, each with a live screencast preview, session name, current URL, and page title. Click any session to zoom in.
+- **Session detail** — Shows a live view of the selected session with navigation controls (back, forward, reload, address bar) and full remote control. Click into the viewport to take over mouse and keyboard input; press **Escape** to release control back to the agent.
+
+From the grid you can also close running sessions or delete data for inactive ones. This makes it easy to manage multiple parallel browser automations without losing track of what's happening.
+
+:::note
+The `show` command requires playwright-cli version 0.2.0 or later.
 :::
 
 ## Full Capabilities
 
-Want to know what else you can do? Ask goose:
+Want to know what else the Playwright skills can do? Ask goose:
 
 ```
 What else can you do with playwright skills?
@@ -208,12 +230,6 @@ What else can you do with playwright skills?
 | **Network** | Mock APIs, intercept requests |
 | **Input** | Type text, press keys, mouse actions |
 
-:::tip Headed Mode for Debugging
-Use `--headed` flag when opening a browser to watch what's happening in real-time:
-```
-Open block.github.io/goose --headed
-```
-:::
 
 ### Example Use Cases
 
@@ -225,13 +241,9 @@ Open block.github.io/goose --headed
 - ✅ Record demos for documentation
 - ✅ Mock APIs for isolated testing
 
-## Tips and Best Practices
+## Conclusion
 
-1. **Start simple** - Begin with basic navigation before complex test generation
-2. **Use headed mode for debugging** - Watch what's happening in real-time
-3. **Review generated tests** - Always review and refine the generated test code
-4. **Leverage traces** - Use traces to understand exactly what the agent did
-5. **Iterate quickly** - Run tests immediately after generation to catch issues early
+Getting started with Playwright skills is easy and opens up powerful browser automation capabilities directly from natural language prompts. Whether you're generating tests, debugging with videos and traces, or automating complex interactions, the Playwright CLI skills provide a token-efficient way to leverage Playwright's full power with goose.
 
 ## Resources
 
