@@ -7,9 +7,6 @@
  * Note: Props are typed as `unknown` by json-render's defineRegistry.
  * We cast to specific shapes in each component for type safety.
  */
-// @ts-ignore — zod 3/4 type mismatch in defineRegistry internals
-import { defineRegistry } from '@json-render/react';
-import { gooseCatalog } from './generative-catalog';
 import {
   AreaChart, Area, BarChart, Bar, PieChart, Pie, Cell,
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip,
