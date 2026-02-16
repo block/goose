@@ -104,9 +104,20 @@ export default function ProviderConfigurationModal({
     }
 
     const toSubmit = Object.fromEntries(
-      Object.entries(configValues)
-        .filter(([_k, entry]) => !!entry.value)
-        .map(([k, entry]) => [k, entry.value || ''])
+      parameters
+        .map((parameter) => {
+          const entry = configValues[parameter.name];
+          if (entry?.value) {
+            return [parameter.name, entry.value] as const;
+          }
+
+          if (!parameter.secret && typeof entry?.serverValue === 'string' && entry.serverValue) {
+            return [parameter.name, entry.serverValue] as const;
+          }
+
+          return null;
+        })
+        .filter((item): item is readonly [string, string] => item !== null)
     );
 
     try {

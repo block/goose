@@ -80,7 +80,9 @@ export const providerConfigSubmitHandler = async (
       const value =
         configValues[parameter.name] !== undefined
           ? configValues[parameter.name]
-          : parameter.default;
+          : previousConfigValues[parameter.name]?.value !== undefined
+            ? previousConfigValues[parameter.name].value
+            : parameter.default;
 
       if (value === undefined || value === null) {
         return;
