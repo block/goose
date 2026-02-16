@@ -69,11 +69,31 @@ Everything about "how well is my system performing":
 - **Evaluation**: Datasets, run history, confusion matrices, topics
 - **Performance**: Tool analytics, agent metrics, latency, success rates
 
-#### 4. Platform (Configure)
-Infrastructure and configuration:
-- **Agents**: Registry, modes, capabilities
-- **Extensions**: MCP servers, enable/disable
-- **Settings**: Provider, model, preferences
+#### 4. Platform (Catalogs & Settings)
+
+The "Extensions" concept evolves into **three Catalogs** — shareable, versionable, packageable entities:
+
+| Catalog | What it contains | Package format | Registry |
+|---------|-----------------|---------------|----------|
+| **Agents** | Agent definitions with modes, prompts, tool access, `when_to_use` | Agent manifest (YAML/JSON via `AgentManifest`) | Shareable packages |
+| **Tools** | MCP servers / tool providers (currently "Extensions") | MCP extension config | Shareable packages |
+| **Workflows** | Conversational (recipes) + Visual DAG pipelines | `.md`/`.mdx`/`.yaml` for recipes, `.gpf.yaml` for DAGs | Shareable packages |
+
+**Key insight**: "Extensions" is a developer term — users think in terms of **tools** they can use.
+"Recipes" are just one kind of **workflow**. Agents, Tools, and Workflows are the three
+fundamental building blocks users care about.
+
+Each catalog supports a unified lifecycle:
+1. **Browse** — discover available packages (built-in + community)
+2. **Install** — add to workspace (with version pinning)
+3. **Configure** — customize behavior, permissions, tool access
+4. **Version** — track changes, rollback, compare
+5. **Share** — export as package, publish to registry
+
+##### Sidebar structure:
+- **Agents Catalog**: Browse/install/configure agents with modes
+- **Tools Catalog**: Browse/install MCP servers (replaces "Extensions")
+- **Settings**: Provider, model, preferences (not a catalog — pure config)
 
 ---
 
@@ -430,11 +450,40 @@ The UX redesign affects **Tier 1 only** — the navigation, prompt bar, and gene
 
 ---
 
+## Design Decisions (Resolved)
+
+### Sessions are project-bound
+- Sessions are always bound to a **project** (working directory)
+- A **default "General" project** at `$HOME` exists for any-purpose chats (immutable)
+- Users can **create projects** by opening a directory (equivalent to `cd` + start working)
+- Sessions are **grouped by project** in the sidebar Chat section
+- Projects can have **multiple active sessions** for multi-tasking
+
+### "Extensions" → Catalogs
+The "Extensions" concept evolves into **three Catalogs**:
+
+| Catalog | Replaces | What |
+|---------|----------|------|
+| **Agents Catalog** | "Agents" page | Browse/install/configure agents with modes |
+| **Tools Catalog** | "Extensions" page | Browse/install MCP servers and tools |
+| **Workflows Catalog** | "Recipes" page | Browse/install conversational + DAG workflows |
+
+"Extension" is a developer term — users think in terms of **tools** they can use.
+"Recipes" are just one kind of **workflow**. The three catalogs represent
+the three fundamental building blocks users care about.
+
+### Active interfaces
+Goose has a 3-tier architecture (Interface → Server → Agents/Tools).
+Actively maintained interfaces: **Desktop** (Electron) and **CLI**.
+Web interface is possible future work (same server API).
+
+---
+
 ## Open Questions
 
-1. **Project discovery**: How does goose discover/switch between projects? (working_dir in session?)
-2. **Multi-session UX**: Tabs? Split pane? Session switcher in sidebar?
-3. **TOON adoption**: Worth adding TOON support for recipe format, or just use it for eval datasets?
-4. **Pipeline executor**: Build in Rust (Tier 2) or delegate to agents (Tier 3)?
-5. **json-render integration**: Render in chat bubbles or in a separate response panel?
-6. **Prompt bar routing**: How to decide if input goes to chat vs command vs analytics query?
+1. **TOON adoption**: Worth adding TOON support for recipe format, or just use it for eval datasets?
+2. **Pipeline executor**: Build in Rust (Tier 2) or delegate to agents (Tier 3)?
+3. **json-render integration**: Render in chat bubbles or in a separate response panel?
+4. **Prompt bar routing**: How to decide if input goes to chat vs command vs analytics query?
+5. **Catalog registry**: Where do shareable packages live? Local filesystem? Git repo? Dedicated registry?
+6. **Catalog versioning**: How to pin versions? Lockfile like `goose.lock`?
