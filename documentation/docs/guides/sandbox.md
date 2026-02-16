@@ -1,24 +1,24 @@
-# macOS Sandbox for Goosed
+# macOS Sandbox for goosed
 
-Goose includes an optional macOS sandbox that restricts the goosed process using Apple's seatbelt (`sandbox-exec`) and routes all network traffic through a local egress proxy. This limits what the agent can do on your system — blocking sensitive file writes, raw sockets, tunneling tools, and unapproved network destinations.
+goose includes an optional macOS sandbox that restricts the goosed process using Apple's seatbelt (`sandbox-exec`) and routes all network traffic through a local egress proxy. This limits what the agent can do on your system — blocking sensitive file writes, raw sockets, tunneling tools, and unapproved network destinations.
 
 > **Requirements:** macOS only. The sandbox relies on `/usr/bin/sandbox-exec` which is only available on macOS.
 
 ## Quick Start
 
-Set the environment variable before launching the Goose desktop app:
+Set the environment variable before launching the goose desktop app:
 
 ```bash
 GOOSE_SANDBOX=true
 ```
 
-Then start the desktop app as normal. Goose will:
+Then start the desktop app as normal. goose will:
 
 1. Generate a seatbelt sandbox profile
 2. Start a local HTTP CONNECT proxy on localhost
 3. Launch goosed inside `sandbox-exec`, forcing all traffic through the proxy
 
-If `sandbox-exec` is not available (e.g. you're on Linux), Goose will fail fast with a clear error rather than running unsandboxed.
+If `sandbox-exec` is not available (e.g. you're on Linux), goose will fail fast with a clear error rather than running unsandboxed.
 
 ## What Gets Restricted
 

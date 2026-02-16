@@ -63,7 +63,7 @@ export interface ProxyInstance {
 // Local blocklist
 // ---------------------------------------------------------------------------
 
-function loadBlocked(blockedPath: string | undefined): Set<string> {
+export function loadBlocked(blockedPath: string | undefined): Set<string> {
   if (!blockedPath) return new Set();
   try {
     if (!fs.existsSync(blockedPath)) return new Set();
@@ -80,7 +80,7 @@ function loadBlocked(blockedPath: string | undefined): Set<string> {
   }
 }
 
-function normalizeDomain(host: string): string {
+export function normalizeDomain(host: string): string {
   let normalized = host.toLowerCase().trim();
   if (normalized.endsWith('.')) {
     normalized = normalized.slice(0, -1);
@@ -97,22 +97,44 @@ function normalizeDomain(host: string): string {
   return normalized;
 }
 
-function isIPAddress(host: string): boolean {
+export function isIPAddress(host: string): boolean {
   const ipv4 = /^(\d{1,3}\.){3}\d{1,3}$/;
   if (ipv4.test(host)) return true;
   if (host.includes(':')) return true;
   return false;
 }
 
+export function parseConnectTarget(target: string): { host: string; port: number } {
+  // Handle [ipv6]:port
+  const bracketMatch = target.match(/^\[([^\]]+)\]:(\d+)$/);
+  if (bracketMatch) {
+    return { host: bracketMatch[1], port: parseInt(bracketMatch[2], 10) };
+  }
+
+  // Handle host:port (only split on the last colon to avoid IPv6 issues)
+  const lastColon = target.lastIndexOf(':');
+  if (lastColon <= 0) {
+    return { host: '', port: 0 };
+  }
+
+  const host = target.slice(0, lastColon);
+  const port = parseInt(target.slice(lastColon + 1), 10);
+  if (!host || isNaN(port) || port <= 0 || port > 65535) {
+    return { host: '', port: 0 };
+  }
+
+  return { host, port };
+}
+
 const LOOPBACK_RE = /^(localhost|127\.\d+\.\d+\.\d+|::1|\[::1\])$/i;
 
-function isLoopback(host: string): boolean {
+export function isLoopback(host: string): boolean {
   return LOOPBACK_RE.test(host);
 }
 
 const DEFAULT_GIT_HOSTS = ['github.com', 'gitlab.com', 'bitbucket.org', 'ssh.dev.azure.com'];
 
-function matchesBlocked(host: string, blocked: Set<string>): boolean {
+export function matchesBlocked(host: string, blocked: Set<string>): boolean {
   const h = normalizeDomain(host);
   if (blocked.has(h)) return true;
   const parts = h.split('.');
@@ -266,7 +288,7 @@ function sendLDEvent(clientId: string, username: string, domain: string, flag: L
 // Combined blocking check
 // ---------------------------------------------------------------------------
 
-async function checkBlocked(
+export async function checkBlocked(
   host: string,
   port: number,
   blocked: Set<string>,
@@ -432,8 +454,14 @@ export async function startProxy(options: ProxyOptions = {}): Promise<ProxyInsta
   // Handle CONNECT for HTTPS tunneling
   server.on('connect', (req, clientSocket, head) => {
     const target = req.url || '';
-    const [host, portStr] = target.split(':');
-    const port = parseInt(portStr || '443', 10);
+    const { host, port } = parseConnectTarget(target);
+
+    if (!host || !port) {
+      log.error(`[sandbox-proxy] REJECT CONNECT invalid target: ${target}`);
+      clientSocket.write('HTTP/1.1 400 Bad Request\r\n\r\n');
+      clientSocket.destroy();
+      return;
+    }
 
     void (async () => {
       const result = await checkBlocked(host, port, blockedSet, launchDarkly, ldCache, options);
