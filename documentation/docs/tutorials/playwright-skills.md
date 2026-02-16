@@ -175,7 +175,7 @@ To see a video of what happened, ask goose:
 Show me the video
 ```
 
-Goose will open the recorded video so you can see exactly what happened during the session.
+goose will open the recorded video so you can see exactly what happened during the session.
 
 ### Viewing the Trace
 
@@ -192,8 +192,6 @@ The trace viewer shows:
 - Network requests
 - Element locators used
 
-
-
 ## Visual Dashboard for Multiple Sessions
 
 When you have goose running several browser tasks at once, it can be hard to keep track of what's happening. The visual dashboard gives you a bird's-eye view of all your active browser sessions, letting you watch progress in real-time or jump in and take control when needed.
@@ -203,10 +201,6 @@ playwright-cli show
 ```
 
 From here you can see live previews of every browser goose is controlling. Click into any session to watch it full-size, or take over the mouse and keyboard yourself if goose needs a hand. Press **Escape** when you're done and goose picks up right where you left off.
-
-:::note
-The `show` command requires playwright-cli version 0.2.0 or later.
-:::
 
 ## Full Capabilities
 
@@ -224,7 +218,6 @@ What else can you do with playwright skills?
 | **Storage & Auth** | Save/restore cookies, handle login states |
 | **Network** | Mock APIs, intercept requests |
 | **Input** | Type text, press keys, mouse actions |
-
 
 ### Example Use Cases
 
