@@ -1112,6 +1112,17 @@ enum Command {
         #[command(subcommand)]
         command: TermCommand,
     },
+    /// Manage goosed as a system service (systemd/launchd)
+    #[command(
+        about = "Manage goosed as a system service",
+        long_about = "Install, uninstall, check status, or view logs for the goosed background service.\n\
+                      Uses systemd on Linux and launchd on macOS."
+    )]
+    Service {
+        #[command(subcommand)]
+        command: ServiceCommand,
+    },
+
     /// Generate completions for various shells
     #[command(about = "Generate the autocompletion script for the specified shell")]
     Completion {
@@ -1184,6 +1195,29 @@ enum TermCommand {
     Info,
 }
 
+#[derive(Subcommand)]
+enum ServiceCommand {
+    /// Install goosed as a system service
+    #[command(
+        about = "Install goosed as a system service",
+        long_about = "Install the goosed agent server as a background service.\n\
+                      Uses systemd user service on Linux and launchd on macOS."
+    )]
+    Install,
+
+    /// Uninstall the goosed system service
+    #[command(about = "Uninstall the goosed system service")]
+    Uninstall,
+
+    /// Check status of the goosed service
+    #[command(about = "Check status of the goosed service")]
+    Status,
+
+    /// View goosed service logs
+    #[command(about = "View goosed service logs")]
+    Logs,
+}
+
 #[derive(clap::ValueEnum, Clone, Debug)]
 enum CliProviderVariant {
     OpenAi,
@@ -1215,6 +1249,7 @@ fn get_command_name(command: &Option<Command>) -> &'static str {
         Some(Command::Skill { .. }) => "skill",
         Some(Command::Web { .. }) => "web",
         Some(Command::Term { .. }) => "term",
+        Some(Command::Service { .. }) => "service",
         Some(Command::Completion { .. }) => "completion",
         None => "default_session",
     }
@@ -1719,6 +1754,20 @@ async fn handle_term_subcommand(command: TermCommand) -> Result<()> {
     }
 }
 
+fn handle_service_subcommand(command: ServiceCommand) -> Result<()> {
+    use crate::commands::service::{
+        handle_service_install, handle_service_logs, handle_service_status,
+        handle_service_uninstall,
+    };
+
+    match command {
+        ServiceCommand::Install => handle_service_install(),
+        ServiceCommand::Uninstall => handle_service_uninstall(),
+        ServiceCommand::Status => handle_service_status(),
+        ServiceCommand::Logs => handle_service_logs(),
+    }
+}
+
 async fn handle_default_session() -> Result<()> {
     if !Config::global().exists() {
         return handle_configure().await;
@@ -1851,6 +1900,7 @@ pub async fn cli() -> anyhow::Result<()> {
             no_auth,
         }) => crate::commands::web::handle_web(port, host, open, auth_token, no_auth).await,
         Some(Command::Term { command }) => handle_term_subcommand(command).await,
+        Some(Command::Service { command }) => handle_service_subcommand(command),
         None => handle_default_session().await,
     }
 }

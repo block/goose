@@ -4,6 +4,7 @@ pub mod project;
 pub mod recipe;
 pub mod registry;
 pub mod schedule;
+pub mod service;
 pub mod session;
 pub mod term;
 pub mod update;
