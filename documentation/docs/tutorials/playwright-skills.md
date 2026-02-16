@@ -9,7 +9,7 @@ import GooseBuiltinInstaller from '@site/src/components/GooseBuiltinInstaller';
 
 <iframe width="560" height="315" src="https://www.youtube.com/embed/_MpbmD_unnU?si=dpHvuLVkbONN_0Hk" title="YouTube video player" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" referrerpolicy="strict-origin-when-cross-origin" allowfullscreen></iframe>
 
-goose can automate browsers and generate Playwright tests using [Playwright CLI](https://github.com/microsoft/playwright-cli). By loading Playwright CLI Skills, goose gains the ability to navigate websites, interact with elements, take screenshots, record videos, and generate test code—all from natural language instructions while saving on tokens compared to using the Playwright MCP.
+With [Playwright CLI](https://github.com/microsoft/playwright-cli) skills, goose can navigate websites, click buttons, fill forms, and turn those interactions into Playwright tests—all from plain English. Unlike the Playwright MCP, which sends the full page structure to the LLM on every request, Playwright CLI stores the accessibility tree locally. That means faster responses, lower costs, and no issues with large pages.
 
 ## Prerequisites
 
@@ -62,37 +62,6 @@ Then, enable the [Skills extension](/docs/mcp/skills-mcp) to allow goose to load
   </TabItem>
 </Tabs>
 
-## Understanding the Skills Structure
-
-After installing skills, your project will have:
-
-```
-.claude/
-└── skills/
-    └── playwright-cli/
-        ├── SKILL.md
-        └── references/
-            ├── request-mocking.md
-            ├── running-code.md
-            ├── session-management.md
-            ├── storage-state.md
-            ├── test-generation.md
-            ├── tracing.md
-            └── video-recording.md
-```
-
-These reference files teach goose how to:
-- **Mock requests** - Intercept, mock, modify, and block network requests
-- **Run code** - Execute Playwright code for advanced scenarios
-- **Manage sessions** - Handle browser sessions and state
-- **Store state** - Manage authentication and cookies
-- **Generate tests** - Create Playwright TypeScript code from actions
-- **Record traces** - Capture detailed traces of browser interactions
-- **Record videos** - Save browser sessions as video for debugging
-
-## How It Works: Token Efficiency
-
-The Playwright MCP sends the entire page structure to the LLM with every request, which can get expensive fast—especially on large pages. Playwright CLI takes a smarter approach: it saves the accessibility tree locally as YAML files, so goose only needs to reference element IDs instead of processing the whole page. This means faster responses, lower token usage, and no trouble with complex pages.
 
 ## Generate a Test with Video and Traces
 
