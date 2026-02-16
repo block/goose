@@ -15,8 +15,9 @@ async fn main() -> Result<()> {
 
     let message = Message::user().with_text("Tell me a short joke about programming.");
 
+    let model_config = provider.get_model_config();
     let (response, usage) = provider
-        .complete("", "You are a helpful assistant.", &[message], &[])
+        .complete(&model_config, "", "You are a helpful assistant.", &[message], &[])
         .await?;
 
     println!("\nResponse from AI:");

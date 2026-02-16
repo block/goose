@@ -411,11 +411,6 @@ impl Provider for LeadWorkerProvider {
 
         // Make the completion request
         let model_config = provider.get_model_config();
-        let _session_opt = if session_id.is_empty() {
-            None
-        } else {
-            Some(session_id)
-        };
         let stream_result = provider
             .stream(&model_config, session_id, system, messages, tools)
             .await;

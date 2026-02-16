@@ -566,14 +566,13 @@ impl Provider for GcpVertexAIProvider {
 
     async fn stream(
         &self,
-        _model_config: &ModelConfig,
+        model_config: &ModelConfig,
         session_id: &str,
         system: &str,
         messages: &[Message],
         tools: &[Tool],
     ) -> Result<MessageStream, ProviderError> {
-        let model_config = self.get_model_config();
-        let (mut request, context) = create_request(&model_config, system, messages, tools)?;
+        let (mut request, context) = create_request(model_config, system, messages, tools)?;
 
         if matches!(context.provider(), ModelProvider::Anthropic) {
             if let Some(obj) = request.as_object_mut() {
@@ -581,7 +580,7 @@ impl Provider for GcpVertexAIProvider {
             }
         }
 
-        let mut log = RequestLog::start(&model_config, &request)?;
+        let mut log = RequestLog::start(model_config, &request)?;
 
         let response = self
             .post_stream(Some(session_id), &request, &context)

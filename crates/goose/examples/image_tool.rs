@@ -62,8 +62,10 @@ async fn main() -> Result<()> {
                 },
             }
         });
+        let model_config = provider.get_model_config();
         let (response, usage) = provider
             .complete(
+                &model_config,
                 "",
                 "You are a helpful assistant. Please describe any text you see in the image.",
                 &messages,
