@@ -94,11 +94,11 @@ const AppLayoutContent: React.FC<AppLayoutContentProps> = ({ activeSessions }) =
       {!shouldHideButtons && (
         <div className={`${headerPadding} absolute top-3 z-100 flex items-center`}>
           <SidebarTrigger
-            className={`no-drag hover:border-border-strong hover:text-text-default hover:!bg-background-medium hover:scale-105`}
+            className={`no-drag hover:border-border-secondary hover:text-text-primary hover:!bg-background-tertiary hover:scale-105`}
           />
           <Button
             onClick={handleNewWindow}
-            className="no-drag hover:!bg-background-medium"
+            className="no-drag hover:!bg-background-tertiary"
             variant="ghost"
             size="xs"
             title="Start a new session in a new window"
