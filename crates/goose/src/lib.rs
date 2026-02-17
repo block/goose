@@ -12,6 +12,7 @@ pub mod logging;
 pub mod mcp_utils;
 pub mod model;
 pub mod oauth;
+pub mod otel;
 pub mod permission;
 pub mod posthog;
 pub mod prompt_template;

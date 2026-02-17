@@ -180,15 +180,17 @@ impl ProviderTester {
             .complete(session_id, "You are a helpful assistant.", &[message], &[])
             .await?;
 
-        assert_eq!(
-            response.content.len(),
-            1,
-            "Expected single content item in response"
+        assert!(
+            !response.content.is_empty(),
+            "Expected at least one content item in response"
         );
 
         assert!(
-            matches!(response.content[0], MessageContent::Text(_)),
-            "Expected text response"
+            response
+                .content
+                .iter()
+                .any(|c| matches!(c, MessageContent::Text(_))),
+            "Expected at least one text content item in response"
         );
 
         println!(

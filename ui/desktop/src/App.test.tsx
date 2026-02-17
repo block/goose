@@ -28,11 +28,6 @@ Object.defineProperty(window, 'history', {
   writable: true,
 });
 
-// Mock dependencies
-vi.mock('./utils/providerUtils', () => ({
-  initializeSystem: vi.fn().mockResolvedValue(undefined),
-}));
-
 vi.mock('./utils/costDatabase', () => ({
   initializeCostDatabase: vi.fn().mockResolvedValue(undefined),
 }));
