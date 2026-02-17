@@ -143,13 +143,7 @@ export default function GatewaySettingsSection() {
         onRestart={() => doPost('/gateway/restart', { gateway_type: 'telegram' }, 'Failed to start')}
         onStop={() => doPost('/gateway/stop', { gateway_type: 'telegram' }, 'Failed to stop')}
         onRemove={() => doPost('/gateway/remove', { gateway_type: 'telegram' }, 'Failed to remove')}
-        onGenerateCode={() =>
-          doPost('/gateway/pair', { gateway_type: 'telegram' }, 'Failed to generate code').then(
-            // re-fetch to get code — actually we need the response
-            () => {}
-          )
-        }
-        onGenerateCodeDirect={async () => {
+        onGenerateCode={async () => {
           setError(null);
           try {
             const response = await gatewayFetch('/gateway/pair', {
@@ -226,7 +220,7 @@ function TelegramGatewayCard({
   onRestart,
   onStop,
   onRemove,
-  onGenerateCodeDirect,
+  onGenerateCode,
   onUnpairUser,
 }: {
   status: GatewayStatus | undefined;
@@ -235,7 +229,6 @@ function TelegramGatewayCard({
   onStop: () => Promise<void>;
   onRemove: () => Promise<void>;
   onGenerateCode: () => void;
-  onGenerateCodeDirect: () => void;
   onUnpairUser: (platform: string, userId: string) => void;
 }) {
   const [botToken, setBotToken] = useState('');
@@ -274,7 +267,7 @@ function TelegramGatewayCard({
           <div className="flex items-center gap-2">
             {running && (
               <>
-                <Button variant="outline" size="sm" onClick={onGenerateCodeDirect}>
+                <Button variant="outline" size="sm" onClick={onGenerateCode}>
                   Pair Device
                 </Button>
                 <Button variant="destructive" size="sm" disabled={busy} onClick={wrap(onStop)}>
