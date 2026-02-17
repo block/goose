@@ -15,7 +15,7 @@ import {
   AlertCircle,
 } from 'lucide-react';
 import { ScrollArea } from '../ui/scroll-area';
-import { getExtensions, listBuiltinAgents } from '../../api';
+import { getExtensions, listBuiltinAgents, listAgents } from '../../api';
 import { listSavedRecipes } from '../../recipe/recipe_management';
 
 interface CatalogItem {
@@ -40,8 +40,11 @@ interface CatalogCategory {
 
 function CatalogCard({ category }: { category: CatalogCategory }) {
   const navigate = useNavigate();
+  const [expanded, setExpanded] = useState(false);
   const installed = category.items.filter((i) => i.status === 'installed').length;
   const errors = category.items.filter((i) => i.status === 'error').length;
+  const visibleItems = expanded ? category.items : category.items.slice(0, 3);
+  const hasMore = category.items.length > 3;
 
   return (
     <div
@@ -85,7 +88,7 @@ function CatalogCard({ category }: { category: CatalogCategory }) {
       </div>
 
       <div className="space-y-1.5">
-        {category.items.slice(0, 3).map((item) => (
+        {visibleItems.map((item) => (
           <div
             key={item.id}
             className="flex items-center justify-between text-sm px-2 py-1.5 rounded-md bg-bgSubtle"
@@ -109,10 +112,18 @@ function CatalogCard({ category }: { category: CatalogCategory }) {
             )}
           </div>
         ))}
-        {category.items.length > 3 && (
-          <div className="text-xs text-textSubtle text-center py-1">
-            +{category.items.length - 3} more
-          </div>
+        {hasMore && (
+          <button
+            className="w-full text-xs text-textSubtle hover:text-textStandard text-center py-1 rounded-md hover:bg-bgSubtle transition-colors"
+            onClick={(e) => {
+              e.stopPropagation();
+              setExpanded(!expanded);
+            }}
+          >
+            {expanded
+              ? '▲ Show less'
+              : `▼ +${category.items.length - 3} more`}
+          </button>
         )}
         {category.items.length === 0 && !category.loading && (
           <div className="text-sm text-textSubtle text-center py-3">
@@ -248,17 +259,43 @@ export default function CatalogsOverview() {
       );
     }
 
-    // Load agents
+    // Load agents (builtin + external A2A)
     try {
-      const resp = await listBuiltinAgents();
-      const agents = resp.data?.agents || [];
-      const agentItems: CatalogItem[] = agents.map((a) => ({
-        id: a.name,
-        name: a.name,
-        description: a.description || '',
-        status: a.enabled ? ('installed' as const) : ('available' as const),
-        type: `${a.modes.length} modes`,
-      }));
+      const agentItems: CatalogItem[] = [];
+
+      // Builtin agents
+      const builtinResp = await listBuiltinAgents();
+      const builtinAgents = builtinResp.data?.agents || [];
+      for (const a of builtinAgents) {
+        agentItems.push({
+          id: a.name,
+          name: a.name,
+          description: a.description || '',
+          status: a.enabled ? ('installed' as const) : ('available' as const),
+          type: `${a.modes.length} modes`,
+        });
+      }
+
+      // External A2A agents
+      try {
+        const externalResp = await listAgents();
+        const externalAgents = externalResp.data?.agents || [];
+        const seen = new Set(agentItems.map((a) => a.id));
+        for (const a of externalAgents) {
+          if (!seen.has(a.name)) {
+            agentItems.push({
+              id: a.name,
+              name: a.name,
+              description: a.description || 'External agent',
+              status: 'installed' as const,
+              type: `${(a.modes || []).length} modes`,
+            });
+          }
+        }
+      } catch {
+        // External agents are optional — don't fail the whole section
+      }
+
       setCategories((prev) =>
         prev.map((c) => (c.id === 'agents' ? { ...c, items: agentItems, loading: false } : c))
       );
