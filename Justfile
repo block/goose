@@ -172,6 +172,18 @@ package-ui:
     codesign --force --deep --sign - --entitlements ui/desktop/entitlements.plist ui/desktop/out/Goose-darwin-arm64/Goose.app
     @echo "Done! Launch with: open ui/desktop/out/Goose-darwin-arm64/Goose.app"
 
+# Run UI with Tauri (development mode)
+run-ui-tauri:
+    @just release-binary
+    @echo "Running Tauri UI..."
+    cd ui/desktop && npm install && npm run tauri:dev
+
+# Build Tauri app for production
+build-ui-tauri:
+    @just release-binary
+    @echo "Building Tauri app..."
+    cd ui/desktop && npm install && npm run tauri:build
+
 # Run UI with alpha changes
 run-ui-alpha:
     @just release-binary
