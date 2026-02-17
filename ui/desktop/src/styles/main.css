@@ -432,35 +432,28 @@
   display: block !important;
 }
 
-/* Native scrollbar styling */
-* {
-  scrollbar-width: auto;
-  scrollbar-color: var(--color-neutral-200) transparent;
-}
-
-.dark * {
-  scrollbar-color: var(--color-neutral-400) transparent;
-}
-
-/* Webkit scrollbar styles */
+/* Scrollbar styling — uses ::-webkit-scrollbar which works in both
+   Chromium (Electron) and WebKit (Tauri/Safari). The standard
+   scrollbar-width/scrollbar-color properties are omitted because
+   WebKit does not support them. */
 ::-webkit-scrollbar {
   -webkit-appearance: none;
-  width: 12px; /* Increased from 8px */
+  width: 12px;
   height: 12px;
   background-color: transparent;
 }
 
 ::-webkit-scrollbar-track {
   background: transparent;
-  border-radius: 0;
+  border-radius: 4px;
 }
 
 ::-webkit-scrollbar-thumb {
   background-color: var(--color-neutral-200);
-  border: 3px solid transparent; /* Creates padding effect */
+  border: 3px solid transparent;
   border-radius: 8px;
   background-clip: padding-box;
-  min-height: 40px; /* Minimum height of thumb */
+  min-height: 40px;
 }
 
 .dark ::-webkit-scrollbar-thumb {
@@ -469,14 +462,13 @@
 
 ::-webkit-scrollbar-thumb:hover {
   background-color: var(--color-neutral-300);
-  border: 2px solid transparent; /* Slightly less padding on hover */
+  border: 2px solid transparent;
 }
 
 .dark ::-webkit-scrollbar-thumb:hover {
   background-color: var(--color-neutral-500);
 }
 
-/* Ensure the thumb is more prominent when active */
 ::-webkit-scrollbar-thumb:active {
   background-color: var(--color-neutral-400);
   border: 2px solid transparent;
@@ -486,31 +478,10 @@
   background-color: var(--color-neutral-500);
 }
 
-::-webkit-scrollbar-track {
-  background: transparent;
-  border-radius: 4px;
-}
-
-::-webkit-scrollbar-thumb {
-  background: var(--color-neutral-200);
-  border-radius: 4px;
-}
-
-.dark ::-webkit-scrollbar-thumb {
-  background: var(--color-neutral-400);
-}
-
-::-webkit-scrollbar-thumb:hover {
-  background: var(--color-neutral-300);
-}
-
-.dark ::-webkit-scrollbar-thumb:hover {
-  background: var(--color-neutral-500);
-}
-
 body {
   background-color: var(--background-default);
   -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
   text-rendering: optimizeLegibility;
 }
 
