@@ -167,6 +167,11 @@ pub fn get_warnings() -> Vec<String> {
     warnings
 }
 
+pub fn find_global_extension_by_key(key: &str) -> Option<ExtensionConfig> {
+    let extensions = get_extensions_map();
+    extensions.get(key).map(|e| e.config.clone())
+}
+
 pub fn resolve_extensions_for_new_session(
     recipe_extensions: Option<&[ExtensionConfig]>,
     override_extensions: Option<Vec<ExtensionConfig>>,
