@@ -10,7 +10,7 @@ import { useChatContext } from '../../contexts/ChatContext';
 import { UserInput } from '../../types/message';
 import { ReasoningDetailProvider } from '../../contexts/ReasoningDetailContext';
 import ReasoningDetailPanel from '../ReasoningDetailPanel';
-import { PromptBarProvider } from '../../contexts/PromptBarContext';
+import { UnifiedInputProvider } from '../../contexts/UnifiedInputContext';
 import PromptBar from '../prompt_bar/PromptBar';
 
 interface AppLayoutContentProps {
@@ -144,9 +144,9 @@ export const AppLayout: React.FC<AppLayoutProps> = ({ activeSessions }) => {
   return (
     <ReasoningDetailProvider>
       <SidebarProvider>
-        <PromptBarProvider>
+        <UnifiedInputProvider>
           <AppLayoutContent activeSessions={activeSessions} />
-        </PromptBarProvider>
+        </UnifiedInputProvider>
       </SidebarProvider>
     </ReasoningDetailProvider>
   );

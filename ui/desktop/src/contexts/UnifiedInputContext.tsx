@@ -1,0 +1,341 @@
+/**
+ * UnifiedInputContext — single context for the app-wide input bar.
+ *
+ * Merges the zone-aware slash-command system (from PromptBarContext)
+ * with session-level state (from ChatInput props) so that ONE input
+ * component can adapt its rendering mode based on route context.
+ *
+ * Rendering modes:
+ *   - compact  : non-chat routes — single-line input + slash commands + Cmd+K
+ *   - full     : /pair route — textarea, file drag/drop, voice, tokens, queue
+ */
+
+import {
+  createContext,
+  useContext,
+  useMemo,
+  useCallback,
+  useState,
+  type ReactNode,
+} from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
+import { ChatState } from '../types/chatState';
+import type { UserInput } from '../types/message';
+import type { View, ViewOptions } from '../utils/navigationUtils';
+import type { Message } from '../api';
+import type { Recipe } from '../api';
+
+// ─── Zone & Slash Command Types ───────────────────────────────────
+
+export type NavigationZone = 'home' | 'chat' | 'workflows' | 'observatory' | 'platform';
+
+export interface SlashCommand {
+  command: string;
+  description: string;
+  action: (args?: string) => void;
+}
+
+export interface ZoneConfig {
+  zone: NavigationZone;
+  placeholder: string;
+  hint: string;
+  actions: SlashCommand[];
+}
+
+// ─── Session-Level Props (for full mode) ──────────────────────────
+
+export interface SessionInputState {
+  sessionId: string | null;
+  handleSubmit: (input: UserInput) => void;
+  chatState: ChatState;
+  setChatState?: (state: ChatState) => void;
+  onStop?: () => void;
+  commandHistory?: string[];
+  initialValue?: string;
+  droppedFiles?: Array<{ name: string; path: string; type: string }>;
+  onFilesProcessed?: () => void;
+  setView: (view: View, options?: ViewOptions) => void;
+  totalTokens?: number;
+  accumulatedInputTokens?: number;
+  accumulatedOutputTokens?: number;
+  messages?: Message[];
+  sessionCosts?: Record<string, { inputTokens: number; outputTokens: number; totalCost: number }>;
+  disableAnimation?: boolean;
+  recipe?: Recipe | null;
+  recipeId?: string | null;
+  recipeAccepted?: boolean;
+  initialPrompt?: string;
+  toolCount: number;
+  append?: (message: Message) => void;
+  onWorkingDirChange?: (newDir: string) => void;
+  inputRef?: React.RefObject<HTMLTextAreaElement | null>;
+}
+
+// ─── Unified Context Value ────────────────────────────────────────
+
+export type InputMode = 'compact' | 'full';
+
+export interface UnifiedInputContextValue {
+  // Mode
+  mode: InputMode;
+
+  // Zone system (from PromptBarContext)
+  zone: NavigationZone;
+  config: ZoneConfig;
+  slashCommands: SlashCommand[];
+  showInput: boolean;
+
+  // Session state (for full mode, null in compact)
+  session: SessionInputState | null;
+
+  // Unified submit — handles slash commands then delegates
+  submitPrompt: (text: string) => void;
+
+  // Session state setter
+  setSessionState: (state: SessionInputState | null) => void;
+}
+
+const UnifiedInputContext = createContext<UnifiedInputContextValue | null>(null);
+
+export function useUnifiedInput() {
+  const ctx = useContext(UnifiedInputContext);
+  if (!ctx) throw new Error('useUnifiedInput must be used within UnifiedInputProvider');
+  return ctx;
+}
+
+// Also re-export the old hook name for backward compatibility during migration
+export function usePromptBar() {
+  const ctx = useUnifiedInput();
+  return {
+    zone: ctx.zone,
+    config: ctx.config,
+    isChatActive: ctx.mode === 'full',
+    showPromptBar: ctx.showInput && ctx.mode === 'compact',
+    submitPrompt: ctx.submitPrompt,
+    slashCommands: ctx.slashCommands,
+  };
+}
+
+// ─── Zone Detection ───────────────────────────────────────────────
+
+const ZONE_MAP: Record<string, NavigationZone> = {
+  '/': 'home',
+  '/pair': 'chat',
+  '/recipes': 'workflows',
+  '/apps': 'workflows',
+  '/schedules': 'workflows',
+  '/analytics': 'observatory',
+  '/monitoring': 'observatory',
+  '/evaluate': 'observatory',
+  '/tools': 'observatory',
+  '/agents': 'observatory',
+  '/extensions': 'platform',
+  '/catalogs': 'platform',
+  '/settings': 'platform',
+  '/sessions': 'home',
+};
+
+function getZoneFromPath(pathname: string): NavigationZone {
+  if (ZONE_MAP[pathname]) return ZONE_MAP[pathname];
+  for (const [path, zone] of Object.entries(ZONE_MAP)) {
+    if (pathname.startsWith(path) && path !== '/') return zone;
+  }
+  return 'home';
+}
+
+// ─── Provider ─────────────────────────────────────────────────────
+
+interface UnifiedInputProviderProps {
+  children: ReactNode;
+  onCreateSession?: (message: string) => void;
+}
+
+export function UnifiedInputProvider({ children, onCreateSession }: UnifiedInputProviderProps) {
+  const location = useLocation();
+  const navigate = useNavigate();
+  const [, setLastCommand] = useState('');
+  const [session, setSessionState] = useState<SessionInputState | null>(null);
+
+  const zone = useMemo(() => getZoneFromPath(location.pathname), [location.pathname]);
+  const isOnPairRoute = location.pathname === '/pair';
+  const mode: InputMode = isOnPairRoute ? 'full' : 'compact';
+
+  // Global slash commands (available everywhere)
+  const globalCommands: SlashCommand[] = useMemo(() => [
+    {
+      command: '/new',
+      description: 'Start a new chat session',
+      action: () => window.dispatchEvent(new CustomEvent('TRIGGER_NEW_CHAT')),
+    },
+    {
+      command: '/recipe',
+      description: 'Browse and run recipes',
+      action: (args?: string) => {
+        if (args) {
+          navigate(`/recipes?search=${encodeURIComponent(args)}`);
+        } else {
+          navigate('/recipes');
+        }
+      },
+    },
+    {
+      command: '/settings',
+      description: 'Open settings',
+      action: () => navigate('/settings'),
+    },
+    {
+      command: '/model',
+      description: 'Change model configuration',
+      action: () => navigate('/settings'),
+    },
+    {
+      command: '/project',
+      description: 'Switch project directory',
+      action: () => navigate('/sessions'),
+    },
+    {
+      command: '/help',
+      description: 'Show available commands',
+      action: () => setLastCommand('/help'),
+    },
+  ], [navigate]);
+
+  // Zone-specific commands
+  const zoneCommands: SlashCommand[] = useMemo(() => {
+    switch (zone) {
+      case 'observatory':
+        return [
+          {
+            command: '/eval',
+            description: 'Run an evaluation',
+            action: () => navigate('/evaluate'),
+          },
+          {
+            command: '/monitor',
+            description: 'View live monitoring',
+            action: () => navigate('/monitoring'),
+          },
+        ];
+      case 'workflows':
+        return [
+          {
+            command: '/schedule',
+            description: 'Schedule a recipe',
+            action: () => navigate('/schedules'),
+          },
+          {
+            command: '/create',
+            description: 'Create a new recipe',
+            action: () => navigate('/recipes'),
+          },
+        ];
+      case 'platform':
+        return [
+          {
+            command: '/install',
+            description: 'Install an extension',
+            action: () => navigate('/extensions'),
+          },
+        ];
+      default:
+        return [];
+    }
+  }, [zone, navigate]);
+
+  const slashCommands = useMemo(
+    () => [...zoneCommands, ...globalCommands],
+    [zoneCommands, globalCommands]
+  );
+
+  const config: ZoneConfig = useMemo(() => {
+    switch (zone) {
+      case 'home':
+        return {
+          zone,
+          placeholder: 'Ask anything or type / for commands...',
+          hint: 'Start a conversation or use /recipe to run a workflow',
+          actions: slashCommands,
+        };
+      case 'chat':
+        return {
+          zone,
+          placeholder: '',
+          hint: '',
+          actions: slashCommands,
+        };
+      case 'workflows':
+        return {
+          zone,
+          placeholder: 'Describe a workflow or type / for commands...',
+          hint: 'Try: "Create a recipe that reviews PRs" or /schedule',
+          actions: slashCommands,
+        };
+      case 'observatory':
+        return {
+          zone,
+          placeholder: 'Ask about performance or type / for commands...',
+          hint: 'Try: "Show me accuracy trends" or /eval',
+          actions: slashCommands,
+        };
+      case 'platform':
+        return {
+          zone,
+          placeholder: 'Search catalogs or type / for commands...',
+          hint: 'Try: "Find a GitHub extension" or /install',
+          actions: slashCommands,
+        };
+    }
+  }, [zone, slashCommands]);
+
+  const submitPrompt = useCallback((text: string) => {
+    const trimmed = text.trim();
+
+    // Handle slash commands first
+    if (trimmed.startsWith('/')) {
+      const parts = trimmed.split(' ');
+      const cmd = parts[0].toLowerCase();
+      const args = parts.slice(1).join(' ');
+
+      const command = slashCommands.find((c) => c.command === cmd);
+      if (command) {
+        command.action(args);
+        return;
+      }
+    }
+
+    // If we have a session submit handler (full mode), delegate to it
+    if (session?.handleSubmit) {
+      session.handleSubmit({ msg: trimmed, images: [] });
+      return;
+    }
+
+    // Default: create a new session with this message
+    if (onCreateSession) {
+      onCreateSession(trimmed);
+    } else {
+      window.dispatchEvent(
+        new CustomEvent('PROMPT_BAR_SUBMIT', { detail: { message: trimmed } })
+      );
+    }
+  }, [slashCommands, session, onCreateSession]);
+
+  // Show input everywhere except on /pair (where ChatInput handles it for now)
+  const showInput = !isOnPairRoute;
+
+  const value = useMemo<UnifiedInputContextValue>(() => ({
+    mode,
+    zone,
+    config,
+    slashCommands,
+    showInput,
+    session,
+    submitPrompt,
+    setSessionState,
+  }), [mode, zone, config, slashCommands, showInput, session, submitPrompt]);
+
+  return (
+    <UnifiedInputContext.Provider value={value}>
+      {children}
+    </UnifiedInputContext.Provider>
+  );
+}

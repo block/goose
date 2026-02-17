@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { useLocation } from 'react-router-dom';
 import { Loader2, Command, Slash } from 'lucide-react';
-import { usePromptBar, SlashCommand } from '../../contexts/PromptBarContext';
+import { usePromptBar, type SlashCommand } from '../../contexts/UnifiedInputContext';
 import Send from '../icons/Send';
 
 export default function PromptBar() {
