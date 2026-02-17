@@ -111,9 +111,6 @@ pub struct ProviderMetadata {
     pub model_doc_link: String,
     /// Required configuration keys
     pub config_keys: Vec<ConfigKey>,
-    /// Whether this provider allows entering model names not in the fetched list
-    #[serde(default)]
-    pub allows_unlisted_models: bool,
 }
 
 impl ProviderMetadata {
@@ -144,7 +141,6 @@ impl ProviderMetadata {
                 .collect(),
             model_doc_link: model_doc_link.to_string(),
             config_keys,
-            allows_unlisted_models: false,
         }
     }
 
@@ -165,7 +161,6 @@ impl ProviderMetadata {
             known_models: models,
             model_doc_link: model_doc_link.to_string(),
             config_keys,
-            allows_unlisted_models: false,
         }
     }
 
@@ -178,14 +173,7 @@ impl ProviderMetadata {
             known_models: vec![],
             model_doc_link: "".to_string(),
             config_keys: vec![],
-            allows_unlisted_models: false,
         }
-    }
-
-    /// Set allows_unlisted_models flag (builder pattern)
-    pub fn with_unlisted_models(mut self) -> Self {
-        self.allows_unlisted_models = true;
-        self
     }
 }
 
