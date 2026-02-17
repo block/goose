@@ -7,11 +7,22 @@ import { client } from './api/client.gen';
 import { setTelemetryEnabled } from './utils/analytics';
 import { readConfig } from './api';
 
+// Tauri bridge — provides window.electron and window.appConfig compatibility
+import { tauriBridge, appConfigBridge, initTauriBridge } from './tauri-bridge';
+
+// Install the Tauri bridge as window.electron and window.appConfig
+// so all existing components work without modification
+(window as any).electron = tauriBridge;
+(window as any).appConfig = appConfigBridge;
+
 const App = lazy(() => import('./App'));
 
 const TELEMETRY_CONFIG_KEY = 'GOOSE_TELEMETRY_ENABLED';
 
 (async () => {
+  // Initialize the Tauri bridge (loads config from backend)
+  await initTauriBridge();
+
   // Check if we're in the launcher view (doesn't need goosed connection)
   const isLauncher = window.location.hash === '#/launcher';
 
@@ -41,6 +52,9 @@ const TELEMETRY_CONFIG_KEY = 'GOOSE_TELEMETRY_ENABLED';
       console.warn('[Analytics] Failed to initialize analytics:', error);
     }
   }
+
+  // Signal to the backend that the frontend is ready
+  window.electron.reactReady();
 
   ReactDOM.createRoot(document.getElementById('root')!).render(
     <React.StrictMode>
