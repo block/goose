@@ -84,7 +84,13 @@ async fn make_request(provider: &dyn Provider, session_id: &str) {
     let message = Message::user().with_text("test message");
     let model_config = provider.get_model_config();
     let _ = provider
-        .complete(&model_config, session_id, "You are a helpful assistant.", &[message], &[])
+        .complete(
+            &model_config,
+            session_id,
+            "You are a helpful assistant.",
+            &[message],
+            &[],
+        )
         .await
         .unwrap();
 }
