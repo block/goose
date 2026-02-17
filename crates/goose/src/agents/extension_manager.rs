@@ -791,17 +791,17 @@ impl ExtensionManager {
     }
 
     /// Get extensions info for building the system prompt
-    pub async fn get_extensions_info(&self) -> Vec<ExtensionInfo> {
+    pub async fn get_extensions_info(&self, working_dir: &std::path::Path) -> Vec<ExtensionInfo> {
+        let working_dir_str = working_dir.to_string_lossy();
         self.extensions
             .lock()
             .await
             .iter()
             .map(|(name, ext)| {
-                ExtensionInfo::new(
-                    name,
-                    ext.get_instructions().unwrap_or_default().as_str(),
-                    ext.supports_resources(),
-                )
+                let instructions = ext.get_instructions().unwrap_or_default();
+                let instructions =
+                    instructions.replace(goose_mcp::WORKING_DIR_PLACEHOLDER, &working_dir_str);
+                ExtensionInfo::new(name, &instructions, ext.supports_resources())
             })
             .collect()
     }
