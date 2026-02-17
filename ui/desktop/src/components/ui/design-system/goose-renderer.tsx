@@ -13,6 +13,7 @@
 import type { Spec } from '@json-render/react';
 import { JSONUIProvider, Renderer } from '@json-render/react';
 import { gooseComponents } from './goose-components';
+import { ElementErrorBoundary } from './ElementErrorBoundary';
 
 export interface GooseActionHandler {
   (actionName: string, params?: Record<string, unknown>): void | Promise<void>;
@@ -38,13 +39,15 @@ export function GooseGenerativeUI({
     : undefined;
 
   return (
-    <JSONUIProvider
-      registry={gooseComponents}
-      initialState={state}
-      handlers={handlers}
-    >
-      <Renderer spec={spec} registry={gooseComponents} loading={loading} />
-    </JSONUIProvider>
+    <ElementErrorBoundary elementId="GooseGenerativeUI:root">
+      <JSONUIProvider
+        registry={gooseComponents}
+        initialState={state}
+        handlers={handlers}
+      >
+        <Renderer spec={spec} registry={gooseComponents} loading={loading} />
+      </JSONUIProvider>
+    </ElementErrorBoundary>
   );
 }
 

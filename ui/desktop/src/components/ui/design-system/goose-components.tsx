@@ -6,7 +6,9 @@
  */
 'use client';
 
+import React from 'react';
 import type { ComponentRenderProps } from '@json-render/react';
+import { ElementErrorBoundary } from './ElementErrorBoundary';
 import { PageHeader } from './PageHeader';
 import { DataCard } from './DataCard';
 import { StatCard } from './StatCard';
@@ -209,22 +211,45 @@ function TabBarComponent({ element, emit }: ComponentRenderProps<{
   );
 }
 
-// ─── Component Registry ─────────────────────────────────────────
+// ─── Error-Isolated Registry ────────────────────────────────────
 
-export const gooseComponents: Record<string, React.ComponentType<ComponentRenderProps<Record<string, unknown>>>> = {
-  Stack: StackComponent as React.ComponentType<ComponentRenderProps<Record<string, unknown>>>,
-  Grid: GridComponent as React.ComponentType<ComponentRenderProps<Record<string, unknown>>>,
-  Text: TextComponent as React.ComponentType<ComponentRenderProps<Record<string, unknown>>>,
-  Separator: SeparatorComponent as React.ComponentType<ComponentRenderProps<Record<string, unknown>>>,
-  Badge: BadgeComponent as React.ComponentType<ComponentRenderProps<Record<string, unknown>>>,
-  PageHeader: PageHeaderComponent as React.ComponentType<ComponentRenderProps<Record<string, unknown>>>,
-  DataCard: DataCardComponent as React.ComponentType<ComponentRenderProps<Record<string, unknown>>>,
-  StatCard: StatCardComponent as React.ComponentType<ComponentRenderProps<Record<string, unknown>>>,
-  ListItem: ListItemComponent as React.ComponentType<ComponentRenderProps<Record<string, unknown>>>,
-  TreeItem: TreeItemComponent as React.ComponentType<ComponentRenderProps<Record<string, unknown>>>,
-  EmptyState: EmptyStateComponent as React.ComponentType<ComponentRenderProps<Record<string, unknown>>>,
-  LoadingState: LoadingStateComponent as React.ComponentType<ComponentRenderProps<Record<string, unknown>>>,
-  ErrorState: ErrorStateComponent as React.ComponentType<ComponentRenderProps<Record<string, unknown>>>,
-  SearchInput: SearchInputComponent as React.ComponentType<ComponentRenderProps<Record<string, unknown>>>,
-  TabBar: TabBarComponent as React.ComponentType<ComponentRenderProps<Record<string, unknown>>>,
+type AnyComponentRenderProps = ComponentRenderProps<Record<string, unknown>>;
+
+function withErrorBoundary(
+  name: string,
+  Component: React.ComponentType<AnyComponentRenderProps>,
+): React.ComponentType<AnyComponentRenderProps> {
+  const Wrapped = (props: AnyComponentRenderProps) => (
+    <ElementErrorBoundary elementId={name}>
+      <Component {...props} />
+    </ElementErrorBoundary>
+  );
+  Wrapped.displayName = `ErrorBoundary(${name})`;
+  return Wrapped;
+}
+
+const rawComponents: Record<string, React.ComponentType<AnyComponentRenderProps>> = {
+  Stack: StackComponent as React.ComponentType<AnyComponentRenderProps>,
+  Grid: GridComponent as React.ComponentType<AnyComponentRenderProps>,
+  Text: TextComponent as React.ComponentType<AnyComponentRenderProps>,
+  Separator: SeparatorComponent as React.ComponentType<AnyComponentRenderProps>,
+  Badge: BadgeComponent as React.ComponentType<AnyComponentRenderProps>,
+  PageHeader: PageHeaderComponent as React.ComponentType<AnyComponentRenderProps>,
+  DataCard: DataCardComponent as React.ComponentType<AnyComponentRenderProps>,
+  StatCard: StatCardComponent as React.ComponentType<AnyComponentRenderProps>,
+  ListItem: ListItemComponent as React.ComponentType<AnyComponentRenderProps>,
+  TreeItem: TreeItemComponent as React.ComponentType<AnyComponentRenderProps>,
+  EmptyState: EmptyStateComponent as React.ComponentType<AnyComponentRenderProps>,
+  LoadingState: LoadingStateComponent as React.ComponentType<AnyComponentRenderProps>,
+  ErrorState: ErrorStateComponent as React.ComponentType<AnyComponentRenderProps>,
+  SearchInput: SearchInputComponent as React.ComponentType<AnyComponentRenderProps>,
+  TabBar: TabBarComponent as React.ComponentType<AnyComponentRenderProps>,
 };
+
+export const gooseComponents: Record<string, React.ComponentType<AnyComponentRenderProps>> =
+  Object.fromEntries(
+    Object.entries(rawComponents).map(([name, Component]) => [
+      name,
+      withErrorBoundary(name, Component),
+    ]),
+  );

@@ -12,6 +12,7 @@ import {
   VisibilityProvider,
 } from '@json-render/react';
 import { registry } from '../../lib/generative-registry';
+import { ElementErrorBoundary } from '../ui/design-system/ElementErrorBoundary';
 import { useNavigate } from 'react-router-dom';
 import { X, Maximize2, Minimize2 } from 'lucide-react';
 
@@ -114,19 +115,21 @@ export default function GenerativePanel({
       )}
 
       <div className="p-4">
-        <StateProvider initialState={initialState}>
-          <VisibilityProvider>
-            {/* @ts-ignore — json-render handlers type expects exact signature */}
-            <ActionProvider handlers={actionHandlers()}>
-              {/* @ts-ignore — json-render Spec type and registry type from zod 3/4 mismatch */}
-              <Renderer
-                spec={spec}
-                registry={registry}
-                loading={isStreaming}
-              />
-            </ActionProvider>
-          </VisibilityProvider>
-        </StateProvider>
+        <ElementErrorBoundary elementId="GenerativePanel:root">
+          <StateProvider initialState={initialState}>
+            <VisibilityProvider>
+              {/* @ts-ignore — json-render handlers type expects exact signature */}
+              <ActionProvider handlers={actionHandlers()}>
+                {/* @ts-ignore — json-render Spec type and registry type from zod 3/4 mismatch */}
+                <Renderer
+                  spec={spec}
+                  registry={registry}
+                  loading={isStreaming}
+                />
+              </ActionProvider>
+            </VisibilityProvider>
+          </StateProvider>
+        </ElementErrorBoundary>
       </div>
 
       {isExpanded && (

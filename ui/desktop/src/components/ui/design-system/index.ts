@@ -18,3 +18,4 @@ export { ErrorState } from './ErrorState';
 export { SearchInput } from './SearchInput';
 export { TabBar } from './TabBar';
 export type { Tab, TabGroup, TabBarProps } from './TabBar';
+export { ElementErrorBoundary } from './ElementErrorBoundary';
