@@ -5,6 +5,7 @@
 
 pub mod manager;
 pub mod pool;
+pub mod session_orchestrator;
 pub mod workspace;
 
 use serde::{Deserialize, Serialize};
