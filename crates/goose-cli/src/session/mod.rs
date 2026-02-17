@@ -1358,11 +1358,13 @@ impl CliSession {
                 if show_cost {
                     let input_tokens = metadata.input_tokens.unwrap_or(0) as usize;
                     let output_tokens = metadata.output_tokens.unwrap_or(0) as usize;
+                    let provider_pricing = provider.get_model_pricing().await;
                     output::display_cost_usage(
                         &provider_name,
                         &model_config.model_name,
                         input_tokens,
                         output_tokens,
+                        provider_pricing,
                     );
                 }
             }

@@ -27,7 +27,7 @@ pub const LITELLM_DOC_URL: &str = "https://docs.litellm.ai/docs/";
 /// needed to avoid false-positive reasoning parameter injection based on model name
 /// heuristics (fixes issue #4221).
 #[derive(Debug, Clone)]
-#[allow(dead_code)] // Fields used for Phase 2/3 (variant system, pricing display)
+#[allow(dead_code)] // litellm_model used in tests; will be used for model family detection
 struct LiteLLMModelCapabilities {
     /// Whether this model supports reasoning/extended thinking
     supports_reasoning: bool,
@@ -190,7 +190,7 @@ impl LiteLLMProvider {
     }
 
     /// Build a Vec<ModelInfo> from cached capabilities for use in Provider trait methods.
-    #[allow(dead_code)] // Used in tests; will be used in Phase 3 (pricing display)
+    #[allow(dead_code)] // Used in tests; could replace fetch_supported_models in future
     fn capabilities_to_model_info(
         capabilities: &HashMap<String, LiteLLMModelCapabilities>,
     ) -> Vec<ModelInfo> {
@@ -402,6 +402,14 @@ impl Provider for LiteLLMProvider {
 
         // Fallback: if we can't reach the proxy, guess based on model name
         self.model.model_name.to_lowercase().contains("claude")
+    }
+
+    async fn get_model_pricing(&self) -> Option<(f64, f64)> {
+        let caps = self.get_model_capabilities().await.ok()?;
+        let model_caps = caps.get(&self.model.model_name)?;
+        let input = model_caps.input_cost_per_token?;
+        let output = model_caps.output_cost_per_token?;
+        Some((input, output))
     }
 
     async fn fetch_supported_models(&self) -> Result<Vec<String>, ProviderError> {

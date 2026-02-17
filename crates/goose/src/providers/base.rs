@@ -548,6 +548,13 @@ pub trait Provider: Send + Sync {
         false
     }
 
+    /// Get per-token pricing for the current model from the provider.
+    /// Returns (input_cost_per_token, output_cost_per_token) in USD.
+    /// Used as a fallback when the canonical model registry has no pricing data.
+    async fn get_model_pricing(&self) -> Option<(f64, f64)> {
+        None
+    }
+
     /// Create embeddings if supported. Default implementation returns an error.
     async fn create_embeddings(
         &self,
