@@ -227,7 +227,7 @@ mod tests {
                 "message": {
                     "messageId": "msg-1",
                     "role": "user",
-                    "parts": [{"kind": "text", "text": "Hello!"}]
+                    "parts": [{"type": "text", "text": "Hello!"}]
                 }
             }
         });
@@ -251,6 +251,97 @@ mod tests {
             .unwrap();
         let rpc_response: Value = serde_json::from_slice(&body).unwrap();
         assert!(rpc_response.get("result").is_some());
+    }
+
+    #[tokio::test]
+    async fn test_sse_streaming() {
+        let app = test_app();
+
+        let body = serde_json::json!({
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "message/stream",
+            "params": {
+                "message": {
+                    "messageId": "msg-stream-1",
+                    "role": "user",
+                    "parts": [{"type": "text", "text": "Stream test"}]
+                }
+            }
+        });
+
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/stream")
+                    .header("content-type", "application/json")
+                    .body(Body::from(serde_json::to_vec(&body).unwrap()))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::OK);
+        assert_eq!(
+            response.headers().get("content-type").unwrap(),
+            "text/event-stream"
+        );
+
+        // Read the SSE body and parse events
+        let body = axum::body::to_bytes(response.into_body(), 1024 * 1024)
+            .await
+            .unwrap();
+        let body_str = String::from_utf8(body.to_vec()).unwrap();
+
+        // SSE events are delimited by double newlines, each starting with "data: "
+        let events: Vec<Value> = body_str
+            .lines()
+            .filter_map(|line| line.strip_prefix("data: "))
+            .map(|data| serde_json::from_str(data).unwrap())
+            .collect();
+
+        // EchoExecutor sends: ArtifactUpdate + StatusUpdate(Completed)
+        // DefaultRequestHandler adds initial StatusUpdate(Working)
+        // So we expect at least 2 events
+        assert!(
+            events.len() >= 2,
+            "Expected at least 2 SSE events, got {}: {:?}",
+            events.len(),
+            events
+        );
+
+        // Check that we got artifact and status events
+        // Events are wrapped in JSON-RPC response: {id, jsonrpc, result: {kind: ..., ...}}
+        let has_artifact = events.iter().any(|e| {
+            e.get("result")
+                .and_then(|r| r.get("kind"))
+                .map(|k| k == "artifact-update")
+                .unwrap_or(false)
+        });
+        let has_status_completed = events.iter().any(|e| {
+            let result = e.get("result");
+            result
+                .and_then(|r| r.get("kind"))
+                .map(|k| k == "status-update")
+                .unwrap_or(false)
+                && result
+                    .and_then(|r| r.get("status"))
+                    .and_then(|s| s.get("state"))
+                    .map(|s| s == "completed")
+                    .unwrap_or(false)
+        });
+
+        assert!(
+            has_artifact,
+            "Expected artifact-update event in: {:?}",
+            events
+        );
+        assert!(
+            has_status_completed,
+            "Expected status-update with completed state in: {:?}",
+            events
+        );
     }
 
     #[tokio::test]
