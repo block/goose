@@ -125,24 +125,6 @@ pub fn run() {
                 }
             });
 
-            // Intercept external links — open in default browser instead of navigating
-            if let Some(main_window) = app.get_webview_window("main") {
-                main_window.on_navigation(|url| {
-                    let url_str = url.as_str();
-                    // Allow navigation within the app (localhost dev server, tauri app URLs)
-                    if url_str.starts_with("tauri://")
-                        || url_str.starts_with("http://localhost")
-                        || url_str.starts_with("http://127.0.0.1")
-                        || url_str.starts_with("about:")
-                    {
-                        return true;
-                    }
-                    // Open external URLs in default browser
-                    let _ = open::that(url_str);
-                    false
-                });
-            }
-
             // Register global shortcuts
             setup_global_shortcuts(app)?;
 
@@ -205,7 +187,8 @@ fn setup_global_shortcuts(app: &tauri::App) -> Result<(), Box<dyn std::error::Er
 
     let settings = {
         let state = app.state::<settings::SettingsState>();
-        state.0.lock().unwrap().clone()
+        let guard = state.0.lock().unwrap();
+        guard.clone()
     };
 
     let shortcuts = settings
@@ -218,7 +201,7 @@ fn setup_global_shortcuts(app: &tauri::App) -> Result<(), Box<dyn std::error::Er
         .unwrap_or_else(|| "CmdOrCtrl+Alt+G".to_string());
 
     let app_handle = app.handle().clone();
-    if let Err(e) = app.global_shortcut().on_shortcut(&focus_shortcut, move |_app, _shortcut, _event| {
+    if let Err(e) = app.global_shortcut().on_shortcut(focus_shortcut.as_str(), move |_app, _shortcut, _event| {
         if let Some(window) = app_handle.get_webview_window("main") {
             let _ = window.show();
             let _ = window.set_focus();
@@ -230,7 +213,7 @@ fn setup_global_shortcuts(app: &tauri::App) -> Result<(), Box<dyn std::error::Er
     // Quick launcher shortcut
     if let Some(ref launcher_shortcut) = shortcuts.quick_launcher {
         let app_handle2 = app.handle().clone();
-        if let Err(e) = app.global_shortcut().on_shortcut(launcher_shortcut, move |_app, _shortcut, _event| {
+        if let Err(e) = app.global_shortcut().on_shortcut(launcher_shortcut.as_str(), move |_app, _shortcut, _event| {
             if let Some(window) = app_handle2.get_webview_window("main") {
                 let _ = window.show();
                 let _ = window.set_focus();

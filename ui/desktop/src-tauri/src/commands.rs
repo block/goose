@@ -173,6 +173,18 @@ pub async fn create_chat_window(
         .title("Goose")
         .inner_size(750.0, 730.0)
         .min_inner_size(560.0, 600.0)
+        .on_navigation(|url| {
+            let s = url.as_str();
+            if s.starts_with("tauri://")
+                || s.starts_with("http://localhost")
+                || s.starts_with("http://127.0.0.1")
+                || s.starts_with("about:")
+            {
+                return true;
+            }
+            let _ = open::that(s);
+            false
+        })
         .build()
         .map_err(|e| e.to_string())?;
 
@@ -496,47 +508,40 @@ pub fn open_in_chrome(url: String) -> Result<(), String> {
 // ── Dock / tray icon controls ────────────────────────────────────────
 
 #[tauri::command]
-pub fn set_dock_icon(app: tauri::AppHandle, show: bool) -> Result<bool, String> {
-    #[cfg(target_os = "macos")]
-    {
-        if let Ok(dock) = app.dock() {
-            if show {
-                let _ = dock.show();
-            } else {
-                let _ = dock.hide();
-            }
-        }
-    }
-    let _ = app;
+pub fn set_dock_icon(
+    #[allow(unused)] app: tauri::AppHandle,
+    show: bool,
+    state: tauri::State<'_, SettingsState>,
+) -> Result<bool, String> {
+    // Store the preference in settings
+    let mut settings = state.0.lock().map_err(|e| e.to_string())?;
+    settings.show_dock_icon = show;
+    settings.save()?;
     Ok(show)
 }
 
 #[tauri::command]
-pub fn get_dock_icon_state(_app: tauri::AppHandle) -> bool {
-    #[cfg(target_os = "macos")]
-    {
-        if let Ok(dock) = _app.dock() {
-            return dock.is_visible();
-        }
-    }
-    true
+pub fn get_dock_icon_state(state: tauri::State<'_, SettingsState>) -> bool {
+    let settings = state.0.lock().unwrap_or_else(|e| e.into_inner());
+    settings.show_dock_icon
 }
 
 #[tauri::command]
-pub fn set_menu_bar_icon(app: tauri::AppHandle, show: bool) -> Result<bool, String> {
-    // Toggle tray icon visibility
-    if let Some(tray) = app.tray_by_id("main") {
-        let _ = tray.set_visible(show);
-    }
+pub fn set_menu_bar_icon(
+    #[allow(unused)] app: tauri::AppHandle,
+    show: bool,
+    state: tauri::State<'_, SettingsState>,
+) -> Result<bool, String> {
+    let mut settings = state.0.lock().map_err(|e| e.to_string())?;
+    settings.show_menu_bar_icon = show;
+    settings.save()?;
     Ok(show)
 }
 
 #[tauri::command]
-pub fn get_menu_bar_icon_state(app: tauri::AppHandle) -> bool {
-    if let Some(tray) = app.tray_by_id("main") {
-        return tray.is_visible().unwrap_or(true);
-    }
-    true
+pub fn get_menu_bar_icon_state(state: tauri::State<'_, SettingsState>) -> bool {
+    let settings = state.0.lock().unwrap_or_else(|e| e.into_inner());
+    settings.show_menu_bar_icon
 }
 
 // ── Restart ──────────────────────────────────────────────────────────

@@ -37,9 +37,6 @@
       "icons/icon.icns",
       "icons/icon.ico"
     ],
-    "resources": {
-      "binaries/goosed": "binaries/goosed"
-    },
     "macOS": {
       "entitlements": "Entitlements.plist",
       "signingIdentity": null,

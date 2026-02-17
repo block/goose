@@ -19,9 +19,10 @@ impl Default for WakelockState {
 
 #[cfg(target_os = "macos")]
 pub fn set_wakelock_platform(state: &WakelockState, enable: bool) -> Result<bool, String> {
-    use std::ffi::CString;
+    use core_foundation::base::TCFType;
+    use core_foundation::string::CFString;
 
-    // IOPMAssertionCreateWithName / IOPMAssertionRelease via CoreFoundation
+    // IOPMAssertionCreateWithName / IOPMAssertionRelease via IOKit
     extern "C" {
         fn IOPMAssertionCreateWithName(
             assertion_type: core_foundation::string::CFStringRef,
@@ -38,8 +39,6 @@ pub fn set_wakelock_platform(state: &WakelockState, enable: bool) -> Result<bool
     let mut assertion_id = state.assertion_id.lock().map_err(|e| e.to_string())?;
 
     if enable && !*enabled {
-        use core_foundation::string::CFString;
-
         let assertion_type = CFString::new("PreventUserIdleSystemSleep");
         let reason = CFString::new("Goose wakelock active");
         let mut new_id: u32 = 0;
