@@ -1,3 +1,4 @@
+use std::sync::Mutex;
 use tauri::{Emitter, Listener, Manager};
 
 mod commands;
@@ -5,6 +6,9 @@ mod goosed;
 mod menu;
 mod settings;
 mod tray;
+
+/// Deep links received before the React frontend signals ready.
+pub struct PendingDeepLinks(pub Mutex<Vec<String>>);
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -49,6 +53,7 @@ pub fn run() {
         // State
         .manage(goosed::GoosedState::default())
         .manage(settings::SettingsState::default())
+        .manage(PendingDeepLinks(Mutex::new(Vec::new())))
         // Setup
         .setup(|app| {
             // System tray
@@ -85,11 +90,28 @@ pub fn run() {
                 }
             });
 
-            // Listen for deep links
+            // Listen for deep links — queue them until React is ready
             let app_handle2 = app.handle().clone();
             app.listen("deep-link://new-url", move |event: tauri::Event| {
                 let payload = event.payload();
+                let pending = app_handle2.state::<PendingDeepLinks>();
+                let mut links = pending.0.lock().unwrap();
+                links.push(payload.to_string());
+                // Also try to emit immediately (if React is ready it'll receive it)
                 commands::handle_deep_link(&app_handle2, payload);
+            });
+
+            // Listen for react-ready and dispatch any pending deep links
+            let app_handle3 = app.handle().clone();
+            app.listen("react-ready", move |_event: tauri::Event| {
+                let pending = app_handle3.state::<PendingDeepLinks>();
+                let links: Vec<String> = {
+                    let mut guard = pending.0.lock().unwrap();
+                    guard.drain(..).collect()
+                };
+                for url in links {
+                    commands::handle_deep_link(&app_handle3, &url);
+                }
             });
 
             // Register global shortcuts
