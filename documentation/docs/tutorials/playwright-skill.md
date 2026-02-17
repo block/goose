@@ -1,6 +1,6 @@
 ---
-title: Agentic Testing with Playwright Skill
-description: Use goose with the Playwright CLI agent skill to automate browsers and generate tests using natural language
+title: Agentic Testing with Playwright CLI Skill
+description: Use goose with the Playwright CLI to generate automated tests using natural language
 ---
 
 import Tabs from '@theme/Tabs';
@@ -17,7 +17,11 @@ import GooseBuiltinInstaller from '@site/src/components/GooseBuiltinInstaller';
   allowFullScreen
 ></iframe>
 
-With the [Playwright CLI](https://github.com/microsoft/playwright-cli) skill, goose can navigate websites, click buttons, fill forms, and turn those interactions into Playwright tests, all from plain English. Unlike the Playwright MCP, which sends the full page structure to the LLM on every request, Playwright CLI stores the accessibility tree locally. That means faster responses, lower costs, and no issues with large pages.
+With the [Playwright CLI](https://github.com/microsoft/playwright-cli), goose can navigate websites, click buttons, fill forms, and turn those interactions into Playwright tests, all from natural language. Unlike the Playwright MCP, which sends the full page structure to the LLM on every request, Playwright CLI stores the accessibility tree locally. That means faster responses, lower costs, and no issues with large pages.
+
+## Why as a Skill?
+
+LLMs may not be trained on Playwright's CLI, so when asking an agent to use it, it may hallucinate commands and arguments resulting in errors and wasted tokens. The [Playwright CLI Skill](https://github.com/microsoft/playwright-cli/blob/main/skills/playwright-cli/SKILL.md) teaches goose how to use the CLI and when to invoke specific commands.
 
 ## Prerequisites
 
@@ -30,15 +34,26 @@ With the [Playwright CLI](https://github.com/microsoft/playwright-cli) skill, go
 
 ## Configuration
 
-First, install the Playwright skill in your project directory:
+### Install Skill
+
+1. From the command line, install the Playwright skill in your project directory:
 
 ```bash
 npx skills add https://github.com/microsoft/playwright-cli --skill playwright-cli
 ```
 
-This creates a `.agents/` folder with a SKILL.md file and reference files that teach goose how to use the Playwright CLI capabilities.
+2. Enter `y` when asked to install the skills package
 
-Then, enable the [Skills extension](/docs/mcp/skills-mcp) to allow goose to load and use Agent Skills.
+3. Choose `goose` when asked which agent to install to
+
+4. Choose `Global` scope to be able to use the skill in any project, or `Local` to only have access within the current working directory
+
+5. Choose `Symlink` to have one copy that all of your agents can reference
+
+6. You'll get a confirmation of the installation, choose `Yes` to proceed
+
+### Enable Skills Extension
+In goose, enable the [Skills extension](/docs/mcp/skills-mcp) to load Agent Skills within sessions.
 
 <Tabs groupId="interface">
   <TabItem value="ui" label="goose Desktop" default>
@@ -76,21 +91,25 @@ Then, enable the [Skills extension](/docs/mcp/skills-mcp) to allow goose to load
 Give goose a single prompt that describes what you want to test:
 
 ```
-Open block.github.io/goose, click on the Docs menu, click on Context Engineering, 
+Using the Playwright CLI skill, open block.github.io/goose, click on the Docs menu, click on Context Engineering, 
 then click on Using Skills and generate a test with video and traces
 ```
 
 ### How It Works
 
-Each `playwright-cli` command automatically outputs the corresponding Playwright code. For example:
+Each `playwright-cli` command automatically outputs the corresponding Playwright code. For example, this command:
 
 ```bash
 playwright-cli click e11
-# Ran Playwright code:
-# await page.getByRole('link', { name: 'Docs' }).click();
 ```
 
-### What goose Does
+executes the following Playwright code:
+
+```ts
+await page.getByRole('link', { name: 'Docs' }).click();
+```
+
+### What goose does
 
 1. Opens the browser: `playwright-cli open block.github.io/goose`
 2. Starts recording: `playwright-cli video-start` and `playwright-cli tracing-start`
@@ -139,17 +158,17 @@ goose can even run the test for you to make sure it works as expected. If Playwr
 
 ## Viewing the Video
 
-To see a video of what happened, ask goose:
+To see a video of what happened, prompt goose:
 
 ```
 Show me the video
 ```
 
-goose will open the recorded video so you can see exactly what happened during the session.
+goose will use the CLI to open the recorded video, so you can see exactly what happened during the session.
 
 ## Viewing the Trace
 
-To debug or review what happened, ask goose:
+To debug or review what happened, prompt goose:
 
 ```
 Open the trace
@@ -164,13 +183,13 @@ The trace viewer shows:
 
 ## Visual Dashboard for Multiple Sessions
 
-When you have goose running several browser tasks at once, it can be hard to keep track of what's happening. The visual dashboard gives you a bird's-eye view of all your active browser sessions, letting you watch progress in real-time or jump in and take control when needed.
+When you have goose running several browser tasks at once, it can be hard to keep track of what's happening. The visual dashboard gives you a bird's eye view of all your active browser sessions, letting you watch progress in real time or jump in and take control when needed.
 
-```bash
-show playwright dashboard
+```
+Show playwright dashboard
 ```
 
-From here you can see live previews of every browser goose is controlling. Click into any session to watch it full-size, or take over the mouse and keyboard yourself if goose needs a hand. Press **Escape** when you're done and goose picks up right where you left off.
+From here you can see live previews of every browser goose is controlling. Click into any session to watch it full-size, or take over the mouse and keyboard yourself if goose needs a hand. Press `Escape` when you're done and goose picks up right where you left off.
 
 ## Full Capabilities
 
