@@ -230,6 +230,8 @@ These variables control how goose manages conversation sessions and context.
 | `GOOSE_CLI_SHOW_COST` | Toggles display of model cost estimates in CLI output | "1", "true" (case-insensitive) to enable | false |
 | `GOOSE_AUTO_COMPACT_THRESHOLD` | Set the percentage threshold at which goose [automatically summarizes your session](/docs/guides/sessions/smart-context-management#automatic-compaction). | Float between 0.0 and 1.0 (disabled at 0.0) | 0.8 |
 | `GOOSE_TOOL_CALL_CUTOFF` | Number of tool calls to keep in full detail before summarizing older tool outputs to help maintain efficient context usage  | Integer (e.g., 5, 10, 20) | 10 |
+| `GOOSE_MOIM_MESSAGE_TEXT` | Injects persistent text into goose's [working memory](/docs/guides/using-persistent-instructions) every turn. Useful for behavioral guardrails or persistent reminders. | Any text string | Not set |
+| `GOOSE_MOIM_MESSAGE_FILE` | Path to a file whose contents are injected into goose's [working memory](/docs/guides/using-persistent-instructions) every turn. Supports `~/`. Max 64 KB per file. | File path | Not set |
 
 **Examples**
 
@@ -279,6 +281,12 @@ export GOOSE_AUTO_COMPACT_THRESHOLD=0.6
 
 # Keep more tool calls in full detail (useful for debugging or verbose workflows)
 export GOOSE_TOOL_CALL_CUTOFF=20
+
+# Inject a persistent reminder into goose's working memory every turn
+export GOOSE_MOIM_MESSAGE_TEXT="IMPORTANT: Always run tests before committing changes."
+
+# Load persistent instructions from a file (supports ~/)
+export GOOSE_MOIM_MESSAGE_FILE="~/.goose/guardrails.md"
 ```
 
 ### Model Context Limit Overrides
