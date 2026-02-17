@@ -37,7 +37,7 @@ pub struct AgentCard {
 }
 
 /// Transport interface declaration (proto `AgentInterface` message).
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AgentInterface {
     pub url: String,

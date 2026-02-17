@@ -52,6 +52,8 @@ uuid = { workspace = true }
 once_cell = { workspace = true }
 dirs = { workspace = true }
 tower = { version = "0.5.2", features = ["limit"] }
+a2a = { version = "1.23.0", path = "../a2a", features = ["server", "axum", "client"] }
+async-trait.workspace = true
 
 [target.'cfg(windows)'.dependencies]
 winreg = { version = "0.55.0" }

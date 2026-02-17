@@ -1,3 +1,4 @@
+pub mod a2a;
 pub mod acp_discovery;
 pub mod acp_ide;
 pub mod action_required;
@@ -31,6 +32,7 @@ use axum::Router;
 
 pub fn configure(state: Arc<crate::state::AppState>, secret_key: String) -> Router {
     Router::new()
+        .merge(a2a::routes(state.clone()))
         .merge(acp_discovery::routes(state.clone()))
         .merge(status::routes(state.clone()))
         .merge(reply::routes(state.clone()))
