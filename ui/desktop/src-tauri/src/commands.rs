@@ -509,14 +509,16 @@ pub fn open_in_chrome(url: String) -> Result<(), String> {
 
 #[tauri::command]
 pub fn set_dock_icon(
-    #[allow(unused)] app: tauri::AppHandle,
+    app: tauri::AppHandle,
     show: bool,
     state: tauri::State<'_, SettingsState>,
 ) -> Result<bool, String> {
-    // Store the preference in settings
     let mut settings = state.0.lock().map_err(|e| e.to_string())?;
     settings.show_dock_icon = show;
     settings.save()?;
+
+    crate::dock::set_dock_visible(&app, show);
+
     Ok(show)
 }
 
@@ -528,13 +530,16 @@ pub fn get_dock_icon_state(state: tauri::State<'_, SettingsState>) -> bool {
 
 #[tauri::command]
 pub fn set_menu_bar_icon(
-    #[allow(unused)] app: tauri::AppHandle,
+    app: tauri::AppHandle,
     show: bool,
     state: tauri::State<'_, SettingsState>,
 ) -> Result<bool, String> {
     let mut settings = state.0.lock().map_err(|e| e.to_string())?;
     settings.show_menu_bar_icon = show;
     settings.save()?;
+
+    crate::tray::set_tray_visible(&app, show);
+
     Ok(show)
 }
 

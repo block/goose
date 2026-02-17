@@ -1,14 +1,20 @@
 use tauri::{
+    image::Image,
     menu::{MenuBuilder, MenuItemBuilder, SubmenuBuilder},
     tray::{MouseButton, TrayIconBuilder, TrayIconEvent},
     Emitter, Manager,
 };
 
+const TRAY_ID: &str = "goose-tray";
+
 pub fn create_tray(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
     let menu = build_tray_menu(app)?;
 
-    TrayIconBuilder::new()
-        .icon(app.default_window_icon().unwrap().clone())
+    let icon = load_tray_icon();
+
+    let mut builder = TrayIconBuilder::with_id(TRAY_ID)
+        .icon(icon)
+        .tooltip("Goose")
         .menu(&menu)
         .on_menu_event(handle_tray_menu_event)
         .on_tray_icon_event(|tray, event| {
@@ -23,10 +29,29 @@ pub fn create_tray(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
                     let _ = window.set_focus();
                 }
             }
-        })
-        .build(app)?;
+        });
+
+    #[cfg(target_os = "macos")]
+    {
+        builder = builder.icon_as_template(true);
+    }
+
+    builder.build(app)?;
 
     Ok(())
+}
+
+/// Show or hide the tray icon at runtime.
+pub fn set_tray_visible(app: &tauri::AppHandle, visible: bool) {
+    if let Some(tray) = app.tray_by_id(TRAY_ID) {
+        let _ = tray.set_visible(visible);
+    }
+}
+
+fn load_tray_icon() -> Image<'static> {
+    // Use the macOS-style template icon (monochrome, supports dark/light mode)
+    let icon_bytes = include_bytes!("../icons/iconTemplate@2x.png");
+    Image::from_bytes(icon_bytes).expect("Failed to load tray icon")
 }
 
 fn build_tray_menu(

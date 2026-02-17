@@ -2,6 +2,7 @@ use std::sync::Mutex;
 use tauri::{Emitter, Listener, Manager};
 
 mod commands;
+mod dock;
 mod goosed;
 mod menu;
 mod settings;
@@ -58,20 +59,29 @@ pub fn run() {
         .manage(wakelock::WakelockState::default())
         // Setup
         .setup(|app| {
-            // System tray
+            // Load settings for startup decisions
+            let (show_tray, show_dock, external_config) = {
+                let settings_state = app.state::<settings::SettingsState>();
+                let s = settings_state.0.lock().unwrap();
+                (s.show_menu_bar_icon, s.show_dock_icon, s.external_goosed.clone())
+            };
+
+            // System tray (always create, then hide if setting is off)
             tray::create_tray(app)?;
+            if !show_tray {
+                tray::set_tray_visible(app.handle(), false);
+            }
+
+            // Apply dock icon setting on macOS
+            if !show_dock {
+                dock::set_dock_visible(app.handle(), false);
+            }
 
             // Application menu
             menu::setup_menu(app)?;
 
             // Start goosed backend
             let app_handle = app.handle().clone();
-
-            let external_config = {
-                let settings_state = app.state::<settings::SettingsState>();
-                let s = settings_state.0.lock().unwrap();
-                s.external_goosed.clone()
-            };
 
             tauri::async_runtime::spawn(async move {
                 let goosed_state = app_handle.state::<goosed::GoosedState>();
