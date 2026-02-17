@@ -18,6 +18,7 @@ import {
   PinOff,
   Puzzle,
   Search,
+  Trash2,
   Workflow,
 } from 'lucide-react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
@@ -35,7 +36,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '../ui/colla
 import { Gear } from '../icons';
 import { View, ViewOptions } from '../../utils/navigationUtils';
 import { DEFAULT_CHAT_TITLE, useChatContext } from '../../contexts/ChatContext';
-import { listSessions, Session, updateSessionName } from '../../api';
+import { deleteSession, listSessions, Session, updateSessionName } from '../../api';
 import { resumeSession, startNewSession, shouldShowNewChatTitle } from '../../sessions';
 import { useNavigation } from '../../hooks/useNavigation';
 import { SessionIndicators } from '../SessionIndicators';
@@ -254,7 +255,8 @@ const SessionItem: React.FC<{
     sessionId: string
   ) => { streamState: string; hasUnreadActivity: boolean } | undefined;
   onSessionClick: (session: Session) => void;
-}> = ({ session, isLast, activeSessionId, getSessionStatus, onSessionClick }) => {
+  onDeleteSession?: (sessionId: string) => void;
+}> = ({ session, isLast, activeSessionId, getSessionStatus, onSessionClick, onDeleteSession }) => {
   const status = getSessionStatus(session.id);
   const isStreaming = status?.streamState === 'streaming';
   const hasError = status?.streamState === 'error';
@@ -273,8 +275,14 @@ const SessionItem: React.FC<{
     );
   };
 
+  const handleDelete = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (isStreaming) return;
+    onDeleteSession?.(session.id);
+  };
+
   return (
-    <div className="relative flex items-center">
+    <div className="relative flex items-center group/session">
       <div
         className={`absolute left-0 w-px bg-border-strong ${
           isLast ? 'top-0 h-1/2' : 'top-0 h-full'
@@ -283,7 +291,7 @@ const SessionItem: React.FC<{
       <div className="absolute left-0 w-2 h-px bg-border-strong top-1/2" />
       <button
         onClick={() => onSessionClick(session)}
-        className={`w-full text-left ml-3 px-1.5 py-1.5 pr-2 rounded-md text-sm transition-colors flex items-center gap-1 min-w-0 ${
+        className={`w-full text-left ml-3 px-1.5 py-1.5 pr-7 rounded-md text-sm transition-colors flex items-center gap-1 min-w-0 ${
           activeSessionId === session.id
             ? 'bg-background-medium text-text-default'
             : 'text-text-muted hover:bg-background-medium/50 hover:text-text-default'
@@ -306,6 +314,15 @@ const SessionItem: React.FC<{
         </div>
         <SessionIndicators isStreaming={isStreaming} hasUnread={hasUnread} hasError={hasError} />
       </button>
+      {onDeleteSession && !isStreaming && (
+        <button
+          onClick={handleDelete}
+          className="absolute right-1 top-1/2 -translate-y-1/2 opacity-0 group-hover/session:opacity-100 p-1 hover:bg-background-danger-muted rounded transition-all"
+          title="Delete session"
+        >
+          <Trash2 className="w-3 h-3 text-text-danger" />
+        </button>
+      )}
     </div>
   );
 };
@@ -317,8 +334,9 @@ const SessionList = React.memo<{
     sessionId: string
   ) => { streamState: string; hasUnreadActivity: boolean } | undefined;
   onSessionClick: (session: Session) => void;
+  onDeleteSession: (sessionId: string) => void;
 }>(
-  ({ sessions, activeSessionId, getSessionStatus, onSessionClick }) => {
+  ({ sessions, activeSessionId, getSessionStatus, onSessionClick, onDeleteSession }) => {
     const { pinnedProjects, togglePin, isPinned, toggleCollapsed, isCollapsed } =
       useProjectPreferences();
     const [projectSearch, setProjectSearch] = useState('');
@@ -359,6 +377,7 @@ const SessionList = React.memo<{
               activeSessionId={activeSessionId}
               getSessionStatus={getSessionStatus}
               onSessionClick={onSessionClick}
+              onDeleteSession={onDeleteSession}
             />
           ))}
         </div>
@@ -428,6 +447,7 @@ const SessionList = React.memo<{
                       activeSessionId={activeSessionId}
                       getSessionStatus={getSessionStatus}
                       onSessionClick={onSessionClick}
+                      onDeleteSession={onDeleteSession}
                     />
                   ))}
                 </div>
@@ -711,6 +731,23 @@ const AppSidebar: React.FC<SidebarProps> = ({ currentPath }) => {
     [clearUnread, setView]
   );
 
+  const handleDeleteSession = React.useCallback(
+    async (sessionId: string) => {
+      if (!window.confirm('Delete this session? This cannot be undone.')) return;
+      try {
+        await deleteSession({ path: { session_id: sessionId } });
+        setRecentSessions((prev) => prev.filter((s) => s.id !== sessionId));
+        window.dispatchEvent(new CustomEvent(AppEvents.SESSION_DELETED, { detail: { sessionId } }));
+        if (activeSessionId === sessionId) {
+          navigate('/');
+        }
+      } catch (error) {
+        console.error('Failed to delete session:', error);
+      }
+    },
+    [activeSessionId, navigate]
+  );
+
   const handleViewAllClick = React.useCallback(() => {
     navigate('/sessions');
   }, [navigate]);
@@ -869,6 +906,7 @@ const AppSidebar: React.FC<SidebarProps> = ({ currentPath }) => {
                         activeSessionId={activeSessionId}
                         getSessionStatus={getSessionStatus}
                         onSessionClick={handleSessionClick}
+                        onDeleteSession={handleDeleteSession}
                       />
                       <button
                         onClick={handleViewAllClick}
