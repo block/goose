@@ -10598,5 +10598,45 @@
     "from": "A2A_Crate_Implementation_Summary",
     "to": "A2A_Library_Design_Principles",
     "relationType": "implements"
+  },
+  {
+    "from": "A2A_Goose_Alignment_Assessment",
+    "to": "A2A_Protocol_Spec",
+    "relationType": "analyzes"
+  },
+  {
+    "from": "A2A_Goose_Alignment_Assessment",
+    "to": "Goose_Crate_Structure",
+    "relationType": "analyzes"
+  },
+  {
+    "from": "A2A_Goose_Alignment_Assessment",
+    "to": "A2A_Goose_Integration_Surface",
+    "relationType": "derived_from"
+  },
+  {
+    "from": "A2A_Goose_Alignment_Assessment",
+    "to": "A2A_Follow_Up_Plan",
+    "relationType": "informs"
+  },
+  {
+    "from": "Multi_Protocol_Architecture_Design",
+    "to": "A2A_Crate_Architecture",
+    "relationType": "extends"
+  },
+  {
+    "from": "Multi_Protocol_Architecture_Design",
+    "to": "Goose_ACP_Compat",
+    "relationType": "extends"
+  },
+  {
+    "from": "Multi_Protocol_Architecture_Design",
+    "to": "A2A_Goose_Alignment_Assessment",
+    "relationType": "derived_from"
+  },
+  {
+    "from": "Multi_Protocol_Architecture_Design",
+    "to": "A2A_Protocol_Spec",
+    "relationType": "implements"
   }
 ]
