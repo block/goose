@@ -91,6 +91,12 @@ const navigationZones: NavigationZone[] = [
         icon: Clock,
         tooltip: 'Manage scheduled runs',
       },
+      {
+        path: '/pipelines',
+        label: 'Pipelines',
+        icon: Workflow,
+        tooltip: 'Visual DAG workflow builder',
+      },
     ],
   },
   {

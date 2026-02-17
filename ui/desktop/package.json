@@ -55,6 +55,7 @@
     "@radix-ui/themes": "^3.2.1",
     "@tanstack/react-form": "^1.27.7",
     "@types/react-router-dom": "^5.3.3",
+    "@xyflow/react": "^12.10.0",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "compare-versions": "^6.1.1",
