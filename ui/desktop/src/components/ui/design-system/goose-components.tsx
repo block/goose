@@ -211,6 +211,251 @@ function TabBarComponent({ element, emit }: ComponentRenderProps<{
   );
 }
 
+// ─── Button ─────────────────────────────────────────────────────
+
+function ButtonComponent({ element }: AnyComponentRenderProps) {
+  const p = (element.props || {}) as {
+    label: string;
+    variant?: 'primary' | 'secondary' | 'destructive' | 'ghost';
+    size?: 'sm' | 'md' | 'lg';
+    disabled?: boolean;
+  };
+  const variants: Record<string, string> = {
+    primary: 'bg-accent text-text-on-accent hover:opacity-90',
+    secondary: 'bg-background-muted text-text-default border border-border-default hover:bg-background-active',
+    destructive: 'bg-red-600 text-white hover:opacity-90',
+    ghost: 'text-text-muted hover:bg-background-active hover:text-text-default',
+  };
+  const sizes: Record<string, string> = {
+    sm: 'px-2.5 py-1 text-xs',
+    md: 'px-4 py-2 text-sm',
+    lg: 'px-6 py-3 text-base',
+  };
+  return (
+    <button
+      className={`rounded-lg font-medium transition-colors ${variants[p.variant || 'primary']} ${sizes[p.size || 'md']} ${p.disabled ? 'opacity-50 cursor-not-allowed' : ''}`}
+      disabled={p.disabled}
+    >
+      {p.label}
+    </button>
+  );
+}
+
+// ─── Table ──────────────────────────────────────────────────────
+
+function TableComponent({ element }: AnyComponentRenderProps) {
+  const p = (element.props || {}) as {
+    columns: Array<{ key: string; label: string; align?: 'left' | 'center' | 'right' }>;
+    rows: Array<Record<string, string | number | boolean>>;
+    maxRows?: number;
+    striped?: boolean;
+  };
+  const columns = p.columns || [];
+  const rows = (p.rows || []).slice(0, p.maxRows || 50);
+  return (
+    <div className="overflow-x-auto rounded-lg border border-border-default">
+      <table className="w-full text-sm">
+        <thead>
+          <tr className="bg-background-muted">
+            {columns.map((col) => (
+              <th key={col.key} className={`px-3 py-2 font-medium text-text-default text-${col.align || 'left'}`}>
+                {col.label}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-border-default">
+          {rows.map((row, i) => (
+            <tr key={i} className={`${p.striped && i % 2 === 1 ? 'bg-background-muted/50' : ''} hover:bg-background-active`}>
+              {columns.map((col) => (
+                <td key={col.key} className={`px-3 py-2 text-text-muted text-${col.align || 'left'}`}>
+                  {String(row[col.key] ?? '')}
+                </td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+// ─── Alert ──────────────────────────────────────────────────────
+
+function AlertComponent({ element }: AnyComponentRenderProps) {
+  const p = (element.props || {}) as {
+    title: string;
+    message?: string;
+    severity?: 'info' | 'success' | 'warning' | 'error';
+  };
+  const severity = p.severity || 'info';
+  const styles: Record<string, { border: string; bg: string; icon: string }> = {
+    info: { border: 'border-border-info', bg: 'bg-background-info/10', icon: 'ℹ️' },
+    success: { border: 'border-text-success', bg: 'bg-text-success/10', icon: '✅' },
+    warning: { border: 'border-text-warning', bg: 'bg-text-warning/10', icon: '⚠️' },
+    error: { border: 'border-border-danger', bg: 'bg-background-danger/10', icon: '❌' },
+  };
+  const s = styles[severity] || styles.info;
+  return (
+    <div className={`p-4 rounded-xl border ${s.border} ${s.bg}`}>
+      <div className="flex items-start gap-3">
+        <span className="text-lg">{s.icon}</span>
+        <div>
+          <div className="font-medium text-text-default">{p.title}</div>
+          {p.message && <div className="text-sm text-text-muted mt-1">{p.message}</div>}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Card ───────────────────────────────────────────────────────
+
+function CardComponent({ element, children }: AnyComponentRenderProps) {
+  const p = (element.props || {}) as {
+    title?: string;
+    subtitle?: string;
+    variant?: 'default' | 'outlined' | 'elevated';
+    padding?: 'none' | 'sm' | 'md' | 'lg';
+  };
+  const paddings: Record<string, string> = {
+    none: 'p-0',
+    sm: 'p-3',
+    md: 'p-4',
+    lg: 'p-6',
+  };
+  const variants: Record<string, string> = {
+    default: 'bg-background-default border border-border-default',
+    outlined: 'border-2 border-border-strong',
+    elevated: 'bg-background-default border border-border-default shadow-md',
+  };
+  return (
+    <div className={`rounded-xl ${variants[p.variant || 'default']} ${paddings[p.padding || 'md']}`}>
+      {(p.title || p.subtitle) && (
+        <div className={`${p.padding === 'none' ? 'px-4 pt-4' : ''} mb-3`}>
+          {p.title && <h3 className="font-semibold text-text-default">{p.title}</h3>}
+          {p.subtitle && <p className="text-sm text-text-muted mt-0.5">{p.subtitle}</p>}
+        </div>
+      )}
+      <div>{children}</div>
+    </div>
+  );
+}
+
+// ─── Select ─────────────────────────────────────────────────────
+
+function SelectComponent({ element }: AnyComponentRenderProps) {
+  const p = (element.props || {}) as {
+    label?: string;
+    placeholder?: string;
+    options: Array<{ value: string; label: string; disabled?: boolean }>;
+    value?: string;
+  };
+  return (
+    <div className="space-y-1.5">
+      {p.label && <label className="text-sm font-medium text-text-default">{p.label}</label>}
+      <select
+        className="w-full rounded-lg border border-border-default bg-background-default text-text-default px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-border-accent"
+        defaultValue={p.value || ''}
+      >
+        {p.placeholder && (
+          <option value="" disabled>{p.placeholder}</option>
+        )}
+        {(p.options || []).map((opt) => (
+          <option key={opt.value} value={opt.value} disabled={opt.disabled}>
+            {opt.label}
+          </option>
+        ))}
+      </select>
+    </div>
+  );
+}
+
+// ─── Progress ───────────────────────────────────────────────────
+
+function ProgressComponent({ element }: AnyComponentRenderProps) {
+  const p = (element.props || {}) as {
+    label?: string;
+    value: number;
+    max?: number;
+    color?: 'default' | 'success' | 'warning' | 'danger' | 'info';
+    showValue?: boolean;
+  };
+  const pct = Math.min(100, Math.max(0, ((p.value || 0) / (p.max || 100)) * 100));
+  const colors: Record<string, string> = {
+    default: 'bg-accent',
+    success: 'bg-text-success',
+    warning: 'bg-text-warning',
+    danger: 'bg-text-danger',
+    info: 'bg-text-info',
+  };
+  return (
+    <div className="space-y-1.5">
+      {(p.label || p.showValue !== false) && (
+        <div className="flex justify-between text-sm">
+          {p.label && <span className="text-text-default">{p.label}</span>}
+          {p.showValue !== false && <span className="text-text-muted">{Math.round(pct)}%</span>}
+        </div>
+      )}
+      <div className="h-2 bg-background-muted rounded-full overflow-hidden">
+        <div
+          className={`h-full rounded-full transition-all ${colors[p.color || 'default']}`}
+          style={{ width: `${pct}%` }}
+        />
+      </div>
+    </div>
+  );
+}
+
+// ─── CodeBlock ──────────────────────────────────────────────────
+
+function CodeBlockComponent({ element }: AnyComponentRenderProps) {
+  const p = (element.props || {}) as {
+    code: string;
+    language?: string;
+    title?: string;
+  };
+  return (
+    <div className="rounded-lg overflow-hidden border border-border-default">
+      {(p.title || p.language) && (
+        <div className="bg-background-muted px-3 py-1.5 text-xs text-text-muted border-b border-border-default flex justify-between">
+          {p.title && <span>{p.title}</span>}
+          {p.language && <span className="text-text-muted/60">{p.language}</span>}
+        </div>
+      )}
+      <pre className="bg-background-default p-3 text-sm text-text-default overflow-x-auto">
+        <code>{p.code}</code>
+      </pre>
+    </div>
+  );
+}
+
+// ─── Input ──────────────────────────────────────────────────────
+
+function InputComponent({ element }: AnyComponentRenderProps) {
+  const p = (element.props || {}) as {
+    label?: string;
+    placeholder?: string;
+    type?: 'text' | 'number' | 'email' | 'password' | 'url';
+    value?: string;
+    disabled?: boolean;
+    helperText?: string;
+  };
+  return (
+    <div className="space-y-1.5">
+      {p.label && <label className="text-sm font-medium text-text-default">{p.label}</label>}
+      <input
+        type={p.type || 'text'}
+        placeholder={p.placeholder}
+        defaultValue={p.value}
+        disabled={p.disabled}
+        className={`w-full rounded-lg border border-border-default bg-background-default text-text-default px-3 py-2 text-sm placeholder:text-text-muted focus:outline-none focus:ring-2 focus:ring-border-accent ${p.disabled ? 'opacity-50 cursor-not-allowed' : ''}`}
+      />
+      {p.helperText && <p className="text-xs text-text-muted">{p.helperText}</p>}
+    </div>
+  );
+}
+
 // ─── Error-Isolated Registry ────────────────────────────────────
 
 type AnyComponentRenderProps = ComponentRenderProps<Record<string, unknown>>;
@@ -244,6 +489,14 @@ const rawComponents: Record<string, React.ComponentType<AnyComponentRenderProps>
   ErrorState: ErrorStateComponent as React.ComponentType<AnyComponentRenderProps>,
   SearchInput: SearchInputComponent as React.ComponentType<AnyComponentRenderProps>,
   TabBar: TabBarComponent as React.ComponentType<AnyComponentRenderProps>,
+  Button: ButtonComponent as React.ComponentType<AnyComponentRenderProps>,
+  Table: TableComponent as React.ComponentType<AnyComponentRenderProps>,
+  Alert: AlertComponent as React.ComponentType<AnyComponentRenderProps>,
+  Card: CardComponent as React.ComponentType<AnyComponentRenderProps>,
+  Select: SelectComponent as React.ComponentType<AnyComponentRenderProps>,
+  Progress: ProgressComponent as React.ComponentType<AnyComponentRenderProps>,
+  CodeBlock: CodeBlockComponent as React.ComponentType<AnyComponentRenderProps>,
+  Input: InputComponent as React.ComponentType<AnyComponentRenderProps>,
 };
 
 export const gooseComponents: Record<string, React.ComponentType<AnyComponentRenderProps>> =

@@ -68,11 +68,12 @@ export function getGooseUIPromptInstructions(): string {
   }
 }
 
-Available components:
+Available components (23):
 
 LAYOUT:
 - Stack: direction ("vertical"|"horizontal"), gap ("sm"|"md"|"lg"), align ("start"|"center"|"end")
 - Grid: columns (1-4), gap ("sm"|"md"|"lg")
+- Card: title, subtitle, variant ("default"|"outlined"|"elevated"), padding ("none"|"sm"|"md"|"lg") — supports children
 
 DISPLAY:
 - PageHeader: title (required), description, badge
@@ -81,10 +82,18 @@ DISPLAY:
 - Text: content (required), variant ("body"|"heading"|"label"|"caption"|"code"), color ("default"|"muted"|"accent"|"success"|"warning"|"danger")
 - Badge: text (required), variant ("success"|"warning"|"danger"|"info")
 - Separator: orientation ("horizontal"|"vertical")
+- CodeBlock: code (required), language, title
+- Progress: value (required), max (default 100), label, color ("default"|"success"|"warning"|"danger"|"info"), showValue (boolean)
+
+DATA:
+- Table: columns (array of {key, label, align?}), rows (array of records), maxRows, striped (boolean)
 
 LISTS:
 - ListItem: title (required), description, status ("active"|"inactive"|"error"|"loading"), indent (number)
 - TreeItem: label (required), badge, childCount, defaultExpanded (boolean), indent — supports children
+
+FEEDBACK:
+- Alert: title (required), message, severity ("info"|"success"|"warning"|"error")
 
 STATES:
 - EmptyState: title, description
@@ -92,6 +101,9 @@ STATES:
 - ErrorState: title, message
 
 INPUT:
+- Button: label (required), variant ("primary"|"secondary"|"destructive"|"ghost"), size ("sm"|"md"|"lg"), disabled (boolean)
+- Input: label, placeholder, type ("text"|"number"|"email"|"password"|"url"), value, disabled, helperText
+- Select: label, placeholder, options (array of {value, label, disabled?}), value
 - SearchInput: placeholder, value, debounceMs
 - TabBar: tabs (array of {id, label, group?, badge?}), activeTab, variant ("default"|"pill"|"underline")
 
@@ -101,5 +113,8 @@ RULES:
 - children are arrays of element IDs (strings), not inline objects
 - Use Grid with StatCards for dashboards
 - Use Stack direction="vertical" as default layout
-- Always wrap multiple items in a Stack or Grid`;
+- Always wrap multiple items in a Stack or Grid
+- Use Card to group related content with a title
+- Use Table for structured data display
+- Use Alert for status messages and notifications`;
 }
