@@ -20,13 +20,8 @@ export const saveRecipe = async (recipe: Recipe, recipeId?: string | null): Prom
 };
 
 export const listSavedRecipes = async (): Promise<RecipeManifest[]> => {
-  try {
-    const listRecipeResponse = await listRecipes();
-    return listRecipeResponse?.data?.manifests ?? [];
-  } catch (error) {
-    console.warn('Failed to list saved recipes:', error);
-    return [];
-  }
+  const listRecipeResponse = await listRecipes();
+  return listRecipeResponse?.data?.manifests ?? [];
 };
 
 const parseLastModified = (val: string | Date): Date => {
