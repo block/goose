@@ -17,32 +17,6 @@ use tokio_util::sync::CancellationToken;
 pub static EXTENSION_NAME: &str = "reader";
 const MAX_FILE_BYTES: u64 = 256 * 1024;
 const MAX_DIR_ENTRIES: usize = 2000;
-const IGNORED_DIRS: &[&str] = &[
-    ".git",
-    "node_modules",
-    "target",
-    "__pycache__",
-    ".venv",
-    "venv",
-    ".tox",
-    ".mypy_cache",
-    ".pytest_cache",
-    "dist",
-    "build",
-    ".next",
-    ".nuxt",
-    ".output",
-    "coverage",
-    ".gradle",
-    ".idea",
-    ".vs",
-    ".vscode",
-    ".eggs",
-    ".cache",
-    "vendor",
-];
-const IGNORED_FILES: &[&str] = &[".DS_Store", "Thumbs.db"];
-const IGNORED_SUFFIXES: &[&str] = &[".min.js", ".min.css", ".map", ".lock"];
 
 #[derive(Debug, Deserialize, JsonSchema)]
 struct ReadParams {
@@ -105,16 +79,26 @@ fn read_file(
         ))]);
     }
     let mut buf = Vec::new();
-    fs::File::open(path)
+    let bytes_read = fs::File::open(path)
         .map_err(|e| format!("Cannot open '{}': {e}", path.display()))?
-        .take(MAX_FILE_BYTES)
+        .take(MAX_FILE_BYTES + 1)
         .read_to_end(&mut buf)
         .map_err(|e| format!("Read error: {e}"))?;
+    let truncated = bytes_read as u64 > MAX_FILE_BYTES;
+    if truncated {
+        buf.truncate(MAX_FILE_BYTES as usize);
+    }
     let raw = String::from_utf8_lossy(&buf);
     let lines: Vec<&str> = raw.lines().collect();
     let total = lines.len();
+    // Fix 3: Validate view_range values are non-negative before casting
     let te_range = match view_range.as_deref() {
-        Some([a, b]) => Some((*a as usize, *b)),
+        Some([a, b]) => {
+            if *a < 0 {
+                return Err("view_range start must be non-negative".into());
+            }
+            Some((*a as usize, *b))
+        }
         Some(r) => {
             return Err(format!(
                 "view_range must have exactly 2 elements, got {}",
@@ -124,17 +108,12 @@ fn read_file(
         None => None,
     };
     let (s, e) = text_editor::calculate_view_range(te_range, total).map_err(|e| e.message)?;
-    Ok(vec![Content::text(text_editor::format_file_content(
-        path, &lines, s, e, te_range,
-    ))])
-}
-
-fn should_ignore(name: &str, is_dir: bool) -> bool {
-    if is_dir {
-        IGNORED_DIRS.contains(&name)
-    } else {
-        IGNORED_FILES.contains(&name) || IGNORED_SUFFIXES.iter().any(|s| name.ends_with(s))
+    let mut content = text_editor::format_file_content(path, &lines, s, e, te_range);
+    // Fix 1: Append truncation notice if file was truncated
+    if truncated {
+        content.push_str("\n[truncated at 256KB]");
     }
+    Ok(vec![Content::text(content)])
 }
 
 fn read_directory(path: &Path, max_depth: u32) -> Vec<Content> {
@@ -159,7 +138,12 @@ fn build_tree(
         return;
     }
     let Ok(rd) = fs::read_dir(dir) else { return };
-    let mut entries: Vec<fs::DirEntry> = rd.filter_map(|e| e.ok()).collect();
+    // Fix 2: Cap entries during iteration instead of collecting all then truncating
+    let mut entries: Vec<fs::DirEntry> = rd
+        .filter_map(|e| e.ok())
+        .take(MAX_DIR_ENTRIES + 1 - c.2.min(MAX_DIR_ENTRIES))
+        .collect();
+    let had_more = entries.len() > MAX_DIR_ENTRIES.saturating_sub(c.2);
     entries.sort_by_key(|e| e.file_name());
     let n = entries.len();
     for (i, entry) in entries.iter().enumerate() {
@@ -178,9 +162,6 @@ fn build_tree(
             }
         );
         if path.is_dir() {
-            if should_ignore(&name, true) {
-                continue;
-            }
             c.1 += 1;
             c.2 += 1;
             if c.2 > MAX_DIR_ENTRIES {
@@ -192,9 +173,6 @@ fn build_tree(
                 build_tree(&path, depth + 1, max_depth, out, c);
             }
         } else if path.is_file() {
-            if should_ignore(&name, false) {
-                continue;
-            }
             c.0 += 1;
             c.2 += 1;
             if c.2 > MAX_DIR_ENTRIES {
@@ -209,6 +187,9 @@ fn build_tree(
             };
             out.push_str(&format!("{pfx}{name:<40} {sz_s}\n"));
         }
+    }
+    if had_more && !c.3 {
+        c.3 = true;
     }
 }
 

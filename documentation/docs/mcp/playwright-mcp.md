@@ -60,10 +60,6 @@ Let's use goose with the Playwright extension to create a cross-browser testing 
 2. Generate maintainable test code
 3. Capture screenshots for visual comparison
 
-:::info LLM
-Anthropic's Claude 4 Sonnet was used for this task.
-:::
-
 ### goose Prompt
 ```
 Test the random redesign generator app (https://blackgirlbytes.github.io/random-redesign-picker/) 

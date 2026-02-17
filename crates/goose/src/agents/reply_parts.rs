@@ -8,7 +8,7 @@ use serde_json::{json, Value};
 use tracing::debug;
 
 use super::super::agents::Agent;
-use crate::agents::code_execution_extension::EXTENSION_NAME as CODE_EXECUTION_EXTENSION;
+use crate::agents::platform_extensions::code_execution;
 use crate::conversation::message::{Message, MessageContent, ToolRequest};
 use crate::conversation::Conversation;
 use crate::providers::base::{stream_from_single_message, MessageStream, Provider, ProviderUsage};
@@ -146,7 +146,7 @@ impl Agent {
 
         let code_execution_active = self
             .extension_manager
-            .is_extension_enabled(CODE_EXECUTION_EXTENSION)
+            .is_extension_enabled(code_execution::EXTENSION_NAME)
             .await;
         if code_execution_active {
             tools.retain(|tool| {

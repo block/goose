@@ -191,7 +191,10 @@ impl ProviderDef for MockCompactionProvider {
         }
     }
 
-    fn from_env(_model: ModelConfig) -> futures::future::BoxFuture<'static, anyhow::Result<Self>> {
+    fn from_env(
+        _model: ModelConfig,
+        _extensions: Vec<goose::config::ExtensionConfig>,
+    ) -> futures::future::BoxFuture<'static, anyhow::Result<Self>> {
         Box::pin(async { Ok(Self::new()) })
     }
 }

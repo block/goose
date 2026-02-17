@@ -1,7 +1,7 @@
 use anyhow::Result;
 use fs_err as fs;
 use goose::agents::extension::{Envs, PLATFORM_EXTENSIONS};
-use goose::agents::{Agent, AgentConfig, ExtensionConfig, SessionConfig};
+use goose::agents::{Agent, AgentConfig, ExtensionConfig, GoosePlatform, SessionConfig};
 use goose::builtin_extension::register_builtin_extensions;
 use goose::config::base::CONFIG_YAML_NAME;
 use goose::config::extensions::get_enabled_extensions_with_config;
@@ -325,6 +325,7 @@ impl GooseAcpAgent {
             None,
             self.goose_mode,
             self.disable_session_naming,
+            GoosePlatform::GooseCli,
         ));
         let agent = Arc::new(agent);
 
@@ -740,7 +741,7 @@ impl GooseAcpAgent {
                 goose::model::ModelConfig::new(&model_id)?
             }
         };
-        let provider = (self.provider_factory)(model_config).await?;
+        let provider = (self.provider_factory)(model_config, Vec::new()).await?;
         agent.update_provider(provider.clone(), &session.id).await?;
         Ok(provider)
     }
@@ -958,9 +959,11 @@ impl GooseAcpAgent {
         let model_config = goose::model::ModelConfig::new(model_id).map_err(|e| {
             sacp::Error::invalid_params().data(format!("Invalid model config: {}", e))
         })?;
-        let provider = (self.provider_factory)(model_config).await.map_err(|e| {
-            sacp::Error::internal_error().data(format!("Failed to create provider: {}", e))
-        })?;
+        let provider = (self.provider_factory)(model_config, Vec::new())
+            .await
+            .map_err(|e| {
+                sacp::Error::internal_error().data(format!("Failed to create provider: {}", e))
+            })?;
 
         let agent = {
             let sessions = self.sessions.lock().await;
