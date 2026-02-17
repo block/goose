@@ -14,7 +14,8 @@ export default function PromptBar() {
   const inputRef = useRef<HTMLInputElement>(null);
 
   const isOnPairRoute = location.pathname === '/pair';
-  const isHidden = isOnPairRoute || !promptBar?.showPromptBar;
+  const isOnHubRoute = location.pathname === '/' || location.pathname === '';
+  const isHidden = isOnPairRoute || isOnHubRoute || !promptBar?.showPromptBar;
 
   const config = promptBar?.config;
   const slashCommands = useMemo(() => promptBar?.slashCommands ?? [], [promptBar?.slashCommands]);
