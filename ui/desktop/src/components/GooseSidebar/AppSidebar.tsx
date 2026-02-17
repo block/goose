@@ -77,7 +77,7 @@ const navigationZones: NavigationZone[] = [
     id: 'workflows',
     label: 'Workflows',
     icon: Workflow,
-    route: '/recipes',
+    route: '/workflows',
     items: [
       {
         path: '/recipes',
