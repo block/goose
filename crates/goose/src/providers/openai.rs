@@ -339,8 +339,9 @@ impl Provider for OpenAiProvider {
                     }
                 }))
             } else {
-                let json: serde_json::Value = response.json().await
-                    .map_err(|e| ProviderError::RequestFailed(format!("Failed to parse JSON: {}", e)))?;
+                let json: serde_json::Value = response.json().await.map_err(|e| {
+                    ProviderError::RequestFailed(format!("Failed to parse JSON: {}", e))
+                })?;
 
                 let responses_api_response: ResponsesApiResponse =
                     serde_json::from_value(json.clone()).map_err(|e| {
@@ -352,9 +353,13 @@ impl Provider for OpenAiProvider {
 
                 let message = responses_api_to_message(&responses_api_response)?;
                 let usage_data = get_responses_usage(&responses_api_response);
-                let usage = super::base::ProviderUsage::new(model_config.model_name.clone(), usage_data);
+                let usage =
+                    super::base::ProviderUsage::new(model_config.model_name.clone(), usage_data);
 
-                log.write(&serde_json::to_value(&message).unwrap_or_default(), Some(&usage_data))?;
+                log.write(
+                    &serde_json::to_value(&message).unwrap_or_default(),
+                    Some(&usage_data),
+                )?;
 
                 Ok(super::base::stream_from_single_message(message, usage))
             }
@@ -385,16 +390,22 @@ impl Provider for OpenAiProvider {
             if self.supports_streaming {
                 stream_openai_compat(response, log)
             } else {
-                let json: serde_json::Value = response.json().await
-                    .map_err(|e| ProviderError::RequestFailed(format!("Failed to parse JSON: {}", e)))?;
+                let json: serde_json::Value = response.json().await.map_err(|e| {
+                    ProviderError::RequestFailed(format!("Failed to parse JSON: {}", e))
+                })?;
 
-                let message = response_to_message(&json)
-                    .map_err(|e| ProviderError::RequestFailed(format!("Failed to parse message: {}", e)))?;
+                let message = response_to_message(&json).map_err(|e| {
+                    ProviderError::RequestFailed(format!("Failed to parse message: {}", e))
+                })?;
 
                 let usage_data = get_usage(json.get("usage").unwrap_or(&serde_json::Value::Null));
-                let usage = super::base::ProviderUsage::new(model_config.model_name.clone(), usage_data);
+                let usage =
+                    super::base::ProviderUsage::new(model_config.model_name.clone(), usage_data);
 
-                log.write(&serde_json::to_value(&message).unwrap_or_default(), Some(&usage_data))?;
+                log.write(
+                    &serde_json::to_value(&message).unwrap_or_default(),
+                    Some(&usage_data),
+                )?;
 
                 Ok(super::base::stream_from_single_message(message, usage))
             }
