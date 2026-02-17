@@ -1,3 +1,26 @@
+// =============================================================================
+// Domain-organized facade modules (new, preferred import paths)
+// =============================================================================
+// These provide organized access to agent subsystems. All existing flat imports
+// continue to work — these are additive facades, not replacements.
+
+/// Core agent runtime — Agent struct, config, prompt management, retry logic
+pub mod core;
+/// Extension management — ExtensionManager, ExtensionConfig, built-in extensions
+pub mod extensions;
+/// Orchestration — delegation strategies, sub-agent management
+pub mod orchestration;
+/// Agent persona definitions — data-driven configurations (GooseAgent, DeveloperAgent, etc.)
+pub mod personas;
+/// Message routing — IntentRouter, UniversalMode, routing evaluation
+pub mod routing;
+/// Tool management — registry, filtering, output tools
+pub mod tools;
+
+// =============================================================================
+// Original flat module declarations (preserved for backward compatibility)
+// =============================================================================
+
 mod agent;
 pub(crate) mod apps_extension;
 pub(crate) mod builtin_skills;
@@ -40,6 +63,10 @@ pub mod tool_filter;
 pub mod tool_registry;
 pub mod types;
 pub mod universal_mode;
+
+// =============================================================================
+// Top-level re-exports (preserved for backward compatibility)
+// =============================================================================
 
 pub use agent::{Agent, AgentConfig, AgentEvent, ExtensionLoadResult};
 pub use container::Container;
