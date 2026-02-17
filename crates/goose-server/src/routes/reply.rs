@@ -11,7 +11,7 @@ use axum::{
 };
 use bytes::Bytes;
 use futures::{stream::StreamExt, Stream};
-use goose::agents::orchestrator_agent::OrchestratorAgent;
+use goose::agents::orchestrator_agent::{aggregate_results, OrchestratorAgent};
 use goose::agents::{AgentEvent, SessionConfig};
 use goose::conversation::message::{Message, MessageContent, RoutingInfo, TokenState};
 use goose::conversation::Conversation;
@@ -409,6 +409,109 @@ pub async fn reply(
                     let _ = stream_event(
                         MessageEvent::Finish {
                             reason: "plan_complete".to_string(),
+                            token_state,
+                        },
+                        &task_tx,
+                        &task_cancel,
+                    )
+                    .await;
+
+                    return;
+                }
+
+                // Compound execution: fan out sub-tasks sequentially, aggregate results
+                if plan.is_compound && plan.tasks.len() > 1 {
+                    tracing::info!(
+                        task_count = plan.tasks.len(),
+                        "Executing compound request with sequential fan-out"
+                    );
+
+                    let mut sub_results: Vec<String> = Vec::new();
+
+                    for (i, sub_task) in plan.tasks.iter().enumerate() {
+                        tracing::info!(
+                            sub_task_index = i,
+                            agent = %sub_task.routing.agent_name,
+                            mode = %sub_task.routing.mode_slug,
+                            "Executing compound sub-task"
+                        );
+
+                        // Reconfigure agent for this sub-task's routing
+                        let sub_plan = goose::agents::orchestrator_agent::OrchestratorPlan::single(
+                            sub_task.routing.clone(),
+                        );
+                        router.apply_routing(&agent, &sub_plan).await;
+
+                        // Create a synthetic user message with the sub-task description
+                        let sub_message = Message::user().with_text(&sub_task.sub_task_description);
+
+                        let sub_config = SessionConfig {
+                            id: format!("{}-sub-{}", session_id, i),
+                            schedule_id: session.schedule_id.clone(),
+                            max_turns: None,
+                            retry_config: None,
+                        };
+
+                        // Execute the sub-task
+                        match agent
+                            .reply(sub_message, sub_config, Some(task_cancel.clone()))
+                            .await
+                        {
+                            Ok(mut stream) => {
+                                let mut result_text = String::new();
+                                while let Some(event) = stream.next().await {
+                                    match event {
+                                        Ok(AgentEvent::Message(msg)) => {
+                                            for content in &msg.content {
+                                                if let MessageContent::Text(t) = content {
+                                                    result_text.push_str(&t.text);
+                                                }
+                                            }
+                                        }
+                                        Ok(_) => {} // skip non-message events for sub-tasks
+                                        Err(e) => {
+                                            tracing::warn!(
+                                                sub_task_index = i,
+                                                error = %e,
+                                                "Sub-task execution error"
+                                            );
+                                            result_text = format!("Error: {}", e);
+                                            break;
+                                        }
+                                    }
+                                }
+                                sub_results.push(result_text);
+                            }
+                            Err(e) => {
+                                tracing::error!(
+                                    sub_task_index = i,
+                                    error = %e,
+                                    "Failed to start sub-task"
+                                );
+                                sub_results.push(format!("Failed: {}", e));
+                            }
+                        }
+                    }
+
+                    // Aggregate and stream the combined result
+                    let aggregated = aggregate_results(&plan.tasks, &sub_results);
+                    let aggregated_message = Message::assistant().with_text(&aggregated);
+
+                    let token_state = get_token_state(state.session_manager(), &session_id).await;
+
+                    let _ = stream_event(
+                        MessageEvent::Message {
+                            message: aggregated_message,
+                            token_state: token_state.clone(),
+                        },
+                        &task_tx,
+                        &task_cancel,
+                    )
+                    .await;
+
+                    let _ = stream_event(
+                        MessageEvent::Finish {
+                            reason: "compound_complete".to_string(),
                             token_state,
                         },
                         &task_tx,
