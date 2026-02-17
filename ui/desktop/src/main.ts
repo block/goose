@@ -45,7 +45,7 @@ import { UPDATES_ENABLED } from './updates';
 import './utils/recipeHash';
 import { Client, createClient, createConfig } from './api/client';
 import { GooseApp } from './api';
-// React DevTools installed via Electron's native session.extensions API (see createWindow)
+import installExtension, { REACT_DEVELOPER_TOOLS } from 'electron-devtools-installer';
 import { BLOCKED_PROTOCOLS, WEB_PROTOCOLS } from './utils/urlSecurity';
 
 function shouldSetupUpdater(): boolean {
@@ -535,27 +535,9 @@ const createChat = async (
   });
 
   if (!app.isPackaged) {
-    // Load React DevTools using Electron's native API (avoids deprecated session API warnings)
-    const reactDevToolsPath = path.join(
-      os.homedir(),
-      ...(process.platform === 'darwin'
-        ? ['Library', 'Application Support', 'Google', 'Chrome', 'Default', 'Extensions', 'fmkadmapgofadopljbjfkapdkoienihi']
-        : ['.config', 'google-chrome', 'Default', 'Extensions', 'fmkadmapgofadopljbjfkapdkoienihi'])
-    );
-    if (fsSync.existsSync(reactDevToolsPath)) {
-      const versions = fsSync.readdirSync(reactDevToolsPath).sort();
-      const latestVersion = versions[versions.length - 1];
-      if (latestVersion) {
-        session.defaultSession.extensions
-          .loadExtension(path.join(reactDevToolsPath, latestVersion), {
-            allowFileAccess: true,
-          })
-          .then(() => log.info('added react dev tools'))
-          .catch((err: Error) => log.info('failed to install react dev tools:', err));
-      }
-    } else {
-      log.info('React DevTools not found - install the Chrome extension to enable');
-    }
+    installExtension(REACT_DEVELOPER_TOOLS)
+      .then((ext) => log.info(`Added extension: ${ext.name}`))
+      .catch((err: Error) => log.info('Failed to install React DevTools:', err));
   }
 
   const goosedClient = createClient(
