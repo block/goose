@@ -63,8 +63,8 @@ interface UpdaterEvent {
   data?: unknown;
 }
 
-// Store unlisten functions for event cleanup
-const unlistenMap = new Map<string, Map<Function, UnlistenFn>>();
+// Store unlisten promises for event cleanup (stored immediately to avoid race conditions)
+const unlistenMap = new Map<string, Map<Function, Promise<UnlistenFn>>>();
 
 // Detect platform from navigator
 function detectPlatform(): string {
@@ -341,30 +341,27 @@ export const tauriBridge = {
   // ── Events ──────────────────────────────────────────────────────────
 
   on: (channel: string, callback: (...args: any[]) => void) => {
-    const wrappedCallback = (_event: any, ...args: any[]) => {
-      // For Tauri events, the payload is in event.payload
-      // Mimic Electron's IPC by passing a fake event + payload
-      const payload = _event?.payload;
-      callback({ sender: null, preventDefault: () => {} }, ...(Array.isArray(payload) ? payload : [payload]));
-    };
+    if (!unlistenMap.has(channel)) {
+      unlistenMap.set(channel, new Map());
+    }
 
-    listen(channel, (event) => {
-      wrappedCallback(event);
-    }).then((unlisten) => {
-      if (!unlistenMap.has(channel)) {
-        unlistenMap.set(channel, new Map());
-      }
-      unlistenMap.get(channel)!.set(callback, unlisten);
+    // Store the promise immediately to avoid race conditions with off()
+    const unlistenPromise = listen(channel, (event) => {
+      const payload = event?.payload;
+      callback({ sender: null, preventDefault: () => {} }, ...(Array.isArray(payload) ? payload : [payload]));
     });
+
+    unlistenMap.get(channel)!.set(callback, unlistenPromise);
   },
 
   off: (channel: string, callback: (...args: any[]) => void) => {
     const channelMap = unlistenMap.get(channel);
     if (channelMap) {
-      const unlisten = channelMap.get(callback);
-      if (unlisten) {
-        unlisten();
+      const unlistenPromise = channelMap.get(callback);
+      if (unlistenPromise) {
         channelMap.delete(callback);
+        // Await the promise to ensure we unlisten even if listen() hasn't resolved yet
+        unlistenPromise.then((unlisten) => unlisten());
       }
     }
   },
