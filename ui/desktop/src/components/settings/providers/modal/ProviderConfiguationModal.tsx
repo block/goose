@@ -41,9 +41,7 @@ export default function ProviderConfigurationModal({
   const [error, setError] = useState<string | null>(null);
   const [isOAuthLoading, setIsOAuthLoading] = useState(false);
 
-  const requiredParameters = provider.metadata.config_keys.filter(
-    (param) => param.required === true
-  );
+  const primaryParameters = provider.metadata.config_keys.filter((param) => param.primary);
 
   // Check if this provider uses OAuth for configuration
   const isOAuthProvider = provider.metadata.config_keys.some((key) => key.oauth_flow);
@@ -107,8 +105,7 @@ export default function ProviderConfigurationModal({
       Object.entries(configValues)
         .filter(
           ([_k, entry]) =>
-            !!entry.value ||
-            (entry.serverValue != null && typeof entry.serverValue === 'string')
+            !!entry.value || (entry.serverValue != null && typeof entry.serverValue === 'string')
         )
         .map(([k, entry]) => [
           k,
@@ -239,7 +236,7 @@ export default function ProviderConfigurationModal({
                     validationErrors={validationErrors}
                   />
 
-                  {requiredParameters.length > 0 &&
+                  {primaryParameters.length > 0 &&
                     provider.metadata.config_keys &&
                     provider.metadata.config_keys.length > 0 && <SecureStorageNotice />}
                 </>
@@ -261,7 +258,7 @@ export default function ProviderConfigurationModal({
               </div>
             ) : (
               <ProviderSetupActions
-                requiredParameters={requiredParameters}
+                primaryParameters={primaryParameters}
                 onCancel={handleCancel}
                 onSubmit={handleSubmitForm}
                 onDelete={handleDelete}
