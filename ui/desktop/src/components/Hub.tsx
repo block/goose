@@ -17,7 +17,7 @@ import { AppEvents } from '../constants/events';
 
 import { useState, useEffect, useCallback } from 'react';
 import { SessionInsights } from './sessions/SessionsInsights';
-import ChatInput from './ChatInput';
+
 import { ChatState } from '../types/chatState';
 import 'react-toastify/dist/ReactToastify.css';
 import { View, ViewOptions } from '../utils/navigationUtils';
@@ -37,7 +37,7 @@ export default function Hub({
   setView: (view: View, viewOptions?: ViewOptions) => void;
 }) {
   const { extensionsList } = useConfig();
-  const [workingDir, setWorkingDir] = useState(getInitialWorkingDir());
+  const [workingDir] = useState(getInitialWorkingDir());
   const [isCreatingSession, setIsCreatingSession] = useState(false);
 
   const handleSubmit = useCallback(async (input: UserInput) => {
@@ -86,34 +86,13 @@ export default function Hub({
 
   return (
     <div className="flex flex-col h-full min-h-0 bg-background-muted">
-      <div className="flex-1 flex flex-col min-h-[45vh] overflow-hidden mb-0.5 relative">
+      <div className="flex-1 flex flex-col overflow-hidden relative">
         <SessionInsights />
         {isCreatingSession && (
           <div className="absolute bottom-1 left-4 z-20 pointer-events-none">
             <LoadingGoose chatState={ChatState.LoadingConversation} />
           </div>
         )}
-      </div>
-
-      <div className="flex-shrink-0 max-h-[50vh] min-h-0 overflow-hidden flex flex-col">
-        <ChatInput
-          sessionId={null}
-          handleSubmit={handleSubmit}
-          chatState={isCreatingSession ? ChatState.LoadingConversation : ChatState.Idle}
-          onStop={() => {}}
-          initialValue=""
-          setView={setView}
-          totalTokens={0}
-          accumulatedInputTokens={0}
-          accumulatedOutputTokens={0}
-          droppedFiles={[]}
-          onFilesProcessed={() => {}}
-          messages={[]}
-          disableAnimation={false}
-          sessionCosts={undefined}
-          toolCount={0}
-          onWorkingDirChange={setWorkingDir}
-        />
       </div>
     </div>
   );
