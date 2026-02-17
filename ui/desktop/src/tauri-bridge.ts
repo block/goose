@@ -6,7 +6,7 @@
  */
 import { invoke } from '@tauri-apps/api/core';
 import { listen, emit, type UnlistenFn } from '@tauri-apps/api/event';
-import { getCurrentWindow } from '@tauri-apps/api/window';
+import { getCurrentWindow, type DragDropEvent } from '@tauri-apps/api/window';
 import { open, save, message, confirm } from '@tauri-apps/plugin-dialog';
 import { sendNotification } from '@tauri-apps/plugin-notification';
 import { openUrl, revealItemInDir } from '@tauri-apps/plugin-opener';
@@ -68,6 +68,9 @@ const unlistenMap = new Map<string, Map<Function, Promise<UnlistenFn>>>();
 
 // Module-level state for the updater
 let pendingUpdate: Update | null = null;
+
+// Map filenames to full paths from Tauri drag-drop events
+const dragDropPathMap = new Map<string, string>();
 
 // Detect platform from navigator
 function detectPlatform(): string {
@@ -184,8 +187,10 @@ export const tauriBridge = {
     invoke<boolean>('open_directory_in_explorer', { directoryPath }),
 
   getPathForFile: (file: File) => {
-    // In Tauri, use the file's webkitRelativePath or name as a fallback
-    // The webview provides native file paths via drag events
+    // Look up the full path from our drag-drop map first
+    const fullPath = dragDropPathMap.get(file.name);
+    if (fullPath) return fullPath;
+    // Fallback to Electron-style .path property or name
     return (file as any).path || file.name;
   },
 
@@ -414,4 +419,15 @@ export const appConfigBridge = {
 
 export async function initTauriBridge(): Promise<void> {
   await loadConfig();
+
+  // Listen for Tauri drag-drop events to capture full file paths
+  getCurrentWindow().onDragDropEvent((event: DragDropEvent) => {
+    if (event.payload.type === 'drop' && event.payload.paths) {
+      dragDropPathMap.clear();
+      for (const fullPath of event.payload.paths) {
+        const fileName = fullPath.split('/').pop() || fullPath.split('\\').pop() || fullPath;
+        dragDropPathMap.set(fileName, fullPath);
+      }
+    }
+  });
 }
