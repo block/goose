@@ -354,6 +354,24 @@ async fn handle_oauth_configuration(provider_name: &str, key_name: &str) -> anyh
     }
 }
 
+/// Format a hint string from ModelInfo showing capabilities (reasoning, pricing).
+fn format_model_hint(info: &goose::providers::base::ModelInfo) -> String {
+    let mut parts = Vec::new();
+
+    if info.supports_reasoning == Some(true) {
+        parts.push("reasoning".to_string());
+    }
+
+    if let (Some(input), Some(output)) = (info.input_token_cost, info.output_token_cost) {
+        // Display as cost per 1M tokens for readability
+        let input_per_m = input * 1_000_000.0;
+        let output_per_m = output * 1_000_000.0;
+        parts.push(format!("${:.2}/${:.2} per 1M tokens", input_per_m, output_per_m));
+    }
+
+    parts.join(" · ")
+}
+
 fn interactive_model_search(models: &[String]) -> anyhow::Result<String> {
     const MAX_VISIBLE: usize = 30;
     let mut query = String::new();
@@ -436,9 +454,17 @@ fn interactive_model_search(models: &[String]) -> anyhow::Result<String> {
 fn select_model_from_list(
     models: &[String],
     provider_meta: &goose::providers::base::ProviderMetadata,
+    model_hints: &std::collections::HashMap<String, String>,
 ) -> anyhow::Result<String> {
     const MAX_MODELS: usize = 10;
     const UNLISTED_MODEL_KEY: &str = "__unlisted__";
+
+    let hint_for = |name: &str| -> String {
+        model_hints
+            .get(name)
+            .cloned()
+            .unwrap_or_default()
+    };
 
     // Smart model selection:
     // If we have more than MAX_MODELS models, show the recommended models with additional search option.
@@ -452,9 +478,18 @@ fn select_model_from_list(
             .collect();
 
         if !recommended_models.is_empty() {
-            let mut model_items: Vec<(String, String, &str)> = recommended_models
+            let hints: Vec<String> = recommended_models.iter().map(|m| hint_for(m)).collect();
+            let mut model_items: Vec<(String, String, String)> = recommended_models
                 .iter()
-                .map(|m| (m.clone(), m.clone(), "Recommended"))
+                .zip(hints.iter())
+                .map(|(m, h)| {
+                    let label = if h.is_empty() {
+                        "Recommended".to_string()
+                    } else {
+                        format!("Recommended · {}", h)
+                    };
+                    (m.clone(), m.clone(), label)
+                })
                 .collect();
 
             model_items.insert(
@@ -462,7 +497,7 @@ fn select_model_from_list(
                 (
                     "search_all".to_string(),
                     "Search all models...".to_string(),
-                    "Search complete model list",
+                    "Search complete model list".to_string(),
                 ),
             );
 
@@ -470,13 +505,19 @@ fn select_model_from_list(
                 model_items.push((
                     UNLISTED_MODEL_KEY.to_string(),
                     "Enter a model not listed...".to_string(),
-                    "",
+                    String::new(),
                 ));
             }
 
+            let items_ref: Vec<(&String, &str, &str)> = model_items
+                .iter()
+                .map(|(v, l, h)| (v, l.as_str(), h.as_str()))
+                .collect();
+
             let selection = cliclack::select("Select a model:")
-                .items(&model_items)
-                .interact()?;
+                .items(&items_ref)
+                .interact()?
+                .clone();
 
             if selection == "search_all" {
                 Ok(interactive_model_search(models)?)
@@ -489,20 +530,30 @@ fn select_model_from_list(
             Ok(interactive_model_search(models)?)
         }
     } else {
-        let mut model_items: Vec<(String, String, &str)> =
-            models.iter().map(|m| (m.clone(), m.clone(), "")).collect();
+        let hints: Vec<String> = models.iter().map(|m| hint_for(m)).collect();
+        let mut model_items: Vec<(String, String, String)> = models
+            .iter()
+            .zip(hints.iter())
+            .map(|(m, h)| (m.clone(), m.clone(), h.clone()))
+            .collect();
 
         if provider_meta.allows_unlisted_models {
             model_items.push((
                 UNLISTED_MODEL_KEY.to_string(),
                 "Enter a model not listed...".to_string(),
-                "",
+                String::new(),
             ));
         }
 
+        let items_ref: Vec<(&String, &str, &str)> = model_items
+            .iter()
+            .map(|(v, l, h)| (v, l.as_str(), h.as_str()))
+            .collect();
+
         let selection = cliclack::select("Select a model:")
-            .items(&model_items)
-            .interact()?;
+            .items(&items_ref)
+            .interact()?
+            .clone();
 
         if selection == UNLISTED_MODEL_KEY {
             prompt_unlisted_model(provider_meta)
@@ -729,14 +780,34 @@ pub async fn configure_provider_dialog() -> anyhow::Result<bool> {
 
     let spin = spinner();
     spin.start("Attempting to fetch supported models...");
-    let models_res = {
+    let (models_res, model_hints) = {
         let temp_model_config =
             ModelConfig::new(&provider_meta.default_model)?.with_canonical_limits(provider_name);
         let temp_provider = create(provider_name, temp_model_config, Vec::new()).await?;
-        retry_operation(&RetryConfig::default(), || async {
-            temp_provider.fetch_recommended_models().await
+
+        // Try enriched model info first (LiteLLM returns capabilities from proxy)
+        let info_models = retry_operation(&RetryConfig::default(), || async {
+            temp_provider.fetch_model_info().await
         })
         .await
+        .unwrap_or_default();
+
+        if !info_models.is_empty() {
+            let names: Vec<String> = info_models.iter().map(|m| m.name.clone()).collect();
+            let hints: std::collections::HashMap<String, String> = info_models
+                .iter()
+                .map(|m| (m.name.clone(), format_model_hint(m)))
+                .filter(|(_, hint)| !hint.is_empty())
+                .collect();
+            (Ok(names), hints)
+        } else {
+            // Fall back to name-only model list
+            let models = retry_operation(&RetryConfig::default(), || async {
+                temp_provider.fetch_recommended_models().await
+            })
+            .await;
+            (models, std::collections::HashMap::new())
+        }
     };
     spin.stop(style("Model fetch complete").green());
 
@@ -747,7 +818,9 @@ pub async fn configure_provider_dialog() -> anyhow::Result<bool> {
             cliclack::outro(style(e.to_string()).on_red().white())?;
             return Ok(false);
         }
-        Ok(models) if !models.is_empty() => select_model_from_list(&models, provider_meta)?,
+        Ok(models) if !models.is_empty() => {
+            select_model_from_list(&models, provider_meta, &model_hints)?
+        }
         Ok(_) => {
             let default_model =
                 std::env::var("GOOSE_MODEL").unwrap_or(provider_meta.default_model.clone());

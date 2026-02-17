@@ -915,6 +915,7 @@ mod tests {
             output_token_cost: None,
             currency: None,
             supports_cache_control: None,
+            supports_reasoning: None,
         };
         assert_eq!(info, info2);
 

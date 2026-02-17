@@ -819,6 +819,7 @@ mod tests {
         let test_model = models.iter().find(|m| m.name == "test-model").unwrap();
         assert_eq!(test_model.context_limit, 200000);
         assert_eq!(test_model.supports_cache_control, Some(true));
+        assert_eq!(test_model.supports_reasoning, Some(true));
         assert_eq!(test_model.input_token_cost, Some(0.000003));
         assert_eq!(test_model.output_token_cost, Some(0.000015));
         assert_eq!(test_model.currency, Some("$".to_string()));
@@ -829,8 +830,13 @@ mod tests {
             .unwrap();
         assert_eq!(no_pricing.context_limit, 128000);
         assert_eq!(no_pricing.supports_cache_control, Some(false));
+        assert_eq!(no_pricing.supports_reasoning, Some(false));
         assert_eq!(no_pricing.input_token_cost, None);
         assert_eq!(no_pricing.currency, None);
+
+        // Verify sorting: reasoning models come first
+        assert_eq!(models[0].name, "test-model"); // reasoning=true
+        assert_eq!(models[1].name, "no-pricing-model"); // reasoning=false
     }
 
     /// Integration-style test: simulate the complete flow where the OpenAI formatter
