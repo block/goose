@@ -3,6 +3,27 @@
 version = 4
 
 [[package]]
+name = "a2a"
+version = "1.23.0"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "axum 0.8.8",
+ "chrono",
+ "futures",
+ "reqwest 0.12.28",
+ "serde",
+ "serde_json",
+ "thiserror 1.0.69",
+ "tokio",
+ "tokio-stream",
+ "tower 0.5.3",
+ "tower-http",
+ "tracing",
+ "uuid",
+]
+
+[[package]]
 name = "addr2line"
 version = "0.25.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4120,6 +4141,7 @@ dependencies = [
 name = "goose"
 version = "1.23.0"
 dependencies = [
+ "a2a",
  "agent-client-protocol",
  "agent-client-protocol-schema",
  "ahash",

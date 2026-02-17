@@ -1,0 +1,44 @@
+[package]
+name = "a2a"
+description = "A2A (Agent-to-Agent) Protocol library for Rust"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[lints]
+workspace = true
+
+[features]
+default = ["client", "server"]
+client = ["dep:reqwest"]
+server = ["dep:tokio", "dep:tokio-stream"]
+axum = ["server", "dep:axum", "dep:tower-http"]
+
+[dependencies]
+serde = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+uuid = { workspace = true }
+chrono = { workspace = true }
+async-trait = { workspace = true }
+futures = { workspace = true }
+tracing = { workspace = true }
+anyhow = { workspace = true }
+
+# Client feature
+reqwest = { workspace = true, features = ["json"], optional = true }
+
+# Server feature
+tokio = { workspace = true, optional = true }
+tokio-stream = { workspace = true, optional = true }
+
+# Axum feature
+axum = { workspace = true, optional = true }
+tower-http = { workspace = true, features = ["cors"], optional = true }
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["full", "test-util"] }
+serde_json = { workspace = true }
+tower = { version = "0.5.3", features = ["util"] }
