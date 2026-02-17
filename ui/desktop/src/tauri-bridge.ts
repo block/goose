@@ -14,6 +14,7 @@ import { relaunch } from '@tauri-apps/plugin-process';
 import { check, type Update } from '@tauri-apps/plugin-updater';
 
 import type { Settings } from './utils/settings';
+import { BLOCKED_PROTOCOLS } from './utils/urlSecurity';
 
 // ── Types matching the Electron preload ────────────────────────────────
 
@@ -444,6 +445,22 @@ export const appConfigBridge = {
 
 export async function initTauriBridge(): Promise<void> {
   await loadConfig();
+
+  // Redirect window.open() to system browser
+  // eslint-disable-next-line no-undef
+  window.open = function (url?: string | URL): WindowProxy | null {
+    if (url) {
+      try {
+        const parsed = new URL(url.toString(), window.location.href);
+        if (!BLOCKED_PROTOCOLS.includes(parsed.protocol)) {
+          openUrl(parsed.href);
+        }
+      } catch {
+        /* invalid URL — ignore */
+      }
+    }
+    return null;
+  } as typeof window.open;
 
   // Detect mouse back/forward buttons and emit as Tauri events
   document.addEventListener('mouseup', (event: MouseEvent) => {
