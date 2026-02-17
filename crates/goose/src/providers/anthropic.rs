@@ -260,9 +260,17 @@ impl Provider for AnthropicProvider {
     }
 
     async fn fetch_supported_models(&self) -> Result<Vec<String>, ProviderError> {
-        let response = self.api_client.request(None, "v1/models").api_get().await?;
+        let response = match self.api_client.request(None, "v1/models").api_get().await {
+            Ok(resp) => resp,
+            Err(_) => return Ok(vec![]),
+        };
 
-        if response.status != StatusCode::OK {
+        if response.status == StatusCode::NOT_FOUND {
+            tracing::debug!("Models endpoint not supported by this provider, returning empty list");
+            return Ok(vec![]);
+        }
+
+        if !response.status.is_success() {
             return Err(map_http_error_to_provider_error(
                 response.status,
                 response.payload,
