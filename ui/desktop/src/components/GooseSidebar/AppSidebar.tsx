@@ -3,7 +3,7 @@ import React, { useEffect, useState } from 'react';
 import {
   Activity,
   AppWindow,
-  BarChart3,
+
   Bot,
   ChefHat,
   ChevronRight,
@@ -100,8 +100,8 @@ const navigationZones: NavigationZone[] = [
     items: [
       {
         path: '/monitoring',
-        label: 'Dashboard',
-        icon: BarChart3,
+        label: 'Monitoring',
+        icon: Activity,
         tooltip: 'View usage dashboard and live metrics',
       },
     ],
@@ -113,8 +113,8 @@ const navigationZones: NavigationZone[] = [
     items: [
       {
         path: '/evaluate',
-        label: 'Overview',
-        icon: BarChart3,
+        label: 'Evaluate',
+        icon: FlaskConical,
         tooltip: 'Eval overview, datasets, runs, and topics',
       },
     ],
@@ -136,6 +136,12 @@ const navigationZones: NavigationZone[] = [
         label: 'Extensions',
         icon: Puzzle,
         tooltip: 'Browse and install tool extensions',
+      },
+      {
+        path: '/recipes',
+        label: 'Workflows',
+        icon: FileText,
+        tooltip: 'Browse and import workflow templates',
       },
     ],
   },
@@ -716,7 +722,34 @@ const AppSidebar: React.FC<SidebarProps> = ({ currentPath }) => {
 
             const zoneActive = isZoneActive(zone);
             const ZoneIcon = zone.icon;
+            const isSingleItem = visibleItems.length === 1;
 
+            // Single-item zones render as direct links (no collapsible submenu)
+            if (isSingleItem) {
+              const item = visibleItems[0];
+              return (
+                <SidebarGroup key={zone.id} className="px-2">
+                  <SidebarGroupContent className="space-y-0.5">
+                    <div className="sidebar-item">
+                      <SidebarMenuItem>
+                        <SidebarMenuButton
+                          data-testid={`sidebar-${item.label.toLowerCase()}-button`}
+                          onClick={() => navigate(item.path)}
+                          isActive={isActivePath(item.path)}
+                          tooltip={item.tooltip}
+                          className="w-full justify-start px-3 rounded-lg h-fit hover:bg-background-medium/50 transition-all duration-200 data-[active=true]:bg-background-medium"
+                        >
+                          <ZoneIcon className="w-4 h-4" />
+                          <span>{zone.label}</span>
+                        </SidebarMenuButton>
+                      </SidebarMenuItem>
+                    </div>
+                  </SidebarGroupContent>
+                </SidebarGroup>
+              );
+            }
+
+            // Multi-item zones render as collapsible groups
             return (
               <SidebarGroup key={zone.id} className="px-2">
                 <Collapsible defaultOpen={zoneActive}>
