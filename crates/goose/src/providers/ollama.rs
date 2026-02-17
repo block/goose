@@ -165,12 +165,13 @@ impl ProviderDef for OllamaProvider {
             OLLAMA_KNOWN_MODELS.to_vec(),
             OLLAMA_DOC_URL,
             vec![
-                ConfigKey::new("OLLAMA_HOST", true, false, Some(OLLAMA_HOST)),
+                ConfigKey::new("OLLAMA_HOST", true, false, Some(OLLAMA_HOST), true),
                 ConfigKey::new(
                     "OLLAMA_TIMEOUT",
                     false,
                     false,
                     Some(&(OLLAMA_TIMEOUT.to_string())),
+                    false,
                 ),
             ],
         )

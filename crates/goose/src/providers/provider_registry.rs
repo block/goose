@@ -108,7 +108,7 @@ impl ProviderRegistry {
             } else if !config.api_key_env.is_empty() {
                 let api_key_required = provider_type == ProviderType::Declarative;
                 config_keys[api_key_index] =
-                    super::base::ConfigKey::new(&config.api_key_env, api_key_required, true, None);
+                    super::base::ConfigKey::new(&config.api_key_env, api_key_required, true, None, true);
             }
         }
 

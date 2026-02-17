@@ -395,6 +395,7 @@ impl ProviderDef for GithubCopilotProvider {
                 true,
                 true,
                 None,
+                false,
             )],
         )
     }
