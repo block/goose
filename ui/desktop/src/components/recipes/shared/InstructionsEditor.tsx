@@ -72,13 +72,13 @@ Use {{parameter_name}} syntax for any user-provided values.`;
         }
       }}
     >
-      <div className="bg-background-default border border-border-default rounded-lg p-6 w-[900px] max-w-[90vw] max-h-[90vh] overflow-hidden flex flex-col">
+      <div className="bg-background-primary border border-border-primary rounded-lg p-6 w-[900px] max-w-[90vw] max-h-[90vh] overflow-hidden flex flex-col">
         <div className="flex items-center justify-between mb-4">
-          <h3 className="text-lg font-medium text-text-default">Instructions Editor</h3>
+          <h3 className="text-lg font-medium text-text-primary">Instructions Editor</h3>
           <button
             type="button"
             onClick={handleCancel}
-            className="text-text-muted hover:text-text-default text-2xl leading-none"
+            className="text-text-secondary hover:text-text-primary text-2xl leading-none"
           >
             ×
           </button>
@@ -87,7 +87,7 @@ Use {{parameter_name}} syntax for any user-provided values.`;
         <div className="flex-1 flex flex-col min-h-0">
           <div className="mb-4">
             <div className="flex items-center justify-between mb-2">
-              <label className="block text-sm font-medium text-text-default">Instructions</label>
+              <label className="block text-sm font-medium text-text-primary">Instructions</label>
               <Button
                 type="button"
                 onClick={insertExample}
@@ -98,8 +98,8 @@ Use {{parameter_name}} syntax for any user-provided values.`;
                 Insert Example
               </Button>
             </div>
-            <p className="text-xs text-text-muted mb-3">
-              Use <code className="bg-background-muted px-1 rounded">{`{{parameter_name}}`}</code>{' '}
+            <p className="text-xs text-text-secondary mb-3">
+              Use <code className="bg-background-secondary px-1 rounded">{`{{parameter_name}}`}</code>{' '}
               syntax to define parameters that users can fill in
             </p>
           </div>
@@ -108,8 +108,8 @@ Use {{parameter_name}} syntax for any user-provided values.`;
             <textarea
               value={localValue}
               onChange={(e) => setLocalValue(e.target.value)}
-              className={`w-full h-full min-h-[500px] p-3 border rounded-lg bg-background-default text-text-default focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none font-mono text-sm ${
-                error ? 'border-red-500' : 'border-border-default'
+              className={`w-full h-full min-h-[500px] p-3 border rounded-lg bg-background-primary text-text-primary focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none font-mono text-sm ${
+                error ? 'border-red-500' : 'border-border-primary'
               }`}
               placeholder="Detailed instructions for the AI, hidden from the user"
             />
@@ -117,7 +117,7 @@ Use {{parameter_name}} syntax for any user-provided values.`;
           </div>
         </div>
 
-        <div className="flex justify-end space-x-3 mt-6 pt-4 border-t border-border-default">
+        <div className="flex justify-end space-x-3 mt-6 pt-4 border-t border-border-primary">
           <Button type="button" onClick={handleCancel} variant="ghost">
             Cancel
           </Button>
