@@ -11,7 +11,7 @@
   },
   "app": {
     "security": {
-      "csp": "default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; img-src 'self' data: https:; connect-src 'self' http://127.0.0.1:* https:; object-src 'none'; frame-src 'self' https: http:; font-src 'self' data: https:; media-src 'self' mediastream:; form-action 'none'; base-uri 'self'"
+      "csp": "default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; img-src 'self' data: https:; connect-src 'self' ipc://localhost http://127.0.0.1:* https:; object-src 'none'; frame-src 'self' https: http:; font-src 'self' data: https:; media-src 'self' mediastream:; form-action 'none'; base-uri 'self'"
     },
     "windows": [
       {
