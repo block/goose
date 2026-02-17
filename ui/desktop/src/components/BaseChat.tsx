@@ -11,7 +11,7 @@ import React, {
 import { useLocation, useNavigate } from 'react-router-dom';
 import { SearchView } from './conversation/SearchView';
 
-import PopularChatTopics from './PopularChatTopics';
+import { WelcomeState } from './WelcomeState';
 import ProgressiveMessageList from './ProgressiveMessageList';
 import { MainPanelLayout } from './Layout/MainPanelLayout';
 import ChatInput from './ChatInput';
@@ -450,9 +450,7 @@ export default function BaseChat({
                 <div className="block h-8" />
               </>
             ) : !recipe && showPopularTopics ? (
-              <PopularChatTopics
-                append={(text: string) => handleSubmit({ msg: text, images: [] })}
-              />
+              <WelcomeState onSubmit={(text: string) => handleSubmit({ msg: text, images: [] })} />
             ) : null}
           </ScrollArea>
 

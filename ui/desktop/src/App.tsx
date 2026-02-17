@@ -4,6 +4,7 @@ import {
   HashRouter,
   Routes,
   Route,
+  Navigate,
   useNavigate,
   useLocation,
   useSearchParams,
@@ -19,7 +20,6 @@ import ProviderGuard from './components/ProviderGuard';
 import { createSession } from './sessions';
 
 import { ChatType } from './types/chat';
-import Hub from './components/Hub';
 import { UserInput } from './types/message';
 
 interface PairRouteState {
@@ -68,9 +68,9 @@ function PageViewTracker() {
 }
 
 // Route Components
-const HubRouteWrapper = () => {
-  const setView = useNavigation();
-  return <Hub setView={setView} />;
+// Hub merged into Chat — "/" redirects to "/pair" with WelcomeState shown for 0-message sessions
+const HomeRedirectWrapper = () => {
+  return <Navigate to="/pair" replace />;
 };
 
 const PairRouteWrapper = ({
@@ -675,7 +675,7 @@ export function AppInner() {
                 </ProviderGuard>
               }
             >
-              <Route index element={<HubRouteWrapper />} />
+              <Route index element={<HomeRedirectWrapper />} />
               <Route
                 path="pair"
                 element={

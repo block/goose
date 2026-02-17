@@ -13,7 +13,6 @@ import {
   FolderPlus,
   History,
   Home,
-  MessageSquarePlus,
   Pin,
   PinOff,
   Puzzle,
@@ -864,35 +863,20 @@ const AppSidebar: React.FC<SidebarProps> = ({ currentPath }) => {
           {/* Home + Chat Zone */}
           <SidebarGroup className="px-2">
             <SidebarGroupContent className="space-y-1">
-              {/* Home */}
-              <div className="sidebar-item">
-                <SidebarMenuItem>
-                  <SidebarMenuButton
-                    data-testid="sidebar-home-button"
-                    onClick={() => navigate('/')}
-                    isActive={isActivePath('/')}
-                    tooltip="Go back to the main chat screen"
-                    className="w-full justify-start px-3 rounded-lg h-fit hover:bg-background-medium/50 transition-all duration-200 data-[active=true]:bg-background-medium"
-                  >
-                    <Home className="w-4 h-4" />
-                    <span>Home</span>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              </div>
-
-              {/* Chat with Collapsible Sessions */}
+              {/* Home (unified — shows chat with WelcomeState when no messages) */}
               <Collapsible open={isChatExpanded} onOpenChange={setIsChatExpanded}>
                 <div className="sidebar-item">
                   <SidebarMenuItem>
                     <div className="flex items-center w-full">
                       <SidebarMenuButton
-                        data-testid="sidebar-new-chat-button"
+                        data-testid="sidebar-home-button"
                         onClick={handleNewChat}
-                        tooltip="Start a new chat"
-                        className="flex-1 justify-start px-3 rounded-lg h-fit hover:bg-background-medium/50 transition-all duration-200"
+                        isActive={isActivePath('/pair') || isActivePath('/')}
+                        tooltip="Home — Start a new chat"
+                        className="flex-1 justify-start px-3 rounded-lg h-fit hover:bg-background-medium/50 transition-all duration-200 data-[active=true]:bg-background-medium"
                       >
-                        <MessageSquarePlus className="w-4 h-4" />
-                        <span>Chat</span>
+                        <Home className="w-4 h-4" />
+                        <span>Home</span>
                       </SidebarMenuButton>
                       <div className="relative" ref={projectDropdownRef}>
                         <button
