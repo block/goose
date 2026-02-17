@@ -100,6 +100,21 @@ fn create_tool_location(path: &str, line: Option<u32>) -> ToolCallLocation {
     loc
 }
 
+fn is_developer_file_tool(tool_name: &str) -> bool {
+    matches!(
+        tool_name,
+        "read"
+            | "write"
+            | "edit"
+            | "developer__read"
+            | "developer__write"
+            | "developer__edit"
+            | "developer__file_write"
+            | "developer__file_edit"
+            | "developer__text_editor"
+    )
+}
+
 fn extract_tool_locations(
     tool_request: &goose::conversation::message::ToolRequest,
     tool_response: &goose::conversation::message::ToolResponse,
@@ -107,10 +122,11 @@ fn extract_tool_locations(
     let mut locations = Vec::new();
 
     if let Ok(tool_call) = &tool_request.tool_call {
-        if tool_call.name != "developer__text_editor" {
+        if !is_developer_file_tool(tool_call.name.as_ref()) {
             return locations;
         }
 
+        let tool_name = tool_call.name.as_ref();
         let path_str = tool_call
             .arguments
             .as_ref()
@@ -118,6 +134,31 @@ fn extract_tool_locations(
             .and_then(|p| p.as_str());
 
         if let Some(path_str) = path_str {
+            if matches!(tool_name, "read" | "developer__read") {
+                let line = tool_call
+                    .arguments
+                    .as_ref()
+                    .and_then(|args| args.get("offset"))
+                    .and_then(|o| o.as_u64())
+                    .map(|offset| offset as u32 + 1)
+                    .or(Some(1));
+                locations.push(create_tool_location(path_str, line));
+                return locations;
+            }
+
+            if matches!(
+                tool_name,
+                "write"
+                    | "edit"
+                    | "developer__write"
+                    | "developer__edit"
+                    | "developer__file_write"
+                    | "developer__file_edit"
+            ) {
+                locations.push(create_tool_location(path_str, Some(1)));
+                return locations;
+            }
+
             let command = tool_call
                 .arguments
                 .as_ref()

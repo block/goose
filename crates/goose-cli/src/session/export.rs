@@ -112,6 +112,25 @@ fn value_to_markdown(value: &Value, depth: usize, export_full_strings: bool) -> 
     md_string
 }
 
+fn is_shell_tool_name(tool_name: &str) -> bool {
+    matches!(tool_name, "shell" | "developer__shell")
+}
+
+fn is_developer_file_tool_name(tool_name: &str) -> bool {
+    matches!(
+        tool_name,
+        "read"
+            | "write"
+            | "edit"
+            | "developer__read"
+            | "developer__write"
+            | "developer__edit"
+            | "developer__file_write"
+            | "developer__file_edit"
+            | "developer__text_editor"
+    )
+}
+
 pub fn tool_request_to_markdown(req: &ToolRequest, export_all_content: bool) -> String {
     let mut md = String::new();
     match &req.tool_call {
@@ -119,6 +138,10 @@ pub fn tool_request_to_markdown(req: &ToolRequest, export_all_content: bool) -> 
             let parts: Vec<_> = call.name.rsplitn(2, "__").collect();
             let (namespace, tool_name_only) = if parts.len() == 2 {
                 (parts[1], parts[0])
+            } else if is_shell_tool_name(call.name.as_ref())
+                || is_developer_file_tool_name(call.name.as_ref())
+            {
+                ("developer", parts[0])
             } else {
                 ("Tool", parts[0])
             };
@@ -130,7 +153,7 @@ pub fn tool_request_to_markdown(req: &ToolRequest, export_all_content: bool) -> 
             md.push_str("**Arguments:**\n");
 
             match call.name.as_ref() {
-                "developer__shell" => {
+                name if is_shell_tool_name(name) => {
                     if let Some(Value::String(command)) =
                         call.arguments.as_ref().and_then(|args| args.get("command"))
                     {
@@ -190,6 +213,27 @@ pub fn tool_request_to_markdown(req: &ToolRequest, export_all_content: bool) -> 
                             0,
                             export_all_content,
                         ));
+                    }
+                }
+                name if is_developer_file_tool_name(name) => {
+                    if let Some(Value::String(path)) =
+                        call.arguments.as_ref().and_then(|args| args.get("path"))
+                    {
+                        md.push_str(&format!("*   **path**: `{}`\n", path));
+                    }
+
+                    if let Some(args) = &call.arguments {
+                        let mut other_args = args.clone();
+                        other_args.remove("path");
+                        if !other_args.is_empty() {
+                            md.push_str(&value_to_markdown(
+                                &Value::Object(other_args),
+                                0,
+                                export_all_content,
+                            ));
+                        }
+                    } else {
+                        md.push_str("*No arguments*\n");
                     }
                 }
                 _ => {
