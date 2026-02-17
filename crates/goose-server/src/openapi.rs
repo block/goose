@@ -461,6 +461,10 @@ derive_utoipa!(PromptArgument as PromptArgumentSchema);
         super::routes::agent_management::unbind_extension_from_agent,
         super::routes::agent_management::orchestrator_status,
         super::routes::agent_management::agent_catalog,
+        // Observatory
+        super::routes::observatory::get_dashboard,
+        super::routes::observatory::get_active_agents,
+        super::routes::observatory::get_health,
         // ACP Discovery
         super::routes::acp_discovery::ping,
         super::routes::acp_discovery::list_agents,
@@ -482,6 +486,14 @@ derive_utoipa!(PromptArgument as PromptArgumentSchema);
         super::routes::a2a::get_instance_result,
         super::routes::a2a::stream_instance_events,
         super::routes::a2a::list_personas,
+        // Pipeline Management
+        // Pipeline Management
+        super::routes::pipeline::list_pipelines_handler,
+        super::routes::pipeline::get_pipeline_handler,
+        super::routes::pipeline::save_pipeline_handler,
+        super::routes::pipeline::update_pipeline_handler,
+        super::routes::pipeline::delete_pipeline_handler,
+        super::routes::pipeline::validate_pipeline_handler,
     ),
     components(schemas(
         super::routes::agent_management::OrchestratorStatus,
@@ -720,6 +732,15 @@ derive_utoipa!(PromptArgument as PromptArgumentSchema);
         super::routes::agent_management::CatalogAgentStatus,
         super::routes::agent_management::CatalogAgentMode,
         super::routes::agent_management::AgentCatalogResponse,
+        // Observatory types
+        super::routes::observatory::ObservatoryDashboard,
+        super::routes::observatory::SystemHealth,
+        super::routes::observatory::HealthStatus,
+        super::routes::observatory::ActiveAgent,
+        super::routes::observatory::ActiveAgentKind,
+        super::routes::observatory::ActiveAgentStatus,
+        super::routes::observatory::PerformanceSnapshot,
+        super::routes::observatory::TopTool,
         super::routes::extension_routes::LiveExtensionInfo,
         super::routes::extension_routes::LiveExtensionsResponse,
         // A2A Instance Management types
@@ -727,6 +748,16 @@ derive_utoipa!(PromptArgument as PromptArgumentSchema);
         super::routes::a2a::InstanceResponse,
         super::routes::a2a::InstanceResultResponse,
         super::routes::a2a::PersonaSummary,
+        // TODO: Pipeline Management types — frontend agent WIP, missing utoipa annotations
+        super::routes::pipeline::SavePipelineRequest,
+        super::routes::pipeline::SavePipelineResponse,
+        super::routes::pipeline::ValidatePipelineResponse,
+        goose::pipeline::Pipeline,
+        goose::pipeline::PipelineNode,
+        goose::pipeline::PipelineEdge,
+        goose::pipeline::NodeKind,
+        goose::pipeline::PipelineLayout,
+        goose::pipeline::PipelineManifest,
         // ACP types
         goose::acp_compat::AcpRun,
         goose::acp_compat::AcpRunStatus,

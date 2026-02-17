@@ -97,6 +97,21 @@ export type ActionRequiredData = {
     user_data: unknown;
 };
 
+/**
+ * A currently active or registered agent with its live status.
+ */
+export type ActiveAgent = {
+    currentTasks: number;
+    kind: ActiveAgentKind;
+    modeCount: number;
+    name: string;
+    status: ActiveAgentStatus;
+};
+
+export type ActiveAgentKind = 'builtin' | 'a2a';
+
+export type ActiveAgentStatus = 'idle' | 'working' | 'disabled' | 'disconnected';
+
 export type ActiveExtensionStat = {
     extension: string;
     session_count: number;
@@ -907,6 +922,8 @@ export type GooseApp = McpAppResource & (WindowProps | null) & {
     prd?: string | null;
 };
 
+export type HealthStatus = 'HEALTHY' | 'DEGRADED' | 'UNHEALTHY';
+
 export type HotTool = {
     calls_1h: number;
     errors_1h: number;
@@ -1269,6 +1286,15 @@ export type ModelInfo = {
     supports_cache_control?: boolean | null;
 };
 
+/**
+ * Unified Observatory dashboard — system health + active agents + performance snapshot.
+ */
+export type ObservatoryDashboard = {
+    activeAgents: Array<ActiveAgent>;
+    health: SystemHealth;
+    performance: PerformanceSnapshot;
+};
+
 export type OrchestratorAgentInfo = {
     default_mode: string;
     enabled: boolean;
@@ -1289,6 +1315,17 @@ export type ParseRecipeRequest = {
 
 export type ParseRecipeResponse = {
     recipe: Recipe;
+};
+
+/**
+ * Aggregated performance snapshot for the dashboard.
+ */
+export type PerformanceSnapshot = {
+    avgMessagesPerSession: number;
+    toolErrorRate24h: number;
+    topTools: Array<TopTool>;
+    totalSessions24h: number;
+    totalToolCalls24h: number;
 };
 
 export type Permission = 'always_allow' | 'allow_once' | 'cancel' | 'deny_once' | 'always_deny';
@@ -1974,6 +2011,18 @@ export type SuccessCheck = {
     type: 'Shell';
 };
 
+/**
+ * System health indicators.
+ */
+export type SystemHealth = {
+    activeSessions: number;
+    enabledAgents: number;
+    poolInstances: number;
+    registeredAgents: number;
+    status: HealthStatus;
+    uptimeSeconds: number;
+};
+
 export type SystemInfo = {
     app_version: string;
     architecture: string;
@@ -2144,6 +2193,12 @@ export type ToolUsageStat = {
     extension: string;
     success_rate: number;
     tool_name: string;
+};
+
+export type TopTool = {
+    calls: number;
+    errorRate: number;
+    name: string;
 };
 
 export type TopicAgentDistribution = {
@@ -4603,6 +4658,54 @@ export type McpUiProxyResponses = {
      */
     200: unknown;
 };
+
+export type GetActiveAgentsData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/observatory/active-agents';
+};
+
+export type GetActiveAgentsResponses = {
+    /**
+     * Active agents list
+     */
+    200: Array<ActiveAgent>;
+};
+
+export type GetActiveAgentsResponse = GetActiveAgentsResponses[keyof GetActiveAgentsResponses];
+
+export type GetDashboardData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/observatory/dashboard';
+};
+
+export type GetDashboardResponses = {
+    /**
+     * Observatory dashboard
+     */
+    200: ObservatoryDashboard;
+};
+
+export type GetDashboardResponse = GetDashboardResponses[keyof GetDashboardResponses];
+
+export type GetHealthData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/observatory/health';
+};
+
+export type GetHealthResponses = {
+    /**
+     * System health
+     */
+    200: SystemHealth;
+};
+
+export type GetHealthResponse = GetHealthResponses[keyof GetHealthResponses];
 
 export type OrchestratorStatusData = {
     body?: never;

@@ -12,6 +12,8 @@ pub mod errors;
 pub mod extension_routes;
 pub mod mcp_app_proxy;
 pub mod mcp_ui_proxy;
+pub mod observatory;
+pub mod pipeline;
 pub mod prompts;
 pub mod recipe;
 pub mod recipe_utils;
@@ -45,6 +47,7 @@ pub fn configure(state: Arc<crate::state::AppState>, secret_key: String) -> Rout
         .merge(agent_card::routes(state.clone()))
         .merge(agent_management::routes(state.clone()))
         .merge(recipe::routes(state.clone()))
+        .merge(pipeline::routes(state.clone()))
         .merge(session::routes(state.clone()))
         .merge(schedule::routes(state.clone()))
         .merge(setup::routes(state.clone()))
@@ -53,6 +56,7 @@ pub fn configure(state: Arc<crate::state::AppState>, secret_key: String) -> Rout
         .merge(runs::routes(state.clone()))
         .merge(acp_ide::routes(state.clone()))
         .merge(analytics::routes(state.clone()))
+        .merge(observatory::routes(state.clone()))
         .merge(extension_routes::routes(state.clone()))
         .merge(mcp_ui_proxy::routes(secret_key.clone()))
         .merge(mcp_app_proxy::routes(secret_key))

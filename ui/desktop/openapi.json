@@ -3107,6 +3107,72 @@
         }
       }
     },
+    "/observatory/active-agents": {
+      "get": {
+        "tags": [
+          "Observatory"
+        ],
+        "summary": "GET /observatory/active-agents — real-time agent status.",
+        "operationId": "get_active_agents",
+        "responses": {
+          "200": {
+            "description": "Active agents list",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ActiveAgent"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/observatory/dashboard": {
+      "get": {
+        "tags": [
+          "Observatory"
+        ],
+        "summary": "GET /observatory/dashboard — unified system health + agents + performance.",
+        "operationId": "get_dashboard",
+        "responses": {
+          "200": {
+            "description": "Observatory dashboard",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ObservatoryDashboard"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/observatory/health": {
+      "get": {
+        "tags": [
+          "Observatory"
+        ],
+        "summary": "GET /observatory/health — system health check.",
+        "operationId": "get_health",
+        "responses": {
+          "200": {
+            "description": "System health",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SystemHealth"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/orchestrator/status": {
       "get": {
         "tags": [
@@ -3135,6 +3201,198 @@
                 "schema": {}
               }
             }
+          }
+        }
+      }
+    },
+    "/pipelines/list": {
+      "get": {
+        "tags": [
+          "super::routes::pipeline"
+        ],
+        "operationId": "listPipelines",
+        "responses": {
+          "200": {
+            "description": "List all saved pipelines",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/PipelineManifest"
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error"
+          }
+        }
+      }
+    },
+    "/pipelines/save": {
+      "post": {
+        "tags": [
+          "super::routes::pipeline"
+        ],
+        "operationId": "savePipeline",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SavePipelineRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Pipeline saved",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SavePipelineResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid pipeline"
+          }
+        }
+      }
+    },
+    "/pipelines/validate": {
+      "post": {
+        "tags": [
+          "super::routes::pipeline"
+        ],
+        "operationId": "validatePipeline",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Pipeline"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Validation result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidatePipelineResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/pipelines/{id}": {
+      "get": {
+        "tags": [
+          "super::routes::pipeline"
+        ],
+        "operationId": "getPipeline",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Pipeline ID (filename without extension)",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Pipeline loaded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Pipeline"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Pipeline not found"
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "super::routes::pipeline"
+        ],
+        "operationId": "updatePipeline",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Pipeline"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Pipeline updated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SavePipelineResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid pipeline"
+          },
+          "404": {
+            "description": "Pipeline not found"
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "super::routes::pipeline"
+        ],
+        "operationId": "deletePipeline",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Pipeline ID to delete",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Pipeline deleted"
+          },
+          "404": {
+            "description": "Pipeline not found"
           }
         }
       }
@@ -5281,6 +5539,52 @@
         "discriminator": {
           "propertyName": "actionType"
         }
+      },
+      "ActiveAgent": {
+        "type": "object",
+        "description": "A currently active or registered agent with its live status.",
+        "required": [
+          "name",
+          "kind",
+          "status",
+          "modeCount",
+          "currentTasks"
+        ],
+        "properties": {
+          "currentTasks": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "kind": {
+            "$ref": "#/components/schemas/ActiveAgentKind"
+          },
+          "modeCount": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "name": {
+            "type": "string"
+          },
+          "status": {
+            "$ref": "#/components/schemas/ActiveAgentStatus"
+          }
+        }
+      },
+      "ActiveAgentKind": {
+        "type": "string",
+        "enum": [
+          "builtin",
+          "a2a"
+        ]
+      },
+      "ActiveAgentStatus": {
+        "type": "string",
+        "enum": [
+          "idle",
+          "working",
+          "disabled",
+          "disconnected"
+        ]
       },
       "ActiveExtensionStat": {
         "type": "object",
@@ -7770,6 +8074,14 @@
           }
         ]
       },
+      "HealthStatus": {
+        "type": "string",
+        "enum": [
+          "HEALTHY",
+          "DEGRADED",
+          "UNHEALTHY"
+        ]
+      },
       "HotTool": {
         "type": "object",
         "required": [
@@ -8856,6 +9168,41 @@
           }
         }
       },
+      "NodeKind": {
+        "type": "string",
+        "enum": [
+          "trigger",
+          "agent",
+          "tool",
+          "condition",
+          "transform",
+          "human",
+          "a2a"
+        ]
+      },
+      "ObservatoryDashboard": {
+        "type": "object",
+        "description": "Unified Observatory dashboard — system health + active agents + performance snapshot.",
+        "required": [
+          "health",
+          "activeAgents",
+          "performance"
+        ],
+        "properties": {
+          "activeAgents": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ActiveAgent"
+            }
+          },
+          "health": {
+            "$ref": "#/components/schemas/SystemHealth"
+          },
+          "performance": {
+            "$ref": "#/components/schemas/PerformanceSnapshot"
+          }
+        }
+      },
       "OrchestratorAgentInfo": {
         "type": "object",
         "required": [
@@ -8926,6 +9273,41 @@
         "properties": {
           "recipe": {
             "$ref": "#/components/schemas/Recipe"
+          }
+        }
+      },
+      "PerformanceSnapshot": {
+        "type": "object",
+        "description": "Aggregated performance snapshot for the dashboard.",
+        "required": [
+          "totalSessions24h",
+          "totalToolCalls24h",
+          "toolErrorRate24h",
+          "avgMessagesPerSession",
+          "topTools"
+        ],
+        "properties": {
+          "avgMessagesPerSession": {
+            "type": "number",
+            "format": "double"
+          },
+          "toolErrorRate24h": {
+            "type": "number",
+            "format": "double"
+          },
+          "topTools": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TopTool"
+            }
+          },
+          "totalSessions24h": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "totalToolCalls24h": {
+            "type": "integer",
+            "format": "int32"
           }
         }
       },
@@ -9008,6 +9390,175 @@
           },
           "slug": {
             "type": "string"
+          }
+        }
+      },
+      "Pipeline": {
+        "type": "object",
+        "required": [
+          "name",
+          "nodes"
+        ],
+        "properties": {
+          "api_version": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "edges": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PipelineEdge"
+            }
+          },
+          "kind": {
+            "type": "string"
+          },
+          "layout": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/PipelineLayout"
+              }
+            ],
+            "nullable": true
+          },
+          "name": {
+            "type": "string"
+          },
+          "nodes": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PipelineNode"
+            }
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "version": {
+            "type": "string"
+          }
+        }
+      },
+      "PipelineEdge": {
+        "type": "object",
+        "required": [
+          "source",
+          "target"
+        ],
+        "properties": {
+          "condition": {
+            "type": "string",
+            "nullable": true
+          },
+          "label": {
+            "type": "string",
+            "nullable": true
+          },
+          "source": {
+            "type": "string"
+          },
+          "target": {
+            "type": "string"
+          }
+        }
+      },
+      "PipelineLayout": {
+        "type": "object",
+        "properties": {
+          "viewport": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Viewport"
+              }
+            ],
+            "nullable": true
+          }
+        }
+      },
+      "PipelineManifest": {
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "description",
+          "version",
+          "tags",
+          "node_count",
+          "edge_count",
+          "file_path",
+          "last_modified"
+        ],
+        "properties": {
+          "description": {
+            "type": "string"
+          },
+          "edge_count": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "file_path": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "last_modified": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "node_count": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "version": {
+            "type": "string"
+          }
+        }
+      },
+      "PipelineNode": {
+        "type": "object",
+        "required": [
+          "id",
+          "kind",
+          "label"
+        ],
+        "properties": {
+          "condition": {
+            "type": "string",
+            "nullable": true
+          },
+          "config": {
+            "type": "object",
+            "additionalProperties": {}
+          },
+          "id": {
+            "type": "string"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/NodeKind"
+          },
+          "label": {
+            "type": "string"
+          },
+          "position": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/NodePosition"
+              }
+            ],
+            "nullable": true
           }
         }
       },
@@ -10300,6 +10851,36 @@
           }
         }
       },
+      "SavePipelineRequest": {
+        "type": "object",
+        "required": [
+          "pipeline"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "nullable": true
+          },
+          "pipeline": {
+            "$ref": "#/components/schemas/Pipeline"
+          }
+        }
+      },
+      "SavePipelineResponse": {
+        "type": "object",
+        "required": [
+          "id",
+          "file_path"
+        ],
+        "properties": {
+          "file_path": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          }
+        }
+      },
       "SavePromptRequest": {
         "type": "object",
         "required": [
@@ -11010,6 +11591,44 @@
           "propertyName": "type"
         }
       },
+      "SystemHealth": {
+        "type": "object",
+        "description": "System health indicators.",
+        "required": [
+          "status",
+          "activeSessions",
+          "uptimeSeconds",
+          "registeredAgents",
+          "enabledAgents",
+          "poolInstances"
+        ],
+        "properties": {
+          "activeSessions": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "enabledAgents": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "poolInstances": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "registeredAgents": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "status": {
+            "$ref": "#/components/schemas/HealthStatus"
+          },
+          "uptimeSeconds": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          }
+        }
+      },
       "SystemInfo": {
         "type": "object",
         "required": [
@@ -11502,6 +12121,27 @@
           }
         }
       },
+      "TopTool": {
+        "type": "object",
+        "required": [
+          "name",
+          "calls",
+          "errorRate"
+        ],
+        "properties": {
+          "calls": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "errorRate": {
+            "type": "number",
+            "format": "double"
+          },
+          "name": {
+            "type": "string"
+          }
+        }
+      },
       "TopicAgentDistribution": {
         "type": "object",
         "required": [
@@ -11814,6 +12454,28 @@
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/ToolPermission"
+            }
+          }
+        }
+      },
+      "ValidatePipelineResponse": {
+        "type": "object",
+        "required": [
+          "valid",
+          "warnings"
+        ],
+        "properties": {
+          "error": {
+            "type": "string",
+            "nullable": true
+          },
+          "valid": {
+            "type": "boolean"
+          },
+          "warnings": {
+            "type": "array",
+            "items": {
+              "type": "string"
             }
           }
         }
