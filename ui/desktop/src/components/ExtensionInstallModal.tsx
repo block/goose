@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
-import { IpcRendererEvent } from '../types/electron';
+import { IpcRendererEvent } from 'electron';
 import {
   Dialog,
   DialogContent,
