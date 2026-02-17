@@ -13,6 +13,7 @@ import BlockLogoBlack from './icons/block-lockup_black.png';
 import BlockLogoWhite from './icons/block-lockup_white.png';
 import TelemetrySettings from './TelemetrySettings';
 import { trackSettingToggled } from '../../../utils/analytics';
+import { ThemeColorEditor } from './ThemeColorEditor';
 
 interface AppSettingsSectionProps {
   scrollToSection?: string;
@@ -27,6 +28,7 @@ export default function AppSettingsSection({ scrollToSection }: AppSettingsSecti
   const [showNotificationModal, setShowNotificationModal] = useState(false);
   const [showPricing, setShowPricing] = useState(true);
   const [isDarkMode, setIsDarkMode] = useState(false);
+  const [showColorEditor, setShowColorEditor] = useState(false);
   const updateSectionRef = useRef<HTMLDivElement>(null);
 
   // Check if GOOSE_VERSION is set to determine if Updates section should be shown
@@ -264,7 +266,16 @@ export default function AppSettingsSection({ scrollToSection }: AppSettingsSecti
           <CardDescription>Customize the look and feel of goose</CardDescription>
         </CardHeader>
         <CardContent className="pt-4 px-4">
-          <ThemeSelector className="w-auto" hideTitle horizontal />
+          <div className="flex items-center justify-between">
+            <ThemeSelector className="w-auto" hideTitle horizontal />
+            <Button
+              onClick={() => setShowColorEditor(true)}
+              variant="secondary"
+              size="sm"
+            >
+              Customize Colors
+            </Button>
+          </div>
         </CardContent>
       </Card>
 
@@ -393,6 +404,9 @@ export default function AppSettingsSection({ scrollToSection }: AppSettingsSecti
         </DialogContent>
       </Dialog>
 
+      {showColorEditor && (
+        <ThemeColorEditor onClose={() => setShowColorEditor(false)} />
+      )}
     </div>
   );
 }
