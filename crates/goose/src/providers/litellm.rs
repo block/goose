@@ -850,6 +850,60 @@ mod tests {
         assert_eq!(payload["messages"][0]["role"], "developer");
     }
 
+    /// End-to-end test: call the real openai::create_request with a model name that
+    /// triggers the o-series heuristic, then verify strip_reasoning_params cleans it up.
+    #[test]
+    fn test_create_request_then_strip_for_false_positive() {
+        use crate::providers::formats::openai::create_request;
+        use crate::providers::utils::ImageFormat;
+
+        // Model alias "o3-mistral" triggers the openai formatter's o-series heuristic
+        let model_config = ModelConfig {
+            model_name: "o3-mistral".to_string(),
+            context_limit: Some(128000),
+            temperature: None,
+            max_tokens: Some(2048),
+            toolshim: false,
+            toolshim_model: None,
+            fast_model: None,
+            request_params: None,
+        };
+
+        let messages = vec![crate::conversation::message::Message::user().with_text("Hello")];
+
+        let mut payload = create_request(
+            &model_config,
+            "You are helpful.",
+            &messages,
+            &[],
+            &ImageFormat::OpenAi,
+            false,
+        )
+        .unwrap();
+
+        // Before strip: OpenAI formatter injected reasoning params
+        assert!(payload.get("reasoning_effort").is_some());
+        assert_eq!(payload["messages"][0]["role"], "developer");
+        assert!(payload.get("max_completion_tokens").is_some());
+        assert!(payload.get("max_tokens").is_none());
+
+        // Apply the fix
+        LiteLLMProvider::strip_reasoning_params(&mut payload);
+
+        // After strip: reasoning artifacts removed
+        assert!(payload.get("reasoning_effort").is_none());
+        assert_eq!(payload["messages"][0]["role"], "system");
+        assert!(payload.get("max_completion_tokens").is_none());
+        assert_eq!(payload["max_tokens"], 2048);
+
+        // Model name should be "o3" (the formatter stripped "-mistral" as reasoning effort suffix)
+        // Actually let's check what the formatter does with "o3-mistral"
+        let model = payload["model"].as_str().unwrap();
+        // The formatter treats the last segment after "-" as potential effort level.
+        // "o3-mistral" → last part "mistral" is not low/medium/high, so model stays "o3-mistral"
+        assert_eq!(model, "o3-mistral");
+    }
+
     #[test]
     fn test_wildcard_models_filtered_from_capabilities() {
         let proxy_response = json!({
