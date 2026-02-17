@@ -228,18 +228,7 @@ async fn child_process_client(
         command.env("PATH", path);
     }
 
-    // Set GOOSE_CONTEXT_SIZE env var for the child process from provider's model config
-    if let Some(provider_arc) = provider.lock().await.as_ref() {
-        let context_limit = provider_arc.get_model_config().context_limit();
-        command.env("GOOSE_CONTEXT_SIZE", context_limit.to_string());
-    }
-
-    // Use explicitly passed working_dir, falling back to GOOSE_WORKING_DIR env var
-    let effective_working_dir = working_dir
-        .map(|p| p.to_path_buf())
-        .or_else(|| std::env::var("GOOSE_WORKING_DIR").ok().map(PathBuf::from));
-
-    if let Some(ref dir) = effective_working_dir {
+    if let Some(dir) = working_dir {
         if dir.exists() && dir.is_dir() {
             tracing::info!("Setting MCP process working directory: {:?}", dir);
             command.current_dir(dir);
@@ -466,7 +455,6 @@ impl ExtensionManager {
             context: PlatformExtensionContext {
                 extension_manager: None,
                 session_manager,
-                provider: provider.clone(),
             },
             provider,
             tools_cache: Mutex::new(None),
@@ -658,34 +646,7 @@ impl ExtensionManager {
                     })?;
                 let mut context = self.context.clone();
                 context.extension_manager = Some(Arc::downgrade(self));
-
-                // Debug: Check provider state when loading platform extensions
-                let provider_state = if let Ok(guard) = context.provider.try_lock() {
-                    if let Some(provider) = guard.as_ref() {
-                        let model_config = provider.get_model_config();
-                        format!(
-                            "Provider set, model: {}, context_limit: {}",
-                            model_config.model_name,
-                            model_config.context_limit()
-                        )
-                    } else {
-                        "Provider lock acquired but None".to_string()
-                    }
-                } else {
-                    "Provider lock failed".to_string()
-                };
-                eprintln!(
-                    "DEBUG: Loading platform extension '{}': {}",
-                    name, provider_state
-                );
-
-                (def.client_factory)(context).ok_or_else(|| {
-                    tracing::warn!("Failed to create platform extension: {}", name);
-                    ExtensionError::ConfigError(format!(
-                        "Platform extension '{}' failed to initialize (possibly incompatible with current model)",
-                        name
-                    ))
-                })?
+                (def.client_factory)(context)
             }
             ExtensionConfig::InlinePython {
                 name,
@@ -1548,14 +1509,6 @@ impl ExtensionManager {
         session_id: &str,
         working_dir: &std::path::Path,
     ) -> Option<String> {
-        if let Ok(provider_guard) = self.provider.try_lock() {
-            if let Some(provider) = provider_guard.as_ref() {
-                if provider.get_model_config().context_limit() < 9 * 1024 * 1024 {
-                    return None;
-                }
-            }
-        }
-
         // Use minute-level granularity to prevent conversation changes every second
         let timestamp = chrono::Local::now().format("%Y-%m-%d %H:%M:00").to_string();
         let mut content = format!(

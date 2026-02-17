@@ -80,7 +80,7 @@ export default function UserMessage({ message, onMessageUpdate }: UserMessagePro
 
       setIsEditing(false);
 
-      if (editContent.trim() === textContent.trim()) {
+      if (editType === 'edit' && editContent.trim() === textContent.trim()) {
         return;
       }
 
