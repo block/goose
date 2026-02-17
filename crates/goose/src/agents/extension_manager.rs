@@ -616,7 +616,7 @@ impl ExtensionManager {
                         self.client_name.clone(),
                         capabilities,
                     )
-                        .await?;
+                    .await?;
                     Box::new(client)
                 } else {
                     // Non-containerized builtin runs in-process via duplex channels.
@@ -637,7 +637,7 @@ impl ExtensionManager {
                             self.client_name.clone(),
                             capabilities,
                         )
-                            .await?,
+                        .await?,
                     )
                 }
             }
