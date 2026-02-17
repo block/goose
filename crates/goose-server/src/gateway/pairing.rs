@@ -255,6 +255,20 @@ impl PairingStore {
             .collect()
     }
 
+    pub async fn remove_all_for_platform(&self, platform: &str) -> anyhow::Result<usize> {
+        let pool = self.ensure_initialized().await?;
+
+        let result = sqlx::query("DELETE FROM gateway_pairings WHERE platform = ?")
+            .bind(platform)
+            .execute(pool)
+            .await?;
+
+        let mut pairings = self.pairings.write().await;
+        pairings.retain(|user, _| user.platform != platform);
+
+        Ok(result.rows_affected() as usize)
+    }
+
     pub async fn list_paired_users(
         &self,
         gateway_type: &str,
@@ -432,5 +446,44 @@ mod tests {
             PairingState::Paired { session_id, .. } => assert_eq!(session_id, "s-42"),
             other => panic!("Expected Paired, got {:?}", other),
         }
+    }
+
+    #[tokio::test]
+    async fn test_remove_all_for_platform() {
+        let tmp = TempDir::new().unwrap();
+        let store = PairingStore::new(&tmp.path().join("test.db"));
+
+        let tg1 = test_user("telegram", "111");
+        let tg2 = test_user("telegram", "222");
+        let discord = test_user("discord", "333");
+
+        for user in [&tg1, &tg2, &discord] {
+            store
+                .set(
+                    user,
+                    PairingState::Paired {
+                        session_id: format!("s-{}", user.user_id),
+                        paired_at: 1000,
+                    },
+                )
+                .await
+                .unwrap();
+        }
+
+        let removed = store.remove_all_for_platform("telegram").await.unwrap();
+        assert_eq!(removed, 2);
+
+        assert!(matches!(
+            store.get(&tg1).await.unwrap(),
+            PairingState::Unpaired
+        ));
+        assert!(matches!(
+            store.get(&tg2).await.unwrap(),
+            PairingState::Unpaired
+        ));
+        assert!(matches!(
+            store.get(&discord).await.unwrap(),
+            PairingState::Paired { .. }
+        ));
     }
 }

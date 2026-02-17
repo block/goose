@@ -122,7 +122,7 @@ impl GatewayManager {
         Ok(())
     }
 
-    /// Stop a gateway and remove its persisted config.
+    /// Stop a gateway, clear its pairings, and remove its persisted config.
     pub async fn stop_gateway(&self, gateway_type: &str) -> anyhow::Result<()> {
         let instance = self
             .gateways
@@ -133,6 +133,20 @@ impl GatewayManager {
 
         instance.cancel.cancel();
         let _ = instance.handle.await;
+
+        match self
+            .pairing_store
+            .remove_all_for_platform(gateway_type)
+            .await
+        {
+            Ok(count) if count > 0 => {
+                tracing::info!(gateway = %gateway_type, count, "cleared pairings on stop");
+            }
+            Err(e) => {
+                tracing::warn!(gateway = %gateway_type, error = %e, "failed to clear pairings on stop");
+            }
+            _ => {}
+        }
 
         Self::remove_saved_config(gateway_type);
         tracing::info!(gateway = %gateway_type, "gateway stopped");
@@ -188,6 +202,13 @@ impl GatewayManager {
         for (gateway_type, instance) in instances {
             instance.cancel.cancel();
             let _ = instance.handle.await;
+            if let Err(e) = self
+                .pairing_store
+                .remove_all_for_platform(&gateway_type)
+                .await
+            {
+                tracing::warn!(gateway = %gateway_type, error = %e, "failed to clear pairings on stop");
+            }
             tracing::info!(gateway = %gateway_type, "gateway stopped");
         }
     }
