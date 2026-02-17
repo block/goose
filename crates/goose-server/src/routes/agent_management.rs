@@ -513,8 +513,165 @@ pub async fn orchestrator_status(State(state): State<Arc<AppState>>) -> Json<Orc
     })
 }
 
+// ---------------------------------------------------------------------------
+// Unified Agent Catalog — merges builtin + external + A2A into one view
+// ---------------------------------------------------------------------------
+
+#[derive(Serialize, utoipa::ToSchema)]
+pub struct CatalogAgent {
+    pub id: String,
+    pub name: String,
+    pub description: String,
+    pub kind: CatalogAgentKind,
+    pub status: CatalogAgentStatus,
+    pub modes: Vec<CatalogAgentMode>,
+    pub default_mode: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub url: Option<String>,
+    pub capabilities: Vec<String>,
+}
+
+#[derive(Serialize, utoipa::ToSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum CatalogAgentKind {
+    Builtin,
+    External,
+    A2a,
+}
+
+#[derive(Serialize, utoipa::ToSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum CatalogAgentStatus {
+    Active,
+    Disabled,
+    Connected,
+    Unreachable,
+}
+
+#[derive(Serialize, utoipa::ToSchema)]
+pub struct CatalogAgentMode {
+    pub slug: String,
+    pub name: String,
+    pub description: String,
+    pub tool_groups: Vec<String>,
+}
+
+#[derive(Serialize, utoipa::ToSchema)]
+pub struct AgentCatalogResponse {
+    pub agents: Vec<CatalogAgent>,
+    pub total: usize,
+}
+
+#[utoipa::path(
+    get,
+    path = "/agents/catalog",
+    responses(
+        (status = 200, description = "Unified agent catalog", body = AgentCatalogResponse)
+    ),
+    tag = "Agent Catalog"
+)]
+pub async fn agent_catalog(State(state): State<Arc<AppState>>) -> Json<AgentCatalogResponse> {
+    use goose::agents::orchestrator_agent::OrchestratorAgent;
+
+    let mut agents = Vec::new();
+
+    // 1. Builtin agents from orchestrator slots
+    let provider = Arc::new(tokio::sync::Mutex::new(None));
+    let router = OrchestratorAgent::new(provider);
+
+    for slot in router.slots() {
+        let enabled = state.agent_slot_registry.is_enabled(&slot.name).await;
+        let modes: Vec<CatalogAgentMode> = slot
+            .modes
+            .iter()
+            .map(|m| CatalogAgentMode {
+                slug: m.slug.clone(),
+                name: m.name.clone(),
+                description: m.description.clone(),
+                tool_groups: m
+                    .tool_groups
+                    .iter()
+                    .map(|tg| match tg {
+                        goose::registry::manifest::ToolGroupAccess::Full(name) => name.clone(),
+                        goose::registry::manifest::ToolGroupAccess::Restricted {
+                            group, ..
+                        } => format!("{} (restricted)", group),
+                    })
+                    .collect(),
+            })
+            .collect();
+
+        let default_mode = slot
+            .modes
+            .first()
+            .map(|m| m.slug.clone())
+            .unwrap_or_default();
+
+        agents.push(CatalogAgent {
+            id: slot.name.to_lowercase().replace(' ', "-"),
+            name: slot.name.clone(),
+            description: slot.description.clone(),
+            kind: CatalogAgentKind::Builtin,
+            status: if enabled {
+                CatalogAgentStatus::Active
+            } else {
+                CatalogAgentStatus::Disabled
+            },
+            modes,
+            default_mode,
+            url: None,
+            capabilities: vec!["in-process".into()],
+        });
+    }
+
+    // 2. External ACP agents
+    let mgr = acp_manager().lock().await;
+    for id in mgr.list_agents().await {
+        agents.push(CatalogAgent {
+            id: id.clone(),
+            name: id.clone(),
+            description: "External ACP agent".into(),
+            kind: CatalogAgentKind::External,
+            status: CatalogAgentStatus::Connected,
+            modes: vec![],
+            default_mode: String::new(),
+            url: None,
+            capabilities: vec!["acp".into()],
+        });
+    }
+
+    // 3. A2A agent instances from the agent pool
+    for snap in state.agent_pool.status_all().await {
+        agents.push(CatalogAgent {
+            id: snap.id.clone(),
+            name: if snap.persona.is_empty() {
+                snap.id.clone()
+            } else {
+                snap.persona.clone()
+            },
+            description: format!("Agent instance ({})", snap.status),
+            kind: CatalogAgentKind::A2a,
+            status: match snap.status {
+                goose::execution::pool::InstanceStatus::Running => CatalogAgentStatus::Active,
+                goose::execution::pool::InstanceStatus::Completed => CatalogAgentStatus::Disabled,
+                goose::execution::pool::InstanceStatus::Failed => CatalogAgentStatus::Unreachable,
+                goose::execution::pool::InstanceStatus::Cancelled => CatalogAgentStatus::Disabled,
+            },
+            modes: vec![],
+            default_mode: String::new(),
+            url: Some(format!("/a2a/instances/{}", snap.id)),
+            capabilities: vec!["a2a".into(), "streaming".into()],
+        });
+    }
+
+    let total = agents.len();
+    Json(AgentCatalogResponse { agents, total })
+}
+
 pub fn routes(state: Arc<AppState>) -> Router {
     Router::new()
+        // Unified catalog
+        .route("/agents/catalog", get(agent_catalog))
         // Builtin agent routes
         .route("/agents/builtin", get(list_builtin_agents))
         .route("/agents/builtin/{name}/toggle", post(toggle_builtin_agent))
