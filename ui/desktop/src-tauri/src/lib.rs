@@ -161,6 +161,10 @@ pub fn run() {
             commands::restart_app,
             commands::log_from_frontend,
             commands::open_in_chrome,
+            commands::set_dock_icon,
+            commands::get_dock_icon_state,
+            commands::set_menu_bar_icon,
+            commands::get_menu_bar_icon_state,
         ])
         // Cleanup on exit
         .on_window_event(|window, event| {

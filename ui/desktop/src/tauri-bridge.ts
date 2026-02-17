@@ -218,11 +218,11 @@ export const tauriBridge = {
 
   // ── System state ────────────────────────────────────────────────────
 
-  setMenuBarIcon: (_show: boolean) => Promise.resolve(true),
-  getMenuBarIconState: () => Promise.resolve(true),
+  setMenuBarIcon: (show: boolean) => invoke<boolean>('set_menu_bar_icon', { show }),
+  getMenuBarIconState: () => invoke<boolean>('get_menu_bar_icon_state'),
 
-  setDockIcon: (_show: boolean) => Promise.resolve(true),
-  getDockIconState: () => Promise.resolve(true),
+  setDockIcon: (show: boolean) => invoke<boolean>('set_dock_icon', { show }),
+  getDockIconState: () => invoke<boolean>('get_dock_icon_state'),
 
   setWakelock: (enable: boolean) => invoke<boolean>('set_wakelock', { enable }),
   getWakelockState: () => invoke<boolean>('get_wakelock_state'),

@@ -493,6 +493,52 @@ pub fn open_in_chrome(url: String) -> Result<(), String> {
     Ok(())
 }
 
+// ── Dock / tray icon controls ────────────────────────────────────────
+
+#[tauri::command]
+pub fn set_dock_icon(app: tauri::AppHandle, show: bool) -> Result<bool, String> {
+    #[cfg(target_os = "macos")]
+    {
+        if let Ok(dock) = app.dock() {
+            if show {
+                let _ = dock.show();
+            } else {
+                let _ = dock.hide();
+            }
+        }
+    }
+    let _ = app;
+    Ok(show)
+}
+
+#[tauri::command]
+pub fn get_dock_icon_state(_app: tauri::AppHandle) -> bool {
+    #[cfg(target_os = "macos")]
+    {
+        if let Ok(dock) = _app.dock() {
+            return dock.is_visible();
+        }
+    }
+    true
+}
+
+#[tauri::command]
+pub fn set_menu_bar_icon(app: tauri::AppHandle, show: bool) -> Result<bool, String> {
+    // Toggle tray icon visibility
+    if let Some(tray) = app.tray_by_id("main") {
+        let _ = tray.set_visible(show);
+    }
+    Ok(show)
+}
+
+#[tauri::command]
+pub fn get_menu_bar_icon_state(app: tauri::AppHandle) -> bool {
+    if let Some(tray) = app.tray_by_id("main") {
+        return tray.is_visible().unwrap_or(true);
+    }
+    true
+}
+
 // ── Restart ──────────────────────────────────────────────────────────
 
 #[tauri::command]
