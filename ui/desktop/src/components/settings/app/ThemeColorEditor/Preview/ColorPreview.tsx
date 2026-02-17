@@ -8,7 +8,7 @@
 import { ColorVariable } from '../types';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '../../../../ui/card';
 import { Button } from '../../../../ui/button';
-import { Home, MessageSquarePlus, FileText, AppWindow, Clock, Puzzle, Save } from 'lucide-react';
+import { Home, MessageSquarePlus, FileText, AppWindow, Clock, Puzzle, Save, AlertTriangle, RotateCcw, Info } from 'lucide-react';
 import { Gear } from '../../../../icons';
 
 interface ColorPreviewProps {
@@ -210,12 +210,28 @@ function BackgroundPreview({ variable, color }: { variable: ColorVariable; color
   
   if (varName === 'color-background-info') {
     return (
-      <div className="p-3 rounded-lg border border-border-info" style={{ backgroundColor: color }}>
-        <p className="text-text-info text-sm font-semibold">ℹ️ Tip</p>
-        <p className="text-text-primary text-xs mt-1">
-          You can use keyboard shortcuts to navigate faster
-        </p>
-      </div>
+      <Card className="pb-2 rounded-lg border-border-info" style={{ backgroundColor: color }}>
+        <CardHeader className="pb-2">
+          <div className="flex items-start gap-3">
+            <AlertTriangle className="h-5 w-5 text-text-info flex-shrink-0 mt-1" />
+            <div className="flex-1">
+              <CardTitle className="text-text-info text-base">Prompt Editing</CardTitle>
+              <p className="text-sm text-text-secondary mt-2">
+                Customize the prompts that define goose's behavior in different contexts. These
+                prompts use Jinja2 templating syntax.
+              </p>
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              className="flex items-center gap-2 border-border-info hover:bg-background-info"
+            >
+              <RotateCcw className="h-4 w-4" />
+              Reset All
+            </Button>
+          </div>
+        </CardHeader>
+      </Card>
     );
   }
   
