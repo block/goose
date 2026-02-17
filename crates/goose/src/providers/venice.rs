@@ -5,7 +5,9 @@ use serde::Serialize;
 use serde_json::{json, Value};
 
 use super::api_client::{ApiClient, AuthMethod};
-use super::base::{ConfigKey, Provider, ProviderDef, ProviderMetadata, ProviderUsage, Usage};
+use super::base::{
+    ConfigKey, MessageStream, Provider, ProviderDef, ProviderMetadata, ProviderUsage, Usage,
+};
 use super::errors::ProviderError;
 use super::openai_compatible::map_http_error_to_provider_error;
 use super::retry::ProviderRetry;
@@ -271,14 +273,19 @@ impl Provider for VeniceProvider {
         skip(self, model_config, system, messages, tools),
         fields(model_config, input, output, input_tokens, output_tokens, total_tokens)
     )]
-    async fn complete_with_model(
+    async fn stream(
         &self,
-        session_id: Option<&str>,
         model_config: &ModelConfig,
+        session_id: &str,
         system: &str,
         messages: &[Message],
         tools: &[Tool],
-    ) -> Result<(Message, ProviderUsage), ProviderError> {
+    ) -> Result<MessageStream, ProviderError> {
+        let session_id = if session_id.is_empty() {
+            None
+        } else {
+            Some(session_id)
+        };
         // Create properly formatted messages for Venice API
         let mut formatted_messages = Vec::new();
 
@@ -502,12 +509,13 @@ impl Provider for VeniceProvider {
                     message = message.with_content(item);
                 }
 
-                return Ok((
+                let provider_usage = ProviderUsage::new(
+                    strip_flags(&model_config.model_name).to_string(),
+                    Usage::default(),
+                );
+                return Ok(super::base::stream_from_single_message(
                     message,
-                    ProviderUsage::new(
-                        strip_flags(&model_config.model_name).to_string(),
-                        Usage::default(),
-                    ),
+                    provider_usage,
                 ));
             }
         }
@@ -534,9 +542,12 @@ impl Provider for VeniceProvider {
             usage_data["total_tokens"].as_i64().map(|v| v as i32),
         );
 
-        Ok((
-            Message::new(Role::Assistant, Utc::now().timestamp(), content),
-            ProviderUsage::new(strip_flags(&self.model.model_name).to_string(), usage),
+        let message = Message::new(Role::Assistant, Utc::now().timestamp(), content);
+        let provider_usage =
+            ProviderUsage::new(strip_flags(&self.model.model_name).to_string(), usage);
+        Ok(super::base::stream_from_single_message(
+            message,
+            provider_usage,
         ))
     }
 }

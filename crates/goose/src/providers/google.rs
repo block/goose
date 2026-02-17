@@ -3,14 +3,12 @@ use super::base::MessageStream;
 use super::errors::ProviderError;
 use super::openai_compatible::handle_status_openai_compat;
 use super::retry::ProviderRetry;
-use super::utils::{handle_response_google_compat, unescape_json_values, RequestLog};
+use super::utils::RequestLog;
 use crate::conversation::message::Message;
 
 use crate::model::ModelConfig;
-use crate::providers::base::{ConfigKey, Provider, ProviderDef, ProviderMetadata, ProviderUsage};
-use crate::providers::formats::google::{
-    create_request, get_usage, response_to_message, response_to_streaming_message,
-};
+use crate::providers::base::{ConfigKey, Provider, ProviderDef, ProviderMetadata};
+use crate::providers::formats::google::{create_request, response_to_streaming_message};
 use anyhow::Result;
 use async_stream::try_stream;
 use async_trait::async_trait;
@@ -92,20 +90,6 @@ impl GoogleProvider {
         })
     }
 
-    async fn post(
-        &self,
-        session_id: Option<&str>,
-        model_name: &str,
-        payload: &Value,
-    ) -> Result<Value, ProviderError> {
-        let path = format!("v1beta/models/{}:generateContent", model_name);
-        let response = self
-            .api_client
-            .response_post(session_id, &path, payload)
-            .await?;
-        handle_response_google_compat(response).await
-    }
-
     async fn post_stream(
         &self,
         session_id: Option<&str>,
@@ -157,39 +141,6 @@ impl Provider for GoogleProvider {
         self.model.clone()
     }
 
-    #[tracing::instrument(
-        skip(self, model_config, system, messages, tools),
-        fields(model_config, input, output, input_tokens, output_tokens, total_tokens)
-    )]
-    async fn complete_with_model(
-        &self,
-        session_id: Option<&str>,
-        model_config: &ModelConfig,
-        system: &str,
-        messages: &[Message],
-        tools: &[Tool],
-    ) -> Result<(Message, ProviderUsage), ProviderError> {
-        let payload = create_request(model_config, system, messages, tools)?;
-        let mut log = RequestLog::start(model_config, &payload)?;
-
-        let response = self
-            .with_retry(|| async {
-                self.post(session_id, &model_config.model_name, &payload)
-                    .await
-            })
-            .await?;
-
-        let message = response_to_message(unescape_json_values(&response))?;
-        let usage = get_usage(&response)?;
-        let response_model = match response.get("modelVersion") {
-            Some(model_version) => model_version.as_str().unwrap_or_default().to_string(),
-            None => model_config.model_name.clone(),
-        };
-        log.write(&response, Some(&usage))?;
-        let provider_usage = ProviderUsage::new(response_model, usage);
-        Ok((message, provider_usage))
-    }
-
     async fn fetch_supported_models(&self) -> Result<Vec<String>, ProviderError> {
         let response = self
             .api_client
@@ -214,23 +165,20 @@ impl Provider for GoogleProvider {
         Ok(models)
     }
 
-    fn supports_streaming(&self) -> bool {
-        true
-    }
-
     async fn stream(
         &self,
+        model_config: &ModelConfig,
         session_id: &str,
         system: &str,
         messages: &[Message],
         tools: &[Tool],
     ) -> Result<MessageStream, ProviderError> {
-        let payload = create_request(&self.model, system, messages, tools)?;
-        let mut log = RequestLog::start(&self.model, &payload)?;
+        let payload = create_request(model_config, system, messages, tools)?;
+        let mut log = RequestLog::start(model_config, &payload)?;
 
         let response = self
             .with_retry(|| async {
-                self.post_stream(Some(session_id), &self.model.model_name, &payload)
+                self.post_stream(Some(session_id), &model_config.model_name, &payload)
                     .await
             })
             .await

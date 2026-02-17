@@ -27,9 +27,11 @@ mod tetrate_streaming_tests {
         let provider = create_test_provider().await?;
 
         let messages = vec![Message::user().with_text("Count from 1 to 5, one number at a time.")];
+        let model_config = provider.get_model_config();
 
         let mut stream = provider
             .stream(
+                &model_config,
                 "test-session-id",
                 "You are a helpful assistant that counts numbers.",
                 &messages,
@@ -99,9 +101,11 @@ mod tetrate_streaming_tests {
         );
 
         let messages = vec![Message::user().with_text("What's the weather in San Francisco?")];
+        let model_config = provider.get_model_config();
 
         let mut stream = provider
             .stream(
+                &model_config,
                 "test-session-id",
                 "You are a helpful assistant with access to weather information.",
                 &messages,
@@ -147,9 +151,11 @@ mod tetrate_streaming_tests {
 
         // This might result in a very short or empty response
         let messages = vec![Message::user().with_text("")];
+        let model_config = provider.get_model_config();
 
         let mut stream = provider
             .stream(
+                &model_config,
                 "test-session-id",
                 "You are a helpful assistant.",
                 &messages,
@@ -182,9 +188,11 @@ mod tetrate_streaming_tests {
         let messages = vec![Message::user().with_text(
             "Write a detailed 3-paragraph essay about the importance of streaming in modern APIs.",
         )];
+        let model_config = provider.get_model_config();
 
         let mut stream = provider
             .stream(
+                &model_config,
                 "test-session-id",
                 "You are a helpful assistant that writes detailed essays.",
                 &messages,
@@ -243,9 +251,11 @@ mod tetrate_streaming_tests {
         let provider = TetrateProvider::from_env(model_config).await?;
 
         let messages = vec![Message::user().with_text("Hello")];
+        let model_config = provider.get_model_config();
 
         let result = provider
             .stream(
+                &model_config,
                 "test-session-id",
                 "You are a helpful assistant.",
                 &messages,
@@ -271,9 +281,11 @@ mod tetrate_streaming_tests {
         // Create multiple concurrent streams
         let messages1 = vec![Message::user().with_text("Say 'Stream 1'")];
         let messages2 = vec![Message::user().with_text("Say 'Stream 2'")];
+        let model_config = provider.get_model_config();
 
         let stream1 = provider
             .stream(
+                &model_config,
                 "test-session-id",
                 "You are a helpful assistant.",
                 &messages1,
@@ -283,6 +295,7 @@ mod tetrate_streaming_tests {
 
         let stream2 = provider
             .stream(
+                &model_config,
                 "test-session-id",
                 "You are a helpful assistant.",
                 &messages2,

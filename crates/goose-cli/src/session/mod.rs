@@ -211,8 +211,10 @@ pub async fn classify_planner_response(
     let prompt = format!("The text below is the output from an AI model which can either provide a plan or list of clarifying questions. Based on the text below, decide if the output is a \"plan\" or \"clarifying questions\".\n---\n{message_text}");
 
     let message = Message::user().with_text(&prompt);
+    let model_config = provider.get_model_config();
     let (result, _usage) = provider
         .complete(
+            &model_config,
             session_id,
             "Reply only with the classification label: \"plan\" or \"clarifying questions\"",
             &[message],
@@ -840,8 +842,10 @@ impl CliSession {
     ) -> Result<(), anyhow::Error> {
         let plan_prompt = self.agent.get_plan_prompt(&self.session_id).await?;
         output::show_thinking();
+        let model_config = reasoner.get_model_config();
         let (plan_response, _usage) = reasoner
             .complete(
+                &model_config,
                 &self.session_id,
                 &plan_prompt,
                 plan_messages.messages(),

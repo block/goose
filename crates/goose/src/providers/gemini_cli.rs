@@ -21,7 +21,6 @@ use crate::conversation::message::{Message, MessageContent};
 use crate::model::ModelConfig;
 use crate::providers::base::ConfigKey;
 use crate::subprocess::configure_subprocess;
-use async_stream::try_stream;
 use futures::future::BoxFuture;
 use rmcp::model::Role;
 use rmcp::model::Tool;
@@ -341,19 +340,20 @@ impl Provider for GeminiCliProvider {
         skip(self, model_config, system, messages, tools),
         fields(model_config, input, output, input_tokens, output_tokens, total_tokens)
     )]
-    async fn complete_with_model(
+    async fn stream(
         &self,
-        _session_id: Option<&str>,
         model_config: &ModelConfig,
+        _session_id: &str, // CLI has no external session-id flag to propagate.
         system: &str,
         messages: &[Message],
         tools: &[Tool],
-    ) -> Result<(Message, ProviderUsage), ProviderError> {
+    ) -> Result<MessageStream, ProviderError> {
         if super::cli_common::is_session_description_request(system) {
-            return super::cli_common::generate_simple_session_description(
+            let (message, provider_usage) = super::cli_common::generate_simple_session_description(
                 &model_config.model_name,
                 messages,
-            );
+            )?;
+            return Ok(stream_from_single_message(message, provider_usage));
         }
 
         let payload = json!({
@@ -381,133 +381,8 @@ impl Provider for GeminiCliProvider {
             ProviderError::RequestFailed(format!("Failed to write request log: {e}"))
         })?;
 
-        Ok((
-            message,
-            ProviderUsage::new(model_config.model_name.clone(), usage),
-        ))
-    }
-
-    fn supports_streaming(&self) -> bool {
-        true
-    }
-
-    async fn stream(
-        &self,
-        _session_id: &str,
-        system: &str,
-        messages: &[Message],
-        _tools: &[Tool],
-    ) -> Result<MessageStream, ProviderError> {
-        if super::cli_common::is_session_description_request(system) {
-            let (message, usage) = super::cli_common::generate_simple_session_description(
-                &self.model.model_name,
-                messages,
-            )?;
-            return Ok(stream_from_single_message(message, usage));
-        }
-
-        let (mut child, mut reader) =
-            self.spawn_command(system, messages, &self.model.model_name)?;
-        let session_id_lock = Arc::clone(&self.cli_session_id);
-        let model_name = self.model.model_name.clone();
-        let message_id = uuid::Uuid::new_v4().to_string();
-
-        // Drain stderr concurrently to avoid pipe deadlock
-        let stderr = child.stderr.take();
-        let stderr_drain = tokio::spawn(async move {
-            let mut buf = String::new();
-            if let Some(mut stderr) = stderr {
-                let _ = AsyncReadExt::read_to_string(&mut stderr, &mut buf).await;
-            }
-            buf
-        });
-
-        Ok(Box::pin(try_stream! {
-            let mut line = String::new();
-            let mut accumulated_usage = Usage::default();
-            let stream_timestamp = chrono::Utc::now().timestamp();
-
-            loop {
-                line.clear();
-                match reader.read_line(&mut line).await {
-                    Ok(0) => break,
-                    Ok(_) => {
-                        let trimmed = line.trim();
-                        if trimmed.is_empty() {
-                            continue;
-                        }
-
-                        if let Ok(parsed) = serde_json::from_str::<Value>(trimmed) {
-                            match parsed.get("type").and_then(|t| t.as_str()) {
-                                Some("init") => {
-                                    if let Some(sid) =
-                                        parsed.get("session_id").and_then(|s| s.as_str())
-                                    {
-                                        let _ = session_id_lock.set(sid.to_string());
-                                    }
-                                }
-                                Some("message") => {
-                                    let is_assistant = parsed.get("role").and_then(|r| r.as_str())
-                                        == Some("assistant");
-                                    let content = parsed
-                                        .get("content")
-                                        .and_then(|c| c.as_str())
-                                        .unwrap_or("");
-                                    if is_assistant && !content.is_empty() {
-                                        let mut partial = Message::new(
-                                            Role::Assistant,
-                                            stream_timestamp,
-                                            vec![MessageContent::text(content)],
-                                        );
-                                        partial.id = Some(message_id.clone());
-                                        yield (Some(partial), None);
-                                    }
-                                }
-                                Some("result") => {
-                                    if let Some(stats) = parsed.get("stats") {
-                                        accumulated_usage = extract_usage_tokens(stats);
-                                    }
-                                    break;
-                                }
-                                Some("error") => {
-                                    let _ = child.wait().await;
-                                    Err(error_from_event("Gemini CLI", &parsed))?;
-                                }
-                                _ => {}
-                            }
-                        } else {
-                            tracing::warn!(line = trimmed, "Non-JSON line in stream-json output");
-                        }
-                    }
-                    Err(e) => {
-                        let _ = child.wait().await;
-                        Err(ProviderError::RequestFailed(format!(
-                            "Failed to read streaming output: {e}"
-                        )))?;
-                    }
-                }
-            }
-
-            let stderr_text = stderr_drain.await.unwrap_or_default();
-            let exit_status = child.wait().await.map_err(|e| {
-                ProviderError::RequestFailed(format!("Failed to wait for command: {e}"))
-            })?;
-
-            if !exit_status.success() {
-                let stderr_snippet = stderr_text.trim();
-                let detail = if stderr_snippet.is_empty() {
-                    format!("exit code {:?}", exit_status.code())
-                } else {
-                    format!("exit code {:?}: {stderr_snippet}", exit_status.code())
-                };
-                Err(ProviderError::RequestFailed(format!(
-                    "Gemini CLI command failed ({detail})"
-                )))?;
-            }
-
-            let provider_usage = ProviderUsage::new(model_name, accumulated_usage);
-            yield (None, Some(provider_usage));
-        }))
+        let provider_usage = ProviderUsage::new(model_config.model_name.clone(), usage);
+        Ok(stream_from_single_message(message, provider_usage))
     }
 }
 

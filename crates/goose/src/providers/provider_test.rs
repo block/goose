@@ -26,8 +26,10 @@ pub async fn test_provider_configuration(
         vec![]
     };
 
+    let provider_model_config = provider.get_model_config();
     let _result = provider
         .complete(
+            &provider_model_config,
             "test-session-id",
             "You are an AI agent called goose. You use tools of connected extensions to solve problems.",
             &messages,

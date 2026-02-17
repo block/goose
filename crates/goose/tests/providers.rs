@@ -127,9 +127,16 @@ impl ProviderTester {
             .build();
 
         let message = Message::user().with_text(prompt);
+        let model_config = self.provider.get_model_config();
         let (response1, _) = self
             .provider
-            .complete(session_id, &system, std::slice::from_ref(&message), &tools)
+            .complete(
+                &model_config,
+                session_id,
+                &system,
+                std::slice::from_ref(&message),
+                &tools,
+            )
             .await?;
 
         // Agentic CLI providers (claude-code, codex) call tools internally and
@@ -163,6 +170,7 @@ impl ProviderTester {
         let (response2, _) = self
             .provider
             .complete(
+                &model_config,
                 session_id,
                 &system,
                 &[message, response1, tool_response],
@@ -174,10 +182,17 @@ impl ProviderTester {
 
     async fn test_basic_response(&self, session_id: &str) -> Result<()> {
         let message = Message::user().with_text("Just say hello!");
+        let model_config = self.provider.get_model_config();
 
         let (response, _) = self
             .provider
-            .complete(session_id, "You are a helpful assistant.", &[message], &[])
+            .complete(
+                &model_config,
+                session_id,
+                "You are a helpful assistant.",
+                &[message],
+                &[],
+            )
             .await?;
 
         assert!(
@@ -227,10 +242,17 @@ impl ProviderTester {
         };
 
         let messages = vec![Message::user().with_text(&large_message_content)];
+        let model_config = self.provider.get_model_config();
 
         let result = self
             .provider
-            .complete(session_id, "You are a helpful assistant.", &messages, &[])
+            .complete(
+                &model_config,
+                session_id,
+                "You are a helpful assistant.",
+                &messages,
+                &[],
+            )
             .await;
 
         println!("=== {}::context_length_exceeded_error ===", self.name);
@@ -288,9 +310,9 @@ impl ProviderTester {
         let message = Message::user().with_text("Just say hello!");
         let (response, _) = self
             .provider
-            .complete_with_model(
-                Some(session_id),
+            .complete(
                 &alt_config,
+                session_id,
                 "You are a helpful assistant.",
                 &[message],
                 &[],
