@@ -13,9 +13,7 @@ import { LogIn } from 'lucide-react';
 function OllamaForm({ onSetup }: { onSetup: () => void }) {
   return (
     <div className="flex flex-col gap-3">
-      <p className="text-sm text-text-muted">
-        Ollama runs AI models locally on your computer.
-      </p>
+      <p className="text-sm text-text-muted">Ollama runs AI models locally on your computer.</p>
       <Button onClick={onSetup}>Set up Ollama</Button>
     </div>
   );
@@ -79,14 +77,18 @@ function ApiKeyForm({
   const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setValidationErrors({});
 
     const parameters = provider.metadata.config_keys || [];
     const errors: Record<string, string> = {};
     parameters.forEach((param) => {
-      if (param.required && !configValues[param.name]?.value && !configValues[param.name]?.serverValue) {
+      if (
+        param.required &&
+        !configValues[param.name]?.value &&
+        !configValues[param.name]?.serverValue
+      ) {
         errors[param.name] = `${param.name} is required`;
       }
     });
@@ -121,10 +123,9 @@ function ApiKeyForm({
         setConfigValues={setConfigValues}
         provider={provider}
         validationErrors={validationErrors}
+        showOptions={false}
       />
-      {provider.metadata.config_keys.some((k) => k.required && k.secret) && (
-        <SecureStorageNotice />
-      )}
+      {provider.metadata.config_keys.some((k) => k.required && k.secret) && <SecureStorageNotice />}
       <div className="mt-4">
         <Button type="submit" disabled={isSubmitting} className="w-full">
           {isSubmitting ? 'Configuring...' : 'Continue'}
@@ -133,7 +134,6 @@ function ApiKeyForm({
     </form>
   );
 }
-
 
 interface ProviderConfigFormProps {
   provider: ProviderDetails;
@@ -167,12 +167,8 @@ export default function ProviderConfigForm({
         <div className="flex items-center gap-3 mb-4">
           <ProviderLogo providerName={provider.name} />
           <div>
-            <h3 className="font-medium text-text-default">
-              {provider.metadata.display_name}
-            </h3>
-            <p className="text-xs text-text-muted">
-              {provider.metadata.description}
-            </p>
+            <h3 className="font-medium text-text-default">{provider.metadata.display_name}</h3>
+            <p className="text-xs text-text-muted">{provider.metadata.description}</p>
           </div>
         </div>
 
