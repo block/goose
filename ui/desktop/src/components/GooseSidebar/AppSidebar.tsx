@@ -19,6 +19,7 @@ import {
   Puzzle,
   Search,
   Trash2,
+  X,
   Workflow,
 } from 'lucide-react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
@@ -335,8 +336,16 @@ const SessionList = React.memo<{
   ) => { streamState: string; hasUnreadActivity: boolean } | undefined;
   onSessionClick: (session: Session) => void;
   onDeleteSession: (sessionId: string) => void;
+  onCloseProject: (projectName: string, sessionIds: string[]) => void;
 }>(
-  ({ sessions, activeSessionId, getSessionStatus, onSessionClick, onDeleteSession }) => {
+  ({
+    sessions,
+    activeSessionId,
+    getSessionStatus,
+    onSessionClick,
+    onDeleteSession,
+    onCloseProject,
+  }) => {
     const { pinnedProjects, togglePin, isPinned, toggleCollapsed, isCollapsed } =
       useProjectPreferences();
     const [projectSearch, setProjectSearch] = useState('');
@@ -436,6 +445,18 @@ const SessionList = React.memo<{
                     )}
                   </button>
                 )}
+                <button
+                  onClick={() =>
+                    onCloseProject(
+                      group.project,
+                      group.sessions.map((s) => s.id)
+                    )
+                  }
+                  className="opacity-0 group-hover/project:opacity-100 p-1 hover:bg-background-danger-muted rounded transition-all"
+                  title={`Close project "${group.project}" and delete ${group.sessions.length} session${group.sessions.length !== 1 ? 's' : ''}`}
+                >
+                  <X className="w-3 h-3 text-text-muted hover:text-text-danger" />
+                </button>
               </div>
               {!collapsed && (
                 <div className="relative ml-3">
@@ -748,6 +769,33 @@ const AppSidebar: React.FC<SidebarProps> = ({ currentPath }) => {
     [activeSessionId, navigate]
   );
 
+  const handleCloseProject = React.useCallback(
+    async (projectName: string, sessionIds: string[]) => {
+      const count = sessionIds.length;
+      if (
+        !window.confirm(
+          `Close project "${projectName}"?\nThis will delete ${count} session${count !== 1 ? 's' : ''}. This cannot be undone.`
+        )
+      )
+        return;
+      try {
+        await Promise.all(sessionIds.map((id) => deleteSession({ path: { session_id: id } })));
+        setRecentSessions((prev) => prev.filter((s) => !sessionIds.includes(s.id)));
+        sessionIds.forEach((sessionId) => {
+          window.dispatchEvent(
+            new CustomEvent(AppEvents.SESSION_DELETED, { detail: { sessionId } })
+          );
+        });
+        if (activeSessionId && sessionIds.includes(activeSessionId)) {
+          navigate('/');
+        }
+      } catch (error) {
+        console.error('Failed to close project:', error);
+      }
+    },
+    [activeSessionId, navigate]
+  );
+
   const handleViewAllClick = React.useCallback(() => {
     navigate('/sessions');
   }, [navigate]);
@@ -907,6 +955,7 @@ const AppSidebar: React.FC<SidebarProps> = ({ currentPath }) => {
                         getSessionStatus={getSessionStatus}
                         onSessionClick={handleSessionClick}
                         onDeleteSession={handleDeleteSession}
+                        onCloseProject={handleCloseProject}
                       />
                       <button
                         onClick={handleViewAllClick}
