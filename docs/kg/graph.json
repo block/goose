@@ -15169,7 +15169,14 @@
         "Design is purely ADDITIVE \u2014 no breaking changes to ACP routes or existing orchestration",
         "State machine mapping documented: ACP 6 states \u2194 A2A 9 states (Rejected and AuthRequired are A2A-only)",
         "Recommendation: Keep both protocols, unify at RemoteAgent trait level \u2014 Goose as polyglot agent platform",
-        "Document at: tmp/docs/a2a-vs-acp-deep-dive.mdx"
+        "Document at: tmp/docs/a2a-vs-acp-deep-dive.mdx",
+        "Phase 1 COMPLETE: RemoteA2AAgent delegation strategy implemented at commit 659b8c08",
+        "DelegationStrategy now has 3 variants: InProcessSpecialist, ExternalAcpAgent, RemoteA2AAgent",
+        "A2A URL takes priority over ACP distribution in DelegationStrategy::choose()",
+        "handle_a2a_delegate() uses A2AClient from a2a crate to send messages and extract responses",
+        "Source struct has new a2a_url: Option<String> field for agent discovery",
+        "8 delegation tests pass (3 new A2A-specific tests)",
+        "Remaining phases: Phase 2 (A2ADiscoverySource for RegistryManager), Phase 3 (Orchestrator catalog integration), Phase 4 (Remote task streaming)"
       ]
     }
   ],
