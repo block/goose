@@ -265,11 +265,13 @@ export const tauriBridge = {
       const update = await check();
       if (update) {
         pendingUpdate = update;
+        invoke('set_tray_update_available', { available: true });
         return {
           updateInfo: { version: update.version, body: update.body },
           error: null,
         };
       }
+      invoke('set_tray_update_available', { available: false });
       return { updateInfo: null, error: null };
     } catch (e) {
       return { updateInfo: null, error: String(e) };
@@ -318,6 +320,7 @@ export const tauriBridge = {
       const update = await check();
       if (update) {
         pendingUpdate = update;
+        invoke('set_tray_update_available', { available: true });
         return { updateAvailable: true, latestVersion: update.version };
       }
       return { updateAvailable: false };

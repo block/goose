@@ -8,9 +8,10 @@ use tauri::{
 const TRAY_ID: &str = "goose-tray";
 
 pub fn create_tray(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
-    let menu = build_tray_menu(app)?;
+    let handle = app.handle();
+    let menu = build_tray_menu(handle, false)?;
 
-    let icon = load_tray_icon();
+    let icon = load_tray_icon(false);
 
     let mut builder = TrayIconBuilder::with_id(TRAY_ID)
         .icon(icon)
@@ -48,18 +49,62 @@ pub fn set_tray_visible(app: &tauri::AppHandle, visible: bool) {
     }
 }
 
-fn load_tray_icon() -> Image<'static> {
-    // Use the macOS-style template icon (monochrome, supports dark/light mode)
-    let icon_bytes = include_bytes!("../icons/iconTemplate@2x.png");
-    Image::from_bytes(icon_bytes).expect("Failed to load tray icon")
+/// Update the tray icon and menu to reflect update availability.
+pub fn set_update_available(app: &tauri::AppHandle, available: bool) {
+    let Some(tray) = app.tray_by_id(TRAY_ID) else {
+        return;
+    };
+
+    // Swap icon
+    let icon = load_tray_icon(available);
+    let _ = tray.set_icon(Some(icon));
+
+    #[cfg(target_os = "macos")]
+    {
+        let _ = tray.set_icon_as_template(true);
+    }
+
+    // Update tooltip
+    let tooltip = if available {
+        "Goose - Update Available"
+    } else {
+        "Goose"
+    };
+    let _ = tray.set_tooltip(Some(tooltip));
+
+    // Rebuild menu with or without the update item
+    if let Ok(menu) = build_tray_menu(app, available) {
+        let _ = tray.set_menu(Some(menu));
+    }
+}
+
+fn load_tray_icon(has_update: bool) -> Image<'static> {
+    if has_update {
+        let bytes = include_bytes!("../icons/iconTemplateUpdate@2x.png");
+        Image::from_bytes(bytes).expect("Failed to load update tray icon")
+    } else {
+        let bytes = include_bytes!("../icons/iconTemplate@2x.png");
+        Image::from_bytes(bytes).expect("Failed to load tray icon")
+    }
 }
 
 fn build_tray_menu(
-    app: &tauri::App,
+    app: &tauri::AppHandle,
+    has_update: bool,
 ) -> Result<tauri::menu::Menu<tauri::Wry>, Box<dyn std::error::Error>> {
+    let mut menu_builder = MenuBuilder::new(app);
+
+    // "Update Available..." item at the top when an update is pending
+    if has_update {
+        let update_item =
+            MenuItemBuilder::with_id("tray-update", "Update Available...").build(app)?;
+        menu_builder = menu_builder.item(&update_item).separator();
+    }
+
     let show_item = MenuItemBuilder::with_id("show", "Show Goose").build(app)?;
     let new_window = MenuItemBuilder::with_id("tray-new-window", "New Window").build(app)?;
-    let open_dir = MenuItemBuilder::with_id("tray-open-directory", "Open Directory...").build(app)?;
+    let open_dir =
+        MenuItemBuilder::with_id("tray-open-directory", "Open Directory...").build(app)?;
 
     // Recent directories submenu
     let recent_dirs = load_recent_dirs();
@@ -72,11 +117,8 @@ fn build_tray_menu(
         } else {
             for (i, dir) in recent_dirs.iter().enumerate().take(10) {
                 let short = dir.split('/').last().unwrap_or(dir);
-                let item = MenuItemBuilder::with_id(
-                    &format!("tray-recent-{}", i),
-                    short,
-                )
-                .build(app)?;
+                let item =
+                    MenuItemBuilder::with_id(&format!("tray-recent-{}", i), short).build(app)?;
                 builder = builder.item(&item);
             }
         }
@@ -85,7 +127,7 @@ fn build_tray_menu(
 
     let quit_item = MenuItemBuilder::with_id("quit", "Quit").build(app)?;
 
-    let menu = MenuBuilder::new(app)
+    let menu = menu_builder
         .items(&[&show_item, &new_window, &open_dir])
         .item(&recent_submenu)
         .separator()
@@ -103,6 +145,14 @@ fn handle_tray_menu_event(app: &tauri::AppHandle, event: tauri::menu::MenuEvent)
             if let Some(window) = app.get_webview_window("main") {
                 let _ = window.show();
                 let _ = window.set_focus();
+            }
+        }
+        "tray-update" => {
+            // Open settings and navigate to the update section
+            if let Some(window) = app.get_webview_window("main") {
+                let _ = window.show();
+                let _ = window.set_focus();
+                let _ = window.emit("set-view", ("settings", "update"));
             }
         }
         "tray-new-window" => {

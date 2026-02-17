@@ -549,6 +549,11 @@ pub fn get_menu_bar_icon_state(state: tauri::State<'_, SettingsState>) -> bool {
     settings.show_menu_bar_icon
 }
 
+#[tauri::command]
+pub fn set_tray_update_available(app: tauri::AppHandle, available: bool) {
+    crate::tray::set_update_available(&app, available);
+}
+
 // ── Restart ──────────────────────────────────────────────────────────
 
 #[tauri::command]

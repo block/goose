@@ -175,6 +175,7 @@ pub fn run() {
             commands::get_dock_icon_state,
             commands::set_menu_bar_icon,
             commands::get_menu_bar_icon_state,
+            commands::set_tray_update_available,
         ])
         // Cleanup on exit
         .on_window_event(|window, event| {
