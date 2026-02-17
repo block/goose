@@ -10788,5 +10788,185 @@
     "from": "Goose_Persona_Class_Instance_Model",
     "to": "A2AInstanceRoutes",
     "relationType": "exposed_via"
+  },
+  {
+    "from": "Component: SpawnInstanceModal",
+    "to": "RepoPath: ui/desktop/src/components/agents/",
+    "relationType": "located_at"
+  },
+  {
+    "from": "Component: InstanceDetail",
+    "to": "RepoPath: ui/desktop/src/components/agents/",
+    "relationType": "located_at"
+  },
+  {
+    "from": "Component: InstanceList",
+    "to": "RepoPath: ui/desktop/src/components/agents/",
+    "relationType": "located_at"
+  },
+  {
+    "from": "Component: InstanceEventLog",
+    "to": "RepoPath: ui/desktop/src/components/agents/",
+    "relationType": "located_at"
+  },
+  {
+    "from": "Component: InstanceStatusBadge",
+    "to": "RepoPath: ui/desktop/src/components/agents/",
+    "relationType": "located_at"
+  },
+  {
+    "from": "Component: AgentsView",
+    "to": "RepoPath: ui/desktop/src/components/agents/",
+    "relationType": "located_at"
+  },
+  {
+    "from": "Component: GooseMessage",
+    "to": "Utility: generativeSpec",
+    "relationType": "depends_on"
+  },
+  {
+    "from": "Component: GooseMessage",
+    "to": "Component: GooseGenerativeUI",
+    "relationType": "depends_on"
+  },
+  {
+    "from": "Component: CatalogsOverview",
+    "to": "RepoPath: ui/desktop/src/components/catalogs/",
+    "relationType": "located_at"
+  },
+  {
+    "from": "Component: CatalogsOverview",
+    "to": "API: Desktop Instance Management",
+    "relationType": "depends_on"
+  },
+  {
+    "from": "Component: PromptBar",
+    "to": "Component: UnifiedInputContext",
+    "relationType": "depends_on"
+  },
+  {
+    "from": "Component: AppLayout",
+    "to": "Component: PromptBar",
+    "relationType": "depends_on"
+  },
+  {
+    "from": "Component: AppLayout",
+    "to": "Component: UnifiedInputContext",
+    "relationType": "depends_on"
+  },
+  {
+    "from": "Component: GooseGenerativeUI",
+    "to": "DesignSystem: Goose Component Map",
+    "relationType": "implements"
+  },
+  {
+    "from": "Component: GenerativePanel",
+    "to": "DesignSystem: Generative Catalog",
+    "relationType": "implements"
+  },
+  {
+    "from": "Utility: generativeSpec",
+    "to": "RepoPath: ui/desktop/src/utils/generativeSpec.ts",
+    "relationType": "located_at"
+  },
+  {
+    "from": "Decision: Two Generative UI Systems Coexist",
+    "to": "Component: GenerativePanel",
+    "relationType": "affects"
+  },
+  {
+    "from": "Decision: Two Generative UI Systems Coexist",
+    "to": "Component: GooseGenerativeUI",
+    "relationType": "affects"
+  },
+  {
+    "from": "Decision: Generative Spec Detection via Message Text",
+    "to": "Component: GooseMessage",
+    "relationType": "affects"
+  },
+  {
+    "from": "Decision: Generative Spec Detection via Message Text",
+    "to": "Utility: generativeSpec",
+    "relationType": "affects"
+  },
+  {
+    "from": "Decision: Catalog Views Use Real API",
+    "to": "Component: CatalogsOverview",
+    "relationType": "affects"
+  },
+  {
+    "from": "Decision: PromptBar Zone-Awareness Already Complete",
+    "to": "Component: PromptBar",
+    "relationType": "affects"
+  },
+  {
+    "from": "Decision: PromptBar Zone-Awareness Already Complete",
+    "to": "Component: UnifiedInputContext",
+    "relationType": "affects"
+  },
+  {
+    "from": "Finding: UI Gap Analysis Results",
+    "to": "Source: UI Gap Analysis",
+    "relationType": "derived_from"
+  },
+  {
+    "from": "Finding: Analytics Components Hardcoded Colors",
+    "to": "BeadsTask: goose4-hmzj",
+    "relationType": "related_to"
+  },
+  {
+    "from": "Hook: useInstances",
+    "to": "API: Desktop Instance Management",
+    "relationType": "depends_on"
+  },
+  {
+    "from": "Hook: useInstanceEvents",
+    "to": "API: Desktop Instance Management",
+    "relationType": "depends_on"
+  },
+  {
+    "from": "Component: SpawnInstanceModal",
+    "to": "Hook: useInstances",
+    "relationType": "depends_on"
+  },
+  {
+    "from": "Component: InstanceDetail",
+    "to": "Hook: useInstanceEvents",
+    "relationType": "depends_on"
+  },
+  {
+    "from": "BeadsEpic: goose4-x1dl",
+    "to": "Component: SpawnInstanceModal",
+    "relationType": "related_to"
+  },
+  {
+    "from": "BeadsEpic: goose4-x1dl",
+    "to": "Component: GooseMessage",
+    "relationType": "related_to"
+  },
+  {
+    "from": "BeadsEpic: goose4-x1dl",
+    "to": "Component: CatalogsOverview",
+    "relationType": "related_to"
+  },
+  {
+    "from": "BeadsEpic: goose4-5jq",
+    "to": "Source: UX Redesign Proposal",
+    "relationType": "derived_from"
+  },
+  {
+    "from": "BeadsTask: goose4-hmzj",
+    "to": "RepoPath: ui/desktop/src/components/agents/",
+    "relationType": "related_to"
+  },
+  {
+    "from": "DesignSystem: Goose Component Map",
+    "to": "RepoPath: ui/desktop/src/components/ui/design-system/",
+    "relationType": "located_at"
+  },
+  {
+    "from": "DesignSystem: Generative Catalog",
+    "to": "Component: GenerativePanel",
+    "relationType": "related_to"
   }
 ]

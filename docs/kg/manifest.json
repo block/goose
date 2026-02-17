@@ -1,7 +1,7 @@
 {
-  "exported_at": "2026-02-17T12:07:14.812412",
-  "entity_count": 1514,
-  "relation_count": 2158,
+  "exported_at": "2026-02-17T18:54:55.243689",
+  "entity_count": 1552,
+  "relation_count": 2194,
   "format_version": "1.0",
   "branch": "feature/cli-via-goosed",
   "session_deliverables": [
@@ -9,6 +9,7 @@
     "Agents facade sub-modules (e0869c4e)",
     "Summon extension split (f681fd86)",
     "A2A spec compliance tests (2eff01c5)",
-    "WorkspaceEventBus (75befcfd)"
+    "WorkspaceEventBus (75befcfd)",
+    "Desktop UI Polish & Generative UI Integration (665fd046)"
   ]
 }
