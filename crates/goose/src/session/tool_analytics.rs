@@ -58,7 +58,7 @@ pub struct SessionToolSummary {
 }
 
 /// Agent performance metrics extracted from session data
-#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, ToSchema)]
 pub struct AgentPerformanceMetrics {
     pub sessions_by_provider: Vec<ProviderSessionStat>,
     pub avg_messages_per_session: f64,
@@ -76,7 +76,7 @@ pub struct ProviderSessionStat {
     pub avg_messages: f64,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, ToSchema)]
 pub struct DurationStats {
     pub avg_seconds: f64,
     pub median_seconds: f64,
@@ -145,7 +145,7 @@ pub struct MinuteActivity {
 }
 
 /// Response quality proxy metrics derived from session/message patterns
-#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, ToSchema)]
 pub struct ResponseQualityMetrics {
     pub total_sessions: i64,
     pub avg_session_duration_secs: f64,

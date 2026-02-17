@@ -537,10 +537,13 @@ pub async fn get_agent_performance(
         .await
         .map_err(|e| ErrorResponse::internal(e.to_string()))?;
     let store = ToolAnalyticsStore::new(pool);
-    let metrics = store
-        .get_agent_performance(params.days.unwrap_or(30))
-        .await
-        .map_err(|e| ErrorResponse::internal(e.to_string()))?;
+    let metrics = match store.get_agent_performance(params.days.unwrap_or(30)).await {
+        Ok(m) => m,
+        Err(e) => {
+            tracing::warn!("Analytics query failed (schema may not exist yet): {e}");
+            AgentPerformanceMetrics::default()
+        }
+    };
     Ok(Json(metrics))
 }
 
@@ -589,10 +592,13 @@ pub async fn get_response_quality(
         .await
         .map_err(|e| ErrorResponse::internal(e.to_string()))?;
     let store = ToolAnalyticsStore::new(pool);
-    let metrics = store
-        .get_response_quality(params.days.unwrap_or(30))
-        .await
-        .map_err(|e| ErrorResponse::internal(e.to_string()))?;
+    let metrics = match store.get_response_quality(params.days.unwrap_or(30)).await {
+        Ok(m) => m,
+        Err(e) => {
+            tracing::warn!("Analytics quality query failed (schema may not exist yet): {e}");
+            ResponseQualityMetrics::default()
+        }
+    };
     Ok(Json(metrics))
 }
 
