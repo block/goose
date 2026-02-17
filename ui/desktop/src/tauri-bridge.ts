@@ -446,6 +446,16 @@ export const appConfigBridge = {
 export async function initTauriBridge(): Promise<void> {
   await loadConfig();
 
+  // Tauri syncs document.title changes to the native window title.
+  // Since we use a transparent titlebar with hidden title, prevent any
+  // title from appearing by overriding the document.title property.
+  document.title = '';
+  Object.defineProperty(document, 'title', {
+    set() { /* no-op — keep native titlebar empty */ },
+    get() { return ''; },
+    configurable: true,
+  });
+
   // Redirect window.open() to system browser
   // eslint-disable-next-line no-undef
   window.open = function (url?: string | URL): WindowProxy | null {
