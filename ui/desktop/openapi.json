@@ -1282,6 +1282,46 @@
         }
       }
     },
+    "/config/providers/{name}/model-info": {
+      "get": {
+        "tags": [
+          "super::routes::config_management"
+        ],
+        "operationId": "get_provider_model_info",
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "description": "Provider name (e.g., litellm)",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Model info fetched successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ModelInfo"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Unknown provider or provider not configured"
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        }
+      }
+    },
     "/config/providers/{name}/models": {
       "get": {
         "tags": [
@@ -5290,6 +5330,11 @@
           "toolshim_model": {
             "type": "string",
             "nullable": true
+          },
+          "variant": {
+            "type": "string",
+            "description": "Reasoning variant level (e.g., \"low\", \"medium\", \"high\", \"max\").\nControls reasoning effort/budget for models that support extended thinking.\nThe provider translates this into the appropriate API parameters.",
+            "nullable": true
           }
         }
       },
@@ -5330,6 +5375,11 @@
           "supports_cache_control": {
             "type": "boolean",
             "description": "Whether this model supports cache control",
+            "nullable": true
+          },
+          "supports_reasoning": {
+            "type": "boolean",
+            "description": "Whether this model supports reasoning/extended thinking",
             "nullable": true
           }
         }

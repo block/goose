@@ -235,9 +235,9 @@ export const savePrompt = <ThrowOnError extends boolean = false>(options: Option
 
 export const providers = <ThrowOnError extends boolean = false>(options?: Options<ProvidersData, ThrowOnError>) => (options?.client ?? client).get<ProvidersResponses, unknown, ThrowOnError>({ url: '/config/providers', ...options });
 
-export const getProviderModels = <ThrowOnError extends boolean = false>(options: Options<GetProviderModelsData, ThrowOnError>) => (options.client ?? client).get<GetProviderModelsResponses, GetProviderModelsErrors, ThrowOnError>({ url: '/config/providers/{name}/models', ...options });
-
 export const getProviderModelInfo = <ThrowOnError extends boolean = false>(options: Options<GetProviderModelInfoData, ThrowOnError>) => (options.client ?? client).get<GetProviderModelInfoResponses, GetProviderModelInfoErrors, ThrowOnError>({ url: '/config/providers/{name}/model-info', ...options });
+
+export const getProviderModels = <ThrowOnError extends boolean = false>(options: Options<GetProviderModelsData, ThrowOnError>) => (options.client ?? client).get<GetProviderModelsResponses, GetProviderModelsErrors, ThrowOnError>({ url: '/config/providers/{name}/models', ...options });
 
 export const configureProviderOauth = <ThrowOnError extends boolean = false>(options: Options<ConfigureProviderOauthData, ThrowOnError>) => (options.client ?? client).post<ConfigureProviderOauthResponses, ConfigureProviderOauthErrors, ThrowOnError>({ url: '/config/providers/{name}/oauth', ...options });
 
