@@ -172,10 +172,38 @@ const getSessionDisplayName = (session: Session): string => {
 
 const getProjectName = (workingDir: string | undefined | null): string => {
   if (!workingDir) return 'General';
-  const home = typeof window !== 'undefined' ? getInitialWorkingDir() : '';
-  if (workingDir === home || workingDir === '~') return 'General';
-  const parts = workingDir.replace(/\/$/, '').split('/');
-  return parts[parts.length - 1] || 'General';
+
+  // Temp dirs (/tmp/.tmpXXXXXX) → group as "General"
+  if (workingDir.startsWith('/tmp/.tmp') || workingDir.startsWith('/tmp/tmp')) {
+    return 'General';
+  }
+
+  // User home dir with no project context → General
+  // Detect home dir from path patterns since appConfig doesn't expose HOME
+  if (workingDir === '~') return 'General';
+  if (/^\/home\/[^/]+$/.test(workingDir) || /^\/Users\/[^/]+$/.test(workingDir)) {
+    return 'General';
+  }
+
+  const cleanPath = workingDir.replace(/\/$/, '');
+  const parts = cleanPath.split('/');
+  const name = parts[parts.length - 1] || 'General';
+
+  // Disambiguate nested subdirs of the same parent project
+  // e.g. /home/user/codes/goose4 → "goose4"
+  //      /home/user/codes/goose4/crates/goose → "goose4 › crates/goose"
+  // Find all sessions' common ancestor to detect shared parent projects
+  const initialWorkDir = typeof window !== 'undefined' ? getInitialWorkingDir() : '';
+  if (initialWorkDir) {
+    const iwdClean = initialWorkDir.replace(/\/$/, '');
+    if (cleanPath !== iwdClean && cleanPath.startsWith(iwdClean + '/')) {
+      const iwdName = iwdClean.split('/').pop() || '';
+      const relative = cleanPath.slice(iwdClean.length + 1);
+      return `${iwdName} › ${relative}`;
+    }
+  }
+
+  return name;
 };
 
 interface ProjectGroup {
