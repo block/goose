@@ -8,6 +8,19 @@ use tokio::sync::RwLock;
 pub struct AgentSlotRegistry {
     enabled_agents: Arc<RwLock<HashMap<String, bool>>>,
     bound_extensions: Arc<RwLock<HashMap<String, HashSet<String>>>>,
+    delegation_strategies: Arc<RwLock<HashMap<String, SlotDelegation>>>,
+}
+
+/// How a particular agent slot should be executed.
+#[derive(Clone, Debug, PartialEq)]
+#[allow(dead_code)]
+pub enum SlotDelegation {
+    /// Execute in-process via the local provider (builtin agents).
+    InProcess,
+    /// Execute via an external ACP agent process.
+    ExternalAcp,
+    /// Execute via a remote A2A agent over HTTP.
+    RemoteA2A { url: String },
 }
 
 impl Default for AgentSlotRegistry {
@@ -22,9 +35,14 @@ impl AgentSlotRegistry {
         enabled.insert("Goose Agent".to_string(), true);
         enabled.insert("Developer Agent".to_string(), true);
 
+        let mut strategies = HashMap::new();
+        strategies.insert("Goose Agent".to_string(), SlotDelegation::InProcess);
+        strategies.insert("Developer Agent".to_string(), SlotDelegation::InProcess);
+
         Self {
             enabled_agents: Arc::new(RwLock::new(enabled)),
             bound_extensions: Arc::new(RwLock::new(HashMap::new())),
+            delegation_strategies: Arc::new(RwLock::new(strategies)),
         }
     }
 
@@ -69,6 +87,55 @@ impl AgentSlotRegistry {
             exts.remove(extension_name);
         }
     }
+
+    #[allow(dead_code)]
+    pub async fn get_delegation(&self, name: &str) -> SlotDelegation {
+        self.delegation_strategies
+            .read()
+            .await
+            .get(name)
+            .cloned()
+            .unwrap_or(SlotDelegation::InProcess)
+    }
+
+    #[allow(dead_code)]
+    pub async fn set_delegation(&self, name: &str, delegation: SlotDelegation) {
+        self.delegation_strategies
+            .write()
+            .await
+            .insert(name.to_string(), delegation);
+    }
+
+    #[allow(dead_code)]
+    pub async fn register_a2a_agent(&self, name: &str, url: &str) {
+        self.enabled_agents
+            .write()
+            .await
+            .insert(name.to_string(), true);
+        self.delegation_strategies.write().await.insert(
+            name.to_string(),
+            SlotDelegation::RemoteA2A {
+                url: url.to_string(),
+            },
+        );
+    }
+
+    pub async fn register_acp_agent(&self, name: &str) {
+        self.enabled_agents
+            .write()
+            .await
+            .insert(name.to_string(), true);
+        self.delegation_strategies
+            .write()
+            .await
+            .insert(name.to_string(), SlotDelegation::ExternalAcp);
+    }
+
+    pub async fn unregister_agent(&self, name: &str) {
+        self.enabled_agents.write().await.remove(name);
+        self.delegation_strategies.write().await.remove(name);
+        self.bound_extensions.write().await.remove(name);
+    }
 }
 
 #[cfg(test)]
@@ -101,5 +168,67 @@ mod tests {
         registry.unbind_extension("Goose Agent", "developer").await;
         let exts = registry.get_bound_extensions("Goose Agent").await;
         assert_eq!(exts.len(), 1);
+    }
+
+    #[tokio::test]
+    async fn test_delegation_defaults_to_in_process() {
+        let registry = AgentSlotRegistry::new();
+        assert_eq!(
+            registry.get_delegation("Goose Agent").await,
+            SlotDelegation::InProcess
+        );
+        assert_eq!(
+            registry.get_delegation("Unknown Agent").await,
+            SlotDelegation::InProcess
+        );
+    }
+
+    #[tokio::test]
+    async fn test_register_a2a_agent() {
+        let registry = AgentSlotRegistry::new();
+        registry
+            .register_a2a_agent("Remote Agent", "https://remote.example.com/a2a")
+            .await;
+        assert!(registry.is_enabled("Remote Agent").await);
+        assert_eq!(
+            registry.get_delegation("Remote Agent").await,
+            SlotDelegation::RemoteA2A {
+                url: "https://remote.example.com/a2a".to_string()
+            }
+        );
+    }
+
+    #[tokio::test]
+    async fn test_register_acp_agent() {
+        let registry = AgentSlotRegistry::new();
+        registry.register_acp_agent("ACP Agent").await;
+        assert!(registry.is_enabled("ACP Agent").await);
+        assert_eq!(
+            registry.get_delegation("ACP Agent").await,
+            SlotDelegation::ExternalAcp
+        );
+    }
+
+    #[tokio::test]
+    async fn test_unregister_agent() {
+        let registry = AgentSlotRegistry::new();
+        registry
+            .register_a2a_agent("Temp Agent", "https://example.com")
+            .await;
+        registry.bind_extension("Temp Agent", "developer").await;
+        assert_eq!(
+            registry.get_delegation("Temp Agent").await,
+            SlotDelegation::RemoteA2A {
+                url: "https://example.com".to_string()
+            }
+        );
+
+        registry.unregister_agent("Temp Agent").await;
+        // Delegation falls back to InProcess after removal
+        assert_eq!(
+            registry.get_delegation("Temp Agent").await,
+            SlotDelegation::InProcess
+        );
+        assert!(registry.get_bound_extensions("Temp Agent").await.is_empty());
     }
 }

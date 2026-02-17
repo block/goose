@@ -84,6 +84,7 @@ pub struct AgentListResponse {
     tag = "External Agents"
 )]
 pub async fn connect_agent(
+    State(state): State<Arc<AppState>>,
     Json(req): Json<ConnectAgentRequest>,
 ) -> Result<Json<ConnectAgentResponse>, ErrorResponse> {
     let registry = default_registry()?;
@@ -132,6 +133,12 @@ pub async fn connect_agent(
             }
         }
     }
+
+    // Register ACP delegation strategy in the slot registry
+    state
+        .agent_slot_registry
+        .register_acp_agent(&req.name)
+        .await;
 
     Ok(Json(ConnectAgentResponse {
         agent_id: req.name,
@@ -245,12 +252,16 @@ pub async fn list_agents() -> Json<AgentListResponse> {
     tag = "External Agents"
 )]
 pub async fn disconnect_agent(
+    State(state): State<Arc<AppState>>,
     Path(agent_id): Path<String>,
 ) -> Result<Json<serde_json::Value>, ErrorResponse> {
     let mgr = acp_manager().lock().await;
     mgr.disconnect_agent(&agent_id)
         .await
         .map_err(|e| ErrorResponse::internal(format!("Disconnect failed: {e}")))?;
+
+    // Unregister from slot registry
+    state.agent_slot_registry.unregister_agent(&agent_id).await;
 
     Ok(Json(serde_json::json!({"ok": true})))
 }
