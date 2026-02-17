@@ -628,7 +628,7 @@ export default function McpAppRenderer({
     };
 
     return context;
-  }, [resolvedTheme, displayMode, containerWidth, containerHeight]);
+  }, [resolvedTheme, mcpHostStyles, displayMode, containerWidth, containerHeight]);
 
   const appToolResult = useMemo((): CallToolResult | undefined => {
     if (!toolResult) return undefined;
