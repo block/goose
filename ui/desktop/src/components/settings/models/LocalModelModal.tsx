@@ -1,194 +1,179 @@
-import { useState, useEffect, useCallback } from 'react';
-import { HardDrive, Download, Check, X, Search } from 'lucide-react';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from '../../ui/dialog';
+import React, { useCallback, useEffect, useState, useRef } from 'react';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../../ui/dialog';
 import { Button } from '../../ui/button';
-import { useConfig } from '../../ConfigContext';
 import {
   listLocalModels,
-  downloadLocalModel,
-  getLocalModelDownloadProgress,
+  downloadHfModel,
   cancelLocalModelDownload,
-  type DownloadProgress,
-  type LocalModelResponse,
-  type ModelListItem,
+  deleteLocalModel,
+  LocalModelResponse,
 } from '../../../api';
+import { Download, X, Check, Search, Trash2 } from 'lucide-react';
 import { HuggingFaceSearchModal } from './HuggingFaceSearchModal';
 
-// Original provider avatar URLs from HuggingFace organizations
+// Provider avatar URLs for known model providers
 const PROVIDER_AVATARS: Record<string, string> = {
-  'meta-llama': 'https://cdn-avatars.huggingface.co/v1/production/uploads/646cf8084eefb026fb8fd8bc/oCTqufkdTkjyGodsx1vo1.png',
-  'mistralai': 'https://cdn-avatars.huggingface.co/v1/production/uploads/634c17653d11eaedd88b314d/9OgyfKstSZtbmsmuG8MbU.png',
+  'meta-llama': 'https://huggingface.co/meta-llama/avatar.png',
+  mistralai: 'https://huggingface.co/mistralai/avatar.png',
+  NousResearch: 'https://huggingface.co/NousResearch/avatar.png',
+  bartowski: 'https://huggingface.co/bartowski/avatar.png',
 };
 
-// Get the original provider for a model based on its name
-const getOriginalProvider = (modelName: string): string | null => {
-  const lowerName = modelName.toLowerCase();
-  if (lowerName.includes('llama') || lowerName.includes('hermes')) {
-    return 'meta-llama';
-  }
-  if (lowerName.includes('mistral')) {
-    return 'mistralai';
-  }
-  return null;
-};
-
-const LOCAL_LLM_MODEL_CONFIG_KEY = 'LOCAL_LLM_MODEL';
-
-const formatBytes = (bytes: number): string => {
-  if (bytes < 1024) return `${bytes}B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)}KB`;
-  if (bytes < 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(0)}MB`;
-  return `${(bytes / (1024 * 1024 * 1024)).toFixed(1)}GB`;
-};
-
-function isFeaturedModel(item: ModelListItem): item is LocalModelResponse & { featured: boolean } {
-  return 'tier' in item;
+// Helper to extract original provider from repo_id
+function getOriginalProvider(repoId: string): string | null {
+  const parts = repoId.split('/');
+  return parts.length > 0 ? parts[0] : null;
 }
+
+// Type guard to check if a model is a featured/recommended model
+function isFeaturedModel(item: LocalModelResponse): boolean {
+  return item.tier !== undefined && item.tier !== null;
+}
+
+// Format bytes to human readable
+function formatBytes(bytes: number | null | undefined): string {
+  if (!bytes) return 'N/A';
+  const gb = bytes / (1024 * 1024 * 1024);
+  if (gb >= 1) return `${gb.toFixed(1)} GB`;
+  const mb = bytes / (1024 * 1024);
+  return `${mb.toFixed(0)} MB`;
+}
+
+export const LOCAL_MODEL_CONFIG_KEY = 'local';
 
 interface LocalModelModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onModelSelected: (modelId: string) => void;
+  onModelSelect: (modelId: string) => void;
 }
 
-export function LocalModelModal({ isOpen, onClose, onModelSelected }: LocalModelModalProps) {
-  const [featuredModels, setFeaturedModels] = useState<(LocalModelResponse & { featured?: boolean })[]>([]);
-  const [downloads, setDownloads] = useState<Map<string, DownloadProgress>>(new Map());
+export const LocalModelModal: React.FC<LocalModelModalProps> = ({
+  isOpen,
+  onClose,
+  onModelSelect,
+}) => {
+  const [featuredModels, setFeaturedModels] = useState<LocalModelResponse[]>([]);
+  const [pollingActive, setPollingActive] = useState(false);
   const [showHuggingFaceModal, setShowHuggingFaceModal] = useState(false);
-  const { upsert } = useConfig();
+  const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  // Load local models
+  // Load models from the registry
   const loadLocalModels = useCallback(async () => {
     try {
       const response = await listLocalModels();
       if (response.data) {
-        const featured: (LocalModelResponse & { featured?: boolean })[] = [];
-        for (const item of response.data) {
-          if (isFeaturedModel(item)) {
-            featured.push(item);
-          }
-        }
+        // Filter to only show featured/recommended models in this modal
+        const featured = response.data.filter(isFeaturedModel);
         setFeaturedModels(featured);
+
+        // Check if any downloads are in progress
+        const hasActiveDownloads = featured.some((m) => m.status.state === 'Downloading');
+        if (!hasActiveDownloads && pollingActive) {
+          setPollingActive(false);
+        }
       }
     } catch (error) {
       console.error('Failed to load local models:', error);
     }
-  }, []);
+  }, [pollingActive]);
 
+  // Initial load
   useEffect(() => {
     if (isOpen) {
       loadLocalModels();
     }
   }, [isOpen, loadLocalModels]);
 
-  const selectLocalModel = async (modelId: string) => {
-    await upsert(LOCAL_LLM_MODEL_CONFIG_KEY, modelId, false);
-    await upsert('GOOSE_PROVIDER', 'local', false);
-    await upsert('GOOSE_MODEL', modelId, false);
-    onModelSelected(modelId);
+  // Polling for download progress
+  useEffect(() => {
+    if (pollingActive && isOpen) {
+      pollingRef.current = setInterval(() => {
+        loadLocalModels();
+      }, 500);
+    }
+
+    return () => {
+      if (pollingRef.current) {
+        clearInterval(pollingRef.current);
+        pollingRef.current = null;
+      }
+    };
+  }, [pollingActive, isOpen, loadLocalModels]);
+
+  const selectLocalModel = (modelId: string) => {
+    onModelSelect(modelId);
     onClose();
   };
 
-  const startDownload = async (modelId: string) => {
+  const startDownload = async (model: LocalModelResponse) => {
     try {
-      await downloadLocalModel({ path: { model_id: modelId } });
-      pollDownloadProgress(modelId);
+      await downloadHfModel({
+        body: {
+          spec: `${model.repo_id}:${model.quantization}`,
+        },
+      });
+      setPollingActive(true);
+      loadLocalModels();
     } catch (error) {
       console.error('Failed to start download:', error);
     }
   };
 
-  const pollDownloadProgress = (modelId: string) => {
-    const interval = setInterval(async () => {
-      try {
-        const response = await getLocalModelDownloadProgress({ path: { model_id: modelId } });
-        if (response.data) {
-          const progress = response.data;
-          setDownloads((prev) => new Map(prev).set(modelId, progress));
-
-          if (progress.status === 'completed') {
-            clearInterval(interval);
-            await loadLocalModels();
-            // Auto-select the downloaded model
-            await selectLocalModel(modelId);
-          } else if (progress.status === 'failed') {
-            clearInterval(interval);
-            await loadLocalModels();
-          }
-        } else {
-          clearInterval(interval);
-        }
-      } catch {
-        clearInterval(interval);
-      }
-    }, 500);
-  };
-
   const cancelDownload = async (modelId: string) => {
     try {
       await cancelLocalModelDownload({ path: { model_id: modelId } });
-      setDownloads((prev) => {
-        const next = new Map(prev);
-        next.delete(modelId);
-        return next;
-      });
       loadLocalModels();
     } catch (error) {
       console.error('Failed to cancel download:', error);
     }
   };
 
-  const downloadedModels = featuredModels.filter(m => m.downloaded);
-  const hasDownloadedModels = downloadedModels.length > 0;
+  const handleDeleteModel = async (modelId: string) => {
+    try {
+      await deleteLocalModel({ path: { model_id: modelId } });
+      loadLocalModels();
+    } catch (error) {
+      console.error('Failed to delete model:', error);
+    }
+  };
+
+  // Separate downloaded and not-downloaded models
+  const downloadedModels = featuredModels.filter((m) => m.status.state === 'Downloaded');
+  const notDownloadedModels = featuredModels.filter((m) => m.status.state !== 'Downloaded');
 
   return (
-    <Dialog open={isOpen} onOpenChange={onClose}>
+    <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
       <DialogContent className="sm:max-w-[90vw] md:max-w-[80vw] lg:max-w-[900px] max-h-[85vh] overflow-hidden flex flex-col">
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <HardDrive size={24} className="text-green-500" />
-            Local Models
-          </DialogTitle>
-          <DialogDescription>
-            {hasDownloadedModels 
-              ? 'Select a downloaded model or download a new one.'
-              : 'No local models downloaded. Download a model to use local inference.'}
-          </DialogDescription>
+          <DialogTitle>Local Models</DialogTitle>
         </DialogHeader>
 
         <div className="flex-1 overflow-y-auto py-4 space-y-4 pr-1">
-          {/* Empty state message */}
-          {!hasDownloadedModels && (
+          {featuredModels.length === 0 && (
             <div className="text-center py-6 px-4 bg-amber-500/10 border border-amber-500/20 rounded-lg">
-              <HardDrive className="w-12 h-12 text-amber-500 mx-auto mb-3" />
-              <p className="text-sm text-text-muted">
-                No local model downloaded yet. Choose a featured model below or search HuggingFace.
-              </p>
+              <p className="text-sm text-text-muted">Loading models...</p>
             </div>
           )}
 
-          {/* Available Models (downloaded) */}
-          {hasDownloadedModels && (
+          {/* Downloaded Models */}
+          {downloadedModels.length > 0 && (
             <div>
-              <h4 className="text-sm font-medium text-text-default mb-3">Available Models</h4>
+              <h3 className="text-sm font-medium text-text-muted mb-2">Downloaded</h3>
               <div className="grid grid-cols-3 gap-3 pt-2 pr-2">
                 {downloadedModels.map((model) => {
-                  const originalProvider = getOriginalProvider(model.name);
-                  const providerAvatarUrl = originalProvider ? PROVIDER_AVATARS[originalProvider] : null;
+                  const originalProvider = getOriginalProvider(model.repo_id);
+                  const providerAvatarUrl = originalProvider
+                    ? PROVIDER_AVATARS[originalProvider]
+                    : null;
 
                   return (
-                    <div key={model.id} className="relative pt-1">
-                      <div 
-                        className="border rounded-lg p-3 flex flex-col h-full transition-all border-border-subtle bg-background-default hover:border-border-default cursor-pointer"
-                        onClick={() => selectLocalModel(model.id)}
-                      >
-                        {/* Row 1: Avatar left, Check right */}
+                    <div
+                      key={model.id}
+                      onClick={() => selectLocalModel(model.id)}
+                      className="cursor-pointer"
+                    >
+                      <div className="border rounded-lg p-3 flex flex-col h-full transition-all border-border-subtle bg-background-default hover:border-border-default">
+                        {/* Row 1: Avatar left, Actions right */}
                         <div className="flex items-center justify-between mb-2">
                           {providerAvatarUrl ? (
                             <img
@@ -199,13 +184,27 @@ export function LocalModelModal({ isOpen, onClose, onModelSelected }: LocalModel
                           ) : (
                             <div className="w-7 h-7 rounded-full bg-background-subtle" />
                           )}
-                          <div className="flex items-center text-green-600">
-                            <Check className="w-4 h-4" />
+                          <div className="flex items-center gap-1">
+                            <Check className="w-4 h-4 text-green-600" />
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleDeleteModel(model.id);
+                              }}
+                              className="h-6 w-6 p-0 text-text-muted hover:text-red-500"
+                              title="Delete model"
+                            >
+                              <Trash2 className="w-3 h-3" />
+                            </Button>
                           </div>
                         </div>
 
                         {/* Title */}
-                        <h4 className="text-xs font-medium text-text-default leading-tight">{model.name}</h4>
+                        <h4 className="text-xs font-medium text-text-default leading-tight">
+                          {model.display_name}
+                        </h4>
 
                         {/* Author */}
                         <p className="text-xs text-text-muted mt-0.5">
@@ -214,7 +213,8 @@ export function LocalModelModal({ isOpen, onClose, onModelSelected }: LocalModel
 
                         {/* Size & Context */}
                         <p className="text-xs text-text-muted mt-0.5">
-                          {model.size_mb}MB • {model.context_limit.toLocaleString()} ctx
+                          {formatBytes(model.size_bytes)} •{' '}
+                          {model.context_limit?.toLocaleString() ?? 'N/A'} ctx
                         </p>
                       </div>
                     </div>
@@ -224,30 +224,32 @@ export function LocalModelModal({ isOpen, onClose, onModelSelected }: LocalModel
             </div>
           )}
 
-          {/* Featured Local Models (not downloaded) */}
-          {featuredModels.filter(m => !m.downloaded).length > 0 && (
+          {/* Not Downloaded / Downloading Models */}
+          {notDownloadedModels.length > 0 && (
             <div>
-              <h4 className="text-sm font-medium text-text-default mb-3">Featured Models</h4>
+              <h3 className="text-sm font-medium text-text-muted mb-2">Recommended</h3>
               <div className="grid grid-cols-3 gap-3 pt-2 pr-2">
-                {featuredModels.filter(m => !m.downloaded).map((model) => {
-                  const progress = downloads.get(model.id);
-                  const isDownloading = progress?.status === 'downloading';
-                  const originalProvider = getOriginalProvider(model.name);
-                  const providerAvatarUrl = originalProvider ? PROVIDER_AVATARS[originalProvider] : null;
+                {notDownloadedModels.map((model) => {
+                  const originalProvider = getOriginalProvider(model.repo_id);
+                  const providerAvatarUrl = originalProvider
+                    ? PROVIDER_AVATARS[originalProvider]
+                    : null;
+                  const isDownloading = model.status.state === 'Downloading';
+                  const progress = model.status.state === 'Downloading' ? model.status : null;
 
                   return (
-                    <div key={model.id} className="relative pt-1">
+                    <div key={model.id} className="relative">
                       {/* Recommended badge */}
                       {model.recommended && (
                         <div className="absolute -top-1 -right-1 z-20">
-                          <span className="inline-block px-2 py-0.5 text-xs font-medium bg-blue-600 text-white rounded-full">
+                          <span className="bg-blue-500 text-white text-[10px] px-1.5 py-0.5 rounded-full">
                             Recommended
                           </span>
                         </div>
                       )}
 
                       <div className="border rounded-lg p-3 flex flex-col h-full transition-all border-border-subtle bg-background-default hover:border-border-default">
-                        {/* Row 1: Avatar left, Download button right */}
+                        {/* Row 1: Avatar left, Download/Cancel button right */}
                         <div className="flex items-center justify-between mb-2">
                           {providerAvatarUrl ? (
                             <img
@@ -265,6 +267,7 @@ export function LocalModelModal({ isOpen, onClose, onModelSelected }: LocalModel
                                 size="sm"
                                 onClick={() => cancelDownload(model.id)}
                                 className="h-6 w-6 p-0"
+                                title="Cancel download"
                               >
                                 <X className="w-3 h-3" />
                               </Button>
@@ -272,7 +275,7 @@ export function LocalModelModal({ isOpen, onClose, onModelSelected }: LocalModel
                               <Button
                                 variant="ghost"
                                 size="sm"
-                                onClick={() => startDownload(model.id)}
+                                onClick={() => startDownload(model)}
                                 className="h-6 w-6 p-0"
                                 title="Download model"
                               >
@@ -283,7 +286,9 @@ export function LocalModelModal({ isOpen, onClose, onModelSelected }: LocalModel
                         </div>
 
                         {/* Title */}
-                        <h4 className="text-xs font-medium text-text-default leading-tight">{model.name}</h4>
+                        <h4 className="text-xs font-medium text-text-default leading-tight">
+                          {model.display_name}
+                        </h4>
 
                         {/* Author */}
                         <p className="text-xs text-text-muted mt-0.5">
@@ -292,7 +297,8 @@ export function LocalModelModal({ isOpen, onClose, onModelSelected }: LocalModel
 
                         {/* Size & Context */}
                         <p className="text-xs text-text-muted mt-0.5">
-                          {model.size_mb}MB • {model.context_limit.toLocaleString()} ctx
+                          {formatBytes(model.size_bytes)} •{' '}
+                          {model.context_limit?.toLocaleString() ?? 'N/A'} ctx
                         </p>
 
                         {/* Download progress */}
@@ -305,7 +311,7 @@ export function LocalModelModal({ isOpen, onClose, onModelSelected }: LocalModel
                               />
                             </div>
                             <div className="flex justify-between text-xs text-text-muted">
-                              <span>{progress.progress_percent.toFixed(0)}%</span>
+                              <span>{progress.progress_percent?.toFixed(0) ?? 0}%</span>
                             </div>
                           </div>
                         )}
@@ -335,11 +341,12 @@ export function LocalModelModal({ isOpen, onClose, onModelSelected }: LocalModel
       <HuggingFaceSearchModal
         isOpen={showHuggingFaceModal}
         onClose={() => setShowHuggingFaceModal(false)}
-        onDownloadStarted={(modelId) => {
-          pollDownloadProgress(modelId);
+        onDownloadStarted={(_modelId) => {
+          setPollingActive(true);
           setShowHuggingFaceModal(false);
+          loadLocalModels();
         }}
       />
     </Dialog>
   );
-}
+};

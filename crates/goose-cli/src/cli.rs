@@ -1498,6 +1498,7 @@ async fn handle_local_models_command(command: LocalModelsCommand) -> Result<()> 
                 local_path: local_path.clone(),
                 source_url: file.download_url.clone(),
                 settings: Default::default(),
+                size_bytes: file.size_bytes,
             };
 
             {

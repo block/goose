@@ -1,4 +1,5 @@
 use crate::config::paths::Paths;
+use crate::dictation::download_manager::{get_download_manager, DownloadStatus};
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
@@ -90,6 +91,87 @@ impl Default for ModelSettings {
     }
 }
 
+/// Recommended models with their HuggingFace specs and metadata.
+/// Format: (spec, display_name, context_limit, tier)
+pub struct RecommendedModel {
+    pub spec: &'static str,
+    pub display_name: &'static str,
+    pub context_limit: u32,
+    pub tier: ModelTier,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize, ToSchema)]
+pub enum ModelTier {
+    Tiny,
+    Small,
+    Medium,
+    Large,
+}
+
+pub const RECOMMENDED_MODELS: &[RecommendedModel] = &[
+    RecommendedModel {
+        spec: "bartowski/Llama-3.2-1B-Instruct-GGUF:Q4_K_M",
+        display_name: "Llama 3.2 1B",
+        context_limit: 131072,
+        tier: ModelTier::Tiny,
+    },
+    RecommendedModel {
+        spec: "bartowski/Llama-3.2-3B-Instruct-GGUF:Q4_K_M",
+        display_name: "Llama 3.2 3B",
+        context_limit: 131072,
+        tier: ModelTier::Small,
+    },
+    RecommendedModel {
+        spec: "bartowski/Hermes-2-Pro-Mistral-7B-GGUF:Q4_K_M",
+        display_name: "Hermes 2 Pro 7B",
+        context_limit: 4096,
+        tier: ModelTier::Medium,
+    },
+    RecommendedModel {
+        spec: "bartowski/Mistral-Small-24B-Instruct-2501-GGUF:Q4_K_M",
+        display_name: "Mistral Small 24B",
+        context_limit: 32768,
+        tier: ModelTier::Large,
+    },
+];
+
+/// Parse a model spec like "author/repo:quantization" into (repo_id, quantization)
+pub fn parse_model_spec(spec: &str) -> Option<(&str, &str)> {
+    let parts: Vec<&str> = spec.rsplitn(2, ':').collect();
+    if parts.len() == 2 {
+        Some((parts[1], parts[0]))
+    } else {
+        None
+    }
+}
+
+/// Get the recommended model info for a spec
+pub fn get_recommended_info(spec: &str) -> Option<&'static RecommendedModel> {
+    RECOMMENDED_MODELS.iter().find(|m| m.spec == spec)
+}
+
+/// Check if a model ID corresponds to a recommended model
+pub fn is_recommended_model(model_id: &str) -> bool {
+    RECOMMENDED_MODELS.iter().any(|m| {
+        if let Some((repo_id, quant)) = parse_model_spec(m.spec) {
+            model_id_from_repo(repo_id, quant) == model_id
+        } else {
+            false
+        }
+    })
+}
+
+/// Get recommended model info by model_id
+pub fn get_recommended_by_id(model_id: &str) -> Option<&'static RecommendedModel> {
+    RECOMMENDED_MODELS.iter().find(|m| {
+        if let Some((repo_id, quant)) = parse_model_spec(m.spec) {
+            model_id_from_repo(repo_id, quant) == model_id
+        } else {
+            false
+        }
+    })
+}
+
 static REGISTRY: OnceLock<Mutex<LocalModelRegistry>> = OnceLock::new();
 
 pub fn get_registry() -> &'static Mutex<LocalModelRegistry> {
@@ -112,6 +194,23 @@ pub struct LocalModelEntry {
     pub source_url: String,
     #[serde(default)]
     pub settings: ModelSettings,
+    /// Size in bytes (from HuggingFace metadata, may be 0 if unknown)
+    #[serde(default)]
+    pub size_bytes: u64,
+}
+
+/// Download status computed at runtime
+#[derive(Debug, Clone, Serialize, ToSchema)]
+#[serde(tag = "state")]
+pub enum ModelDownloadStatus {
+    NotDownloaded,
+    Downloading {
+        progress_percent: f32,
+        bytes_downloaded: u64,
+        total_bytes: u64,
+        speed_bps: Option<u64>,
+    },
+    Downloaded,
 }
 
 impl LocalModelEntry {
@@ -123,6 +222,46 @@ impl LocalModelEntry {
         std::fs::metadata(&self.local_path)
             .map(|m| m.len())
             .unwrap_or(0)
+    }
+
+    /// Get the current download status by checking filesystem and download manager
+    pub fn download_status(&self) -> ModelDownloadStatus {
+        // Check if file exists on disk
+        if self.local_path.exists() {
+            return ModelDownloadStatus::Downloaded;
+        }
+
+        // Check download manager for in-progress download
+        let download_id = format!("{}-model", self.id);
+        let manager = get_download_manager();
+        if let Some(progress) = manager.get_progress(&download_id) {
+            match progress.status {
+                DownloadStatus::Downloading => {
+                    let progress_percent = if progress.total_bytes > 0 {
+                        (progress.bytes_downloaded as f32 / progress.total_bytes as f32) * 100.0
+                    } else {
+                        0.0
+                    };
+                    return ModelDownloadStatus::Downloading {
+                        progress_percent,
+                        bytes_downloaded: progress.bytes_downloaded,
+                        total_bytes: progress.total_bytes,
+                        speed_bps: progress.speed_bps,
+                    };
+                }
+                DownloadStatus::Completed => {
+                    return ModelDownloadStatus::Downloaded;
+                }
+                _ => {}
+            }
+        }
+
+        ModelDownloadStatus::NotDownloaded
+    }
+
+    /// Get the model spec in format "repo_id:quantization"
+    pub fn spec(&self) -> String {
+        format!("{}:{}", self.repo_id, self.quantization)
     }
 }
 
@@ -148,7 +287,7 @@ struct LegacyModel {
 const LEGACY_MODELS: &[LegacyModel] = &[
     LegacyModel {
         id: "llama-3.2-1b",
-        display_name: "Llama 3.2 1B Instruct",
+        display_name: "Llama 3.2 1B",
         repo_id: "bartowski/Llama-3.2-1B-Instruct-GGUF",
         filename: "Llama-3.2-1B-Instruct-Q4_K_M.gguf",
         quantization: "Q4_K_M",
@@ -156,7 +295,7 @@ const LEGACY_MODELS: &[LegacyModel] = &[
     },
     LegacyModel {
         id: "llama-3.2-3b",
-        display_name: "Llama 3.2 3B Instruct",
+        display_name: "Llama 3.2 3B",
         repo_id: "bartowski/Llama-3.2-3B-Instruct-GGUF",
         filename: "Llama-3.2-3B-Instruct-Q4_K_M.gguf",
         quantization: "Q4_K_M",
@@ -164,31 +303,32 @@ const LEGACY_MODELS: &[LegacyModel] = &[
     },
     LegacyModel {
         id: "hermes-2-pro-7b",
-        display_name: "Hermes 2 Pro Llama-3 7B",
-        repo_id: "NousResearch/Hermes-2-Pro-Llama-3-8B-GGUF",
-        filename: "Hermes-2-Pro-Llama-3-8B-Q4_K_M.gguf",
+        display_name: "Hermes 2 Pro 7B",
+        repo_id: "NousResearch/Hermes-2-Pro-Mistral-7B-GGUF",
+        filename: "Hermes-2-Pro-Mistral-7B.Q4_K_M.gguf",
         quantization: "Q4_K_M",
-        source_url: "https://huggingface.co/NousResearch/Hermes-2-Pro-Llama-3-8B-GGUF/resolve/main/Hermes-2-Pro-Llama-3-8B-Q4_K_M.gguf",
+        source_url: "https://huggingface.co/NousResearch/Hermes-2-Pro-Mistral-7B-GGUF/resolve/main/Hermes-2-Pro-Mistral-7B.Q4_K_M.gguf",
     },
     LegacyModel {
         id: "mistral-small-22b",
-        display_name: "Mistral Small 22B Instruct",
-        repo_id: "bartowski/Mistral-Small-Instruct-2409-GGUF",
-        filename: "Mistral-Small-Instruct-2409-Q4_K_M.gguf",
+        display_name: "Mistral Small 22B",
+        repo_id: "bartowski/Mistral-Small-24B-Instruct-2501-GGUF",
+        filename: "Mistral-Small-24B-Instruct-2501-Q4_K_M.gguf",
         quantization: "Q4_K_M",
-        source_url: "https://huggingface.co/bartowski/Mistral-Small-Instruct-2409-GGUF/resolve/main/Mistral-Small-Instruct-2409-Q4_K_M.gguf",
+        source_url: "https://huggingface.co/bartowski/Mistral-Small-24B-Instruct-2501-GGUF/resolve/main/Mistral-Small-24B-Instruct-2501-Q4_K_M.gguf",
     },
 ];
 
 impl LocalModelRegistry {
     pub fn load() -> Result<Self> {
         let path = registry_path();
-        if !path.exists() {
-            return Ok(Self::default());
+        if path.exists() {
+            let data = std::fs::read_to_string(&path)?;
+            let registry: LocalModelRegistry = serde_json::from_str(&data)?;
+            Ok(registry)
+        } else {
+            Ok(LocalModelRegistry::default())
         }
-        let data = std::fs::read_to_string(&path)?;
-        let registry: Self = serde_json::from_str(&data)?;
-        Ok(registry)
     }
 
     pub fn save(&self) -> Result<()> {
@@ -202,9 +342,7 @@ impl LocalModelRegistry {
     }
 
     /// Migrate model IDs from the old `author--repo--variant` format to the
-    /// HuggingFace-style `author/repo:variant` format. Only touches IDs that
-    /// contain `--` (the old separator); legacy featured models with short IDs
-    /// like `llama-3.2-1b` are left alone.
+    /// HuggingFace-style `author/repo:variant` format.
     pub fn migrate_model_ids(&mut self) {
         let mut changed = false;
         for entry in &mut self.models {
@@ -236,6 +374,7 @@ impl LocalModelRegistry {
                     local_path: legacy_path,
                     source_url: legacy.source_url.to_string(),
                     settings: ModelSettings::default(),
+                    size_bytes: 0,
                 });
                 changed = true;
             }
@@ -261,6 +400,14 @@ impl LocalModelRegistry {
 
     pub fn get_model(&self, id: &str) -> Option<&LocalModelEntry> {
         self.models.iter().find(|m| m.id == id)
+    }
+
+    pub fn get_model_mut(&mut self, id: &str) -> Option<&mut LocalModelEntry> {
+        self.models.iter_mut().find(|m| m.id == id)
+    }
+
+    pub fn has_model(&self, id: &str) -> bool {
+        self.models.iter().any(|m| m.id == id)
     }
 
     pub fn get_model_settings(&self, id: &str) -> Option<&ModelSettings> {

@@ -1,7 +1,6 @@
 pub mod hf_models;
 pub mod local_model_registry;
 
-use crate::config::paths::Paths;
 use crate::config::ExtensionConfig;
 use crate::conversation::message::{Message, MessageContent};
 use crate::model::ModelConfig;
@@ -24,7 +23,6 @@ use llama_cpp_2::openai::OpenAIChatTemplateParams;
 use llama_cpp_2::sampling::LlamaSampler;
 use llama_cpp_2::{list_llama_ggml_backend_devices, LlamaBackendDeviceType};
 use rmcp::model::{CallToolRequestParams, RawContent, Role, Tool};
-use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::borrow::Cow;
 use std::collections::HashMap;
@@ -32,7 +30,6 @@ use std::num::NonZeroU32;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex as StdMutex, Weak};
 use tokio::sync::Mutex;
-use utoipa::ToSchema;
 use uuid::Uuid;
 
 type ModelSlot = Arc<Mutex<Option<LoadedModel>>>;
@@ -131,85 +128,7 @@ fn load_tiny_model_prompt() -> String {
     })
 }
 
-#[derive(Debug, Clone, Copy, Serialize, Deserialize, ToSchema, PartialEq, Eq)]
-#[serde(rename_all = "lowercase")]
-pub enum ModelTier {
-    Tiny,
-    Small,
-    Medium,
-    Large,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
-pub struct LocalLlmModel {
-    pub id: &'static str,
-    pub name: &'static str,
-    pub size_mb: u32,
-    pub context_limit: usize,
-    pub url: &'static str,
-    pub description: &'static str,
-    pub tier: ModelTier,
-}
-
-const LOCAL_LLM_MODELS: &[LocalLlmModel] = &[
-    LocalLlmModel {
-        id: "llama-3.2-1b",
-        name: "Llama 3.2 1B Instruct",
-        size_mb: 700,
-        context_limit: 4096,
-        url: "https://huggingface.co/bartowski/Llama-3.2-1B-Instruct-GGUF/resolve/main/Llama-3.2-1B-Instruct-Q4_K_M.gguf",
-        description: "Fastest, CPU-optimized for quick responses",
-        tier: ModelTier::Tiny,
-    },
-    LocalLlmModel {
-        id: "llama-3.2-3b",
-        name: "Llama 3.2 3B Instruct",
-        size_mb: 2000,
-        context_limit: 8192,
-        url: "https://huggingface.co/bartowski/Llama-3.2-3B-Instruct-GGUF/resolve/main/Llama-3.2-3B-Instruct-Q4_K_M.gguf",
-        description: "Good balance of speed and quality for laptops",
-        tier: ModelTier::Small,
-    },
-    LocalLlmModel {
-        id: "hermes-2-pro-7b",
-        name: "Hermes 2 Pro Llama-3 7B",
-        size_mb: 4500,
-        context_limit: 8192,
-        url: "https://huggingface.co/NousResearch/Hermes-2-Pro-Llama-3-8B-GGUF/resolve/main/Hermes-2-Pro-Llama-3-8B-Q4_K_M.gguf",
-        description: "High quality for desktops with GPU",
-        tier: ModelTier::Medium,
-    },
-    LocalLlmModel {
-        id: "mistral-small-22b",
-        name: "Mistral Small 22B Instruct",
-        size_mb: 13000,
-        context_limit: 32768,
-        url: "https://huggingface.co/bartowski/Mistral-Small-Instruct-2409-GGUF/resolve/main/Mistral-Small-Instruct-2409-Q4_K_M.gguf",
-        description: "Highest quality with long context support",
-        tier: ModelTier::Large,
-    },
-];
-
-impl LocalLlmModel {
-    pub fn local_path(&self) -> PathBuf {
-        Paths::in_data_dir("models").join(format!("{}.gguf", self.id))
-    }
-
-    pub fn is_downloaded(&self) -> bool {
-        self.local_path().exists()
-    }
-}
-
-pub fn available_local_models() -> &'static [LocalLlmModel] {
-    LOCAL_LLM_MODELS
-}
-
-pub fn get_local_model(id: &str) -> Option<&'static LocalLlmModel> {
-    LOCAL_LLM_MODELS.iter().find(|m| m.id == id)
-}
-
-/// Resolve model path, context limit, and settings for any model ID — checks registry first,
-/// then falls back to the hardcoded featured list.
+/// Resolve model path, context limit, and settings for a model ID from the registry.
 pub fn resolve_model_path(
     model_id: &str,
 ) -> Option<(
@@ -219,7 +138,6 @@ pub fn resolve_model_path(
 )> {
     use crate::providers::local_inference::local_model_registry::get_registry;
 
-    // Check registry first (covers both HF-downloaded and migrated legacy models)
     if let Ok(registry) = get_registry().lock() {
         if let Some(entry) = registry.get_model(model_id) {
             let ctx = entry.settings.context_size.unwrap_or(0) as usize;
@@ -227,14 +145,7 @@ pub fn resolve_model_path(
         }
     }
 
-    // Fall back to hardcoded featured list
-    get_local_model(model_id).map(|m| {
-        (
-            m.local_path(),
-            m.context_limit,
-            crate::providers::local_inference::local_model_registry::ModelSettings::default(),
-        )
-    })
+    None
 }
 
 pub fn available_inference_memory_bytes(runtime: &InferenceRuntime) -> u64 {
@@ -1208,16 +1119,11 @@ impl Provider for LocalInferenceProvider {
     async fn fetch_supported_models(&self) -> Result<Vec<String>, ProviderError> {
         use crate::providers::local_inference::local_model_registry::get_registry;
 
-        let mut all_models: Vec<String> = available_local_models()
-            .iter()
-            .map(|m| m.id.to_string())
-            .collect();
+        let mut all_models: Vec<String> = Vec::new();
 
         if let Ok(registry) = get_registry().lock() {
             for entry in registry.list_models() {
-                if !all_models.contains(&entry.id) {
-                    all_models.push(entry.id.clone());
-                }
+                all_models.push(entry.id.clone());
             }
         }
 

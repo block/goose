@@ -259,6 +259,15 @@ export type DownloadProgress = {
     total_bytes: number;
 };
 
+export type DownloadProgressResponse = {
+    bytes_downloaded: number;
+    eta_seconds?: number | null;
+    model_id: string;
+    speed_bps?: number | null;
+    status: string;
+    total_bytes: number;
+};
+
 export type DownloadStatus = 'downloading' | 'completed' | 'failed' | 'cancelled';
 
 export type EmbeddedResource = {
@@ -546,28 +555,34 @@ export type LoadedProvider = {
     is_editable: boolean;
 };
 
-export type LocalLlmModel = {
-    context_limit: number;
-    description: string;
-    id: string;
-    name: string;
-    size_mb: number;
-    tier: ModelTier;
-    url: string;
-};
-
+/**
+ * Response for a single local model
+ */
 export type LocalModelResponse = {
-    context_limit: number;
-    description: string;
+    context_limit?: number | null;
+    display_name: string;
+    filename: string;
     id: string;
-    name: string;
-    size_mb: number;
-    tier: ModelTier;
-    url: string;
-} & {
-    downloaded: boolean;
-    featured: boolean;
+    quantization: string;
     recommended: boolean;
+    repo_id: string;
+    settings: ModelSettings;
+    size_bytes: number;
+    /**
+     * Download status for a local model (mirrors goose::providers::local_inference::local_model_registry::ModelDownloadStatus)
+     */
+    status: {
+        state: 'NotDownloaded';
+    } | {
+        bytes_downloaded: number;
+        progress_percent: number;
+        speed_bps?: number | null;
+        state: 'Downloading';
+        total_bytes: number;
+    } | {
+        state: 'Downloaded';
+    };
+    tier?: ModelTier | null;
 };
 
 /**
@@ -699,6 +714,21 @@ export type ModelConfig = {
 };
 
 /**
+ * Download status for a local model (mirrors goose::providers::local_inference::local_model_registry::ModelDownloadStatus)
+ */
+export type ModelDownloadStatus = {
+    state: 'NotDownloaded';
+} | {
+    bytes_downloaded: number;
+    progress_percent: number;
+    speed_bps?: number | null;
+    state: 'Downloading';
+    total_bytes: number;
+} | {
+    state: 'Downloaded';
+};
+
+/**
  * Information about a model's capabilities
  */
 export type ModelInfo = {
@@ -728,8 +758,6 @@ export type ModelInfo = {
     supports_cache_control?: boolean | null;
 };
 
-export type ModelListItem = LocalModelResponse | RegistryModelResponse;
-
 export type ModelSettings = {
     context_size?: number | null;
     flash_attention?: boolean | null;
@@ -743,10 +771,11 @@ export type ModelSettings = {
     repeat_last_n?: number;
     repeat_penalty?: number;
     sampling?: SamplingConfig;
+    use_jinja?: boolean;
     use_mlock?: boolean;
 };
 
-export type ModelTier = 'tiny' | 'small' | 'medium' | 'large';
+export type ModelTier = 'Tiny' | 'Small' | 'Medium' | 'Large';
 
 export type ParseRecipeRequest = {
     content: string;
@@ -979,18 +1008,6 @@ export type RecipeToYamlResponse = {
 
 export type RedactedThinkingContent = {
     data: string;
-};
-
-export type RegistryModelResponse = {
-    display_name: string;
-    downloaded: boolean;
-    featured: boolean;
-    filename: string;
-    id: string;
-    quantization: string;
-    repo_id: string;
-    settings: ModelSettings;
-    size_bytes: number;
 };
 
 export type RemoveExtensionRequest = {
@@ -2984,7 +3001,7 @@ export type ListLocalModelsResponses = {
     /**
      * List of available local LLM models
      */
-    200: Array<ModelListItem>;
+    200: Array<LocalModelResponse>;
 };
 
 export type ListLocalModelsResponse = ListLocalModelsResponses[keyof ListLocalModelsResponses];
@@ -3000,13 +3017,9 @@ export type DeleteLocalModelData = {
 
 export type DeleteLocalModelErrors = {
     /**
-     * Model not found or not downloaded
+     * Model not found
      */
     404: unknown;
-    /**
-     * Failed to delete model
-     */
-    500: unknown;
 };
 
 export type DeleteLocalModelResponses = {
@@ -3059,37 +3072,10 @@ export type GetLocalModelDownloadProgressResponses = {
     /**
      * Download progress
      */
-    200: DownloadProgress;
+    200: DownloadProgressResponse;
 };
 
 export type GetLocalModelDownloadProgressResponse = GetLocalModelDownloadProgressResponses[keyof GetLocalModelDownloadProgressResponses];
-
-export type DownloadLocalModelData = {
-    body?: never;
-    path: {
-        model_id: string;
-    };
-    query?: never;
-    url: '/local-inference/models/{model_id}/download';
-};
-
-export type DownloadLocalModelErrors = {
-    /**
-     * Model not found or download already in progress
-     */
-    400: unknown;
-    /**
-     * Internal server error
-     */
-    500: unknown;
-};
-
-export type DownloadLocalModelResponses = {
-    /**
-     * Download started
-     */
-    202: unknown;
-};
 
 export type GetModelSettingsData = {
     body?: never;
@@ -3180,18 +3166,11 @@ export type SearchHfModelsData = {
          */
         q: string;
         /**
-         * Max results
+         * Max results (default 20)
          */
         limit?: number | null;
     };
     url: '/local-inference/search';
-};
-
-export type SearchHfModelsErrors = {
-    /**
-     * Search failed
-     */
-    500: unknown;
 };
 
 export type SearchHfModelsResponses = {

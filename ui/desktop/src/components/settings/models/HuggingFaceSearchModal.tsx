@@ -1,11 +1,19 @@
 import { useState, useCallback, useRef } from 'react';
-import { Search, Download, ChevronDown, ChevronUp, Loader2, Star, X, MessageSquare, Code, MessagesSquare, FileText, Brain, Zap } from 'lucide-react';
 import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from '../../ui/dialog';
+  Search,
+  Download,
+  ChevronDown,
+  ChevronUp,
+  Loader2,
+  Star,
+  MessageSquare,
+  Code,
+  MessagesSquare,
+  FileText,
+  Brain,
+  Zap,
+} from 'lucide-react';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../../ui/dialog';
 import { Button } from '../../ui/button';
 import {
   searchHfModels,
@@ -41,7 +49,11 @@ interface HuggingFaceSearchModalProps {
   onDownloadStarted: (modelId: string) => void;
 }
 
-export function HuggingFaceSearchModal({ isOpen, onClose, onDownloadStarted }: HuggingFaceSearchModalProps) {
+export function HuggingFaceSearchModal({
+  isOpen,
+  onClose,
+  onDownloadStarted,
+}: HuggingFaceSearchModalProps) {
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<HfModelInfo[]>([]);
   const [expandedRepo, setExpandedRepo] = useState<string | null>(null);
@@ -179,12 +191,16 @@ export function HuggingFaceSearchModal({ isOpen, onClose, onDownloadStarted }: H
 
   // Provider avatar URLs
   const PROVIDER_AVATARS: Record<string, string> = {
-    'meta': 'https://cdn-avatars.huggingface.co/v1/production/uploads/646cf8084eefb026fb8fd8bc/oCTqufkdTkjyGodsx1vo1.png',
-    'mistral': 'https://cdn-avatars.huggingface.co/v1/production/uploads/634c17653d11eaedd88b314d/9OgyfKstSZtbmsmuG8MbU.png',
-    'microsoft': 'https://cdn-avatars.huggingface.co/v1/production/uploads/1583646260758-5e64858c87403103f9f1055d.png',
-    'qwen': 'https://cdn-avatars.huggingface.co/v1/production/uploads/620760a26e3b7210c2ff1943/-s1gyJfvbE1RgO5iBeNOi.png',
-    'google': 'https://cdn-avatars.huggingface.co/v1/production/uploads/5dd96eb166059660ed1ee413/WtA3YYitedOr9n02eHfJe.png',
-    'deepseek': 'https://cdn-avatars.huggingface.co/v1/production/uploads/6538815d1bdb3c40db94fbfa/xMBly9PUMphrFVMxLX4kq.png',
+    meta: 'https://cdn-avatars.huggingface.co/v1/production/uploads/646cf8084eefb026fb8fd8bc/oCTqufkdTkjyGodsx1vo1.png',
+    mistral:
+      'https://cdn-avatars.huggingface.co/v1/production/uploads/634c17653d11eaedd88b314d/9OgyfKstSZtbmsmuG8MbU.png',
+    microsoft:
+      'https://cdn-avatars.huggingface.co/v1/production/uploads/1583646260758-5e64858c87403103f9f1055d.png',
+    qwen: 'https://cdn-avatars.huggingface.co/v1/production/uploads/620760a26e3b7210c2ff1943/-s1gyJfvbE1RgO5iBeNOi.png',
+    google:
+      'https://cdn-avatars.huggingface.co/v1/production/uploads/5dd96eb166059660ed1ee413/WtA3YYitedOr9n02eHfJe.png',
+    deepseek:
+      'https://cdn-avatars.huggingface.co/v1/production/uploads/6538815d1bdb3c40db94fbfa/xMBly9PUMphrFVMxLX4kq.png',
   };
 
   // Popular search suggestions
@@ -309,9 +325,7 @@ export function HuggingFaceSearchModal({ isOpen, onClose, onDownloadStarted }: H
             {/* Direct Download Section */}
             <div className="border-t border-border-subtle pt-4">
               <h4 className="text-sm font-medium text-text-default mb-2">Direct Download</h4>
-              <p className="text-xs text-text-muted mb-2">
-                Specify a model directly:
-              </p>
+              <p className="text-xs text-text-muted mb-2">Specify a model directly:</p>
               <div className="space-y-2">
                 <input
                   type="text"
@@ -346,9 +360,7 @@ export function HuggingFaceSearchModal({ isOpen, onClose, onDownloadStarted }: H
           {/* Right Side - Search Results */}
           <div className="flex-1 overflow-y-auto p-6">
             {/* Error Message */}
-            {error && !searching && (
-              <p className="text-sm text-text-muted mb-4">{error}</p>
-            )}
+            {error && !searching && <p className="text-sm text-text-muted mb-4">{error}</p>}
 
             {/* Empty State - Show Featured Models */}
             {!query && results.length === 0 && !searching && (
@@ -406,7 +418,10 @@ export function HuggingFaceSearchModal({ isOpen, onClose, onDownloadStarted }: H
                   const recommendedIndex = data?.recommendedIndex ?? null;
 
                   return (
-                    <div key={model.repo_id} className="border border-border-subtle rounded-lg bg-background-default">
+                    <div
+                      key={model.repo_id}
+                      className="border border-border-subtle rounded-lg bg-background-default"
+                    >
                       <button
                         onClick={() => toggleRepo(model.repo_id)}
                         className="w-full flex items-center justify-between p-3 text-left hover:bg-background-subtle rounded-lg transition-colors"

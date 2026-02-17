@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Cloud, HardDrive, Download, Check, Settings2 } from 'lucide-react';
+import { Cloud, HardDrive, Download, Check, Settings2, X, Trash2 } from 'lucide-react';
 import { Button } from '../../ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../ui/card';
 import { useConfig } from '../../ConfigContext';
@@ -7,22 +7,22 @@ import { View } from '../../../utils/navigationUtils';
 import { useModelAndProvider } from '../../ModelAndProviderContext';
 import {
   listLocalModels,
-  downloadLocalModel,
-  getLocalModelDownloadProgress,
+  downloadHfModel,
   cancelLocalModelDownload,
-  type DownloadProgress,
+  deleteLocalModel,
   type LocalModelResponse,
-  type ModelListItem,
 } from '../../../api';
-import { LocalModelModal } from './LocalModelModal';
+import { HuggingFaceSearchModal } from './HuggingFaceSearchModal';
 import ResetProviderSection from '../reset_provider/ResetProviderSection';
 
 type FilterType = 'all' | 'cloud' | 'local';
 
 // Original provider avatar URLs from HuggingFace organizations
 const PROVIDER_AVATARS: Record<string, string> = {
-  'meta-llama': 'https://cdn-avatars.huggingface.co/v1/production/uploads/646cf8084eefb026fb8fd8bc/oCTqufkdTkjyGodsx1vo1.png',
-  'mistralai': 'https://cdn-avatars.huggingface.co/v1/production/uploads/634c17653d11eaedd88b314d/9OgyfKstSZtbmsmuG8MbU.png',
+  'meta-llama':
+    'https://cdn-avatars.huggingface.co/v1/production/uploads/646cf8084eefb026fb8fd8bc/oCTqufkdTkjyGodsx1vo1.png',
+  mistralai:
+    'https://cdn-avatars.huggingface.co/v1/production/uploads/634c17653d11eaedd88b314d/9OgyfKstSZtbmsmuG8MbU.png',
 };
 
 // Get the original provider for a model based on its name
@@ -48,77 +48,89 @@ const formatBytes = (bytes: number): string => {
   return `${(bytes / (1024 * 1024 * 1024)).toFixed(1)}GB`;
 };
 
-function isFeaturedModel(item: ModelListItem): item is LocalModelResponse & { featured: boolean } {
-  return 'tier' in item;
-}
+// Helper to check if model is downloaded
+const isDownloaded = (model: LocalModelResponse): boolean => {
+  return model.status.state === 'Downloaded';
+};
+
+// Helper to check if model is downloading
+const isDownloading = (model: LocalModelResponse): boolean => {
+  return model.status.state === 'Downloading';
+};
+
+// Helper to get download progress
+const getDownloadProgress = (model: LocalModelResponse) => {
+  if (model.status.state === 'Downloading') {
+    return model.status;
+  }
+  return null;
+};
 
 interface UnifiedModelSectionProps {
   setView: (view: View) => void;
 }
 
 export default function UnifiedModelSection({ setView }: UnifiedModelSectionProps) {
-  const [featuredModels, setFeaturedModels] = useState<(LocalModelResponse & { featured?: boolean })[]>([]);
+  const [localModels, setLocalModels] = useState<LocalModelResponse[]>([]);
   const [selectedLocalModelId, setSelectedLocalModelId] = useState<string | null>(null);
-  const [downloads, setDownloads] = useState<Map<string, DownloadProgress>>(new Map());
   const [activeProvider, setActiveProvider] = useState<'cloud' | 'local' | null>(null);
-  const [showLocalModelModal, setShowLocalModelModal] = useState(false);
+  const [showHuggingFaceModal, setShowHuggingFaceModal] = useState(false);
   const [filter, setFilter] = useState<FilterType>('all');
-  
+  const [pollingActive, setPollingActive] = useState(false);
+
   const { read, upsert } = useConfig();
-  const { 
-    currentModel, 
-    currentProvider,
-  } = useModelAndProvider();
-  
+  const { currentModel, currentProvider } = useModelAndProvider();
+
   const [cloudModel, setCloudModel] = useState<string>('');
   const [cloudProvider, setCloudProvider] = useState<string>('');
 
-  // Load cloud model info - we need to read the stored cloud config, not the current active model
+  // Load cloud model info
   const loadCloudModelInfo = useCallback(async () => {
     try {
-      // First check if current provider is cloud - if so, use current values
       if (currentProvider && currentProvider !== 'local') {
-        setCloudProvider(currentProvider);
-        if (currentModel) {
-          setCloudModel(currentModel);
-          // Also save these as the last known cloud settings
-          await upsert(LAST_CLOUD_PROVIDER_KEY, currentProvider, false);
-          await upsert(LAST_CLOUD_MODEL_KEY, currentModel, false);
-        }
-      } else {
-        // Current provider is local, try to load the last known cloud settings
-        const lastCloudProvider = await read(LAST_CLOUD_PROVIDER_KEY, false);
-        const lastCloudModel = await read(LAST_CLOUD_MODEL_KEY, false);
-        
-        if (lastCloudProvider && typeof lastCloudProvider === 'string') {
-          setCloudProvider(lastCloudProvider);
-        }
-        if (lastCloudModel && typeof lastCloudModel === 'string') {
-          setCloudModel(lastCloudModel);
-        }
+        setCloudModel(currentModel || '');
+        setCloudProvider(currentProvider || '');
+        return;
+      }
+
+      const savedProvider = await read(LAST_CLOUD_PROVIDER_KEY, false);
+      const savedModel = await read(LAST_CLOUD_MODEL_KEY, false);
+
+      if (savedProvider && typeof savedProvider === 'string') {
+        setCloudProvider(savedProvider);
+      }
+      if (savedModel && typeof savedModel === 'string') {
+        setCloudModel(savedModel);
       }
     } catch (error) {
       console.error('Failed to load cloud model info:', error);
     }
-  }, [read, upsert, currentProvider, currentModel]);
+  }, [currentProvider, currentModel, read]);
 
   // Load local models
   const loadLocalModels = useCallback(async () => {
     try {
       const response = await listLocalModels();
       if (response.data) {
-        const featured: (LocalModelResponse & { featured?: boolean })[] = [];
-        for (const item of response.data) {
-          if (isFeaturedModel(item)) {
-            featured.push(item);
-          }
-        }
-        setFeaturedModels(featured);
+        setLocalModels(response.data);
+        const hasDownloading = response.data.some((m) => m.status.state === 'Downloading');
+        setPollingActive(hasDownloading);
       }
     } catch (error) {
       console.error('Failed to load local models:', error);
     }
   }, []);
+
+  // Poll for updates while downloads are active
+  useEffect(() => {
+    if (!pollingActive) return;
+
+    const interval = setInterval(() => {
+      loadLocalModels();
+    }, 500);
+
+    return () => clearInterval(interval);
+  }, [pollingActive, loadLocalModels]);
 
   // Load selected local model
   const loadSelectedLocalModel = useCallback(async () => {
@@ -138,6 +150,8 @@ export default function UnifiedModelSection({ setView }: UnifiedModelSectionProp
       setActiveProvider('local');
     } else if (currentProvider) {
       setActiveProvider('cloud');
+    } else {
+      setActiveProvider(null);
     }
   }, [currentProvider]);
 
@@ -147,13 +161,7 @@ export default function UnifiedModelSection({ setView }: UnifiedModelSectionProp
     loadSelectedLocalModel();
   }, [loadCloudModelInfo, loadLocalModels, loadSelectedLocalModel]);
 
-  // Refresh when model changes
-  useEffect(() => {
-    if (currentModel && currentProvider) {
-      loadCloudModelInfo();
-    }
-  }, [currentModel, currentProvider, loadCloudModelInfo]);
-
+  // Select local model
   const selectLocalModel = async (modelId: string) => {
     await upsert(LOCAL_LLM_MODEL_CONFIG_KEY, modelId, false);
     await upsert('GOOSE_PROVIDER', 'local', false);
@@ -162,444 +170,422 @@ export default function UnifiedModelSection({ setView }: UnifiedModelSectionProp
     setActiveProvider('local');
   };
 
-  const startDownload = async (modelId: string) => {
+  // Start download
+  const startDownload = async (model: LocalModelResponse) => {
     try {
-      await downloadLocalModel({ path: { model_id: modelId } });
-      pollDownloadProgress(modelId);
+      const spec = `${model.repo_id}:${model.quantization}`;
+      await downloadHfModel({ body: { spec } });
+      setPollingActive(true);
+      loadLocalModels();
     } catch (error) {
       console.error('Failed to start download:', error);
     }
   };
 
-  const pollDownloadProgress = (modelId: string) => {
-    const interval = setInterval(async () => {
-      try {
-        const response = await getLocalModelDownloadProgress({ path: { model_id: modelId } });
-        if (response.data) {
-          const progress = response.data;
-          setDownloads((prev) => new Map(prev).set(modelId, progress));
-
-          if (progress.status === 'completed') {
-            clearInterval(interval);
-            await loadLocalModels();
-            await selectLocalModel(modelId);
-          } else if (progress.status === 'failed') {
-            clearInterval(interval);
-            await loadLocalModels();
-          }
-        } else {
-          clearInterval(interval);
-        }
-      } catch {
-        clearInterval(interval);
-      }
-    }, 500);
-  };
-
+  // Cancel download
   const cancelDownload = async (modelId: string) => {
     try {
       await cancelLocalModelDownload({ path: { model_id: modelId } });
-      setDownloads((prev) => {
-        const next = new Map(prev);
-        next.delete(modelId);
-        return next;
-      });
       loadLocalModels();
     } catch (error) {
       console.error('Failed to cancel download:', error);
     }
   };
 
-  // Get the selected local model details
-  const selectedLocalModel = featuredModels.find(m => m.id === selectedLocalModelId && m.downloaded);
+  // Delete model
+  const handleDeleteModel = async (modelId: string) => {
+    try {
+      await deleteLocalModel({ path: { model_id: modelId } });
+      // Clear selection if we deleted the selected model
+      if (selectedLocalModelId === modelId) {
+        setSelectedLocalModelId(null);
+      }
+      loadLocalModels();
+    } catch (error) {
+      console.error('Failed to delete model:', error);
+    }
+  };
+
+  // Get selected local model info
+  const selectedLocalModel = localModels.find(
+    (m) => m.id === selectedLocalModelId && isDownloaded(m)
+  );
+
+  // Separate models
+  const recommendedModels = localModels.filter((m) => m.recommended);
+  const downloadedModels = localModels.filter((m) => isDownloaded(m));
 
   return (
-    <section className="space-y-6 pr-4 pb-8 pt-3">
-      {/* Cloud and Local Model Cards */}
-      <div className="grid grid-cols-2 gap-4">
-        {/* Cloud Model Card */}
-        <div className="relative">
-          {activeProvider === 'cloud' && (
-            <div className="absolute -top-2 -right-2 z-20">
-              <span className="inline-block px-2 py-1 text-xs font-medium bg-blue-600 text-white rounded-full">
-                Active
-              </span>
-            </div>
-          )}
-          <div 
-            className={`border rounded-lg p-4 flex flex-col h-full transition-all cursor-pointer ${
-              activeProvider === 'cloud'
-                ? 'border-blue-500 bg-blue-500/5'
-                : 'border-border-subtle bg-background-default hover:border-border-default'
-            }`}
-            onClick={async () => {
-              // Activate cloud model if we have one configured
-              if (cloudModel && cloudProvider && activeProvider !== 'cloud') {
-                await upsert('GOOSE_PROVIDER', cloudProvider, false);
-                await upsert('GOOSE_MODEL', cloudModel, false);
-                setActiveProvider('cloud');
-              }
-            }}
-          >
-            {/* Row 1: Icon left, Settings button right */}
-            <div className="flex items-center justify-between mb-3">
-              <div className="w-10 h-10 rounded-full bg-blue-500/10 flex items-center justify-center">
-                <Cloud className="w-5 h-5 text-blue-500" />
-              </div>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setView('ConfigureProviders');
-                }}
-                className="h-8 w-8 p-0"
-                title="Configure cloud model"
-              >
-                <Settings2 className="w-4 h-4" />
-              </Button>
-            </div>
-
-            {/* Title */}
-            <h4 className="text-sm font-medium text-text-default">Cloud</h4>
-
-            {/* Subtitle */}
-            <p className="text-xs text-text-muted mt-0.5">API-based inference</p>
-
-            {/* Model info */}
-            {cloudModel ? (
-              <>
-                <p className="text-xs text-text-muted mt-0.5">{cloudProvider}</p>
-                <p className="text-xs text-text-muted mt-2 flex-1">{cloudModel}</p>
-              </>
-            ) : (
-              <p className="text-xs text-text-muted mt-2 flex-1">No cloud model selected</p>
-            )}
-          </div>
-        </div>
-
-        {/* Local Model Card */}
-        <div className="relative">
-          {activeProvider === 'local' && (
-            <div className="absolute -top-2 -right-2 z-20">
-              <span className="inline-block px-2 py-1 text-xs font-medium bg-green-600 text-white rounded-full">
-                Active
-              </span>
-            </div>
-          )}
-          <div 
-            className={`border rounded-lg p-4 flex flex-col h-full transition-all cursor-pointer ${
-              activeProvider === 'local'
-                ? 'border-green-500 bg-green-500/5'
-                : 'border-border-subtle bg-background-default hover:border-border-default'
-            }`}
-            onClick={() => {
-              if (!selectedLocalModel) {
-                // No model downloaded - open modal
-                setShowLocalModelModal(true);
-              } else if (activeProvider !== 'local') {
-                // Model exists but not active - activate it
-                selectLocalModel(selectedLocalModel.id);
-              }
-            }}
-          >
-            {/* Row 1: Icon left, Settings button right */}
-            <div className="flex items-center justify-between mb-3">
-              <div className="w-10 h-10 rounded-full bg-green-500/10 flex items-center justify-center">
-                <HardDrive className="w-5 h-5 text-green-500" />
-              </div>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setShowLocalModelModal(true);
-                }}
-                className="h-8 w-8 p-0"
-                title="Configure local model"
-              >
-                <Settings2 className="w-4 h-4" />
-              </Button>
-            </div>
-
-            {/* Title */}
-            <h4 className="text-sm font-medium text-text-default">Local</h4>
-
-            {/* Subtitle */}
-            <p className="text-xs text-text-muted mt-0.5">On-device inference</p>
-
-            {/* Model info */}
-            {selectedLocalModel ? (
-              <>
-                <p className="text-xs text-text-muted mt-0.5">
-                  {selectedLocalModel.size_mb}MB • {selectedLocalModel.context_limit.toLocaleString()} ctx
-                </p>
-                <p className="text-xs text-text-muted mt-2 flex-1">{selectedLocalModel.name}</p>
-              </>
-            ) : (
-              <p className="text-xs text-text-muted mt-2 flex-1">No local model downloaded</p>
-            )}
-          </div>
-        </div>
+    <div className="space-y-6">
+      {/* Header */}
+      <div>
+        <h3 className="text-lg font-semibold">Model Configuration</h3>
+        <p className="text-sm text-muted-foreground">
+          Choose between cloud-based or local models for inference
+        </p>
       </div>
 
-      {/* Local Model Modal */}
-      <LocalModelModal
-        isOpen={showLocalModelModal}
-        onClose={() => setShowLocalModelModal(false)}
-        onModelSelected={(modelId) => {
-          setSelectedLocalModelId(modelId);
-          setActiveProvider('local');
+      {/* Model Cards */}
+      <div className="grid grid-cols-2 gap-4">
+        {/* Cloud Card */}
+        {(filter === 'all' || filter === 'cloud') && (
+          <Card
+            className={`cursor-pointer transition-all ${
+              activeProvider === 'cloud' ? 'ring-2 ring-primary' : ''
+            }`}
+          >
+            <CardHeader className="pb-2">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Cloud className="w-5 h-5" />
+                  <CardTitle className="text-base">Cloud</CardTitle>
+                </div>
+                {activeProvider === 'cloud' && (
+                  <span className="text-xs bg-primary text-primary-foreground px-2 py-0.5 rounded">
+                    Active
+                  </span>
+                )}
+              </div>
+              <CardDescription className="text-xs">Use API-based models</CardDescription>
+            </CardHeader>
+            <CardContent>
+              {cloudProvider ? (
+                <div className="space-y-2">
+                  <p className="text-sm font-medium">{cloudProvider}</p>
+                  <p className="text-xs text-muted-foreground truncate">{cloudModel}</p>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="w-full mt-2"
+                    onClick={() => setView('ConfigureProviders')}
+                  >
+                    <Settings2 className="w-4 h-4 mr-2" />
+                    Configure
+                  </Button>
+                </div>
+              ) : (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="w-full"
+                  onClick={() => setView('ConfigureProviders')}
+                >
+                  Set up Cloud Provider
+                </Button>
+              )}
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Local Card */}
+        {(filter === 'all' || filter === 'local') && (
+          <Card
+            className={`cursor-pointer transition-all ${
+              activeProvider === 'local' ? 'ring-2 ring-primary' : ''
+            }`}
+          >
+            <CardHeader className="pb-2">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <HardDrive className="w-5 h-5" />
+                  <CardTitle className="text-base">Local</CardTitle>
+                </div>
+                {activeProvider === 'local' && (
+                  <span className="text-xs bg-primary text-primary-foreground px-2 py-0.5 rounded">
+                    Active
+                  </span>
+                )}
+              </div>
+              <CardDescription className="text-xs">Run models on your machine</CardDescription>
+            </CardHeader>
+            <CardContent>
+              {selectedLocalModel ? (
+                <div className="space-y-2">
+                  <p className="text-sm font-medium">{selectedLocalModel.display_name}</p>
+                  <p className="text-xs text-muted-foreground">
+                    {formatBytes(selectedLocalModel.size_bytes)} •{' '}
+                    {selectedLocalModel.context_limit?.toLocaleString() ?? 'N/A'} ctx
+                  </p>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="w-full mt-2"
+                    onClick={() => setShowHuggingFaceModal(true)}
+                  >
+                    <Settings2 className="w-4 h-4 mr-2" />
+                    Browse Models
+                  </Button>
+                </div>
+              ) : downloadedModels.length > 0 ? (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="w-full"
+                  onClick={() => setShowHuggingFaceModal(true)}
+                >
+                  Select Local Model
+                </Button>
+              ) : (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="w-full"
+                  onClick={() => setShowHuggingFaceModal(true)}
+                >
+                  Download Model
+                </Button>
+              )}
+            </CardContent>
+          </Card>
+        )}
+      </div>
+
+      {/* Filter Pills */}
+      <div className="flex gap-2">
+        {(['all', 'cloud', 'local'] as FilterType[]).map((f) => (
+          <Button
+            key={f}
+            variant={filter === f ? 'default' : 'outline'}
+            size="sm"
+            onClick={() => setFilter(f)}
+          >
+            {f.charAt(0).toUpperCase() + f.slice(1)}
+          </Button>
+        ))}
+      </div>
+
+      {/* Local Models Section */}
+      {(filter === 'all' || filter === 'local') && (
+        <div className="space-y-4">
+          {/* Downloading Models */}
+          {localModels.filter((m) => isDownloading(m)).length > 0 && (
+            <div>
+              <h4 className="text-sm font-medium mb-2">Downloading</h4>
+              <div className="space-y-2">
+                {localModels
+                  .filter((m) => isDownloading(m))
+                  .map((model) => {
+                    const progress = getDownloadProgress(model);
+                    if (!progress) return null;
+                    return (
+                      <div
+                        key={model.id}
+                        className="flex items-center justify-between p-3 border rounded-lg"
+                      >
+                        <div className="flex-1">
+                          <p className="text-sm font-medium">{model.display_name}</p>
+                          <div className="mt-1 w-full">
+                            <div className="w-full bg-muted rounded-full h-1.5">
+                              <div
+                                className="bg-primary h-1.5 rounded-full transition-all"
+                                style={{ width: `${progress.progress_percent}%` }}
+                              />
+                            </div>
+                            <p className="text-xs text-muted-foreground mt-0.5">
+                              {progress.progress_percent.toFixed(0)}% •{' '}
+                              {formatBytes(progress.bytes_downloaded)} /{' '}
+                              {formatBytes(progress.total_bytes)}
+                            </p>
+                          </div>
+                        </div>
+                        <Button variant="ghost" size="sm" onClick={() => cancelDownload(model.id)}>
+                          <X className="w-4 h-4" />
+                        </Button>
+                      </div>
+                    );
+                  })}
+              </div>
+            </div>
+          )}
+
+          {/* Downloaded Models */}
+          {downloadedModels.length > 0 && (
+            <div>
+              <h4 className="text-sm font-medium mb-2">Downloaded Models</h4>
+              <div className="grid grid-cols-3 gap-3">
+                {downloadedModels.map((model) => {
+                  const isSelected = selectedLocalModelId === model.id;
+                  const originalProvider = getOriginalProvider(model.display_name);
+                  const providerAvatarUrl = originalProvider
+                    ? PROVIDER_AVATARS[originalProvider]
+                    : null;
+
+                  return (
+                    <div
+                      key={model.id}
+                      className={`p-3 border rounded-lg cursor-pointer hover:bg-accent/50 ${
+                        isSelected ? 'ring-2 ring-primary' : ''
+                      }`}
+                      onClick={() => selectLocalModel(model.id)}
+                    >
+                      <div className="flex items-center justify-between mb-2">
+                        {providerAvatarUrl ? (
+                          <img
+                            src={providerAvatarUrl}
+                            alt={originalProvider || 'Provider'}
+                            className="w-8 h-8 rounded-full"
+                          />
+                        ) : (
+                          <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center">
+                            <HardDrive className="w-4 h-4" />
+                          </div>
+                        )}
+                        <div className="flex items-center gap-1">
+                          {isSelected && <Check className="w-4 h-4 text-green-600" />}
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-6 w-6 p-0 text-muted-foreground hover:text-destructive"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleDeleteModel(model.id);
+                            }}
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
+                        </div>
+                      </div>
+                      <p className="text-sm font-medium">{model.display_name}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {formatBytes(model.size_bytes)} •{' '}
+                        {model.context_limit?.toLocaleString() ?? 'N/A'} ctx
+                      </p>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* Recommended Models */}
+          <div>
+            <h4 className="text-sm font-medium mb-2">Recommended Models</h4>
+            <div className="grid grid-cols-2 gap-3">
+              {recommendedModels.map((model) => {
+                const downloaded = isDownloaded(model);
+                const downloading = isDownloading(model);
+                const progress = getDownloadProgress(model);
+                const originalProvider = getOriginalProvider(model.display_name);
+                const providerAvatarUrl = originalProvider
+                  ? PROVIDER_AVATARS[originalProvider]
+                  : null;
+
+                return (
+                  <div
+                    key={model.id}
+                    className={`p-3 border rounded-lg ${
+                      downloaded ? 'cursor-pointer hover:bg-accent/50' : ''
+                    }`}
+                    onClick={() => downloaded && selectLocalModel(model.id)}
+                  >
+                    <div className="flex items-center justify-between mb-2">
+                      {providerAvatarUrl ? (
+                        <img
+                          src={providerAvatarUrl}
+                          alt={originalProvider || 'Provider'}
+                          className="w-8 h-8 rounded-full"
+                        />
+                      ) : (
+                        <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center">
+                          <HardDrive className="w-4 h-4" />
+                        </div>
+                      )}
+                      {downloaded ? (
+                        <Check className="w-4 h-4 text-green-600" />
+                      ) : downloading ? (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-8 w-8 p-0"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            cancelDownload(model.id);
+                          }}
+                        >
+                          <X className="w-4 h-4" />
+                        </Button>
+                      ) : (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-8 w-8 p-0"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            startDownload(model);
+                          }}
+                        >
+                          <Download className="w-4 h-4" />
+                        </Button>
+                      )}
+                    </div>
+                    <p className="text-sm font-medium">{model.display_name}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {formatBytes(model.size_bytes)} •{' '}
+                      {model.context_limit?.toLocaleString() ?? 'N/A'} ctx
+                    </p>
+                    {downloading && progress && (
+                      <div className="mt-2">
+                        <div className="w-full bg-muted rounded-full h-1.5">
+                          <div
+                            className="bg-primary h-1.5 rounded-full transition-all"
+                            style={{ width: `${progress.progress_percent}%` }}
+                          />
+                        </div>
+                        <p className="text-xs text-muted-foreground mt-0.5">
+                          {progress.progress_percent.toFixed(0)}%
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Browse HuggingFace Button */}
+          <Button
+            variant="outline"
+            className="w-full"
+            onClick={() => setShowHuggingFaceModal(true)}
+          >
+            Browse HuggingFace Models
+          </Button>
+        </div>
+      )}
+
+      {/* Cloud section empty state */}
+      {filter === 'cloud' && !cloudProvider && (
+        <div className="text-center py-6 text-muted-foreground text-sm">
+          No cloud provider configured.{' '}
+          <button className="text-primary underline" onClick={() => setView('ConfigureProviders')}>
+            Set up a provider
+          </button>
+        </div>
+      )}
+
+      {/* Local section empty state */}
+      {filter === 'local' && localModels.length === 0 && (
+        <div className="text-center py-6 text-muted-foreground text-sm">
+          No local models available.{' '}
+          <button className="text-primary underline" onClick={() => setShowHuggingFaceModal(true)}>
+            Browse models
+          </button>
+        </div>
+      )}
+
+      {/* Reset Provider Section */}
+      <ResetProviderSection setView={setView} />
+
+      {/* HuggingFace Search Modal */}
+      <HuggingFaceSearchModal
+        isOpen={showHuggingFaceModal}
+        onClose={() => setShowHuggingFaceModal(false)}
+        onDownloadStarted={(_modelId) => {
+          setPollingActive(true);
+          setShowHuggingFaceModal(false);
           loadLocalModels();
         }}
       />
-
-      {/* Models Section with Filter Pills */}
-      <div>
-        {/* Filter Pills */}
-        <div className="flex items-center gap-2 mb-4">
-          <button
-            onClick={() => setFilter('all')}
-            className={`px-3 py-1.5 text-xs font-medium rounded-full transition-colors ${
-              filter === 'all'
-                ? 'bg-text-default text-background-default'
-                : 'bg-background-subtle text-text-muted hover:bg-background-default'
-            }`}
-          >
-            All
-          </button>
-          <button
-            onClick={() => setFilter('cloud')}
-            className={`px-3 py-1.5 text-xs font-medium rounded-full transition-colors ${
-              filter === 'cloud'
-                ? 'bg-blue-600 text-white'
-                : 'bg-background-subtle text-text-muted hover:bg-background-default'
-            }`}
-          >
-            Cloud
-          </button>
-          <button
-            onClick={() => setFilter('local')}
-            className={`px-3 py-1.5 text-xs font-medium rounded-full transition-colors ${
-              filter === 'local'
-                ? 'bg-green-600 text-white'
-                : 'bg-background-subtle text-text-muted hover:bg-background-default'
-            }`}
-          >
-            Local
-          </button>
-        </div>
-
-        {/* Models Grid */}
-        <div className="grid grid-cols-2 gap-4 pt-2">
-          {/* Cloud Model - show when filter is 'all' or 'cloud' */}
-          {cloudModel && (filter === 'all' || filter === 'cloud') && (
-            <div className="relative">
-              {activeProvider === 'cloud' && (
-                <div className="absolute -top-2 -right-2 z-20">
-                  <span className="inline-block px-2 py-1 text-xs font-medium bg-blue-600 text-white rounded-full">
-                    Active
-                  </span>
-                </div>
-              )}
-              <div 
-                className={`border rounded-lg p-4 flex flex-col h-full transition-all cursor-pointer bg-background-default ${
-                  activeProvider === 'cloud'
-                    ? 'border-blue-500'
-                    : 'border-border-subtle hover:border-border-default'
-                }`}
-                onClick={async () => {
-                  // Activate cloud model - restore the stored cloud provider and model
-                  if (cloudProvider) {
-                    await upsert('GOOSE_PROVIDER', cloudProvider, false);
-                    await upsert('GOOSE_MODEL', cloudModel, false);
-                    setActiveProvider('cloud');
-                  }
-                }}
-              >
-                {/* Row 1: Icon left */}
-                <div className="flex items-center justify-between mb-3">
-                  <div className="w-10 h-10 rounded-full bg-blue-500/10 flex items-center justify-center">
-                    <Cloud className="w-5 h-5 text-blue-500" />
-                  </div>
-                  {activeProvider === 'cloud' && (
-                    <div className="flex items-center text-blue-600">
-                      <Check className="w-5 h-5" />
-                    </div>
-                  )}
-                </div>
-
-                {/* Title */}
-                <h4 className="text-sm font-medium text-text-default">{cloudModel}</h4>
-
-                {/* Provider */}
-                <p className="text-xs text-text-muted mt-0.5">{cloudProvider}</p>
-
-                {/* Type */}
-                <p className="text-xs text-text-muted mt-0.5">Cloud • API-based</p>
-              </div>
-            </div>
-          )}
-
-          {/* Local Models - show when filter is 'all' or 'local' */}
-          {(filter === 'all' || filter === 'local') && featuredModels.map((model) => {
-            const isSelected = selectedLocalModelId === model.id && activeProvider === 'local';
-            const originalProvider = getOriginalProvider(model.name);
-            const providerAvatarUrl = originalProvider ? PROVIDER_AVATARS[originalProvider] : null;
-            const progress = downloads.get(model.id);
-            const isDownloading = progress?.status === 'downloading';
-
-            return (
-              <div key={model.id} className="relative">
-                {/* Badge - Active for selected downloaded, Recommended for undownloaded recommended */}
-                {isSelected && (
-                  <div className="absolute -top-2 -right-2 z-20">
-                    <span className="inline-block px-2 py-1 text-xs font-medium bg-green-600 text-white rounded-full">
-                      Active
-                    </span>
-                  </div>
-                )}
-                {!model.downloaded && model.recommended && (
-                  <div className="absolute -top-2 -right-2 z-20">
-                    <span className="inline-block px-2 py-1 text-xs font-medium bg-blue-600 text-white rounded-full">
-                      Recommended
-                    </span>
-                  </div>
-                )}
-
-                <div 
-                  className={`border rounded-lg p-4 flex flex-col h-full transition-all bg-background-default ${
-                    isSelected
-                      ? 'border-green-500 cursor-pointer'
-                      : model.downloaded
-                        ? 'border-border-subtle hover:border-border-default cursor-pointer'
-                        : 'border-border-subtle hover:border-border-default'
-                  }`}
-                  onClick={() => model.downloaded && selectLocalModel(model.id)}
-                >
-                  {/* Row 1: Avatar left, Action button right */}
-                  <div className="flex items-center justify-between mb-3">
-                    {providerAvatarUrl ? (
-                      <img
-                        src={providerAvatarUrl}
-                        alt={originalProvider || 'Provider'}
-                        className="w-10 h-10 rounded-full object-cover"
-                      />
-                    ) : (
-                      <div className="w-10 h-10 rounded-full bg-green-500/10 flex items-center justify-center">
-                        <HardDrive className="w-5 h-5 text-green-500" />
-                      </div>
-                    )}
-                    
-                    {/* Action: Check for downloaded, Download/Cancel for not downloaded */}
-                    {model.downloaded ? (
-                      <div className={`flex items-center ${isSelected ? 'text-green-600' : 'text-text-muted'}`}>
-                        <Check className="w-5 h-5" />
-                      </div>
-                    ) : isDownloading ? (
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          cancelDownload(model.id);
-                        }}
-                        className="h-8 w-8 p-0"
-                      >
-                        <span className="text-xs">{progress?.progress_percent.toFixed(0)}%</span>
-                      </Button>
-                    ) : (
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          startDownload(model.id);
-                        }}
-                        className="h-8 w-8 p-0"
-                        title="Download model"
-                      >
-                        <Download className="w-4 h-4" />
-                      </Button>
-                    )}
-                  </div>
-
-                  {/* Title */}
-                  <h4 className="text-sm font-medium text-text-default">{model.name}</h4>
-
-                  {/* Author */}
-                  <p className="text-xs text-text-muted mt-0.5">
-                    {originalProvider || 'Unknown'}
-                  </p>
-
-                  {/* Size & Context */}
-                  <p className="text-xs text-text-muted mt-0.5">
-                    Local • {model.size_mb}MB • {model.context_limit.toLocaleString()} ctx
-                  </p>
-
-                  {/* Download progress */}
-                  {isDownloading && progress && (
-                    <div className="mt-3 space-y-1">
-                      <div className="w-full bg-background-subtle rounded-full h-1.5">
-                        <div
-                          className="bg-green-500 h-1.5 rounded-full transition-all"
-                          style={{ width: `${progress.progress_percent}%` }}
-                        />
-                      </div>
-                      <div className="flex justify-between text-xs text-text-muted">
-                        <span>{formatBytes(progress.bytes_downloaded)} / {formatBytes(progress.total_bytes)}</span>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              </div>
-            );
-          })}
-        </div>
-
-        {/* Empty state for cloud filter */}
-        {filter === 'cloud' && !cloudModel && (
-          <div className="text-center py-8 px-4 bg-background-subtle rounded-lg">
-            <Cloud className="w-12 h-12 text-text-muted mx-auto mb-3" />
-            <p className="text-sm text-text-muted mb-3">No cloud model configured</p>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setView('ConfigureProviders')}
-            >
-              Configure Cloud Provider
-            </Button>
-          </div>
-        )}
-
-        {/* Empty state for local filter */}
-        {filter === 'local' && featuredModels.length === 0 && (
-          <div className="text-center py-8 px-4 bg-background-subtle rounded-lg">
-            <HardDrive className="w-12 h-12 text-text-muted mx-auto mb-3" />
-            <p className="text-sm text-text-muted mb-3">No local models available</p>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setShowLocalModelModal(true)}
-            >
-              Browse Local Models
-            </Button>
-          </div>
-        )}
-      </div>
-
-      {/* Reset Provider and Model */}
-      <Card className="pb-2 rounded-lg">
-        <CardHeader className="pb-0">
-          <CardTitle>Reset Provider and Model</CardTitle>
-          <CardDescription>
-            Clear your selected model and provider settings to start fresh
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="px-2">
-          <ResetProviderSection setView={setView} />
-        </CardContent>
-      </Card>
-    </section>
+    </div>
   );
 }

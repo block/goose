@@ -58,7 +58,9 @@ export async function fetchModelsForProviders(
       if (p.name === 'local') {
         const response = await listLocalModels();
         const allModels = response.data || [];
-        const downloadedModels = allModels.filter((m) => m.downloaded).map((m) => m.id);
+        const downloadedModels = allModels
+          .filter((m) => m.status.state === 'Downloaded')
+          .map((m) => m.id);
         return { provider: p, models: downloadedModels, error: null };
       }
 

@@ -7,47 +7,48 @@ use axum::{
     Json, Router,
 };
 use goose::config::paths::Paths;
-use goose::dictation::download_manager::{get_download_manager, DownloadProgress};
-use goose::providers::local_inference::hf_models::{self, HfModelInfo, HfQuantVariant};
+use goose::dictation::download_manager::get_download_manager;
+use goose::providers::local_inference::hf_models::{self, HfModelInfo};
 use goose::providers::local_inference::local_model_registry::{
-    display_name_from_repo, get_registry, model_id_from_repo, LocalModelEntry, ModelSettings,
+    display_name_from_repo, get_recommended_by_id, get_registry, is_recommended_model,
+    model_id_from_repo, LocalModelEntry, ModelSettings, ModelTier, RecommendedModel,
+    RECOMMENDED_MODELS,
 };
-use goose::providers::local_inference::{
-    available_inference_memory_bytes, available_local_models, get_local_model,
-    recommend_local_model, LocalLlmModel, LOCAL_LLM_MODEL_CONFIG_KEY,
-};
+
+/// Download status for a local model (mirrors goose::providers::local_inference::local_model_registry::ModelDownloadStatus)
+#[derive(Debug, Clone, Serialize, ToSchema)]
+#[serde(tag = "state")]
+pub enum ModelDownloadStatus {
+    NotDownloaded,
+    Downloading {
+        progress_percent: f32,
+        bytes_downloaded: u64,
+        total_bytes: u64,
+        speed_bps: Option<u64>,
+    },
+    Downloaded,
+}
+use goose::providers::local_inference::{available_inference_memory_bytes, InferenceRuntime};
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use utoipa::ToSchema;
 
+/// Response for a single local model
 #[derive(Debug, Serialize, ToSchema)]
 pub struct LocalModelResponse {
-    #[serde(flatten)]
-    #[schema(inline)]
-    pub model: &'static LocalLlmModel,
-    pub downloaded: bool,
-    pub recommended: bool,
-    pub featured: bool,
-}
-
-#[derive(Debug, Serialize, ToSchema)]
-pub struct RegistryModelResponse {
     pub id: String,
     pub display_name: String,
     pub repo_id: String,
     pub filename: String,
     pub quantization: String,
     pub size_bytes: u64,
-    pub downloaded: bool,
-    pub featured: bool,
+    #[schema(inline)]
+    pub status: ModelDownloadStatus,
+    pub recommended: bool,
+    #[schema(nullable)]
+    pub tier: Option<ModelTier>,
+    pub context_limit: Option<u32>,
     pub settings: ModelSettings,
-}
-
-#[derive(Debug, Serialize, ToSchema)]
-#[serde(untagged)]
-pub enum ModelListItem {
-    Featured(LocalModelResponse),
-    Registry(Box<RegistryModelResponse>),
 }
 
 fn convert_error(e: anyhow::Error) -> ErrorResponse {
@@ -67,51 +68,205 @@ fn convert_error(e: anyhow::Error) -> ErrorResponse {
     }
 }
 
-#[utoipa::path(
-    get,
-    path = "/local-inference/models",
-    responses(
-        (status = 200, description = "List of available local LLM models", body = Vec<ModelListItem>)
-    )
-)]
-pub async fn list_local_models(
-    axum::extract::State(state): axum::extract::State<Arc<AppState>>,
-) -> Result<Json<Vec<ModelListItem>>, ErrorResponse> {
-    let recommended_id = recommend_local_model(&state.inference_runtime);
-    let featured_ids: Vec<&str> = available_local_models().iter().map(|m| m.id).collect();
+/// Ensure all recommended models are in the registry (with metadata from HuggingFace if needed).
+/// This is called on list_local_models to populate the registry with recommended models.
+async fn ensure_recommended_models_in_registry() -> Result<(), ErrorResponse> {
+    // First pass: collect specs that need to be fetched (without holding lock across await)
+    let specs_to_fetch: Vec<&'static RecommendedModel> = {
+        let registry = get_registry()
+            .lock()
+            .map_err(|_| ErrorResponse::internal("Failed to acquire registry lock"))?;
 
-    let mut items: Vec<ModelListItem> = available_local_models()
-        .iter()
-        .map(|m| {
-            ModelListItem::Featured(LocalModelResponse {
-                model: m,
-                downloaded: m.is_downloaded(),
-                recommended: m.id == recommended_id,
-                featured: true,
+        RECOMMENDED_MODELS
+            .iter()
+            .filter(|rec| {
+                let parts: Vec<&str> = rec.spec.rsplitn(2, ':').collect();
+                if parts.len() != 2 {
+                    return false;
+                }
+                let model_id = model_id_from_repo(parts[1], parts[0]);
+                !registry.has_model(&model_id)
             })
-        })
-        .collect();
+            .collect()
+    }; // Lock released here
 
-    // Add registry models that aren't in the featured list
-    if let Ok(registry) = get_registry().lock() {
-        for entry in registry.list_models() {
-            if !featured_ids.contains(&entry.id.as_str()) {
-                items.push(ModelListItem::Registry(Box::new(RegistryModelResponse {
-                    id: entry.id.clone(),
-                    display_name: entry.display_name.clone(),
-                    repo_id: entry.repo_id.clone(),
-                    filename: entry.filename.clone(),
-                    quantization: entry.quantization.clone(),
-                    size_bytes: entry.file_size(),
-                    downloaded: entry.is_downloaded(),
-                    featured: false,
-                    settings: entry.settings.clone(),
-                })));
+    // Fetch info and add entries one by one (lock is not held across await)
+    for rec in specs_to_fetch {
+        let parts: Vec<&str> = rec.spec.rsplitn(2, ':').collect();
+        if parts.len() != 2 {
+            continue;
+        }
+        let (repo_id, quantization) = (parts[1], parts[0]);
+        let model_id = model_id_from_repo(repo_id, quantization);
+
+        // Try to get file info from HuggingFace (for size_bytes and download URL)
+        let (filename, download_url, size_bytes) =
+            match hf_models::resolve_model_spec(rec.spec).await {
+                Ok((_, file_info)) => (
+                    file_info.filename,
+                    file_info.download_url,
+                    file_info.size_bytes,
+                ),
+                Err(_) => {
+                    // If HF lookup fails, create a placeholder with estimated filename
+                    let estimated_filename = format!(
+                        "{}-{}.gguf",
+                        repo_id.split('/').next_back().unwrap_or("model"),
+                        quantization
+                    );
+                    let download_url = format!(
+                        "https://huggingface.co/{}/resolve/main/{}",
+                        repo_id, estimated_filename
+                    );
+                    (estimated_filename, download_url, 0)
+                }
+            };
+
+        let local_path = Paths::in_data_dir("models").join(&filename);
+
+        let entry = LocalModelEntry {
+            id: model_id,
+            display_name: rec.display_name.to_string(),
+            repo_id: repo_id.to_string(),
+            filename,
+            quantization: quantization.to_string(),
+            local_path,
+            source_url: download_url,
+            settings: ModelSettings::default(),
+            size_bytes,
+        };
+
+        // Re-acquire lock to add entry (ignore errors - might already exist due to race)
+        if let Ok(mut registry) = get_registry().lock() {
+            let _ = registry.add_model(entry);
+        }
+    }
+
+    Ok(())
+}
+
+/// Recommend a model based on available memory
+fn recommend_model_id(runtime: &InferenceRuntime) -> Option<String> {
+    let available_memory = available_inference_memory_bytes(runtime);
+
+    // Simple heuristic: pick the largest model that fits in ~80% of available memory
+    // Rough model sizes: Tiny ~1GB, Small ~2GB, Medium ~5GB, Large ~15GB
+    let target_memory = (available_memory as f64 * 0.8) as u64;
+
+    let model_sizes = [
+        (ModelTier::Large, 15_000_000_000u64),
+        (ModelTier::Medium, 5_000_000_000u64),
+        (ModelTier::Small, 2_000_000_000u64),
+        (ModelTier::Tiny, 1_000_000_000u64),
+    ];
+
+    for (tier, size) in model_sizes {
+        if target_memory >= size {
+            // Find a recommended model with this tier
+            for rec in RECOMMENDED_MODELS {
+                if rec.tier == tier {
+                    let parts: Vec<&str> = rec.spec.rsplitn(2, ':').collect();
+                    if parts.len() == 2 {
+                        return Some(model_id_from_repo(parts[1], parts[0]));
+                    }
+                }
             }
         }
     }
 
-    Ok(Json(items))
+    // Default to smallest
+    RECOMMENDED_MODELS.first().map(|rec| {
+        let parts: Vec<&str> = rec.spec.rsplitn(2, ':').collect();
+        if parts.len() == 2 {
+            model_id_from_repo(parts[1], parts[0])
+        } else {
+            String::new()
+        }
+    })
+}
+
+#[utoipa::path(
+    get,
+    path = "/local-inference/models",
+    responses(
+        (status = 200, description = "List of available local LLM models", body = Vec<LocalModelResponse>)
+    )
+)]
+pub async fn list_local_models() -> Result<Json<Vec<LocalModelResponse>>, ErrorResponse> {
+    // Ensure recommended models are in registry
+    ensure_recommended_models_in_registry().await?;
+
+    let runtime = InferenceRuntime::get_or_init();
+    let recommended_id = recommend_model_id(&runtime);
+
+    let registry = get_registry()
+        .lock()
+        .map_err(|_| ErrorResponse::internal("Failed to acquire registry lock"))?;
+
+    let mut models: Vec<LocalModelResponse> = Vec::new();
+
+    for entry in registry.list_models() {
+        let is_recommended = is_recommended_model(&entry.id);
+        let goose_status = entry.download_status();
+
+        // Convert from goose's ModelDownloadStatus to our local one
+        use goose::providers::local_inference::local_model_registry::ModelDownloadStatus as GooseStatus;
+        let is_downloaded = matches!(goose_status, GooseStatus::Downloaded);
+
+        // Filter: keep if downloaded OR recommended
+        if !is_downloaded && !is_recommended {
+            continue;
+        }
+
+        let status = match goose_status {
+            GooseStatus::NotDownloaded => ModelDownloadStatus::NotDownloaded,
+            GooseStatus::Downloading {
+                progress_percent,
+                bytes_downloaded,
+                total_bytes,
+                speed_bps,
+            } => ModelDownloadStatus::Downloading {
+                progress_percent,
+                bytes_downloaded,
+                total_bytes,
+                speed_bps,
+            },
+            GooseStatus::Downloaded => ModelDownloadStatus::Downloaded,
+        };
+
+        // Get tier and context_limit from recommended info if available
+        let rec_info = get_recommended_by_id(&entry.id);
+        let tier = rec_info.map(|r| r.tier);
+        let context_limit = rec_info.map(|r| r.context_limit);
+
+        models.push(LocalModelResponse {
+            id: entry.id.clone(),
+            display_name: entry.display_name.clone(),
+            repo_id: entry.repo_id.clone(),
+            filename: entry.filename.clone(),
+            quantization: entry.quantization.clone(),
+            size_bytes: if entry.size_bytes > 0 {
+                entry.size_bytes
+            } else {
+                entry.file_size()
+            },
+            status,
+            recommended: recommended_id.as_deref() == Some(&entry.id),
+            tier,
+            context_limit,
+            settings: entry.settings.clone(),
+        });
+    }
+
+    // Sort: recommended models first (by tier), then others by name
+    models.sort_by(|a, b| match (&a.tier, &b.tier) {
+        (Some(ta), Some(tb)) => ta.cmp(tb),
+        (Some(_), None) => std::cmp::Ordering::Less,
+        (None, Some(_)) => std::cmp::Ordering::Greater,
+        (None, None) => a.display_name.cmp(&b.display_name),
+    });
+
+    Ok(Json(models))
 }
 
 #[derive(Debug, Deserialize)]
@@ -125,17 +280,16 @@ pub struct SearchQuery {
     path = "/local-inference/search",
     params(
         ("q" = String, Query, description = "Search query"),
-        ("limit" = Option<usize>, Query, description = "Max results")
+        ("limit" = Option<usize>, Query, description = "Max results (default 20)")
     ),
     responses(
-        (status = 200, description = "Search results", body = Vec<HfModelInfo>),
-        (status = 500, description = "Search failed")
+        (status = 200, description = "Search results", body = Vec<HfModelInfo>)
     )
 )]
 pub async fn search_hf_models(
     Query(params): Query<SearchQuery>,
 ) -> Result<Json<Vec<HfModelInfo>>, ErrorResponse> {
-    let limit = params.limit.unwrap_or(20).min(50);
+    let limit = params.limit.unwrap_or(20);
     let results = hf_models::search_gguf_models(&params.q, limit)
         .await
         .map_err(|e| ErrorResponse::internal(format!("Search failed: {}", e)))?;
@@ -143,8 +297,10 @@ pub async fn search_hf_models(
 }
 
 #[derive(Debug, Serialize, ToSchema)]
+#[aliases(RepoVariantsResponse = RepoVariantsResponse)]
 pub struct RepoVariantsResponse {
-    pub variants: Vec<HfQuantVariant>,
+    #[schema(value_type = Vec<HfQuantVariant>)]
+    pub variants: Vec<hf_models::HfQuantVariant>,
     pub recommended_index: Option<usize>,
 }
 
@@ -157,7 +313,6 @@ pub struct RepoVariantsResponse {
     )
 )]
 pub async fn get_repo_files(
-    axum::extract::State(state): axum::extract::State<Arc<AppState>>,
     Path((author, repo)): Path<(String, String)>,
 ) -> Result<Json<RepoVariantsResponse>, ErrorResponse> {
     let repo_id = format!("{}/{}", author, repo);
@@ -165,7 +320,8 @@ pub async fn get_repo_files(
         .await
         .map_err(|e| ErrorResponse::internal(format!("Failed to fetch repo files: {}", e)))?;
 
-    let available_memory = available_inference_memory_bytes(&state.inference_runtime);
+    let runtime = InferenceRuntime::get_or_init();
+    let available_memory = available_inference_memory_bytes(&runtime);
     let recommended_index = hf_models::recommend_variant(&variants, available_memory);
 
     Ok(Json(RepoVariantsResponse {
@@ -199,11 +355,18 @@ pub struct HfDownloadResponse {
 pub async fn download_hf_model(
     Json(req): Json<HfDownloadRequest>,
 ) -> Result<(StatusCode, Json<HfDownloadResponse>), ErrorResponse> {
-    let (repo_id, filename, quantization, download_url) = if let Some(spec) = &req.spec {
+    let (repo_id, filename, quantization, download_url, size_bytes) = if let Some(spec) = &req.spec
+    {
         let (repo_id, file) = hf_models::resolve_model_spec(spec)
             .await
             .map_err(|e| ErrorResponse::bad_request(format!("{}", e)))?;
-        (repo_id, file.filename, file.quantization, file.download_url)
+        (
+            repo_id,
+            file.filename,
+            file.quantization,
+            file.download_url,
+            file.size_bytes,
+        )
     } else if let (Some(repo_id), Some(filename)) = (&req.repo_id, &req.filename) {
         let quantization = hf_models::parse_quantization_from_filename(filename);
         let download_url = format!(
@@ -215,6 +378,7 @@ pub async fn download_hf_model(
             filename.clone(),
             quantization,
             download_url,
+            0,
         )
     } else {
         return Err(ErrorResponse::bad_request(
@@ -235,6 +399,7 @@ pub async fn download_hf_model(
         local_path: local_path.clone(),
         source_url: download_url.clone(),
         settings: ModelSettings::default(),
+        size_bytes,
     };
 
     {
@@ -252,8 +417,8 @@ pub async fn download_hf_model(
             format!("{}-model", model_id),
             download_url,
             local_path,
-            Some(LOCAL_LLM_MODEL_CONFIG_KEY.to_string()),
-            Some(model_id.clone()),
+            None,
+            None,
         )
         .await
         .map_err(convert_error)?;
@@ -261,55 +426,46 @@ pub async fn download_hf_model(
     Ok((StatusCode::ACCEPTED, Json(HfDownloadResponse { model_id })))
 }
 
-#[utoipa::path(
-    post,
-    path = "/local-inference/models/{model_id}/download",
-    responses(
-        (status = 202, description = "Download started"),
-        (status = 400, description = "Model not found or download already in progress"),
-        (status = 500, description = "Internal server error")
-    )
-)]
-pub async fn download_local_model(
-    Path(model_id): Path<String>,
-) -> Result<StatusCode, ErrorResponse> {
-    let model =
-        get_local_model(&model_id).ok_or_else(|| ErrorResponse::bad_request("Model not found"))?;
-
-    let manager = get_download_manager();
-
-    manager
-        .download_model(
-            format!("{}-model", model.id),
-            model.url.to_string(),
-            model.local_path(),
-            Some(LOCAL_LLM_MODEL_CONFIG_KEY.to_string()),
-            Some(model.id.to_string()),
-        )
-        .await
-        .map_err(convert_error)?;
-
-    Ok(StatusCode::ACCEPTED)
+#[derive(Debug, Serialize, ToSchema)]
+pub struct DownloadProgressResponse {
+    pub model_id: String,
+    pub status: String,
+    pub bytes_downloaded: u64,
+    pub total_bytes: u64,
+    pub speed_bps: Option<u64>,
+    pub eta_seconds: Option<u64>,
 }
 
 #[utoipa::path(
     get,
     path = "/local-inference/models/{model_id}/download",
     responses(
-        (status = 200, description = "Download progress", body = DownloadProgress),
+        (status = 200, description = "Download progress", body = DownloadProgressResponse),
         (status = 404, description = "Download not found")
     )
 )]
 pub async fn get_local_model_download_progress(
     Path(model_id): Path<String>,
-) -> Result<Json<DownloadProgress>, ErrorResponse> {
-    let manager = get_download_manager();
+) -> Result<Json<DownloadProgressResponse>, ErrorResponse> {
+    let model_id = urlencoding::decode(&model_id)
+        .map_err(|_| ErrorResponse::bad_request("Invalid model_id encoding"))?
+        .into_owned();
 
-    let model_progress = manager
-        .get_progress(&format!("{}-model", model_id))
+    let manager = get_download_manager();
+    let download_id = format!("{}-model", model_id);
+
+    let progress = manager
+        .get_progress(&download_id)
         .ok_or_else(|| ErrorResponse::not_found("Download not found"))?;
 
-    Ok(Json(model_progress))
+    Ok(Json(DownloadProgressResponse {
+        model_id,
+        status: format!("{:?}", progress.status),
+        bytes_downloaded: progress.bytes_downloaded,
+        total_bytes: progress.total_bytes,
+        speed_bps: progress.speed_bps,
+        eta_seconds: progress.eta_seconds,
+    }))
 }
 
 #[utoipa::path(
@@ -323,9 +479,15 @@ pub async fn get_local_model_download_progress(
 pub async fn cancel_local_model_download(
     Path(model_id): Path<String>,
 ) -> Result<StatusCode, ErrorResponse> {
+    let model_id = urlencoding::decode(&model_id)
+        .map_err(|_| ErrorResponse::bad_request("Invalid model_id encoding"))?
+        .into_owned();
+
     let manager = get_download_manager();
+    let download_id = format!("{}-model", model_id);
+
     manager
-        .cancel_download(&format!("{}-model", model_id))
+        .cancel_download(&download_id)
         .map_err(convert_error)?;
 
     Ok(StatusCode::OK)
@@ -336,47 +498,42 @@ pub async fn cancel_local_model_download(
     path = "/local-inference/models/{model_id}",
     responses(
         (status = 200, description = "Model deleted"),
-        (status = 404, description = "Model not found or not downloaded"),
-        (status = 500, description = "Failed to delete model")
+        (status = 404, description = "Model not found")
     )
 )]
 pub async fn delete_local_model(Path(model_id): Path<String>) -> Result<StatusCode, ErrorResponse> {
-    // Try featured model first
-    if let Some(model) = get_local_model(&model_id) {
-        let model_path = model.local_path();
-        if !model_path.exists() {
-            return Err(ErrorResponse::not_found("Model not downloaded"));
-        }
-        tokio::fs::remove_file(&model_path)
-            .await
-            .map_err(|e| ErrorResponse::internal(format!("Failed to delete model: {}", e)))?;
-        return Ok(StatusCode::OK);
-    }
+    let model_id = urlencoding::decode(&model_id)
+        .map_err(|_| ErrorResponse::bad_request("Invalid model_id encoding"))?
+        .into_owned();
 
-    // Try registry model
+    // Get model path from registry
     let model_path = {
         let registry = get_registry()
             .lock()
             .map_err(|_| ErrorResponse::internal("Failed to acquire registry lock"))?;
-        let entry = registry
+
+        registry
             .get_model(&model_id)
-            .ok_or_else(|| ErrorResponse::not_found("Model not found"))?;
-        entry.local_path.clone()
+            .map(|m| m.local_path.clone())
+            .ok_or_else(|| ErrorResponse::not_found("Model not found in registry"))?
     };
 
+    // Delete the file if it exists
     if model_path.exists() {
         tokio::fs::remove_file(&model_path)
             .await
             .map_err(|e| ErrorResponse::internal(format!("Failed to delete model: {}", e)))?;
     }
 
-    // Remove from registry
-    let mut registry = get_registry()
-        .lock()
-        .map_err(|_| ErrorResponse::internal("Failed to acquire registry lock"))?;
-    registry
-        .remove_model(&model_id)
-        .map_err(|e| ErrorResponse::internal(format!("{}", e)))?;
+    // Remove from registry (unless it's a recommended model - just mark as not downloaded)
+    if !is_recommended_model(&model_id) {
+        let mut registry = get_registry()
+            .lock()
+            .map_err(|_| ErrorResponse::internal("Failed to acquire registry lock"))?;
+        registry
+            .remove_model(&model_id)
+            .map_err(|e| ErrorResponse::internal(format!("{}", e)))?;
+    }
 
     Ok(StatusCode::OK)
 }
@@ -392,6 +549,10 @@ pub async fn delete_local_model(Path(model_id): Path<String>) -> Result<StatusCo
 pub async fn get_model_settings(
     Path(model_id): Path<String>,
 ) -> Result<Json<ModelSettings>, ErrorResponse> {
+    let model_id = urlencoding::decode(&model_id)
+        .map_err(|_| ErrorResponse::bad_request("Invalid model_id encoding"))?
+        .into_owned();
+
     let registry = get_registry()
         .lock()
         .map_err(|_| ErrorResponse::internal("Failed to acquire registry lock"))?;
@@ -417,6 +578,10 @@ pub async fn update_model_settings(
     Path(model_id): Path<String>,
     Json(settings): Json<ModelSettings>,
 ) -> Result<Json<ModelSettings>, ErrorResponse> {
+    let model_id = urlencoding::decode(&model_id)
+        .map_err(|_| ErrorResponse::bad_request("Invalid model_id encoding"))?
+        .into_owned();
+
     let mut registry = get_registry()
         .lock()
         .map_err(|_| ErrorResponse::internal("Failed to acquire registry lock"))?;
@@ -439,10 +604,6 @@ pub fn routes(state: Arc<AppState>) -> Router {
             get(get_repo_files),
         )
         .route("/local-inference/download", post(download_hf_model))
-        .route(
-            "/local-inference/models/{model_id}/download",
-            post(download_local_model),
-        )
         .route(
             "/local-inference/models/{model_id}/download",
             get(get_local_model_download_progress),

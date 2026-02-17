@@ -4,22 +4,20 @@ import { Button } from '../../ui/button';
 import { useConfig } from '../../ConfigContext';
 import {
   listLocalModels,
-  downloadLocalModel,
-  getLocalModelDownloadProgress,
+  downloadHfModel,
   cancelLocalModelDownload,
   deleteLocalModel,
-  type DownloadProgress,
   type LocalModelResponse,
-  type RegistryModelResponse,
-  type ModelListItem,
 } from '../../../api';
 import { HuggingFaceModelSearch, AuthorAvatar } from './HuggingFaceModelSearch';
 import { ModelSettingsPanel } from './ModelSettingsPanel';
 
 // Original provider avatar URLs from HuggingFace organizations
 const PROVIDER_AVATARS: Record<string, string> = {
-  'meta-llama': 'https://cdn-avatars.huggingface.co/v1/production/uploads/646cf8084eefb026fb8fd8bc/oCTqufkdTkjyGodsx1vo1.png',
-  'mistralai': 'https://cdn-avatars.huggingface.co/v1/production/uploads/634c17653d11eaedd88b314d/9OgyfKstSZtbmsmuG8MbU.png',
+  'meta-llama':
+    'https://cdn-avatars.huggingface.co/v1/production/uploads/646cf8084eefb026fb8fd8bc/oCTqufkdTkjyGodsx1vo1.png',
+  mistralai:
+    'https://cdn-avatars.huggingface.co/v1/production/uploads/634c17653d11eaedd88b314d/9OgyfKstSZtbmsmuG8MbU.png',
 };
 
 // Get the original provider for a model based on its name
@@ -34,10 +32,10 @@ const getOriginalProvider = (modelName: string): string | null => {
   return null;
 };
 
-// Extract author from HuggingFace URL like "https://huggingface.co/bartowski/..."
-const extractAuthorFromUrl = (url: string): string | null => {
-  const match = url.match(/huggingface\.co\/([^/]+)\//);
-  return match ? match[1] : null;
+// Extract author from repo_id like "bartowski/Llama-3.2-1B-Instruct-GGUF"
+const extractAuthorFromRepoId = (repoId: string): string | null => {
+  const parts = repoId.split('/');
+  return parts.length > 0 ? parts[0] : null;
 };
 
 const LOCAL_LLM_MODEL_CONFIG_KEY = 'LOCAL_LLM_MODEL';
@@ -49,20 +47,29 @@ const formatBytes = (bytes: number): string => {
   return `${(bytes / (1024 * 1024 * 1024)).toFixed(1)}GB`;
 };
 
-function isFeaturedModel(item: ModelListItem): item is LocalModelResponse & { featured: boolean } {
-  return 'tier' in item;
-}
+// Helper to check if model is downloaded
+const isDownloaded = (model: LocalModelResponse): boolean => {
+  return model.status.state === 'Downloaded';
+};
 
-function isRegistryModel(item: ModelListItem): item is RegistryModelResponse {
-  return 'display_name' in item && !('tier' in item);
-}
+// Helper to check if model is downloading
+const isDownloading = (model: LocalModelResponse): boolean => {
+  return model.status.state === 'Downloading';
+};
+
+// Helper to get download progress
+const getDownloadProgress = (model: LocalModelResponse) => {
+  if (model.status.state === 'Downloading') {
+    return model.status;
+  }
+  return null;
+};
 
 export const LocalInferenceSettings = () => {
-  const [featuredModels, setFeaturedModels] = useState<(LocalModelResponse & { featured?: boolean })[]>([]);
-  const [registryModels, setRegistryModels] = useState<RegistryModelResponse[]>([]);
-  const [downloads, setDownloads] = useState<Map<string, DownloadProgress>>(new Map());
+  const [models, setModels] = useState<LocalModelResponse[]>([]);
   const [selectedModelId, setSelectedModelId] = useState<string | null>(null);
   const [settingsOpenFor, setSettingsOpenFor] = useState<string | null>(null);
+  const [pollingActive, setPollingActive] = useState(false);
   const { read, upsert } = useConfig();
   const downloadSectionRef = useRef<HTMLDivElement>(null);
 
@@ -70,24 +77,26 @@ export const LocalInferenceSettings = () => {
     try {
       const response = await listLocalModels();
       if (response.data) {
-        const featured: (LocalModelResponse & { featured?: boolean })[] = [];
-        const registry: RegistryModelResponse[] = [];
-
-        for (const item of response.data) {
-          if (isFeaturedModel(item)) {
-            featured.push(item);
-          } else if (isRegistryModel(item)) {
-            registry.push(item);
-          }
-        }
-
-        setFeaturedModels(featured);
-        setRegistryModels(registry);
+        setModels(response.data);
+        // Check if any models are downloading
+        const hasDownloading = response.data.some((m) => m.status.state === 'Downloading');
+        setPollingActive(hasDownloading);
       }
     } catch (error) {
       console.error('Failed to load models:', error);
     }
   }, []);
+
+  // Poll for updates while downloads are active
+  useEffect(() => {
+    if (!pollingActive) return;
+
+    const interval = setInterval(() => {
+      loadModels();
+    }, 500);
+
+    return () => clearInterval(interval);
+  }, [pollingActive, loadModels]);
 
   useEffect(() => {
     loadModels();
@@ -116,56 +125,28 @@ export const LocalInferenceSettings = () => {
     setSelectedModelId(modelId);
   };
 
-  const startFeaturedDownload = async (modelId: string) => {
+  const startDownload = async (model: LocalModelResponse) => {
     try {
-      await downloadLocalModel({ path: { model_id: modelId } });
-      pollDownloadProgress(modelId);
+      // Use the spec format: repo_id:quantization
+      const spec = `${model.repo_id}:${model.quantization}`;
+      await downloadHfModel({ body: { spec } });
+      setPollingActive(true);
       scrollToDownloads();
+      loadModels();
     } catch (error) {
       console.error('Failed to start download:', error);
     }
   };
 
   const scrollToDownloads = useCallback(() => {
-    // Wait a tick for the download section to render before scrolling.
     requestAnimationFrame(() => {
       downloadSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
     });
   }, []);
 
-  const pollDownloadProgress = (modelId: string) => {
-    const interval = setInterval(async () => {
-      try {
-        const response = await getLocalModelDownloadProgress({ path: { model_id: modelId } });
-        if (response.data) {
-          const progress = response.data;
-          setDownloads((prev) => new Map(prev).set(modelId, progress));
-
-          if (progress.status === 'completed') {
-            clearInterval(interval);
-            await loadModels();
-            await selectModel(modelId);
-          } else if (progress.status === 'failed') {
-            clearInterval(interval);
-            await loadModels();
-          }
-        } else {
-          clearInterval(interval);
-        }
-      } catch {
-        clearInterval(interval);
-      }
-    }, 500);
-  };
-
   const cancelDownload = async (modelId: string) => {
     try {
       await cancelLocalModelDownload({ path: { model_id: modelId } });
-      setDownloads((prev) => {
-        const next = new Map(prev);
-        next.delete(modelId);
-        return next;
-      });
       loadModels();
     } catch (error) {
       console.error('Failed to cancel download:', error);
@@ -186,70 +167,68 @@ export const LocalInferenceSettings = () => {
     }
   };
 
-  const handleHfDownloadStarted = (modelId: string) => {
-    pollDownloadProgress(modelId);
+  const handleHfDownloadStarted = (_modelId: string) => {
+    setPollingActive(true);
     scrollToDownloads();
+    loadModels();
   };
 
-  // Featured models display logic - show all models
-  const displayedFeatured = featuredModels;
-
-  // Downloaded models from both featured and registry
-  const downloadedFeatured = featuredModels.filter((m) => m.downloaded);
-  const downloadedRegistry = registryModels.filter((m) => m.downloaded);
-  const hasDownloaded = downloadedFeatured.length > 0 || downloadedRegistry.length > 0;
+  // Separate models into categories
+  const recommendedModels = models.filter((m) => m.recommended);
+  const downloadedModels = models.filter((m) => isDownloaded(m));
+  const downloadingModels = models.filter((m) => isDownloading(m));
 
   return (
     <div className="space-y-6">
       <div>
         <h3 className="text-text-default font-medium">Local Inference Models</h3>
         <p className="text-xs text-text-muted max-w-2xl mt-1">
-          Download and manage local LLM models for inference without API keys. Search HuggingFace for any GGUF model or use the featured picks below.
+          Download and manage local LLM models for inference without API keys. Search HuggingFace
+          for any GGUF model or use the recommended picks below.
         </p>
       </div>
 
       {/* Active Downloads */}
-      {downloads.size > 0 && (
+      {downloadingModels.length > 0 && (
         <div ref={downloadSectionRef}>
           <h4 className="text-sm font-medium text-text-default mb-2">Downloading</h4>
           <div className="space-y-2">
-            {Array.from(downloads.entries()).map(([modelId, progress]) => {
-              if (progress.status === 'completed') return null;
+            {downloadingModels.map((model) => {
+              const progress = getDownloadProgress(model);
+              if (!progress) return null;
               return (
                 <div
-                  key={modelId}
+                  key={model.id}
                   className="border rounded-lg p-3 border-border-subtle bg-background-default"
                 >
                   <div className="flex items-center justify-between mb-2">
-                    <span className="text-sm font-medium text-text-default truncate">{modelId}</span>
-                    {progress.status === 'downloading' && (
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => cancelDownload(modelId)}
-                        className="text-destructive hover:text-destructive"
-                      >
-                        <X className="w-4 h-4" />
-                      </Button>
-                    )}
+                    <span className="text-sm font-medium text-text-default truncate">
+                      {model.display_name}
+                    </span>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => cancelDownload(model.id)}
+                      className="text-destructive hover:text-destructive"
+                    >
+                      <X className="w-4 h-4" />
+                    </Button>
                   </div>
-                  {progress.status === 'downloading' && (
-                    <div className="space-y-1">
-                      <div className="w-full bg-background-subtle rounded-full h-2">
-                        <div
-                          className="bg-accent-primary h-2 rounded-full transition-all duration-300"
-                          style={{ width: `${progress.progress_percent}%` }}
-                        />
-                      </div>
-                      <div className="flex justify-between text-xs text-text-muted">
-                        <span>{formatBytes(progress.bytes_downloaded)} / {formatBytes(progress.total_bytes)}</span>
-                        <span>{progress.progress_percent.toFixed(0)}%</span>
-                      </div>
+                  <div className="space-y-1">
+                    <div className="w-full bg-background-subtle rounded-full h-2">
+                      <div
+                        className="bg-accent-primary h-2 rounded-full transition-all duration-300"
+                        style={{ width: `${progress.progress_percent}%` }}
+                      />
                     </div>
-                  )}
-                  {progress.status === 'failed' && (
-                    <p className="text-xs text-destructive">{progress.error || 'Download failed'}</p>
-                  )}
+                    <div className="flex justify-between text-xs text-text-muted">
+                      <span>
+                        {formatBytes(progress.bytes_downloaded)} /{' '}
+                        {formatBytes(progress.total_bytes)}
+                      </span>
+                      <span>{progress.progress_percent.toFixed(0)}%</span>
+                    </div>
+                  </div>
                 </div>
               );
             })}
@@ -258,11 +237,11 @@ export const LocalInferenceSettings = () => {
       )}
 
       {/* Downloaded Models */}
-      {hasDownloaded && (
+      {downloadedModels.length > 0 && (
         <div>
           <h4 className="text-sm font-medium text-text-default mb-2">Downloaded Models</h4>
           <div className="space-y-2">
-            {downloadedFeatured.map((model) => {
+            {downloadedModels.map((model) => {
               const isSelected = selectedModelId === model.id;
               const showSettings = settingsOpenFor === model.id;
               return (
@@ -282,10 +261,16 @@ export const LocalInferenceSettings = () => {
                         onChange={() => selectModel(model.id)}
                         className="cursor-pointer"
                       />
-                      <span className="text-sm font-medium text-text-default">{model.name}</span>
-                      <span className="text-xs text-text-muted">{model.size_mb}MB</span>
+                      <span className="text-sm font-medium text-text-default">
+                        {model.display_name}
+                      </span>
+                      <span className="text-xs text-text-muted">
+                        {formatBytes(model.size_bytes)}
+                      </span>
                       {model.recommended && (
-                        <span className="text-xs bg-blue-500 text-white px-2 py-0.5 rounded">Recommended</span>
+                        <span className="text-xs bg-blue-500 text-white px-2 py-0.5 rounded">
+                          Recommended
+                        </span>
                       )}
                     </div>
                     <div className="flex items-center gap-1">
@@ -311,80 +296,24 @@ export const LocalInferenceSettings = () => {
                 </div>
               );
             })}
-
-            {downloadedRegistry.map((model) => {
-              const isSelected = selectedModelId === model.id;
-              const showSettings = settingsOpenFor === model.id;
-              return (
-                <div
-                  key={model.id}
-                  className={`border rounded-lg p-3 transition-colors ${
-                    isSelected
-                      ? 'border-accent-primary bg-accent-primary/5'
-                      : 'border-border-subtle bg-background-default hover:border-border-default'
-                  }`}
-                >
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <input
-                        type="radio"
-                        checked={isSelected}
-                        onChange={() => selectModel(model.id)}
-                        className="cursor-pointer"
-                      />
-                      <span className="text-sm font-medium text-text-default">{model.display_name}</span>
-                      <span className="text-xs text-text-muted">{formatBytes(model.size_bytes)}</span>
-                    </div>
-                    <div className="flex items-center gap-1">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => setSettingsOpenFor(showSettings ? null : model.id)}
-                        title="Model settings"
-                      >
-                        <Settings2 className="w-4 h-4" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => handleDeleteModel(model.id)}
-                        className="text-destructive hover:text-destructive"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </Button>
-                    </div>
-                  </div>
-                  {showSettings && <ModelSettingsPanel modelId={model.id} />}
-                </div>
-              );
-            })}
           </div>
         </div>
       )}
 
-      {/* Featured Models */}
+      {/* Recommended Models */}
       <div>
-        <h4 className="text-sm font-medium text-text-default mb-2">Featured Models</h4>
+        <h4 className="text-sm font-medium text-text-default mb-2">Recommended Models</h4>
         <div className="grid grid-cols-2 gap-4">
-          {displayedFeatured.map((model) => {
-            const progress = downloads.get(model.id);
-            const isDownloading = progress?.status === 'downloading';
-            const author = extractAuthorFromUrl(model.url);
-            // Use original provider avatar for Llama/Mistral/Hermes models
-            const originalProvider = getOriginalProvider(model.name);
+          {recommendedModels.map((model) => {
+            const downloading = isDownloading(model);
+            const downloaded = isDownloaded(model);
+            const progress = getDownloadProgress(model);
+            const author = extractAuthorFromRepoId(model.repo_id);
+            const originalProvider = getOriginalProvider(model.display_name);
             const providerAvatarUrl = originalProvider ? PROVIDER_AVATARS[originalProvider] : null;
 
             return (
               <div key={model.id} className="relative">
-                {/* Recommended badge - positioned on edge of card */}
-                {model.recommended && (
-                  <div className="absolute -top-2 -right-2 z-20">
-                    <span className="inline-block px-2 py-1 text-xs font-medium bg-blue-600 text-white rounded-full">
-                      Recommended
-                    </span>
-                  </div>
-                )}
-
                 <div className="border rounded-lg p-4 border-border-subtle bg-background-default hover:border-border-default flex flex-col h-full">
                   {/* Row 1: Avatar left, Download button right */}
                   <div className="flex items-center justify-between mb-3">
@@ -400,11 +329,11 @@ export const LocalInferenceSettings = () => {
                       <div className="w-10 h-10" />
                     )}
                     <div className="flex items-center gap-1">
-                      {model.downloaded ? (
+                      {downloaded ? (
                         <div className="flex items-center text-green-600">
                           <Check className="w-5 h-5" />
                         </div>
-                      ) : isDownloading ? (
+                      ) : downloading ? (
                         <Button
                           variant="ghost"
                           size="sm"
@@ -417,7 +346,7 @@ export const LocalInferenceSettings = () => {
                         <Button
                           variant="ghost"
                           size="sm"
-                          onClick={() => startFeaturedDownload(model.id)}
+                          onClick={() => startDownload(model)}
                           className="h-8 w-8 p-0"
                           title="Download model"
                         >
@@ -428,23 +357,21 @@ export const LocalInferenceSettings = () => {
                   </div>
 
                   {/* Row 2: Title */}
-                  <h4 className="text-sm font-medium text-text-default">{model.name}</h4>
+                  <h4 className="text-sm font-medium text-text-default">{model.display_name}</h4>
 
-                  {/* Row 3: Author (show original provider name if available) */}
+                  {/* Row 3: Author */}
                   <p className="text-xs text-text-muted mt-0.5">
                     {originalProvider || author || 'Unknown'}
                   </p>
 
                   {/* Row 4: Size & Context */}
                   <p className="text-xs text-text-muted mt-0.5">
-                    {model.size_mb}MB • {model.context_limit.toLocaleString()} ctx
+                    {formatBytes(model.size_bytes)} •{' '}
+                    {model.context_limit?.toLocaleString() ?? 'N/A'} ctx
                   </p>
 
-                  {/* Row 5: Description */}
-                  <p className="text-xs text-text-muted mt-2 flex-1">{model.description}</p>
-
                   {/* Download progress */}
-                  {isDownloading && progress && (
+                  {downloading && progress && (
                     <div className="mt-3 space-y-1">
                       <div className="w-full bg-background-subtle rounded-full h-1.5">
                         <div
@@ -458,53 +385,19 @@ export const LocalInferenceSettings = () => {
                       </div>
                     </div>
                   )}
-
-                  {progress?.status === 'failed' && progress.error && (
-                    <div className="mt-2 text-xs text-destructive">{progress.error}</div>
-                  )}
                 </div>
               </div>
             );
           })}
         </div>
-
       </div>
-
-      {/* Non-downloaded registry models being downloaded */}
-      {registryModels
-        .filter((m) => !m.downloaded && downloads.has(m.id))
-        .map((model) => {
-          const progress = downloads.get(model.id);
-          if (!progress || progress.status !== 'downloading') return null;
-          return (
-            <div key={model.id} className="border rounded-lg p-3 border-border-subtle bg-background-default">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <span className="text-sm font-medium text-text-default">{model.display_name}</span>
-                  <span className="text-xs text-text-muted">{progress.progress_percent.toFixed(0)}%</span>
-                </div>
-                <Button variant="ghost" size="sm" onClick={() => cancelDownload(model.id)}>
-                  <X className="w-4 h-4" />
-                </Button>
-              </div>
-              <div className="mt-2">
-                <div className="w-full bg-background-subtle rounded-full h-1.5">
-                  <div
-                    className="bg-accent-primary h-1.5 rounded-full transition-all"
-                    style={{ width: `${progress.progress_percent}%` }}
-                  />
-                </div>
-              </div>
-            </div>
-          );
-        })}
 
       {/* HuggingFace Search */}
       <div className="border-t border-border-subtle pt-4">
         <HuggingFaceModelSearch onDownloadStarted={handleHfDownloadStarted} />
       </div>
 
-      {featuredModels.length === 0 && registryModels.length === 0 && (
+      {models.length === 0 && (
         <div className="text-center py-6 text-text-muted text-sm">No models available</div>
       )}
     </div>
