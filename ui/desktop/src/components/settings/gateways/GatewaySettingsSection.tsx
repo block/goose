@@ -36,7 +36,7 @@ interface PairingCodeResponse {
 async function gatewayFetch(endpoint: string, options: globalThis.RequestInit = {}) {
   const secretKey = await window.electron.getSecretKey();
   const url = getApiUrl(endpoint);
-  const response = await fetch(url, {
+  return fetch(url, {
     ...options,
     headers: {
       'Content-Type': 'application/json',
@@ -44,7 +44,6 @@ async function gatewayFetch(endpoint: string, options: globalThis.RequestInit = 
       ...options.headers,
     },
   });
-  return response;
 }
 
 export default function GatewaySettingsSection() {
@@ -59,8 +58,7 @@ export default function GatewaySettingsSection() {
     try {
       const response = await gatewayFetch('/gateway/status');
       if (response.ok) {
-        const data: GatewayStatus[] = await response.json();
-        setGateways(data);
+        setGateways(await response.json());
       }
     } catch (err) {
       console.error('Failed to fetch gateway status:', err);
@@ -75,99 +73,20 @@ export default function GatewaySettingsSection() {
     return () => clearInterval(interval);
   }, [fetchStatus]);
 
-  const findGateway = (type: string) => gateways.find((g) => g.gateway_type === type);
-
-  const handleStopGateway = async (gatewayType: string) => {
+  const doPost = async (endpoint: string, body: object, errorMsg: string) => {
     setError(null);
     try {
-      const response = await gatewayFetch('/gateway/stop', {
+      const response = await gatewayFetch(endpoint, {
         method: 'POST',
-        body: JSON.stringify({ gateway_type: gatewayType }),
+        body: JSON.stringify(body),
       });
       if (!response.ok) {
         const data = await response.json().catch(() => ({}));
-        throw new Error(data.message || 'Failed to stop gateway');
+        throw new Error(data.message || errorMsg);
       }
       await fetchStatus();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to stop gateway');
-    }
-  };
-
-  const handleStartGateway = async (
-    gatewayType: string,
-    platformConfig: Record<string, unknown>
-  ) => {
-    setError(null);
-    try {
-      const response = await gatewayFetch('/gateway/start', {
-        method: 'POST',
-        body: JSON.stringify({
-          gateway_type: gatewayType,
-          platform_config: platformConfig,
-          max_sessions: 0,
-        }),
-      });
-      if (!response.ok) {
-        const data = await response.json().catch(() => ({}));
-        throw new Error(data.message || 'Failed to start gateway');
-      }
-      await fetchStatus();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to start gateway');
-    }
-  };
-
-  const handleRestartGateway = async (gatewayType: string) => {
-    setError(null);
-    try {
-      const response = await gatewayFetch('/gateway/restart', {
-        method: 'POST',
-        body: JSON.stringify({ gateway_type: gatewayType }),
-      });
-      if (!response.ok) {
-        const data = await response.json().catch(() => ({}));
-        throw new Error(data.message || 'Failed to restart gateway');
-      }
-      await fetchStatus();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to restart gateway');
-    }
-  };
-
-  const handleRemoveGateway = async (gatewayType: string) => {
-    setError(null);
-    try {
-      const response = await gatewayFetch('/gateway/remove', {
-        method: 'POST',
-        body: JSON.stringify({ gateway_type: gatewayType }),
-      });
-      if (!response.ok) {
-        const data = await response.json().catch(() => ({}));
-        throw new Error(data.message || 'Failed to remove gateway');
-      }
-      await fetchStatus();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to remove gateway');
-    }
-  };
-
-  const handleGeneratePairingCode = async (gatewayType: string) => {
-    setError(null);
-    try {
-      const response = await gatewayFetch('/gateway/pair', {
-        method: 'POST',
-        body: JSON.stringify({ gateway_type: gatewayType }),
-      });
-      if (!response.ok) {
-        const data = await response.json().catch(() => ({}));
-        throw new Error(data.message || 'Failed to generate pairing code');
-      }
-      const data: PairingCodeResponse = await response.json();
-      setPairingCode(data);
-      setPairingGatewayType(gatewayType);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to generate pairing code');
+      setError(err instanceof Error ? err.message : errorMsg);
     }
   };
 
@@ -206,6 +125,8 @@ export default function GatewaySettingsSection() {
     );
   }
 
+  const telegram = gateways.find((g) => g.gateway_type === 'telegram');
+
   return (
     <>
       {error && (
@@ -215,12 +136,37 @@ export default function GatewaySettingsSection() {
       )}
 
       <TelegramGatewayCard
-        status={findGateway('telegram')}
-        onStart={(config) => handleStartGateway('telegram', config)}
-        onStop={() => handleStopGateway('telegram')}
-        onRestart={() => handleRestartGateway('telegram')}
-        onRemove={() => handleRemoveGateway('telegram')}
-        onGenerateCode={() => handleGeneratePairingCode('telegram')}
+        status={telegram}
+        onStart={(config) =>
+          doPost('/gateway/start', { gateway_type: 'telegram', platform_config: config, max_sessions: 0 }, 'Failed to start')
+        }
+        onRestart={() => doPost('/gateway/restart', { gateway_type: 'telegram' }, 'Failed to start')}
+        onStop={() => doPost('/gateway/stop', { gateway_type: 'telegram' }, 'Failed to stop')}
+        onRemove={() => doPost('/gateway/remove', { gateway_type: 'telegram' }, 'Failed to remove')}
+        onGenerateCode={() =>
+          doPost('/gateway/pair', { gateway_type: 'telegram' }, 'Failed to generate code').then(
+            // re-fetch to get code — actually we need the response
+            () => {}
+          )
+        }
+        onGenerateCodeDirect={async () => {
+          setError(null);
+          try {
+            const response = await gatewayFetch('/gateway/pair', {
+              method: 'POST',
+              body: JSON.stringify({ gateway_type: 'telegram' }),
+            });
+            if (!response.ok) {
+              const data = await response.json().catch(() => ({}));
+              throw new Error(data.message || 'Failed to generate pairing code');
+            }
+            const data: PairingCodeResponse = await response.json();
+            setPairingCode(data);
+            setPairingGatewayType('telegram');
+          } catch (err) {
+            setError(err instanceof Error ? err.message : 'Failed to generate pairing code');
+          }
+        }}
         onUnpairUser={handleUnpairUser}
       />
 
@@ -274,51 +220,39 @@ function PairedUsersList({
   );
 }
 
-function RunningBadge() {
-  return (
-    <span className="inline-flex items-center gap-1 text-xs text-green-700 dark:text-green-400 bg-green-100 dark:bg-green-900/30 px-2 py-0.5 rounded-full">
-      Running
-    </span>
-  );
-}
-
-function StoppedBadge() {
-  return (
-    <span className="inline-flex items-center gap-1 text-xs text-yellow-700 dark:text-yellow-400 bg-yellow-100 dark:bg-yellow-900/30 px-2 py-0.5 rounded-full">
-      Stopped
-    </span>
-  );
-}
-
 function TelegramGatewayCard({
   status,
   onStart,
-  onStop,
   onRestart,
+  onStop,
   onRemove,
-  onGenerateCode,
+  onGenerateCodeDirect,
   onUnpairUser,
 }: {
   status: GatewayStatus | undefined;
   onStart: (config: Record<string, unknown>) => Promise<void>;
-  onStop: () => void;
-  onRestart: () => void;
-  onRemove: () => void;
+  onRestart: () => Promise<void>;
+  onStop: () => Promise<void>;
+  onRemove: () => Promise<void>;
   onGenerateCode: () => void;
+  onGenerateCodeDirect: () => void;
   onUnpairUser: (platform: string, userId: string) => void;
 }) {
   const [botToken, setBotToken] = useState('');
-  const [starting, setStarting] = useState(false);
+  const [busy, setBusy] = useState(false);
   const running = status?.running ?? false;
   const configured = status?.configured ?? false;
 
-  const handleStart = async () => {
+  const wrap = (fn: () => Promise<void>) => async () => {
+    setBusy(true);
+    try { await fn(); } finally { setBusy(false); }
+  };
+
+  const handleFirstStart = wrap(async () => {
     if (!botToken.trim()) return;
-    setStarting(true);
     await onStart({ bot_token: botToken.trim() });
     setBotToken('');
-    setStarting(false);
-  };
+  });
 
   return (
     <Card className="rounded-lg">
@@ -326,35 +260,46 @@ function TelegramGatewayCard({
         <div className="flex items-center justify-between">
           <CardTitle className="flex items-center gap-2">
             Telegram
-            {running && <RunningBadge />}
-            {!running && configured && <StoppedBadge />}
+            {running && (
+              <span className="inline-flex items-center text-xs text-green-700 dark:text-green-400 bg-green-100 dark:bg-green-900/30 px-2 py-0.5 rounded-full">
+                Running
+              </span>
+            )}
+            {!running && configured && (
+              <span className="inline-flex items-center text-xs text-yellow-700 dark:text-yellow-400 bg-yellow-100 dark:bg-yellow-900/30 px-2 py-0.5 rounded-full">
+                Stopped
+              </span>
+            )}
           </CardTitle>
-          {running && (
-            <div className="flex items-center gap-2">
-              <Button variant="outline" size="sm" onClick={onGenerateCode}>
-                Pair Device
-              </Button>
-              <Button variant="destructive" size="sm" onClick={onStop}>
-                <Square className="h-3 w-3 mr-1" />
-                Stop
-              </Button>
-            </div>
-          )}
-          {!running && configured && (
-            <div className="flex items-center gap-2">
-              <Button size="sm" onClick={onRestart}>
-                Start
-              </Button>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={onRemove}
-                className="text-text-muted hover:text-red-600"
-              >
-                <Trash2 className="h-3 w-3" />
-              </Button>
-            </div>
-          )}
+          <div className="flex items-center gap-2">
+            {running && (
+              <>
+                <Button variant="outline" size="sm" onClick={onGenerateCodeDirect}>
+                  Pair Device
+                </Button>
+                <Button variant="destructive" size="sm" disabled={busy} onClick={wrap(onStop)}>
+                  <Square className="h-3 w-3 mr-1" />
+                  Stop
+                </Button>
+              </>
+            )}
+            {!running && configured && (
+              <>
+                <Button size="sm" disabled={busy} onClick={wrap(onRestart)}>
+                  {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Start'}
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  disabled={busy}
+                  onClick={wrap(onRemove)}
+                  className="text-text-muted hover:text-red-600"
+                >
+                  <Trash2 className="h-3 w-3" />
+                </Button>
+              </>
+            )}
+          </div>
         </div>
       </CardHeader>
       <CardContent className="pt-3 space-y-2">
@@ -366,11 +311,11 @@ function TelegramGatewayCard({
                 placeholder="Bot token from @BotFather"
                 value={botToken}
                 onChange={(e) => setBotToken(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && handleStart()}
+                onKeyDown={(e) => e.key === 'Enter' && handleFirstStart()}
                 className="text-sm"
               />
-              <Button size="sm" onClick={handleStart} disabled={starting || !botToken.trim()}>
-                {starting ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Start'}
+              <Button size="sm" onClick={handleFirstStart} disabled={busy || !botToken.trim()}>
+                {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Start'}
               </Button>
             </div>
             <p className="text-xs text-text-muted">
