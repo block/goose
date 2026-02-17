@@ -21,7 +21,7 @@ pub(crate) mod subagent_task_config;
 mod tool_execution;
 pub mod types;
 
-pub use agent::{Agent, AgentConfig, AgentEvent, ExtensionLoadResult};
+pub use agent::{Agent, AgentConfig, AgentEvent, ExtensionLoadResult, GoosePlatform};
 pub use container::Container;
 pub use execute_commands::COMPACT_TRIGGERS;
 pub use extension::{ExtensionConfig, ExtensionError};

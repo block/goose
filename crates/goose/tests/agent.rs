@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use anyhow::Result;
 use futures::StreamExt;
-use goose::agents::{Agent, AgentEvent};
+use goose::agents::{Agent, AgentEvent, GoosePlatform};
 use goose::config::extensions::{set_extension, ExtensionEntry};
 
 #[cfg(test)]
@@ -129,6 +129,7 @@ mod tests {
                 Some(mock_scheduler),
                 GooseMode::Auto,
                 false,
+                GoosePlatform::GooseCli,
             );
             let agent = Agent::with_config(config);
 
@@ -170,6 +171,7 @@ mod tests {
                 Some(mock_scheduler),
                 GooseMode::Auto,
                 false,
+                GoosePlatform::GooseCli,
             );
             let agent = Agent::with_config(config);
 
@@ -224,6 +226,7 @@ mod tests {
                 Some(mock_scheduler),
                 GooseMode::Auto,
                 false,
+                GoosePlatform::GooseCli,
             );
             let agent = Agent::with_config(config);
 
@@ -546,6 +549,7 @@ mod tests {
                 None,
                 GooseMode::Auto,
                 false,
+                GoosePlatform::GooseCli,
             );
 
             let agent = Agent::with_config(config);

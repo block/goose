@@ -3,7 +3,7 @@ use async_trait::async_trait;
 use serde_json::{json, Value};
 use std::path::PathBuf;
 use std::process::Stdio;
-use std::sync::OnceLock;
+use std::sync::{Arc, OnceLock};
 use tokio::io::{AsyncBufReadExt, AsyncReadExt, BufReader};
 use tokio::process::Command;
 
@@ -21,6 +21,7 @@ use crate::conversation::message::{Message, MessageContent};
 use crate::model::ModelConfig;
 use crate::providers::base::ConfigKey;
 use crate::subprocess::configure_subprocess;
+use async_stream::try_stream;
 use futures::future::BoxFuture;
 use rmcp::model::Role;
 use rmcp::model::Tool;
@@ -42,7 +43,7 @@ pub struct GeminiCliProvider {
     #[serde(skip)]
     name: String,
     #[serde(skip)]
-    cli_session_id: OnceLock<String>,
+    cli_session_id: Arc<OnceLock<String>>,
 }
 
 impl GeminiCliProvider {
@@ -55,7 +56,7 @@ impl GeminiCliProvider {
             command: resolved_command,
             model,
             name: GEMINI_CLI_PROVIDER_NAME.to_string(),
-            cli_session_id: OnceLock::new(),
+            cli_session_id: Arc::new(OnceLock::new()),
         })
     }
 
@@ -122,13 +123,18 @@ impl GeminiCliProvider {
         cmd
     }
 
-    async fn execute_command(
+    fn spawn_command(
         &self,
         system: &str,
         messages: &[Message],
-        _tools: &[Tool],
         model_name: &str,
-    ) -> Result<Vec<Value>, ProviderError> {
+    ) -> Result<
+        (
+            tokio::process::Child,
+            BufReader<tokio::process::ChildStdout>,
+        ),
+        ProviderError,
+    > {
         let prompt = self.build_prompt(system, messages);
 
         tracing::debug!(command = ?self.command, "Executing Gemini CLI command");
@@ -148,6 +154,18 @@ impl GeminiCliProvider {
             .take()
             .ok_or_else(|| ProviderError::RequestFailed("Failed to capture stdout".to_string()))?;
 
+        Ok((child, BufReader::new(stdout)))
+    }
+
+    async fn execute_command(
+        &self,
+        system: &str,
+        messages: &[Message],
+        _tools: &[Tool],
+        model_name: &str,
+    ) -> Result<Vec<Value>, ProviderError> {
+        let (mut child, mut reader) = self.spawn_command(system, messages, model_name)?;
+
         // Drain stderr concurrently to avoid pipe deadlock
         let stderr_task = tokio::spawn(async move {
             let mut buf = String::new();
@@ -157,7 +175,6 @@ impl GeminiCliProvider {
             (child, buf)
         });
 
-        let mut reader = BufReader::new(stdout);
         let mut events = Vec::new();
         let mut line = String::new();
 
@@ -368,6 +385,7 @@ impl Provider for GeminiCliProvider {
         let provider_usage = ProviderUsage::new(model_config.model_name.clone(), usage);
         Ok(stream_from_single_message(message, provider_usage))
     }
+
 }
 
 #[cfg(test)]
@@ -380,7 +398,7 @@ mod tests {
             command: PathBuf::from("gemini"),
             model: ModelConfig::new("gemini-2.5-pro").unwrap(),
             name: "gemini-cli".to_string(),
-            cli_session_id: OnceLock::new(),
+            cli_session_id: Arc::new(OnceLock::new()),
         }
     }
 

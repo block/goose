@@ -6,7 +6,7 @@ use crate::scenario_tests::mock_client::weather_client;
 use crate::scenario_tests::provider_configs::{get_provider_configs, ProviderConfig};
 use crate::session::CliSession;
 use anyhow::Result;
-use goose::agents::{Agent, AgentConfig};
+use goose::agents::{Agent, AgentConfig, GoosePlatform};
 use goose::config::permission::PermissionManager;
 use goose::config::GooseMode;
 use goose::model::ModelConfig;
@@ -214,6 +214,7 @@ where
         None,
         GooseMode::Auto,
         true,
+        GoosePlatform::GooseCli,
     );
     let agent = Agent::with_config(agent_config);
     agent
