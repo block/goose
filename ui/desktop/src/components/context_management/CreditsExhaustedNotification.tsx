@@ -1,4 +1,5 @@
 import React from 'react';
+import { AlertTriangle, ExternalLink } from 'lucide-react';
 import { Message, SystemNotificationContent } from '../../api';
 
 interface CreditsExhaustedNotificationProps {
@@ -24,16 +25,17 @@ export const CreditsExhaustedNotification: React.FC<CreditsExhaustedNotification
   return (
     <div className="rounded-lg border border-yellow-600/30 dark:border-yellow-500/30 bg-yellow-500/10 dark:bg-yellow-500/10 p-4 my-2">
       <div className="flex items-start gap-3">
-        <div className="text-yellow-500 text-lg mt-0.5">⚠️</div>
+        <AlertTriangle className="h-4 w-4 text-yellow-600 dark:text-yellow-400 mt-0.5 shrink-0" />
         <div className="flex-1">
-          <div className="text-sm text-yellow-800 dark:text-yellow-200 whitespace-pre-line">{notification.msg}</div>
+          <div className="text-sm font-semibold text-yellow-800 dark:text-yellow-200">Insufficient Credits</div>
+          <div className="text-sm text-yellow-800/80 dark:text-yellow-200/80 mt-1">{notification.msg}</div>
           {topUpUrl && (
             <button
               onClick={handleTopUp}
-              className="mt-3 inline-flex items-center gap-2 rounded-md bg-yellow-600 hover:bg-yellow-500 text-white text-sm font-medium px-4 py-2 transition-colors"
+              className="mt-3 inline-flex items-center gap-2 rounded-md bg-yellow-600 hover:bg-yellow-500 dark:bg-yellow-700 dark:hover:bg-yellow-600 text-white text-sm font-medium px-4 py-2 transition-colors"
             >
-              Top Up Credits
-              <span className="text-xs">↗</span>
+              Add credits
+              <ExternalLink className="h-3.5 w-3.5" />
             </button>
           )}
         </div>

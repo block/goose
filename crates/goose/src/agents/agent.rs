@@ -1433,19 +1433,15 @@ impl Agent {
                                 }
                             }
                         }
-                        Err(ref provider_err @ ProviderError::CreditsExhausted { ref details, ref top_up_url }) => {
+                        Err(ref provider_err @ ProviderError::CreditsExhausted { details: _, ref top_up_url }) => {
                             crate::posthog::emit_error(provider_err.telemetry_type(), &provider_err.to_string());
                             error!("Error: {}", provider_err);
 
-                            let top_up_hint = top_up_url.as_deref().map_or_else(
-                                || "Please check your account with your provider to add more credits.".to_string(),
-                                |url| format!("To add more credits, visit: {url}"),
-                            );
-                            let user_msg = format!(
-                                "Your credits have been exhausted: {details}\n\n\
-                                 {top_up_hint}\n\n\
-                                 Once you've topped up, retry your last message to continue."
-                            );
+                            let user_msg = if top_up_url.is_some() {
+                                "Please add credits to your account, then resend your message to continue.".to_string()
+                            } else {
+                                "Please check your account with your provider to add more credits, then resend your message to continue.".to_string()
+                            };
 
                             let notification_data = serde_json::json!({
                                 "top_up_url": top_up_url,
