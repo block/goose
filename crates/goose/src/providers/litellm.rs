@@ -513,6 +513,43 @@ fn parse_custom_headers(headers_str: String) -> HashMap<String, String> {
 mod tests {
     use super::*;
 
+    /// Integration test: verify model capabilities parsing against a real LiteLLM proxy.
+    /// Requires LITELLM_INTEGRATION_TEST_HOST and LITELLM_INTEGRATION_TEST_KEY env vars.
+    /// Run with: cargo test -p goose --lib providers::litellm::tests::test_live -- --ignored
+    #[tokio::test]
+    #[ignore] // Only run manually with env vars set
+    async fn test_live_model_capabilities_from_proxy() {
+        let host = std::env::var("LITELLM_INTEGRATION_TEST_HOST")
+            .expect("Set LITELLM_INTEGRATION_TEST_HOST to run this test");
+        let api_key = std::env::var("LITELLM_INTEGRATION_TEST_KEY")
+            .expect("Set LITELLM_INTEGRATION_TEST_KEY to run this test");
+
+        let auth = AuthMethod::BearerToken(api_key);
+        let api_client =
+            ApiClient::with_timeout(host, auth, std::time::Duration::from_secs(30)).unwrap();
+
+        let provider = LiteLLMProvider {
+            api_client,
+            base_path: "v1/chat/completions".to_string(),
+            model: ModelConfig::new("haiku-4.5").unwrap(),
+            name: LITELLM_PROVIDER_NAME.to_string(),
+            model_capabilities_cache: OnceCell::new(),
+        };
+
+        let caps = provider.get_model_capabilities().await.unwrap();
+
+        // Should have parsed at least some models
+        assert!(!caps.is_empty(), "Expected at least one model from proxy");
+
+        // Print all models for debugging
+        for (name, cap) in caps.iter() {
+            println!(
+                "  {}: reasoning={}, caching={}, underlying={:?}",
+                name, cap.supports_reasoning, cap.supports_cache_control, cap.litellm_model
+            );
+        }
+    }
+
     #[test]
     fn test_strip_reasoning_params_removes_reasoning_effort() {
         let mut payload = json!({
