@@ -23,6 +23,7 @@ pub fn set_wakelock_platform(state: &WakelockState, enable: bool) -> Result<bool
     use core_foundation::string::CFString;
 
     // IOPMAssertionCreateWithName / IOPMAssertionRelease via IOKit
+    #[link(name = "IOKit", kind = "framework")]
     extern "C" {
         fn IOPMAssertionCreateWithName(
             assertion_type: core_foundation::string::CFStringRef,
