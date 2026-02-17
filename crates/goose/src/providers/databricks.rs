@@ -150,7 +150,8 @@ impl DatabricksProvider {
             fast_retry_config,
             name: DATABRICKS_PROVIDER_NAME.to_string(),
         };
-        provider.model = model.with_fast(DATABRICKS_DEFAULT_FAST_MODEL.to_string());
+        provider.model =
+            model.with_fast(DATABRICKS_DEFAULT_FAST_MODEL, DATABRICKS_PROVIDER_NAME)?;
         Ok(provider)
     }
 
@@ -300,9 +301,9 @@ impl Provider for DatabricksProvider {
         // Use fast retry config if this is the fast model
         let is_fast_model = self
             .model
-            .fast_model
+            .fast_model_config
             .as_ref()
-            .map(|fast| fast == &model_config.model_name)
+            .map(|fast| fast.model_name == model_config.model_name)
             .unwrap_or(false);
 
         let retry_config = if is_fast_model {

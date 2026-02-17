@@ -1629,6 +1629,7 @@ impl Agent {
                     .ok_or_else(|| anyhow!("Could not configure agent: missing model"))?;
                 crate::model::ModelConfig::new(&model_name)
                     .map_err(|e| anyhow!("Could not configure agent: invalid model {}", e))?
+                    .with_canonical_limits(&provider_name)
             }
         };
 
