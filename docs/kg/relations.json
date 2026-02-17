@@ -10698,5 +10698,95 @@
     "from": "A2A_Instance_Routes",
     "to": "A2A_Crate_Implementation_Summary",
     "relationType": "part_of"
+  },
+  {
+    "from": "Agents_Module_Architecture_Review",
+    "to": "Goose_SubAgent_System",
+    "relationType": "analyzes"
+  },
+  {
+    "from": "Agents_Module_Architecture_Review",
+    "to": "Goose_AgentManager",
+    "relationType": "analyzes"
+  },
+  {
+    "from": "Agents_Module_Architecture_Review",
+    "to": "Multi_Instance_Agent_Architecture",
+    "relationType": "informs"
+  },
+  {
+    "from": "Goose_Persona_Class_Instance_Model",
+    "to": "AgentPool",
+    "relationType": "implemented_by"
+  },
+  {
+    "from": "Goose_Persona_Class_Instance_Model",
+    "to": "A2A_Instance_Routes",
+    "relationType": "exposed_via"
+  },
+  {
+    "from": "Agent_Cooperation_Design",
+    "to": "AgentPool",
+    "relationType": "extends"
+  },
+  {
+    "from": "Agent_Cooperation_Design",
+    "to": "A2A_Protocol_Spec",
+    "relationType": "builds_on"
+  },
+  {
+    "from": "WorkspaceEventBus",
+    "to": "AgentPool",
+    "relationType": "coordinates"
+  },
+  {
+    "from": "WorkspaceEventBus",
+    "to": "Agent_Cooperation_Design",
+    "relationType": "implements"
+  },
+  {
+    "from": "WorkspaceEventBus",
+    "to": "Multi_Instance_Agent_Architecture",
+    "relationType": "extends"
+  },
+  {
+    "from": "WorkspaceEventBusModule",
+    "to": "AgentPool",
+    "relationType": "coordinates"
+  },
+  {
+    "from": "WorkspaceEventBusModule",
+    "to": "Agent_Cooperation_Design",
+    "relationType": "implements"
+  },
+  {
+    "from": "WorkspaceEventBusModule",
+    "to": "Multi_Instance_Agent_Architecture",
+    "relationType": "extends"
+  },
+  {
+    "from": "A2AInstanceRoutes",
+    "to": "AgentPool",
+    "relationType": "exposes"
+  },
+  {
+    "from": "A2AInstanceRoutes",
+    "to": "A2A_Crate_Implementation_Summary",
+    "relationType": "part_of"
+  },
+  {
+    "from": "Agents_Facade_Modules",
+    "to": "Agents_Module_Architecture_Review",
+    "relationType": "implements"
+  },
+  {
+    "from": "Summon_SubModules",
+    "to": "Goose_SubAgent_System",
+    "relationType": "part_of"
+  },
+  {
+    "from": "Goose_Persona_Class_Instance_Model",
+    "to": "A2AInstanceRoutes",
+    "relationType": "exposed_via"
   }
 ]

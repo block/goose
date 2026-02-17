@@ -15098,7 +15098,12 @@
         "All A2A follow-up tasks complete: routes (goose4-x3e8), SSE validation (goose4-4wsw), push notifications (goose4-u4g8)",
         "JsonRpcHandler now routes all 10 A2A methods including 4 push notification config methods",
         "A2A server routes expanded: /a2a/instances/* provides 6 REST endpoints for pool instance management (list, spawn, status, cancel, card, result)",
-        "AppState now holds agent_pool: Arc<AgentPool> with capacity 10 for managed parallel agent instances"
+        "AppState now holds agent_pool: Arc<AgentPool> with capacity 10 for managed parallel agent instances",
+        "Spec compliance verified: 106 total tests (72 lib + 34 integration), 91% proto coverage",
+        "34 spec compliance integration tests at crates/a2a/tests/spec_compliance.rs (774 lines)",
+        "Known gaps accepted: SecurityRequirement/StringList (serde_json::Value), ImplicitOAuthFlow/PasswordOAuthFlow (deprecated)",
+        "ApiKeySecurityScheme.location diverges from OpenAPI 'in' convention \u2014 accepted",
+        "Verification report at docs/a2a-spec-verification-report.mdx, commit 4d5bdee4"
       ]
     },
     {
@@ -15334,7 +15339,9 @@
         "Documentation at documentation/docs/guides/subagents.mdx describes current delegate-based subagent system",
         "Blog post documentation/blog/2025-07-21-orchestrating-subagents/ shows real-world subagent usage",
         "AgentPool is the reusable standalone version of SummonExtension's BackgroundTask pattern \u2014 usable from server routes, A2A handlers, and orchestrators",
-        "SummonExtension already had per-instance providers via DelegateParams (provider, model, temperature fields). Phase 1 extended this to AgentManager sessions."
+        "SummonExtension already had per-instance providers via DelegateParams (provider, model, temperature fields). Phase 1 extended this to AgentManager sessions.",
+        "summon_extension.rs split into sub-modules: summon/types.rs (214 lines, Source, SourceKind, DelegateParams, BackgroundTask, CompletedTask, metadata structs, frontmatter parsing), summon/utils.rs (81 lines, round_duration, current_epoch_millis, max_background_tasks, is_session_id, truncate + tests), summon/mod.rs (17 lines, re-exports). Main file reduced from 2426 to 2212 lines. Commit f681fd86.",
+        "Types and utilities now reusable by other modules via crate::agents::summon::types and crate::agents::summon::utils"
       ]
     },
     {
@@ -15347,7 +15354,12 @@
         "Token migration: legacy tokens (bgApp, surface, textStandard, borderSubtle) \u2192 semantic tokens (background-default, text-default, border-default) already defined in main.css",
         "4-phase migration: Phase 1 create primitives (2-3h), Phase 2 migrate views (4-6h), Phase 3 token cleanup (1-2h), Phase 4 generative UI integration (4-8h)",
         "Generative UI compatibility via component registry + Vercel AI SDK experimental_streamUI",
-        "Standard decisions: text-2xl font-semibold headers, shadcn Tabs everywhere, Skeleton for content loading, consistent empty state pattern (icon+title+description+action)"
+        "Standard decisions: text-2xl font-semibold headers, shadcn Tabs everywhere, Skeleton for content loading, consistent empty state pattern (icon+title+description+action)",
+        "CRITICAL FINDING: 170 usages of UNDEFINED CSS tokens across 15 files. Legacy tokens (bgApp, textStandard, textSubtle, textProminent, borderSubtle, borderStandard, bgSubtle, surface, surfaceHover) are NOT defined in main.css @theme \u2014 they produce NO visual effect.",
+        "Token migration map: bgApp\u2192bg-background-default, textStandard\u2192text-text-default, textSubtle\u2192text-text-muted, borderSubtle\u2192border-border-default, surface\u2192bg-background-muted",
+        "Top 3 affected files: AnalyticsDashboard.tsx (46 phantom tokens), ToolsHealthView.tsx (39), CatalogsOverview.tsx (30)",
+        "Tailwind v4 @theme inline tokens defined: background-default/muted/medium/inverse/accent/danger/info, text-default/muted/inverse/danger/success/warning/info, border-default/strong/danger/info",
+        "Proposal updated with Section 0 (CRITICAL FINDING) + complete migration map + 10 primitives + 4-phase plan + generative UI compatibility"
       ]
     },
     {
@@ -15382,6 +15394,127 @@
         "InstanceResponse fields: id, persona, status, provider_name, model_name, turns, elapsed_secs, last_activity_ms",
         "InstanceResultResponse fields: id, persona, status, output, error, turns_taken, duration_secs",
         "Instance agent card: persona name, description, skills from persona config, protocol_version 1.0"
+      ]
+    },
+    {
+      "name": "Agents_Module_Architecture_Review",
+      "entityType": "ArchitectureAnalysis",
+      "observations": [
+        "Location: crates/goose/src/agents/ \u2014 42 files, 20,603 LOC in flat namespace",
+        "Doc: tmp/docs/agents-module-architecture-review.mdx",
+        "8 categories identified: Personas(7), Runtime(5), Extensions(10), Routing(4), Tools(4), Delegation(4), Cross-cutting(5), Data(2)",
+        "Top 3 god files: summon_extension.rs(2426), extension_manager.rs(2158), agent.rs(2108)",
+        "Key smell: Flat namespace overload \u2014 42 files with no sub-modules",
+        "Key smell: Persona \u2260 Agent confusion \u2014 persona configs treated as agent types",
+        "Key smell: Extension \u2260 Agent \u2014 extensions live in agents/ but aren't agents",
+        "Key smell: Orchestration buried in extensions \u2014 summon_extension is the backbone but categorized as a plugin",
+        "Key smell: Circular conceptual deps \u2014 Agent\u2192ExtensionManager\u2192Agent, IntentRouter\u2192AgentSlot\u2192Agent",
+        "Proposed 8 sub-modules: core/, personas/, routing/, extensions/, tools/, orchestration/, platform/",
+        "Migration strategy: incremental with pub use backward compat aliases, 4 phases (A-D)",
+        "Phase A: create sub-dirs, move files, re-export \u2014 zero API breakage",
+        "Phase B: split summon_extension.rs into orchestration/{summon,background_tasks}.rs",
+        "Phase C: split agent.rs \u2014 extract tool dispatch loop",
+        "Phase D: rename persona files, make data-vs-behavior explicit",
+        "Phase A (facade modules) complete: 6 sub-directories created (personas/, core/, extensions/, routing/, tools/, orchestration/) with re-export facades. Commit cd154b98/e0869c4e.",
+        "Phase B (summon split) complete: types.rs + utils.rs extracted from summon_extension.rs. Commit f681fd86.",
+        "All 863 goose lib tests pass after restructuring, zero import breakage"
+      ]
+    },
+    {
+      "name": "Goose_Persona_Class_Instance_Model",
+      "entityType": "DesignPattern",
+      "observations": [
+        "PersonaDefinition = Class (catalog entry): name, modes, prompt template, tool groups, bound extensions",
+        "AgentInstance = Object (runtime): provider, extensions, session, working_dir, conversation state",
+        "One PersonaDefinition \u2192 many AgentInstances (via AgentPool.spawn with SpawnConfig)",
+        "Currently 7 personas: goose, developer, pm, qa, research, security, orchestrator",
+        "Persona files are DATA not behavior \u2014 could be YAML/TOML configs",
+        "SpawnConfig is the 'constructor args' when instantiating a persona",
+        "Desktop UI implication: catalog shows 1 'Developer' card, Deploy button lets you configure provider/model/instructions",
+        "AgentSlot (intent_router.rs) is the intermediate representation between PersonaDefinition and runtime",
+        "prompt_template! macro loads persona instructions from crates/goose/src/prompt_templates/"
+      ]
+    },
+    {
+      "name": "Agent_Cooperation_Design",
+      "entityType": "DesignConcept",
+      "observations": [
+        "File-level locking: agents announce active edits via SharedWorkspace (Arc<RwLock<HashSet<PathBuf>>>)",
+        "Event bus: broadcast FileChanged, BuildStarted, BuildFailed events via tokio broadcast channels",
+        "Conflict detection: check if file modified since last read before writing",
+        "A2A cooperation: sendMessage for delegation, getTask for polling, SSE for streaming, Artifact for exchange",
+        "Missing: coordination protocol (who decides what to delegate), shared memory, merge strategy for conflicts",
+        "Autonomous sessions: fork/park/resume sessions by topic for agent efficiency",
+        "Session budget needed: max sessions, max total tokens to prevent context explosion",
+        "WorkspaceEventBus concept: pool instances subscribe to shared workspace events"
+      ]
+    },
+    {
+      "name": "WorkspaceEventBus",
+      "entityType": "CodeComponent",
+      "observations": [
+        "Located at crates/goose/src/execution/workspace.rs (532 lines)",
+        "WorkspaceEvent enum with 10 variants: FileChanged, FileCreated, FileDeleted, BuildStarted, BuildSucceeded, BuildFailed, FileLocked, FileUnlocked, AgentJoined, AgentLeft",
+        "WorkspaceEventBus: tokio broadcast channel wrapper (publish, subscribe, subscriber_count)",
+        "FileLockManager: advisory soft locking with conflict detection, idempotent re-locking, per-agent release_all",
+        "SharedWorkspace: combines event_bus + file_locks + agent tracking for a project directory",
+        "16 tests covering pub/sub, locking, conflicts, workspace lifecycle",
+        "Commit 75befcfd on feature/cli-via-goosed"
+      ]
+    },
+    {
+      "name": "Agents_Facade_Modules",
+      "entityType": "CodeComponent",
+      "observations": [
+        "6 facade sub-modules added to crates/goose/src/agents/ for domain-organized imports",
+        "agents/personas/mod.rs \u2014 re-exports GooseAgent, DeveloperAgent, PmAgent, QaAgent, ResearchAgent, SecurityAgent, OrchestratorAgent",
+        "agents/core/mod.rs \u2014 re-exports Agent, AgentConfig, PromptManager, RetryManager, SessionConfig, AgentEvent",
+        "agents/extensions/mod.rs \u2014 re-exports ExtensionConfig, ExtensionManager, ExtensionRegistry, McpClient, platform tools",
+        "agents/routing/mod.rs \u2014 re-exports IntentRouter, RoutingDecision, UniversalMode",
+        "agents/tools/mod.rs \u2014 re-exports ToolFilter, ToolRegistry, FinalOutputTool, ExecuteCommands",
+        "agents/orchestration/mod.rs \u2014 re-exports DelegationStrategy, subagent_execution_tool, specialist_handler",
+        "All facades are ADDITIVE \u2014 existing flat imports continue to work with zero breakage",
+        "863 tests pass with zero import changes required",
+        "Commit: e0869c4e on feature/cli-via-goosed branch"
+      ]
+    },
+    {
+      "name": "Summon_SubModules",
+      "entityType": "CodeComponent",
+      "observations": [
+        "Extracted from summon_extension.rs (2426 -> 2212 lines) into crates/goose/src/agents/summon/",
+        "summon/types.rs (214 lines): Source, SourceKind, DelegateParams, BackgroundTask, CompletedTask, SkillMetadata, AgentMetadata, AgentModeEntry, parse_frontmatter, parse_skill_content, parse_agent_content",
+        "summon/utils.rs (81 lines): round_duration, current_epoch_millis, max_background_tasks, is_session_id, truncate + 4 unit tests",
+        "summon/mod.rs (17 lines): re-exports from types and utils",
+        "Types and utilities now reusable by other modules via crate::agents::summon::*",
+        "Commit: f681fd86 on feature/cli-via-goosed branch"
+      ]
+    },
+    {
+      "name": "WorkspaceEventBusModule",
+      "entityType": "CodeComponent",
+      "observations": [
+        "File: crates/goose/src/execution/workspace.rs (532 lines, 16 tests)",
+        "Implements multi-agent workspace coordination for the goose project",
+        "WorkspaceEvent enum: FileCreated, FileModified, FileDeleted, FileRenamed, BuildStarted, BuildCompleted, BuildFailed, FileLocked, FileUnlocked, AgentJoined, AgentLeft",
+        "WorkspaceEventBus: tokio broadcast channel wrapper with subscribe/publish",
+        "FileLockManager: advisory soft file locking with conflict detection",
+        "SharedWorkspace: combines EventBus + FileLockManager + agent tracking",
+        "Commit 75befcfd on feature/cli-via-goosed branch"
+      ]
+    },
+    {
+      "name": "A2AInstanceRoutes",
+      "entityType": "APIEndpoints",
+      "observations": [
+        "6 REST endpoints under /a2a/instances/ in crates/goose-server/src/routes/a2a.rs",
+        "POST /a2a/instances - spawn new agent instance from SpawnInstanceRequest",
+        "GET /a2a/instances - list all instances",
+        "GET /a2a/instances/{id} - instance status snapshot",
+        "DELETE /a2a/instances/{id} - cancel instance",
+        "GET /a2a/instances/{id}/card - per-instance A2A AgentCard",
+        "GET /a2a/instances/{id}/result - completed AgentResult",
+        "Commit 391f3de4 on feature/cli-via-goosed branch"
       ]
     }
   ],
@@ -26085,6 +26218,96 @@
       "from": "A2A_Instance_Routes",
       "to": "A2A_Crate_Implementation_Summary",
       "relationType": "part_of"
+    },
+    {
+      "from": "Agents_Module_Architecture_Review",
+      "to": "Goose_SubAgent_System",
+      "relationType": "analyzes"
+    },
+    {
+      "from": "Agents_Module_Architecture_Review",
+      "to": "Goose_AgentManager",
+      "relationType": "analyzes"
+    },
+    {
+      "from": "Agents_Module_Architecture_Review",
+      "to": "Multi_Instance_Agent_Architecture",
+      "relationType": "informs"
+    },
+    {
+      "from": "Goose_Persona_Class_Instance_Model",
+      "to": "AgentPool",
+      "relationType": "implemented_by"
+    },
+    {
+      "from": "Goose_Persona_Class_Instance_Model",
+      "to": "A2A_Instance_Routes",
+      "relationType": "exposed_via"
+    },
+    {
+      "from": "Agent_Cooperation_Design",
+      "to": "AgentPool",
+      "relationType": "extends"
+    },
+    {
+      "from": "Agent_Cooperation_Design",
+      "to": "A2A_Protocol_Spec",
+      "relationType": "builds_on"
+    },
+    {
+      "from": "WorkspaceEventBus",
+      "to": "AgentPool",
+      "relationType": "coordinates"
+    },
+    {
+      "from": "WorkspaceEventBus",
+      "to": "Agent_Cooperation_Design",
+      "relationType": "implements"
+    },
+    {
+      "from": "WorkspaceEventBus",
+      "to": "Multi_Instance_Agent_Architecture",
+      "relationType": "extends"
+    },
+    {
+      "from": "WorkspaceEventBusModule",
+      "to": "AgentPool",
+      "relationType": "coordinates"
+    },
+    {
+      "from": "WorkspaceEventBusModule",
+      "to": "Agent_Cooperation_Design",
+      "relationType": "implements"
+    },
+    {
+      "from": "WorkspaceEventBusModule",
+      "to": "Multi_Instance_Agent_Architecture",
+      "relationType": "extends"
+    },
+    {
+      "from": "A2AInstanceRoutes",
+      "to": "AgentPool",
+      "relationType": "exposes"
+    },
+    {
+      "from": "A2AInstanceRoutes",
+      "to": "A2A_Crate_Implementation_Summary",
+      "relationType": "part_of"
+    },
+    {
+      "from": "Agents_Facade_Modules",
+      "to": "Agents_Module_Architecture_Review",
+      "relationType": "implements"
+    },
+    {
+      "from": "Summon_SubModules",
+      "to": "Goose_SubAgent_System",
+      "relationType": "part_of"
+    },
+    {
+      "from": "Goose_Persona_Class_Instance_Model",
+      "to": "A2AInstanceRoutes",
+      "relationType": "exposed_via"
     }
   ]
 }
