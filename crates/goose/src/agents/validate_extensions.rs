@@ -14,118 +14,65 @@ struct BundledExtensionEntry {
     enabled: bool,
 }
 
-#[derive(Debug)]
-pub struct ValidationError {
-    pub index: usize,
-    pub id: String,
-    pub name: String,
-    pub error: String,
-}
-
-impl std::fmt::Display for ValidationError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            f,
-            "[{}] {} (id={}): {}",
-            self.index, self.name, self.id, self.error
-        )
-    }
-}
-
-#[derive(Debug)]
-pub struct ValidationResult {
-    pub total: usize,
-    pub errors: Vec<ValidationError>,
-}
-
-impl ValidationResult {
-    pub fn is_ok(&self) -> bool {
-        self.errors.is_empty()
-    }
-}
-
-pub fn validate_bundled_extensions(path: &Path) -> Result<ValidationResult> {
+pub fn validate_bundled_extensions(path: &Path) -> Result<String> {
     let content = std::fs::read_to_string(path)?;
     let raw_entries: Vec<serde_json::Value> = serde_json::from_str(&content)?;
     let total = raw_entries.len();
-    let mut errors = Vec::new();
+    let mut errors: Vec<String> = Vec::new();
 
     for (index, entry) in raw_entries.iter().enumerate() {
         let meta: BundledExtensionEntry = match serde_json::from_value(entry.clone()) {
             Ok(m) => m,
             Err(e) => {
-                errors.push(ValidationError {
-                    index,
-                    id: entry
-                        .get("id")
-                        .and_then(|v| v.as_str())
-                        .unwrap_or("unknown")
-                        .to_string(),
-                    name: entry
-                        .get("name")
-                        .and_then(|v| v.as_str())
-                        .unwrap_or("unknown")
-                        .to_string(),
-                    error: format!("missing required metadata fields: {e}"),
-                });
+                let id = entry
+                    .get("id")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("unknown");
+                let name = entry
+                    .get("name")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("unknown");
+                errors.push(format!(
+                    "[{index}] {name} (id={id}): missing required metadata fields: {e}"
+                ));
                 continue;
             }
         };
 
-        if !ExtensionConfig::VALID_TYPES.contains(&meta.extension_type.as_str()) {
-            errors.push(ValidationError {
-                index,
-                id: meta.id,
-                name: meta.name,
-                error: format!(
-                    "unknown type \"{}\", expected one of: {}",
-                    meta.extension_type,
-                    ExtensionConfig::VALID_TYPES.join(", ")
-                ),
-            });
+        // Check for common field name mistakes before full deserialization
+        if meta.extension_type == "streamable_http"
+            && entry.get("url").is_some()
+            && entry.get("uri").is_none()
+        {
+            errors.push(format!(
+                "[{index}] {} (id={}): has \"url\" field but streamable_http expects \"uri\" — did you mean \"uri\"?",
+                meta.name, meta.id
+            ));
             continue;
         }
 
-        let mut has_type_error = false;
-        match meta.extension_type.as_str() {
-            "streamable_http" => {
-                if entry.get("url").is_some() && entry.get("uri").is_none() {
-                    errors.push(ValidationError {
-                        index,
-                        id: meta.id.clone(),
-                        name: meta.name.clone(),
-                        error: "has \"url\" field but streamable_http expects \"uri\" — did you mean \"uri\"?".to_string(),
-                    });
-                    has_type_error = true;
-                }
-            }
-            "stdio" => {
-                if entry.get("cmd").is_none() {
-                    errors.push(ValidationError {
-                        index,
-                        id: meta.id.clone(),
-                        name: meta.name.clone(),
-                        error: "stdio extension is missing required \"cmd\" field".to_string(),
-                    });
-                    has_type_error = true;
-                }
-            }
-            _ => {}
+        if meta.extension_type == "stdio" && entry.get("cmd").is_none() {
+            errors.push(format!(
+                "[{index}] {} (id={}): stdio extension is missing required \"cmd\" field",
+                meta.name, meta.id
+            ));
+            continue;
         }
 
-        if !has_type_error {
-            if let Err(e) = serde_json::from_value::<ExtensionConfig>(entry.clone()) {
-                errors.push(ValidationError {
-                    index,
-                    id: meta.id,
-                    name: meta.name,
-                    error: format!("failed to deserialize as ExtensionConfig: {e}"),
-                });
-            }
+        if let Err(e) = serde_json::from_value::<ExtensionConfig>(entry.clone()) {
+            errors.push(format!("[{index}] {} (id={}): {e}", meta.name, meta.id));
         }
     }
 
-    Ok(ValidationResult { total, errors })
+    if errors.is_empty() {
+        Ok(format!("✓ All {total} extensions validated successfully."))
+    } else {
+        let mut output = format!("✗ Found {} error(s) in {total} extensions:\n", errors.len());
+        for error in &errors {
+            output.push_str(&format!("\n  {error}"));
+        }
+        anyhow::bail!("{output}");
+    }
 }
 
 #[cfg(test)]
@@ -154,9 +101,9 @@ mod tests {
             "bundled": true
         }]"#,
         );
-        let result = validate_bundled_extensions(f.path()).unwrap();
+        let result = validate_bundled_extensions(f.path());
         assert!(result.is_ok());
-        assert_eq!(result.total, 1);
+        assert!(result.unwrap().contains("1 extensions validated"));
     }
 
     #[test]
@@ -175,7 +122,7 @@ mod tests {
             "bundled": true
         }]"#,
         );
-        let result = validate_bundled_extensions(f.path()).unwrap();
+        let result = validate_bundled_extensions(f.path());
         assert!(result.is_ok());
     }
 
@@ -195,7 +142,7 @@ mod tests {
             "bundled": true
         }]"#,
         );
-        let result = validate_bundled_extensions(f.path()).unwrap();
+        let result = validate_bundled_extensions(f.path());
         assert!(result.is_ok());
     }
 
@@ -213,10 +160,11 @@ mod tests {
             "bundled": true
         }]"#,
         );
-        let result = validate_bundled_extensions(f.path()).unwrap();
-        assert!(!result.is_ok());
-        assert_eq!(result.errors.len(), 1);
-        assert!(result.errors[0].error.contains("unknown type \"http\""));
+        let result = validate_bundled_extensions(f.path());
+        assert!(result.is_err());
+        let err = result.unwrap_err().to_string();
+        assert!(err.contains("Asana"));
+        assert!(err.contains("unknown variant `http`"));
     }
 
     #[test]
@@ -233,9 +181,9 @@ mod tests {
             "bundled": true
         }]"#,
         );
-        let result = validate_bundled_extensions(f.path()).unwrap();
-        assert!(!result.is_ok());
-        assert!(result.errors.iter().any(|e| e.error.contains("uri")));
+        let result = validate_bundled_extensions(f.path());
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("uri"));
     }
 
     #[test]
@@ -252,9 +200,9 @@ mod tests {
             "bundled": true
         }]"#,
         );
-        let result = validate_bundled_extensions(f.path()).unwrap();
-        assert!(!result.is_ok());
-        assert!(result.errors[0].error.contains("cmd"));
+        let result = validate_bundled_extensions(f.path());
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("cmd"));
     }
 
     #[test]
@@ -282,41 +230,18 @@ mod tests {
             }
         ]"#,
         );
-        let result = validate_bundled_extensions(f.path()).unwrap();
-        assert_eq!(result.total, 2);
-        assert_eq!(result.errors.len(), 1);
-        assert_eq!(result.errors[0].index, 1);
-        assert_eq!(result.errors[0].id, "bad");
+        let result = validate_bundled_extensions(f.path());
+        assert!(result.is_err());
+        let err = result.unwrap_err().to_string();
+        assert!(err.contains("1 error(s)"));
+        assert!(err.contains("Bad Extension"));
     }
 
     #[test]
     fn test_empty_array_is_valid() {
         let f = write_json("[]");
-        let result = validate_bundled_extensions(f.path()).unwrap();
+        let result = validate_bundled_extensions(f.path());
         assert!(result.is_ok());
-        assert_eq!(result.total, 0);
-    }
-
-    #[test]
-    fn test_valid_types_all_deserialize() {
-        for type_name in ExtensionConfig::VALID_TYPES {
-            let json = serde_json::json!({
-                "type": type_name,
-                "name": "test",
-                "description": "test",
-                "cmd": "echo",
-                "args": [],
-                "uri": "https://example.com",
-                "code": "print('hi')",
-                "tools": [],
-            });
-            let result = serde_json::from_value::<ExtensionConfig>(json);
-            assert!(
-                result.is_ok(),
-                "VALID_TYPES contains \"{}\" but it failed to deserialize: {}",
-                type_name,
-                result.unwrap_err()
-            );
-        }
+        assert!(result.unwrap().contains("0 extensions validated"));
     }
 }

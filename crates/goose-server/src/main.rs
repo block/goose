@@ -69,19 +69,12 @@ async fn main() -> anyhow::Result<()> {
             }
         }
         Commands::ValidateExtensions { path } => {
-            let result = validate_extensions::validate_bundled_extensions(&path)?;
-            if result.errors.is_empty() {
-                println!("✓ All {} extensions validated successfully.", result.total);
-            } else {
-                eprintln!(
-                    "✗ Found {} error(s) in {} extension(s):\n",
-                    result.errors.len(),
-                    result.errors.len()
-                );
-                for (i, error) in result.errors.iter().enumerate() {
-                    eprintln!("  [{}] {}", i, error);
+            match validate_extensions::validate_bundled_extensions(&path) {
+                Ok(msg) => println!("{msg}"),
+                Err(e) => {
+                    eprintln!("{e}");
+                    std::process::exit(1);
                 }
-                std::process::exit(1);
             }
         }
     }

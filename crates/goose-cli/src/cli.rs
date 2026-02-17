@@ -1532,20 +1532,15 @@ pub async fn cli() -> anyhow::Result<()> {
         Some(Command::Term { command }) => handle_term_subcommand(command).await,
         Some(Command::ValidateExtensions { file }) => {
             use goose::agents::validate_extensions::validate_bundled_extensions;
-            let result = validate_bundled_extensions(&file)?;
-            if result.is_ok() {
-                println!("✓ All {} extensions validated successfully.", result.total);
-                Ok(())
-            } else {
-                eprintln!(
-                    "✗ Found {} error(s) in {} extensions:\n",
-                    result.errors.len(),
-                    result.total
-                );
-                for err in &result.errors {
-                    eprintln!("  {}", err);
+            match validate_bundled_extensions(&file) {
+                Ok(msg) => {
+                    println!("{msg}");
+                    Ok(())
                 }
-                std::process::exit(1);
+                Err(e) => {
+                    eprintln!("{e}");
+                    std::process::exit(1);
+                }
             }
         }
         None => handle_default_session().await,

@@ -374,16 +374,6 @@ impl ExtensionConfig {
         }
     }
 
-    pub const VALID_TYPES: &[&str] = &[
-        "sse",
-        "stdio",
-        "builtin",
-        "platform",
-        "streamable_http",
-        "frontend",
-        "inline_python",
-    ];
-
     pub fn key(&self) -> String {
         name_to_key(&self.name())
     }
