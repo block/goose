@@ -15177,5 +15177,55 @@
       "8 delegation tests pass (3 new A2A-specific tests)",
       "Remaining phases: Phase 2 (A2ADiscoverySource for RegistryManager), Phase 3 (Orchestrator catalog integration), Phase 4 (Remote task streaming)"
     ]
+  },
+  {
+    "name": "SystemPrompt_v1",
+    "entityType": "Decision",
+    "observations": [
+      "Orchestrator system prompt memoized on 2026-02-17",
+      "Core tools: Beads (execution control plane), Knowledge Graph (durable memory), Developer (code/shell)",
+      "Beads rules: exactly 1 Epic per run, RPI phases (Research\u2192Plan\u2192Implement\u2192Verify), gate tasks block phase transitions, only start tasks from beads.ready, WIP max 2 in_progress per owner",
+      "Knowledge Graph rules: store Concepts/Components/Interfaces/Decisions/Findings/Risks/Sources/RepoPaths/TestEvidence/BeadsEpics/Tasks/Gates; query before acting, write after acting; mandatory fields: type, id/name, description, evidence link, confidence 0.0-1.0, timestamp",
+      "Priority model: P0=Critical, P1=High, P2=Medium, P3=Low, P4=Backlog; gates>=P1; auth/secrets/data-integrity=P0-P1",
+      "Context gathering method: RPI (Research\u2192Plan\u2192Implement); parallelize discovery; early stop when can name exact changes; store fetched knowledge in KG",
+      "Reporting: every response ends with Progress (Ready/InProgress/Blocked/RecentlyClosed), Next focus, Confidence",
+      "Persistence: keep going until query fully resolved; never ask user to confirm assumptions; decide and document",
+      "Factuality: search web for post-Aug-2025 info; cite sources; never make unsupported claims",
+      "Project: goose4 Rust project at /home/jmercier/codes/goose4; crates in crates/ dir; Electron UI in ui/desktop/",
+      "Dev loop: activate-hermit \u2192 changes \u2192 cargo fmt \u2192 cargo build \u2192 cargo test \u2192 clippy \u2192 generate-openapi if server changes",
+      "Landing the plane: file issues \u2192 quality gates \u2192 update status \u2192 git push (MANDATORY) \u2192 clean up \u2192 verify \u2192 hand off"
+    ]
+  },
+  {
+    "name": "GooseDesktopUIBugFixes_2025",
+    "entityType": "Finding",
+    "observations": [
+      "PromptBar.tsx had hooks ordering violation: early return before useCallback on line 19, fixed by moving return after all hooks",
+      "AgentCatalog/RoutingInspector/EvalRunner had 401 errors: Headers object bracket access returns undefined, fixed with typeof h.get check",
+      "tool_analytics.rs get_agent_performance and get_response_quality returned 500 on empty DB: AVG() returns NULL but Rust expected f64, fixed with Option<f64> + unwrap_or(0.0)",
+      "Sessions not grouped by project: dateUtils.ts groupSessionsByDate only groups by date, needs working_dir grouping (backlog)",
+      "Missing recipes: needs investigation of listSavedRecipes pipeline (backlog)",
+      "All fixes committed in 8d062e49 on feature/cli-via-goosed branch"
+    ]
+  },
+  {
+    "name": "Multi_Instance_Agent_Architecture",
+    "entityType": "Decision",
+    "observations": [
+      "Architecture design for enabling multiple concurrent agent instances in Goose",
+      "Current bottleneck: AgentManager shares ONE default_provider and ONE shared_extension_manager across all sessions",
+      "Agent struct is already instance-friendly \u2014 constraint is in AgentManager's get_or_create_agent() which forces shared provider/extensions",
+      "Phase 1 (P2): Per-Instance Provider Override \u2014 add create_agent_with_provider() to AgentManager, ~50 LOC, bead goose4-ez01",
+      "Phase 2 (P2): AgentPool for Parallel Execution \u2014 AgentPool struct with spawn/join_all/cancel, ~400 LOC new module, bead goose4-t0rj",
+      "Phase 3 (P3): Per-Instance Extension Manager \u2014 layered EM pattern (instance delegates to shared + adds own), ~800 LOC, bead goose4-ioop",
+      "Phase 4 (P3): A2A-Native Agent Instances \u2014 each pool instance gets A2A endpoint at /a2a/instances/{name}/*, bead goose4-4e9u",
+      "Epic: goose4-lk7s \u2014 dependency chain: Phase 1 \u2192 Phase 2 \u2192 Phase 3 \u2192 Phase 4",
+      "Use cases enabled: 2 dev agents (one Claude frontend, one GPT backend), parallel backend+frontend+API, same persona different projects",
+      "Architecture doc at tmp/docs/multi-instance-agent-architecture.mdx",
+      "Key struct: AgentPool { instances: HashMap<String, AgentInstance>, default_provider, extension_manager }",
+      "Key struct: AgentInstance { name, agent, persona, working_dir, task, handle, status }",
+      "Instance lifecycle: Pending \u2192 Initializing \u2192 Running \u2192 Completed/Failed/Cancelled",
+      "Maps to A2A TaskState: Pending\u2192SUBMITTED, Initializing\u2192WORKING, Running\u2192WORKING, Completed\u2192COMPLETED, Failed\u2192FAILED"
+    ]
   }
 ]

@@ -10638,5 +10638,20 @@
     "from": "Multi_Protocol_Architecture_Design",
     "to": "A2A_Protocol_Spec",
     "relationType": "implements"
+  },
+  {
+    "from": "Multi_Instance_Agent_Architecture",
+    "to": "Multi_Protocol_Architecture_Design",
+    "relationType": "extends"
+  },
+  {
+    "from": "Multi_Instance_Agent_Architecture",
+    "to": "A2A_Crate_Implementation_Summary",
+    "relationType": "depends_on"
+  },
+  {
+    "from": "Multi_Instance_Agent_Architecture",
+    "to": "Goose_Crate_Structure",
+    "relationType": "affects"
   }
 ]
