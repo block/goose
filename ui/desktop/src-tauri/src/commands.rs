@@ -446,6 +446,53 @@ pub fn close_app(app: tauri::AppHandle, app_name: String) -> Result<(), String> 
     Ok(())
 }
 
+// ── Logging from frontend ────────────────────────────────────────────
+
+#[tauri::command]
+pub fn log_from_frontend(message: String) {
+    log::info!("[frontend] {}", message);
+}
+
+// ── Open in Chrome ──────────────────────────────────────────────────
+
+#[tauri::command]
+pub fn open_in_chrome(url: String) -> Result<(), String> {
+    #[cfg(target_os = "macos")]
+    {
+        std::process::Command::new("open")
+            .args(["-a", "Google Chrome", &url])
+            .spawn()
+            .or_else(|_| {
+                // Fallback to default browser
+                std::process::Command::new("open").arg(&url).spawn()
+            })
+            .map_err(|e| e.to_string())?;
+    }
+    #[cfg(target_os = "windows")]
+    {
+        std::process::Command::new("cmd")
+            .args(["/c", "start", "chrome", &url])
+            .spawn()
+            .or_else(|_| {
+                std::process::Command::new("cmd")
+                    .args(["/c", "start", &url])
+                    .spawn()
+            })
+            .map_err(|e| e.to_string())?;
+    }
+    #[cfg(target_os = "linux")]
+    {
+        std::process::Command::new("google-chrome")
+            .arg(&url)
+            .spawn()
+            .or_else(|_| {
+                std::process::Command::new("xdg-open").arg(&url).spawn()
+            })
+            .map_err(|e| e.to_string())?;
+    }
+    Ok(())
+}
+
 // ── Restart ──────────────────────────────────────────────────────────
 
 #[tauri::command]

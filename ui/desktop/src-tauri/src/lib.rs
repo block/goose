@@ -157,6 +157,8 @@ pub fn run() {
             commands::close_app,
             commands::select_file_or_directory,
             commands::restart_app,
+            commands::log_from_frontend,
+            commands::open_in_chrome,
         ])
         // Cleanup on exit
         .on_window_event(|window, event| {

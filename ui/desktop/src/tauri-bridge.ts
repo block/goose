@@ -212,7 +212,7 @@ export const tauriBridge = {
 
   openExternal: (url: string) => openUrl(url),
 
-  openInChrome: (url: string) => openUrl(url),
+  openInChrome: (url: string) => invoke<void>('open_in_chrome', { url }).catch(() => openUrl(url)),
 
   fetchMetadata: (url: string) => invoke<string>('fetch_metadata', { url }),
 
@@ -401,6 +401,7 @@ export const tauriBridge = {
 
   logInfo: (txt: string) => {
     console.log('[goose]', txt);
+    invoke('log_from_frontend', { message: txt }).catch(() => {});
   },
 };
 
