@@ -1,5 +1,6 @@
 use std::sync::Mutex;
 use tauri::{Emitter, Listener, Manager};
+use tauri_plugin_dialog::DialogExt;
 
 mod commands;
 mod dock;
@@ -80,6 +81,9 @@ pub fn run() {
             // Application menu
             menu::setup_menu(app)?;
 
+            // macOS dock menu
+            dock::setup_dock_menu(app.handle());
+
             // Start goosed backend
             let app_handle = app.handle().clone();
 
@@ -97,7 +101,74 @@ pub fn run() {
                     }
                     Err(e) => {
                         log::error!("Failed to start goosed: {}", e);
-                        let _ = app_handle.emit("fatal-error", &e);
+
+                        let is_external = external_config
+                            .as_ref()
+                            .map(|c| c.enabled && !c.url.is_empty())
+                            .unwrap_or(false);
+
+                        if is_external {
+                            // Offer to disable external backend and retry
+                            let retry = app_handle
+                                .dialog()
+                                .message(format!(
+                                    "Could not connect to the external backend.\n\n{}",
+                                    e
+                                ))
+                                .title("Backend Connection Failed")
+                                .buttons(tauri_plugin_dialog::MessageDialogButtons::OkCancelCustom(
+                                    "Disable & Retry".into(),
+                                    "Quit".into(),
+                                ))
+                                .blocking_show();
+
+                            if retry {
+                                // Disable external config in settings
+                                {
+                                    let settings_state =
+                                        app_handle.state::<settings::SettingsState>();
+                                    let mut s = settings_state.0.lock().unwrap();
+                                    s.external_goosed = None;
+                                    let _ = s.save();
+                                }
+                                // Retry with internal goosed
+                                match goosed::start_goosed(
+                                    &app_handle,
+                                    &goosed_state,
+                                    None,
+                                )
+                                .await
+                                {
+                                    Ok(url) => {
+                                        log::info!("goosed started (fallback) at {}", url);
+                                    }
+                                    Err(e2) => {
+                                        log::error!("Fallback goosed also failed: {}", e2);
+                                        app_handle
+                                            .dialog()
+                                            .message(format!(
+                                                "Failed to start goosed:\n\n{}",
+                                                e2
+                                            ))
+                                            .title("Goose Error")
+                                            .blocking_show();
+                                        let _ = app_handle.emit("fatal-error", &e2);
+                                    }
+                                }
+                            } else {
+                                std::process::exit(1);
+                            }
+                        } else {
+                            app_handle
+                                .dialog()
+                                .message(format!(
+                                    "Failed to start the Goose backend:\n\n{}",
+                                    e
+                                ))
+                                .title("Goose Error")
+                                .blocking_show();
+                            let _ = app_handle.emit("fatal-error", &e);
+                        }
                     }
                 }
             });
@@ -219,6 +290,22 @@ pub fn run() {
                     if show_tray {
                         api.prevent_exit();
                     }
+                }
+            }
+            tauri::RunEvent::Reopen { has_visible_windows, .. } => {
+                if let Some(window) = app_handle.get_webview_window("main") {
+                    if window.is_minimized().unwrap_or(false) {
+                        let _ = window.unminimize();
+                    }
+                    let _ = window.show();
+                    let _ = window.set_focus();
+                } else if !has_visible_windows {
+                    let handle = app_handle.clone();
+                    tauri::async_runtime::spawn(async move {
+                        let _ = crate::commands::create_chat_window(
+                            handle, None, None, None, None, None, None,
+                        ).await;
+                    });
                 }
             }
             tauri::RunEvent::Exit => {
