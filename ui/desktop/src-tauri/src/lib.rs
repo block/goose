@@ -114,6 +114,15 @@ pub fn run() {
                 }
             });
 
+            // Broadcast theme changes to all windows
+            let app_handle4 = app.handle().clone();
+            app.listen("broadcast-theme-change", move |event: tauri::Event| {
+                let payload = event.payload();
+                for (_label, window) in app_handle4.webview_windows() {
+                    let _ = window.emit("theme-changed", payload);
+                }
+            });
+
             // Register global shortcuts
             setup_global_shortcuts(app)?;
 
