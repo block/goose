@@ -13,7 +13,7 @@ use goose::config::ExtensionEntry;
 use goose::config::{Config, ConfigError};
 use goose::model::ModelConfig;
 use goose::providers::auto_detect::detect_provider_from_api_key;
-use goose::providers::base::{ProviderMetadata, ProviderType};
+use goose::providers::base::{ModelInfo, ProviderMetadata, ProviderType};
 use goose::providers::canonical::maybe_get_canonical_model;
 use goose::providers::create_with_default_model;
 use goose::providers::providers as get_providers;
@@ -387,6 +387,52 @@ pub async fn get_provider_models(
     match models_result {
         Ok(models) => Ok(Json(models)),
         Err(provider_error) => Err(provider_error.into()),
+    }
+}
+
+#[utoipa::path(
+    get,
+    path = "/config/providers/{name}/model-info",
+    params(
+        ("name" = String, Path, description = "Provider name (e.g., litellm)")
+    ),
+    responses(
+        (status = 200, description = "Model info fetched successfully", body = [ModelInfo]),
+        (status = 400, description = "Unknown provider or provider not configured"),
+        (status = 500, description = "Internal server error")
+    )
+)]
+pub async fn get_provider_model_info(
+    Path(name): Path<String>,
+) -> Result<Json<Vec<ModelInfo>>, ErrorResponse> {
+    let all = get_providers().await.into_iter().collect::<Vec<_>>();
+    let Some((metadata, provider_type)) = all.into_iter().find(|(m, _)| m.name == name) else {
+        return Err(ErrorResponse::bad_request(format!(
+            "Unknown provider: {}",
+            name
+        )));
+    };
+    if !check_provider_configured(&metadata, provider_type) {
+        return Err(ErrorResponse::bad_request(format!(
+            "Provider '{}' is not configured",
+            name
+        )));
+    }
+
+    let model_config = ModelConfig::new(&metadata.default_model)?;
+    let provider = goose::providers::create(&name, model_config, Vec::new()).await?;
+
+    match provider.fetch_model_info().await {
+        Ok(info) if !info.is_empty() => Ok(Json(info)),
+        _ => {
+            // Fall back: wrap recommended model names as basic ModelInfo
+            let models = provider.fetch_recommended_models().await?;
+            let info: Vec<ModelInfo> = models
+                .into_iter()
+                .map(|name| ModelInfo::new(name, 128000))
+                .collect();
+            Ok(Json(info))
+        }
     }
 }
 
@@ -836,6 +882,10 @@ pub fn routes(state: Arc<AppState>) -> Router {
         .route("/config/extensions/{name}", delete(remove_extension))
         .route("/config/providers", get(providers))
         .route("/config/providers/{name}/models", get(get_provider_models))
+        .route(
+            "/config/providers/{name}/model-info",
+            get(get_provider_model_info),
+        )
         .route("/config/detect-provider", post(detect_provider))
         .route("/config/slash_commands", get(get_slash_commands))
         .route(
