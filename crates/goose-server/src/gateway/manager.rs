@@ -48,6 +48,7 @@ pub struct PairedUserInfo {
 pub struct GatewayStatus {
     pub gateway_type: String,
     pub running: bool,
+    pub configured: bool,
     pub paired_users: Vec<PairedUserInfo>,
     #[serde(skip_serializing_if = "HashMap::is_empty")]
     pub info: HashMap<String, String>,
@@ -122,7 +123,7 @@ impl GatewayManager {
         Ok(())
     }
 
-    /// Stop a gateway, clear its pairings, and remove its persisted config.
+    /// Stop a gateway and clear its pairings. Config is kept so it can be restarted.
     pub async fn stop_gateway(&self, gateway_type: &str) -> anyhow::Result<()> {
         let instance = self
             .gateways
@@ -148,8 +149,46 @@ impl GatewayManager {
             _ => {}
         }
 
-        Self::remove_saved_config(gateway_type);
         tracing::info!(gateway = %gateway_type, "gateway stopped");
+        Ok(())
+    }
+
+    /// Stop a gateway (if running), clear pairings, and remove its saved config entirely.
+    pub async fn remove_gateway(&self, gateway_type: &str) -> anyhow::Result<()> {
+        // Stop if running (ignore error if not running).
+        if let Some(instance) = self.gateways.write().await.remove(gateway_type) {
+            instance.cancel.cancel();
+            let _ = instance.handle.await;
+        }
+
+        if let Err(e) = self
+            .pairing_store
+            .remove_all_for_platform(gateway_type)
+            .await
+        {
+            tracing::warn!(gateway = %gateway_type, error = %e, "failed to clear pairings on remove");
+        }
+
+        Self::remove_saved_config(gateway_type);
+        tracing::info!(gateway = %gateway_type, "gateway removed");
+        Ok(())
+    }
+
+    /// Restart a stopped gateway using its saved config.
+    pub async fn restart_gateway(&self, gateway_type: &str) -> anyhow::Result<()> {
+        if self.gateways.read().await.contains_key(gateway_type) {
+            anyhow::bail!("Gateway '{}' is already running", gateway_type);
+        }
+
+        let configs = Self::load_saved_configs()?;
+        let mut config = configs
+            .into_iter()
+            .find(|c| c.gateway_type == gateway_type)
+            .ok_or_else(|| anyhow::anyhow!("No saved config for gateway '{}'", gateway_type))?;
+
+        let gateway = super::create_gateway(&mut config)?;
+        self.start_gateway_internal(config, gateway).await?;
+        tracing::info!(gateway = %gateway_type, "gateway restarted");
         Ok(())
     }
 
@@ -226,8 +265,10 @@ impl GatewayManager {
     pub async fn status(&self) -> Vec<GatewayStatus> {
         let running = self.gateways.read().await;
         let mut statuses = Vec::new();
+        let mut seen = std::collections::HashSet::new();
 
         for (gw_type, instance) in running.iter() {
+            seen.insert(gw_type.clone());
             let paired_users = self
                 .pairing_store
                 .list_paired_users(gw_type)
@@ -246,9 +287,26 @@ impl GatewayManager {
             statuses.push(GatewayStatus {
                 gateway_type: gw_type.clone(),
                 running: true,
+                configured: true,
                 paired_users,
                 info: instance.gateway.info(),
             });
+        }
+
+        // Include configured-but-stopped gateways.
+        if let Ok(saved) = Self::load_saved_configs() {
+            for config in saved {
+                if seen.contains(&config.gateway_type) {
+                    continue;
+                }
+                statuses.push(GatewayStatus {
+                    gateway_type: config.gateway_type,
+                    running: false,
+                    configured: true,
+                    paired_users: Vec::new(),
+                    info: HashMap::new(),
+                });
+            }
         }
 
         statuses.sort_by(|a, b| a.gateway_type.cmp(&b.gateway_type));

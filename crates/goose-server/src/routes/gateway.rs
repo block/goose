@@ -27,6 +27,16 @@ pub struct StopGatewayRequest {
 }
 
 #[derive(Deserialize, ToSchema)]
+pub struct RestartGatewayRequest {
+    pub gateway_type: String,
+}
+
+#[derive(Deserialize, ToSchema)]
+pub struct RemoveGatewayRequest {
+    pub gateway_type: String,
+}
+
+#[derive(Deserialize, ToSchema)]
 pub struct CreatePairingRequest {
     pub gateway_type: String,
 }
@@ -88,6 +98,53 @@ pub async fn stop_gateway(
     {
         Ok(()) => StatusCode::OK.into_response(),
         Err(e) => ErrorResponse::not_found(e.to_string()).into_response(),
+    }
+}
+
+#[utoipa::path(
+    post,
+    path = "/gateway/restart",
+    request_body = RestartGatewayRequest,
+    responses(
+        (status = 200, description = "Gateway restarted"),
+        (status = 400, description = "Bad request", body = ErrorResponse),
+        (status = 404, description = "No saved config", body = ErrorResponse)
+    )
+)]
+pub async fn restart_gateway(
+    State(state): State<Arc<AppState>>,
+    Json(request): Json<RestartGatewayRequest>,
+) -> Response {
+    match state
+        .gateway_manager
+        .restart_gateway(&request.gateway_type)
+        .await
+    {
+        Ok(()) => StatusCode::OK.into_response(),
+        Err(e) => ErrorResponse::bad_request(e.to_string()).into_response(),
+    }
+}
+
+#[utoipa::path(
+    post,
+    path = "/gateway/remove",
+    request_body = RemoveGatewayRequest,
+    responses(
+        (status = 200, description = "Gateway removed"),
+        (status = 500, description = "Internal server error", body = ErrorResponse)
+    )
+)]
+pub async fn remove_gateway(
+    State(state): State<Arc<AppState>>,
+    Json(request): Json<RemoveGatewayRequest>,
+) -> Response {
+    match state
+        .gateway_manager
+        .remove_gateway(&request.gateway_type)
+        .await
+    {
+        Ok(()) => StatusCode::OK.into_response(),
+        Err(e) => ErrorResponse::internal(e.to_string()).into_response(),
     }
 }
 
@@ -159,6 +216,8 @@ pub fn routes(state: Arc<AppState>) -> Router {
     Router::new()
         .route("/gateway/start", post(start_gateway))
         .route("/gateway/stop", post(stop_gateway))
+        .route("/gateway/restart", post(restart_gateway))
+        .route("/gateway/remove", post(remove_gateway))
         .route("/gateway/status", get(gateway_status))
         .route("/gateway/pair", post(create_pairing_code))
         .route("/gateway/pair/{platform}/{user_id}", delete(unpair_user))

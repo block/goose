@@ -23,6 +23,7 @@ interface PairedUserInfo {
 interface GatewayStatus {
   gateway_type: string;
   running: boolean;
+  configured: boolean;
   paired_users: PairedUserInfo[];
   info?: Record<string, string>;
 }
@@ -117,6 +118,40 @@ export default function GatewaySettingsSection() {
     }
   };
 
+  const handleRestartGateway = async (gatewayType: string) => {
+    setError(null);
+    try {
+      const response = await gatewayFetch('/gateway/restart', {
+        method: 'POST',
+        body: JSON.stringify({ gateway_type: gatewayType }),
+      });
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}));
+        throw new Error(data.message || 'Failed to restart gateway');
+      }
+      await fetchStatus();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to restart gateway');
+    }
+  };
+
+  const handleRemoveGateway = async (gatewayType: string) => {
+    setError(null);
+    try {
+      const response = await gatewayFetch('/gateway/remove', {
+        method: 'POST',
+        body: JSON.stringify({ gateway_type: gatewayType }),
+      });
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}));
+        throw new Error(data.message || 'Failed to remove gateway');
+      }
+      await fetchStatus();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to remove gateway');
+    }
+  };
+
   const handleGeneratePairingCode = async (gatewayType: string) => {
     setError(null);
     try {
@@ -183,6 +218,8 @@ export default function GatewaySettingsSection() {
         status={findGateway('telegram')}
         onStart={(config) => handleStartGateway('telegram', config)}
         onStop={() => handleStopGateway('telegram')}
+        onRestart={() => handleRestartGateway('telegram')}
+        onRemove={() => handleRemoveGateway('telegram')}
         onGenerateCode={() => handleGeneratePairingCode('telegram')}
         onUnpairUser={handleUnpairUser}
       />
@@ -245,22 +282,35 @@ function RunningBadge() {
   );
 }
 
+function StoppedBadge() {
+  return (
+    <span className="inline-flex items-center gap-1 text-xs text-yellow-700 dark:text-yellow-400 bg-yellow-100 dark:bg-yellow-900/30 px-2 py-0.5 rounded-full">
+      Stopped
+    </span>
+  );
+}
+
 function TelegramGatewayCard({
   status,
   onStart,
   onStop,
+  onRestart,
+  onRemove,
   onGenerateCode,
   onUnpairUser,
 }: {
   status: GatewayStatus | undefined;
   onStart: (config: Record<string, unknown>) => Promise<void>;
   onStop: () => void;
+  onRestart: () => void;
+  onRemove: () => void;
   onGenerateCode: () => void;
   onUnpairUser: (platform: string, userId: string) => void;
 }) {
   const [botToken, setBotToken] = useState('');
   const [starting, setStarting] = useState(false);
   const running = status?.running ?? false;
+  const configured = status?.configured ?? false;
 
   const handleStart = async () => {
     if (!botToken.trim()) return;
@@ -277,6 +327,7 @@ function TelegramGatewayCard({
           <CardTitle className="flex items-center gap-2">
             Telegram
             {running && <RunningBadge />}
+            {!running && configured && <StoppedBadge />}
           </CardTitle>
           {running && (
             <div className="flex items-center gap-2">
@@ -289,10 +340,25 @@ function TelegramGatewayCard({
               </Button>
             </div>
           )}
+          {!running && configured && (
+            <div className="flex items-center gap-2">
+              <Button size="sm" onClick={onRestart}>
+                Start
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={onRemove}
+                className="text-text-muted hover:text-red-600"
+              >
+                <Trash2 className="h-3 w-3" />
+              </Button>
+            </div>
+          )}
         </div>
       </CardHeader>
       <CardContent className="pt-3 space-y-2">
-        {!running && (
+        {!running && !configured && (
           <>
             <div className="flex items-center gap-2">
               <Input
