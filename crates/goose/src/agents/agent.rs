@@ -2,6 +2,7 @@ use std::collections::HashMap;
 use std::future::Future;
 use std::pin::Pin;
 use std::sync::Arc;
+use std::time::Instant;
 
 use anyhow::{anyhow, Context, Result};
 use futures::stream::BoxStream;
@@ -77,11 +78,14 @@ pub struct ToolCategorizeResult {
 }
 
 #[derive(Debug, Clone, serde::Serialize, utoipa::ToSchema)]
+#[serde(rename_all = "camelCase")]
 pub struct ExtensionLoadResult {
     pub name: String,
     pub success: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub error: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub duration_ms: Option<u64>,
 }
 
 #[derive(Clone)]
@@ -642,8 +646,10 @@ impl Agent {
                             name,
                             success: true,
                             error: None,
+                            duration_ms: None,
                         };
                     }
+                    let start = Instant::now();
 
                     match agent_ref
                         .add_extension(config_clone, &session_id_clone)
@@ -653,6 +659,7 @@ impl Agent {
                             name,
                             success: true,
                             error: None,
+                            duration_ms: Some(start.elapsed().as_millis() as u64),
                         },
                         Err(e) => {
                             let error_msg = e.to_string();
@@ -661,6 +668,7 @@ impl Agent {
                                 name,
                                 success: false,
                                 error: Some(error_msg),
+                                duration_ms: Some(start.elapsed().as_millis() as u64),
                             }
                         }
                     }

@@ -398,6 +398,7 @@ export type ExtensionEntry = ExtensionConfig & {
 };
 
 export type ExtensionLoadResult = {
+    durationMs?: number | null;
     error?: string | null;
     name: string;
     success: boolean;

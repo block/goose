@@ -77,4 +77,20 @@ describe('GroupedExtensionLoadingToast', () => {
     expect(screen.getByText('1 extension failed to load')).toBeInTheDocument();
     expect(screen.getByText('Show details')).toBeInTheDocument();
   });
+
+  it('shows estimated time remaining when provided', () => {
+    const extensions = [{ name: 'developer', status: 'loading' as const, estimatedMs: 1200 }];
+
+    renderWithRouter(
+      <GroupedExtensionLoadingToast
+        extensions={extensions}
+        totalCount={1}
+        isComplete={false}
+        estimatedTotalMs={3000}
+      />
+    );
+
+    expect(screen.getByText('Loading 1 extension...')).toBeInTheDocument();
+    expect(screen.getByText(/Estimated time remaining:/)).toBeInTheDocument();
+  });
 });
