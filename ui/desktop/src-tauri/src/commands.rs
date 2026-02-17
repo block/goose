@@ -170,7 +170,7 @@ pub async fn create_chat_window(
     };
 
     let mut builder = tauri::WebviewWindowBuilder::new(&app, &label, tauri::WebviewUrl::App(url.into()))
-        .title("Goose")
+        .title("")
         .inner_size(750.0, 730.0)
         .min_inner_size(560.0, 600.0)
         .on_navigation(|url| {
