@@ -1,5 +1,5 @@
 {
-  "exported_at": "2026-02-17T00:12:34.081368+00:00",
+  "exported_at": "2026-02-17T00:15:58.613578+00:00",
   "entity_count": 1493,
   "relation_count": 2120,
   "entity_types": {
@@ -159,9 +159,11 @@
   },
   "files": [
     "graph.json",
+    "graph.json.gz",
     "entities.json",
     "relations.json",
     "ontology.md",
-    "reload.py"
+    "reload.py",
+    "manifest.json"
   ]
 }

@@ -3,7 +3,7 @@ title: Knowledge Graph Ontology
 type: ontology
 entity_count: 1493
 relation_count: 2120
-exported_at: '2026-02-17T00:12:00Z'
+exported_at: '2026-02-17T01:20:00Z'
 ---
 
 # Knowledge Graph Ontology
@@ -1201,127 +1201,36 @@ e57973627782dd693c13f6ac416587d8db53ab01** (TestEvidence) — 3 observations
 - **Source_Aregistry** (Source) — 4 observations
 - **TestEvidence:agent-registry:index+mode-metadata:verified:3dca8eeacf7d28bb164674b19c55b4c6d322d83c** (TestEvidence) — 6 observations
 
-### Beads Tasks (95 entities)
-
-- **BeadsEpic: goose3-dcq** (BeadsEpic) — 2 observations
-- **BeadsEpic: goose3-daa** (BeadsEpic) — 2 observations
-- **BeadsEpic: goose3-hgx** (BeadsEpic) — 5 observations
-- **BeadsEpic:goose3-9l5** (BeadsEpic) — 3 observations
-- **BeadsEpic:goose3-zw6** (BeadsEpic) — 3 observations
-- **BeadsEpic:goose3-c1q** (BeadsEpic) — 2 observations
-- **BeadsEpic:goose3-ts8** (BeadsEpic) — 2 observations
-- **BeadsEpic:goose3-mly** (BeadsEpic) — 2 observations
-- **BeadsEpic:goose3-tuh** (BeadsEpic) — 2 observations
-- **BeadsEpic:goose3-vjv** (BeadsEpic) — 1 observations
-- **goose3-vjv** (BeadsEpic) — 4 observations
-- **goose3-xts** (BeadsEpic) — 5 observations
-- **goose3-70l** (BeadsEpic) — 5 observations
-- **goose3-wlz** (BeadsEpic) — 45 observations
-- **BeadsEpic:goose3-wlz** (BeadsEpic) — 2 observations
-- **BeadsEpic_AgentRegistry** (BeadsEpic) — 6 observations
-- **Goose-MetaOrchestrator** (BeadsEpic) — 9 observations
-- **BeadsEpic-AgentRegistry** (BeadsEpic) — 5 observations
-- **BeadsEpic-AgentModes** (BeadsEpic) — 4 observations
-- **BeadsEpic-MetaOrchestrator** (BeadsEpic) — 4 observations
-- **BeadsEpic-E2E-Testing** (BeadsEpic) — 5 observations
-- **BeadsTask: goose3-61d** (BeadsTask) — 2 observations
-- **BeadsTask: goose3-vr0** (BeadsTask) — 2 observations
-- **BeadsTask: goose3-mf0** (BeadsTask) — 2 observations
-- **BeadsTask: goose3-dhr** (BeadsTask) — 2 observations
-- **BeadsTask: goose3-3i0** (BeadsTask) — 1 observations
-- **BeadsTask: goose3-2w8** (BeadsTask) — 1 observations
-- **BeadsTask: goose3-tqp** (BeadsTask) — 2 observations
-- **BeadsTask: goose3-fyj** (BeadsTask) — 2 observations
-- **BeadsTask:goose3-c33** (BeadsTask) — 1 observations
-- **BeadsTask:goose3-om3** (BeadsTask) — 1 observations
-- **BeadsTask:goose3-1iz** (BeadsTask) — 1 observations
-- **BeadsTask:goose3-5mp** (BeadsTask) — 1 observations
-- **BeadsTask:goose3-3ho** (BeadsTask) — 2 observations
-- **BeadsTask:goose3-9af** (BeadsTask) — 2 observations
-- **BeadsTask:goose3-6m3** (BeadsTask) — 2 observations
-- **BeadsTask:goose3-4jw** (BeadsTask) — 3 observations
-- **BeadsTask:goose3-fyj** (BeadsTask) — 2 observations
-- **BeadsTask:goose3-kkt** (BeadsTask) — 2 observations
-- **BeadsTask:goose3-q2g** (BeadsTask) — 2 observations
-- **BeadsTask:goose3-c2v** (BeadsTask) — 2 observations
-- **BeadsTask:goose3-2qy** (BeadsTask) — 2 observations
-- **BeadsTask:goose3-5na** (BeadsTask) — 2 observations
-- **BeadsTask:goose3-5ik** (BeadsTask) — 2 observations
-- **BeadsTask:goose3-bjg** (BeadsTask) — 2 observations
-- **goose3-2rz** (BeadsTask) — 63 observations
-- **goose3-g3n** (BeadsTask) — 5 observations
-- **goose3-35e** (BeadsTask) — 5 observations
-- **goose3-4iu** (BeadsTask) — 2 observations
-- **goose3-95o** (BeadsTask) — 2 observations
-- **goose3-h6u** (BeadsTask) — 2 observations
-- **goose3-8v1** (BeadsTask) — 7 observations
-- **goose3-vvf** (BeadsTask) — 10 observations
-- **goose3-eyb** (BeadsTask) — 7 observations
-- **goose3-zpg** (BeadsTask) — 5 observations
-- **goose3-2b0** (BeadsTask) — 3 observations
-- **BeadsTask:goose3-eyb** (BeadsTask) — 4 observations
-- **BeadsTask:goose3-zpg** (BeadsTask) — 1 observations
-- **BeadsTask:goose3-2b0** (BeadsTask) — 1 observations
-- **BeadsTask:goose3-350** (BeadsTask) — 6 observations
-- **BeadsTask:goose3-8cg** (BeadsTask) — 6 observations
-- **BeadsTask:goose3-9uc** (BeadsTask) — 55 observations
-- **BeadsTask:goose3-c4w** (BeadsTask) — 15 observations
-- **BeadsTask:goose3-8ba** (BeadsTask) — 3 observations
-- **BeadsTask:goose3-ooa** (BeadsTask) — 3 observations
-- **BeadsTask:goose3-rq7** (BeadsTask) — 3 observations
-- **BeadsTask_P1_Manifest** (BeadsTask) — 3 observations
-- **BeadsTask_P1_Trait** (BeadsTask) — 3 observations
-- **BeadsTask_P1_Local** (BeadsTask) — 3 observations
-- **BeadsTask_P2_GitHub** (BeadsTask) — 3 observations
-- **BeadsTask_P2_HTTP** (BeadsTask) — 3 observations
-- **BeadsTask_P3_CLI** (BeadsTask) — 3 observations
-- **BeadsTask_P4_Server** (BeadsTask) — 3 observations
-- **BeadsTask_P5_Publish** (BeadsTask) — 3 observations
-- **BeadsTask_P6_Integrate** (BeadsTask) — 3 observations
-- **Gate: goose3-aau** (Gate) — 3 observations
-- **Gate: goose3-60j** (Gate) — 2 observations
-- **Gate: goose3-j8k** (Gate) — 2 observations
-- **Gate: goose3-xzf** (Gate) — 2 observations
-- **Gate: goose3-w7u** (Gate) — 1 observations
-- **Gate: goose3-8ac** (Gate) — 1 observations
-- **Gate: goose3-uvv** (Gate) — 1 observations
-- **Gate:goose3-p6l** (Gate) — 1 observations
-- **Gate:goose3-du1** (Gate) — 1 observations
-- **Gate:goose3-6d5** (Gate) — 1 observations
-- **Gate:goose3-70e** (Gate) — 1 observations
-- **Gate:goose3-684** (Gate) — 2 observations
-- **Gate:goose3-4e4** (Gate) — 2 observations
-- **Gate:goose3-4pv** (Gate) — 2 observations
-- **Gate:goose3-78x** (Gate) — 2 observations
-- **Gate:goose3-3p2** (Gate) — 2 observations
-- **Gate:goose3-bel** (Gate) — 1 observations
-- **Gate:goose3-0e1** (Gate) — 1 observations
-- **BeadsTask_PlanGate** (Gate) — 4 observations
-- **EpicCompletion_AgentPersonaCleanup** (Gate) — 5 observations
-
 ## Reload Instructions
 
-### From Goose
+### From Goose (interactive)
 
-Ask goose:
 ```
 Reload the knowledge graph from docs/kg/graph.json
 ```
 
-### Programmatic
+### From compressed archive
+
+```
+Reload the knowledge graph from docs/kg/graph.json.gz
+```
+
+### Programmatic (emit MCP tool calls)
 
 ```bash
-python3 docs/kg/reload.py --stats-only  # verify
-python3 docs/kg/reload.py --emit-calls > /tmp/kg-calls.json  # generate MCP calls
+python3 docs/kg/reload.py --stats-only           # verify counts
+python3 docs/kg/reload.py --emit-calls > calls.json  # generate MCP calls
+python3 docs/kg/reload.py --graph docs/kg/graph.json.gz --emit-calls  # from compressed
 ```
 
 ### File Inventory
 
-| File | Purpose |
-|------|---------|
-| `graph.json` | Complete graph (entities + relations), canonical lossless export |
-| `entities.json` | Entities only, for selective reload |
-| `relations.json` | Relations only, for selective reload |
-| `manifest.json` | Export metadata: counts, types, timestamp |
-| `ontology.md` | This file — human-readable schema + domain overview |
-| `reload.py` | Script to reload graph into MCP memory server |
+| File | Size | Purpose |
+|------|------|---------|
+| `graph.json` | 3.0MB | Canonical full export (lossless) |
+| `graph.json.gz` | 620KB | Compressed full export |
+| `entities.json` | 2.6MB | Entities only (selective reload) |
+| `relations.json` | 288KB | Relations only (selective reload) |
+| `manifest.json` | 3KB | Export metadata (counts, types, timestamp) |
+| `ontology.md` | 88KB | Human-readable schema + domain overview |
+| `reload.py` | 5KB | Script to regenerate MCP tool calls |
