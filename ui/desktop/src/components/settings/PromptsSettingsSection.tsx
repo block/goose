@@ -180,7 +180,7 @@ export default function PromptsSettingsSection() {
             <div className="flex items-center gap-2">
               <CardTitle>Edit: {selectedPrompt}</CardTitle>
               {promptData?.is_customized && (
-                <span className="px-2 py-0.5 text-xs rounded-full bg-blue-500/20 text-blue-600 dark:text-blue-400">
+                <span className="px-2 py-0.5 text-xs rounded-full bg-background-info text-text-info">
                   Customized
                 </span>
               )}
@@ -223,7 +223,7 @@ export default function PromptsSettingsSection() {
             </div>
 
             {hasChanges && (
-              <div className="text-sm text-yellow-600 dark:text-yellow-400">
+              <div className="text-sm text-text-warning">
                 You have unsaved changes
               </div>
             )}
@@ -235,12 +235,12 @@ export default function PromptsSettingsSection() {
 
   return (
     <div className="space-y-4 pr-4 pb-8 mt-1">
-      <Card className="pb-2 rounded-lg border-yellow-500/50 bg-yellow-500/10">
+      <Card className="pb-2 rounded-lg border-border-info bg-background-info">
         <CardHeader className="pb-2">
           <div className="flex items-start gap-3">
-            <AlertTriangle className="h-5 w-5 text-yellow-500 flex-shrink-0 mt-1" />
+            <AlertTriangle className="h-5 w-5 text-text-info flex-shrink-0 mt-1" />
             <div className="flex-1">
-              <CardTitle className="text-yellow-600 dark:text-yellow-400">Prompt Editing</CardTitle>
+              <CardTitle className="text-text-info">Prompt Editing</CardTitle>
               <p className="text-sm text-text-secondary mt-2">
                 Customize the prompts that define goose's behavior in different contexts. These
                 prompts use Jinja2 templating syntax. Be careful when modifying template variables,
@@ -253,7 +253,7 @@ export default function PromptsSettingsSection() {
                 variant="outline"
                 size="sm"
                 onClick={handleResetAll}
-                className="flex items-center gap-2 border-yellow-500/50 hover:bg-yellow-500/20"
+                className="flex items-center gap-2 border-border-info hover:bg-background-info"
               >
                 <RotateCcw className="h-4 w-4" />
                 Reset All
@@ -272,7 +272,7 @@ export default function PromptsSettingsSection() {
                   <div className="flex items-center gap-2">
                     <h4 className="font-medium text-text-primary truncate">{prompt.name}</h4>
                     {prompt.is_customized && (
-                      <span className="px-2 py-0.5 text-xs rounded-full bg-blue-500/20 text-blue-600 dark:text-blue-400">
+                      <span className="px-2 py-0.5 text-xs rounded-full bg-background-info text-text-info">
                         Customized
                       </span>
                     )}
