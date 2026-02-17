@@ -603,6 +603,10 @@ impl CliSession {
                 history.save(editor);
                 self.handle_compact().await?;
             }
+            InputResult::Variant(level) => {
+                history.save(editor);
+                self.handle_variant(level).await;
+            }
         }
         Ok(())
     }
@@ -708,6 +712,47 @@ impl CliSession {
                 )
                 .dim()
             );
+        }
+    }
+
+    async fn handle_variant(&self, level: Option<String>) {
+        let provider = match self.agent.provider().await {
+            Ok(p) => p,
+            Err(_) => {
+                output::render_error("Provider not available");
+                return;
+            }
+        };
+        let current = provider.get_model_config();
+
+        match level {
+            Some(new_level) => {
+                println!(
+                    "{}",
+                    console::style(format!(
+                        "Variant '{}' will apply on next session start.\n\
+                         To use it now, restart with: goose session --variant {}",
+                        new_level, new_level
+                    ))
+                    .yellow()
+                );
+            }
+            None => {
+                let variant_str = current
+                    .variant
+                    .as_deref()
+                    .unwrap_or("not set");
+                println!(
+                    "{}",
+                    console::style(format!(
+                        "Current variant: {}\n\
+                         Model: {}\n\
+                         Set with: --variant <low|medium|high|max> or GOOSE_VARIANT env var",
+                        variant_str, current.model_name
+                    ))
+                    .cyan()
+                );
+            }
         }
     }
 
