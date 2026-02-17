@@ -567,7 +567,14 @@ Your changes are available in your next goose session.
 
 <Tabs groupId="interface">
   <TabItem value="ui" label="goose Desktop" default>
-    Currently you cannot remove custom providers using goose Desktop.
+    1. Click the <PanelLeft className="inline" size={16} /> button in the top-left to open the sidebar
+    2. Click the `Settings` button on the sidebar
+    3. Click the `Models` tab
+    4. Click `Configure providers`
+    5. Click on your custom provider in the list
+    6. Click `Delete Provider`
+    7. Confirm that you want to permanently remove the custom provider and its stored API key (if applicable) by clicking `Confirm Delete`
+
   </TabItem>
   <TabItem value="cli" label="goose CLI">
     
