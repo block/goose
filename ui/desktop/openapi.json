@@ -1901,6 +1901,117 @@
         }
       }
     },
+    "/auth/login/oidc": {
+      "post": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Login with an OIDC ID token (obtained after the authorization code exchange).",
+        "description": "The CLI exchanges the auth code for tokens client-side, then sends the ID token here.",
+        "operationId": "oidc_login",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OidcLoginRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OIDC login successful",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OidcLoginResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Invalid or unverifiable ID token"
+          }
+        }
+      }
+    },
+    "/auth/login/oidc/code": {
+      "post": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Exchange an OIDC authorization code for a session token.",
+        "description": "The server handles the code-to-token exchange with the OIDC provider,\nvalidates the resulting ID token, and returns a goose session JWT.",
+        "operationId": "oidc_code_exchange",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OidcCodeExchangeRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Code exchange successful",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OidcCodeExchangeResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Unknown OIDC provider"
+          },
+          "401": {
+            "description": "Token exchange or validation failed"
+          },
+          "502": {
+            "description": "Failed to communicate with OIDC provider"
+          }
+        }
+      }
+    },
+    "/auth/login/oidc/url": {
+      "post": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Generate an OIDC authorization URL for starting the login flow.",
+        "description": "The CLI or frontend calls this to get a URL to open in the browser.",
+        "operationId": "oidc_auth_url",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OidcAuthUrlRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Authorization URL generated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OidcAuthUrlResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Unknown OIDC provider"
+          }
+        }
+      }
+    },
     "/auth/logout": {
       "post": {
         "tags": [
@@ -5837,6 +5948,10 @@
           "audience": {
             "type": "string"
           },
+          "client_secret": {
+            "type": "string",
+            "nullable": true
+          },
           "group_claim": {
             "type": "string",
             "nullable": true
@@ -9530,6 +9645,137 @@
           },
           "performance": {
             "$ref": "#/components/schemas/PerformanceSnapshot"
+          }
+        }
+      },
+      "OidcAuthUrlRequest": {
+        "type": "object",
+        "required": [
+          "issuer",
+          "redirect_uri"
+        ],
+        "properties": {
+          "issuer": {
+            "type": "string",
+            "description": "OIDC provider issuer (e.g. \"https://accounts.google.com\")"
+          },
+          "redirect_uri": {
+            "type": "string",
+            "description": "Redirect URI for the callback (e.g. \"http://localhost:PORT/callback\")"
+          },
+          "scopes": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Optional scopes (defaults to \"openid profile email\")",
+            "nullable": true
+          }
+        }
+      },
+      "OidcAuthUrlResponse": {
+        "type": "object",
+        "required": [
+          "auth_url",
+          "state",
+          "nonce"
+        ],
+        "properties": {
+          "auth_url": {
+            "type": "string",
+            "description": "The full authorization URL to redirect the user to"
+          },
+          "nonce": {
+            "type": "string",
+            "description": "The nonce parameter (for replay protection)"
+          },
+          "state": {
+            "type": "string",
+            "description": "The state parameter (for CSRF protection)"
+          }
+        }
+      },
+      "OidcCodeExchangeRequest": {
+        "type": "object",
+        "required": [
+          "issuer",
+          "code",
+          "redirect_uri"
+        ],
+        "properties": {
+          "code": {
+            "type": "string",
+            "description": "The authorization code from the OIDC callback"
+          },
+          "issuer": {
+            "type": "string",
+            "description": "OIDC provider issuer (e.g. \"https://accounts.google.com\")"
+          },
+          "redirect_uri": {
+            "type": "string",
+            "description": "The redirect URI used in the original authorization request"
+          }
+        }
+      },
+      "OidcCodeExchangeResponse": {
+        "type": "object",
+        "required": [
+          "token",
+          "token_type",
+          "expires_in",
+          "user"
+        ],
+        "properties": {
+          "expires_in": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "token": {
+            "type": "string"
+          },
+          "token_type": {
+            "type": "string"
+          },
+          "user": {
+            "$ref": "#/components/schemas/UserInfoResponse"
+          }
+        }
+      },
+      "OidcLoginRequest": {
+        "type": "object",
+        "required": [
+          "id_token"
+        ],
+        "properties": {
+          "id_token": {
+            "type": "string",
+            "description": "The raw ID token from the OIDC provider (obtained via authorization code flow)"
+          }
+        }
+      },
+      "OidcLoginResponse": {
+        "type": "object",
+        "required": [
+          "token",
+          "token_type",
+          "expires_in",
+          "user"
+        ],
+        "properties": {
+          "expires_in": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "token": {
+            "type": "string"
+          },
+          "token_type": {
+            "type": "string"
+          },
+          "user": {
+            "$ref": "#/components/schemas/UserInfoResponse"
           }
         }
       },

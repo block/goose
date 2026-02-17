@@ -76,6 +76,58 @@ pub struct RefreshResponse {
     pub expires_in: u64,
 }
 
+#[derive(Debug, Deserialize, ToSchema)]
+pub struct OidcLoginRequest {
+    /// The raw ID token from the OIDC provider (obtained via authorization code flow)
+    pub id_token: String,
+}
+
+#[derive(Debug, Serialize, Deserialize, ToSchema)]
+pub struct OidcLoginResponse {
+    pub token: String,
+    pub token_type: String,
+    pub expires_in: u64,
+    pub user: UserInfoResponse,
+}
+
+#[derive(Debug, Serialize, Deserialize, ToSchema)]
+pub struct OidcAuthUrlRequest {
+    /// OIDC provider issuer (e.g. "https://accounts.google.com")
+    pub issuer: String,
+    /// Redirect URI for the callback (e.g. "http://localhost:PORT/callback")
+    pub redirect_uri: String,
+    /// Optional scopes (defaults to "openid profile email")
+    pub scopes: Option<Vec<String>>,
+}
+
+#[derive(Debug, Serialize, Deserialize, ToSchema)]
+pub struct OidcAuthUrlResponse {
+    /// The full authorization URL to redirect the user to
+    pub auth_url: String,
+    /// The state parameter (for CSRF protection)
+    pub state: String,
+    /// The nonce parameter (for replay protection)
+    pub nonce: String,
+}
+
+#[derive(Debug, Deserialize, ToSchema)]
+pub struct OidcCodeExchangeRequest {
+    /// OIDC provider issuer (e.g. "https://accounts.google.com")
+    pub issuer: String,
+    /// The authorization code from the OIDC callback
+    pub code: String,
+    /// The redirect URI used in the original authorization request
+    pub redirect_uri: String,
+}
+
+#[derive(Debug, Serialize, Deserialize, ToSchema)]
+pub struct OidcCodeExchangeResponse {
+    pub token: String,
+    pub token_type: String,
+    pub expires_in: u64,
+    pub user: UserInfoResponse,
+}
+
 // ── Route handlers ──────────────────────────────────────────────────────
 
 /// Get current user info from request headers
@@ -219,12 +271,173 @@ pub async fn refresh_token(
     }))
 }
 
+/// Generate an OIDC authorization URL for starting the login flow.
+/// The CLI or frontend calls this to get a URL to open in the browser.
+#[utoipa::path(
+    post,
+    path = "/auth/login/oidc/url",
+    request_body = OidcAuthUrlRequest,
+    responses(
+        (status = 200, description = "Authorization URL generated", body = OidcAuthUrlResponse),
+        (status = 400, description = "Unknown OIDC provider")
+    ),
+    tag = "auth"
+)]
+pub async fn oidc_auth_url(
+    State(state): State<Arc<AppState>>,
+    Json(request): Json<OidcAuthUrlRequest>,
+) -> Result<Json<OidcAuthUrlResponse>, StatusCode> {
+    let providers = state.oidc_validator.list_providers().await;
+    let provider = providers
+        .iter()
+        .find(|p| p.issuer == request.issuer)
+        .ok_or(StatusCode::BAD_REQUEST)?;
+    let client_id = provider.audience.clone();
+
+    let (auth_endpoint, _token_endpoint) = state
+        .oidc_validator
+        .discover_endpoints(&request.issuer)
+        .await
+        .map_err(|e| {
+            tracing::error!("OIDC discovery failed for {}: {}", request.issuer, e);
+            StatusCode::BAD_GATEWAY
+        })?;
+
+    let auth_endpoint = auth_endpoint.ok_or_else(|| {
+        tracing::error!("No authorization_endpoint for {}", request.issuer);
+        StatusCode::BAD_GATEWAY
+    })?;
+
+    let state_param = uuid::Uuid::new_v4().to_string();
+    let nonce = uuid::Uuid::new_v4().to_string();
+    let scopes = request
+        .scopes
+        .unwrap_or_else(|| vec!["openid".into(), "profile".into(), "email".into()]);
+
+    let scope_str = scopes.join(" ");
+    let auth_url = format!(
+        "{}?response_type=code&client_id={}&redirect_uri={}&scope={}&state={}&nonce={}",
+        auth_endpoint,
+        urlencoding::encode(&client_id),
+        urlencoding::encode(&request.redirect_uri),
+        urlencoding::encode(&scope_str),
+        urlencoding::encode(&state_param),
+        urlencoding::encode(&nonce),
+    );
+
+    Ok(Json(OidcAuthUrlResponse {
+        auth_url,
+        state: state_param,
+        nonce,
+    }))
+}
+
+/// Login with an OIDC ID token (obtained after the authorization code exchange).
+/// The CLI exchanges the auth code for tokens client-side, then sends the ID token here.
+#[utoipa::path(
+    post,
+    path = "/auth/login/oidc",
+    request_body = OidcLoginRequest,
+    responses(
+        (status = 200, description = "OIDC login successful", body = OidcLoginResponse),
+        (status = 401, description = "Invalid or unverifiable ID token")
+    ),
+    tag = "auth"
+)]
+pub async fn oidc_login(
+    State(state): State<Arc<AppState>>,
+    Json(request): Json<OidcLoginRequest>,
+) -> Result<Json<OidcLoginResponse>, StatusCode> {
+    // Validate the ID token using our OIDC validator
+    let claims = state
+        .oidc_validator
+        .validate_token(&request.id_token)
+        .await
+        .map_err(|e| {
+            tracing::warn!("OIDC login failed: {}", e);
+            StatusCode::UNAUTHORIZED
+        })?;
+
+    let user = claims.into_user_identity();
+
+    let token = state.session_token_store.issue_token(&user).map_err(|e| {
+        tracing::error!("Failed to issue session token: {}", e);
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?;
+
+    let ttl = state.session_token_store.ttl();
+    Ok(Json(OidcLoginResponse {
+        token,
+        token_type: "Bearer".to_string(),
+        expires_in: ttl.as_secs(),
+        user: UserInfoResponse::from(&user),
+    }))
+}
+
 // ── Router ──────────────────────────────────────────────────────────────
+
+/// Exchange an OIDC authorization code for a session token.
+/// The server handles the code-to-token exchange with the OIDC provider,
+/// validates the resulting ID token, and returns a goose session JWT.
+#[utoipa::path(
+    post,
+    path = "/auth/login/oidc/code",
+    request_body = OidcCodeExchangeRequest,
+    responses(
+        (status = 200, description = "Code exchange successful", body = OidcCodeExchangeResponse),
+        (status = 400, description = "Unknown OIDC provider"),
+        (status = 401, description = "Token exchange or validation failed"),
+        (status = 502, description = "Failed to communicate with OIDC provider")
+    ),
+    tag = "auth"
+)]
+pub async fn oidc_code_exchange(
+    State(state): State<Arc<AppState>>,
+    Json(request): Json<OidcCodeExchangeRequest>,
+) -> Result<Json<OidcCodeExchangeResponse>, StatusCode> {
+    // Exchange the authorization code for tokens via the OIDC provider
+    let (id_token, _access_token) = state
+        .oidc_validator
+        .exchange_code(&request.issuer, &request.code, &request.redirect_uri)
+        .await
+        .map_err(|e| {
+            tracing::warn!("OIDC code exchange failed: {}", e);
+            StatusCode::BAD_GATEWAY
+        })?;
+
+    // Validate the ID token
+    let claims = state
+        .oidc_validator
+        .validate_token(&id_token)
+        .await
+        .map_err(|e| {
+            tracing::warn!("OIDC token validation after code exchange failed: {}", e);
+            StatusCode::UNAUTHORIZED
+        })?;
+
+    let user = claims.into_user_identity();
+
+    let token = state.session_token_store.issue_token(&user).map_err(|e| {
+        tracing::error!("Failed to issue session token: {}", e);
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?;
+
+    let ttl = state.session_token_store.ttl();
+    Ok(Json(OidcCodeExchangeResponse {
+        token,
+        token_type: "Bearer".to_string(),
+        expires_in: ttl.as_secs(),
+        user: UserInfoResponse::from(&user),
+    }))
+}
 
 pub fn routes(state: Arc<AppState>) -> Router {
     Router::new()
         .route("/auth/me", get(get_user_info))
         .route("/auth/login", post(login))
+        .route("/auth/login/oidc", post(oidc_login))
+        .route("/auth/login/oidc/url", post(oidc_auth_url))
+        .route("/auth/login/oidc/code", post(oidc_code_exchange))
         .route("/auth/logout", post(logout))
         .route("/auth/refresh", post(refresh_token))
         .with_state(state)

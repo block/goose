@@ -124,6 +124,7 @@ export type AddExtensionRequest = {
 
 export type AddOidcProviderRequest = {
     audience: string;
+    client_secret?: string | null;
     group_claim?: string | null;
     issuer: string;
     required_groups?: Array<string>;
@@ -1336,6 +1337,72 @@ export type ObservatoryDashboard = {
     activeAgents: Array<ActiveAgent>;
     health: SystemHealth;
     performance: PerformanceSnapshot;
+};
+
+export type OidcAuthUrlRequest = {
+    /**
+     * OIDC provider issuer (e.g. "https://accounts.google.com")
+     */
+    issuer: string;
+    /**
+     * Redirect URI for the callback (e.g. "http://localhost:PORT/callback")
+     */
+    redirect_uri: string;
+    /**
+     * Optional scopes (defaults to "openid profile email")
+     */
+    scopes?: Array<string> | null;
+};
+
+export type OidcAuthUrlResponse = {
+    /**
+     * The full authorization URL to redirect the user to
+     */
+    auth_url: string;
+    /**
+     * The nonce parameter (for replay protection)
+     */
+    nonce: string;
+    /**
+     * The state parameter (for CSRF protection)
+     */
+    state: string;
+};
+
+export type OidcCodeExchangeRequest = {
+    /**
+     * The authorization code from the OIDC callback
+     */
+    code: string;
+    /**
+     * OIDC provider issuer (e.g. "https://accounts.google.com")
+     */
+    issuer: string;
+    /**
+     * The redirect URI used in the original authorization request
+     */
+    redirect_uri: string;
+};
+
+export type OidcCodeExchangeResponse = {
+    expires_in: number;
+    token: string;
+    token_type: string;
+    user: UserInfoResponse;
+};
+
+export type OidcLoginRequest = {
+    /**
+     * The raw ID token from the OIDC provider (obtained via authorization code flow)
+     */
+    id_token: string;
+};
+
+export type OidcLoginResponse = {
+    expires_in: number;
+    token: string;
+    token_type: string;
+    user: UserInfoResponse;
 };
 
 export type OidcProviderInfo = {
@@ -3835,6 +3902,83 @@ export type LoginResponses = {
 };
 
 export type LoginResponse2 = LoginResponses[keyof LoginResponses];
+
+export type OidcLoginData = {
+    body: OidcLoginRequest;
+    path?: never;
+    query?: never;
+    url: '/auth/login/oidc';
+};
+
+export type OidcLoginErrors = {
+    /**
+     * Invalid or unverifiable ID token
+     */
+    401: unknown;
+};
+
+export type OidcLoginResponses = {
+    /**
+     * OIDC login successful
+     */
+    200: OidcLoginResponse;
+};
+
+export type OidcLoginResponse2 = OidcLoginResponses[keyof OidcLoginResponses];
+
+export type OidcCodeExchangeData = {
+    body: OidcCodeExchangeRequest;
+    path?: never;
+    query?: never;
+    url: '/auth/login/oidc/code';
+};
+
+export type OidcCodeExchangeErrors = {
+    /**
+     * Unknown OIDC provider
+     */
+    400: unknown;
+    /**
+     * Token exchange or validation failed
+     */
+    401: unknown;
+    /**
+     * Failed to communicate with OIDC provider
+     */
+    502: unknown;
+};
+
+export type OidcCodeExchangeResponses = {
+    /**
+     * Code exchange successful
+     */
+    200: OidcCodeExchangeResponse;
+};
+
+export type OidcCodeExchangeResponse2 = OidcCodeExchangeResponses[keyof OidcCodeExchangeResponses];
+
+export type OidcAuthUrlData = {
+    body: OidcAuthUrlRequest;
+    path?: never;
+    query?: never;
+    url: '/auth/login/oidc/url';
+};
+
+export type OidcAuthUrlErrors = {
+    /**
+     * Unknown OIDC provider
+     */
+    400: unknown;
+};
+
+export type OidcAuthUrlResponses = {
+    /**
+     * Authorization URL generated
+     */
+    200: OidcAuthUrlResponse;
+};
+
+export type OidcAuthUrlResponse2 = OidcAuthUrlResponses[keyof OidcAuthUrlResponses];
 
 export type LogoutData = {
     body?: never;

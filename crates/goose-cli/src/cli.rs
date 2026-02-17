@@ -1022,6 +1022,13 @@ enum Command {
         command: RegistryCommand,
     },
 
+    /// Authenticate with an identity provider
+    #[command(about = "Manage authentication and identity")]
+    Auth {
+        #[command(subcommand)]
+        command: AuthCommand,
+    },
+
     /// Manage agents (list, add, remove, show, search)
     #[command(about = "Manage agents")]
     Agent {
@@ -1218,6 +1225,29 @@ enum ServiceCommand {
     Logs,
 }
 
+#[derive(Subcommand)]
+enum AuthCommand {
+    /// Log in with an OIDC identity provider
+    #[command(about = "Log in with an OIDC identity provider (opens browser)")]
+    Login {
+        /// OIDC provider issuer URL (e.g., https://accounts.google.com)
+        #[arg(short, long, help = "OIDC provider issuer URL")]
+        provider: String,
+    },
+
+    /// Log out and clear stored credentials
+    #[command(about = "Log out and clear stored session token")]
+    Logout,
+
+    /// Show current authentication status
+    #[command(about = "Show current authentication status")]
+    Status,
+
+    /// Show current user identity
+    #[command(about = "Show current user identity (short form)")]
+    Whoami,
+}
+
 #[derive(clap::ValueEnum, Clone, Debug)]
 enum CliProviderVariant {
     OpenAi,
@@ -1246,6 +1276,7 @@ fn get_command_name(command: &Option<Command>) -> &'static str {
         Some(Command::Registry { .. }) => "registry",
         Some(Command::Agent { .. }) => "agent",
         // Orchestrate is a sub-command of agent
+        Some(Command::Auth { .. }) => "auth",
         Some(Command::Skill { .. }) => "skill",
         Some(Command::Web { .. }) => "web",
         Some(Command::Term { .. }) => "term",
@@ -1768,6 +1799,25 @@ fn handle_service_subcommand(command: ServiceCommand) -> Result<()> {
     }
 }
 
+async fn handle_auth_subcommand(command: AuthCommand) -> Result<()> {
+    let working_dir = std::env::current_dir()
+        .unwrap_or_default()
+        .to_string_lossy()
+        .to_string();
+    let client = crate::goosed_client::GoosedClient::spawn_or_discover(&working_dir).await?;
+    let server_url = client.base_url();
+    let secret_key = client.secret_key();
+
+    match command {
+        AuthCommand::Login { provider } => {
+            crate::commands::auth::handle_login(server_url, secret_key, &provider).await
+        }
+        AuthCommand::Logout => crate::commands::auth::handle_logout(server_url, secret_key).await,
+        AuthCommand::Status => crate::commands::auth::handle_status(server_url, secret_key).await,
+        AuthCommand::Whoami => crate::commands::auth::handle_whoami(server_url, secret_key).await,
+    }
+}
+
 async fn handle_default_session() -> Result<()> {
     if !Config::global().exists() {
         return handle_configure().await;
@@ -1891,6 +1941,7 @@ pub async fn cli() -> anyhow::Result<()> {
         Some(Command::Recipe { command }) => handle_recipe_subcommand(command),
         Some(Command::Registry { command }) => handle_registry_subcommand(command).await,
         Some(Command::Agent { command }) => handle_agent_subcommand(command).await,
+        Some(Command::Auth { command }) => handle_auth_subcommand(command).await,
         Some(Command::Skill { command }) => handle_skill_subcommand(command).await,
         Some(Command::Web {
             port,

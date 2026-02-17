@@ -1,3 +1,4 @@
+pub mod auth;
 pub mod configure;
 pub mod info;
 pub mod project;

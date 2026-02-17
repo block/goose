@@ -25,6 +25,8 @@ pub struct OidcProviderConfig {
     pub issuer: String,
     pub audience: String,
     #[serde(default)]
+    pub client_secret: Option<String>,
+    #[serde(default)]
     pub tenant_claim: Option<String>,
     #[serde(default)]
     pub group_claim: Option<String>,
@@ -37,6 +39,10 @@ pub struct OidcProviderConfig {
 struct OidcDiscovery {
     issuer: String,
     jwks_uri: String,
+    #[serde(default)]
+    pub token_endpoint: Option<String>,
+    #[serde(default)]
+    pub authorization_endpoint: Option<String>,
 }
 
 /// JWKS key set from the provider.
@@ -118,6 +124,10 @@ pub enum OidcError {
     MissingSubject,
     #[error("group authorization failed: user not in required groups")]
     GroupAuthorizationFailed,
+    #[error("missing token endpoint for issuer: {0}")]
+    MissingTokenEndpoint(String),
+    #[error("token exchange failed for {issuer}: {message}")]
+    TokenExchangeFailed { issuer: String, message: String },
 }
 
 impl OidcValidator {
@@ -156,6 +166,94 @@ impl OidcValidator {
         self.providers.write().await.remove(issuer);
         self.discovery_cache.write().await.remove(issuer);
         self.jwks_cache.write().await.remove(issuer);
+    }
+
+    /// Get the authorization and token endpoints for a provider via OIDC discovery.
+    pub async fn discover_endpoints(
+        &self,
+        issuer: &str,
+    ) -> Result<(Option<String>, Option<String>), OidcError> {
+        let discovery = self.discover(issuer).await?;
+        Ok((
+            discovery.authorization_endpoint.clone(),
+            discovery.token_endpoint.clone(),
+        ))
+    }
+
+    /// Exchange an authorization code for tokens using the provider's token endpoint.
+    pub async fn exchange_code(
+        &self,
+        issuer: &str,
+        code: &str,
+        redirect_uri: &str,
+    ) -> Result<(String, Option<String>), OidcError> {
+        let providers = self.providers.read().await;
+        let config = providers
+            .get(issuer)
+            .ok_or_else(|| OidcError::UnknownIssuer(issuer.to_string()))?;
+
+        let client_id = config.audience.clone();
+        let client_secret = config.client_secret.clone();
+        drop(providers);
+
+        let discovery = self.discover(issuer).await?;
+        let token_endpoint = discovery
+            .token_endpoint
+            .as_ref()
+            .ok_or_else(|| OidcError::MissingTokenEndpoint(issuer.to_string()))?;
+
+        let mut params = vec![
+            ("grant_type", "authorization_code".to_string()),
+            ("code", code.to_string()),
+            ("redirect_uri", redirect_uri.to_string()),
+            ("client_id", client_id),
+        ];
+        if let Some(secret) = client_secret {
+            params.push(("client_secret", secret));
+        }
+
+        let resp = self
+            .http_client
+            .post(token_endpoint)
+            .form(&params)
+            .send()
+            .await
+            .map_err(|e| OidcError::TokenExchangeFailed {
+                issuer: issuer.to_string(),
+                message: e.to_string(),
+            })?;
+
+        if !resp.status().is_success() {
+            let status = resp.status();
+            let body = resp.text().await.unwrap_or_default();
+            return Err(OidcError::TokenExchangeFailed {
+                issuer: issuer.to_string(),
+                message: format!("HTTP {}: {}", status, body),
+            });
+        }
+
+        #[derive(Deserialize)]
+        struct TokenResponse {
+            id_token: Option<String>,
+            access_token: Option<String>,
+        }
+
+        let token_resp: TokenResponse =
+            resp.json()
+                .await
+                .map_err(|e| OidcError::TokenExchangeFailed {
+                    issuer: issuer.to_string(),
+                    message: format!("failed to parse token response: {}", e),
+                })?;
+
+        let id_token = token_resp
+            .id_token
+            .ok_or_else(|| OidcError::TokenExchangeFailed {
+                issuer: issuer.to_string(),
+                message: "provider did not return an id_token".to_string(),
+            })?;
+
+        Ok((id_token, token_resp.access_token))
     }
 
     /// Validate a Bearer token and return validated claims.
@@ -472,6 +570,7 @@ mod tests {
                 audience: "my-app".into(),
                 tenant_claim: None,
                 group_claim: None,
+                client_secret: None,
                 required_groups: vec![],
             },
             OidcProviderConfig {
@@ -479,6 +578,7 @@ mod tests {
                 audience: "my-app".into(),
                 tenant_claim: Some("tid".into()),
                 group_claim: Some("groups".into()),
+                client_secret: None,
                 required_groups: vec!["goose-users".into()],
             },
         ]);
@@ -496,6 +596,7 @@ mod tests {
                 audience: "my-app".into(),
                 tenant_claim: None,
                 group_claim: None,
+                client_secret: None,
                 required_groups: vec![],
             })
             .await;
@@ -524,6 +625,7 @@ mod tests {
             audience: "test".into(),
             tenant_claim: None,
             group_claim: None,
+            client_secret: None,
             required_groups: vec![],
         }]);
 

@@ -4380,6 +4380,7 @@ dependencies = [
  "tracing-appender",
  "tracing-subscriber",
  "url",
+ "urlencoding",
  "utoipa 4.2.3",
  "uuid",
  "winreg 0.55.0",

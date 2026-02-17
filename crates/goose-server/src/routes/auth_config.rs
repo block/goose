@@ -40,6 +40,8 @@ pub struct AddOidcProviderRequest {
     pub issuer: String,
     pub audience: String,
     #[serde(default)]
+    pub client_secret: Option<String>,
+    #[serde(default)]
     pub tenant_claim: Option<String>,
     #[serde(default)]
     pub group_claim: Option<String>,
@@ -91,6 +93,7 @@ pub async fn add_oidc_provider(
     let config = OidcProviderConfig {
         issuer: req.issuer.clone(),
         audience: req.audience,
+        client_secret: req.client_secret,
         tenant_claim: req.tenant_claim,
         group_claim: req.group_claim,
         required_groups: req.required_groups,
@@ -215,6 +218,7 @@ mod tests {
         let add_req = AddOidcProviderRequest {
             issuer: "https://accounts.google.com".to_string(),
             audience: "my-app".to_string(),
+            client_secret: None,
             tenant_claim: Some("tid".to_string()),
             group_claim: None,
             required_groups: vec![],
@@ -249,6 +253,7 @@ mod tests {
             .add_provider(OidcProviderConfig {
                 issuer: "https://accounts.google.com".into(),
                 audience: "test-app".into(),
+                client_secret: None,
                 tenant_claim: None,
                 group_claim: None,
                 required_groups: vec![],
