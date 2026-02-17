@@ -60,19 +60,19 @@ export default function RecipeActivityEditor({
 
   return (
     <div>
-      <label htmlFor="activities" className="block text-md text-text-default mb-2 font-bold">
+      <label htmlFor="activities" className="block text-md text-text-primary mb-2 font-bold">
         Activities
       </label>
-      <p className="text-sm text-text-muted space-y-2 pb-4">
+      <p className="text-sm text-text-secondary space-y-2 pb-4">
         The top-line prompts and activity buttons that will display in the recipe chat window.
       </p>
 
       {/* Message Field */}
       <div>
-        <label htmlFor="message" className="block text-sm font-medium text-text-default mb-2">
+        <label htmlFor="message" className="block text-sm font-medium text-text-primary mb-2">
           Message
         </label>
-        <p className="text-xs text-text-muted mb-2">
+        <p className="text-xs text-text-secondary mb-2">
           A formatted message that will appear at the top of the recipe. Supports markdown
           formatting.
         </p>
@@ -81,7 +81,7 @@ export default function RecipeActivityEditor({
           value={messageContent}
           onChange={(e) => handleMessageChange(e.target.value)}
           onBlur={onBlur}
-          className="w-full px-4 py-3 border rounded-lg bg-background-default text-text-default placeholder:text-text-muted focus:outline-none focus:ring-2 focus:ring-border-strong resize-vertical"
+          className="w-full px-4 py-3 border rounded-lg bg-background-primary text-text-primary placeholder:text-text-secondary focus:outline-none focus:ring-2 focus:ring-border-secondary resize-vertical"
           placeholder="Enter a user facing introduction message for your recipe (supports **bold**, *italic*, `code`, etc.)"
           rows={3}
           autoCorrect="off"
@@ -93,10 +93,10 @@ export default function RecipeActivityEditor({
       {/* Regular Activities */}
       <div className="space-y-4">
         <div>
-          <label className="block text-sm font-medium text-text-default mb-2">
+          <label className="block text-sm font-medium text-text-primary mb-2">
             Activity Buttons
           </label>
-          <p className="text-xs text-text-muted mb-3">
+          <p className="text-xs text-text-secondary mb-3">
             Clickable buttons that will appear below the message to help users interact with your
             recipe.
           </p>
@@ -107,7 +107,7 @@ export default function RecipeActivityEditor({
             {nonMessageActivities.map((activity, index) => (
               <div
                 key={index}
-                className="inline-flex items-center bg-background-default border-2 border-border-default rounded-full px-4 py-2 text-sm text-text-default"
+                className="inline-flex items-center bg-background-primary border-2 border-border-primary rounded-full px-4 py-2 text-sm text-text-primary"
                 title={activity.length > 100 ? activity : undefined}
               >
                 <span>{activity.length > 100 ? activity.slice(0, 100) + '...' : activity}</span>
@@ -116,7 +116,7 @@ export default function RecipeActivityEditor({
                   onClick={() => handleRemoveActivity(activity)}
                   variant="ghost"
                   size="sm"
-                  className="ml-2 text-text-default hover:text-text-muted transition-colors p-0 h-auto"
+                  className="ml-2 text-text-primary hover:text-text-secondary transition-colors p-0 h-auto"
                 >
                   ×
                 </Button>
@@ -131,7 +131,7 @@ export default function RecipeActivityEditor({
             onChange={(e) => setNewActivity(e.target.value)}
             onKeyPress={(e) => e.key === 'Enter' && handleAddActivity()}
             onBlur={onBlur}
-            className="flex-1 px-3 py-2 border border-border-default rounded-lg bg-background-default text-text-default focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+            className="flex-1 px-3 py-2 border border-border-primary rounded-lg bg-background-primary text-text-primary focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
             placeholder="Add new activity..."
           />
           <button

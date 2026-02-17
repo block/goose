@@ -330,7 +330,7 @@ export default function MCPUIResourceRenderer({
   };
 
   return (
-    <div className="mt-3 p-4 border border-border-default rounded-lg bg-background-muted">
+    <div className="mt-3 p-4 border border-border-primary rounded-lg bg-background-secondary">
       <div className="overflow-hidden rounded-sm">
         <UIResourceRenderer
           resource={content.resource}

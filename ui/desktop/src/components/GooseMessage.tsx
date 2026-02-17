@@ -143,8 +143,8 @@ export default function GooseMessage({
         )}
 
         {cotText && (
-          <details className="bg-background-muted border border-border-default rounded p-2 mb-2">
-            <summary className="cursor-pointer text-sm text-text-muted select-none">
+          <details className="bg-background-secondary border border-border-primary rounded p-2 mb-2">
+            <summary className="cursor-pointer text-sm text-text-secondary select-none">
               Show thinking
             </summary>
             <div className="mt-2">
@@ -172,7 +172,7 @@ export default function GooseMessage({
             {toolRequests.length === 0 && (
               <div className="relative flex justify-start">
                 {!isStreaming && (
-                  <div className="text-xs font-mono text-text-muted pt-1 transition-all duration-200 group-hover:-translate-y-4 group-hover:opacity-0">
+                  <div className="text-xs font-mono text-text-secondary pt-1 transition-all duration-200 group-hover:-translate-y-4 group-hover:opacity-0">
                     {timestamp}
                   </div>
                 )}
@@ -213,7 +213,7 @@ export default function GooseMessage({
                   );
                 })}
               </div>
-              <div className="text-xs text-text-muted transition-all duration-200 group-hover:-translate-y-4 group-hover:opacity-0 pt-1">
+              <div className="text-xs text-text-secondary transition-all duration-200 group-hover:-translate-y-4 group-hover:opacity-0 pt-1">
                 {!isStreaming && !hideTimestamp && timestamp}
               </div>
             </div>

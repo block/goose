@@ -347,7 +347,7 @@ function SidebarSeparator({ className, ...props }: React.ComponentProps<typeof S
     <Separator
       data-slot="sidebar-separator"
       data-sidebar="separator"
-      className={cn('bg-border-strong ml-5 my-2 !w-8', className)}
+      className={cn('bg-border-secondary ml-5 my-2 !w-8', className)}
       {...props}
     />
   );

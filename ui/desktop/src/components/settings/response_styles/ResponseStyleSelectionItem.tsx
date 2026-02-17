@@ -41,14 +41,14 @@ export function ResponseStyleSelectionItem({
   return (
     <div className="group hover:cursor-pointer text-sm">
       <div
-        className={`flex items-center justify-between text-text-default py-2 px-2 ${checked ? 'bg-background-muted' : 'bg-background-default hover:bg-background-muted'} rounded-lg transition-all`}
+        className={`flex items-center justify-between text-text-primary py-2 px-2 ${checked ? 'bg-background-secondary' : 'bg-background-primary hover:bg-background-secondary'} rounded-lg transition-all`}
         onClick={() => handleStyleChange(style.key)}
       >
         <div className="flex">
           <div>
-            <h3 className="text-text-default">{style.label}</h3>
+            <h3 className="text-text-primary">{style.label}</h3>
             {showDescription && (
-              <p className="text-xs text-text-muted mt-[2px]">{style.description}</p>
+              <p className="text-xs text-text-secondary mt-[2px]">{style.description}</p>
             )}
           </div>
         </div>
@@ -63,10 +63,10 @@ export function ResponseStyleSelectionItem({
             className="peer sr-only"
           />
           <div
-            className="h-4 w-4 rounded-full border border-border-default 
+            className="h-4 w-4 rounded-full border border-border-primary 
                   peer-checked:border-[6px] peer-checked:border-black dark:peer-checked:border-white
                   peer-checked:bg-white dark:peer-checked:bg-black
-                  transition-all duration-200 ease-in-out group-hover:border-border-default"
+                  transition-all duration-200 ease-in-out group-hover:border-border-primary"
           ></div>
         </div>
       </div>

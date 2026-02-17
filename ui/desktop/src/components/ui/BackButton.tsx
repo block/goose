@@ -69,7 +69,7 @@ const BackButton: React.FC<BackButtonProps> = ({
       size={size}
       shape={shape}
       className={cn(
-        'rounded-full px-6 py-2 flex items-center gap-2 text-text-default hover:cursor-pointer',
+        'rounded-full px-6 py-2 flex items-center gap-2 text-text-primary hover:cursor-pointer',
         className
       )}
       {...props}

@@ -187,7 +187,7 @@ export default function McpAppRenderer({
 }: McpAppRendererProps) {
   const isExpandedView = displayMode === 'fullscreen' || displayMode === 'standalone';
 
-  const { resolvedTheme } = useTheme();
+  const { resolvedTheme, mcpHostStyles } = useTheme();
 
   const initialState: AppState = cachedHtml
     ? { status: 'loading_sandbox', html: cachedHtml, meta: DEFAULT_META }
@@ -447,7 +447,7 @@ export default function McpAppRenderer({
     const context: McpUiHostContext = {
       // todo: toolInfo: {}
       theme: resolvedTheme,
-      // todo: styles: { variables: {}, styles: {} }
+      styles: mcpHostStyles,
       // 'standalone' is a Goose-specific display mode (dedicated Electron window)
       // that maps to the spec's inline | fullscreen | pip modes.
       displayMode: displayMode as McpUiDisplayMode,
@@ -537,11 +537,11 @@ export default function McpAppRenderer({
   };
 
   const containerClasses = cn(
-    'bg-background-default overflow-hidden',
+    'bg-background-primary overflow-hidden',
     iframeWidth === null && '[&_iframe]:!w-full',
     isError && 'border border-red-500 rounded-lg bg-red-50 dark:bg-red-900/20',
     !isError && !isExpandedView && 'mt-6 mb-2',
-    !isError && !isExpandedView && meta.prefersBorder && 'border border-border-default rounded-lg'
+    !isError && !isExpandedView && meta.prefersBorder && 'border border-border-primary rounded-lg'
   );
 
   const containerStyle = isExpandedView

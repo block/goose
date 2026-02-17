@@ -146,8 +146,8 @@ export default function ImportRecipeForm({ isOpen, onClose, onSuccess }: ImportR
   return (
     <>
       <div className="fixed inset-0 z-[300] flex items-center justify-center bg-black/50">
-        <div className="bg-background-default border border-border-default rounded-lg p-6 w-[500px] max-w-[90vw]">
-          <h3 className="text-lg font-medium text-text-default mb-4">Import Recipe</h3>
+        <div className="bg-background-primary border border-border-primary rounded-lg p-6 w-[500px] max-w-[90vw]">
+          <h3 className="text-lg font-medium text-text-primary mb-4">Import Recipe</h3>
 
           <form
             onSubmit={(e) => {
@@ -168,7 +168,7 @@ export default function ImportRecipeForm({ isOpen, onClose, onSuccess }: ImportR
                           <div className={isDisabled ? 'opacity-50' : ''}>
                             <label
                               htmlFor="import-deeplink"
-                              className="block text-sm font-medium text-text-default mb-2"
+                              className="block text-sm font-medium text-text-primary mb-2"
                             >
                               Recipe Deeplink
                             </label>
@@ -178,17 +178,17 @@ export default function ImportRecipeForm({ isOpen, onClose, onSuccess }: ImportR
                               onChange={(e) => handleDeeplinkChange(e.target.value, field)}
                               onBlur={field.handleBlur}
                               disabled={isDisabled}
-                              className={`w-full p-3 border rounded-lg bg-background-default text-text-default focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none ${
+                              className={`w-full p-3 border rounded-lg bg-background-primary text-text-primary focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none ${
                                 field.state.meta.errors.length > 0
                                   ? 'border-red-500'
-                                  : 'border-border-default'
+                                  : 'border-border-primary'
                               } ${isDisabled ? 'cursor-not-allowed bg-gray-40 text-gray-300' : ''}`}
                               placeholder="Paste your goose://recipe?config=... deeplink here"
                               rows={3}
                               autoFocus={!isDisabled}
                             />
                             <p
-                              className={`text-xs mt-1 ${isDisabled ? 'text-gray-300' : 'text-text-muted'}`}
+                              className={`text-xs mt-1 ${isDisabled ? 'text-gray-300' : 'text-text-secondary'}`}
                             >
                               Paste a recipe deeplink starting with "goose://recipe?config="
                             </p>
@@ -207,10 +207,10 @@ export default function ImportRecipeForm({ isOpen, onClose, onSuccess }: ImportR
 
                     <div className="relative">
                       <div className="absolute inset-0 flex items-center">
-                        <div className="w-full border-t border-border-default" />
+                        <div className="w-full border-t border-border-primary" />
                       </div>
                       <div className="relative flex justify-center text-sm">
-                        <span className="px-3 bg-background-default text-text-muted font-medium">
+                        <span className="px-3 bg-background-primary text-text-secondary font-medium">
                           OR
                         </span>
                       </div>
@@ -225,7 +225,7 @@ export default function ImportRecipeForm({ isOpen, onClose, onSuccess }: ImportR
                           <div className={isDisabled ? 'opacity-50' : ''}>
                             <label
                               htmlFor="import-recipe-file"
-                              className="block text-sm font-medium text-text-default mb-3"
+                              className="block text-sm font-medium text-text-primary mb-3"
                             >
                               Recipe File
                             </label>
@@ -246,7 +246,7 @@ export default function ImportRecipeForm({ isOpen, onClose, onSuccess }: ImportR
                             </div>
                             <div className="flex items-center justify-between">
                               <p
-                                className={`text-xs mt-1 ${isDisabled ? 'text-gray-300' : 'text-text-muted'}`}
+                                className={`text-xs mt-1 ${isDisabled ? 'text-gray-300' : 'text-text-secondary'}`}
                               >
                                 Upload a YAML or JSON file containing the recipe structure
                               </p>
@@ -275,7 +275,7 @@ export default function ImportRecipeForm({ isOpen, onClose, onSuccess }: ImportR
                 )}
               </importRecipeForm.Subscribe>
 
-              <p className="text-xs text-text-muted">
+              <p className="text-xs text-text-secondary">
                 Ensure you review contents of recipe files before adding them to your goose
                 interface.
               </p>
@@ -306,13 +306,13 @@ export default function ImportRecipeForm({ isOpen, onClose, onSuccess }: ImportR
       {/* Schema Modal */}
       {showSchemaModal && (
         <div className="fixed inset-0 z-[400] flex items-center justify-center bg-black/50">
-          <div className="bg-background-default border border-border-default rounded-lg p-6 w-[800px] max-w-[90vw] max-h-[80vh] flex flex-col">
+          <div className="bg-background-primary border border-border-primary rounded-lg p-6 w-[800px] max-w-[90vw] max-h-[80vh] flex flex-col">
             <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-medium text-text-default">Expected Recipe Structure</h3>
+              <h3 className="text-lg font-medium text-text-primary">Expected Recipe Structure</h3>
               <button
                 type="button"
                 onClick={() => setShowSchemaModal(false)}
-                className="text-text-muted hover:text-text-default"
+                className="text-text-secondary hover:text-text-primary"
               >
                 ✕
               </button>

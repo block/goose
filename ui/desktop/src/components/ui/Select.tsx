@@ -13,9 +13,9 @@ export const Select = (props: React.ComponentProps<typeof ReactSelect>) => {
         container: () => 'w-full cursor-pointer relative',
         indicatorSeparator: () => 'h-0',
         control: ({ isFocused }) =>
-          `border ${isFocused ? 'border-border-default' : 'border-border-default'} focus:border-border-default hover:border-border-default rounded-md w-full px-4 py-2 text-sm text-text-muted hover:cursor-pointer`,
+          `border ${isFocused ? 'border-border-primary' : 'border-border-primary'} focus:border-border-primary hover:border-border-primary rounded-md w-full px-4 py-2 text-sm text-text-secondary hover:cursor-pointer`,
         menu: () =>
-          'mt-1 bg-background-default border border-border-default rounded-md text-text-muted shadow-lg select__menu z-[9999] absolute',
+          'mt-1 bg-background-primary border border-border-primary rounded-md text-text-secondary shadow-lg select__menu z-[9999] absolute',
         menuList: () => 'max-h-60 overflow-y-auto py-1',
         option: ({ isFocused, isSelected, isDisabled }) => {
           let classes = 'py-2 px-4 text-sm cursor-pointer';
@@ -23,11 +23,11 @@ export const Select = (props: React.ComponentProps<typeof ReactSelect>) => {
           if (isDisabled) {
             classes += ' opacity-50 cursor-not-allowed pointer-events-none';
           } else if (isSelected) {
-            classes += ' bg-background-accent text-text-on-accent pointer-events-auto';
+            classes += ' bg-background-inverse text-text-inverse pointer-events-auto';
           } else if (isFocused) {
-            classes += ' bg-background-muted text-text-default pointer-events-auto';
+            classes += ' bg-background-secondary text-text-primary pointer-events-auto';
           } else {
-            classes += ' text-text-default hover:bg-background-muted pointer-events-auto';
+            classes += ' text-text-primary hover:bg-background-secondary pointer-events-auto';
           }
 
           return classes;
