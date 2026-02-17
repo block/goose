@@ -2,14 +2,19 @@
 //!
 //! This module groups delegation and orchestration components:
 //! - `DelegationStrategy` — routing strategy for task delegation (in-process, ACP, A2A)
+//! - `Dispatcher` — execution backend abstraction (in-process, A2A, composite)
 //! - `SubagentExecutionTool` — notification events for sub-agent progress
 //!
 //! # Usage
 //! ```rust,ignore
-//! use goose::agents::orchestration::DelegationStrategy;
+//! use goose::agents::orchestration::{DelegationStrategy, Dispatcher, CompositeDispatcher};
 //! ```
 
 pub use super::delegation::DelegationStrategy;
+pub use super::dispatch::{
+    A2ADispatcher, CompositeDispatcher, DispatchEvent, DispatchResult, DispatchStatus, Dispatcher,
+    InProcessDispatcher,
+};
 pub use super::subagent_execution_tool;
 
 // pub(crate) re-exports — accessible within the crate only
