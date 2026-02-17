@@ -1,0 +1,155 @@
+# Non-Obvious Knowledge — Goose Codebase
+
+Hard-won lessons from development that aren't obvious from reading the code.
+
+---
+
+## UI / Electron
+
+### TooltipProvider Must NOT Wrap Individual Tooltips
+**File**: `ui/desktop/src/components/ui/Tooltip.tsx`
+
+The `Tooltip` component must **not** create a new `<TooltipProvider>` per instance.
+The app already has a top-level provider via `SidebarProvider` in `sidebar.tsx`.
+
+Creating per-instance providers causes **infinite render loops** when the tooltip
+is inside a frequently-updating component (like `BaseChat` during message streaming):
+new context → child re-mount → state change → parent re-render → new context → ∞
+
+**Exception**: Components portaled outside the React tree (e.g., `react-toastify` toasts)
+need their own explicit `<TooltipProvider>` since they don't inherit from the app tree.
+
+Files with explicit `TooltipProvider`: `SessionListView.tsx`, `DirSwitcher.tsx`,
+`TooltipWrapper.tsx`, `toasts.tsx`.
+
+### Recharts Tooltip ≠ Radix Tooltip
+`generative-registry.tsx` uses `<Tooltip>` from **Recharts** (charting library),
+not our Radix-based `Tooltip.tsx`. They share the name but are unrelated components.
+
+### Prompt Bar Overlap
+`<Outlet/>` in `AppLayout.tsx` needs bottom padding (`pb-20`) because the `PromptBar`
+uses `fixed bottom-0 z-50` positioning. Without padding, chat content scrolls behind
+the input bar and becomes unreadable.
+
+### MarkdownContent Test Drift
+`MarkdownContent.test.tsx` line 389 expects `prose-a:break-all` but the component
+uses `prose-a:break-words`. Pre-existing — update the test if touching that file.
+
+### electron-devtools-installer
+React DevTools are installed via `electron-devtools-installer` package (not manual
+Chrome extension path lookup). Only runs in dev mode: `if (!app.isPackaged)`.
+
+---
+
+## Rust / Backend
+
+### SessionManager::new Takes PathBuf, Not Optional
+```rust
+SessionManager::new(path: PathBuf)  // correct
+SessionManager::new(None)           // WRONG - not optional, not async
+```
+
+### SessionType Has No Fork Variant
+`SessionType` enum: `User`, `Scheduled`, `Specialist`, `Hidden`, `Terminal`.
+No `Fork` or `Base` variant exists. For forked sessions, use `SessionType::User`.
+
+### ExtensionData API
+```rust
+// CORRECT: set_extension_state(name, version, value)
+session.set_extension_state("orchestrator", "1.0.0", &state)?;
+
+// WRONG: no insert() method
+session.insert("key", value);
+```
+
+### create_session Takes 3 Args
+```rust
+session_manager.create_session(path, name, session_type)  // 3 args
+session_manager.create_session(path, name)                 // WRONG - 2 args
+```
+
+### tempfile::TempDir Must Be Returned from Test Helpers
+SQLite databases backed by temp directories get deleted when `TempDir` drops.
+Test helper functions that create `SessionManager` must return the `TempDir`
+alongside the manager, or the DB disappears mid-test.
+
+```rust
+fn setup_test() -> (SessionManager, TempDir) {
+    let dir = TempDir::new().unwrap();
+    let mgr = SessionManager::new(dir.path().to_path_buf());
+    (mgr, dir)  // dir must live as long as mgr
+}
+```
+
+### Clippy Preferences
+- Use `is_none_or(|x| ...)` instead of `map_or(true, |x| ...)`
+- Use `while let Some(x) = iter.next()` instead of `loop { match iter.next() { ... } }`
+- `is_multiple_of` is nightly-only — use `x % n == 0` instead
+
+### Analytics Endpoints Return Defaults on Error
+`get_agent_performance()` and `get_response_quality()` in `analytics.rs` catch
+SQLite errors and return default metrics with a warning log, instead of 500s.
+This is intentional — fresh databases don't have the required schema/columns.
+
+---
+
+## Custom Providers / Azure
+
+### Model Name Must Exactly Match Deployment Name
+For Azure-hosted Anthropic (or OpenAI), the `GOOSE_MODEL` in `config.yaml` must
+**exactly** match the `"name"` in the custom provider JSON `models` array, which
+must **exactly** match the Azure deployment name.
+
+```yaml
+# config.yaml
+GOOSE_MODEL: claude-opus-4-6    # hyphens ✓
+GOOSE_MODEL: claude-opus-4.6    # dots ✗ — Azure looks for deployment "claude-opus-4.6"
+```
+
+Error symptom: `The API deployment claude-opus-4.6 does not exist`
+
+### Hyphens in Env Var Names
+Custom provider configs can reference env vars with hyphens
+(`CUSTOM_CLAUDE-OPUS-4-6_API_KEY`). This is unusual — most shells don't support
+hyphens in env var names. Set it in `.env` or `secrets.yaml` instead.
+
+---
+
+## Architecture
+
+### Persona = Class Definition, Agent = Runtime Instance
+- **Persona**: Data definition (system prompt, tool groups, temperature, description)
+- **Agent**: Runtime instance that executes with a persona's configuration
+- Multiple Agent instances can share the same Persona definition
+
+### God Files (Refactor Targets)
+| File | Lines | Notes |
+|------|-------|-------|
+| `agents/summon_extension.rs` | ~2212 | Partially split into `summon/` sub-modules |
+| `agents/extension_manager.rs` | ~2158 | Core extension lifecycle |
+| `agents/agent.rs` | ~2108 | Main agent runtime loop |
+
+### AgentPool Architecture
+- Each `AgentInstance` owns a `broadcast::Sender<PoolEvent>` for SSE
+- `run_pooled_agent()` creates Agent, configures provider/extensions, streams events
+- `SpawnConfig` supports `inherit_extensions` (clone from parent) and `exclude_extensions`
+- Backend routes: 6 REST + 1 SSE under `/a2a/instances/`
+- UI not yet built (tracked in goose4-sxqu)
+
+### A2A Wire Format
+- Uses `camelCase` for JSON serialization (serde `rename_all`)
+- `PartContent` uses `"type"` tag (not `"kind"`)
+- `TaskStatus.message` is `Option<Box<Message>>` (not `Option<Message>`)
+- `extensions` and `reference_task_ids` are `Vec<String>` (not `Option<Vec<String>>`)
+
+---
+
+## Beads (Issue Tracking)
+
+### Current State (as of 2026-02-17)
+- 237 total, 234 closed, 3 open, 0 blocked
+- Open: `goose4-5jq` (DAG builder P2), `goose4-sxqu` (AgentPool UI P2), `goose4-uhbp` (extension scoping P3)
+
+### Branch
+- `feature/cli-via-goosed` — all multi-instance, A2A, workspace, orchestrator work
+- Latest commit: `5b22ffb7`
