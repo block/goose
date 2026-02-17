@@ -5,6 +5,7 @@
 
 pub mod manager;
 pub mod pool;
+pub mod workspace;
 
 use serde::{Deserialize, Serialize};
 use std::fmt;
