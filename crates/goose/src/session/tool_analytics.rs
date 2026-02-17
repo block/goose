@@ -534,7 +534,7 @@ impl<'a> ToolAnalyticsStore<'a> {
         .fetch_all(self.pool)
         .await?;
 
-        let avg_stats: (f64, f64) = sqlx::query_as(
+        let avg_stats: (Option<f64>, Option<f64>) = sqlx::query_as(
             r#"
             SELECT
                 AVG(COALESCE(message_count, 0)),
@@ -596,9 +596,9 @@ impl<'a> ToolAnalyticsStore<'a> {
                     avg_messages: messages,
                 })
                 .collect(),
-            avg_messages_per_session: avg_stats.0,
+            avg_messages_per_session: avg_stats.0.unwrap_or(0.0),
             avg_tools_per_session: avg_tools.0,
-            avg_tokens_per_session: avg_stats.1,
+            avg_tokens_per_session: avg_stats.1.unwrap_or(0.0),
             session_duration_stats: duration,
             active_extensions: Vec::new(),
         })
@@ -776,7 +776,7 @@ impl<'a> ToolAnalyticsStore<'a> {
     /// Get response quality proxy metrics from session patterns
     pub async fn get_response_quality(&self, days: i32) -> Result<ResponseQualityMetrics> {
         // Overall session metrics
-        let overall: (i64, f64, f64, f64, f64, i64) = sqlx::query_as(
+        let overall: (i64, Option<f64>, Option<f64>, Option<f64>, f64, i64) = sqlx::query_as(
             r#"
             SELECT
                 COUNT(*) as total_sessions,
@@ -938,12 +938,12 @@ impl<'a> ToolAnalyticsStore<'a> {
 
         Ok(ResponseQualityMetrics {
             total_sessions: overall.0,
-            avg_session_duration_secs: overall.1,
-            avg_messages_per_session: overall.2,
+            avg_session_duration_secs: overall.1.unwrap_or(0.0),
+            avg_messages_per_session: overall.2.unwrap_or(0.0),
             avg_user_messages_per_session: user_msgs.0,
             retry_rate: retry_data.0,
             avg_tool_errors_per_session: tool_errors.0,
-            avg_tokens_per_session: overall.3,
+            avg_tokens_per_session: overall.3.unwrap_or(0.0),
             completion_rate: completion.0,
             sessions_with_errors,
             daily_quality: daily

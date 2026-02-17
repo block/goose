@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useCallback } from 'react';
+import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { useLocation } from 'react-router-dom';
 import { Loader2, Command, Slash } from 'lucide-react';
 import { usePromptBar, SlashCommand } from '../../contexts/PromptBarContext';
@@ -13,11 +13,12 @@ export default function PromptBar() {
   const [selectedCommandIndex, setSelectedCommandIndex] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  // Hide on pair route (ChatInput handles it) or when context says hidden
   const isOnPairRoute = location.pathname === '/pair';
-  if (isOnPairRoute || !promptBar?.showPromptBar) return null;
+  const isHidden = isOnPairRoute || !promptBar?.showPromptBar;
 
-  const { config, slashCommands, submitPrompt } = promptBar;
+  const config = promptBar?.config;
+  const slashCommands = useMemo(() => promptBar?.slashCommands ?? [], [promptBar?.slashCommands]);
+  const submitPrompt = promptBar?.submitPrompt;
 
   // Filter commands based on input
   const filteredCommands: SlashCommand[] = input.startsWith('/')
@@ -28,7 +29,7 @@ export default function PromptBar() {
 
   const handleSubmit = useCallback(async () => {
     const trimmed = input.trim();
-    if (!trimmed || isLoading) return;
+    if (!trimmed || isLoading || !submitPrompt) return;
 
     // Check if it's a slash command
     if (trimmed.startsWith('/')) {
@@ -111,6 +112,8 @@ export default function PromptBar() {
     return () => window.removeEventListener('keydown', handler);
   }, []);
 
+  if (isHidden) return null;
+
   return (
     <div className="fixed bottom-0 left-[var(--sidebar-width,0px)] right-0 z-50 pointer-events-none">
       {/* Command palette dropdown */}
@@ -147,7 +150,7 @@ export default function PromptBar() {
       <div className="px-4 pb-3 pt-1 pointer-events-auto">
         <div className="max-w-2xl mx-auto">
           {/* Hint */}
-          {config.hint && !input && (
+          {config?.hint && !input && (
             <div className="flex justify-center mb-1.5">
               <span className="text-xs text-textSubtle">{config.hint}</span>
             </div>
@@ -163,7 +166,7 @@ export default function PromptBar() {
               value={input}
               onChange={handleInputChange}
               onKeyDown={handleKeyDown}
-              placeholder={config.placeholder}
+              placeholder={config?.placeholder}
               disabled={isLoading}
               className="flex-1 bg-transparent px-4 py-3 text-sm text-textStandard
                 placeholder:text-textSubtle outline-none disabled:opacity-50"

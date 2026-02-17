@@ -61,11 +61,12 @@ export default function EvalRunner() {
     try {
       const baseUrl = client.getConfig().baseUrl || '';
       const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-      const configHeaders = client.getConfig().headers;
-      if (configHeaders && typeof configHeaders === 'object') {
-        const h = configHeaders as Record<string, string>;
-        if (h['X-Secret-Key']) {
-          headers['X-Secret-Key'] = h['X-Secret-Key'];
+      const rawHeaders = client.getConfig().headers;
+      if (rawHeaders) {
+        const h = rawHeaders as Record<string, string>;
+        const secretKey = typeof h.get === 'function' ? (h as unknown as globalThis.Headers).get('X-Secret-Key') : h['X-Secret-Key'];
+        if (secretKey) {
+          headers['X-Secret-Key'] = secretKey;
         }
       }
       const resp = await fetch(`${baseUrl}/analytics/routing/eval`, {
