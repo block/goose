@@ -72,10 +72,6 @@ See the [Cognee MCP documentation](https://docs.cognee.ai/how-to-guides/deployme
 
 Cognee provides knowledge graph memory capabilities for goose, allowing it to remember and connect information across conversations and documents.
 
-:::info LLM
-OpenAI's GPT-4o was used for this task.
-:::
-
 ### goose Prompt
 
 > _goose, please cognify this information: "I prefer Python for data analysis and use pandas extensively. My current project involves analyzing customer behavior data." Then search for information about my programming preferences._

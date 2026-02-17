@@ -10,7 +10,7 @@
     "license": {
       "name": "Apache-2.0"
     },
-    "version": "1.23.0"
+    "version": "1.24.0"
   },
   "paths": {
     "/action-required/tool-confirmation": {
@@ -2745,6 +2745,85 @@
         ]
       }
     },
+    "/sessions/search": {
+      "get": {
+        "tags": [
+          "Session Management"
+        ],
+        "operationId": "search_sessions",
+        "parameters": [
+          {
+            "name": "query",
+            "in": "query",
+            "description": "Search query string",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "description": "Maximum results (default: 10, max: 50)",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "nullable": true,
+              "minimum": 0
+            }
+          },
+          {
+            "name": "after_date",
+            "in": "query",
+            "description": "Filter after date (ISO 8601)",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true
+            }
+          },
+          {
+            "name": "before_date",
+            "in": "query",
+            "description": "Filter before date (ISO 8601)",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Matching sessions",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Session"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request - Invalid query"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ]
+      }
+    },
     "/sessions/{session_id}": {
       "get": {
         "tags": [
@@ -3555,7 +3634,7 @@
         ],
         "properties": {
           "action": {
-            "type": "string"
+            "$ref": "#/components/schemas/Permission"
           },
           "id": {
             "type": "string"
@@ -3672,12 +3751,28 @@
         "type": "object",
         "description": "Content Security Policy metadata for MCP Apps\nSpecifies allowed domains for network connections and resource loading",
         "properties": {
+          "baseUriDomains": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Domains allowed for base-uri",
+            "nullable": true
+          },
           "connectDomains": {
             "type": "array",
             "items": {
               "type": "string"
             },
             "description": "Domains allowed for connect-src (fetch, XHR, WebSocket)",
+            "nullable": true
+          },
+          "frameDomains": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Domains allowed for frame-src (nested iframes)",
             "nullable": true
           },
           "resourceDomains": {
@@ -4963,6 +5058,27 @@
                 }
               }
             ]
+          },
+          {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ReasoningContent"
+              },
+              {
+                "type": "object",
+                "required": [
+                  "type"
+                ],
+                "properties": {
+                  "type": {
+                    "type": "string",
+                    "enum": [
+                      "reasoning"
+                    ]
+                  }
+                }
+              }
+            ]
           }
         ],
         "description": "Content passed inside a message, which can be both simple content and tool content",
@@ -5240,6 +5356,16 @@
           }
         }
       },
+      "Permission": {
+        "type": "string",
+        "enum": [
+          "always_allow",
+          "allow_once",
+          "cancel",
+          "deny_once",
+          "always_deny"
+        ]
+      },
       "PermissionLevel": {
         "type": "string",
         "description": "Enum representing the possible permission levels for a tool.",
@@ -5248,6 +5374,28 @@
           "ask_before",
           "never_allow"
         ]
+      },
+      "PermissionsMetadata": {
+        "type": "object",
+        "description": "Sandbox permissions for MCP Apps\nSpecifies which browser capabilities the UI needs access to.\nMaps to the iframe Permission Policy `allow` attribute.",
+        "properties": {
+          "camera": {
+            "type": "boolean",
+            "description": "Request camera access (maps to Permission Policy `camera` feature)"
+          },
+          "clipboardWrite": {
+            "type": "boolean",
+            "description": "Request clipboard write access (maps to Permission Policy `clipboard-write` feature)"
+          },
+          "geolocation": {
+            "type": "boolean",
+            "description": "Request geolocation access (maps to Permission Policy `geolocation` feature)"
+          },
+          "microphone": {
+            "type": "boolean",
+            "description": "Request microphone access (maps to Permission Policy `microphone` feature)"
+          }
+        }
       },
       "PricingData": {
         "type": "object",
@@ -5609,6 +5757,17 @@
             "type": "string"
           },
           "uri": {
+            "type": "string"
+          }
+        }
+      },
+      "ReasoningContent": {
+        "type": "object",
+        "required": [
+          "text"
+        ],
+        "properties": {
+          "text": {
             "type": "string"
           }
         }
@@ -6644,6 +6803,19 @@
           "inlineMessage"
         ]
       },
+      "TaskSupport": {
+        "oneOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "string"
+          },
+          {
+            "type": "string"
+          }
+        ]
+      },
       "TelemetryEventRequest": {
         "type": "object",
         "required": [
@@ -6788,6 +6960,16 @@
           "description": {
             "type": "string"
           },
+          "execution": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ToolExecution"
+              },
+              {
+                "type": "object"
+              }
+            ]
+          },
           "icons": {
             "type": "array",
             "items": {
@@ -6850,6 +7032,21 @@
           },
           "toolName": {
             "type": "string"
+          }
+        }
+      },
+      "ToolExecution": {
+        "type": "object",
+        "properties": {
+          "taskSupport": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TaskSupport"
+              },
+              {
+                "type": "object"
+              }
+            ]
           }
         }
       },
@@ -7020,6 +7217,9 @@
             "type": "string",
             "description": "Preferred domain for the app (used for CORS)",
             "nullable": true
+          },
+          "permissions": {
+            "$ref": "#/components/schemas/PermissionsMetadata"
           },
           "prefersBorder": {
             "type": "boolean",

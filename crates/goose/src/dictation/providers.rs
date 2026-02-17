@@ -1,7 +1,7 @@
 use crate::config::Config;
 use crate::dictation::whisper::LOCAL_WHISPER_MODEL_CONFIG_KEY;
 use crate::providers::api_client::{ApiClient, AuthMethod};
-use anyhow::{Context, Result};
+use anyhow::Result;
 use serde::{Deserialize, Serialize};
 use std::sync::Mutex;
 use std::time::Duration;
@@ -9,13 +9,10 @@ use utoipa::ToSchema;
 
 const REQUEST_TIMEOUT: Duration = Duration::from_secs(30);
 
-// Global lazy-initialized transcriber to reuse the loaded model
-// Stores (model_path, transcriber) to detect when model changes
 static LOCAL_TRANSCRIBER: once_cell::sync::Lazy<
     Mutex<Option<(String, super::whisper::WhisperTranscriber)>>,
 > = once_cell::sync::Lazy::new(|| Mutex::new(None));
 
-// Bundled tokenizer JSON (2.4MB)
 const WHISPER_TOKENIZER_JSON: &str = include_str!("whisper_data/tokens.json");
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Deserialize, Serialize, ToSchema)]
@@ -85,7 +82,7 @@ pub fn get_provider_def(provider: DictationProvider) -> &'static DictationProvid
     PROVIDERS
         .iter()
         .find(|def| def.provider == provider)
-        .unwrap() // Safe because all enum variants are in PROVIDERS
+        .unwrap()
 }
 
 pub fn is_configured(provider: DictationProvider) -> bool {
@@ -106,9 +103,7 @@ pub fn is_configured(provider: DictationProvider) -> bool {
 }
 
 pub async fn transcribe_local(audio_bytes: Vec<u8>) -> Result<String> {
-    // Run transcription in a blocking task to avoid blocking the async runtime
     tokio::task::spawn_blocking(move || {
-        // Get model ID from config
         let config = Config::global();
         let model_id = config
             .get(LOCAL_WHISPER_MODEL_CONFIG_KEY, false)
@@ -116,17 +111,14 @@ pub async fn transcribe_local(audio_bytes: Vec<u8>) -> Result<String> {
             .and_then(|v| v.as_str().map(|s| s.to_string()))
             .ok_or_else(|| anyhow::anyhow!("Local Whisper model not configured"))?;
 
-        // Convert model ID to full path
         let model = super::whisper::get_model(&model_id)
             .ok_or_else(|| anyhow::anyhow!("Unknown model: {}", model_id))?;
         let model_path = model.local_path();
 
-        // Get or initialize the transcriber
         let mut transcriber_lock = LOCAL_TRANSCRIBER
             .lock()
             .map_err(|e| anyhow::anyhow!("Failed to lock transcriber: {}", e))?;
 
-        // Check if we need to load/reload the transcriber
         let model_path_str = model_path.to_string_lossy().to_string();
         let needs_reload = match transcriber_lock.as_ref() {
             None => true,
@@ -145,25 +137,29 @@ pub async fn transcribe_local(audio_bytes: Vec<u8>) -> Result<String> {
             *transcriber_lock = Some((model_path_str, transcriber));
         }
 
-        // Transcribe the audio
         let (_, transcriber) = transcriber_lock.as_mut().unwrap();
-        let text = transcriber
-            .transcribe(&audio_bytes)
-            .context("Transcription failed")?;
+        let text = transcriber.transcribe(&audio_bytes).map_err(|e| {
+            tracing::error!("Transcription failed: {}", e);
+            e
+        })?;
 
         Ok(text)
     })
     .await
-    .context("Transcription task failed")?
+    .map_err(|e| {
+        tracing::error!("Transcription task failed: {}", e);
+        anyhow::anyhow!(e)
+    })?
 }
 
 fn build_api_client(provider: DictationProvider) -> Result<ApiClient> {
     let config = Config::global();
     let def = get_provider_def(provider);
 
-    let api_key = config
-        .get_secret(def.config_key)
-        .context(format!("{} not configured", def.config_key))?;
+    let api_key = config.get_secret(def.config_key).map_err(|e| {
+        tracing::error!("{} not configured: {}", def.config_key, e);
+        anyhow::anyhow!("{} not configured", def.config_key)
+    })?;
 
     let base_url = if let Some(host_key) = def.host_key {
         config
@@ -185,7 +181,10 @@ fn build_api_client(provider: DictationProvider) -> Result<ApiClient> {
         DictationProvider::Local => anyhow::bail!("Local provider should not use API client"),
     };
 
-    ApiClient::with_timeout(base_url, auth, REQUEST_TIMEOUT).context("Failed to create API client")
+    ApiClient::with_timeout(base_url, auth, REQUEST_TIMEOUT).map_err(|e| {
+        tracing::error!("Failed to create API client: {}", e);
+        e
+    })
 }
 
 pub async fn transcribe_with_provider(
@@ -202,7 +201,10 @@ pub async fn transcribe_with_provider(
     let part = reqwest::multipart::Part::bytes(audio_bytes)
         .file_name(format!("audio.{}", extension))
         .mime_str(mime_type)
-        .context("Failed to create multipart")?;
+        .map_err(|e| {
+            tracing::error!("Failed to create multipart: {}", e);
+            anyhow::anyhow!(e)
+        })?;
 
     let form = reqwest::multipart::Form::new()
         .part("file", part)
@@ -212,7 +214,10 @@ pub async fn transcribe_with_provider(
         .request(None, def.endpoint_path)
         .multipart_post(form)
         .await
-        .context("Request failed")?;
+        .map_err(|e| {
+            tracing::error!("Request failed: {}", e);
+            e
+        })?;
 
     if !response.status().is_success() {
         let status = response.status();
@@ -222,12 +227,17 @@ pub async fn transcribe_with_provider(
             anyhow::bail!("Invalid API key");
         } else if status == 429 || error_text.contains("quota") {
             anyhow::bail!("Rate limit exceeded");
+        } else if error_text.contains("too short") {
+            return Ok(String::new());
         } else {
             anyhow::bail!("API error: {}", error_text);
         }
     }
 
-    let data: serde_json::Value = response.json().await.context("Failed to parse response")?;
+    let data: serde_json::Value = response.json().await.map_err(|e| {
+        tracing::error!("Failed to parse response: {}", e);
+        anyhow::anyhow!(e)
+    })?;
 
     let text = data["text"]
         .as_str()

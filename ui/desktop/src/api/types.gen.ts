@@ -112,7 +112,7 @@ export type ConfigResponse = {
 };
 
 export type ConfirmToolActionRequest = {
-    action: string;
+    action: Permission;
     id: string;
     principalType?: PrincipalType;
     sessionId: string;
@@ -144,9 +144,17 @@ export type CreateScheduleRequest = {
  */
 export type CspMetadata = {
     /**
+     * Domains allowed for base-uri
+     */
+    baseUriDomains?: Array<string> | null;
+    /**
      * Domains allowed for connect-src (fetch, XHR, WebSocket)
      */
     connectDomains?: Array<string> | null;
+    /**
+     * Domains allowed for frame-src (nested iframes)
+     */
+    frameDomains?: Array<string> | null;
     /**
      * Domains allowed for resource loading (scripts, styles, images, fonts, media)
      */
@@ -564,6 +572,8 @@ export type MessageContent = (TextContent & {
     type: 'redactedThinking';
 }) | (SystemNotificationContent & {
     type: 'systemNotification';
+}) | (ReasoningContent & {
+    type: 'reasoning';
 });
 
 export type MessageEvent = {
@@ -662,10 +672,36 @@ export type ParseRecipeResponse = {
     recipe: Recipe;
 };
 
+export type Permission = 'always_allow' | 'allow_once' | 'cancel' | 'deny_once' | 'always_deny';
+
 /**
  * Enum representing the possible permission levels for a tool.
  */
 export type PermissionLevel = 'always_allow' | 'ask_before' | 'never_allow';
+
+/**
+ * Sandbox permissions for MCP Apps
+ * Specifies which browser capabilities the UI needs access to.
+ * Maps to the iframe Permission Policy `allow` attribute.
+ */
+export type PermissionsMetadata = {
+    /**
+     * Request camera access (maps to Permission Policy `camera` feature)
+     */
+    camera?: boolean;
+    /**
+     * Request clipboard write access (maps to Permission Policy `clipboard-write` feature)
+     */
+    clipboardWrite?: boolean;
+    /**
+     * Request geolocation access (maps to Permission Policy `geolocation` feature)
+     */
+    geolocation?: boolean;
+    /**
+     * Request microphone access (maps to Permission Policy `microphone` feature)
+     */
+    microphone?: boolean;
+};
 
 export type PricingData = {
     context_length?: number | null;
@@ -805,6 +841,10 @@ export type ReadResourceResponse = {
     mimeType?: string | null;
     text: string;
     uri: string;
+};
+
+export type ReasoningContent = {
+    text: string;
 };
 
 export type Recipe = {
@@ -1122,6 +1162,8 @@ export type SystemNotificationContent = {
 
 export type SystemNotificationType = 'thinkingMessage' | 'inlineMessage';
 
+export type TaskSupport = string;
+
 export type TelemetryEventRequest = {
     event_name: string;
     properties?: {
@@ -1172,6 +1214,9 @@ export type Tool = {
         [key: string]: unknown;
     };
     description?: string;
+    execution?: ToolExecution | {
+        [key: string]: unknown;
+    };
     icons?: Array<Icon>;
     inputSchema: {
         [key: string]: unknown;
@@ -1196,6 +1241,12 @@ export type ToolConfirmationRequest = {
     id: string;
     prompt?: string | null;
     toolName: string;
+};
+
+export type ToolExecution = {
+    taskSupport?: TaskSupport | {
+        [key: string]: unknown;
+    };
 };
 
 /**
@@ -1273,6 +1324,7 @@ export type UiMetadata = {
      * Preferred domain for the app (used for CORS)
      */
     domain?: string | null;
+    permissions?: PermissionsMetadata;
     /**
      * Whether the app prefers to have a border around it
      */
@@ -3502,6 +3554,54 @@ export type GetSessionInsightsResponses = {
 };
 
 export type GetSessionInsightsResponse = GetSessionInsightsResponses[keyof GetSessionInsightsResponses];
+
+export type SearchSessionsData = {
+    body?: never;
+    path?: never;
+    query: {
+        /**
+         * Search query string
+         */
+        query: string;
+        /**
+         * Maximum results (default: 10, max: 50)
+         */
+        limit?: number | null;
+        /**
+         * Filter after date (ISO 8601)
+         */
+        after_date?: string | null;
+        /**
+         * Filter before date (ISO 8601)
+         */
+        before_date?: string | null;
+    };
+    url: '/sessions/search';
+};
+
+export type SearchSessionsErrors = {
+    /**
+     * Bad request - Invalid query
+     */
+    400: unknown;
+    /**
+     * Unauthorized
+     */
+    401: unknown;
+    /**
+     * Internal server error
+     */
+    500: unknown;
+};
+
+export type SearchSessionsResponses = {
+    /**
+     * Matching sessions
+     */
+    200: Array<Session>;
+};
+
+export type SearchSessionsResponse = SearchSessionsResponses[keyof SearchSessionsResponses];
 
 export type DeleteSessionData = {
     body?: never;

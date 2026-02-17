@@ -33,7 +33,7 @@
 
         let guestIframe = null;
 
-        function createGuestIframe(html) {
+        function createGuestIframe(html, permissions) {
           if (guestIframe) {
             guestIframe.remove();
           }
@@ -45,6 +45,17 @@
           // allow-same-origin: needed for localStorage, cookies, etc.
           // allow-forms: needed if the app has forms
           guestIframe.setAttribute('sandbox', 'allow-scripts allow-same-origin allow-forms');
+
+          // Build Permission Policy allow attribute from requested permissions
+          // These control access to sensitive browser APIs like camera, microphone, etc.
+          var allowList = [];
+          if (permissions && permissions.camera) allowList.push('camera');
+          if (permissions && permissions.microphone) allowList.push('microphone');
+          if (permissions && permissions.geolocation) allowList.push('geolocation');
+          if (permissions && permissions.clipboardWrite) allowList.push('clipboard-write');
+          if (allowList.length > 0) {
+            guestIframe.setAttribute('allow', allowList.join('; '));
+          }
 
           guestIframe.srcdoc = html;
           guestIframe.style.cssText = 'width:100%; height:100%; border:none;';
@@ -73,8 +84,9 @@
           if (method === 'ui/notifications/sandbox-resource-ready') {
             var params = data.params || {};
             var html = params.html || '';
+            var permissions = params.permissions || null;
 
-            createGuestIframe(html);
+            createGuestIframe(html, permissions);
             return;
           }
 
@@ -126,7 +138,7 @@
           .parent
           .postMessage({
             jsonrpc: '2.0',
-            method: 'ui/notifications/sandbox-ready',
+            method: 'ui/notifications/sandbox-proxy-ready',
             params: {}
           }, '*');
       })();

@@ -1,4 +1,5 @@
 use anyhow::Result;
+use async_trait::async_trait;
 use futures::future::BoxFuture;
 use futures::Stream;
 use serde::{Deserialize, Serialize};
@@ -7,6 +8,7 @@ use super::canonical::{map_to_canonical_model, CanonicalModelRegistry};
 use super::errors::ProviderError;
 use super::retry::RetryConfig;
 use crate::config::base::ConfigValue;
+use crate::config::ExtensionConfig;
 use crate::conversation::message::Message;
 use crate::conversation::Conversation;
 use crate::model::ModelConfig;
@@ -342,8 +344,6 @@ impl Usage {
     }
 }
 
-use async_trait::async_trait;
-
 pub trait ProviderDef: Send + Sync {
     type Provider: Provider + 'static;
 
@@ -351,7 +351,10 @@ pub trait ProviderDef: Send + Sync {
     where
         Self: Sized;
 
-    fn from_env(model: ModelConfig) -> BoxFuture<'static, Result<Self::Provider>>
+    fn from_env(
+        model: ModelConfig,
+        extensions: Vec<ExtensionConfig>,
+    ) -> BoxFuture<'static, Result<Self::Provider>>
     where
         Self: Sized;
 }
@@ -447,16 +450,13 @@ pub trait Provider: Send + Sync {
         RetryConfig::default()
     }
 
-    async fn fetch_supported_models(&self) -> Result<Option<Vec<String>>, ProviderError> {
-        Ok(None)
+    async fn fetch_supported_models(&self) -> Result<Vec<String>, ProviderError> {
+        Ok(vec![])
     }
 
     /// Fetch models filtered by canonical registry and usability
-    async fn fetch_recommended_models(&self) -> Result<Option<Vec<String>>, ProviderError> {
-        let all_models = match self.fetch_supported_models().await? {
-            Some(models) => models,
-            None => return Ok(None),
-        };
+    async fn fetch_recommended_models(&self) -> Result<Vec<String>, ProviderError> {
+        let all_models = self.fetch_supported_models().await?;
 
         let registry = CanonicalModelRegistry::bundled().map_err(|e| {
             ProviderError::ExecutionError(format!("Failed to load canonical registry: {}", e))
@@ -481,6 +481,10 @@ pub trait Provider: Send + Sync {
                     return None;
                 }
 
+                if !canonical_model.tool_call && !self.get_model_config().toolshim {
+                    return None;
+                }
+
                 let release_date = canonical_model.release_date.clone();
 
                 Some((model.clone(), release_date))
@@ -501,9 +505,9 @@ pub trait Provider: Send + Sync {
             .collect();
 
         if recommended_models.is_empty() {
-            Ok(Some(all_models))
+            Ok(all_models)
         } else {
-            Ok(Some(recommended_models))
+            Ok(recommended_models)
         }
     }
 

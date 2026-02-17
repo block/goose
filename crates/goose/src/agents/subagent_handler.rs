@@ -20,6 +20,8 @@ use std::sync::Arc;
 use tokio_util::sync::CancellationToken;
 use tracing::{debug, info};
 
+pub type OnMessageCallback = Arc<dyn Fn(&Message) + Send + Sync>;
+
 #[derive(Serialize)]
 pub struct SubagentPromptContext {
     pub max_turns: usize,
@@ -32,45 +34,20 @@ pub struct SubagentPromptContext {
 type AgentMessagesFuture =
     Pin<Box<dyn Future<Output = Result<(Conversation, Option<String>)>> + Send>>;
 
-pub async fn run_complete_subagent_task(
-    config: AgentConfig,
-    recipe: Recipe,
-    task_config: TaskConfig,
-    return_last_only: bool,
-    session_id: String,
-    cancellation_token: Option<CancellationToken>,
-) -> Result<String, anyhow::Error> {
-    run_complete_subagent_task_with_notifications(
-        config,
-        recipe,
-        task_config,
-        return_last_only,
-        session_id,
-        cancellation_token,
-        None,
-    )
-    .await
+pub struct SubagentRunParams {
+    pub config: AgentConfig,
+    pub recipe: Recipe,
+    pub task_config: TaskConfig,
+    pub return_last_only: bool,
+    pub session_id: String,
+    pub cancellation_token: Option<CancellationToken>,
+    pub on_message: Option<OnMessageCallback>,
+    pub notification_tx: Option<tokio::sync::mpsc::UnboundedSender<ServerNotification>>,
 }
 
-pub async fn run_complete_subagent_task_with_notifications(
-    config: AgentConfig,
-    recipe: Recipe,
-    task_config: TaskConfig,
-    return_last_only: bool,
-    session_id: String,
-    cancellation_token: Option<CancellationToken>,
-    notification_tx: Option<tokio::sync::mpsc::UnboundedSender<rmcp::model::ServerNotification>>,
-) -> Result<String, anyhow::Error> {
-    let (messages, final_output) = get_agent_messages_with_notifications(
-        config,
-        recipe,
-        task_config,
-        session_id,
-        cancellation_token,
-        notification_tx,
-    )
-    .await
-    .map_err(|e| {
+pub async fn run_subagent_task(params: SubagentRunParams) -> Result<String, anyhow::Error> {
+    let return_last_only = params.return_last_only;
+    let (messages, final_output) = get_agent_messages(params).await.map_err(|e| {
         ErrorData::new(
             ErrorCode::INTERNAL_ERROR,
             format!("Failed to execute task: {}", e),
@@ -82,7 +59,11 @@ pub async fn run_complete_subagent_task_with_notifications(
         return Ok(output);
     }
 
-    let response_text = if return_last_only {
+    Ok(extract_response_text(&messages, return_last_only))
+}
+
+fn extract_response_text(messages: &Conversation, return_last_only: bool) -> String {
+    if return_last_only {
         messages
             .messages()
             .last()
@@ -133,22 +114,24 @@ pub async fn run_complete_subagent_task_with_notifications(
             .collect();
 
         all_text_content.join("\n")
-    };
-
-    Ok(response_text)
+    }
 }
 
 pub const SUBAGENT_TOOL_REQUEST_TYPE: &str = "subagent_tool_request";
 
-fn get_agent_messages_with_notifications(
-    config: AgentConfig,
-    recipe: Recipe,
-    task_config: TaskConfig,
-    session_id: String,
-    cancellation_token: Option<CancellationToken>,
-    notification_tx: Option<tokio::sync::mpsc::UnboundedSender<rmcp::model::ServerNotification>>,
-) -> AgentMessagesFuture {
+fn get_agent_messages(params: SubagentRunParams) -> AgentMessagesFuture {
     Box::pin(async move {
+        let SubagentRunParams {
+            config,
+            recipe,
+            task_config,
+            session_id,
+            cancellation_token,
+            on_message,
+            notification_tx,
+            ..
+        } = params;
+
         let system_instructions = recipe.instructions.clone().unwrap_or_default();
         let user_task = recipe
             .prompt
@@ -174,7 +157,7 @@ fn get_agent_messages_with_notifications(
 
         let has_response_schema = recipe.response.is_some();
         agent
-            .apply_recipe_components(recipe.sub_recipes.clone(), recipe.response.clone(), true)
+            .apply_recipe_components(recipe.response.clone(), true)
             .await;
 
         let subagent_prompt =
@@ -196,16 +179,45 @@ fn get_agent_messages_with_notifications(
             retry_config: recipe.retry,
         };
 
-        conversation = run_subagent_stream(
-            agent.clone(),
-            user_message,
-            session_config,
-            cancellation_token,
-            &session_id,
-            &notification_tx,
-            conversation,
-        )
-        .await?;
+        let mut stream =
+            crate::session_context::with_session_id(Some(session_id.to_string()), async {
+                agent
+                    .reply(user_message, session_config, cancellation_token)
+                    .await
+            })
+            .await
+            .map_err(|e| anyhow!("Failed to get reply from agent: {}", e))?;
+
+        while let Some(message_result) = stream.next().await {
+            match message_result {
+                Ok(AgentEvent::Message(msg)) => {
+                    if let Some(ref callback) = on_message {
+                        callback(&msg);
+                    }
+                    if let Some(ref tx) = notification_tx {
+                        for content in &msg.content {
+                            if let Some(notif) = create_tool_notification(content, &session_id) {
+                                if tx.send(notif).is_err() {
+                                    debug!(
+                                        "Notification receiver dropped for subagent {}",
+                                        session_id
+                                    );
+                                }
+                            }
+                        }
+                    }
+                    conversation.push(msg);
+                }
+                Ok(AgentEvent::McpNotification(_)) | Ok(AgentEvent::ModelChange { .. }) => {}
+                Ok(AgentEvent::HistoryReplaced(updated_conversation)) => {
+                    conversation = updated_conversation;
+                }
+                Err(e) => {
+                    tracing::error!("Error receiving message from subagent: {}", e);
+                    break;
+                }
+            }
+        }
 
         let final_output = get_final_output(&agent, has_response_schema).await;
 
@@ -239,52 +251,6 @@ async fn build_subagent_prompt(
     .map_err(|e| anyhow!("Failed to render subagent system prompt: {}", e))
 }
 
-async fn run_subagent_stream(
-    agent: Arc<Agent>,
-    user_message: Message,
-    session_config: SessionConfig,
-    cancellation_token: Option<CancellationToken>,
-    session_id: &str,
-    notification_tx: &Option<tokio::sync::mpsc::UnboundedSender<rmcp::model::ServerNotification>>,
-    mut conversation: Conversation,
-) -> Result<Conversation> {
-    let mut stream = crate::session_context::with_session_id(Some(session_id.to_string()), async {
-        agent
-            .reply(user_message, session_config, cancellation_token)
-            .await
-    })
-    .await
-    .map_err(|e| anyhow!("Failed to get reply from agent: {}", e))?;
-
-    while let Some(message_result) = stream.next().await {
-        match message_result {
-            Ok(AgentEvent::Message(msg)) => {
-                if let Some(ref tx) = notification_tx {
-                    for content in &msg.content {
-                        if let Some(notif) = create_tool_notification(content, session_id) {
-                            if tx.send(notif).is_err() {
-                                debug!("Notification receiver dropped for subagent {}", session_id);
-                            }
-                        }
-                    }
-                }
-                conversation.push(msg);
-            }
-            Ok(AgentEvent::McpNotification(_)) => {}
-            Ok(AgentEvent::ModelChange { .. }) => {}
-            Ok(AgentEvent::HistoryReplaced(updated_conversation)) => {
-                conversation = updated_conversation;
-            }
-            Err(e) => {
-                tracing::error!("Error receiving message from subagent: {}", e);
-                break;
-            }
-        }
-    }
-
-    Ok(conversation)
-}
-
 async fn get_final_output(agent: &Agent, has_response_schema: bool) -> Option<String> {
     if has_response_schema {
         agent
@@ -298,7 +264,7 @@ async fn get_final_output(agent: &Agent, has_response_schema: bool) -> Option<St
     }
 }
 
-fn create_tool_notification(
+pub fn create_tool_notification(
     content: &MessageContent,
     subagent_id: &str,
 ) -> Option<ServerNotification> {

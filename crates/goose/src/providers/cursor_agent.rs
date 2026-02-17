@@ -2,7 +2,6 @@ use anyhow::Result;
 use async_trait::async_trait;
 use rmcp::model::Role;
 use serde_json::{json, Value};
-use std::ffi::OsString;
 use std::path::PathBuf;
 use std::process::Stdio;
 use tokio::io::{AsyncBufReadExt, BufReader};
@@ -15,7 +14,7 @@ use crate::config::base::CursorAgentCommand;
 use crate::config::search_path::SearchPaths;
 use crate::conversation::message::{Message, MessageContent};
 use crate::model::ModelConfig;
-use crate::subprocess::configure_command_no_window;
+use crate::subprocess::configure_subprocess;
 use futures::future::BoxFuture;
 use rmcp::model::Tool;
 
@@ -36,8 +35,8 @@ pub struct CursorAgentProvider {
 impl CursorAgentProvider {
     pub async fn from_env(model: ModelConfig) -> Result<Self> {
         let config = crate::config::Config::global();
-        let command: OsString = config.get_cursor_agent_command().unwrap_or_default().into();
-        let resolved_command = SearchPaths::builder().with_npm().resolve(command)?;
+        let command: String = config.get_cursor_agent_command().unwrap_or_default().into();
+        let resolved_command = SearchPaths::builder().with_npm().resolve(&command)?;
 
         Ok(Self {
             command: resolved_command,
@@ -162,7 +161,7 @@ impl CursorAgentProvider {
             }
         }
 
-        // If no valid result line found, fallback to joining all lines
+        // If no valid result line found, fall back to joining all lines
         let response_text = lines.join("\n");
 
         let message_content = vec![MessageContent::text(response_text)];
@@ -198,7 +197,7 @@ impl CursorAgentProvider {
         }
 
         let mut cmd = Command::new(&self.command);
-        configure_command_no_window(&mut cmd);
+        configure_subprocess(&mut cmd);
 
         if let Ok(path) = SearchPaths::builder().with_npm().path() {
             cmd.env("PATH", path);
@@ -276,51 +275,6 @@ impl CursorAgentProvider {
 
         Ok(lines)
     }
-
-    /// Generate a simple session description without calling subprocess
-    fn generate_simple_session_description(
-        &self,
-        messages: &[Message],
-    ) -> Result<(Message, ProviderUsage), ProviderError> {
-        // Extract the first user message text
-        let description = messages
-            .iter()
-            .find(|m| m.role == Role::User)
-            .and_then(|m| {
-                m.content.iter().find_map(|c| match c {
-                    MessageContent::Text(text_content) => Some(&text_content.text),
-                    _ => None,
-                })
-            })
-            .map(|text| {
-                // Take first few words, limit to 4 words
-                text.split_whitespace()
-                    .take(4)
-                    .collect::<Vec<_>>()
-                    .join(" ")
-            })
-            .unwrap_or_else(|| "Simple task".to_string());
-
-        if std::env::var("GOOSE_CURSOR_AGENT_DEBUG").is_ok() {
-            println!("=== CURSOR AGENT PROVIDER DEBUG ===");
-            println!("Generated simple session description: {}", description);
-            println!("Skipped subprocess call for session description");
-            println!("================================");
-        }
-
-        let message = Message::new(
-            Role::Assistant,
-            chrono::Utc::now().timestamp(),
-            vec![MessageContent::text(description.clone())],
-        );
-
-        let usage = Usage::default();
-
-        Ok((
-            message,
-            ProviderUsage::new(self.model.model_name.clone(), usage),
-        ))
-    }
 }
 
 impl ProviderDef for CursorAgentProvider {
@@ -338,9 +292,13 @@ impl ProviderDef for CursorAgentProvider {
                 true, false,
             )],
         )
+        .with_unlisted_models()
     }
 
-    fn from_env(model: ModelConfig) -> BoxFuture<'static, Result<Self::Provider>> {
+    fn from_env(
+        model: ModelConfig,
+        _extensions: Vec<crate::config::ExtensionConfig>,
+    ) -> BoxFuture<'static, Result<Self::Provider>> {
         Box::pin(Self::from_env(model))
     }
 }
@@ -356,6 +314,13 @@ impl Provider for CursorAgentProvider {
         self.model.clone()
     }
 
+    async fn fetch_supported_models(&self) -> Result<Vec<String>, ProviderError> {
+        Ok(CURSOR_AGENT_KNOWN_MODELS
+            .iter()
+            .map(|s| s.to_string())
+            .collect())
+    }
+
     #[tracing::instrument(
         skip(self, model_config, system, messages, tools),
         fields(model_config, input, output, input_tokens, output_tokens, total_tokens)
@@ -368,9 +333,11 @@ impl Provider for CursorAgentProvider {
         messages: &[Message],
         tools: &[Tool],
     ) -> Result<(Message, ProviderUsage), ProviderError> {
-        // Check if this is a session description request (short system prompt asking for 4 words or less)
-        if system.contains("four words or less") || system.contains("4 words or less") {
-            return self.generate_simple_session_description(messages);
+        if super::cli_common::is_session_description_request(system) {
+            return super::cli_common::generate_simple_session_description(
+                &model_config.model_name,
+                messages,
+            );
         }
 
         let lines = self.execute_command(system, messages, tools).await?;

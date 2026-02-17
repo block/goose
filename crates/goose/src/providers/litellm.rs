@@ -157,7 +157,10 @@ impl ProviderDef for LiteLLMProvider {
         )
     }
 
-    fn from_env(model: ModelConfig) -> BoxFuture<'static, Result<Self::Provider>> {
+    fn from_env(
+        model: ModelConfig,
+        _extensions: Vec<crate::config::ExtensionConfig>,
+    ) -> BoxFuture<'static, Result<Self::Provider>> {
         Box::pin(Self::from_env(model))
     }
 }
@@ -223,17 +226,11 @@ impl Provider for LiteLLMProvider {
         self.model.model_name.to_lowercase().contains("claude")
     }
 
-    async fn fetch_supported_models(&self) -> Result<Option<Vec<String>>, ProviderError> {
-        match self.fetch_models().await {
-            Ok(models) => {
-                let model_names: Vec<String> = models.into_iter().map(|m| m.name).collect();
-                Ok(Some(model_names))
-            }
-            Err(e) => {
-                tracing::warn!("Failed to fetch models from LiteLLM: {}", e);
-                Ok(None)
-            }
-        }
+    async fn fetch_supported_models(&self) -> Result<Vec<String>, ProviderError> {
+        let models = self.fetch_models().await.map_err(|e| {
+            ProviderError::RequestFailed(format!("Failed to fetch models from LiteLLM: {}", e))
+        })?;
+        Ok(models.into_iter().map(|m| m.name).collect())
     }
 }
 

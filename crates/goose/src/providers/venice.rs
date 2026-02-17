@@ -224,7 +224,10 @@ impl ProviderDef for VeniceProvider {
         )
     }
 
-    fn from_env(model: ModelConfig) -> BoxFuture<'static, Result<Self::Provider>> {
+    fn from_env(
+        model: ModelConfig,
+        _extensions: Vec<crate::config::ExtensionConfig>,
+    ) -> BoxFuture<'static, Result<Self::Provider>> {
         Box::pin(Self::from_env(model))
     }
 }
@@ -239,7 +242,7 @@ impl Provider for VeniceProvider {
         self.model.clone()
     }
 
-    async fn fetch_supported_models(&self) -> Result<Option<Vec<String>>, ProviderError> {
+    async fn fetch_supported_models(&self) -> Result<Vec<String>, ProviderError> {
         let response = self
             .api_client
             .request(None, &self.models_path)
@@ -264,7 +267,7 @@ impl Provider for VeniceProvider {
             })
             .collect::<Vec<String>>();
         models.sort();
-        Ok(Some(models))
+        Ok(models)
     }
 
     #[tracing::instrument(

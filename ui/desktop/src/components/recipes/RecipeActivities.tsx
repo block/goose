@@ -1,7 +1,7 @@
 import { Card } from '../ui/card';
 import GooseLogo from '../GooseLogo';
 import MarkdownContent from '../MarkdownContent';
-import { substituteParameters } from '../../utils/providerUtils';
+import { substituteParameters } from '../../utils/parameterSubstitution';
 
 interface RecipeActivitiesProps {
   append: (text: string) => void;
@@ -56,7 +56,7 @@ export default function RecipeActivities({
                 key={index}
                 onClick={() => append(substitutedContent)}
                 title={substitutedContent.length > 60 ? substitutedContent : undefined}
-                className="cursor-pointer px-3 py-1.5 text-sm hover:bg-bgSubtle transition-colors"
+                className="cursor-pointer px-3 py-1.5 text-sm hover:bg-background-muted transition-colors"
               >
                 {substitutedContent.length > 60
                   ? substitutedContent.slice(0, 60) + '...'

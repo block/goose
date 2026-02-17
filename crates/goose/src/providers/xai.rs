@@ -51,7 +51,10 @@ impl ProviderDef for XaiProvider {
         )
     }
 
-    fn from_env(model: ModelConfig) -> BoxFuture<'static, Result<OpenAiCompatibleProvider>> {
+    fn from_env(
+        model: ModelConfig,
+        _extensions: Vec<crate::config::ExtensionConfig>,
+    ) -> BoxFuture<'static, Result<OpenAiCompatibleProvider>> {
         Box::pin(async move {
             let config = crate::config::Config::global();
             let api_key: String = config.get_secret("XAI_API_KEY")?;
@@ -65,6 +68,7 @@ impl ProviderDef for XaiProvider {
                 XAI_PROVIDER_NAME.to_string(),
                 api_client,
                 model,
+                String::new(),
             ))
         })
     }

@@ -372,19 +372,6 @@ pub async fn providers() -> Result<Json<Vec<ProviderDetails>>, ErrorResponse> {
 pub async fn get_provider_models(
     Path(name): Path<String>,
 ) -> Result<Json<Vec<String>>, ErrorResponse> {
-    let loaded_provider = goose::config::declarative_providers::load_provider(name.as_str()).ok();
-    // TODO(Douwe): support a get models url for custom providers
-    if let Some(loaded_provider) = loaded_provider {
-        return Ok(Json(
-            loaded_provider
-                .config
-                .models
-                .into_iter()
-                .map(|m| m.name)
-                .collect::<Vec<_>>(),
-        ));
-    }
-
     let all = get_providers().await.into_iter().collect::<Vec<_>>();
     let Some((metadata, provider_type)) = all.into_iter().find(|(m, _)| m.name == name) else {
         return Err(ErrorResponse::bad_request(format!(
@@ -400,13 +387,12 @@ pub async fn get_provider_models(
     }
 
     let model_config = ModelConfig::new(&metadata.default_model)?;
-    let provider = goose::providers::create(&name, model_config).await?;
+    let provider = goose::providers::create(&name, model_config, Vec::new()).await?;
 
     let models_result = provider.fetch_recommended_models().await;
 
     match models_result {
-        Ok(Some(models)) => Ok(Json(models)),
-        Ok(None) => Ok(Json(Vec::new())),
+        Ok(models) => Ok(Json(models)),
         Err(provider_error) => Err(provider_error.into()),
     }
 }
@@ -761,9 +747,12 @@ pub async fn update_custom_provider(
 pub async fn check_provider(
     Json(CheckProviderRequest { provider }): Json<CheckProviderRequest>,
 ) -> Result<(), ErrorResponse> {
-    create_with_default_model(&provider).await.map_err(|err| {
-        ErrorResponse::bad_request(format!("Provider '{}' check failed: {}", provider, err))
-    })?;
+    // Provider check does not use extensions.
+    create_with_default_model(&provider, Vec::new())
+        .await
+        .map_err(|err| {
+            ErrorResponse::bad_request(format!("Provider '{}' check failed: {}", provider, err))
+        })?;
     Ok(())
 }
 
@@ -775,7 +764,8 @@ pub async fn check_provider(
 pub async fn set_config_provider(
     Json(SetProviderRequest { provider, model }): Json<SetProviderRequest>,
 ) -> Result<(), ErrorResponse> {
-    create_with_default_model(&provider)
+    // Provider validation does not use extensions.
+    create_with_default_model(&provider, Vec::new())
         .await
         .and_then(|_| {
             let config = Config::global();
@@ -821,12 +811,15 @@ pub async fn configure_provider_oauth(
         ErrorResponse::bad_request(format!("Failed to create temporary model config: {}", e))
     })?;
 
-    let provider = create(&provider_name, temp_model).await.map_err(|e| {
-        ErrorResponse::bad_request(format!(
-            "Failed to create provider '{}': {}",
-            provider_name, e
-        ))
-    })?;
+    // OAuth configuration does not use extensions.
+    let provider = create(&provider_name, temp_model, Vec::new())
+        .await
+        .map_err(|e| {
+            ErrorResponse::bad_request(format!(
+                "Failed to create provider '{}': {}",
+                provider_name, e
+            ))
+        })?;
 
     provider.configure_oauth().await.map_err(|e| {
         ErrorResponse::bad_request(format!(

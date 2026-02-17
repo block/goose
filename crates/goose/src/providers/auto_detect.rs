@@ -22,6 +22,7 @@ pub async fn detect_provider_from_api_key(api_key: &str) -> Option<(String, Vec<
                 let result = match crate::providers::create(
                     provider_name,
                     ModelConfig::new_or_fail("default"),
+                    Vec::new(),
                 )
                 .await
                 {
@@ -31,7 +32,9 @@ pub async fn detect_provider_from_api_key(api_key: &str) -> Option<(String, Vec<
                         })
                         .await
                         {
-                            Ok(Some(models)) => Some((provider_name.to_string(), models)),
+                            Ok(models) if !models.is_empty() => {
+                                Some((provider_name.to_string(), models))
+                            }
                             _ => None,
                         }
                     }

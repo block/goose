@@ -8,6 +8,7 @@ import ToolCallWithResponse from '../ToolCallWithResponse';
 import ImagePreview from '../ImagePreview';
 import {
   getTextAndImageContent,
+  getReasoningContent,
   ToolRequestMessageContent,
   ToolResponseMessageContent,
 } from '../../types/message';
@@ -65,10 +66,10 @@ export const SessionMessages: React.FC<SessionMessagesProps> = ({
           <div className="space-y-4 mb-6">
             {isLoading ? (
               <div className="flex justify-center items-center py-12">
-                <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-textStandard"></div>
+                <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2"></div>
               </div>
             ) : error ? (
-              <div className="flex flex-col items-center justify-center py-8 text-textSubtle">
+              <div className="flex flex-col items-center justify-center py-8 text-text-muted">
                 <div className="text-red-500 mb-4">
                   <AlertCircle size={32} />
                 </div>
@@ -82,6 +83,7 @@ export const SessionMessages: React.FC<SessionMessagesProps> = ({
               messages
                 .map((message, index) => {
                   const { textContent, imagePaths } = getTextAndImageContent(message);
+                  const reasoningContent = getReasoningContent(message);
 
                   // Get tool requests from the message
                   const toolRequests = message.content
@@ -105,20 +107,33 @@ export const SessionMessages: React.FC<SessionMessagesProps> = ({
                       key={index}
                       className={`p-4 ${
                         message.role === 'user'
-                          ? 'bg-bgSecondary border border-borderSubtle'
-                          : 'bg-bgSubtle'
+                          ? 'bg-bgSecondary border border-border-default'
+                          : 'bg-background-muted'
                       }`}
                     >
                       <div className="flex justify-between items-center mb-2">
-                        <span className="font-medium text-textStandard">
+                        <span className="font-medium text-text-default">
                           {message.role === 'user' ? 'You' : 'Goose'}
                         </span>
-                        <span className="text-xs text-textSubtle">
+                        <span className="text-xs text-text-muted">
                           {formatMessageTimestamp(message.created)}
                         </span>
                       </div>
 
                       <div className="flex flex-col w-full">
+                        {/* Reasoning content */}
+                        {reasoningContent && (
+                          <details className="mb-2">
+                            <summary className="cursor-pointer text-xs text-textSubtle select-none">
+                              Show reasoning
+                            </summary>
+                            <div className="mt-2 text-sm">
+                              <MarkdownContent content={reasoningContent} />
+                            </div>
+                          </details>
+                        )}
+
+                        {/* Text content */}
                         {textContent && (
                           <div
                             className={`${toolRequests.length > 0 || imagePaths.length > 0 ? 'mb-4' : ''}`}
@@ -137,7 +152,7 @@ export const SessionMessages: React.FC<SessionMessagesProps> = ({
 
                         {/* Tool requests and responses */}
                         {toolRequests.length > 0 && (
-                          <div className="goose-message-tool bg-background-default border border-borderSubtle dark:border-gray-700 rounded-b-2xl px-4 pt-4 pb-2 mt-1">
+                          <div className="goose-message-tool bg-background-default border border-border-default dark:border-gray-700 rounded-b-2xl px-4 pt-4 pb-2 mt-1">
                             {toolRequests.map((toolRequest) => (
                               <ToolCallWithResponse
                                 // In the session history page, if no tool response found for given request, it means the tool call
@@ -159,7 +174,7 @@ export const SessionMessages: React.FC<SessionMessagesProps> = ({
                 })
                 .filter(Boolean) // Filter out null entries
             ) : (
-              <div className="flex flex-col items-center justify-center py-8 text-textSubtle">
+              <div className="flex flex-col items-center justify-center py-8 text-text-muted">
                 <MessageSquare className="w-12 h-12 mb-4" />
                 <p className="text-lg mb-2">No messages found</p>
                 <p className="text-sm">This session doesn't contain any messages</p>

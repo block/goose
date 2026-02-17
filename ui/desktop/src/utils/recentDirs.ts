@@ -15,7 +15,7 @@ export function loadRecentDirs(): string[] {
       const data = fs.readFileSync(RECENT_DIRS_FILE, 'utf8');
       const recentDirs: RecentDirs = JSON.parse(data);
 
-      // Filter out invalid directories (non-existent or not directories)
+      // Filter out invalid directories (nonexistent or not directories)
       const validDirs = recentDirs.dirs.filter((dir) => {
         try {
           // Use lstat to detect symlinks and validate path structure

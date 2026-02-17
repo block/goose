@@ -282,7 +282,10 @@ impl ProviderDef for BedrockProvider {
         )
     }
 
-    fn from_env(model: ModelConfig) -> BoxFuture<'static, Result<Self::Provider>> {
+    fn from_env(
+        model: ModelConfig,
+        _extensions: Vec<crate::config::ExtensionConfig>,
+    ) -> BoxFuture<'static, Result<Self::Provider>> {
         Box::pin(Self::from_env(model))
     }
 }
@@ -299,6 +302,10 @@ impl Provider for BedrockProvider {
 
     fn get_model_config(&self) -> ModelConfig {
         self.model.clone()
+    }
+
+    async fn fetch_supported_models(&self) -> Result<Vec<String>, ProviderError> {
+        Ok(BEDROCK_KNOWN_MODELS.iter().map(|s| s.to_string()).collect())
     }
 
     #[tracing::instrument(

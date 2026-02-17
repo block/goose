@@ -313,7 +313,10 @@ impl ProviderDef for SnowflakeProvider {
         )
     }
 
-    fn from_env(model: ModelConfig) -> BoxFuture<'static, Result<Self::Provider>> {
+    fn from_env(
+        model: ModelConfig,
+        _extensions: Vec<crate::config::ExtensionConfig>,
+    ) -> BoxFuture<'static, Result<Self::Provider>> {
         Box::pin(Self::from_env(model))
     }
 }
@@ -326,6 +329,13 @@ impl Provider for SnowflakeProvider {
 
     fn get_model_config(&self) -> ModelConfig {
         self.model.clone()
+    }
+
+    async fn fetch_supported_models(&self) -> Result<Vec<String>, ProviderError> {
+        Ok(SNOWFLAKE_KNOWN_MODELS
+            .iter()
+            .map(|s| s.to_string())
+            .collect())
     }
 
     #[tracing::instrument(

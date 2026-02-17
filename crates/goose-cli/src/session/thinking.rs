@@ -107,7 +107,7 @@ const THINKING_MESSAGES: &[&str] = &[
     "Visualizing vectors",
     "Wrangling widgets",
     "Yodeling yaml",
-    "Aligning artificial awarenesses",
+    "Aligning artificial awareness",
     "Bootstrapping brain bytes",
     "Contemplating code conundrums",
     "Distilling digital dreams",

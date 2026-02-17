@@ -153,7 +153,10 @@ impl ProviderDef for TetrateProvider {
         )
     }
 
-    fn from_env(model: ModelConfig) -> BoxFuture<'static, Result<Self::Provider>> {
+    fn from_env(
+        model: ModelConfig,
+        _extensions: Vec<crate::config::ExtensionConfig>,
+    ) -> BoxFuture<'static, Result<Self::Provider>> {
         Box::pin(Self::from_env(model))
     }
 }
@@ -244,7 +247,7 @@ impl Provider for TetrateProvider {
     }
 
     /// Fetch supported models from Tetrate Agent Router Service API (only models with tool support)
-    async fn fetch_supported_models(&self) -> Result<Option<Vec<String>>, ProviderError> {
+    async fn fetch_supported_models(&self) -> Result<Vec<String>, ProviderError> {
         // Use the existing api_client which already has authentication configured
         let response = match self
             .api_client
@@ -254,19 +257,19 @@ impl Provider for TetrateProvider {
         {
             Ok(response) => response,
             Err(e) => {
-                tracing::warn!("Failed to fetch models from Tetrate Agent Router Service API: {}, falling back to manual model entry", e);
-                return Ok(None);
+                return Err(ProviderError::ExecutionError(format!(
+                    "Failed to fetch models from Tetrate API: {}. Please check your API key and account at {}",
+                    e, TETRATE_DOC_URL
+                )));
             }
         };
 
-        // Handle JSON parsing failures gracefully
-        let json: serde_json::Value = match response.json().await {
-            Ok(json) => json,
-            Err(e) => {
-                tracing::warn!("Failed to parse Tetrate Agent Router Service API response as JSON: {}, falling back to manual model entry", e);
-                return Ok(None);
-            }
-        };
+        let json: serde_json::Value = response.json().await.map_err(|e| {
+            ProviderError::ExecutionError(format!(
+                "Failed to parse Tetrate API response: {}. Please check your API key and account at {}",
+                e, TETRATE_DOC_URL
+            ))
+        })?;
 
         // Check for error in response
         if let Some(err_obj) = json.get("error") {
@@ -274,64 +277,39 @@ impl Provider for TetrateProvider {
                 .get("message")
                 .and_then(|v| v.as_str())
                 .unwrap_or("unknown error");
-            tracing::warn!(
-                "Tetrate Agent Router Service API returned an error: {}",
-                msg
-            );
-            return Ok(None);
+            return Err(ProviderError::ExecutionError(format!(
+                "Tetrate API error: {}. Please check your API key and account at {}",
+                msg, TETRATE_DOC_URL
+            )));
         }
 
         // The response format from /v1/models is expected to be OpenAI-compatible
         // It should have a "data" field with an array of model objects
-        let data = match json.get("data").and_then(|v| v.as_array()) {
-            Some(data) => data,
-            None => {
-                tracing::warn!("Tetrate Agent Router Service API response missing 'data' field, falling back to manual model entry");
-                return Ok(None);
-            }
-        };
+        let data = json.get("data").and_then(|v| v.as_array()).ok_or_else(|| {
+            ProviderError::ExecutionError(format!(
+                "Tetrate API response missing 'data' field. Please check your API key and account at {}",
+                TETRATE_DOC_URL
+            ))
+        })?;
 
         let mut models: Vec<String> = data
             .iter()
             .filter_map(|model| {
-                // Get the model ID
                 let id = model.get("id").and_then(|v| v.as_str())?;
-
-                // Check if the model supports computer_use (which indicates tool/function support)
-                // The Tetrate API uses "supports_computer_use" instead of "supported_parameters"
-                let supported_params =
-                    match model.get("supported_parameters").and_then(|v| v.as_array()) {
-                        Some(params) => params,
-                        None => {
-                            tracing::debug!(
-                                "Model '{}' missing supported_parameters field, skipping",
-                                id
-                            );
-                            return None;
-                        }
-                    };
-
-                let has_tool_support = supported_params
-                    .iter()
-                    .any(|param| param.as_str() == Some("tools"));
-
-                if has_tool_support {
+                let supports_computer_use = model
+                    .get("supports_computer_use")
+                    .and_then(|v| v.as_bool())
+                    .unwrap_or(false);
+                if supports_computer_use {
                     Some(id.to_string())
                 } else {
-                    tracing::debug!("Model '{}' does not support tools, skipping", id);
                     None
                 }
             })
             .collect();
 
-        // If no models with tool support were found, fall back to manual entry
-        if models.is_empty() {
-            tracing::warn!("No models with tool support found in Tetrate Agent Router Service API response, falling back to manual model entry");
-            return Ok(None);
-        }
-
         models.sort();
-        Ok(Some(models))
+        Ok(models)
     }
 
     fn supports_streaming(&self) -> bool {

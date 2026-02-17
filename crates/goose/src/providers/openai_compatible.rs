@@ -25,14 +25,22 @@ pub struct OpenAiCompatibleProvider {
     /// Client targeted at the base URL (e.g. `https://api.x.ai/v1`)
     api_client: ApiClient,
     model: ModelConfig,
+    /// Path prefix prepended to `chat/completions` (e.g. `"deployments/{name}/"` for Azure).
+    completions_prefix: String,
 }
 
 impl OpenAiCompatibleProvider {
-    pub fn new(name: String, api_client: ApiClient, model: ModelConfig) -> Self {
+    pub fn new(
+        name: String,
+        api_client: ApiClient,
+        model: ModelConfig,
+        completions_prefix: String,
+    ) -> Self {
         Self {
             name,
             api_client,
             model,
+            completions_prefix,
         }
     }
 
@@ -81,11 +89,12 @@ impl Provider for OpenAiCompatibleProvider {
         let payload = self.build_request(model_config, system, messages, tools, false)?;
         let mut log = RequestLog::start(model_config, &payload)?;
 
+        let completions_path = format!("{}chat/completions", self.completions_prefix);
         let response = self
             .with_retry(|| async {
                 let resp = self
                     .api_client
-                    .response_post(session_id, "chat/completions", &payload)
+                    .response_post(session_id, &completions_path, &payload)
                     .await?;
                 handle_response_openai_compat(resp).await
             })
@@ -103,7 +112,7 @@ impl Provider for OpenAiCompatibleProvider {
         Ok((message, ProviderUsage::new(response_model, usage)))
     }
 
-    async fn fetch_supported_models(&self) -> Result<Option<Vec<String>>, ProviderError> {
+    async fn fetch_supported_models(&self) -> Result<Vec<String>, ProviderError> {
         let response = self
             .api_client
             .response_get(None, "models")
@@ -119,18 +128,15 @@ impl Provider for OpenAiCompatibleProvider {
             return Err(ProviderError::Authentication(msg.to_string()));
         }
 
-        let data = json.get("data").and_then(|v| v.as_array());
-        match data {
-            Some(arr) => {
-                let mut models: Vec<String> = arr
-                    .iter()
-                    .filter_map(|m| m.get("id").and_then(|v| v.as_str()).map(str::to_string))
-                    .collect();
-                models.sort();
-                Ok(Some(models))
-            }
-            None => Ok(None),
-        }
+        let arr = json.get("data").and_then(|v| v.as_array()).ok_or_else(|| {
+            ProviderError::RequestFailed("Missing 'data' array in models response".to_string())
+        })?;
+        let mut models: Vec<String> = arr
+            .iter()
+            .filter_map(|m| m.get("id").and_then(|v| v.as_str()).map(str::to_string))
+            .collect();
+        models.sort();
+        Ok(models)
     }
 
     fn supports_streaming(&self) -> bool {
@@ -147,11 +153,12 @@ impl Provider for OpenAiCompatibleProvider {
         let payload = self.build_request(&self.model, system, messages, tools, true)?;
         let mut log = RequestLog::start(&self.model, &payload)?;
 
+        let completions_path = format!("{}chat/completions", self.completions_prefix);
         let response = self
             .with_retry(|| async {
                 let resp = self
                     .api_client
-                    .response_post(Some(session_id), "chat/completions", &payload)
+                    .response_post(Some(session_id), &completions_path, &payload)
                     .await?;
                 handle_status_openai_compat(resp).await
             })

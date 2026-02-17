@@ -17,7 +17,7 @@ use rmcp::model::{Content, RawContent};
 const LEAD_WORKER_PROVIDER_NAME: &str = "lead_worker";
 
 /// A provider that switches between a lead model and a worker model based on turn count
-/// and can fallback to lead model on consecutive failures
+/// and can fall back to lead model on consecutive failures
 pub struct LeadWorkerProvider {
     lead_provider: Arc<dyn Provider>,
     worker_provider: Arc<dyn Provider>,
@@ -335,7 +335,10 @@ impl ProviderDef for LeadWorkerProvider {
         )
     }
 
-    fn from_env(_model: ModelConfig) -> BoxFuture<'static, Result<Self::Provider>> {
+    fn from_env(
+        _model: ModelConfig,
+        _extensions: Vec<crate::config::ExtensionConfig>,
+    ) -> BoxFuture<'static, Result<Self::Provider>> {
         Box::pin(async { Err(anyhow!("LeadWorkerProvider must be constructed explicitly")) })
     }
 }
@@ -445,22 +448,14 @@ impl Provider for LeadWorkerProvider {
         final_result
     }
 
-    async fn fetch_supported_models(&self) -> Result<Option<Vec<String>>, ProviderError> {
+    async fn fetch_supported_models(&self) -> Result<Vec<String>, ProviderError> {
         // Combine models from both providers
-        let lead_models = self.lead_provider.fetch_supported_models().await?;
+        let mut all_models = self.lead_provider.fetch_supported_models().await?;
         let worker_models = self.worker_provider.fetch_supported_models().await?;
-
-        match (lead_models, worker_models) {
-            (Some(lead), Some(worker)) => {
-                let mut all_models = lead;
-                all_models.extend(worker);
-                all_models.sort();
-                all_models.dedup();
-                Ok(Some(all_models))
-            }
-            (Some(models), None) | (None, Some(models)) => Ok(Some(models)),
-            (None, None) => Ok(None),
-        }
+        all_models.extend(worker_models);
+        all_models.sort();
+        all_models.dedup();
+        Ok(all_models)
     }
 
     fn supports_embeddings(&self) -> bool {

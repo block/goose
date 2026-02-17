@@ -19,20 +19,7 @@ import { useModelAndProvider } from '../../../ModelAndProviderContext';
 import { AlertTriangle, LogIn } from 'lucide-react';
 import { ProviderDetails, removeCustomProvider, configureProviderOauth } from '../../../../api';
 import { Button } from '../../../../components/ui/button';
-
-const formatErrorMessage = (error: unknown): string => {
-  if (error instanceof Error) {
-    return error.message;
-  }
-  if (typeof error === 'string') {
-    return error;
-  }
-  try {
-    return JSON.stringify(error);
-  } catch {
-    return String(error);
-  }
-};
+import { errorMessage } from '../../../../utils/conversionUtils';
 
 interface ProviderConfigurationModalProps {
   provider: ProviderDetails;
@@ -87,7 +74,7 @@ export default function ProviderConfigurationModal({
         onClose();
       }
     } catch (err) {
-      setError(`OAuth login failed: ${formatErrorMessage(err)}`);
+      setError(`OAuth login failed: ${errorMessage(err)}`);
     } finally {
       setIsOAuthLoading(false);
     }
@@ -118,8 +105,14 @@ export default function ProviderConfigurationModal({
 
     const toSubmit = Object.fromEntries(
       Object.entries(configValues)
-        .filter(([_k, entry]) => !!entry.value)
-        .map(([k, entry]) => [k, entry.value || ''])
+        .filter(
+          ([_k, entry]) =>
+            !!entry.value || (entry.serverValue != null && typeof entry.serverValue === 'string')
+        )
+        .map(([k, entry]) => [
+          k,
+          entry.value ?? (typeof entry.serverValue === 'string' ? entry.serverValue : ''),
+        ])
     );
 
     try {
@@ -130,7 +123,7 @@ export default function ProviderConfigurationModal({
         onClose();
       }
     } catch (error) {
-      setError(formatErrorMessage(error));
+      setError(errorMessage(error));
     }
   };
 
@@ -231,7 +224,7 @@ export default function ProviderConfigurationModal({
                       ? 'Signing in...'
                       : `Sign in with ${provider.metadata.display_name}`}
                   </Button>
-                  <p className="text-sm text-textSubtle text-center">
+                  <p className="text-sm text-text-muted text-center">
                     A browser window will open for you to complete the login.
                   </p>
                 </div>
