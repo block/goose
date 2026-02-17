@@ -16,6 +16,8 @@ import {
   useMemo,
   useCallback,
   useState,
+  useRef,
+  useEffect,
   type ReactNode,
 } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
@@ -101,6 +103,38 @@ export function useUnifiedInput() {
   const ctx = useContext(UnifiedInputContext);
   if (!ctx) throw new Error('useUnifiedInput must be used within UnifiedInputProvider');
   return ctx;
+}
+
+// Hook for session components (BaseChat) to register their session into the unified context.
+// Pass individual stable values rather than an object to avoid infinite re-renders.
+export function useRegisterSession(
+  sessionId: string | null,
+  chatState: ChatState,
+  handleSubmit: ((input: UserInput) => void) | null,
+) {
+  const ctx = useContext(UnifiedInputContext);
+  const handleSubmitRef = useRef(handleSubmit);
+  handleSubmitRef.current = handleSubmit;
+
+  const stableSubmit = useCallback((input: UserInput) => {
+    handleSubmitRef.current?.(input);
+  }, []);
+
+  useEffect(() => {
+    if (ctx && sessionId) {
+      ctx.setSessionState({
+        sessionId,
+        chatState,
+        handleSubmit: stableSubmit,
+        setView: () => {},
+        toolCount: 0,
+      });
+      return () => { ctx.setSessionState(null); };
+    }
+    return undefined;
+  // Only re-register when sessionId or chatState change
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ctx, sessionId, chatState]);
 }
 
 // Also re-export the old hook name for backward compatibility during migration

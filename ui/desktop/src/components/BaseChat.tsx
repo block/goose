@@ -25,6 +25,7 @@ import { useSidebar } from './ui/sidebar';
 import { cn } from '../utils';
 import { useChatStream } from '../hooks/chatStream';
 import { useNavigation } from '../hooks/useNavigation';
+import { useRegisterSession } from '../contexts/UnifiedInputContext';
 import { RecipeHeader } from './RecipeHeader';
 import { RecipeWarningModal } from './ui/RecipeWarningModal';
 import { scanRecipe } from '../recipe';
@@ -227,6 +228,10 @@ export default function BaseChat({
   }, [messages.length]);
 
   const toolCount = useToolCount(sessionId);
+
+  // Register this session into the unified input context so the PromptBar can
+  // delegate to the active chat session if needed (Phase 2b)
+  useRegisterSession(sessionId, chatState, chatInputSubmit);
 
   // Listen for global scroll-to-bottom requests (e.g., from MCP UI prompt actions)
   useEffect(() => {
