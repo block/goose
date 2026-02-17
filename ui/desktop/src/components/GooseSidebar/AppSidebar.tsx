@@ -226,15 +226,22 @@ const groupSessionsByProject = (
     groups.set(project, existing);
   }
 
+  // Ensure "General" group always exists (even if empty)
+  if (!groups.has('General')) {
+    groups.set('General', []);
+  }
+
   return Array.from(groups.entries())
     .map(([project, projectSessions]) => ({ project, sessions: projectSessions }))
     .sort((a, b) => {
+      // General always first
+      if (a.project === 'General') return -1;
+      if (b.project === 'General') return 1;
+      // Then pinned projects
       const aPinned = pinnedProjects.includes(a.project);
       const bPinned = pinnedProjects.includes(b.project);
       if (aPinned && !bPinned) return -1;
       if (!aPinned && bPinned) return 1;
-      if (a.project === 'General') return 1;
-      if (b.project === 'General') return -1;
       return 0;
     });
 };
