@@ -9180,6 +9180,23 @@
           "a2a"
         ]
       },
+      "NodePosition": {
+        "type": "object",
+        "required": [
+          "x",
+          "y"
+        ],
+        "properties": {
+          "x": {
+            "type": "number",
+            "format": "double"
+          },
+          "y": {
+            "type": "number",
+            "format": "double"
+          }
+        }
+      },
       "ObservatoryDashboard": {
         "type": "object",
         "description": "Unified Observatory dashboard — system health + active agents + performance snapshot.",
@@ -12496,6 +12513,28 @@
           },
           "goose_version": {
             "type": "string"
+          }
+        }
+      },
+      "Viewport": {
+        "type": "object",
+        "required": [
+          "x",
+          "y",
+          "zoom"
+        ],
+        "properties": {
+          "x": {
+            "type": "number",
+            "format": "double"
+          },
+          "y": {
+            "type": "number",
+            "format": "double"
+          },
+          "zoom": {
+            "type": "number",
+            "format": "double"
           }
         }
       },

@@ -44,7 +44,7 @@ import PermissionSettingsView from './components/settings/permission/PermissionS
 import ExtensionsView, { ExtensionsViewOptions } from './components/extensions/ExtensionsView';
 import RecipesView from './components/recipes/RecipesView';
 import AgentsView from './components/agents/AgentsView';
-import { DagEditor } from './components/workflows';
+import { PipelineManager } from './components/workflows';
 import MonitoringView from './components/analytics/MonitoringView';
 import EvaluateView from './components/analytics/EvaluateView';
 import ToolsHealthView from './components/tools/ToolsHealthView';
@@ -698,7 +698,7 @@ export function AppInner() {
               <Route path="schedules" element={<SchedulesRoute />} />
               <Route path="recipes" element={<RecipesRoute />} />
               <Route path="agents" element={<AgentsRoute />} />
-              <Route path="pipelines" element={<DagEditor />} />
+              <Route path="pipelines" element={<PipelineManager />} />
               <Route path="analytics" element={<AnalyticsRoute />} />
               <Route path="monitoring" element={<MonitoringRoute />} />
               <Route path="evaluate" element={<EvaluateRoute />} />

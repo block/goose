@@ -1286,6 +1286,13 @@ export type ModelInfo = {
     supports_cache_control?: boolean | null;
 };
 
+export type NodeKind = 'trigger' | 'agent' | 'tool' | 'condition' | 'transform' | 'human' | 'a2a';
+
+export type NodePosition = {
+    x: number;
+    y: number;
+};
+
 /**
  * Unified Observatory dashboard — system health + active agents + performance snapshot.
  */
@@ -1375,6 +1382,52 @@ export type PersonaSummary = {
     name: string;
     skills_count: number;
     slug: string;
+};
+
+export type Pipeline = {
+    api_version?: string;
+    description?: string;
+    edges?: Array<PipelineEdge>;
+    kind?: string;
+    layout?: PipelineLayout | null;
+    name: string;
+    nodes: Array<PipelineNode>;
+    tags?: Array<string>;
+    version?: string;
+};
+
+export type PipelineEdge = {
+    condition?: string | null;
+    label?: string | null;
+    source: string;
+    target: string;
+};
+
+export type PipelineLayout = {
+    viewport?: Viewport | null;
+};
+
+export type PipelineManifest = {
+    description: string;
+    edge_count: number;
+    file_path: string;
+    id: string;
+    last_modified: string;
+    name: string;
+    node_count: number;
+    tags: Array<string>;
+    version: string;
+};
+
+export type PipelineNode = {
+    condition?: string | null;
+    config?: {
+        [key: string]: unknown;
+    };
+    id: string;
+    kind: NodeKind;
+    label: string;
+    position?: NodePosition | null;
 };
 
 /**
@@ -1801,6 +1854,16 @@ export type RunResumeRequest = {
     await_resume: AwaitResume;
     mode: RunMode;
     run_id: string;
+};
+
+export type SavePipelineRequest = {
+    id?: string | null;
+    pipeline: Pipeline;
+};
+
+export type SavePipelineResponse = {
+    file_path: string;
+    id: string;
 };
 
 export type SavePromptRequest = {
@@ -2323,12 +2386,24 @@ export type UpsertPermissionsQuery = {
     tool_permissions: Array<ToolPermission>;
 };
 
+export type ValidatePipelineResponse = {
+    error?: string | null;
+    valid: boolean;
+    warnings: Array<string>;
+};
+
 /**
  * Version info for correlation tracking
  */
 export type VersionInfo = {
     active_extensions: Array<string>;
     goose_version: string;
+};
+
+export type Viewport = {
+    x: number;
+    y: number;
+    zoom: number;
 };
 
 export type WhisperModelResponse = {
@@ -4734,6 +4809,151 @@ export type PingResponses = {
      */
     200: unknown;
 };
+
+export type ListPipelinesData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/pipelines/list';
+};
+
+export type ListPipelinesErrors = {
+    /**
+     * Internal error
+     */
+    500: unknown;
+};
+
+export type ListPipelinesResponses = {
+    /**
+     * List all saved pipelines
+     */
+    200: Array<PipelineManifest>;
+};
+
+export type ListPipelinesResponse = ListPipelinesResponses[keyof ListPipelinesResponses];
+
+export type SavePipelineData = {
+    body: SavePipelineRequest;
+    path?: never;
+    query?: never;
+    url: '/pipelines/save';
+};
+
+export type SavePipelineErrors = {
+    /**
+     * Invalid pipeline
+     */
+    400: unknown;
+};
+
+export type SavePipelineResponses = {
+    /**
+     * Pipeline saved
+     */
+    200: SavePipelineResponse;
+};
+
+export type SavePipelineResponse2 = SavePipelineResponses[keyof SavePipelineResponses];
+
+export type ValidatePipelineData = {
+    body: Pipeline;
+    path?: never;
+    query?: never;
+    url: '/pipelines/validate';
+};
+
+export type ValidatePipelineResponses = {
+    /**
+     * Validation result
+     */
+    200: ValidatePipelineResponse;
+};
+
+export type ValidatePipelineResponse2 = ValidatePipelineResponses[keyof ValidatePipelineResponses];
+
+export type DeletePipelineData = {
+    body?: never;
+    path: {
+        /**
+         * Pipeline ID to delete
+         */
+        id: string;
+    };
+    query?: never;
+    url: '/pipelines/{id}';
+};
+
+export type DeletePipelineErrors = {
+    /**
+     * Pipeline not found
+     */
+    404: unknown;
+};
+
+export type DeletePipelineResponses = {
+    /**
+     * Pipeline deleted
+     */
+    200: unknown;
+};
+
+export type GetPipelineData = {
+    body?: never;
+    path: {
+        /**
+         * Pipeline ID (filename without extension)
+         */
+        id: string;
+    };
+    query?: never;
+    url: '/pipelines/{id}';
+};
+
+export type GetPipelineErrors = {
+    /**
+     * Pipeline not found
+     */
+    404: unknown;
+};
+
+export type GetPipelineResponses = {
+    /**
+     * Pipeline loaded
+     */
+    200: Pipeline;
+};
+
+export type GetPipelineResponse = GetPipelineResponses[keyof GetPipelineResponses];
+
+export type UpdatePipelineData = {
+    body: Pipeline;
+    path: {
+        id: string;
+    };
+    query?: never;
+    url: '/pipelines/{id}';
+};
+
+export type UpdatePipelineErrors = {
+    /**
+     * Invalid pipeline
+     */
+    400: unknown;
+    /**
+     * Pipeline not found
+     */
+    404: unknown;
+};
+
+export type UpdatePipelineResponses = {
+    /**
+     * Pipeline updated
+     */
+    200: SavePipelineResponse;
+};
+
+export type UpdatePipelineResponse = UpdatePipelineResponses[keyof UpdatePipelineResponses];
 
 export type CreateRecipeData = {
     body: CreateRecipeRequest;

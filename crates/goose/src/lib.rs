@@ -19,6 +19,7 @@ pub mod permission;
 pub mod posthog;
 pub mod prompt_template;
 pub mod providers;
+pub mod pipeline;
 pub mod recipe;
 pub mod recipe_deeplink;
 pub mod registry;

@@ -1,4 +1,5 @@
 export { DagEditor } from './DagEditor';
+export { PipelineManager } from './PipelineManager';
 export { NodePalette } from './panels/NodePalette';
 export { PropertiesPanel } from './panels/PropertiesPanel';
 export { nodeTypes } from './nodes';
