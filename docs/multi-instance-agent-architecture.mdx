@@ -1,0 +1,242 @@
+# Multi-Instance Agent Architecture
+
+## Status: ✅ COMPLETE (Epic goose4-lk7s)
+
+All 4 phases implemented and pushed to `feature/cli-via-goosed`.
+
+## Problem Statement
+
+Goose's `AgentManager` enforced a single shared `default_provider` and `shared_extension_manager`,
+making it impossible to:
+- Run 2 "dev" agents with different models (e.g., Claude for auth, GPT-4o for database)
+- Execute parallel tasks on different projects with different tool sets
+- Expose individual agent instances as A2A endpoints for external discovery
+
+## Implementation Summary
+
+| Phase | Task | Commit | LOC | Key Types |
+|-------|------|--------|-----|-----------|
+| 1 | Per-Instance Provider Override | `f46562b9` | ~100 | `get_or_create_agent_with_provider()` |
+| 2 | AgentPool for Parallel Execution | `a274c558` | ~545 | `AgentPool`, `SpawnConfig`, `AgentInstance`, `AgentResult` |
+| 3 | Per-Instance Extension Manager | `8a08f2a6` | ~165 | `resolve_extensions()`, `inherit_extensions`, `exclude_extensions` |
+| 4 | A2A-Native Agent Instances | `391f3de4` | ~260 | REST routes, `InstanceResponse`, `InstanceResultResponse` |
+| **Total** | | | **~1070** | |
+
+## Files
+
+### New Files
+- `crates/goose/src/execution/pool.rs` (~700 lines) — AgentPool + SpawnConfig + resolve_extensions + 12 tests
+
+### Modified Files
+- `crates/goose/src/execution/manager.rs` — `get_or_create_agent_with_provider()`, `get_default_provider()`, `session_manager_arc()` + 3 tests
+- `crates/goose/src/execution/mod.rs` — `pub mod pool`
+- `crates/goose-server/src/state.rs` — `agent_pool: Arc<AgentPool>` field
+- `crates/goose-server/src/routes/a2a.rs` — 6 instance management routes + types
+
+## Phase 1: Per-Instance Provider Override
+
+**Change**: Refactored `get_or_create_agent()` to delegate to `get_or_create_agent_with_provider(session_id, Option<Arc<dyn Provider>>)`.
+
+- `None` → falls back to `default_provider` (backward compatible)
+- `Some(provider)` → uses the given provider for that session
+- First call wins: subsequent calls with different provider return cached agent
+
+**Key insight**: Specialist sub-agents (via `SummonExtension.delegate()`) already had per-instance providers! The `DelegateParams` has `provider`, `model`, `temperature` fields. Phase 1 extended this to server-managed sessions.
+
+```rust
+// AgentManager
+pub async fn get_or_create_agent_with_provider(
+    &self,
+    session_id: String,
+    provider_override: Option<Arc<dyn Provider>>,
+) -> Result<Arc<Agent>>
+```
+
+## Phase 2: AgentPool for Parallel Execution
+
+**New**: `AgentPool` struct for managed lifecycle of concurrent agent instances.
+
+### Types
+```rust
+pub struct SpawnConfig {
+    pub persona: String,
+    pub instructions: String,
+    pub prompt: String,
+    pub working_dir: PathBuf,
+    pub provider: Arc<dyn Provider>,
+    pub extensions: Vec<ExtensionConfig>,
+    pub inherit_extensions: Option<Arc<ExtensionManager>>,
+    pub exclude_extensions: Vec<String>,
+    pub max_turns: Option<usize>,
+    pub session_manager: Arc<SessionManager>,
+}
+
+pub struct AgentResult {
+    pub id: String,
+    pub persona: String,
+    pub provider_name: String,
+    pub model_name: String,
+    pub status: InstanceStatus,
+    pub output: Option<String>,
+    pub error: Option<String>,
+    pub turns_taken: u32,
+    pub duration: Duration,
+}
+```
+
+### API
+| Method | Returns | Behavior |
+|--------|---------|----------|
+| `spawn(config)` | `Result<String>` | Launch instance, returns ID |
+| `status(id)` | `Option<InstanceSnapshot>` | Read-only status view |
+| `status_all()` | `Vec<InstanceSnapshot>` | All instances |
+| `cancel(id)` | `bool` | Graceful cancellation |
+| `cancel_all()` | `usize` | Cancel all running |
+| `join(id)` | `Option<AgentResult>` | Await + consume result |
+| `join_all()` | `Vec<AgentResult>` | Await all + consume |
+| `collect_finished()` | `Vec<AgentResult>` | Non-blocking harvest |
+| `completed_results()` | `Vec<AgentResult>` | Read without consuming |
+| `running_count()` | `usize` | Active instance count |
+
+### Internal: `run_pooled_agent`
+Creates an `Agent`, configures provider/extensions/system prompt, sends the user prompt,
+streams events (tracking turns/timing), and returns `(conversation, final_output)`.
+
+## Phase 3: Per-Instance Extension Manager
+
+**Key insight**: Each `Agent` already creates its own `ExtensionManager` when `None` is passed
+to `with_config_and_extensions()`. Phase 3 was much simpler than originally estimated (~100 LOC vs ~800).
+
+### Extension Resolution
+```rust
+async fn resolve_extensions(config: &SpawnConfig) -> Vec<ExtensionConfig> {
+    let mut extensions = Vec::new();
+    // 1. Inherit from shared EM (minus excludes)
+    if let Some(shared_em) = &config.inherit_extensions {
+        let inherited = shared_em.get_extension_configs().await;
+        for ext in inherited {
+            if !config.exclude_extensions.contains(&ext.name()) {
+                extensions.push(ext);
+            }
+        }
+    }
+    // 2. Append explicit extensions
+    extensions.extend(config.extensions.iter().cloned());
+    extensions
+}
+```
+
+### Usage Patterns
+```rust
+// All default extensions
+SpawnConfig { inherit_extensions: Some(shared_em.clone()), ..}
+
+// All except "todo"
+SpawnConfig {
+    inherit_extensions: Some(shared_em.clone()),
+    exclude_extensions: vec!["todo".into()],
+    ..
+}
+
+// Only specific extensions (no inheritance)
+SpawnConfig {
+    inherit_extensions: None,
+    extensions: vec![my_custom_extension],
+    ..
+}
+```
+
+## Phase 4: A2A-Native Agent Instances
+
+**REST API** under `/a2a/instances`:
+
+| Method | Path | Handler | Description |
+|--------|------|---------|-------------|
+| GET | `/instances` | `list_instances` | List all instances with status |
+| POST | `/instances` | `spawn_instance` | Spawn new instance |
+| GET | `/instances/{id}` | `get_instance` | Instance status |
+| DELETE | `/instances/{id}` | `cancel_instance` | Cancel running instance |
+| GET | `/instances/{id}/card` | `get_instance_card` | A2A agent card |
+| GET | `/instances/{id}/result` | `get_instance_result` | Completed result |
+
+### Spawn Request
+```json
+POST /a2a/instances
+{
+  "persona": "developer",
+  "instructions": "Fix the auth module",
+  "provider": "anthropic",
+  "model": "claude-sonnet-4",
+  "max_turns": 10
+}
+```
+
+### Instance Response
+```json
+{
+  "id": "uuid",
+  "persona": "developer",
+  "status": "Running",
+  "provider_name": "anthropic",
+  "model_name": "claude-sonnet-4",
+  "turns": 3,
+  "elapsed_secs": 45.2,
+  "last_activity_ms": 1234
+}
+```
+
+### Instance Agent Card
+Each instance gets its own A2A `AgentCard` at `/a2a/instances/{id}/card`, making it
+discoverable by other A2A-compliant agents.
+
+## Architecture Diagram
+
+```
+┌─────────────────────────────────────────────────────┐
+│                    goose-server                       │
+│                                                       │
+│  AppState                                             │
+│  ├── agent_manager: AgentManager                      │
+│  │   ├── sessions: LruCache<String, Arc<Agent>>       │
+│  │   ├── default_provider: RwLock<Option<Provider>>   │
+│  │   ├── shared_extension_manager: Arc<ExtensionMgr>  │
+│  │   └── session_manager: Arc<SessionManager>         │
+│  │                                                    │
+│  └── agent_pool: Arc<AgentPool>                       │
+│      ├── instances: HashMap<String, AgentInstance>     │
+│      │   ├── Agent (own provider, own ExtensionMgr)   │
+│      │   ├── CancellationToken                        │
+│      │   └── JoinHandle<AgentResult>                  │
+│      └── results: Vec<AgentResult>                    │
+│                                                       │
+│  Routes:                                              │
+│  /a2a                    → aggregated A2A endpoint     │
+│  /a2a/agents             → list personas               │
+│  /a2a/agents/{persona}/* → per-persona A2A             │
+│  /a2a/instances          → pool instance management    │
+│  /a2a/instances/{id}/*   → per-instance endpoints      │
+└─────────────────────────────────────────────────────┘
+```
+
+## Relationship to Existing Systems
+
+### SummonExtension (Sub-Agent System)
+The sub-agent system (`summon_extension.rs`, ~2400 lines) already supports parallel execution
+with `BackgroundTask` tracking. It already had per-instance providers via `DelegateParams`.
+The `AgentPool` is a **reusable, standalone** version of this pattern, usable from server routes,
+A2A handlers, and orchestrators — not tied to one caller.
+
+### DelegationStrategy
+Three routing strategies work together:
+- `InProcessSpecialist` → local agent via SummonExtension (original)
+- `ExternalAcpAgent` → ACP protocol agent (existing)
+- `RemoteA2AAgent { url }` → remote A2A agent via HTTP (goose4-13xw)
+
+### A2A Integration
+Each pool instance can be exposed as an A2A endpoint via `/a2a/instances/{id}/card`,
+making it discoverable by external A2A-compliant agents.
+
+## Tests
+- 12 pool tests (creation, capacity, cancel, join, extension resolution)
+- 10 A2A server tests (agent cards, personas, serialization)
+- 73 manager tests (sessions, providers, concurrency)
