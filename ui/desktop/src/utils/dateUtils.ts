@@ -64,3 +64,42 @@ export function groupSessionsByDate(sessions: Session[]): DateGroup[] {
   // Convert to array and sort by date (newest first)
   return Object.values(groups).sort((a, b) => b.date.getTime() - a.date.getTime());
 }
+
+export interface ProjectGroup {
+  project: string;
+  sessionCount: number;
+  dateGroups: DateGroup[];
+}
+
+function getProjectName(workingDir: string): string {
+  if (!workingDir) return 'General';
+  const parts = workingDir.replace(/\/+$/, '').split('/');
+  return parts[parts.length - 1] || 'General';
+}
+
+export function groupSessionsByProjectThenDate(sessions: Session[]): ProjectGroup[] {
+  const projectMap: Record<string, Session[]> = {};
+
+  sessions.forEach((session) => {
+    const project = getProjectName(session.working_dir);
+    if (!projectMap[project]) {
+      projectMap[project] = [];
+    }
+    projectMap[project].push(session);
+  });
+
+  const projectGroups: ProjectGroup[] = Object.entries(projectMap).map(([project, projectSessions]) => ({
+    project,
+    sessionCount: projectSessions.length,
+    dateGroups: groupSessionsByDate(projectSessions),
+  }));
+
+  // Sort: 'General' last, others by most recent session
+  return projectGroups.sort((a, b) => {
+    if (a.project === 'General') return 1;
+    if (b.project === 'General') return -1;
+    const aLatest = a.dateGroups[0]?.date.getTime() ?? 0;
+    const bLatest = b.dateGroups[0]?.date.getTime() ?? 0;
+    return bLatest - aLatest;
+  });
+}

@@ -13,6 +13,8 @@ import {
   ExternalLink,
   Copy,
   Puzzle,
+  ChevronDown,
+  ChevronRight,
 } from 'lucide-react';
 import { Card } from '../ui/card';
 import { Button } from '../ui/button';
@@ -21,7 +23,7 @@ import { formatMessageTimestamp } from '../../utils/timeUtils';
 import { SearchView } from '../conversation/SearchView';
 import { SearchHighlighter } from '../../utils/searchHighlighter';
 import { MainPanelLayout } from '../Layout/MainPanelLayout';
-import { groupSessionsByDate, type DateGroup } from '../../utils/dateUtils';
+import { groupSessionsByDate, groupSessionsByProjectThenDate, type DateGroup, type ProjectGroup } from '../../utils/dateUtils';
 import { errorMessage } from '../../utils/conversionUtils';
 import { Skeleton } from '../ui/skeleton';
 import { toast } from 'react-toastify';
@@ -217,6 +219,8 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
     } | null>(null);
 
     const [visibleGroupsCount, setVisibleGroupsCount] = useState(15);
+    const [groupByProject, setGroupByProject] = useState(false);
+    const [collapsedProjects, setCollapsedProjects] = useState<Set<string>>(new Set());
 
     // Edit modal state
     const [showEditModal, setShowEditModal] = useState(false);
@@ -323,6 +327,26 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
       }
       return [];
     }, [filteredSessions]);
+
+    // Memoize project groups for project-based view
+    const projectGroups = useMemo<ProjectGroup[]>(() => {
+      if (groupByProject && filteredSessions.length > 0) {
+        return groupSessionsByProjectThenDate(filteredSessions);
+      }
+      return [];
+    }, [filteredSessions, groupByProject]);
+
+    const toggleProjectCollapse = useCallback((project: string) => {
+      setCollapsedProjects((prev) => {
+        const next = new Set(prev);
+        if (next.has(project)) {
+          next.delete(project);
+        } else {
+          next.add(project);
+        }
+        return next;
+      });
+    }, []);
 
     // Update date groups when filtered sessions change
     useEffect(() => {
@@ -741,6 +765,80 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
 
     SessionSkeleton.displayName = 'SessionSkeleton';
 
+    const renderSessionGrid = (sessions: Session[]) => (
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-4">
+        {sessions.map((session) => (
+          <SessionItem
+            key={session.id}
+            session={session}
+            onEditClick={handleEditSession}
+            onDuplicateClick={handleDuplicateSession}
+            onDeleteClick={handleDeleteSession}
+            onExportClick={handleExportSession}
+            onOpenInNewWindow={handleOpenInNewWindow}
+          />
+        ))}
+      </div>
+    );
+
+    const renderDateGroupedContent = () => (
+      <div className="space-y-8">
+        {visibleDateGroups.map((group) => (
+          <div key={group.label} className="space-y-4">
+            <div className="sticky top-0 z-10 bg-background-default/95 backdrop-blur-sm">
+              <h2 className="text-text-muted">{group.label}</h2>
+            </div>
+            {renderSessionGrid(group.sessions)}
+          </div>
+        ))}
+        {visibleGroupsCount < dateGroups.length && (
+          <div className="flex justify-center py-8">
+            <div className="flex items-center space-x-2 text-text-muted">
+              <div className="animate-spin rounded-full h-4 w-4 border-b-2"></div>
+              <span>Loading more sessions...</span>
+            </div>
+          </div>
+        )}
+      </div>
+    );
+
+    const renderProjectGroupedContent = () => (
+      <div className="space-y-6">
+        {projectGroups.map((pg) => {
+          const isCollapsed = collapsedProjects.has(pg.project);
+          return (
+            <div key={pg.project} className="border border-border-default rounded-lg overflow-hidden">
+              <button
+                onClick={() => toggleProjectCollapse(pg.project)}
+                className="w-full flex items-center gap-3 px-4 py-3 bg-background-default hover:bg-background-default/80 transition-colors cursor-pointer"
+              >
+                {isCollapsed ? (
+                  <ChevronRight className="w-4 h-4 text-text-muted flex-shrink-0" />
+                ) : (
+                  <ChevronDown className="w-4 h-4 text-text-muted flex-shrink-0" />
+                )}
+                <Folder className="w-4 h-4 text-text-muted flex-shrink-0" />
+                <span className="font-medium text-text-default">{pg.project}</span>
+                <span className="text-xs text-text-muted ml-auto">
+                  {pg.sessionCount} session{pg.sessionCount !== 1 ? 's' : ''}
+                </span>
+              </button>
+              {!isCollapsed && (
+                <div className="px-4 pb-4 space-y-6">
+                  {pg.dateGroups.map((group) => (
+                    <div key={`${pg.project}-${group.label}`} className="space-y-3">
+                      <h3 className="text-sm text-text-muted pt-2">{group.label}</h3>
+                      {renderSessionGrid(group.sessions)}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    );
+
     const renderActualContent = () => {
       if (error) {
         return (
@@ -775,39 +873,11 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
         );
       }
 
-      return (
-        <div className="space-y-8">
-          {visibleDateGroups.map((group) => (
-            <div key={group.label} className="space-y-4">
-              <div className="sticky top-0 z-10 bg-background-default/95 backdrop-blur-sm">
-                <h2 className="text-text-muted">{group.label}</h2>
-              </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-4">
-                {group.sessions.map((session) => (
-                  <SessionItem
-                    key={session.id}
-                    session={session}
-                    onEditClick={handleEditSession}
-                    onDuplicateClick={handleDuplicateSession}
-                    onDeleteClick={handleDeleteSession}
-                    onExportClick={handleExportSession}
-                    onOpenInNewWindow={handleOpenInNewWindow}
-                  />
-                ))}
-              </div>
-            </div>
-          ))}
+      if (groupByProject) {
+        return renderProjectGroupedContent();
+      }
 
-          {visibleGroupsCount < dateGroups.length && (
-            <div className="flex justify-center py-8">
-              <div className="flex items-center space-x-2 text-text-muted">
-                <div className="animate-spin rounded-full h-4 w-4 border-b-2"></div>
-                <span>Loading more sessions...</span>
-              </div>
-            </div>
-          )}
-        </div>
-      );
+      return renderDateGroupedContent();
     };
 
     return (
@@ -818,15 +888,26 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
               <div className="flex flex-col page-transition">
                 <div className="flex justify-between items-center mb-1">
                   <h1 className="text-4xl font-light">Chat history</h1>
-                  <Button
-                    onClick={handleImportClick}
-                    variant="outline"
-                    size="sm"
-                    className="flex items-center gap-2"
-                  >
-                    <Upload className="w-4 h-4" />
-                    Import Session
-                  </Button>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      onClick={() => setGroupByProject((prev) => !prev)}
+                      variant={groupByProject ? 'default' : 'outline'}
+                      size="sm"
+                      className="flex items-center gap-2"
+                    >
+                      <Folder className="w-4 h-4" />
+                      By Project
+                    </Button>
+                    <Button
+                      onClick={handleImportClick}
+                      variant="outline"
+                      size="sm"
+                      className="flex items-center gap-2"
+                    >
+                      <Upload className="w-4 h-4" />
+                      Import Session
+                    </Button>
+                  </div>
                 </div>
                 <p className="text-sm text-text-muted mb-4">
                   View and search your past conversations with Goose. {getSearchShortcutText()} to
