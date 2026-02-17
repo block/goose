@@ -311,6 +311,15 @@ pub struct ModelOptions {
         long_help = "Override the GOOSE_MODEL environment variable for this run. The model must be supported by the specified provider."
     )]
     pub model: Option<String>,
+
+    /// Reasoning variant level for models that support extended thinking
+    #[arg(
+        long = "variant",
+        value_name = "LEVEL",
+        help = "Set reasoning effort level (low, medium, high, max)",
+        long_help = "Control reasoning effort/budget for models that support extended thinking. The provider translates this into the appropriate API parameters (e.g., reasoning_effort for OpenAI, thinking budget for Anthropic). Overrides the GOOSE_VARIANT environment variable."
+    )]
+    pub variant: Option<String>,
 }
 
 /// Run execution behavior options
@@ -1111,6 +1120,7 @@ async fn handle_interactive_session(
         additional_system_prompt: None,
         provider: None,
         model: None,
+        variant: None,
         debug: session_opts.debug,
         max_tool_repetitions: session_opts.max_tool_repetitions,
         max_turns: session_opts.max_turns,
@@ -1316,6 +1326,7 @@ async fn handle_run_command(
         additional_system_prompt: input_config.additional_system_prompt,
         provider: model_opts.provider,
         model: model_opts.model,
+        variant: model_opts.variant,
         debug: session_opts.debug,
         max_tool_repetitions: session_opts.max_tool_repetitions,
         max_turns: session_opts.max_turns,
@@ -1424,6 +1435,7 @@ async fn handle_default_session() -> Result<()> {
         additional_system_prompt: None,
         provider: None,
         model: None,
+        variant: None,
         debug: false,
         max_tool_repetitions: None,
         max_turns: None,
