@@ -1289,20 +1289,14 @@ print(\"hello, world\")
             "mock"
         }
 
-        async fn complete_with_model(
+        async fn stream(
             &self,
-            _session_id: Option<&str>,
             _model_config: &goose::model::ModelConfig,
+            _session_id: &str,
             _system: &str,
             _messages: &[goose::conversation::message::Message],
             _tools: &[rmcp::model::Tool],
-        ) -> Result<
-            (
-                goose::conversation::message::Message,
-                goose::providers::base::ProviderUsage,
-            ),
-            ProviderError,
-        > {
+        ) -> Result<goose::providers::base::MessageStream, ProviderError> {
             unimplemented!()
         }
 
