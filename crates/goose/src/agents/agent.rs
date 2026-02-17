@@ -1346,8 +1346,9 @@ impl Agent {
                                     }
                                 }
 
-                                // Preserve thinking content from the original response
+                                // Preserve thinking/reasoning content from the original response
                                 // Gemini (and other thinking models) require thinking to be echoed back
+                                // Kimi/DeepSeek require reasoning_content on assistant tool call messages
                                 let thinking_content: Vec<MessageContent> = response.content.iter()
                                     .filter(|c| matches!(c, MessageContent::Thinking(_)))
                                     .cloned()
@@ -1361,10 +1362,25 @@ impl Agent {
                                     messages_to_add.push(thinking_msg);
                                 }
 
+                                // Collect reasoning content to attach to tool request messages
+                                let reasoning_content: Vec<MessageContent> = response.content.iter()
+                                    .filter(|c| matches!(c, MessageContent::Reasoning(_)))
+                                    .cloned()
+                                    .collect();
+
                                 for (idx, request) in frontend_requests.iter().chain(remaining_requests.iter()).enumerate() {
                                     if request.tool_call.is_ok() {
-                                        let request_msg = Message::assistant()
-                                            .with_id(format!("msg_{}", Uuid::new_v4()))
+                                        let mut request_msg = Message::assistant()
+                                            .with_id(format!("msg_{}", Uuid::new_v4()));
+
+                                        // Attach reasoning content to EVERY split tool request message.
+                                        // Providers like Kimi require reasoning_content on all assistant
+                                        // messages with tool_calls when thinking mode is enabled.
+                                        for rc in &reasoning_content {
+                                            request_msg = request_msg.with_content(rc.clone());
+                                        }
+
+                                        request_msg = request_msg
                                             .with_tool_request_with_metadata(
                                                 request.id.clone(),
                                                 request.tool_call.clone(),

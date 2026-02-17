@@ -5,6 +5,7 @@ mod elicitation;
 mod export;
 mod input;
 mod output;
+pub mod streaming_buffer;
 mod task_execution_display;
 mod thinking;
 
@@ -965,6 +966,7 @@ impl CliSession {
 
         let mut progress_bars = output::McpSpinners::new();
         let cancel_token_clone = cancel_token.clone();
+        let mut markdown_buffer = streaming_buffer::MarkdownBuffer::new();
 
         use futures::StreamExt;
         loop {
@@ -1037,7 +1039,7 @@ impl CliSession {
                                 if is_stream_json_mode {
                                     emit_stream_event(&StreamEvent::Message { message: message.clone() });
                                 } else if !is_json_mode {
-                                    output::render_message(&message, self.debug);
+                                    output::render_message_streaming(&message, &mut markdown_buffer, self.debug);
                                 }
                             }
                         }
@@ -1089,6 +1091,10 @@ impl CliSession {
                     break;
                 }
             }
+        }
+
+        if !is_json_mode && !is_stream_json_mode {
+            output::flush_markdown_buffer_current_theme(&mut markdown_buffer);
         }
 
         if is_json_mode {
@@ -1744,7 +1750,7 @@ fn log_tool_metrics(message: &Message, messages: &Conversation) {
         if let MessageContent::ToolRequest(tool_request) = content {
             if let Ok(tool_call) = &tool_request.tool_call {
                 tracing::info!(
-                    counter.goose.tool_calls = 1,
+                    monotonic_counter.goose.tool_calls = 1,
                     tool_name = %tool_call.name,
                     "Tool call started"
                 );
@@ -1775,7 +1781,7 @@ fn log_tool_metrics(message: &Message, messages: &Conversation) {
                 "error"
             };
             tracing::info!(
-                counter.goose.tool_completions = 1,
+                monotonic_counter.goose.tool_completions = 1,
                 tool_name = %tool_name,
                 result = %result_status,
                 "Tool call completed"

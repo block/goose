@@ -224,10 +224,18 @@ impl GeminiCliProvider {
 
     fn parse_stream_json_response(events: &[Value]) -> Result<(Message, Usage), ProviderError> {
         let mut all_text_content = Vec::new();
+        let mut all_thinking_content = Vec::new();
         let mut usage = Usage::default();
 
         for parsed in events {
             match parsed.get("type").and_then(|t| t.as_str()) {
+                Some("thinking") => {
+                    if let Some(content) = parsed.get("content").and_then(|c| c.as_str()) {
+                        if !content.is_empty() {
+                            all_thinking_content.push(content.to_string());
+                        }
+                    }
+                }
                 Some("message") => {
                     if parsed.get("role").and_then(|r| r.as_str()) == Some("assistant") {
                         if let Some(content) = parsed.get("content").and_then(|c| c.as_str()) {
@@ -256,11 +264,16 @@ impl GeminiCliProvider {
             ));
         }
 
-        let message = Message::new(
-            Role::Assistant,
-            chrono::Utc::now().timestamp(),
-            vec![MessageContent::text(combined_text)],
-        );
+        let mut content = Vec::new();
+
+        let combined_thinking = all_thinking_content.join("");
+        if !combined_thinking.is_empty() {
+            content.push(MessageContent::thinking(combined_thinking, String::new()));
+        }
+
+        content.push(MessageContent::text(combined_text));
+
+        let message = Message::new(Role::Assistant, chrono::Utc::now().timestamp(), content);
 
         Ok((message, usage))
     }
@@ -395,6 +408,44 @@ mod tests {
 
         let empty: Vec<Value> = vec![];
         assert!(GeminiCliProvider::parse_stream_json_response(&empty).is_err());
+    }
+
+    #[test]
+    fn test_parse_thinking_blocks() {
+        let events = vec![
+            json!({"type":"init","session_id":"abc","model":"gemini-2.5-pro"}),
+            json!({"type":"thinking","content":"Let me reason about this...","delta":true}),
+            json!({"type":"thinking","content":" Step 1: analyze the problem.","delta":true}),
+            json!({"type":"message","role":"assistant","content":"Here is the answer.","delta":true}),
+            json!({"type":"result","status":"success","stats":{"input_tokens":30,"output_tokens":15,"total_tokens":45}}),
+        ];
+        let (message, usage) = GeminiCliProvider::parse_stream_json_response(&events).unwrap();
+        assert_eq!(message.role, Role::Assistant);
+
+        // Should have thinking content followed by text content
+        assert_eq!(message.content.len(), 2);
+        let thinking = message.content[0]
+            .as_thinking()
+            .expect("first content should be thinking");
+        assert_eq!(
+            thinking.thinking,
+            "Let me reason about this... Step 1: analyze the problem."
+        );
+        assert_eq!(message.as_concat_text(), "Here is the answer.");
+        assert_eq!(usage.input_tokens, Some(30));
+        assert_eq!(usage.output_tokens, Some(15));
+    }
+
+    #[test]
+    fn test_parse_no_thinking_blocks() {
+        // When there's no thinking, message should only have text content
+        let events = vec![
+            json!({"type":"message","role":"assistant","content":"Direct answer.","delta":true}),
+            json!({"type":"result","status":"success","stats":{"input_tokens":10,"output_tokens":5,"total_tokens":15}}),
+        ];
+        let (message, _usage) = GeminiCliProvider::parse_stream_json_response(&events).unwrap();
+        assert_eq!(message.content.len(), 1);
+        assert_eq!(message.as_concat_text(), "Direct answer.");
     }
 
     #[test]

@@ -2,7 +2,7 @@ use opentelemetry::trace::TracerProvider;
 use opentelemetry::{global, KeyValue};
 use opentelemetry_appender_tracing::layer::OpenTelemetryTracingBridge;
 use opentelemetry_sdk::logs::{SdkLogger, SdkLoggerProvider};
-use opentelemetry_sdk::metrics::SdkMeterProvider;
+use opentelemetry_sdk::metrics::{SdkMeterProvider, Temporality};
 use opentelemetry_sdk::propagation::TraceContextPropagator;
 use opentelemetry_sdk::resource::{EnvResourceDetector, TelemetryResourceDetector};
 use opentelemetry_sdk::trace::SdkTracerProvider;
@@ -173,6 +173,19 @@ fn create_otlp_tracing_layer() -> OtlpResult<OtlpTracingLayer> {
     Ok(tracing_opentelemetry::layer().with_tracer(tracer))
 }
 
+// TODO: remove once https://github.com/open-telemetry/opentelemetry-rust/pull/3351 is released.
+fn temporality_preference() -> Temporality {
+    match env::var("OTEL_EXPORTER_OTLP_METRICS_TEMPORALITY_PREFERENCE")
+        .unwrap_or_default()
+        .to_lowercase()
+        .as_str()
+    {
+        "delta" => Temporality::Delta,
+        "lowmemory" => Temporality::LowMemory,
+        _ => Temporality::Cumulative,
+    }
+}
+
 fn create_otlp_metrics_layer() -> OtlpResult<OtlpMetricsLayer> {
     let exporter = signal_exporter("metrics").ok_or("Metrics not enabled")?;
     let resource = create_resource();
@@ -181,6 +194,7 @@ fn create_otlp_metrics_layer() -> OtlpResult<OtlpMetricsLayer> {
         ExporterType::Otlp => {
             let exporter = opentelemetry_otlp::MetricExporter::builder()
                 .with_http()
+                .with_temporality(temporality_preference())
                 .build()?;
             SdkMeterProvider::builder()
                 .with_resource(resource)
@@ -332,6 +346,7 @@ mod tests {
     use super::*;
     use opentelemetry::metrics::{Meter, MeterProvider};
     use opentelemetry::InstrumentationScope;
+    use opentelemetry_sdk::metrics::Temporality;
     use std::sync::Arc;
     use test_case::test_case;
 
@@ -371,6 +386,7 @@ mod tests {
             ("OTEL_EXPORTER_OTLP_LOGS_ENDPOINT", None),
             ("OTEL_EXPORTER_OTLP_TIMEOUT", None),
             ("OTEL_SERVICE_NAME", None),
+            ("OTEL_EXPORTER_OTLP_METRICS_TEMPORALITY_PREFERENCE", None),
             ("OTEL_RESOURCE_ATTRIBUTES", None),
         ]);
         for &(k, v) in overrides {
@@ -547,5 +563,16 @@ mod tests {
             env::var("OTEL_EXPORTER_OTLP_TIMEOUT").ok().as_deref(),
             expect_timeout
         );
+    }
+
+    #[test_case(&[], Temporality::Cumulative; "default is cumulative")]
+    #[test_case(&[("OTEL_EXPORTER_OTLP_METRICS_TEMPORALITY_PREFERENCE", "delta")], Temporality::Delta; "delta")]
+    #[test_case(&[("OTEL_EXPORTER_OTLP_METRICS_TEMPORALITY_PREFERENCE", "Delta")], Temporality::Delta; "Delta mixed case")]
+    #[test_case(&[("OTEL_EXPORTER_OTLP_METRICS_TEMPORALITY_PREFERENCE", "lowmemory")], Temporality::LowMemory; "lowmemory")]
+    #[test_case(&[("OTEL_EXPORTER_OTLP_METRICS_TEMPORALITY_PREFERENCE", "cumulative")], Temporality::Cumulative; "cumulative")]
+    #[test_case(&[("OTEL_EXPORTER_OTLP_METRICS_TEMPORALITY_PREFERENCE", "bogus")], Temporality::Cumulative; "unknown defaults to cumulative")]
+    fn temporality_preference_from_env(env: &[(&str, &str)], expected: Temporality) {
+        let _guard = clear_otel_env(env);
+        assert_eq!(temporality_preference(), expected);
     }
 }
