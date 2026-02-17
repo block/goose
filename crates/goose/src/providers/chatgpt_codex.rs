@@ -863,6 +863,7 @@ impl ProviderDef for ChatGptCodexProvider {
                 true,
                 true,
                 None,
+                false,
             )],
         )
         .with_unlisted_models()

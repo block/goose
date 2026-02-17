@@ -142,12 +142,13 @@ impl ProviderDef for TetrateProvider {
             TETRATE_KNOWN_MODELS.to_vec(),
             TETRATE_DOC_URL,
             vec![
-                ConfigKey::new("TETRATE_API_KEY", true, true, None),
+                ConfigKey::new("TETRATE_API_KEY", true, true, None, true),
                 ConfigKey::new(
                     "TETRATE_HOST",
                     false,
                     false,
                     Some("https://api.router.tetrate.ai"),
+                    false,
                 ),
             ],
         )
