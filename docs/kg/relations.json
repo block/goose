@@ -10968,5 +10968,25 @@
     "from": "DesignSystem: Generative Catalog",
     "to": "Component: GenerativePanel",
     "relationType": "related_to"
+  },
+  {
+    "from": "AnalyticsTokenMigration",
+    "to": "AnalyticsComponentFiles",
+    "relationType": "affects"
+  },
+  {
+    "from": "AnalyticsTokenMigration",
+    "to": "DesktopUIPolishEpic",
+    "relationType": "derived_from"
+  },
+  {
+    "from": "AnalyticsComponentFiles",
+    "to": "GooseDesignSystem",
+    "relationType": "depends_on"
+  },
+  {
+    "from": "AnalyticsTokenMigration",
+    "to": "SemanticDesignTokens",
+    "relationType": "implements"
   }
 ]

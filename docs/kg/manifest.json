@@ -1,7 +1,7 @@
 {
   "exported_at": "2026-02-17T18:54:55.243689",
-  "entity_count": 1552,
-  "relation_count": 2194,
+  "entity_count": 1554,
+  "relation_count": 2198,
   "format_version": "1.0",
   "branch": "feature/cli-via-goosed",
   "session_deliverables": [
