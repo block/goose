@@ -666,6 +666,10 @@ export type ModelInfo = {
      * Whether this model supports cache control
      */
     supports_cache_control?: boolean | null;
+    /**
+     * Whether this model supports reasoning/extended thinking
+     */
+    supports_reasoning?: boolean | null;
 };
 
 export type ModelInfoData = {
@@ -2427,6 +2431,38 @@ export type GetProviderModelsResponses = {
 };
 
 export type GetProviderModelsResponse = GetProviderModelsResponses[keyof GetProviderModelsResponses];
+
+export type GetProviderModelInfoData = {
+    body?: never;
+    path: {
+        /**
+         * Provider name (e.g., litellm)
+         */
+        name: string;
+    };
+    query?: never;
+    url: '/config/providers/{name}/model-info';
+};
+
+export type GetProviderModelInfoErrors = {
+    /**
+     * Unknown provider or provider not configured
+     */
+    400: unknown;
+    /**
+     * Internal server error
+     */
+    500: unknown;
+};
+
+export type GetProviderModelInfoResponses = {
+    /**
+     * Model info fetched successfully
+     */
+    200: Array<ModelInfo>;
+};
+
+export type GetProviderModelInfoResponse = GetProviderModelInfoResponses[keyof GetProviderModelInfoResponses];
 
 export type ConfigureProviderOauthData = {
     body?: never;
