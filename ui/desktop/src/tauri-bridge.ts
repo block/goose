@@ -6,10 +6,10 @@
  */
 import { invoke } from '@tauri-apps/api/core';
 import { listen, emit, type UnlistenFn } from '@tauri-apps/api/event';
-import { getCurrentWindow, type DragDropEvent } from '@tauri-apps/api/window';
+import { getCurrentWindow } from '@tauri-apps/api/window';
 import { open, save, message, confirm } from '@tauri-apps/plugin-dialog';
 import { sendNotification } from '@tauri-apps/plugin-notification';
-import { openUrl, revealItemInDir } from '@tauri-apps/plugin-opener';
+import { openUrl } from '@tauri-apps/plugin-opener';
 import { relaunch } from '@tauri-apps/plugin-process';
 import { check, type Update } from '@tauri-apps/plugin-updater';
 
@@ -64,7 +64,9 @@ interface UpdaterEvent {
 }
 
 // Store unlisten promises for event cleanup (stored immediately to avoid race conditions)
-const unlistenMap = new Map<string, Map<Function, Promise<UnlistenFn>>>();
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type EventCallback = (...args: any[]) => void;
+const unlistenMap = new Map<string, Map<EventCallback, Promise<UnlistenFn>>>();
 
 // Module-level state for the updater
 let pendingUpdate: Update | null = null;
@@ -191,6 +193,7 @@ export const tauriBridge = {
     const fullPath = dragDropPathMap.get(file.name);
     if (fullPath) return fullPath;
     // Fallback to Electron-style .path property or name
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     return (file as any).path || file.name;
   },
 
@@ -327,16 +330,20 @@ export const tauriBridge = {
 
   // ── Recipes ─────────────────────────────────────────────────────────
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   hasAcceptedRecipeBefore: (recipe: any) =>
     invoke<boolean>('has_accepted_recipe_before', { recipe }),
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   recordRecipeHash: (recipe: any) =>
     invoke<boolean>('record_recipe_hash', { recipe }),
 
   // ── Apps ─────────────────────────────────────────────────────────────
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   launchApp: (app: any) => invoke<void>('launch_app', { gooseApp: app }),
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   refreshApp: (app: any) => invoke<void>('refresh_app', { gooseApp: app }),
 
   closeApp: (appName: string) => invoke<void>('close_app', { appName }),
@@ -357,6 +364,7 @@ export const tauriBridge = {
 
   // ── Events ──────────────────────────────────────────────────────────
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   on: (channel: string, callback: (...args: any[]) => void) => {
     if (!unlistenMap.has(channel)) {
       unlistenMap.set(channel, new Map());
@@ -371,6 +379,7 @@ export const tauriBridge = {
     unlistenMap.get(channel)!.set(callback, unlistenPromise);
   },
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   off: (channel: string, callback: (...args: any[]) => void) => {
     const channelMap = unlistenMap.get(channel);
     if (channelMap) {
@@ -383,6 +392,7 @@ export const tauriBridge = {
     }
   },
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   emit: (channel: string, ...args: any[]) => {
     emit(channel, args);
   },
@@ -422,7 +432,7 @@ export async function initTauriBridge(): Promise<void> {
   await loadConfig();
 
   // Listen for Tauri drag-drop events to capture full file paths
-  getCurrentWindow().onDragDropEvent((event: DragDropEvent) => {
+  getCurrentWindow().onDragDropEvent((event) => {
     if (event.payload.type === 'drop' && event.payload.paths) {
       dragDropPathMap.clear();
       for (const fullPath of event.payload.paths) {

@@ -12,8 +12,8 @@ import { tauriBridge, appConfigBridge, initTauriBridge } from './tauri-bridge';
 
 // Install the Tauri bridge as window.electron and window.appConfig
 // so all existing components work without modification
-(window as any).electron = tauriBridge;
-(window as any).appConfig = appConfigBridge;
+window.electron = tauriBridge;
+window.appConfig = appConfigBridge;
 
 const App = lazy(() => import('./App'));
 
