@@ -7,6 +7,7 @@
 //! Agent IDs never hide user IDs — both are always available for tracing.
 //! By default, Goose runs with a guest user. OAuth/SAML can be added later.
 
+use base64::engine::{general_purpose::URL_SAFE_NO_PAD, Engine};
 use serde::{Deserialize, Serialize};
 use std::fmt;
 use uuid::Uuid;
@@ -108,6 +109,84 @@ impl UserIdentity {
     pub fn is_guest(&self) -> bool {
         matches!(self.auth_method, AuthMethod::Guest)
     }
+
+    /// Create a user identity from an API key identifier.
+    pub fn from_api_key(key_id: impl Into<String>) -> Self {
+        let key_id = key_id.into();
+        Self {
+            id: format!("apikey-{}", key_id),
+            name: format!("API Key {}", key_id),
+            auth_method: AuthMethod::ApiKey,
+            tenant: None,
+        }
+    }
+
+    /// Extract user identity from a JWT Bearer token (lightweight, no signature verification).
+    ///
+    /// Decodes the JWT payload to extract `sub`, `name`/`preferred_username`, and `iss`.
+    /// Signature verification is deferred to the OIDC provider middleware (Phase 3).
+    /// Returns `None` if the token is malformed or missing required claims.
+    pub fn from_bearer_token(token: &str) -> Option<Self> {
+        let claims = JwtClaims::decode(token)?;
+        let subject = claims.sub?;
+        let issuer = claims.iss.unwrap_or_default();
+        let provider = issuer_to_provider(&issuer);
+        let name = claims
+            .name
+            .or(claims.preferred_username)
+            .or(claims.email)
+            .unwrap_or_else(|| subject.clone());
+
+        let mut user = Self::oidc(&subject, &name, &provider);
+        // Extract tenant from `azp` (authorized party) or `org_id` if present
+        if let Some(tenant) = claims.azp.or(claims.org_id) {
+            user = user.with_tenant(tenant);
+        }
+        Some(user)
+    }
+}
+
+/// Minimal JWT claims extracted for identity purposes.
+/// No signature verification — that's the middleware's job.
+#[derive(Debug, Deserialize)]
+struct JwtClaims {
+    sub: Option<String>,
+    iss: Option<String>,
+    name: Option<String>,
+    preferred_username: Option<String>,
+    email: Option<String>,
+    azp: Option<String>,
+    org_id: Option<String>,
+}
+
+impl JwtClaims {
+    fn decode(token: &str) -> Option<Self> {
+        let parts: Vec<&str> = token.split('.').collect();
+        if parts.len() != 3 {
+            return None;
+        }
+        let payload = URL_SAFE_NO_PAD.decode(parts[1]).ok()?;
+        serde_json::from_slice(&payload).ok()
+    }
+}
+
+/// Map well-known OIDC issuers to short provider names.
+fn issuer_to_provider(issuer: &str) -> String {
+    if issuer.contains("accounts.google.com") {
+        "google".to_string()
+    } else if issuer.contains("login.microsoftonline.com") {
+        "azure".to_string()
+    } else if issuer.contains("github.com") || issuer.contains("token.actions.githubusercontent") {
+        "github".to_string()
+    } else if issuer.contains("auth0.com") {
+        "auth0".to_string()
+    } else if issuer.contains("okta.com") {
+        "okta".to_string()
+    } else if issuer.is_empty() {
+        "unknown".to_string()
+    } else {
+        issuer.to_string()
+    }
 }
 
 impl AgentIdentity {
@@ -162,6 +241,15 @@ impl ExecutionIdentity {
             "goose_agent_parent_id": self.agent.parent_id,
             "goose_spawned_by": self.agent.spawned_by,
         })
+    }
+
+    /// Derive an identity for a sub-agent spawned during compound execution.
+    /// Preserves the user identity and creates a child agent identity.
+    pub fn for_sub_agent(&self, child_kind: &str, child_persona: &str) -> Self {
+        Self {
+            user: self.user.clone(),
+            agent: AgentIdentity::sub_agent(child_kind, child_persona, &self.agent),
+        }
     }
 
     /// Extract from A2A metadata map (reverse of to_a2a_metadata).
@@ -335,5 +423,128 @@ mod tests {
         let json = serde_json::to_string(&ident).unwrap();
         let recovered: ExecutionIdentity = serde_json::from_str(&json).unwrap();
         assert_eq!(recovered, ident);
+    }
+
+    #[test]
+    fn test_api_key_user() {
+        let user = UserIdentity::from_api_key("key-abc123");
+        assert!(!user.is_guest());
+        assert_eq!(user.id, "apikey-key-abc123");
+        assert_eq!(user.auth_method, AuthMethod::ApiKey);
+    }
+
+    #[test]
+    fn test_from_bearer_token_google() {
+        // Build a minimal JWT: header.payload.signature
+        let payload = serde_json::json!({
+            "sub": "112233445566",
+            "name": "Alice Smith",
+            "iss": "https://accounts.google.com",
+            "email": "alice@example.com"
+        });
+        let token = make_test_jwt(&payload);
+        let user = UserIdentity::from_bearer_token(&token).unwrap();
+        assert_eq!(user.id, "oidc-google-112233445566");
+        assert_eq!(user.name, "Alice Smith");
+        match &user.auth_method {
+            AuthMethod::Oidc { provider, subject } => {
+                assert_eq!(provider, "google");
+                assert_eq!(subject, "112233445566");
+            }
+            _ => panic!("Expected OIDC"),
+        }
+    }
+
+    #[test]
+    fn test_from_bearer_token_azure_with_tenant() {
+        let payload = serde_json::json!({
+            "sub": "azure-sub-1",
+            "preferred_username": "bob@contoso.com",
+            "iss": "https://login.microsoftonline.com/tenant-id/v2.0",
+            "azp": "contoso-tenant"
+        });
+        let token = make_test_jwt(&payload);
+        let user = UserIdentity::from_bearer_token(&token).unwrap();
+        assert_eq!(user.id, "oidc-azure-azure-sub-1");
+        assert_eq!(user.name, "bob@contoso.com");
+        assert_eq!(user.tenant, Some("contoso-tenant".to_string()));
+    }
+
+    #[test]
+    fn test_from_bearer_token_malformed() {
+        assert!(UserIdentity::from_bearer_token("not-a-jwt").is_none());
+        assert!(UserIdentity::from_bearer_token("a.b").is_none());
+        assert!(UserIdentity::from_bearer_token("a.!!!.c").is_none());
+    }
+
+    #[test]
+    fn test_from_bearer_token_missing_sub() {
+        let payload = serde_json::json!({
+            "name": "No Subject",
+            "iss": "https://accounts.google.com"
+        });
+        let token = make_test_jwt(&payload);
+        assert!(UserIdentity::from_bearer_token(&token).is_none());
+    }
+
+    #[test]
+    fn test_from_bearer_token_fallback_email() {
+        let payload = serde_json::json!({
+            "sub": "sub-999",
+            "email": "fallback@example.com",
+            "iss": "https://auth0.com/"
+        });
+        let token = make_test_jwt(&payload);
+        let user = UserIdentity::from_bearer_token(&token).unwrap();
+        assert_eq!(user.name, "fallback@example.com");
+        match &user.auth_method {
+            AuthMethod::Oidc { provider, .. } => assert_eq!(provider, "auth0"),
+            _ => panic!("Expected OIDC"),
+        }
+    }
+
+    #[test]
+    fn test_for_sub_agent() {
+        let parent = ExecutionIdentity::guest("orchestrator", "Meta-Orchestrator");
+        let child = parent.for_sub_agent("developer", "Developer Agent");
+
+        // User identity is preserved
+        assert_eq!(child.user.id, parent.user.id);
+        assert_eq!(child.user.name, parent.user.name);
+
+        // Agent is a child
+        assert_eq!(child.agent.kind, "developer");
+        assert_eq!(child.agent.persona, "Developer Agent");
+        assert_eq!(child.agent.parent_id, Some(parent.agent.id.clone()));
+        assert_eq!(child.agent.spawned_by, parent.user.id);
+        assert_ne!(child.agent.id, parent.agent.id);
+    }
+
+    #[test]
+    fn test_issuer_mapping() {
+        assert_eq!(issuer_to_provider("https://accounts.google.com"), "google");
+        assert_eq!(
+            issuer_to_provider("https://login.microsoftonline.com/tid/v2.0"),
+            "azure"
+        );
+        assert_eq!(
+            issuer_to_provider("https://token.actions.githubusercontent.com"),
+            "github"
+        );
+        assert_eq!(issuer_to_provider("https://dev-123.auth0.com/"), "auth0");
+        assert_eq!(issuer_to_provider("https://acme.okta.com"), "okta");
+        assert_eq!(issuer_to_provider(""), "unknown");
+        assert_eq!(
+            issuer_to_provider("https://custom-idp.example.com"),
+            "https://custom-idp.example.com"
+        );
+    }
+
+    /// Helper: build a fake JWT (header.payload.signature) with arbitrary payload.
+    fn make_test_jwt(payload: &serde_json::Value) -> String {
+        use base64::engine::{general_purpose::URL_SAFE_NO_PAD, Engine};
+        let header = URL_SAFE_NO_PAD.encode(r#"{"alg":"RS256","typ":"JWT"}"#);
+        let body = URL_SAFE_NO_PAD.encode(serde_json::to_vec(payload).unwrap());
+        format!("{}.{}.fake-signature", header, body)
     }
 }

@@ -105,6 +105,8 @@ pub struct SpawnConfig {
     pub exclude_extensions: Vec<String>,
     pub max_turns: Option<usize>,
     pub session_manager: Arc<SessionManager>,
+    /// Execution identity propagated from the caller (user + parent agent context).
+    pub identity: Option<crate::identity::ExecutionIdentity>,
 }
 
 /// Pool managing multiple concurrent agent instances with lifecycle control.
@@ -654,6 +656,7 @@ mod tests {
             session_manager: Arc::new(SessionManager::new(std::path::PathBuf::from(
                 "/tmp/goose-test-pool",
             ))),
+            identity: None,
         };
         let resolved = resolve_extensions(&config).await;
         assert_eq!(resolved.len(), 1);
@@ -684,6 +687,7 @@ mod tests {
             session_manager: Arc::new(SessionManager::new(std::path::PathBuf::from(
                 "/tmp/goose-test-pool",
             ))),
+            identity: None,
         };
         let resolved = resolve_extensions(&config).await;
         assert_eq!(resolved.len(), 1);
@@ -723,6 +727,7 @@ mod tests {
             session_manager: Arc::new(SessionManager::new(std::path::PathBuf::from(
                 "/tmp/goose-test-pool",
             ))),
+            identity: None,
         };
         let resolved = resolve_extensions(&config).await;
         assert_eq!(resolved.len(), 2);

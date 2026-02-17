@@ -1,4 +1,5 @@
 use crate::agent_slot_registry::SlotDelegation;
+use crate::auth::RequestIdentity;
 use crate::routes::errors::ErrorResponse;
 use crate::state::AppState;
 #[cfg(test)]
@@ -242,8 +243,10 @@ async fn stream_event(
 )]
 pub async fn reply(
     State(state): State<Arc<AppState>>,
+    headers: axum::http::HeaderMap,
     Json(request): Json<ChatRequest>,
 ) -> Result<SseResponse, ErrorResponse> {
+    let identity = RequestIdentity::from_headers(&headers);
     let session_start = std::time::Instant::now();
 
     tracing::info!(
@@ -301,6 +304,15 @@ pub async fn reply(
                 return;
             }
         };
+
+        // Wire execution identity onto the agent (user from request headers + agent metadata)
+        let exec_identity = identity.into_execution("goose", "Goose Agent");
+        agent.set_execution_identity(exec_identity.clone()).await;
+        tracing::info!(
+            user_id = %exec_identity.user.id,
+            agent_id = %exec_identity.agent.id,
+            "Execution identity set on agent"
+        );
 
         let session = match state.session_manager().get_session(&session_id, true).await {
             Ok(metadata) => metadata,
@@ -452,6 +464,11 @@ pub async fn reply(
                                 );
 
                                 let client = a2a::client::A2AClient::new(&a2a_url);
+
+                                // Derive sub-agent identity for this A2A dispatch
+                                let sub_identity = exec_identity
+                                    .for_sub_agent(agent_name, &format!("{} (A2A)", agent_name));
+
                                 let a2a_message = a2a::types::core::Message {
                                     message_id: uuid::Uuid::new_v4().to_string(),
                                     role: a2a::types::core::Role::User,
@@ -460,7 +477,7 @@ pub async fn reply(
                                     )],
                                     context_id: None,
                                     task_id: None,
-                                    metadata: None,
+                                    metadata: Some(sub_identity.to_a2a_metadata()),
                                     extensions: vec![],
                                     reference_task_ids: vec![],
                                 };

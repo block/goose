@@ -45,7 +45,7 @@ clap = { workspace = true }
 indoc = { workspace = true }
 nanoid = "0.4"
 sha2 = "0.10"
-base64 = { workspace = true }
+base64.workspace = true
 url = { workspace = true }
 axum = { workspace = true }
 webbrowser = { workspace = true }

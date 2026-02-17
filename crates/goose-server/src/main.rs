@@ -1,4 +1,5 @@
 mod agent_slot_registry;
+mod auth;
 mod commands;
 mod configuration;
 mod error;

@@ -433,6 +433,7 @@ pub async fn spawn_instance(
         inherit_extensions: None,
         max_turns: req.max_turns,
         session_manager: state.agent_manager.session_manager_arc(),
+        identity: None,
     };
 
     let instance_id = state.agent_pool.spawn(config).await.map_err(|e| {
