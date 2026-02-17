@@ -12,6 +12,8 @@ use tokio::sync::Mutex;
 use tokio::task::JoinHandle;
 use tokio_util::sync::CancellationToken;
 
+use crate::agents::extension::ExtensionConfig;
+use crate::agents::extension_manager::ExtensionManager;
 use crate::agents::{Agent, AgentConfig, AgentEvent, SessionConfig};
 use crate::config::permission::PermissionManager;
 use crate::conversation::message::{Message, MessageContent};
@@ -77,7 +79,14 @@ pub struct SpawnConfig {
     pub prompt: String,
     pub working_dir: std::path::PathBuf,
     pub provider: Arc<dyn Provider>,
-    pub extensions: Vec<crate::agents::extension::ExtensionConfig>,
+    /// Explicit extensions to add to this agent instance.
+    pub extensions: Vec<ExtensionConfig>,
+    /// Inherit extensions from a shared ExtensionManager.
+    /// Combined with `exclude_extensions` for filtering.
+    pub inherit_extensions: Option<Arc<ExtensionManager>>,
+    /// Extension names to exclude when inheriting.
+    /// Only applies when `inherit_extensions` is set.
+    pub exclude_extensions: Vec<String>,
     pub max_turns: Option<usize>,
     pub session_manager: Arc<SessionManager>,
 }
@@ -389,6 +398,28 @@ pub struct InstanceSnapshot {
     pub last_activity_ms: u64,
 }
 
+/// Resolve extensions for a pool agent: inherited (minus excludes) + explicit.
+async fn resolve_extensions(config: &SpawnConfig) -> Vec<ExtensionConfig> {
+    let mut resolved = Vec::new();
+
+    // Inherit from shared ExtensionManager, filtering out excludes
+    if let Some(ref shared_em) = config.inherit_extensions {
+        let inherited = shared_em.get_extension_configs().await;
+        for ext in inherited {
+            let name = ext.name();
+            if !config.exclude_extensions.iter().any(|e| e == &name) {
+                resolved.push(ext);
+            }
+        }
+    }
+
+    // Add explicit extensions (these take priority — if an inherited extension
+    // has the same name, keep both; the agent's add_extension handles dedup)
+    resolved.extend(config.extensions.clone());
+
+    resolved
+}
+
 /// Run a pooled agent to completion. Follows the same pattern as specialist_handler
 /// but decoupled from SummonExtension.
 async fn run_pooled_agent(
@@ -413,7 +444,8 @@ async fn run_pooled_agent(
         .await
         .map_err(|e| anyhow!("Failed to set provider: {}", e))?;
 
-    for ext in &config.extensions {
+    let extensions = resolve_extensions(&config).await;
+    for ext in &extensions {
         if let Err(e) = agent.add_extension(ext.clone(), &session_id).await {
             tracing::debug!("Failed to add extension '{}': {}", ext.name(), e);
         }
@@ -481,6 +513,8 @@ async fn run_pooled_agent(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::model::ModelConfig;
+    use crate::providers::base::Provider;
 
     #[test]
     fn test_instance_status_display() {
@@ -541,5 +575,132 @@ mod tests {
     async fn test_completed_results_empty() {
         let pool = AgentPool::new(3);
         assert!(pool.completed_results().await.is_empty());
+    }
+
+    #[tokio::test]
+    async fn test_resolve_extensions_no_inherit() {
+        let ext1 = ExtensionConfig::Builtin {
+            name: "ext1".to_string(),
+            description: "Test extension 1".to_string(),
+            display_name: None,
+            timeout: None,
+            bundled: None,
+            available_tools: vec![],
+        };
+        let config = SpawnConfig {
+            persona: "test".to_string(),
+            instructions: String::new(),
+            prompt: "hello".to_string(),
+            working_dir: std::path::PathBuf::from("/tmp"),
+            provider: Arc::new(MockProvider),
+            extensions: vec![ext1],
+            inherit_extensions: None,
+            exclude_extensions: vec![],
+            max_turns: None,
+            session_manager: Arc::new(SessionManager::new(std::path::PathBuf::from(
+                "/tmp/goose-test-pool",
+            ))),
+        };
+        let resolved = resolve_extensions(&config).await;
+        assert_eq!(resolved.len(), 1);
+        assert_eq!(resolved[0].name(), "ext1");
+    }
+
+    #[tokio::test]
+    async fn test_resolve_extensions_inherit_with_excludes() {
+        // With no inherit_extensions set, excludes have no effect
+        let ext1 = ExtensionConfig::Builtin {
+            name: "ext1".to_string(),
+            description: "Test extension 1".to_string(),
+            display_name: None,
+            timeout: None,
+            bundled: None,
+            available_tools: vec![],
+        };
+        let config = SpawnConfig {
+            persona: "test".to_string(),
+            instructions: String::new(),
+            prompt: "hello".to_string(),
+            working_dir: std::path::PathBuf::from("/tmp"),
+            provider: Arc::new(MockProvider),
+            extensions: vec![ext1],
+            inherit_extensions: None,
+            exclude_extensions: vec!["should_be_ignored".to_string()],
+            max_turns: None,
+            session_manager: Arc::new(SessionManager::new(std::path::PathBuf::from(
+                "/tmp/goose-test-pool",
+            ))),
+        };
+        let resolved = resolve_extensions(&config).await;
+        assert_eq!(resolved.len(), 1);
+        assert_eq!(resolved[0].name(), "ext1");
+    }
+
+    #[tokio::test]
+    async fn test_resolve_extensions_explicit_plus_inherit_empty() {
+        // When inherit_extensions is None but explicit extensions are present,
+        // only explicit extensions are returned
+        let ext1 = ExtensionConfig::Builtin {
+            name: "explicit_ext".to_string(),
+            description: "Explicit extension".to_string(),
+            display_name: None,
+            timeout: None,
+            bundled: None,
+            available_tools: vec![],
+        };
+        let ext2 = ExtensionConfig::Builtin {
+            name: "second_ext".to_string(),
+            description: "Second extension".to_string(),
+            display_name: None,
+            timeout: None,
+            bundled: None,
+            available_tools: vec![],
+        };
+        let config = SpawnConfig {
+            persona: "test".to_string(),
+            instructions: String::new(),
+            prompt: "hello".to_string(),
+            working_dir: std::path::PathBuf::from("/tmp"),
+            provider: Arc::new(MockProvider),
+            extensions: vec![ext1, ext2],
+            inherit_extensions: None,
+            exclude_extensions: vec![],
+            max_turns: None,
+            session_manager: Arc::new(SessionManager::new(std::path::PathBuf::from(
+                "/tmp/goose-test-pool",
+            ))),
+        };
+        let resolved = resolve_extensions(&config).await;
+        assert_eq!(resolved.len(), 2);
+        assert_eq!(resolved[0].name(), "explicit_ext");
+        assert_eq!(resolved[1].name(), "second_ext");
+    }
+
+    /// Mock provider for testing SpawnConfig construction.
+    struct MockProvider;
+
+    #[async_trait::async_trait]
+    impl Provider for MockProvider {
+        fn get_name(&self) -> &str {
+            "mock"
+        }
+
+        async fn complete_with_model(
+            &self,
+            _session_id: Option<&str>,
+            _model_config: &ModelConfig,
+            _system: &str,
+            _messages: &[Message],
+            _tools: &[rmcp::model::Tool],
+        ) -> Result<
+            (Message, crate::providers::base::ProviderUsage),
+            crate::providers::errors::ProviderError,
+        > {
+            unimplemented!()
+        }
+
+        fn get_model_config(&self) -> ModelConfig {
+            ModelConfig::new_or_fail("mock-model")
+        }
     }
 }
