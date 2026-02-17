@@ -27,13 +27,14 @@ use a2a::types::core::{Artifact, Message, Part, PartContent, TaskState, TaskStat
 use a2a::types::events::{AgentExecutionEvent, TaskArtifactUpdateEvent, TaskStatusUpdateEvent};
 use axum::extract::{Path, State};
 use axum::http::StatusCode;
+use axum::response::sse::{Event, Sse};
 use axum::response::Json;
 use axum::Router;
 use futures::StreamExt;
 use goose::a2a_compat::message::{a2a_message_to_goose, goose_message_to_a2a};
 use goose::agents::intent_router::IntentRouter;
 use goose::agents::{AgentEvent, SessionConfig};
-use goose::execution::pool::{InstanceStatus, SpawnConfig};
+use goose::execution::pool::{InstanceStatus, PoolEvent, SpawnConfig};
 use serde::{Deserialize, Serialize};
 use tokio::sync::mpsc;
 use tracing::{debug, warn};
@@ -107,6 +108,10 @@ pub fn routes(state: Arc<AppState>) -> Router {
         .route(
             "/instances/{instance_id}/result",
             axum::routing::get(get_instance_result),
+        )
+        .route(
+            "/instances/{instance_id}/events",
+            axum::routing::get(stream_instance_events),
         )
         .with_state(instance_state);
 
@@ -536,6 +541,63 @@ async fn get_instance_result(
     }
 
     Err(StatusCode::NOT_FOUND)
+}
+
+/// Stream real-time events from a running pool instance via SSE.
+///
+/// Subscribes to the instance's broadcast channel and streams PoolEvents
+/// as Server-Sent Events. The stream closes when the instance completes
+/// or the client disconnects.
+async fn stream_instance_events(
+    State(state): State<Arc<AppState>>,
+    Path(instance_id): Path<String>,
+) -> Result<Sse<impl futures::Stream<Item = Result<Event, std::convert::Infallible>>>, StatusCode> {
+    let mut rx = state
+        .agent_pool
+        .subscribe(&instance_id)
+        .await
+        .ok_or(StatusCode::NOT_FOUND)?;
+
+    let stream = async_stream::stream! {
+        loop {
+            match rx.recv().await {
+                Ok(event) => {
+                    let (event_type, data) = match &event {
+                        PoolEvent::Message { text } => {
+                            ("message", serde_json::json!({ "text": text }).to_string())
+                        }
+                        PoolEvent::TurnComplete { turn } => {
+                            ("turn", serde_json::json!({ "turn": turn }).to_string())
+                        }
+                        PoolEvent::Completed { output } => {
+                            let data = serde_json::json!({ "output": output }).to_string();
+                            yield Ok(Event::default().event("completed").data(data));
+                            break;
+                        }
+                        PoolEvent::Failed { error } => {
+                            let data = serde_json::json!({ "error": error }).to_string();
+                            yield Ok(Event::default().event("failed").data(data));
+                            break;
+                        }
+                        PoolEvent::Cancelled => {
+                            yield Ok(Event::default().event("cancelled").data("{}"));
+                            break;
+                        }
+                    };
+                    yield Ok(Event::default().event(event_type).data(data));
+                }
+                Err(tokio::sync::broadcast::error::RecvError::Lagged(n)) => {
+                    let data = serde_json::json!({ "skipped": n }).to_string();
+                    yield Ok(Event::default().event("lagged").data(data));
+                }
+                Err(tokio::sync::broadcast::error::RecvError::Closed) => {
+                    break;
+                }
+            }
+        }
+    };
+
+    Ok(Sse::new(stream))
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

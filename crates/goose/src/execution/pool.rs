@@ -8,7 +8,7 @@ use std::collections::HashMap;
 use std::sync::atomic::{AtomicU32, AtomicU64, Ordering};
 use std::sync::Arc;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
-use tokio::sync::Mutex;
+use tokio::sync::{broadcast, Mutex};
 use tokio::task::JoinHandle;
 use tokio_util::sync::CancellationToken;
 
@@ -45,6 +45,21 @@ impl std::fmt::Display for InstanceStatus {
     }
 }
 
+/// Events emitted by pool agent instances for external observation.
+#[derive(Debug, Clone)]
+pub enum PoolEvent {
+    /// Agent produced a message (assistant response, tool call, etc.)
+    Message { text: String },
+    /// Agent turn completed
+    TurnComplete { turn: u32 },
+    /// Agent finished successfully
+    Completed { output: Option<String> },
+    /// Agent encountered an error
+    Failed { error: String },
+    /// Agent was cancelled
+    Cancelled,
+}
+
 /// Metadata and handle for a running agent instance.
 pub struct AgentInstance {
     pub id: String,
@@ -56,6 +71,7 @@ pub struct AgentInstance {
     pub last_activity: Arc<AtomicU64>,
     handle: JoinHandle<Result<(Conversation, Option<String>)>>,
     cancellation_token: CancellationToken,
+    event_tx: broadcast::Sender<PoolEvent>,
 }
 
 /// Result of a completed agent instance.
@@ -154,6 +170,10 @@ impl AgentPool {
 
         let persona = config.persona.clone();
 
+        // Event broadcast channel for external observation (SSE, etc.)
+        let (event_tx, _) = broadcast::channel::<PoolEvent>(128);
+        let event_tx_clone = event_tx.clone();
+
         let handle = tokio::spawn(async move {
             run_pooled_agent(
                 config,
@@ -161,6 +181,7 @@ impl AgentPool {
                 token_clone,
                 turns_clone,
                 last_activity_clone,
+                event_tx_clone,
             )
             .await
         });
@@ -175,6 +196,7 @@ impl AgentPool {
             last_activity,
             handle,
             cancellation_token: token,
+            event_tx,
         };
 
         instances.insert(instance_id.clone(), instance);
@@ -383,6 +405,14 @@ impl AgentPool {
     pub async fn completed_results(&self) -> Vec<AgentResult> {
         self.results.lock().await.clone()
     }
+
+    /// Subscribe to events from a specific instance.
+    /// Returns a broadcast receiver that will receive PoolEvent messages.
+    /// Returns None if the instance doesn't exist.
+    pub async fn subscribe(&self, id: &str) -> Option<broadcast::Receiver<PoolEvent>> {
+        let instances = self.instances.lock().await;
+        instances.get(id).map(|inst| inst.event_tx.subscribe())
+    }
 }
 
 /// Read-only snapshot of an instance's state.
@@ -428,6 +458,7 @@ async fn run_pooled_agent(
     cancellation_token: CancellationToken,
     turns: Arc<AtomicU32>,
     last_activity: Arc<AtomicU64>,
+    event_tx: broadcast::Sender<PoolEvent>,
 ) -> Result<(Conversation, Option<String>)> {
     let agent_config = AgentConfig::new(
         config.session_manager.clone(),
@@ -476,8 +507,24 @@ async fn run_pooled_agent(
     while let Some(event_result) = stream.next().await {
         match event_result {
             Ok(AgentEvent::Message(msg)) => {
-                turns.fetch_add(1, Ordering::Relaxed);
+                let turn = turns.fetch_add(1, Ordering::Relaxed) + 1;
                 last_activity.store(epoch_millis(), Ordering::Relaxed);
+
+                // Extract text for the event (best-effort, ignore send errors)
+                let text = msg
+                    .content
+                    .iter()
+                    .filter_map(|c| match c {
+                        MessageContent::Text(t) => Some(t.text.clone()),
+                        _ => None,
+                    })
+                    .collect::<Vec<_>>()
+                    .join("\n");
+                if !text.is_empty() {
+                    let _ = event_tx.send(PoolEvent::Message { text });
+                }
+                let _ = event_tx.send(PoolEvent::TurnComplete { turn });
+
                 conversation.push(msg);
             }
             Ok(AgentEvent::HistoryReplaced(updated)) => {
@@ -485,6 +532,9 @@ async fn run_pooled_agent(
             }
             Ok(_) => {}
             Err(e) => {
+                let _ = event_tx.send(PoolEvent::Failed {
+                    error: e.to_string(),
+                });
                 tracing::error!("Error from pooled agent: {}", e);
                 break;
             }
@@ -506,6 +556,10 @@ async fn run_pooled_agent(
                 .collect::<Vec<_>>()
                 .join("\n")
         });
+
+    let _ = event_tx.send(PoolEvent::Completed {
+        output: final_output.clone(),
+    });
 
     Ok((conversation, final_output))
 }
