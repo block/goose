@@ -181,14 +181,14 @@ export default function PromptBar() {
       {/* Command palette dropdown */}
       {showCommands && filteredCommands.length > 0 && (
         <div className="mx-4 mb-1 pointer-events-auto">
-          <div className="bg-bgApp-secondary border border-borderSubtle rounded-lg shadow-lg overflow-hidden max-w-2xl mx-auto">
+          <div className="bg-background-default-secondary border border-border-default rounded-lg shadow-lg overflow-hidden max-w-2xl mx-auto">
             {filteredCommands.map((cmd: SlashCommand, i: number) => (
               <button
                 key={cmd.command}
                 className={`w-full px-4 py-2.5 flex items-center gap-3 text-left transition-colors ${
                   i === selectedCommandIndex
-                    ? 'bg-bgApp-active text-textProminent'
-                    : 'text-textSubtle hover:bg-bgApp-hover'
+                    ? 'bg-background-default-active text-text-default font-semibold'
+                    : 'text-text-muted hover:bg-background-default-hover'
                 }`}
                 onMouseEnter={() => setSelectedCommandIndex(i)}
                 onClick={() => {
@@ -200,7 +200,7 @@ export default function PromptBar() {
                 <Slash className="w-3.5 h-3.5 opacity-50" />
                 <div>
                   <span className="font-mono text-sm">{cmd.command}</span>
-                  <span className="text-xs text-textSubtle ml-2">{cmd.description}</span>
+                  <span className="text-xs text-text-muted ml-2">{cmd.description}</span>
                 </div>
               </button>
             ))}
@@ -214,7 +214,7 @@ export default function PromptBar() {
           {/* Hint */}
           {config?.hint && !input && !hasFiles && (
             <div className="flex justify-center mb-1.5">
-              <span className="text-xs text-textSubtle">{config.hint}</span>
+              <span className="text-xs text-text-muted">{config.hint}</span>
             </div>
           )}
 
@@ -224,13 +224,13 @@ export default function PromptBar() {
               {droppedFiles.map((file: DroppedFile) => (
                 <div
                   key={file.id}
-                  className="flex items-center gap-1.5 bg-bgApp-secondary border border-borderSubtle rounded-lg px-2.5 py-1.5 text-xs"
+                  className="flex items-center gap-1.5 bg-background-default-secondary border border-border-default rounded-lg px-2.5 py-1.5 text-xs"
                 >
-                  <FileIcon className="w-3 h-3 text-textSubtle" />
-                  <span className="text-textStandard truncate max-w-[150px]">{file.name}</span>
+                  <FileIcon className="w-3 h-3 text-text-muted" />
+                  <span className="text-text-default truncate max-w-[150px]">{file.name}</span>
                   <button
                     onClick={() => handleRemoveFile(file.id)}
-                    className="text-textSubtle hover:text-textProminent transition-colors"
+                    className="text-text-muted hover:text-text-default font-semibold transition-colors"
                   >
                     <X className="w-3 h-3" />
                   </button>
@@ -243,21 +243,21 @@ export default function PromptBar() {
           {(isRecording || isTranscribing) && (
             <div className="flex items-center justify-center gap-2 mb-2">
               <div className={`w-2 h-2 rounded-full ${isRecording ? 'bg-red-500 animate-pulse' : 'bg-amber-500 animate-pulse'}`} />
-              <span className="text-xs text-textSubtle">
+              <span className="text-xs text-text-muted">
                 {isRecording ? 'Recording…' : 'Transcribing…'}
               </span>
             </div>
           )}
 
           {/* Input bar */}
-          <div className="relative flex items-end bg-bgApp-secondary border border-borderSubtle rounded-xl
-            shadow-lg hover:border-borderStandard focus-within:border-borderStandard
-            focus-within:ring-1 focus-within:ring-borderStandard/50 transition-all">
+          <div className="relative flex items-end bg-background-default-secondary border border-border-default rounded-xl
+            shadow-lg hover:border-border-accent focus-within:border-border-accent
+            focus-within:ring-1 focus-within:ring-border-accent/50 transition-all">
 
             {/* File attach button */}
             <button
               onClick={handleFilePickerClick}
-              className="ml-2 mb-2.5 p-1.5 rounded-lg transition-all text-textSubtle hover:text-textProminent hover:bg-bgApp-hover"
+              className="ml-2 mb-2.5 p-1.5 rounded-lg transition-all text-text-muted hover:text-text-default font-semibold hover:bg-background-default-hover"
               title="Attach files"
             >
               <Paperclip className="w-4 h-4" />
@@ -279,14 +279,14 @@ export default function PromptBar() {
               placeholder={config?.placeholder}
               disabled={isLoading}
               rows={1}
-              className="flex-1 bg-transparent px-3 py-3 text-sm text-textStandard
-                placeholder:text-textSubtle outline-none disabled:opacity-50
+              className="flex-1 bg-transparent px-3 py-3 text-sm text-text-default
+                placeholder:text-text-muted outline-none disabled:opacity-50
                 resize-none overflow-y-auto max-h-[150px]"
             />
 
             {/* Keyboard shortcut hint */}
             {!input && !hasFiles && (
-              <div className="flex items-center gap-0.5 mb-3 mr-1 text-textSubtle opacity-50">
+              <div className="flex items-center gap-0.5 mb-3 mr-1 text-text-muted opacity-50">
                 <Command className="w-3 h-3" />
                 <span className="text-xs">K</span>
               </div>
@@ -299,7 +299,7 @@ export default function PromptBar() {
               className={`mb-2.5 p-1.5 rounded-lg transition-all
                 ${isRecording
                   ? 'text-red-500 bg-red-500/10 hover:bg-red-500/20'
-                  : 'text-textSubtle hover:text-textProminent hover:bg-bgApp-hover'}
+                  : 'text-text-muted hover:text-text-default font-semibold hover:bg-background-default-hover'}
                 disabled:opacity-30 disabled:cursor-not-allowed`}
               title={isRecording ? 'Stop recording' : 'Voice input'}
             >
@@ -312,7 +312,7 @@ export default function PromptBar() {
               disabled={!input.trim() || isLoading}
               className="mr-2 mb-2.5 p-1.5 rounded-lg transition-all
                 disabled:opacity-30 disabled:cursor-not-allowed
-                text-textSubtle hover:text-textProminent hover:bg-bgApp-hover"
+                text-text-muted hover:text-text-default font-semibold hover:bg-background-default-hover"
             >
               {isLoading ? (
                 <Loader2 className="w-4 h-4 animate-spin" />
