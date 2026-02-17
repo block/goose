@@ -1,15 +1,21 @@
 //! Core A2A data model types mapped 1:1 from the a2a.proto specification.
 //!
 //! Proto source of truth: a2a.proto messages Task, Message, Part, Artifact, TaskStatus, TaskState, Role.
+//!
+//! Enum serialization follows ProtoJSON SCREAMING_SNAKE_CASE per ADR-001.
+//! Deserialization is lenient: accepts both spec format (`TASK_STATE_WORKING`)
+//! and legacy lowercase (`working`, `input-required`) for interop with older SDKs.
 
+use serde::de::{self, Deserializer};
 use serde::{Deserialize, Serialize};
 
 /// Task lifecycle states per A2A proto `TaskState` enum.
 ///
 /// Serialized as ProtoJSON SCREAMING_SNAKE_CASE per ADR-001.
+/// Deserialization accepts both ProtoJSON and legacy lowercase formats.
 /// Terminal states: Completed, Failed, Canceled, Rejected.
 /// Interrupted states: InputRequired, AuthRequired.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize)]
 pub enum TaskState {
     #[serde(rename = "TASK_STATE_UNSPECIFIED")]
     Unspecified,
@@ -29,6 +35,58 @@ pub enum TaskState {
     Rejected,
     #[serde(rename = "TASK_STATE_AUTH_REQUIRED")]
     AuthRequired,
+}
+
+impl<'de> Deserialize<'de> for TaskState {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let s = String::deserialize(deserializer)?;
+        match s.as_str() {
+            // ProtoJSON (spec-normative)
+            "TASK_STATE_UNSPECIFIED" => Ok(Self::Unspecified),
+            "TASK_STATE_SUBMITTED" => Ok(Self::Submitted),
+            "TASK_STATE_WORKING" => Ok(Self::Working),
+            "TASK_STATE_COMPLETED" => Ok(Self::Completed),
+            "TASK_STATE_FAILED" => Ok(Self::Failed),
+            "TASK_STATE_CANCELED" => Ok(Self::Canceled),
+            "TASK_STATE_INPUT_REQUIRED" => Ok(Self::InputRequired),
+            "TASK_STATE_REJECTED" => Ok(Self::Rejected),
+            "TASK_STATE_AUTH_REQUIRED" => Ok(Self::AuthRequired),
+            // Legacy lowercase (JS SDK compat)
+            "unspecified" => Ok(Self::Unspecified),
+            "submitted" => Ok(Self::Submitted),
+            "working" => Ok(Self::Working),
+            "completed" => Ok(Self::Completed),
+            "failed" => Ok(Self::Failed),
+            "canceled" => Ok(Self::Canceled),
+            "input-required" | "input_required" => Ok(Self::InputRequired),
+            "rejected" => Ok(Self::Rejected),
+            "auth-required" | "auth_required" => Ok(Self::AuthRequired),
+            _ => Err(de::Error::unknown_variant(
+                &s,
+                &[
+                    "TASK_STATE_UNSPECIFIED",
+                    "TASK_STATE_SUBMITTED",
+                    "TASK_STATE_WORKING",
+                    "TASK_STATE_COMPLETED",
+                    "TASK_STATE_FAILED",
+                    "TASK_STATE_CANCELED",
+                    "TASK_STATE_INPUT_REQUIRED",
+                    "TASK_STATE_REJECTED",
+                    "TASK_STATE_AUTH_REQUIRED",
+                    "submitted",
+                    "working",
+                    "completed",
+                    "failed",
+                    "canceled",
+                    "input-required",
+                    "rejected",
+                ],
+            )),
+        }
+    }
 }
 
 impl TaskState {
@@ -73,7 +131,8 @@ pub struct Task {
 /// Message sender role (proto `Role` enum).
 ///
 /// Serialized as ProtoJSON SCREAMING_SNAKE_CASE per ADR-001.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+/// Deserialization accepts both ProtoJSON and legacy lowercase formats.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 pub enum Role {
     #[serde(rename = "ROLE_UNSPECIFIED")]
     Unspecified,
@@ -81,6 +140,35 @@ pub enum Role {
     User,
     #[serde(rename = "ROLE_AGENT")]
     Agent,
+}
+
+impl<'de> Deserialize<'de> for Role {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let s = String::deserialize(deserializer)?;
+        match s.as_str() {
+            // ProtoJSON (spec-normative)
+            "ROLE_UNSPECIFIED" => Ok(Self::Unspecified),
+            "ROLE_USER" => Ok(Self::User),
+            "ROLE_AGENT" => Ok(Self::Agent),
+            // Legacy lowercase (JS SDK compat)
+            "unspecified" => Ok(Self::Unspecified),
+            "user" => Ok(Self::User),
+            "agent" => Ok(Self::Agent),
+            _ => Err(de::Error::unknown_variant(
+                &s,
+                &[
+                    "ROLE_UNSPECIFIED",
+                    "ROLE_USER",
+                    "ROLE_AGENT",
+                    "user",
+                    "agent",
+                ],
+            )),
+        }
+    }
 }
 
 /// A single message unit (proto `Message` message).
@@ -314,6 +402,32 @@ mod tests {
         let json = serde_json::to_value(&part).unwrap();
         assert_eq!(json["type"], "data");
         assert_eq!(json["data"]["key"], "value");
+    }
+
+    #[test]
+    fn test_task_state_legacy_deser() {
+        // Legacy lowercase (JS SDK compat)
+        let working: TaskState = serde_json::from_str("\"working\"").unwrap();
+        assert_eq!(working, TaskState::Working);
+        let input_req: TaskState = serde_json::from_str("\"input-required\"").unwrap();
+        assert_eq!(input_req, TaskState::InputRequired);
+        let submitted: TaskState = serde_json::from_str("\"submitted\"").unwrap();
+        assert_eq!(submitted, TaskState::Submitted);
+        // Serialization always uses ProtoJSON
+        assert_eq!(
+            serde_json::to_string(&working).unwrap(),
+            "\"TASK_STATE_WORKING\""
+        );
+    }
+
+    #[test]
+    fn test_role_legacy_deser() {
+        let user: Role = serde_json::from_str("\"user\"").unwrap();
+        assert_eq!(user, Role::User);
+        let agent: Role = serde_json::from_str("\"agent\"").unwrap();
+        assert_eq!(agent, Role::Agent);
+        // Serialization always uses ProtoJSON
+        assert_eq!(serde_json::to_string(&user).unwrap(), "\"ROLE_USER\"");
     }
 
     #[test]

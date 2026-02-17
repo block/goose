@@ -1,17 +1,17 @@
-import { useState } from "react";
-import AnalyticsDashboard from "./AnalyticsDashboard";
-import EvalOverviewTab from "./EvalOverviewTab";
-import DatasetsTab from "./DatasetsTab";
-import RunHistoryTab from "./RunHistoryTab";
-import TopicsTab from "./TopicsTab";
-import ToolAnalyticsTab from "./ToolAnalyticsTab";
-import LiveMonitoringTab from "./LiveMonitoringTab";
-import ResponseQualityTab from "./ResponseQualityTab";
-import RoutingInspector from "./RoutingInspector";
-import EvalRunner from "./EvalRunner";
-import AgentCatalog from "./AgentCatalog";
+import { useState } from 'react';
+import AnalyticsDashboard from './AnalyticsDashboard';
+import EvalOverviewTab from './EvalOverviewTab';
+import DatasetsTab from './DatasetsTab';
+import RunHistoryTab from './RunHistoryTab';
+import TopicsTab from './TopicsTab';
+import ToolAnalyticsTab from './ToolAnalyticsTab';
+import LiveMonitoringTab from './LiveMonitoringTab';
+import ResponseQualityTab from './ResponseQualityTab';
+import RoutingInspector from './RoutingInspector';
+import EvalRunner from './EvalRunner';
+import AgentCatalog from './AgentCatalog';
 
-type ViewGroup = "observe" | "evaluate" | "configure";
+type ViewGroup = 'observe' | 'evaluate' | 'configure';
 
 interface TabDef {
   id: string;
@@ -21,25 +21,25 @@ interface TabDef {
 
 const TABS: TabDef[] = [
   // Observe
-  { id: "dashboard", label: "Dashboard", group: "observe" },
-  { id: "tools", label: "Tool Analytics", group: "observe" },
-  { id: "monitoring", label: "Live", group: "observe" },
-  { id: "quality", label: "Quality", group: "observe" },
+  { id: 'dashboard', label: 'Dashboard', group: 'observe' },
+  { id: 'tools', label: 'Tool Analytics', group: 'observe' },
+  { id: 'monitoring', label: 'Live', group: 'observe' },
+  { id: 'quality', label: 'Quality', group: 'observe' },
   // Evaluate
-  { id: "overview", label: "Overview", group: "evaluate" },
-  { id: "datasets", label: "Datasets", group: "evaluate" },
-  { id: "runs", label: "Run History", group: "evaluate" },
-  { id: "topics", label: "Topics", group: "evaluate" },
+  { id: 'overview', label: 'Overview', group: 'evaluate' },
+  { id: 'datasets', label: 'Datasets', group: 'evaluate' },
+  { id: 'runs', label: 'Run History', group: 'evaluate' },
+  { id: 'topics', label: 'Topics', group: 'evaluate' },
   // Configure
-  { id: "inspector", label: "Routing Inspector", group: "configure" },
-  { id: "eval-runner", label: "Eval Runner", group: "configure" },
-  { id: "catalog", label: "Agent Catalog", group: "configure" },
+  { id: 'inspector', label: 'Routing Inspector', group: 'configure' },
+  { id: 'eval-runner', label: 'Eval Runner', group: 'configure' },
+  { id: 'catalog', label: 'Agent Catalog', group: 'configure' },
 ];
 
 const GROUP_LABELS: Record<ViewGroup, string> = {
-  observe: "Observe",
-  evaluate: "Evaluate",
-  configure: "Configure",
+  observe: 'Observe',
+  evaluate: 'Evaluate',
+  configure: 'Configure',
 };
 
 const COMPONENTS: Record<string, React.FC> = {
@@ -52,12 +52,12 @@ const COMPONENTS: Record<string, React.FC> = {
   runs: RunHistoryTab,
   topics: TopicsTab,
   inspector: RoutingInspector,
-  "eval-runner": EvalRunner,
+  'eval-runner': EvalRunner,
   catalog: AgentCatalog,
 };
 
 export default function AnalyticsView() {
-  const [activeTab, setActiveTab] = useState("dashboard");
+  const [activeTab, setActiveTab] = useState('dashboard');
   const ActiveComponent = COMPONENTS[activeTab];
 
   return (
@@ -68,7 +68,7 @@ export default function AnalyticsView() {
 
         {/* Tab groups */}
         <div className="flex items-center gap-6 border-b border-border-default">
-          {(["observe", "evaluate", "configure"] as const).map((group) => (
+          {(['observe', 'evaluate', 'configure'] as const).map((group) => (
             <div key={group} className="flex items-center gap-0.5">
               <span className="text-[10px] uppercase tracking-wider text-text-muted mr-2 select-none">
                 {GROUP_LABELS[group]}
@@ -79,8 +79,8 @@ export default function AnalyticsView() {
                   onClick={() => setActiveTab(tab.id)}
                   className={`px-3 py-2 text-sm font-medium transition-colors relative ${
                     activeTab === tab.id
-                      ? "text-text-default font-semibold"
-                      : "text-text-muted hover:text-text-default"
+                      ? 'text-text-default font-semibold'
+                      : 'text-text-muted hover:text-text-default'
                   }`}
                 >
                   {tab.label}

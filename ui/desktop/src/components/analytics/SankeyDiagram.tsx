@@ -3,7 +3,7 @@
  * Shows Expected Agent → Actual Agent routing paths
  * Path width proportional to case count
  */
-import { useMemo } from "react";
+import { useMemo } from 'react';
 
 interface SankeyFlow {
   source: string;
@@ -24,7 +24,7 @@ interface SankeyNode {
   y: number;
   height: number;
   total: number;
-  side: "left" | "right";
+  side: 'left' | 'right';
 }
 
 interface SankeyLink {
@@ -38,27 +38,23 @@ interface SankeyLink {
 }
 
 const COLORS = [
-  "#818cf8", // indigo
-  "#34d399", // emerald
-  "#f97316", // orange
-  "#06b6d4", // cyan
-  "#f472b6", // pink
-  "#a78bfa", // violet
-  "#fbbf24", // amber
-  "#10b981", // green
-  "#ef4444", // red
-  "#3b82f6", // blue
+  '#818cf8', // indigo
+  '#34d399', // emerald
+  '#f97316', // orange
+  '#06b6d4', // cyan
+  '#f472b6', // pink
+  '#a78bfa', // violet
+  '#fbbf24', // amber
+  '#10b981', // green
+  '#ef4444', // red
+  '#3b82f6', // blue
 ];
 
 function getColor(index: number): string {
   return COLORS[index % COLORS.length];
 }
 
-export default function SankeyDiagram({
-  labels,
-  matrix,
-  height: propHeight,
-}: SankeyProps) {
+export default function SankeyDiagram({ labels, matrix, height: propHeight }: SankeyProps) {
   const { nodes, links, width, height, totalFlows } = useMemo(() => {
     if (!labels.length || !matrix.length) {
       return { nodes: [], links: [], width: 600, height: 200, totalFlows: 0 };
@@ -81,12 +77,8 @@ export default function SankeyDiagram({
     }
 
     // Calculate node totals
-    const leftTotals = labels.map((_, i) =>
-      matrix[i] ? matrix[i].reduce((s, v) => s + v, 0) : 0
-    );
-    const rightTotals = labels.map((_, j) =>
-      matrix.reduce((s, row) => s + (row[j] || 0), 0)
-    );
+    const leftTotals = labels.map((_, i) => (matrix[i] ? matrix[i].reduce((s, v) => s + v, 0) : 0));
+    const rightTotals = labels.map((_, j) => matrix.reduce((s, row) => s + (row[j] || 0), 0));
 
     const maxTotal = Math.max(...leftTotals, ...rightTotals, 1);
     const padding = 40;
@@ -96,18 +88,14 @@ export default function SankeyDiagram({
     const nodeGap = 8;
 
     // Calculate heights
-    const availableHeight =
-      propHeight || Math.max(300, labels.length * 60 + padding * 2);
+    const availableHeight = propHeight || Math.max(300, labels.length * 60 + padding * 2);
     const usableHeight = availableHeight - padding * 2;
 
     // Build left nodes (Expected)
     const leftNodes: SankeyNode[] = [];
     let leftY = padding;
     for (let i = 0; i < labels.length; i++) {
-      const h = Math.max(
-        minNodeHeight,
-        (leftTotals[i] / maxTotal) * usableHeight * 0.6
-      );
+      const h = Math.max(minNodeHeight, (leftTotals[i] / maxTotal) * usableHeight * 0.6);
       leftNodes.push({
         id: `expected-${labels[i]}`,
         label: labels[i],
@@ -115,7 +103,7 @@ export default function SankeyDiagram({
         y: leftY,
         height: h,
         total: leftTotals[i],
-        side: "left",
+        side: 'left',
       });
       leftY += h + nodeGap;
     }
@@ -124,10 +112,7 @@ export default function SankeyDiagram({
     const rightNodes: SankeyNode[] = [];
     let rightY = padding;
     for (let j = 0; j < labels.length; j++) {
-      const h = Math.max(
-        minNodeHeight,
-        (rightTotals[j] / maxTotal) * usableHeight * 0.6
-      );
+      const h = Math.max(minNodeHeight, (rightTotals[j] / maxTotal) * usableHeight * 0.6);
       rightNodes.push({
         id: `actual-${labels[j]}`,
         label: labels[j],
@@ -135,7 +120,7 @@ export default function SankeyDiagram({
         y: rightY,
         height: h,
         total: rightTotals[j],
-        side: "right",
+        side: 'right',
       });
       rightY += h + nodeGap;
     }
@@ -170,7 +155,7 @@ export default function SankeyDiagram({
         sourceY: sourceNode.y + sourceOffsets[flow.source],
         targetY: targetNode.y + targetOffsets[flow.target],
         width: linkWidth,
-        isCorrect: flow.source.replace("expected-", "") === flow.target.replace("actual-", ""),
+        isCorrect: flow.source.replace('expected-', '') === flow.target.replace('actual-', ''),
       });
 
       sourceOffsets[flow.source] += sourceWidth;
@@ -188,7 +173,7 @@ export default function SankeyDiagram({
 
   if (!labels.length || totalFlows === 0) {
     return (
-      <div className="flex items-center justify-center h-32 text-zinc-500 text-sm">
+      <div className="flex items-center justify-center h-32 text-text-subtle text-sm">
         No routing flow data available
       </div>
     );
@@ -201,10 +186,10 @@ export default function SankeyDiagram({
     <div className="w-full overflow-x-auto">
       {/* Column headers */}
       <div className="flex justify-between px-10 mb-1">
-        <span className="text-xs font-medium text-zinc-400 uppercase tracking-wider">
+        <span className="text-xs font-medium text-text-muted uppercase tracking-wider">
           Expected Agent
         </span>
-        <span className="text-xs font-medium text-zinc-400 uppercase tracking-wider">
+        <span className="text-xs font-medium text-text-muted uppercase tracking-wider">
           Actual Agent
         </span>
       </div>
@@ -227,16 +212,16 @@ export default function SankeyDiagram({
               <path
                 d={`M ${sourceX} ${sy} C ${midX} ${sy}, ${midX} ${ty}, ${targetX} ${ty}`}
                 fill="none"
-                stroke={link.isCorrect ? "#22c55e" : "#ef4444"}
+                stroke={link.isCorrect ? '#22c55e' : '#ef4444'}
                 strokeWidth={Math.max(link.width, 1.5)}
                 strokeOpacity={link.isCorrect ? 0.35 : 0.5}
                 className="transition-all duration-200 hover:stroke-opacity-80"
               />
               {/* Flow label on hover */}
               <title>
-                {link.source.replace("expected-", "")} → {link.target.replace("actual-", "")}
-                : {link.value} case{link.value !== 1 ? "s" : ""}
-                {link.isCorrect ? " ✓" : " ✗"}
+                {link.source.replace('expected-', '')} → {link.target.replace('actual-', '')}:{' '}
+                {link.value} case{link.value !== 1 ? 's' : ''}
+                {link.isCorrect ? ' ✓' : ' ✗'}
               </title>
             </g>
           );
@@ -244,7 +229,7 @@ export default function SankeyDiagram({
 
         {/* Left nodes (Expected) */}
         {nodes
-          .filter((n) => n.side === "left")
+          .filter((n) => n.side === 'left')
           .map((node, i) => (
             <g key={node.id}>
               <rect
@@ -269,7 +254,7 @@ export default function SankeyDiagram({
 
         {/* Right nodes (Actual) */}
         {nodes
-          .filter((n) => n.side === "right")
+          .filter((n) => n.side === 'right')
           .map((node, i) => (
             <g key={node.id}>
               <rect
@@ -296,9 +281,13 @@ export default function SankeyDiagram({
         {/* Legend */}
         <g transform={`translate(${width / 2 - 80}, ${height - 20})`}>
           <rect x={0} y={0} width={12} height={12} rx={2} fill="#22c55e" fillOpacity={0.5} />
-          <text x={16} y={10} className="fill-zinc-400 text-[10px]">Correct routing</text>
+          <text x={16} y={10} className="fill-zinc-400 text-[10px]">
+            Correct routing
+          </text>
           <rect x={100} y={0} width={12} height={12} rx={2} fill="#ef4444" fillOpacity={0.5} />
-          <text x={116} y={10} className="fill-zinc-400 text-[10px]">Misrouted</text>
+          <text x={116} y={10} className="fill-zinc-400 text-[10px]">
+            Misrouted
+          </text>
         </g>
       </svg>
     </div>

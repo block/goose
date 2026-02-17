@@ -32,7 +32,10 @@ export default function RoutingInspector() {
       const rawHeaders = client.getConfig().headers;
       if (rawHeaders) {
         const h = rawHeaders as Record<string, string>;
-        const secretKey = typeof h.get === 'function' ? (h as unknown as globalThis.Headers).get('X-Secret-Key') : h['X-Secret-Key'];
+        const secretKey =
+          typeof h.get === 'function'
+            ? (h as unknown as globalThis.Headers).get('X-Secret-Key')
+            : h['X-Secret-Key'];
         if (secretKey) {
           headers['X-Secret-Key'] = secretKey;
         }
@@ -63,19 +66,19 @@ export default function RoutingInspector() {
           onChange={(e) => setMessage(e.target.value)}
           onKeyDown={(e) => e.key === 'Enter' && handleSubmit()}
           placeholder="Enter a message to inspect routing..."
-          className="flex-1 rounded-md border border-gray-600 bg-gray-800 px-3 py-2 text-sm text-gray-100 placeholder-gray-500 focus:border-blue-500 focus:outline-none"
+          className="flex-1 rounded-md border border-border-default bg-background-muted px-3 py-2 text-sm text-text-default placeholder-text-subtle focus:border-border-accent focus:outline-none"
         />
         <button
           onClick={handleSubmit}
           disabled={loading || !message.trim()}
-          className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+          className="rounded-md bg-background-accent px-4 py-2 text-sm font-medium text-text-default hover:bg-background-accent disabled:opacity-50"
         >
           {loading ? 'Inspecting…' : 'Inspect'}
         </button>
       </div>
 
       {error && (
-        <div className="rounded-md bg-red-900/50 border border-red-700 px-3 py-2 text-sm text-red-300">
+        <div className="rounded-md bg-background-danger-muted border border-border-default px-3 py-2 text-sm text-text-danger">
           {error}
         </div>
       )}
@@ -83,37 +86,35 @@ export default function RoutingInspector() {
       {result && (
         <div className="space-y-4">
           {/* Decision summary */}
-          <div className="rounded-lg border border-gray-700 bg-gray-800/50 p-4">
-            <h3 className="text-sm font-semibold text-gray-300 mb-2">Routing Decision</h3>
+          <div className="rounded-lg border border-border-default bg-background-muted p-4">
+            <h3 className="text-sm font-semibold text-text-default mb-2">Routing Decision</h3>
             <div className="grid grid-cols-2 gap-2 text-sm">
               <div>
-                <span className="text-gray-500">Agent:</span>{' '}
-                <span className="text-gray-100 font-medium">{result.chosen_agent}</span>
+                <span className="text-text-muted">Agent:</span>{' '}
+                <span className="text-text-default font-medium">{result.chosen_agent}</span>
               </div>
               <div>
-                <span className="text-gray-500">Mode:</span>{' '}
-                <span className="text-gray-100 font-medium">{result.chosen_mode}</span>
+                <span className="text-text-muted">Mode:</span>{' '}
+                <span className="text-text-default font-medium">{result.chosen_mode}</span>
               </div>
               <div>
-                <span className="text-gray-500">Confidence:</span>{' '}
-                <span className="text-gray-100 font-medium">
+                <span className="text-text-muted">Confidence:</span>{' '}
+                <span className="text-text-default font-medium">
                   {(result.confidence * 100).toFixed(1)}%
                 </span>
               </div>
             </div>
-            {result.reasoning && (
-              <p className="mt-2 text-sm text-gray-400">{result.reasoning}</p>
-            )}
+            {result.reasoning && <p className="mt-2 text-sm text-text-muted">{result.reasoning}</p>}
           </div>
 
           {/* Scores table */}
-          <div className="rounded-lg border border-gray-700 bg-gray-800/50 overflow-hidden">
-            <h3 className="text-sm font-semibold text-gray-300 px-4 pt-3 pb-2">
+          <div className="rounded-lg border border-border-default bg-background-muted overflow-hidden">
+            <h3 className="text-sm font-semibold text-text-default px-4 pt-3 pb-2">
               All Mode Scores
             </h3>
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b border-gray-700 text-left text-gray-500">
+                <tr className="border-b border-border-default text-left text-text-muted">
                   <th className="px-4 py-2">Agent</th>
                   <th className="px-4 py-2">Mode</th>
                   <th className="px-4 py-2">Score</th>
@@ -126,15 +127,15 @@ export default function RoutingInspector() {
                   .map((s, i) => (
                     <tr
                       key={`${s.agent}-${s.mode}-${i}`}
-                      className={`border-b border-gray-700/50 ${
+                      className={`border-b border-border-muted ${
                         s.agent === result.chosen_agent && s.mode === result.chosen_mode
-                          ? 'bg-blue-900/20'
+                          ? 'bg-background-muted'
                           : ''
                       }`}
                     >
-                      <td className="px-4 py-2 text-gray-300">{s.agent}</td>
-                      <td className="px-4 py-2 text-gray-300">{s.mode}</td>
-                      <td className="px-4 py-2 text-gray-100 font-mono">
+                      <td className="px-4 py-2 text-text-default">{s.agent}</td>
+                      <td className="px-4 py-2 text-text-default">{s.mode}</td>
+                      <td className="px-4 py-2 text-text-default font-mono">
                         {s.score.toFixed(3)}
                       </td>
                       <td className="px-4 py-2">
@@ -142,7 +143,7 @@ export default function RoutingInspector() {
                           {s.matched_keywords.map((kw) => (
                             <span
                               key={kw}
-                              className="rounded bg-gray-700 px-1.5 py-0.5 text-xs text-gray-300"
+                              className="rounded bg-background-muted px-1.5 py-0.5 text-xs text-text-default"
                             >
                               {kw}
                             </span>

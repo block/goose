@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState } from 'react';
 import {
   AreaChart,
   Area,
@@ -10,23 +10,16 @@ import {
   BarChart,
   Bar,
   Cell,
-} from "recharts";
-import {
-  getEvalOverview,
-  listEvalDatasets,
-  runEval,
-} from "../../api";
-import type {
-  EvalOverview,
-  EvalDatasetSummary,
-} from "../../api";
+} from 'recharts';
+import { getEvalOverview, listEvalDatasets, runEval } from '../../api';
+import type { EvalOverview, EvalDatasetSummary } from '../../api';
 
 const COLORS = {
-  green: "#22c55e",
-  red: "#ef4444",
-  amber: "#f59e0b",
-  blue: "#3b82f6",
-  purple: "#a855f7",
+  green: '#22c55e',
+  red: '#ef4444',
+  amber: '#f59e0b',
+  blue: '#3b82f6',
+  purple: '#a855f7',
 };
 
 function formatPercent(v: number): string {
@@ -34,33 +27,35 @@ function formatPercent(v: number): string {
 }
 
 function formatDate(d: string): string {
-  return new Date(d).toLocaleDateString("en-US", { month: "short", day: "numeric" });
+  return new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 }
 
 interface KpiCardProps {
   label: string;
   value: string;
   delta?: number | null;
-  status?: "good" | "warn" | "bad" | "neutral";
+  status?: 'good' | 'warn' | 'bad' | 'neutral';
 }
 
-function KpiCard({ label, value, delta, status = "neutral" }: KpiCardProps) {
+function KpiCard({ label, value, delta, status = 'neutral' }: KpiCardProps) {
   const borderColor =
-    status === "good"
-      ? "border-green-500/40"
-      : status === "bad"
-        ? "border-red-500/40"
-        : status === "warn"
-          ? "border-amber-500/40"
-          : "border-gray-600/40";
+    status === 'good'
+      ? 'border-border-default'
+      : status === 'bad'
+        ? 'border-border-default'
+        : status === 'warn'
+          ? 'border-border-default'
+          : 'border-border-default';
 
   return (
-    <div className={`rounded-lg border ${borderColor} bg-gray-800/50 p-4 flex flex-col gap-1`}>
-      <span className="text-xs text-gray-400 uppercase tracking-wide">{label}</span>
-      <span className="text-2xl font-bold text-white">{value}</span>
+    <div className={`rounded-lg border ${borderColor} bg-background-muted p-4 flex flex-col gap-1`}>
+      <span className="text-xs text-text-muted uppercase tracking-wide">{label}</span>
+      <span className="text-2xl font-bold text-text-default">{value}</span>
       {delta != null && (
-        <span className={`text-xs font-medium ${delta >= 0 ? "text-green-400" : "text-red-400"}`}>
-          {delta >= 0 ? "▲" : "▼"} {Math.abs(delta * 100).toFixed(1)}% vs prev
+        <span
+          className={`text-xs font-medium ${delta >= 0 ? 'text-text-success' : 'text-text-danger'}`}
+        >
+          {delta >= 0 ? '▲' : '▼'} {Math.abs(delta * 100).toFixed(1)}% vs prev
         </span>
       )}
     </div>
@@ -72,20 +67,20 @@ function LoadingSkeleton() {
     <div className="space-y-6 animate-pulse">
       <div className="grid grid-cols-5 gap-4">
         {[...Array(5)].map((_, i) => (
-          <div key={i} className="h-24 rounded-lg bg-gray-700/50" />
+          <div key={i} className="h-24 rounded-lg bg-background-muted" />
         ))}
       </div>
-      <div className="h-64 rounded-lg bg-gray-700/50" />
+      <div className="h-64 rounded-lg bg-background-muted" />
       <div className="grid grid-cols-2 gap-4">
-        <div className="h-48 rounded-lg bg-gray-700/50" />
-        <div className="h-48 rounded-lg bg-gray-700/50" />
+        <div className="h-48 rounded-lg bg-background-muted" />
+        <div className="h-48 rounded-lg bg-background-muted" />
       </div>
     </div>
   );
 }
 
-function statusFromAccuracy(v: number): "good" | "warn" | "bad" {
-  return v >= 0.9 ? "good" : v >= 0.7 ? "warn" : "bad";
+function statusFromAccuracy(v: number): 'good' | 'warn' | 'bad' {
+  return v >= 0.9 ? 'good' : v >= 0.7 ? 'warn' : 'bad';
 }
 
 export default function EvalOverviewTab() {
@@ -103,7 +98,7 @@ export default function EvalOverviewTab() {
       if (dsRes.data) setDatasets(dsRes.data);
       setError(null);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to load overview");
+      setError(e instanceof Error ? e.message : 'Failed to load overview');
     } finally {
       setLoading(false);
     }
@@ -122,7 +117,7 @@ export default function EvalOverviewTab() {
       }
       await fetchData();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Eval run failed");
+      setError(e instanceof Error ? e.message : 'Eval run failed');
     } finally {
       setRunning(false);
     }
@@ -132,7 +127,7 @@ export default function EvalOverviewTab() {
 
   if (!overview) {
     return (
-      <div className="flex flex-col items-center justify-center h-64 text-gray-400">
+      <div className="flex flex-col items-center justify-center h-64 text-text-muted">
         <p className="text-lg mb-2">No evaluation data yet</p>
         <p className="text-sm">Create a dataset and run your first eval to see analytics</p>
       </div>
@@ -142,19 +137,19 @@ export default function EvalOverviewTab() {
   return (
     <div className="space-y-6">
       {error && (
-        <div className="rounded-lg bg-red-900/30 border border-red-500/40 p-3 text-red-300 text-sm">
+        <div className="rounded-lg bg-background-danger-muted border border-border-default p-3 text-text-danger text-sm">
           {error}
         </div>
       )}
 
       <div className="flex items-center justify-between">
-        <h3 className="text-lg font-semibold text-white">Evaluation Overview</h3>
+        <h3 className="text-lg font-semibold text-text-default">Evaluation Overview</h3>
         <button
           onClick={handleRunAll}
           disabled={running || datasets.length === 0}
-          className="px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 disabled:bg-gray-600 disabled:cursor-not-allowed text-white text-sm font-medium transition-colors"
+          className="px-4 py-2 rounded-lg bg-background-accent hover:bg-background-accent disabled:bg-background-muted disabled:cursor-not-allowed text-text-default text-sm font-medium transition-colors"
         >
-          {running ? "Running..." : "Run All Datasets"}
+          {running ? 'Running...' : 'Run All Datasets'}
         </button>
       </div>
 
@@ -187,19 +182,19 @@ export default function EvalOverviewTab() {
           label="Total Runs"
           value={String(overview.totalRuns)}
           status={
-            overview.lastRunStatus === "pass"
-              ? "good"
-              : overview.lastRunStatus === "fail"
-                ? "bad"
-                : "neutral"
+            overview.lastRunStatus === 'pass'
+              ? 'good'
+              : overview.lastRunStatus === 'fail'
+                ? 'bad'
+                : 'neutral'
           }
         />
       </div>
 
       {/* Accuracy Trend */}
       {overview.accuracyTrend.length > 0 && (
-        <div className="rounded-lg border border-gray-600/40 bg-gray-800/50 p-4">
-          <h4 className="text-sm font-medium text-gray-300 mb-4">Accuracy Trend Over Time</h4>
+        <div className="rounded-lg border border-border-default bg-background-muted p-4">
+          <h4 className="text-sm font-medium text-text-default mb-4">Accuracy Trend Over Time</h4>
           <ResponsiveContainer width="100%" height={260}>
             <AreaChart data={overview.accuracyTrend}>
               <defs>
@@ -220,36 +215,61 @@ export default function EvalOverviewTab() {
               <XAxis
                 dataKey="date"
                 tickFormatter={formatDate}
-                tick={{ fill: "#9ca3af", fontSize: 11 }}
+                tick={{ fill: '#9ca3af', fontSize: 11 }}
                 stroke="#4b5563"
               />
               <YAxis
                 domain={[0, 1]}
                 tickFormatter={(v) => `${(Number(v) * 100).toFixed(0)}%`}
-                tick={{ fill: "#9ca3af", fontSize: 11 }}
+                tick={{ fill: '#9ca3af', fontSize: 11 }}
                 stroke="#4b5563"
               />
               <Tooltip
-                contentStyle={{ backgroundColor: "#1f2937", border: "1px solid #374151", borderRadius: "8px" }}
-                labelStyle={{ color: "#e5e7eb" }}
+                contentStyle={{
+                  backgroundColor: '#1f2937',
+                  border: '1px solid #374151',
+                  borderRadius: '8px',
+                }}
+                labelStyle={{ color: '#e5e7eb' }}
                 formatter={(value) => {
-                  const v = typeof value === "number" ? value : 0;
+                  const v = typeof value === 'number' ? value : 0;
                   return [`${(v * 100).toFixed(1)}%`];
                 }}
                 labelFormatter={(label) => formatDate(String(label))}
               />
-              <Area type="monotone" dataKey="overallAccuracy" name="Overall" stroke={COLORS.blue} fill="url(#gradOverall)" strokeWidth={2} />
-              <Area type="monotone" dataKey="agentAccuracy" name="Agent" stroke={COLORS.green} fill="url(#gradAgent)" strokeWidth={2} />
-              <Area type="monotone" dataKey="modeAccuracy" name="Mode" stroke={COLORS.purple} fill="url(#gradMode)" strokeWidth={2} />
+              <Area
+                type="monotone"
+                dataKey="overallAccuracy"
+                name="Overall"
+                stroke={COLORS.blue}
+                fill="url(#gradOverall)"
+                strokeWidth={2}
+              />
+              <Area
+                type="monotone"
+                dataKey="agentAccuracy"
+                name="Agent"
+                stroke={COLORS.green}
+                fill="url(#gradAgent)"
+                strokeWidth={2}
+              />
+              <Area
+                type="monotone"
+                dataKey="modeAccuracy"
+                name="Mode"
+                stroke={COLORS.purple}
+                fill="url(#gradMode)"
+                strokeWidth={2}
+              />
             </AreaChart>
           </ResponsiveContainer>
           <div className="flex gap-6 mt-2 justify-center">
             {[
-              { label: "Overall", color: COLORS.blue },
-              { label: "Agent", color: COLORS.green },
-              { label: "Mode", color: COLORS.purple },
+              { label: 'Overall', color: COLORS.blue },
+              { label: 'Agent', color: COLORS.green },
+              { label: 'Mode', color: COLORS.purple },
             ].map((item) => (
-              <div key={item.label} className="flex items-center gap-2 text-xs text-gray-400">
+              <div key={item.label} className="flex items-center gap-2 text-xs text-text-muted">
                 <div className="w-3 h-3 rounded-full" style={{ backgroundColor: item.color }} />
                 {item.label}
               </div>
@@ -260,21 +280,26 @@ export default function EvalOverviewTab() {
 
       {/* Regressions + Per-Agent Accuracy */}
       <div className="grid grid-cols-2 gap-4">
-        <div className="rounded-lg border border-gray-600/40 bg-gray-800/50 p-4">
-          <h4 className="text-sm font-medium text-gray-300 mb-3">Regression Alerts</h4>
+        <div className="rounded-lg border border-border-default bg-background-muted p-4">
+          <h4 className="text-sm font-medium text-text-default mb-3">Regression Alerts</h4>
           {overview.regressions.length === 0 ? (
-            <div className="flex items-center justify-center h-32 text-gray-500 text-sm">
+            <div className="flex items-center justify-center h-32 text-text-muted text-sm">
               ✓ No regressions detected
             </div>
           ) : (
             <div className="space-y-2 max-h-48 overflow-y-auto">
               {overview.regressions.map((r, i) => (
-                <div key={i} className="flex items-start gap-2 p-2 rounded bg-red-900/20 border border-red-500/20">
-                  <span className="text-red-400 text-sm mt-0.5">⚠</span>
+                <div
+                  key={i}
+                  className="flex items-start gap-2 p-2 rounded bg-background-danger-muted border border-border-default"
+                >
+                  <span className="text-text-danger text-sm mt-0.5">⚠</span>
                   <div className="flex-1 min-w-0">
-                    <span className="text-sm text-white font-medium">{r.description}</span>
-                    <div className="text-xs text-gray-400 mt-0.5">
-                      <span className={`${r.severity === "critical" ? "text-red-400" : "text-amber-400"}`}>
+                    <span className="text-sm text-text-default font-medium">{r.description}</span>
+                    <div className="text-xs text-text-muted mt-0.5">
+                      <span
+                        className={`${r.severity === 'critical' ? 'text-text-danger' : 'text-text-warning'}`}
+                      >
                         {r.severity}
                       </span>
                       <span className="ml-2">Δ {formatPercent(Math.abs(r.delta))}</span>
@@ -287,8 +312,8 @@ export default function EvalOverviewTab() {
           )}
         </div>
 
-        <div className="rounded-lg border border-gray-600/40 bg-gray-800/50 p-4">
-          <h4 className="text-sm font-medium text-gray-300 mb-3">Per-Agent Accuracy</h4>
+        <div className="rounded-lg border border-border-default bg-background-muted p-4">
+          <h4 className="text-sm font-medium text-text-default mb-3">Per-Agent Accuracy</h4>
           {overview.perAgentAccuracy.length > 0 ? (
             <ResponsiveContainer width="100%" height={180}>
               <BarChart data={overview.perAgentAccuracy} layout="vertical">
@@ -297,14 +322,24 @@ export default function EvalOverviewTab() {
                   type="number"
                   domain={[0, 1]}
                   tickFormatter={(v) => `${(Number(v) * 100).toFixed(0)}%`}
-                  tick={{ fill: "#9ca3af", fontSize: 11 }}
+                  tick={{ fill: '#9ca3af', fontSize: 11 }}
                   stroke="#4b5563"
                 />
-                <YAxis type="category" dataKey="agent" tick={{ fill: "#e5e7eb", fontSize: 12 }} stroke="#4b5563" width={100} />
+                <YAxis
+                  type="category"
+                  dataKey="agent"
+                  tick={{ fill: '#e5e7eb', fontSize: 12 }}
+                  stroke="#4b5563"
+                  width={100}
+                />
                 <Tooltip
-                  contentStyle={{ backgroundColor: "#1f2937", border: "1px solid #374151", borderRadius: "8px" }}
+                  contentStyle={{
+                    backgroundColor: '#1f2937',
+                    border: '1px solid #374151',
+                    borderRadius: '8px',
+                  }}
                   formatter={(value) => {
-                    const v = typeof value === "number" ? value : 0;
+                    const v = typeof value === 'number' ? value : 0;
                     return [`${(v * 100).toFixed(1)}%`];
                   }}
                 />
@@ -312,14 +347,20 @@ export default function EvalOverviewTab() {
                   {overview.perAgentAccuracy.map((entry, i) => (
                     <Cell
                       key={i}
-                      fill={entry.accuracy >= 0.9 ? COLORS.green : entry.accuracy >= 0.7 ? COLORS.amber : COLORS.red}
+                      fill={
+                        entry.accuracy >= 0.9
+                          ? COLORS.green
+                          : entry.accuracy >= 0.7
+                            ? COLORS.amber
+                            : COLORS.red
+                      }
                     />
                   ))}
                 </Bar>
               </BarChart>
             </ResponsiveContainer>
           ) : (
-            <div className="flex items-center justify-center h-32 text-gray-500 text-sm">
+            <div className="flex items-center justify-center h-32 text-text-muted text-sm">
               Run an evaluation to see agent accuracy
             </div>
           )}

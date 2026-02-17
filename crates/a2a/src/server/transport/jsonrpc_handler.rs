@@ -43,16 +43,27 @@ impl<S: TaskStore + Clone + 'static, E: AgentExecutor + 'static> JsonRpcHandler<
         let id = request.id.clone();
         let params = request.params.unwrap_or(Value::Object(Default::default()));
 
+        // Accept both PascalCase (spec §9.4) and legacy slash-style method names
         match request.method.as_str() {
-            methods::SEND_MESSAGE => self.handle_send_message(&id, &params).await,
-            methods::GET_TASK => self.handle_get_task(&id, &params).await,
-            methods::LIST_TASKS => self.handle_list_tasks(&id, &params).await,
-            methods::CANCEL_TASK => self.handle_cancel_task(&id, &params).await,
-            methods::GET_EXTENDED_CARD => self.handle_get_agent_card(&id),
-            methods::SET_PUSH_CONFIG => self.handle_set_push_config(&id, &params).await,
-            methods::GET_PUSH_CONFIG => self.handle_get_push_config(&id, &params).await,
-            methods::LIST_PUSH_CONFIG => self.handle_list_push_configs(&id, &params).await,
-            methods::DELETE_PUSH_CONFIG => self.handle_delete_push_config(&id, &params).await,
+            methods::SEND_MESSAGE | "message/send" => self.handle_send_message(&id, &params).await,
+            methods::GET_TASK | "tasks/get" => self.handle_get_task(&id, &params).await,
+            methods::LIST_TASKS | "tasks/list" => self.handle_list_tasks(&id, &params).await,
+            methods::CANCEL_TASK | "tasks/cancel" => self.handle_cancel_task(&id, &params).await,
+            methods::GET_EXTENDED_CARD | "agent/authenticatedExtendedCard" => {
+                self.handle_get_agent_card(&id)
+            }
+            methods::SET_PUSH_CONFIG | "tasks/pushNotificationConfig/set" => {
+                self.handle_set_push_config(&id, &params).await
+            }
+            methods::GET_PUSH_CONFIG | "tasks/pushNotificationConfig/get" => {
+                self.handle_get_push_config(&id, &params).await
+            }
+            methods::LIST_PUSH_CONFIG | "tasks/pushNotificationConfig/list" => {
+                self.handle_list_push_configs(&id, &params).await
+            }
+            methods::DELETE_PUSH_CONFIG | "tasks/pushNotificationConfig/delete" => {
+                self.handle_delete_push_config(&id, &params).await
+            }
             _ => JsonRpcResponse::error(
                 id,
                 A2AError::method_not_found(request.method.clone()).to_jsonrpc_error(),
@@ -77,7 +88,7 @@ impl<S: TaskStore + Clone + 'static, E: AgentExecutor + 'static> JsonRpcHandler<
 
         let id = request.id.clone();
 
-        if request.method != methods::SEND_STREAM {
+        if request.method != methods::SEND_STREAM && request.method != "message/stream" {
             return Err(JsonRpcResponse::error(
                 id,
                 A2AError::method_not_found(request.method.clone()).to_jsonrpc_error(),
@@ -434,6 +445,32 @@ mod tests {
         });
 
         let response = rpc.handle_request(&raw).await;
+        assert!(response.result.is_some());
+    }
+
+    #[tokio::test]
+    async fn test_jsonrpc_legacy_method_names() {
+        let rpc = JsonRpcHandler::new(test_handler());
+        // Legacy slash-style method name should still work
+        let raw = serde_json::json!({
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "message/send",
+            "params": {
+                "message": {
+                    "messageId": "msg-legacy",
+                    "role": "user",
+                    "parts": [{"type": "text", "text": "Legacy client"}]
+                }
+            }
+        });
+
+        let response = rpc.handle_request(&raw).await;
+        assert!(
+            response.error.is_none(),
+            "Legacy method name should be accepted, got: {:?}",
+            response.error
+        );
         assert!(response.result.is_some());
     }
 }

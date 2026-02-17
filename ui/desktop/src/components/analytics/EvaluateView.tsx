@@ -1,22 +1,22 @@
-import { useState } from "react";
-import { PageHeader } from "../ui/design-system/PageHeader";
-import { TabBar } from "../ui/design-system/TabBar";
-import EvalOverviewTab from "./EvalOverviewTab";
-import DatasetsTab from "./DatasetsTab";
-import RunHistoryTab from "./RunHistoryTab";
-import TopicsTab from "./TopicsTab";
-import RoutingInspector from "./RoutingInspector";
-import EvalRunner from "./EvalRunner";
+import { useState } from 'react';
+import { PageHeader } from '../ui/design-system/PageHeader';
+import { TabBar } from '../ui/design-system/TabBar';
+import EvalOverviewTab from './EvalOverviewTab';
+import DatasetsTab from './DatasetsTab';
+import RunHistoryTab from './RunHistoryTab';
+import TopicsTab from './TopicsTab';
+import RoutingInspector from './RoutingInspector';
+import EvalRunner from './EvalRunner';
 
 const TAB_GROUPS = [
   {
     tabs: [
-      { id: "overview", label: "Overview" },
-      { id: "datasets", label: "Datasets" },
-      { id: "runs", label: "Run History" },
-      { id: "topics", label: "Topics" },
-      { id: "inspector", label: "Routing Inspector" },
-      { id: "eval-runner", label: "Eval Runner" },
+      { id: 'overview', label: 'Overview' },
+      { id: 'datasets', label: 'Datasets' },
+      { id: 'runs', label: 'Run History' },
+      { id: 'topics', label: 'Topics' },
+      { id: 'inspector', label: 'Routing Inspector' },
+      { id: 'eval-runner', label: 'Eval Runner' },
     ],
   },
 ];
@@ -27,11 +27,11 @@ const COMPONENTS: Record<string, React.FC> = {
   runs: RunHistoryTab,
   topics: TopicsTab,
   inspector: RoutingInspector,
-  "eval-runner": EvalRunner,
+  'eval-runner': EvalRunner,
 };
 
 export default function EvaluateView() {
-  const [activeTab, setActiveTab] = useState("overview");
+  const [activeTab, setActiveTab] = useState('overview');
   const ActiveComponent = COMPONENTS[activeTab];
 
   return (

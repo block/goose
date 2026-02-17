@@ -1,38 +1,29 @@
-import { useEffect, useState, useCallback } from "react";
-import {
-  listEvalRuns,
-  getEvalRun,
-  listEvalDatasets,
-  runEval,
-} from "../../api";
-import type {
-  EvalRunSummary,
-  EvalRunDetail,
-  EvalDatasetSummary,
-} from "../../api";
-import RunComparisonView from "./RunComparisonView";
-import SankeyDiagram from "./SankeyDiagram";
+import { useEffect, useState, useCallback } from 'react';
+import { listEvalRuns, getEvalRun, listEvalDatasets, runEval } from '../../api';
+import type { EvalRunSummary, EvalRunDetail, EvalDatasetSummary } from '../../api';
+import RunComparisonView from './RunComparisonView';
+import SankeyDiagram from './SankeyDiagram';
 
 function formatPercent(v: number): string {
   return `${(v * 100).toFixed(1)}%`;
 }
 
 function formatDate(d: string): string {
-  return new Date(d).toLocaleString("en-US", {
-    month: "short",
-    day: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
+  return new Date(d).toLocaleString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
   });
 }
 
 function AccuracyBadge({ value }: { value: number }) {
   const color =
     value >= 0.9
-      ? "bg-green-900/40 text-green-300 border-green-500/30"
+      ? 'bg-background-success-muted text-text-success border-border-default'
       : value >= 0.7
-        ? "bg-amber-900/40 text-amber-300 border-amber-500/30"
-        : "bg-red-900/40 text-red-300 border-red-500/30";
+        ? 'bg-background-warning-muted text-text-warning border-border-default'
+        : 'bg-background-danger-muted text-text-danger border-border-default';
   return (
     <span className={`text-xs px-2 py-0.5 rounded-full border ${color}`}>
       {formatPercent(value)}
@@ -40,22 +31,19 @@ function AccuracyBadge({ value }: { value: number }) {
   );
 }
 
-function RunDetailPanel({
-  detail,
-  onClose,
-}: {
-  detail: EvalRunDetail;
-  onClose: () => void;
-}) {
+function RunDetailPanel({ detail, onClose }: { detail: EvalRunDetail; onClose: () => void }) {
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <div>
-          <button onClick={onClose} className="text-sm text-blue-400 hover:text-blue-300 mb-2">
+          <button
+            onClick={onClose}
+            className="text-sm text-text-accent hover:text-text-accent mb-2"
+          >
             ← Back to runs
           </button>
-          <h3 className="text-lg font-semibold text-white">Run #{detail.id.slice(0, 8)}</h3>
-          <div className="flex gap-4 mt-1 text-xs text-gray-400">
+          <h3 className="text-lg font-semibold text-text-default">Run #{detail.id.slice(0, 8)}</h3>
+          <div className="flex gap-4 mt-1 text-xs text-text-muted">
             <span>Dataset: {detail.datasetName}</span>
             <span>{formatDate(detail.startedAt)}</span>
             {detail.gooseVersion && <span>Goose: {detail.gooseVersion}</span>}
@@ -63,15 +51,15 @@ function RunDetailPanel({
         </div>
         <div className="flex gap-3 text-sm">
           <div className="text-center">
-            <div className="text-gray-400 text-xs">Overall</div>
+            <div className="text-text-muted text-xs">Overall</div>
             <AccuracyBadge value={detail.overallAccuracy} />
           </div>
           <div className="text-center">
-            <div className="text-gray-400 text-xs">Agent</div>
+            <div className="text-text-muted text-xs">Agent</div>
             <AccuracyBadge value={detail.agentAccuracy} />
           </div>
           <div className="text-center">
-            <div className="text-gray-400 text-xs">Mode</div>
+            <div className="text-text-muted text-xs">Mode</div>
             <AccuracyBadge value={detail.modeAccuracy} />
           </div>
         </div>
@@ -79,25 +67,33 @@ function RunDetailPanel({
 
       {/* Per-Agent Results */}
       {detail.perAgent.length > 0 && (
-        <div className="rounded-lg border border-gray-600/40 bg-gray-800/50 p-4">
-          <h4 className="text-sm font-medium text-gray-300 mb-3">Per-Agent Results</h4>
+        <div className="rounded-lg border border-border-default bg-background-muted p-4">
+          <h4 className="text-sm font-medium text-text-default mb-3">Per-Agent Results</h4>
           <div className="grid grid-cols-2 gap-3">
             {detail.perAgent.map((ar) => (
-              <div key={ar.agent} className="rounded-lg border border-gray-700/50 bg-gray-900/30 p-3">
+              <div
+                key={ar.agent}
+                className="rounded-lg border border-border-muted bg-background-default/30 p-3"
+              >
                 <div className="flex items-center justify-between mb-2">
-                  <span className="text-sm font-medium text-white">{ar.agent}</span>
+                  <span className="text-sm font-medium text-text-default">{ar.agent}</span>
                   <AccuracyBadge value={ar.accuracy} />
                 </div>
-                <div className="flex gap-4 text-xs text-gray-400">
-                  <span>Pass: <span className="text-green-400">{ar.pass}</span></span>
-                  <span>Fail: <span className="text-red-400">{ar.fail}</span></span>
+                <div className="flex gap-4 text-xs text-text-muted">
+                  <span>
+                    Pass: <span className="text-text-success">{ar.pass}</span>
+                  </span>
+                  <span>
+                    Fail: <span className="text-text-danger">{ar.fail}</span>
+                  </span>
                 </div>
-                <div className="mt-2 h-1.5 bg-gray-700 rounded-full overflow-hidden">
+                <div className="mt-2 h-1.5 bg-background-muted rounded-full overflow-hidden">
                   <div
                     className="h-full rounded-full transition-all"
                     style={{
                       width: `${ar.accuracy * 100}%`,
-                      backgroundColor: ar.accuracy >= 0.9 ? "#22c55e" : ar.accuracy >= 0.7 ? "#f59e0b" : "#ef4444",
+                      backgroundColor:
+                        ar.accuracy >= 0.9 ? '#22c55e' : ar.accuracy >= 0.7 ? '#f59e0b' : '#ef4444',
                     }}
                   />
                 </div>
@@ -109,32 +105,42 @@ function RunDetailPanel({
 
       {/* Failures */}
       {detail.failures.length > 0 && (
-        <div className="rounded-lg border border-red-600/30 bg-red-900/10 p-4">
-          <h4 className="text-sm font-medium text-red-300 mb-3">
+        <div className="rounded-lg border border-border-default bg-background-danger-muted p-4">
+          <h4 className="text-sm font-medium text-text-danger mb-3">
             Failed Cases ({detail.failures.length})
           </h4>
           <div className="space-y-2 max-h-64 overflow-y-auto">
             {detail.failures.map((f, i) => (
-              <div key={i} className="rounded bg-gray-800/80 border border-gray-700/50 p-3">
-                <p className="text-sm text-white mb-2 line-clamp-2">&quot;{f.input}&quot;</p>
+              <div
+                key={i}
+                className="rounded bg-background-muted/80 border border-border-muted p-3"
+              >
+                <p className="text-sm text-text-default mb-2 line-clamp-2">&quot;{f.input}&quot;</p>
                 <div className="flex gap-6 text-xs">
                   <div>
-                    <span className="text-gray-500">Expected: </span>
-                    <span className="text-green-400">{f.expectedAgent} → {f.expectedMode}</span>
+                    <span className="text-text-muted">Expected: </span>
+                    <span className="text-text-success">
+                      {f.expectedAgent} → {f.expectedMode}
+                    </span>
                   </div>
                   <div>
-                    <span className="text-gray-500">Got: </span>
-                    <span className="text-red-400">{f.actualAgent} → {f.actualMode}</span>
+                    <span className="text-text-muted">Got: </span>
+                    <span className="text-text-danger">
+                      {f.actualAgent} → {f.actualMode}
+                    </span>
                   </div>
                   <div>
-                    <span className="text-gray-500">Confidence: </span>
-                    <span className="text-gray-300">{(f.confidence * 100).toFixed(0)}%</span>
+                    <span className="text-text-muted">Confidence: </span>
+                    <span className="text-text-default">{(f.confidence * 100).toFixed(0)}%</span>
                   </div>
                 </div>
                 {f.tags.length > 0 && (
                   <div className="flex gap-1 mt-2">
                     {f.tags.map((t) => (
-                      <span key={t} className="text-[10px] px-1.5 py-0.5 rounded bg-gray-700 text-gray-400">
+                      <span
+                        key={t}
+                        className="text-[10px] px-1.5 py-0.5 rounded bg-background-muted text-text-muted"
+                      >
                         {t}
                       </span>
                     ))}
@@ -148,8 +154,8 @@ function RunDetailPanel({
 
       {/* Routing Flow (Sankey) */}
       {detail.confusionMatrix.labels.length > 0 && (
-        <div className="rounded-lg border border-gray-600/40 bg-gray-800/50 p-4">
-          <h4 className="text-sm font-medium text-gray-300 mb-3">Routing Flow</h4>
+        <div className="rounded-lg border border-border-default bg-background-muted p-4">
+          <h4 className="text-sm font-medium text-text-default mb-3">Routing Flow</h4>
           <SankeyDiagram
             labels={detail.confusionMatrix.labels}
             matrix={detail.confusionMatrix.matrix}
@@ -159,22 +165,24 @@ function RunDetailPanel({
 
       {/* Confusion Matrix */}
       {detail.confusionMatrix.labels.length > 0 && (
-        <div className="rounded-lg border border-gray-600/40 bg-gray-800/50 p-4">
-          <h4 className="text-sm font-medium text-gray-300 mb-3">Confusion Matrix</h4>
+        <div className="rounded-lg border border-border-default bg-background-muted p-4">
+          <h4 className="text-sm font-medium text-text-default mb-3">Confusion Matrix</h4>
           <div className="overflow-x-auto">
             <table className="text-xs">
               <thead>
                 <tr>
-                  <th className="px-3 py-2 text-left text-gray-500">Expected ↓ / Actual →</th>
+                  <th className="px-3 py-2 text-left text-text-muted">Expected ↓ / Actual →</th>
                   {detail.confusionMatrix.labels.map((l) => (
-                    <th key={l} className="px-3 py-2 text-center text-gray-400">{l}</th>
+                    <th key={l} className="px-3 py-2 text-center text-text-muted">
+                      {l}
+                    </th>
                   ))}
                 </tr>
               </thead>
               <tbody>
                 {detail.confusionMatrix.labels.map((expected, ri) => (
-                  <tr key={expected} className="border-t border-gray-700/50">
-                    <td className="px-3 py-2 text-gray-400 font-medium">{expected}</td>
+                  <tr key={expected} className="border-t border-border-muted">
+                    <td className="px-3 py-2 text-text-muted font-medium">{expected}</td>
                     {detail.confusionMatrix.matrix[ri]?.map((count, ci) => {
                       const isDiagonal = ri === ci;
                       return (
@@ -183,12 +191,12 @@ function RunDetailPanel({
                           className={`px-3 py-2 text-center ${
                             count > 0
                               ? isDiagonal
-                                ? "bg-green-900/30 text-green-300"
-                                : "bg-red-900/30 text-red-300"
-                              : "text-gray-600"
+                                ? 'bg-background-success-muted text-text-success'
+                                : 'bg-background-danger-muted text-text-danger'
+                              : 'text-text-subtle'
                           }`}
                         >
-                          {count || "-"}
+                          {count || '-'}
                         </td>
                       );
                     })}
@@ -209,7 +217,7 @@ export default function RunHistoryTab() {
   const [selectedDetail, setSelectedDetail] = useState<EvalRunDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [running, setRunning] = useState(false);
-  const [selectedDataset, setSelectedDataset] = useState("");
+  const [selectedDataset, setSelectedDataset] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [compareMode, setCompareMode] = useState(false);
   const [selectedForCompare, setSelectedForCompare] = useState<string[]>([]);
@@ -236,7 +244,7 @@ export default function RunHistoryTab() {
       }
       setError(null);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to load runs");
+      setError(e instanceof Error ? e.message : 'Failed to load runs');
     } finally {
       setLoading(false);
     }
@@ -253,7 +261,7 @@ export default function RunHistoryTab() {
       await runEval({ body: { datasetId: selectedDataset } });
       await fetchData();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Eval run failed");
+      setError(e instanceof Error ? e.message : 'Eval run failed');
     } finally {
       setRunning(false);
     }
@@ -264,7 +272,7 @@ export default function RunHistoryTab() {
       const res = await getEvalRun({ path: { id: runId } });
       if (res.data) setSelectedDetail(res.data);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to load run detail");
+      setError(e instanceof Error ? e.message : 'Failed to load run detail');
     }
   };
 
@@ -289,14 +297,14 @@ export default function RunHistoryTab() {
   return (
     <div className="space-y-4">
       {error && (
-        <div className="rounded-lg bg-red-900/30 border border-red-500/40 p-3 text-red-300 text-sm">
+        <div className="rounded-lg bg-background-danger-muted border border-border-default p-3 text-text-danger text-sm">
           {error}
         </div>
       )}
 
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <h3 className="text-lg font-semibold text-white">Run History</h3>
+          <h3 className="text-lg font-semibold text-text-default">Run History</h3>
           {runs.length >= 2 && (
             <button
               onClick={() => {
@@ -305,24 +313,25 @@ export default function RunHistoryTab() {
               }}
               className={`px-3 py-1 rounded-lg text-xs font-medium transition-colors ${
                 compareMode
-                  ? "bg-purple-600 text-white"
-                  : "bg-zinc-700 text-zinc-300 hover:bg-zinc-600"
+                  ? 'bg-purple-600 text-text-default'
+                  : 'bg-background-muted text-text-default hover:bg-background-muted'
               }`}
             >
-              {compareMode ? "Cancel Compare" : "⇆ Compare Runs"}
+              {compareMode ? 'Cancel Compare' : '⇆ Compare Runs'}
             </button>
           )}
           {compareMode && selectedForCompare.length === 2 && (
             <button
               onClick={() => setShowComparison(true)}
-              className="px-3 py-1 rounded-lg text-xs font-medium bg-green-600 hover:bg-green-700 text-white transition-colors"
+              className="px-3 py-1 rounded-lg text-xs font-medium bg-background-success-muted hover:bg-background-success-muted text-text-default transition-colors"
             >
               Compare Selected →
             </button>
           )}
           {compareMode && selectedForCompare.length < 2 && (
-            <span className="text-xs text-zinc-400">
-              Select {2 - selectedForCompare.length} more run{selectedForCompare.length === 0 ? "s" : ""}
+            <span className="text-xs text-text-muted">
+              Select {2 - selectedForCompare.length} more run
+              {selectedForCompare.length === 0 ? 's' : ''}
             </span>
           )}
         </div>
@@ -330,7 +339,7 @@ export default function RunHistoryTab() {
           <select
             value={selectedDataset}
             onChange={(e) => setSelectedDataset(e.target.value)}
-            className="bg-gray-700/50 border border-gray-600 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-blue-500"
+            className="bg-background-muted border border-border-default rounded-lg px-3 py-2 text-text-default text-sm focus:outline-none focus:border-border-accent"
           >
             <option value="">Select dataset...</option>
             {datasets.map((ds) => (
@@ -342,9 +351,9 @@ export default function RunHistoryTab() {
           <button
             onClick={handleRunEval}
             disabled={running || !selectedDataset}
-            className="px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 disabled:bg-gray-600 disabled:cursor-not-allowed text-white text-sm font-medium transition-colors"
+            className="px-4 py-2 rounded-lg bg-background-accent hover:bg-background-accent disabled:bg-background-muted disabled:cursor-not-allowed text-text-default text-sm font-medium transition-colors"
           >
-            {running ? "Running..." : "▶ Run Eval"}
+            {running ? 'Running...' : '▶ Run Eval'}
           </button>
         </div>
       </div>
@@ -352,29 +361,27 @@ export default function RunHistoryTab() {
       {loading ? (
         <div className="space-y-3 animate-pulse">
           {[...Array(5)].map((_, i) => (
-            <div key={i} className="h-14 rounded-lg bg-gray-700/50" />
+            <div key={i} className="h-14 rounded-lg bg-background-muted" />
           ))}
         </div>
       ) : runs.length === 0 ? (
-        <div className="flex flex-col items-center justify-center h-48 text-gray-400">
+        <div className="flex flex-col items-center justify-center h-48 text-text-muted">
           <p className="text-lg mb-2">No evaluation runs yet</p>
           <p className="text-sm">Select a dataset and run an eval to see results here</p>
         </div>
       ) : (
-        <div className="rounded-lg border border-gray-600/40 overflow-hidden">
+        <div className="rounded-lg border border-border-default overflow-hidden">
           <table className="w-full text-sm">
             <thead>
-              <tr className="bg-gray-700/50">
-                {compareMode && (
-                  <th className="w-10 px-2 py-3" />
-                )}
-                <th className="text-left px-4 py-3 text-gray-400 font-medium">Run</th>
-                <th className="text-left px-4 py-3 text-gray-400 font-medium">Dataset</th>
-                <th className="text-center px-4 py-3 text-gray-400 font-medium">Overall</th>
-                <th className="text-center px-4 py-3 text-gray-400 font-medium">Agent</th>
-                <th className="text-center px-4 py-3 text-gray-400 font-medium">Mode</th>
-                <th className="text-left px-4 py-3 text-gray-400 font-medium">Version</th>
-                <th className="text-left px-4 py-3 text-gray-400 font-medium">Date</th>
+              <tr className="bg-background-muted">
+                {compareMode && <th className="w-10 px-2 py-3" />}
+                <th className="text-left px-4 py-3 text-text-muted font-medium">Run</th>
+                <th className="text-left px-4 py-3 text-text-muted font-medium">Dataset</th>
+                <th className="text-center px-4 py-3 text-text-muted font-medium">Overall</th>
+                <th className="text-center px-4 py-3 text-text-muted font-medium">Agent</th>
+                <th className="text-center px-4 py-3 text-text-muted font-medium">Mode</th>
+                <th className="text-left px-4 py-3 text-text-muted font-medium">Version</th>
+                <th className="text-left px-4 py-3 text-text-muted font-medium">Date</th>
                 <th className="w-20" />
               </tr>
             </thead>
@@ -383,37 +390,51 @@ export default function RunHistoryTab() {
                 const isSelected = selectedForCompare.includes(run.id);
                 const selIndex = selectedForCompare.indexOf(run.id);
                 return (
-                <tr
-                  key={run.id}
-                  className={`border-t border-gray-700/50 hover:bg-gray-800/50 cursor-pointer ${
-                    isSelected ? "bg-purple-900/20 border-purple-500/30" : ""
-                  }`}
-                  onClick={() => compareMode ? toggleRunSelection(run.id) : handleViewDetail(run.id)}
-                >
-                  {compareMode && (
-                    <td className="px-2 py-3 text-center">
-                      <div className={`w-5 h-5 rounded border-2 flex items-center justify-center text-xs font-bold ${
-                        isSelected
-                          ? "border-purple-400 bg-purple-600 text-white"
-                          : "border-zinc-500 bg-zinc-800"
-                      }`}>
-                        {isSelected ? (selIndex === 0 ? "A" : "B") : ""}
-                      </div>
+                  <tr
+                    key={run.id}
+                    className={`border-t border-border-muted hover:bg-background-muted cursor-pointer ${
+                      isSelected ? 'bg-purple-900/20 border-purple-500/30' : ''
+                    }`}
+                    onClick={() =>
+                      compareMode ? toggleRunSelection(run.id) : handleViewDetail(run.id)
+                    }
+                  >
+                    {compareMode && (
+                      <td className="px-2 py-3 text-center">
+                        <div
+                          className={`w-5 h-5 rounded border-2 flex items-center justify-center text-xs font-bold ${
+                            isSelected
+                              ? 'border-purple-400 bg-purple-600 text-text-default'
+                              : 'border-border-muted bg-background-default'
+                          }`}
+                        >
+                          {isSelected ? (selIndex === 0 ? 'A' : 'B') : ''}
+                        </div>
+                      </td>
+                    )}
+                    <td className="px-4 py-3 text-text-default font-mono text-xs">
+                      {run.id.slice(0, 8)}
                     </td>
-                  )}
-                  <td className="px-4 py-3 text-white font-mono text-xs">{run.id.slice(0, 8)}</td>
-                  <td className="px-4 py-3 text-gray-300">{run.datasetName}</td>
-                  <td className="px-4 py-3 text-center"><AccuracyBadge value={run.overallAccuracy} /></td>
-                  <td className="px-4 py-3 text-center"><AccuracyBadge value={run.agentAccuracy} /></td>
-                  <td className="px-4 py-3 text-center"><AccuracyBadge value={run.modeAccuracy} /></td>
-                  <td className="px-4 py-3 text-xs text-gray-400">
-                    {run.versionTag || run.gooseVersion || "-"}
-                  </td>
-                  <td className="px-4 py-3 text-gray-400 text-xs">{formatDate(run.startedAt)}</td>
-                  <td className="px-4 py-3 text-right">
-                    {!compareMode && <span className="text-blue-400 text-xs">Details →</span>}
-                  </td>
-                </tr>
+                    <td className="px-4 py-3 text-text-default">{run.datasetName}</td>
+                    <td className="px-4 py-3 text-center">
+                      <AccuracyBadge value={run.overallAccuracy} />
+                    </td>
+                    <td className="px-4 py-3 text-center">
+                      <AccuracyBadge value={run.agentAccuracy} />
+                    </td>
+                    <td className="px-4 py-3 text-center">
+                      <AccuracyBadge value={run.modeAccuracy} />
+                    </td>
+                    <td className="px-4 py-3 text-xs text-text-muted">
+                      {run.versionTag || run.gooseVersion || '-'}
+                    </td>
+                    <td className="px-4 py-3 text-text-muted text-xs">
+                      {formatDate(run.startedAt)}
+                    </td>
+                    <td className="px-4 py-3 text-right">
+                      {!compareMode && <span className="text-text-accent text-xs">Details →</span>}
+                    </td>
+                  </tr>
                 );
               })}
             </tbody>

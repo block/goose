@@ -11,6 +11,7 @@ use a2a::types::core::*;
 use a2a::types::events::*;
 use a2a::types::requests::*;
 use a2a::types::security::*;
+use serde_json::json;
 
 // ============================================================================
 // TaskState: All 8 wire-format states (proto UNSPECIFIED excluded)
@@ -773,4 +774,77 @@ fn spec_agent_card_roundtrip() {
     assert_eq!(roundtripped.skills.len(), 1);
     assert_eq!(roundtripped.default_output_modes.len(), 2);
     assert!(roundtripped.provider.is_some());
+}
+
+/// Legacy lowercase enum values must be accepted for backward compatibility
+/// with existing clients (e.g., a2a-js v0.3.x which uses non-normative JSON Schema types).
+#[test]
+fn spec_legacy_task_state_compat() {
+    // Legacy lowercase
+    let working: TaskState = serde_json::from_value(json!("working")).unwrap();
+    assert_eq!(working, TaskState::Working);
+    let input_req: TaskState = serde_json::from_value(json!("input-required")).unwrap();
+    assert_eq!(input_req, TaskState::InputRequired);
+    let completed: TaskState = serde_json::from_value(json!("completed")).unwrap();
+    assert_eq!(completed, TaskState::Completed);
+
+    // But serialization always uses ProtoJSON
+    assert_eq!(
+        serde_json::to_value(working).unwrap(),
+        json!("TASK_STATE_WORKING")
+    );
+}
+
+#[test]
+fn spec_legacy_role_compat() {
+    let user: Role = serde_json::from_value(json!("user")).unwrap();
+    assert_eq!(user, Role::User);
+    let agent: Role = serde_json::from_value(json!("agent")).unwrap();
+    assert_eq!(agent, Role::Agent);
+
+    // Serialization always ProtoJSON
+    assert_eq!(serde_json::to_value(user).unwrap(), json!("ROLE_USER"));
+}
+
+#[test]
+fn spec_legacy_full_message_compat() {
+    // A message in JS SDK format should deserialize correctly
+    let js_sdk_msg = json!({
+        "messageId": "msg-from-js",
+        "role": "user",
+        "parts": [{"type": "text", "text": "Hello from JS SDK"}]
+    });
+    let msg: Message = serde_json::from_value(js_sdk_msg).unwrap();
+    assert_eq!(msg.role, Role::User);
+    assert_eq!(msg.parts.len(), 1);
+
+    // Re-serialized to ProtoJSON format
+    let re_serialized = serde_json::to_value(&msg).unwrap();
+    assert_eq!(re_serialized["role"], "ROLE_USER");
+}
+
+#[test]
+fn spec_legacy_task_compat() {
+    // A task in JS SDK format
+    let js_sdk_task = json!({
+        "id": "task-js",
+        "contextId": "ctx-js",
+        "status": {
+            "state": "working",
+            "timestamp": "2025-10-28T10:30:00.000Z"
+        },
+        "history": [{
+            "messageId": "msg-1",
+            "role": "user",
+            "parts": [{"type": "text", "text": "do something"}]
+        }]
+    });
+    let task: Task = serde_json::from_value(js_sdk_task).unwrap();
+    assert_eq!(task.status.state, TaskState::Working);
+    assert_eq!(task.history[0].role, Role::User);
+
+    // Re-serialized to ProtoJSON
+    let re_serialized = serde_json::to_value(&task).unwrap();
+    assert_eq!(re_serialized["status"]["state"], "TASK_STATE_WORKING");
+    assert_eq!(re_serialized["history"][0]["role"], "ROLE_USER");
 }

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState } from 'react';
 import {
   AreaChart,
   Area,
@@ -13,29 +13,21 @@ import {
   Pie,
   Cell,
   Legend,
-} from "recharts";
-import {
-  getSessionAnalytics,
-  getEvalOverview,
-  listEvalRuns,
-} from "../../api";
-import type {
-  SessionAnalytics,
-  EvalOverview,
-  EvalRunSummary,
-} from "../../api";
+} from 'recharts';
+import { getSessionAnalytics, getEvalOverview, listEvalRuns } from '../../api';
+import type { SessionAnalytics, EvalOverview, EvalRunSummary } from '../../api';
 
 // --- Design tokens ---
 const COLORS = {
-  accent: "#3b82f6",
-  accentLight: "#60a5fa",
-  success: "#22c55e",
-  warning: "#f59e0b",
-  danger: "#ef4444",
-  muted: "#6b7280",
-  purple: "#a855f7",
-  teal: "#14b8a6",
-  chart: ["#3b82f6", "#a855f7", "#14b8a6", "#f59e0b", "#ef4444", "#ec4899"],
+  accent: '#3b82f6',
+  accentLight: '#60a5fa',
+  success: '#22c55e',
+  warning: '#f59e0b',
+  danger: '#ef4444',
+  muted: '#6b7280',
+  purple: '#a855f7',
+  teal: '#14b8a6',
+  chart: ['#3b82f6', '#a855f7', '#14b8a6', '#f59e0b', '#ef4444', '#ec4899'],
 };
 
 // --- Utility ---
@@ -47,7 +39,7 @@ function formatNumber(n: number): string {
 
 function formatDate(dateStr: string): string {
   const d = new Date(dateStr);
-  return d.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+  return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
 }
 
 function accuracyColor(pct: number): string {
@@ -57,7 +49,7 @@ function accuracyColor(pct: number): string {
 }
 
 function deltaDisplay(delta: number): { text: string; color: string } {
-  const sign = delta >= 0 ? "+" : "";
+  const sign = delta >= 0 ? '+' : '';
   return {
     text: `${sign}${delta.toFixed(1)}%`,
     color: delta >= 0 ? COLORS.success : COLORS.danger,
@@ -84,14 +76,9 @@ function KpiCard({
   const sparkMax = sparkline ? Math.max(...sparkline, 1) : 0;
   return (
     <div className="bg-background-default rounded-lg border border-border-default p-4 flex flex-col gap-1 relative overflow-hidden">
-      <span className="text-xs font-medium text-text-muted uppercase tracking-wider">
-        {label}
-      </span>
+      <span className="text-xs font-medium text-text-muted uppercase tracking-wider">{label}</span>
       <div className="flex items-baseline gap-2">
-        <span
-          className="text-2xl font-bold"
-          style={{ color: color || "var(--text-standard)" }}
-        >
+        <span className="text-2xl font-bold" style={{ color: color || 'var(--text-standard)' }}>
           {value}
         </span>
         {delta && (
@@ -100,20 +87,20 @@ function KpiCard({
           </span>
         )}
       </div>
-      {subtitle && (
-        <span className="text-[11px] text-text-muted">{subtitle}</span>
-      )}
+      {subtitle && <span className="text-[11px] text-text-muted">{subtitle}</span>}
       {/* Inline sparkline */}
       {sparkline && sparkline.length > 1 && (
         <div className="absolute bottom-0 right-0 w-24 h-8 opacity-30">
-          <svg viewBox={`0 0 ${sparkline.length - 1} ${sparkMax}`} className="w-full h-full" preserveAspectRatio="none">
+          <svg
+            viewBox={`0 0 ${sparkline.length - 1} ${sparkMax}`}
+            className="w-full h-full"
+            preserveAspectRatio="none"
+          >
             <polyline
               fill="none"
               stroke={color || COLORS.accent}
               strokeWidth="1.5"
-              points={sparkline
-                .map((v, i) => `${i},${sparkMax - v}`)
-                .join(" ")}
+              points={sparkline.map((v, i) => `${i},${sparkMax - v}`).join(' ')}
             />
           </svg>
         </div>
@@ -133,21 +120,22 @@ function RegressionCard({
   delta: number;
   versionTag: string;
 }) {
-  const isError = severity === "high";
+  const isError = severity === 'high';
   return (
     <div
       className={`flex items-start gap-3 p-3 rounded-lg border ${
         isError
-          ? "border-red-500/30 bg-red-500/5"
-          : "border-yellow-500/30 bg-yellow-500/5"
+          ? 'border-border-default bg-background-danger-muted/5'
+          : 'border-yellow-500/30 bg-yellow-500/5'
       }`}
     >
-      <span className="text-lg mt-0.5">{isError ? "🔴" : "🟡"}</span>
+      <span className="text-lg mt-0.5">{isError ? '🔴' : '🟡'}</span>
       <div className="flex-1 min-w-0">
         <p className="text-sm text-text-default">{description}</p>
         <div className="flex items-center gap-3 mt-1">
           <span className="text-xs text-text-muted">
-            Δ {delta > 0 ? "+" : ""}{delta.toFixed(1)}%
+            Δ {delta > 0 ? '+' : ''}
+            {delta.toFixed(1)}%
           </span>
           {versionTag && (
             <span className="text-xs px-1.5 py-0.5 rounded bg-background-defaultHover text-text-muted">
@@ -164,21 +152,19 @@ function RecentRunRow({ run }: { run: EvalRunSummary }) {
   const accColor = accuracyColor(run.overallAccuracy);
   return (
     <div className="flex items-center gap-3 py-2.5 px-3 rounded-md hover:bg-background-defaultHover transition-colors cursor-pointer">
-      <div
-        className="w-2 h-2 rounded-full shrink-0"
-        style={{ backgroundColor: accColor }}
-      />
+      <div className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: accColor }} />
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2">
-          <span className="text-sm font-medium text-text-default truncate">
-            {run.datasetName}
-          </span>
+          <span className="text-sm font-medium text-text-default truncate">{run.datasetName}</span>
           <span className="text-[10px] px-1.5 py-0.5 rounded bg-background-defaultHover text-text-muted shrink-0">
             v{run.gooseVersion}
           </span>
         </div>
         <span className="text-xs text-text-muted">
-          {formatDate(run.startedAt)} · {run.correct}/{run.correct + (Math.round(run.correct / Math.max(run.overallAccuracy, 1) * 100) - run.correct)} cases
+          {formatDate(run.startedAt)} · {run.correct}/
+          {run.correct +
+            (Math.round((run.correct / Math.max(run.overallAccuracy, 1)) * 100) - run.correct)}{' '}
+          cases
         </span>
       </div>
       <div className="text-right shrink-0">
@@ -194,24 +180,20 @@ function EmptyDashboard() {
   return (
     <div className="flex flex-col items-center justify-center py-20 px-8 text-center max-w-lg mx-auto">
       <div className="text-5xl mb-4">🚀</div>
-      <h2 className="text-xl font-semibold text-text-default mb-2">
-        Welcome to Goose Analytics
-      </h2>
+      <h2 className="text-xl font-semibold text-text-default mb-2">Welcome to Goose Analytics</h2>
       <p className="text-sm text-text-muted mb-8 leading-relaxed">
-        Track how well your orchestrator routes messages, monitor agent
-        performance, and catch regressions before they impact users.
+        Track how well your orchestrator routes messages, monitor agent performance, and catch
+        regressions before they impact users.
       </p>
 
       <div className="w-full space-y-3">
         <div className="flex items-start gap-3 p-4 rounded-lg border border-border-default bg-background-default hover:bg-background-defaultHover transition-colors cursor-pointer text-left">
           <span className="text-2xl">💬</span>
           <div>
-            <h3 className="text-sm font-semibold text-text-default">
-              Start using Goose
-            </h3>
+            <h3 className="text-sm font-semibold text-text-default">Start using Goose</h3>
             <p className="text-xs text-text-muted mt-0.5">
-              Have conversations — we&apos;ll automatically track routing
-              decisions and build your usage dashboard.
+              Have conversations — we&apos;ll automatically track routing decisions and build your
+              usage dashboard.
             </p>
           </div>
         </div>
@@ -219,12 +201,9 @@ function EmptyDashboard() {
         <div className="flex items-start gap-3 p-4 rounded-lg border border-border-default bg-background-default hover:bg-background-defaultHover transition-colors cursor-pointer text-left">
           <span className="text-2xl">🧪</span>
           <div>
-            <h3 className="text-sm font-semibold text-text-default">
-              Create an eval dataset
-            </h3>
+            <h3 className="text-sm font-semibold text-text-default">Create an eval dataset</h3>
             <p className="text-xs text-text-muted mt-0.5">
-              Define test prompts with expected agent routing to start
-              measuring accuracy.
+              Define test prompts with expected agent routing to start measuring accuracy.
             </p>
           </div>
         </div>
@@ -232,12 +211,9 @@ function EmptyDashboard() {
         <div className="flex items-start gap-3 p-4 rounded-lg border border-border-default bg-background-default hover:bg-background-defaultHover transition-colors cursor-pointer text-left">
           <span className="text-2xl">📦</span>
           <div>
-            <h3 className="text-sm font-semibold text-text-default">
-              Import a YAML dataset
-            </h3>
+            <h3 className="text-sm font-semibold text-text-default">Import a YAML dataset</h3>
             <p className="text-xs text-text-muted mt-0.5">
-              Already have test cases? Upload a YAML file and run your first
-              evaluation in seconds.
+              Already have test cases? Upload a YAML file and run your first evaluation in seconds.
             </p>
           </div>
         </div>
@@ -282,9 +258,10 @@ export default function AnalyticsDashboard() {
         ]);
         if (cancelled) return;
 
-        if (usageRes.status === "fulfilled") setUsage(usageRes.value.data as SessionAnalytics);
-        if (evalRes.status === "fulfilled") setEvalOverview(evalRes.value.data as EvalOverview);
-        if (runsRes.status === "fulfilled") setRecentRuns((runsRes.value.data as EvalRunSummary[]).slice(0, 5));
+        if (usageRes.status === 'fulfilled') setUsage(usageRes.value.data as SessionAnalytics);
+        if (evalRes.status === 'fulfilled') setEvalOverview(evalRes.value.data as EvalOverview);
+        if (runsRes.status === 'fulfilled')
+          setRecentRuns((runsRes.value.data as EvalRunSummary[]).slice(0, 5));
       } catch (err) {
         if (!cancelled) setError(String(err));
       } finally {
@@ -292,14 +269,16 @@ export default function AnalyticsDashboard() {
       }
     }
     load();
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   if (loading) return <LoadingSkeleton />;
   if (error) {
     return (
       <div className="p-8 text-center">
-        <p className="text-red-400 text-sm">{error}</p>
+        <p className="text-text-danger text-sm">{error}</p>
       </div>
     );
   }
@@ -339,8 +318,8 @@ export default function AnalyticsDashboard() {
         {/* Sessions */}
         <KpiCard
           label="Sessions"
-          value={hasUsage ? formatNumber(usage.totalSessions) : "0"}
-          subtitle={hasUsage ? `${usage.activeDays} active days` : "Start chatting"}
+          value={hasUsage ? formatNumber(usage.totalSessions) : '0'}
+          subtitle={hasUsage ? `${usage.activeDays} active days` : 'Start chatting'}
           color={COLORS.accent}
           sparkline={sessionSparkline}
         />
@@ -348,7 +327,7 @@ export default function AnalyticsDashboard() {
         {/* Tokens */}
         <KpiCard
           label="Total Tokens"
-          value={hasUsage ? formatNumber(usage.totalTokens) : "0"}
+          value={hasUsage ? formatNumber(usage.totalTokens) : '0'}
           subtitle={
             hasUsage
               ? `${formatNumber(usage.totalInputTokens)} in · ${formatNumber(usage.totalOutputTokens)} out`
@@ -378,13 +357,11 @@ export default function AnalyticsDashboard() {
       </div>
 
       {/* --- Row 2: Regressions + Recent Runs --- */}
-      {(hasEval && (evalOverview.regressions.length > 0 || recentRuns.length > 0)) && (
+      {hasEval && (evalOverview.regressions.length > 0 || recentRuns.length > 0) && (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
           {/* Regression alerts */}
           <div className="bg-background-default rounded-lg border border-border-default p-4">
-            <h3 className="text-sm font-semibold text-text-default mb-3">
-              🚨 Regression Alerts
-            </h3>
+            <h3 className="text-sm font-semibold text-text-default mb-3">🚨 Regression Alerts</h3>
             {evalOverview.regressions.length === 0 ? (
               <div className="flex items-center gap-2 text-sm text-text-muted py-4">
                 <span className="text-lg">✅</span>
@@ -407,9 +384,7 @@ export default function AnalyticsDashboard() {
 
           {/* Recent runs */}
           <div className="bg-background-default rounded-lg border border-border-default p-4">
-            <h3 className="text-sm font-semibold text-text-default mb-3">
-              📈 Recent Eval Runs
-            </h3>
+            <h3 className="text-sm font-semibold text-text-default mb-3">📈 Recent Eval Runs</h3>
             {recentRuns.length === 0 ? (
               <div className="text-sm text-text-muted py-4 text-center">
                 No eval runs yet. Create a dataset and run your first eval.
@@ -430,9 +405,7 @@ export default function AnalyticsDashboard() {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
           {/* Accuracy trend chart (2/3 width) */}
           <div className="lg:col-span-2 bg-background-default rounded-lg border border-border-default p-4">
-            <h3 className="text-sm font-semibold text-text-default mb-4">
-              Accuracy Over Time
-            </h3>
+            <h3 className="text-sm font-semibold text-text-default mb-4">Accuracy Over Time</h3>
             <ResponsiveContainer width="100%" height={240}>
               <AreaChart data={evalOverview.accuracyTrend}>
                 <defs>
@@ -445,31 +418,29 @@ export default function AnalyticsDashboard() {
                 <XAxis
                   dataKey="date"
                   tickFormatter={formatDate}
-                  tick={{ fontSize: 11, fill: "var(--text-subtle)" }}
+                  tick={{ fontSize: 11, fill: 'var(--text-subtle)' }}
                   axisLine={false}
                   tickLine={false}
                 />
                 <YAxis
                   domain={[0, 100]}
-                  tick={{ fontSize: 11, fill: "var(--text-subtle)" }}
+                  tick={{ fontSize: 11, fill: 'var(--text-subtle)' }}
                   axisLine={false}
                   tickLine={false}
                   tickFormatter={(v) => `${v}%`}
                 />
                 <Tooltip
                   contentStyle={{
-                    backgroundColor: "var(--surface)",
-                    border: "1px solid var(--border-subtle)",
-                    borderRadius: "8px",
-                    fontSize: "12px",
+                    backgroundColor: 'var(--surface)',
+                    border: '1px solid var(--border-subtle)',
+                    borderRadius: '8px',
+                    fontSize: '12px',
                   }}
                   formatter={(value) => [
-                    `${typeof value === "number" ? value.toFixed(1) : value}%`,
+                    `${typeof value === 'number' ? value.toFixed(1) : value}%`,
                   ]}
                   labelFormatter={(label) => {
-                    const point = evalOverview.accuracyTrend.find(
-                      (t) => t.date === label
-                    );
+                    const point = evalOverview.accuracyTrend.find((t) => t.date === label);
                     return point?.versionTag
                       ? `${formatDate(String(label))} · ${point.versionTag}`
                       : formatDate(String(label));
@@ -507,9 +478,7 @@ export default function AnalyticsDashboard() {
 
           {/* Per-agent accuracy (1/3 width) */}
           <div className="bg-background-default rounded-lg border border-border-default p-4">
-            <h3 className="text-sm font-semibold text-text-default mb-4">
-              Per-Agent Accuracy
-            </h3>
+            <h3 className="text-sm font-semibold text-text-default mb-4">Per-Agent Accuracy</h3>
             <div className="space-y-3">
               {evalOverview.perAgentAccuracy.map((agent) => {
                 const pct = agent.accuracy;
@@ -520,10 +489,7 @@ export default function AnalyticsDashboard() {
                       <span className="text-xs font-medium text-text-default truncate">
                         {agent.agent}
                       </span>
-                      <span
-                        className="text-xs font-bold"
-                        style={{ color }}
-                      >
+                      <span className="text-xs font-bold" style={{ color }}>
                         {pct.toFixed(0)}%
                       </span>
                     </div>
@@ -543,9 +509,7 @@ export default function AnalyticsDashboard() {
                 );
               })}
               {evalOverview.perAgentAccuracy.length === 0 && (
-                <p className="text-xs text-text-muted text-center py-4">
-                  No agent data yet
-                </p>
+                <p className="text-xs text-text-muted text-center py-4">No agent data yet</p>
               )}
             </div>
           </div>
@@ -558,30 +522,28 @@ export default function AnalyticsDashboard() {
           {/* Daily activity (2/3) */}
           {usage.dailyActivity.length > 0 && (
             <div className="lg:col-span-2 bg-background-default rounded-lg border border-border-default p-4">
-              <h3 className="text-sm font-semibold text-text-default mb-4">
-                Daily Activity
-              </h3>
+              <h3 className="text-sm font-semibold text-text-default mb-4">Daily Activity</h3>
               <ResponsiveContainer width="100%" height={200}>
                 <BarChart data={usage.dailyActivity}>
                   <CartesianGrid strokeDasharray="3 3" stroke="var(--border-subtle)" />
                   <XAxis
                     dataKey="date"
                     tickFormatter={formatDate}
-                    tick={{ fontSize: 11, fill: "var(--text-subtle)" }}
+                    tick={{ fontSize: 11, fill: 'var(--text-subtle)' }}
                     axisLine={false}
                     tickLine={false}
                   />
                   <YAxis
-                    tick={{ fontSize: 11, fill: "var(--text-subtle)" }}
+                    tick={{ fontSize: 11, fill: 'var(--text-subtle)' }}
                     axisLine={false}
                     tickLine={false}
                   />
                   <Tooltip
                     contentStyle={{
-                      backgroundColor: "var(--surface)",
-                      border: "1px solid var(--border-subtle)",
-                      borderRadius: "8px",
-                      fontSize: "12px",
+                      backgroundColor: 'var(--surface)',
+                      border: '1px solid var(--border-subtle)',
+                      borderRadius: '8px',
+                      fontSize: '12px',
                     }}
                     labelFormatter={(l) => formatDate(String(l))}
                   />
@@ -606,9 +568,7 @@ export default function AnalyticsDashboard() {
           {/* Provider breakdown (1/3) */}
           {usage.providerUsage.length > 0 && (
             <div className="bg-background-default rounded-lg border border-border-default p-4">
-              <h3 className="text-sm font-semibold text-text-default mb-4">
-                Provider Usage
-              </h3>
+              <h3 className="text-sm font-semibold text-text-default mb-4">Provider Usage</h3>
               <ResponsiveContainer width="100%" height={200}>
                 <PieChart>
                   <Pie
@@ -622,22 +582,17 @@ export default function AnalyticsDashboard() {
                     strokeWidth={0}
                   >
                     {usage.providerUsage.map((_, i) => (
-                      <Cell
-                        key={i}
-                        fill={COLORS.chart[i % COLORS.chart.length]}
-                      />
+                      <Cell key={i} fill={COLORS.chart[i % COLORS.chart.length]} />
                     ))}
                   </Pie>
                   <Tooltip
                     contentStyle={{
-                      backgroundColor: "var(--surface)",
-                      border: "1px solid var(--border-subtle)",
-                      borderRadius: "8px",
-                      fontSize: "12px",
+                      backgroundColor: 'var(--surface)',
+                      border: '1px solid var(--border-subtle)',
+                      borderRadius: '8px',
+                      fontSize: '12px',
                     }}
-                    formatter={(value) => [
-                      `${value} sessions`,
-                    ]}
+                    formatter={(value) => [`${value} sessions`]}
                   />
                   <Legend
                     formatter={(value) => (
@@ -654,9 +609,7 @@ export default function AnalyticsDashboard() {
       {/* --- Row 5: Token trend --- */}
       {hasUsage && usage.dailyActivity.length > 0 && (
         <div className="bg-background-default rounded-lg border border-border-default p-4">
-          <h3 className="text-sm font-semibold text-text-default mb-4">
-            Token Usage Trend
-          </h3>
+          <h3 className="text-sm font-semibold text-text-default mb-4">Token Usage Trend</h3>
           <ResponsiveContainer width="100%" height={180}>
             <AreaChart data={usage.dailyActivity}>
               <defs>
@@ -673,25 +626,25 @@ export default function AnalyticsDashboard() {
               <XAxis
                 dataKey="date"
                 tickFormatter={formatDate}
-                tick={{ fontSize: 11, fill: "var(--text-subtle)" }}
+                tick={{ fontSize: 11, fill: 'var(--text-subtle)' }}
                 axisLine={false}
                 tickLine={false}
               />
               <YAxis
-                tick={{ fontSize: 11, fill: "var(--text-subtle)" }}
+                tick={{ fontSize: 11, fill: 'var(--text-subtle)' }}
                 axisLine={false}
                 tickLine={false}
-                tickFormatter={(v) => formatNumber(typeof v === "number" ? v : 0)}
+                tickFormatter={(v) => formatNumber(typeof v === 'number' ? v : 0)}
               />
               <Tooltip
                 contentStyle={{
-                  backgroundColor: "var(--surface)",
-                  border: "1px solid var(--border-subtle)",
-                  borderRadius: "8px",
-                  fontSize: "12px",
+                  backgroundColor: 'var(--surface)',
+                  border: '1px solid var(--border-subtle)',
+                  borderRadius: '8px',
+                  fontSize: '12px',
                 }}
                 labelFormatter={(l) => formatDate(String(l))}
-                formatter={(value) => [formatNumber(typeof value === "number" ? value : 0)]}
+                formatter={(value) => [formatNumber(typeof value === 'number' ? value : 0)]}
               />
               <Area
                 type="monotone"
