@@ -3,7 +3,8 @@ import React from 'react';
 import { render } from 'ink';
 import { App } from './App.js';
 import { OrchestratorApp } from './OrchestratorApp.js';
-import { AcpClient } from './client.js';
+import { SdkAcpClient } from './acp-client.js';
+import type { SessionNotification, TextContent } from '@agentclientprotocol/sdk';
 
 const DEFAULT_SERVER_URL = 'http://127.0.0.1:3284';
 
@@ -82,43 +83,40 @@ Single Agent Mode:
 }
 
 if (oneShotPrompt) {
-  runOneShot(serverUrl, oneShotPrompt, transportType);
+  runOneShot(serverUrl, oneShotPrompt);
 } else if (orchestratorMode) {
   render(<OrchestratorApp serverUrl={serverUrl} repoPath={repoPath} transportType={transportType} />);
 } else {
   render(<App serverUrl={serverUrl} transportType={transportType} />);
 }
 
-async function runOneShot(serverUrl: string, prompt: string, transportType: 'http' | 'websocket') {
-  const client = new AcpClient({ baseUrl: serverUrl, transport: transportType });
+async function runOneShot(serverUrl: string, prompt: string) {
+  let responseText = '';
   
-  try {
-    // connect() handles MCP initialize and returns the session ID
-    const sessionId = await client.connect();
-    
-    let responseText = '';
-    let responseComplete = false;
-    
-    // Set up message handler before sending request
-    client.onMessage((message) => {
-      if (message.method === 'session/update') {
-        const params = message.params as any;
-        if (params?.update?.sessionUpdate === 'agent_message_chunk') {
-          responseText += params?.update?.content?.text || '';
+  // Create SDK client with session update handler
+  const client = new SdkAcpClient(
+    { serverUrl },
+    {
+      onSessionUpdate: (notification: SessionNotification) => {
+        const update = notification.update;
+        if (update.sessionUpdate === 'agent_message_chunk' && update.content?.type === 'text') {
+          responseText += (update.content as TextContent).text || '';
         }
       }
-    });
+    }
+  );
+  
+  try {
+    // Connect and initialize session
+    await client.connect();
     
     // Send the prompt and wait for response
-    await client.sendRequest('session/prompt', {
-      sessionId,
-      prompt: [{ type: 'text', text: prompt }],
-    });
+    await client.prompt(prompt);
     
     // Print the response
     console.log(responseText);
     
-    await client.disconnect();
+    client.disconnect();
     process.exit(0);
   } catch (err) {
     console.error('Error:', err);

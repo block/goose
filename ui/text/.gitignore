@@ -4,3 +4,6 @@ dist/
 .DS_Store
 
 .goose-worktrees/
+
+# Local SDK clone (used when npm registry is blocked)
+acp-sdk/

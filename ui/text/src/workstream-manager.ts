@@ -1,5 +1,5 @@
 import { v4 as uuidv4 } from 'uuid';
-import { AcpClient, AcpMessage, parseSessionUpdate, PermissionRequestParams } from './client.js';
+import { SdkAcpClient, type RequestPermissionRequest, type RequestPermissionResponse, type SessionNotification } from './acp-client.js';
 import { GitWorktreeManager } from './worktree.js';
 import { 
   Workstream, 
@@ -8,6 +8,7 @@ import {
   WorkstreamMessage,
   ToolCallInfo 
 } from './types.js';
+import type { TextContent, ToolCall, ToolCallUpdate } from '@agentclientprotocol/sdk';
 
 export interface WorkstreamManagerConfig {
   serverUrl: string;
@@ -24,26 +25,24 @@ export type WorkstreamEvent =
   | { type: 'tool_call'; tool: ToolCallInfo }
   | { type: 'tool_update'; toolId: string; status: string }
   | { type: 'notification'; notification: Notification }
-  | { type: 'permission_request'; requestId: number; data: unknown }
+  | { type: 'permission_request'; requestId: string; data: RequestPermissionRequest }
   | { type: 'error'; error: string };
 
 interface PendingPermissionRequest {
-  requestId: number;
-  params: PermissionRequestParams;
+  requestId: string;
+  params: RequestPermissionRequest;
   workstreamId: string;
+  resolve: (response: RequestPermissionResponse) => void;
 }
-
-type PermissionResolver = (response: unknown) => void;
 
 export class WorkstreamManager {
   private config: WorkstreamManagerConfig;
   private workstreams: Map<string, Workstream> = new Map();
-  private clients: Map<string, AcpClient> = new Map();
+  private clients: Map<string, SdkAcpClient> = new Map();
   private eventHandlers: WorkstreamEventHandler[] = [];
   private worktreeManager: GitWorktreeManager | null = null;
   private activeTools: Map<string, Map<string, ToolCallInfo>> = new Map(); // workstreamId -> toolId -> info
   private pendingPermissions: Map<string, PendingPermissionRequest> = new Map();
-  private permissionResolvers: Map<string, PermissionResolver> = new Map();
 
   constructor(config: WorkstreamManagerConfig) {
     this.config = config;
@@ -133,61 +132,17 @@ export class WorkstreamManager {
     const workstream = this.workstreams.get(workstreamId);
     if (!workstream) throw new Error('Workstream not found');
 
-    const client = new AcpClient({
-      baseUrl: this.config.serverUrl,
-      transport: this.config.transportType || 'http'
-    });
+    // Create SDK client with handlers
+    const client = new SdkAcpClient(
+      { serverUrl: this.config.serverUrl },
+      {
+        onSessionUpdate: (notification) => this.handleSessionUpdate(workstreamId, notification),
+        onPermissionRequest: (request) => this.handlePermissionRequest(workstreamId, request)
+      }
+    );
     this.clients.set(workstreamId, client);
 
-    // Set up message handling
-    client.onMessage((message) => this.handleAcpMessage(workstreamId, message));
-    client.onError((error) => {
-      this.emit(workstreamId, { type: 'error', error: error.message });
-      this.updateWorkstream(workstreamId, { 
-        status: 'error',
-        currentActivity: `Connection error: ${error.message}`
-      });
-    });
-
-    // Handle permission requests from the server
-    client.onRequest('request_permission', async (message) => {
-      const params = message.params as PermissionRequestParams;
-      
-      // Notify the UI about the permission request
-      this.updateWorkstream(workstreamId, { 
-        status: 'waiting',
-        currentActivity: `Permission needed: ${params.toolCallUpdate?.fields?.title || 'Tool execution'}`
-      });
-      
-      this.addNotification(
-        workstreamId, 
-        'action_required', 
-        'Permission Required',
-        `Tool: ${params.toolCallUpdate?.fields?.title || 'Unknown'}`
-      );
-      
-      // Store the pending permission request for the UI to handle
-      const pendingRequest: PendingPermissionRequest = {
-        requestId: message.id as number,
-        params,
-        workstreamId
-      };
-      this.pendingPermissions.set(workstreamId, pendingRequest);
-      
-      this.emit(workstreamId, { 
-        type: 'permission_request', 
-        requestId: message.id as number,
-        data: params 
-      });
-
-      // Return a promise that will be resolved when the user responds
-      return new Promise((resolve) => {
-        this.permissionResolvers.set(workstreamId, resolve);
-      });
-    });
-
-    // Connect and initialize - this now handles MCP initialize internally
-    // and the server creates the ACP session during initialize
+    // Connect and initialize
     const sessionId = await client.connect();
 
     this.updateWorkstream(workstreamId, {
@@ -203,94 +158,126 @@ export class WorkstreamManager {
     });
   }
 
-  private handleAcpMessage(workstreamId: string, message: AcpMessage): void {
-    const parsed = parseSessionUpdate(message);
+  private handleSessionUpdate(workstreamId: string, notification: SessionNotification): void {
     const workstream = this.workstreams.get(workstreamId);
     if (!workstream) return;
 
-    switch (parsed.type) {
-      case 'text': {
-        const text = parsed.data as string;
-        if (text) {
-          // Append to current message or create new one
-          const lastMsg = workstream.messageHistory[workstream.messageHistory.length - 1];
-          if (lastMsg && lastMsg.role === 'assistant') {
-            lastMsg.content += text;
-          } else {
-            const newMsg: WorkstreamMessage = {
-              role: 'assistant',
-              content: text,
-              timestamp: new Date()
-            };
-            workstream.messageHistory.push(newMsg);
-            this.emit(workstreamId, { type: 'message', message: newMsg });
+    const update = notification.update;
+    const updateType = update.sessionUpdate;
+
+    switch (updateType) {
+      case 'agent_message_chunk': {
+        if (update.content?.type === 'text') {
+          const text = (update.content as TextContent).text || '';
+          if (text) {
+            // Append to current message or create new one
+            const lastMsg = workstream.messageHistory[workstream.messageHistory.length - 1];
+            if (lastMsg && lastMsg.role === 'assistant') {
+              lastMsg.content += text;
+            } else {
+              const newMsg: WorkstreamMessage = {
+                role: 'assistant',
+                content: text,
+                timestamp: new Date()
+              };
+              workstream.messageHistory.push(newMsg);
+              this.emit(workstreamId, { type: 'message', message: newMsg });
+            }
+            this.updateWorkstream(workstreamId, { currentActivity: text.slice(0, 100) });
           }
-          this.updateWorkstream(workstreamId, { currentActivity: text.slice(0, 100) });
         }
         break;
       }
 
-      case 'thought': {
-        const thought = parsed.data as string;
-        if (thought) {
-          this.updateWorkstream(workstreamId, { 
-            currentActivity: `💭 ${thought.slice(0, 100)}` 
-          });
+      case 'agent_thought_chunk': {
+        if (update.content?.type === 'text') {
+          const thought = (update.content as TextContent).text || '';
+          if (thought) {
+            this.updateWorkstream(workstreamId, { 
+              currentActivity: `💭 ${thought.slice(0, 100)}` 
+            });
+          }
         }
         break;
       }
 
       case 'tool_call': {
-        const data = parsed.data as { id: string; title: string; status: string };
-        const toolInfo: ToolCallInfo = {
-          id: data.id,
-          title: data.title,
-          status: data.status as 'pending' | 'completed' | 'failed'
-        };
-        this.activeTools.get(workstreamId)?.set(data.id, toolInfo);
-        this.updateWorkstream(workstreamId, { 
-          currentActivity: `🔧 ${data.title}` 
-        });
-        this.emit(workstreamId, { type: 'tool_call', tool: toolInfo });
+        const toolCall = update as ToolCall & { sessionUpdate: 'tool_call' };
+        if (toolCall.toolCallId) {
+          const toolInfo: ToolCallInfo = {
+            id: toolCall.toolCallId,
+            title: toolCall.title || 'Tool',
+            status: (toolCall.status as 'pending' | 'completed' | 'failed') || 'pending'
+          };
+          this.activeTools.get(workstreamId)?.set(toolCall.toolCallId, toolInfo);
+          this.updateWorkstream(workstreamId, { 
+            currentActivity: `🔧 ${toolInfo.title}` 
+          });
+          this.emit(workstreamId, { type: 'tool_call', tool: toolInfo });
+        }
         break;
       }
 
-      case 'tool_update': {
-        const data = parsed.data as { id: string; status: string; content?: unknown[] };
-        const tools = this.activeTools.get(workstreamId);
-        if (tools && data.id) {
-          const tool = tools.get(data.id);
-          if (tool) {
-            tool.status = data.status as 'pending' | 'completed' | 'failed';
-            if (data.status === 'completed' || data.status === 'failed') {
-              tools.delete(data.id);
+      case 'tool_call_update': {
+        const toolUpdate = update as ToolCallUpdate & { sessionUpdate: 'tool_call_update' };
+        if (toolUpdate.toolCallId) {
+          const tools = this.activeTools.get(workstreamId);
+          if (tools) {
+            const tool = tools.get(toolUpdate.toolCallId);
+            if (tool && toolUpdate.status) {
+              tool.status = toolUpdate.status as 'pending' | 'completed' | 'failed';
+              if (toolUpdate.status === 'completed' || toolUpdate.status === 'failed') {
+                tools.delete(toolUpdate.toolCallId);
+              }
             }
           }
+          this.emit(workstreamId, { 
+            type: 'tool_update', 
+            toolId: toolUpdate.toolCallId, 
+            status: toolUpdate.status || 'unknown' 
+          });
         }
-        this.emit(workstreamId, { type: 'tool_update', toolId: data.id, status: data.status });
-        break;
-      }
-
-      case 'permission_request': {
-        // Permission requests mean the agent needs user input
-        this.updateWorkstream(workstreamId, { 
-          status: 'waiting',
-          currentActivity: 'Waiting for permission...'
-        });
-        this.addNotification(
-          workstreamId, 
-          'action_required', 
-          'Permission Required',
-          'The agent needs your approval to continue'
-        );
-        this.emit(workstreamId, { 
-          type: 'permission_request', 
-          requestId: message.id as number,
-          data: parsed.data 
-        });
         break;
       }
     }
+  }
+
+  private handlePermissionRequest(workstreamId: string, request: RequestPermissionRequest): Promise<RequestPermissionResponse> {
+    // SDK uses toolCall with direct properties (title, toolCallId, etc.)
+    const toolTitle = request.toolCall?.title || 'Tool execution';
+    
+    // Notify the UI about the permission request
+    this.updateWorkstream(workstreamId, { 
+      status: 'waiting',
+      currentActivity: `Permission needed: ${toolTitle}`
+    });
+    
+    this.addNotification(
+      workstreamId, 
+      'action_required', 
+      'Permission Required',
+      `Tool: ${toolTitle}`
+    );
+
+    // Generate a unique request ID
+    const requestId = uuidv4();
+    
+    // Return a promise that will be resolved when the user responds
+    return new Promise((resolve) => {
+      const pendingRequest: PendingPermissionRequest = {
+        requestId,
+        params: request,
+        workstreamId,
+        resolve
+      };
+      this.pendingPermissions.set(workstreamId, pendingRequest);
+      
+      this.emit(workstreamId, { 
+        type: 'permission_request', 
+        requestId,
+        data: request 
+      });
+    });
   }
 
   async sendPrompt(workstreamId: string, prompt: string): Promise<void> {
@@ -313,10 +300,8 @@ export class WorkstreamManager {
     });
 
     try {
-      await client.sendRequest('session/prompt', {
-        sessionId: workstream.acpSessionId,
-        prompt: [{ type: 'text', text: prompt }],
-      });
+      // Use the SDK client's prompt method
+      await client.prompt(prompt);
 
       // Check if work is complete (simple heuristic - could be improved)
       const ws = this.workstreams.get(workstreamId);
@@ -358,21 +343,20 @@ Please work on this task. When you're done or need input, let me know.`;
     workstreamId: string, 
     optionId: string
   ): Promise<void> {
-    const resolver = this.permissionResolvers.get(workstreamId);
-    if (!resolver) {
+    const pending = this.pendingPermissions.get(workstreamId);
+    if (!pending) {
       throw new Error('No pending permission request for this workstream');
     }
 
-    // Resolve the promise with the permission response
-    // This will cause the client to send the response back to the server
-    resolver({
+    // Resolve the promise with the permission response using SDK types
+    pending.resolve({
       outcome: { 
-        selected: { optionId } 
+        outcome: 'selected',
+        optionId
       }
-    });
+    } as RequestPermissionResponse);
 
     // Clean up
-    this.permissionResolvers.delete(workstreamId);
     this.pendingPermissions.delete(workstreamId);
 
     this.updateWorkstream(workstreamId, { 
@@ -407,7 +391,7 @@ Please work on this task. When you're done or need input, let me know.`;
     const workstream = this.workstreams.get(workstreamId);
 
     if (client) {
-      await client.disconnect();
+      client.disconnect();
       this.clients.delete(workstreamId);
     }
 

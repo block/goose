@@ -2,19 +2,8 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Box, Text, useInput, useApp } from 'ink';
 import TextInput from 'ink-text-input';
 import Spinner from 'ink-spinner';
-import { AcpClient, AcpMessage } from './client.js';
-
-interface SessionNotificationParams {
-  sessionId: string;
-  update: {
-    sessionUpdate: string;
-    content?: { type: string; text?: string };
-    id?: string;
-    title?: string;
-    status?: string;
-    fields?: { status?: string; content?: unknown[] };
-  };
-}
+import { SdkAcpClient } from './acp-client.js';
+import type { SessionNotification, TextContent, ToolCall, ToolCallUpdate } from '@agentclientprotocol/sdk';
 
 interface Message {
   role: 'user' | 'assistant' | 'system';
@@ -28,7 +17,6 @@ interface AppProps {
 
 export const App: React.FC<AppProps> = ({ serverUrl, transportType = 'http' }) => {
   const { exit } = useApp();
-  const [client] = useState(() => new AcpClient({ baseUrl: serverUrl, transport: transportType }));
   const [connected, setConnected] = useState(false);
   const [connecting, setConnecting] = useState(true);
   const [sessionId, setSessionId] = useState<string | null>(null);
@@ -42,54 +30,63 @@ export const App: React.FC<AppProps> = ({ serverUrl, transportType = 'http' }) =
   
   const currentResponseRef = useRef('');
   const currentThoughtRef = useRef('');
+  const clientRef = useRef<SdkAcpClient | null>(null);
   
   useEffect(() => { currentResponseRef.current = currentResponse; }, [currentResponse]);
   useEffect(() => { currentThoughtRef.current = currentThought; }, [currentThought]);
 
+  // Handle session updates from the SDK
+  const handleSessionUpdate = useCallback((notification: SessionNotification) => {
+    const update = notification.update;
+    const updateType = update.sessionUpdate;
+
+    if (updateType === 'agent_message_chunk' && update.content?.type === 'text') {
+      setCurrentResponse(prev => prev + ((update.content as TextContent).text || ''));
+    }
+    if (updateType === 'agent_thought_chunk' && update.content?.type === 'text') {
+      setCurrentThought(prev => prev + ((update.content as TextContent).text || ''));
+    }
+    if (updateType === 'tool_call') {
+      const toolCall = update as ToolCall & { sessionUpdate: 'tool_call' };
+      if (toolCall.toolCallId) {
+        setActiveTools(prev => {
+          const next = new Map(prev);
+          next.set(toolCall.toolCallId, { title: toolCall.title || 'Tool', status: toolCall.status || 'pending' });
+          return next;
+        });
+      }
+    }
+    if (updateType === 'tool_call_update') {
+      const toolUpdate = update as ToolCallUpdate & { sessionUpdate: 'tool_call_update' };
+      if (toolUpdate.toolCallId && toolUpdate.status) {
+        setActiveTools(prev => {
+          const next = new Map(prev);
+          const existing = next.get(toolUpdate.toolCallId);
+          if (existing) {
+            next.set(toolUpdate.toolCallId, { ...existing, status: toolUpdate.status! });
+          }
+          return next;
+        });
+      }
+    }
+  }, []);
+
   useEffect(() => {
     const connectAndInit = async () => {
       try {
-        // connect() now handles MCP initialize internally and returns the session ID
-        // The server creates the ACP session during initialize, so we're ready to go
+        // Create the SDK-based client with session update handler
+        const client = new SdkAcpClient(
+          { serverUrl },
+          { onSessionUpdate: handleSessionUpdate }
+        );
+        clientRef.current = client;
+
+        // Connect and initialize session
         const sid = await client.connect();
         setSessionId(sid);
         setConnected(true);
         setConnecting(false);
         setMessages([{ role: 'system', content: `Connected. Session: ${sid.slice(0, 8)}...` }]);
-
-        client.onMessage((message: AcpMessage) => {
-          if (message.method === 'session/update') {
-            const params = message.params as SessionNotificationParams;
-            const update = params.update;
-            const updateType = update.sessionUpdate;
-
-            if (updateType === 'agent_message_chunk' && update.content?.type === 'text') {
-              setCurrentResponse(prev => prev + (update.content?.text || ''));
-            }
-            if (updateType === 'agent_thought_chunk' && update.content?.type === 'text') {
-              setCurrentThought(prev => prev + (update.content?.text || ''));
-            }
-            if (updateType === 'tool_call' && update.id) {
-              setActiveTools(prev => {
-                const next = new Map(prev);
-                next.set(update.id!, { title: update.title || 'Tool', status: update.status || 'pending' });
-                return next;
-              });
-            }
-            if (updateType === 'tool_call_update' && update.id && update.fields?.status) {
-              setActiveTools(prev => {
-                const next = new Map(prev);
-                const existing = next.get(update.id!);
-                if (existing) {
-                  next.set(update.id!, { ...existing, status: update.fields!.status! });
-                }
-                return next;
-              });
-            }
-          }
-        });
-
-        client.onError((err) => setError(err.message));
       } catch (e) {
         setError(e instanceof Error ? e.message : 'Connection failed');
         setConnecting(false);
@@ -97,11 +94,15 @@ export const App: React.FC<AppProps> = ({ serverUrl, transportType = 'http' }) =
     };
 
     connectAndInit();
-    return () => { client.disconnect(); };
-  }, [client]);
+    return () => { 
+      if (clientRef.current) {
+        clientRef.current.disconnect();
+      }
+    };
+  }, [serverUrl, handleSessionUpdate]);
 
   const handleSubmit = useCallback(async (value: string) => {
-    if (!value.trim() || isProcessing || !sessionId) return;
+    if (!value.trim() || isProcessing || !sessionId || !clientRef.current) return;
 
     const userMessage = value.trim();
     setInput('');
@@ -114,10 +115,8 @@ export const App: React.FC<AppProps> = ({ serverUrl, transportType = 'http' }) =
     setActiveTools(new Map());
 
     try {
-      await client.sendRequest('session/prompt', {
-        sessionId: sessionId,
-        prompt: [{ type: 'text', text: userMessage }],
-      });
+      // Use the SDK client's prompt method
+      await clientRef.current.prompt(userMessage);
 
       const finalResponse = currentResponseRef.current;
       const finalThought = currentThoughtRef.current;
@@ -136,11 +135,13 @@ export const App: React.FC<AppProps> = ({ serverUrl, transportType = 'http' }) =
       setCurrentResponse('');
       setCurrentThought('');
     }
-  }, [client, sessionId, isProcessing]);
+  }, [sessionId, isProcessing]);
 
   useInput((inputChar, key) => {
     if (key.ctrl && inputChar === 'c') {
-      client.disconnect();
+      if (clientRef.current) {
+        clientRef.current.disconnect();
+      }
       exit();
     }
   });

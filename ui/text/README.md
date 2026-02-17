@@ -15,6 +15,12 @@ cargo run -p goose-acp --bin goose-acp-server
 Run the CLI:
 ```bash
 cd ui/text
+
+# Clone the ACP SDK (required dependency)
+git clone https://github.com/agentclientprotocol/typescript-sdk.git acp-sdk
+cd acp-sdk && npm install && npm run build && cd ..
+
+# Install dependencies and run
 npm install
 
 # Single agent mode (default)

@@ -14,7 +14,7 @@ import {
 import { WorkstreamManager, WorkstreamEvent } from './workstream-manager.js';
 import { Workstream, ViewMode, ToolCallInfo } from './types.js';
 import { GitWorktreeManager } from './worktree.js';
-import { PermissionRequestParams } from './client.js';
+import type { RequestPermissionRequest } from './acp-client.js';
 
 interface OrchestratorAppProps {
   serverUrl: string;

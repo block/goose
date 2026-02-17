@@ -18,6 +18,7 @@
   "author": "Block",
   "license": "Apache-2.0",
   "dependencies": {
+    "@agentclientprotocol/sdk": "file:./acp-sdk",
     "@types/uuid": "^10.0.0",
     "eventsource": "^2.0.2",
     "ink": "^5.1.0",
@@ -25,7 +26,8 @@
     "ink-text-input": "^6.0.0",
     "react": "^18.3.1",
     "uuid": "^13.0.0",
-    "ws": "^8.18.0"
+    "ws": "^8.18.0",
+    "zod": "^3.24.0"
   },
   "devDependencies": {
     "@types/eventsource": "^1.1.15",
