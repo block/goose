@@ -227,7 +227,10 @@ pub fn get_spellcheck_state(state: tauri::State<'_, SettingsState>) -> Result<bo
 // ── Config ────────────────────────────────────────────────────────────
 
 #[tauri::command]
-pub fn get_config(app: tauri::AppHandle) -> HashMap<String, serde_json::Value> {
+pub fn get_config(
+    app: tauri::AppHandle,
+    goosed_state: tauri::State<'_, GoosedState>,
+) -> HashMap<String, serde_json::Value> {
     let mut config: HashMap<String, serde_json::Value> = HashMap::new();
 
     // Version
@@ -236,7 +239,17 @@ pub fn get_config(app: tauri::AppHandle) -> HashMap<String, serde_json::Value> {
         serde_json::Value::String(app.package_info().version.to_string()),
     );
 
-    // Environment-based config
+    // Insert goosed base_url as GOOSE_API_HOST (takes precedence over env var)
+    if let Ok(url) = goosed_state.base_url.lock() {
+        if let Some(ref url) = *url {
+            config.insert(
+                "GOOSE_API_HOST".to_string(),
+                serde_json::Value::String(url.clone()),
+            );
+        }
+    }
+
+    // Environment-based config (only insert if not already set by goosed state)
     for key in &[
         "GOOSE_API_HOST",
         "GOOSE_WORKING_DIR",
@@ -247,8 +260,10 @@ pub fn get_config(app: tauri::AppHandle) -> HashMap<String, serde_json::Value> {
         "GOOSE_TUNNEL",
         "SECURITY_ML_MODEL_MAPPING",
     ] {
-        if let Ok(val) = std::env::var(key) {
-            config.insert(key.to_string(), serde_json::Value::String(val));
+        if !config.contains_key(*key) {
+            if let Ok(val) = std::env::var(key) {
+                config.insert(key.to_string(), serde_json::Value::String(val));
+            }
         }
     }
 
