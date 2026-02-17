@@ -172,20 +172,12 @@ pub fn find_global_extension_by_key(key: &str) -> Option<ExtensionConfig> {
     extensions.get(key).map(|e| e.config.clone())
 }
 
-fn resolve_recipe_extension(recipe_ext: &ExtensionConfig) -> ExtensionConfig {
-    let key = recipe_ext.key();
-    if let Some(global_ext) = find_global_extension_by_key(&key) {
-        return global_ext;
-    }
-    recipe_ext.clone()
-}
-
 pub fn resolve_extensions_for_new_session(
     recipe_extensions: Option<&[ExtensionConfig]>,
     override_extensions: Option<Vec<ExtensionConfig>>,
 ) -> Vec<ExtensionConfig> {
     let extensions = if let Some(exts) = recipe_extensions {
-        exts.iter().map(resolve_recipe_extension).collect()
+        exts.to_vec()
     } else if let Some(exts) = override_extensions {
         exts
     } else {
