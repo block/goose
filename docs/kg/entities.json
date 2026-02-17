@@ -14947,7 +14947,10 @@
       "spawner: launches agent processes",
       "task: task management for agent runs",
       "health: health check infrastructure",
-      "acp_mcp_adapter: bridges ACP and MCP protocols"
+      "acp_mcp_adapter: bridges ACP and MCP protocols",
+      "New method: get_or_create_agent_with_provider(session_id, Option<Arc<dyn Provider>>) \u2014 allows per-session provider override (commit f46562b9)",
+      "New method: get_default_provider() -> Option<Arc<dyn Provider>> \u2014 reads the shared default provider",
+      "New method: session_manager_arc() -> Arc<SessionManager> \u2014 returns owned Arc for transfer to pool instances"
     ]
   },
   {
@@ -15092,7 +15095,9 @@
       "Push notification support added in commit 9ff2cbc3: PushNotificationStore trait, InMemoryPushNotificationStore, PushNotificationSender (webhook with auth), 4 new tests",
       "Total test count now 91 (72 a2a + 15 goose + 4 goose-server)",
       "All A2A follow-up tasks complete: routes (goose4-x3e8), SSE validation (goose4-4wsw), push notifications (goose4-u4g8)",
-      "JsonRpcHandler now routes all 10 A2A methods including 4 push notification config methods"
+      "JsonRpcHandler now routes all 10 A2A methods including 4 push notification config methods",
+      "A2A server routes expanded: /a2a/instances/* provides 6 REST endpoints for pool instance management (list, spawn, status, cancel, card, result)",
+      "AppState now holds agent_pool: Arc<AgentPool> with capacity 10 for managed parallel agent instances"
     ]
   },
   {
@@ -15205,7 +15210,13 @@
       "tool_analytics.rs get_agent_performance and get_response_quality returned 500 on empty DB: AVG() returns NULL but Rust expected f64, fixed with Option<f64> + unwrap_or(0.0)",
       "Sessions not grouped by project: dateUtils.ts groupSessionsByDate only groups by date, needs working_dir grouping (backlog)",
       "Missing recipes: needs investigation of listSavedRecipes pipeline (backlog)",
-      "All fixes committed in 8d062e49 on feature/cli-via-goosed branch"
+      "All fixes committed in 8d062e49 on feature/cli-via-goosed branch",
+      "Fix 4 committed (cece1e53): listSavedRecipes() error propagation - removed silent catch returning [], errors now surface to RecipesView error UI with AlertCircle + Try Again button",
+      "All 4 bug fixes pushed to feature/cli-via-goosed: 8d062e49 (hooks+auth+sql), 46ea92dc (UX redesign), cece1e53 (recipe errors)",
+      "Session grouping by project (goose4-bslr P3) remains as backlog - groupSessionsByProject already exists in AppSidebar but not in SessionListView",
+      "Fix 5: Agent count discrepancy - CatalogsOverview only loaded builtin agents, missing external A2A agents. Fixed by adding listAgents() call with deduplication. Commit 863aa667.",
+      "Fix 6: CatalogCard fold/unfold - Cards showed static 3-item preview with no expand. Added expand/collapse toggle button. Commit 863aa667.",
+      "All 6 fixes pushed to feature/cli-via-goosed branch across 4 commits: 8d062e49, 46ea92dc, cece1e53, 863aa667"
     ]
   },
   {
@@ -15225,7 +15236,151 @@
       "Key struct: AgentPool { instances: HashMap<String, AgentInstance>, default_provider, extension_manager }",
       "Key struct: AgentInstance { name, agent, persona, working_dir, task, handle, status }",
       "Instance lifecycle: Pending \u2192 Initializing \u2192 Running \u2192 Completed/Failed/Cancelled",
-      "Maps to A2A TaskState: Pending\u2192SUBMITTED, Initializing\u2192WORKING, Running\u2192WORKING, Completed\u2192COMPLETED, Failed\u2192FAILED"
+      "Maps to A2A TaskState: Pending\u2192SUBMITTED, Initializing\u2192WORKING, Running\u2192WORKING, Completed\u2192COMPLETED, Failed\u2192FAILED",
+      "Phase 1 (goose4-ez01) COMPLETED: Added get_or_create_agent_with_provider() to AgentManager, commit f46562b9",
+      "Implementation was ~100 LOC (including 3 tests), slightly more than the ~50 LOC estimate due to thorough testing",
+      "Key discovery during implementation: specialist sub-agents (via SummonExtension) ALREADY support per-instance provider overrides via DelegateParams.provider/model/temperature fields and resolve_provider()",
+      "The Phase 1 change enables SERVER-SIDE sessions (via AgentManager) to also have different providers, which is needed for A2A agent instances and goose-server routes",
+      "Phase 2 (goose4-t0rj: AgentPool) is now unblocked",
+      "Phase 2 completed: AgentPool for Parallel Execution (commit a274c558)",
+      "AgentPool lives in crates/goose/src/execution/pool.rs (~545 lines, 9 tests)",
+      "Key types: SpawnConfig, AgentInstance, AgentResult, InstanceSnapshot, InstanceStatus",
+      "Pool API: spawn(), status(), status_all(), cancel(), cancel_all(), join(), join_all(), collect_finished(), completed_results()",
+      "run_pooled_agent() creates Agent, configures provider/extensions, streams events into conversation",
+      "Phase 3 (Per-Instance Extension Manager, goose4-ioop) is now unblocked",
+      "Phase 3 completed (commit 8a08f2a6): Per-instance extension management via inherit_extensions + exclude_extensions fields on SpawnConfig, resolve_extensions() helper, ~160 LOC, 3 new tests",
+      "Key insight: Each Agent already creates its own ExtensionManager when passed None \u2014 Phase 3 was much simpler than estimated (~160 LOC vs ~800 LOC)",
+      "All 4 phases now: P1 \u2705 (f46562b9), P2 \u2705 (a274c558), P3 \u2705 (8a08f2a6), P4 ready (goose4-4e9u)",
+      "Phase 4 COMPLETED: A2A-native agent instances (commit 391f3de4). 6 REST routes under /a2a/instances for spawn/status/cancel/join/result + per-instance agent card.",
+      "ALL 4 PHASES COMPLETE. Epic goose4-lk7s closed. Total ~970 LOC across 4 commits.",
+      "AppState now includes agent_pool: Arc<AgentPool> with capacity 10",
+      "AgentManager gained get_default_provider() and session_manager_arc() methods"
+    ]
+  },
+  {
+    "name": "ObservatoryUXRedesign",
+    "entityType": "Decision",
+    "observations": [
+      "5 UX problems identified: Agent Catalog duplication, 11-tab overload, misleading Analytics label, non-collapsible Catalogs, Configure inside Analytics",
+      "4 proposals evaluated: A=Three Pillars, B=Hub, C=Monitor&Evaluate, D=Activity-centered",
+      "Recommendation: Proposal C (Monitor & Evaluate) - splits Observatory into Monitoring (4 tabs) + Evaluate (5 tabs) + Agents (2 tabs)",
+      "Proposal C scores highest on user alignment + lowest implementation cost",
+      "Target sidebar: Workflows | Monitoring | Evaluate | Agents | Platform",
+      "Document: tmp/docs/observatory-ux-redesign.mdx",
+      "Beads epic: goose4-o431, research task: goose4-mws8",
+      "Proposal C2 (refined) supersedes C: User suggested Catalog as unified browse/install hub for agents+extensions+workflows",
+      "C2 key insight: Use (Workflows) vs Observe (Monitoring) vs Evaluate vs Manage (Catalog) vs Configure (Settings)",
+      "C2: Routing Inspector moves to Evaluate (it evaluates routing decisions, not a catalog function)",
+      "C2: Agent Catalog becomes Catalog > Agents (agents are an entity type, not top-level concept)",
+      "C2: Settings stays separate from Catalog (system config \u2260 entity management)",
+      "C2: Workflows in sidebar = run installed recipes; Catalog > Workflows = browse/import templates (App Library vs App Store analogy)",
+      "Document: tmp/docs/observatory-ux-redesign-c2.mdx",
+      "IMPLEMENTED: Proposal C2 in commit 46ea92dc on feature/cli-via-goosed",
+      "Files created: MonitoringView.tsx (4 tabs), EvaluateView.tsx (6 tabs)",
+      "Files modified: App.tsx (routes), AppSidebar.tsx (5-zone nav), navigationUtils.ts (view types)",
+      "Sidebar zones: Workflows \u2192 Monitoring \u2192 Evaluate \u2192 Catalog \u2192 Settings",
+      "All 5 original problems resolved: duplication, tab overload, misleading labels, fold/unfold, config placement"
+    ]
+  },
+  {
+    "name": "CurrentObservatoryIA",
+    "entityType": "Component",
+    "observations": [
+      "Sidebar has 3 zones: Workflows, Observatory, Catalogs (Platform)",
+      "Observatory zone contains: Analytics, Tools, Agent Catalog",
+      "AnalyticsView.tsx has 11 tabs in 3 groups: Observe (4), Evaluate (4), Configure (3)",
+      "Agent Catalog exists in BOTH sidebar AND AnalyticsView Configure group",
+      "Navigation zones defined in AppSidebar.tsx lines 69-140",
+      "Routes defined in App.tsx: /analytics, /tools, /agents, /catalogs, /extensions, /settings"
+    ]
+  },
+  {
+    "name": "TargetObservatoryIA",
+    "entityType": "Component",
+    "observations": [
+      "Split into: MonitoringView (Dashboard, Tool Analytics, Live, Quality) + EvaluateView (Overview, Datasets, Runs, Topics, Eval Runner) + AgentsView (Catalog, Routing Inspector)",
+      "Sidebar zones: Workflows | Monitoring | Evaluate | Agents | Platform",
+      "New routes: /monitoring, /evaluate, /agents (keep), deprecate /analytics",
+      "Files to create: MonitoringView.tsx, EvaluateView.tsx",
+      "Files to modify: AppSidebar.tsx (navigationZones), App.tsx (routes), AgentsView.tsx (add tabs)"
+    ]
+  },
+  {
+    "name": "Goose_SubAgent_System",
+    "entityType": "Component",
+    "observations": [
+      "The sub-agent system is implemented in SummonExtension (summon_extension.rs, 2400+ lines)",
+      "Exposes 'delegate' tool for spawning specialist agents with session isolation",
+      "Supports sequential (async:false) and parallel (async:true) execution",
+      "BackgroundTask struct tracks async tasks with CancellationToken, max 3 concurrent",
+      "DelegationStrategy routes to InProcessSpecialist, ExternalAcpAgent, or RemoteA2AAgent",
+      "specialist_handler.rs runs actual Agent::reply() for in-process specialists",
+      "specialist_config.rs defines TaskConfig with 25-turn default max",
+      "subagent_execution_tool/ provides TaskExecutionNotificationEvent for CLI display",
+      "Notification events include TasksUpdate, TasksComplete, LineOutput variants",
+      "TaskStatus enum: Pending, Running, Completed, Failed",
+      "LIMITATION: All specialists share same LLM provider (can't override model)",
+      "LIMITATION: All specialists share same ExtensionManager (can't customize tools)",
+      "LIMITATION: No per-task working directory override",
+      "NOT legacy \u2014 active, working orchestration system that should be enhanced with A2A concepts",
+      "Natural host for A2A multi-instance support via model/extensions params on delegate",
+      "HISTORY: Old API used dynamic_task__create_task + subagent__execute_task tools (still in test recordings)",
+      "HISTORY: Renamed to summon__delegate + summon__load in SummonExtension refactor",
+      "HISTORY: Old API had two-phase approach (create task, then execute), new API is single-step delegate",
+      "The system prompt in old recordings says '# sub agents' section with dynamic_task__create_task instructions",
+      "Current system prompt uses 'summon' extension with delegate/load tools instead",
+      "Test recordings at crates/goose-cli/src/scenario_tests/recordings/ still reference old tool names",
+      "Documentation at documentation/docs/guides/subagents.mdx describes current delegate-based subagent system",
+      "Blog post documentation/blog/2025-07-21-orchestrating-subagents/ shows real-world subagent usage",
+      "AgentPool is the reusable standalone version of SummonExtension's BackgroundTask pattern \u2014 usable from server routes, A2A handlers, and orchestrators",
+      "SummonExtension already had per-instance providers via DelegateParams (provider, model, temperature fields). Phase 1 extended this to AgentManager sessions."
+    ]
+  },
+  {
+    "name": "GooseDesignSystemProposal",
+    "entityType": "Decision",
+    "observations": [
+      "Comprehensive design system proposal for Goose Desktop UI - document at tmp/docs/design-system-proposal.mdx",
+      "Audit found 6 major inconsistencies: dual token systems, header chaos (4 different sizes), card fragmentation (5 different styles), empty state inconsistency, loading state fragmentation (5 patterns), tab bar implementations (3 different)",
+      "Proposes 10 new shared primitives: PageHeader, DataCard, StatCard, ListItem, TreeItem, EmptyState, LoadingState, ErrorState, SearchInput, TabBar",
+      "Token migration: legacy tokens (bgApp, surface, textStandard, borderSubtle) \u2192 semantic tokens (background-default, text-default, border-default) already defined in main.css",
+      "4-phase migration: Phase 1 create primitives (2-3h), Phase 2 migrate views (4-6h), Phase 3 token cleanup (1-2h), Phase 4 generative UI integration (4-8h)",
+      "Generative UI compatibility via component registry + Vercel AI SDK experimental_streamUI",
+      "Standard decisions: text-2xl font-semibold headers, shadcn Tabs everywhere, Skeleton for content loading, consistent empty state pattern (icon+title+description+action)"
+    ]
+  },
+  {
+    "name": "AgentPool",
+    "entityType": "CodeComponent",
+    "observations": [
+      "Located at crates/goose/src/execution/pool.rs (~700 lines, 12 tests)",
+      "Manages parallel agent instances with independent lifecycles: spawn, status, cancel, join, collect_finished",
+      "SpawnConfig: persona, instructions, prompt, working_dir, provider, extensions, inherit_extensions, exclude_extensions, max_turns, session_manager",
+      "AgentInstance: tracks JoinHandle, CancellationToken, turns (AtomicU32), last_activity_ms (AtomicU64), started Instant",
+      "AgentResult: id, persona, provider_name, model_name, status, output, error, turns_taken, duration",
+      "InstanceSnapshot: read-only status view (id, persona, provider_name, model_name, status, turns, elapsed, last_activity_ms)",
+      "InstanceStatus enum: Running, Completed, Failed, Cancelled",
+      "Max capacity enforced (default 10), returns error if full",
+      "resolve_extensions(): inherits from shared EM (minus excludes) then appends explicit extensions",
+      "run_pooled_agent(): creates Agent, configures provider/extensions/system prompt, streams reply events, returns (conversation, final_output)",
+      "Commit history: Phase 2 (a274c558), Phase 3 (8a08f2a6)"
+    ]
+  },
+  {
+    "name": "A2A_Instance_Routes",
+    "entityType": "APIEndpoints",
+    "observations": [
+      "Located in crates/goose-server/src/routes/a2a.rs (Phase 4, commit 391f3de4)",
+      "GET /a2a/instances \u2014 list all instances with status snapshots",
+      "POST /a2a/instances \u2014 spawn new instance (SpawnInstanceRequest: persona, instructions?, provider?, model?, max_turns?)",
+      "GET /a2a/instances/{id} \u2014 get single instance status",
+      "DELETE /a2a/instances/{id} \u2014 cancel running instance",
+      "GET /a2a/instances/{id}/card \u2014 A2A AgentCard for the instance",
+      "GET /a2a/instances/{id}/result \u2014 get completed instance result or current status if still running",
+      "Types: SpawnInstanceRequest, InstanceResponse, InstanceResultResponse",
+      "InstanceResponse fields: id, persona, status, provider_name, model_name, turns, elapsed_secs, last_activity_ms",
+      "InstanceResultResponse fields: id, persona, status, output, error, turns_taken, duration_secs",
+      "Instance agent card: persona name, description, skills from persona config, protocol_version 1.0"
     ]
   }
 ]

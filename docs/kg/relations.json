@@ -10653,5 +10653,50 @@
     "from": "Multi_Instance_Agent_Architecture",
     "to": "Goose_Crate_Structure",
     "relationType": "affects"
+  },
+  {
+    "from": "Goose_SubAgent_System",
+    "to": "A2A_Crate_Implementation_Summary",
+    "relationType": "can_integrate_with"
+  },
+  {
+    "from": "Goose_SubAgent_System",
+    "to": "Multi_Instance_Agent_Architecture",
+    "relationType": "target_of"
+  },
+  {
+    "from": "Goose_SubAgent_System",
+    "to": "Goose_ACP_Compat",
+    "relationType": "uses"
+  },
+  {
+    "from": "Goose_SubAgent_System",
+    "to": "A2A_Goose_Alignment_Assessment",
+    "relationType": "analyzed_in"
+  },
+  {
+    "from": "AgentPool",
+    "to": "Multi_Instance_Agent_Architecture",
+    "relationType": "implements"
+  },
+  {
+    "from": "A2A_Instance_Routes",
+    "to": "AgentPool",
+    "relationType": "exposes"
+  },
+  {
+    "from": "AgentPool",
+    "to": "Goose_SubAgent_System",
+    "relationType": "used_by"
+  },
+  {
+    "from": "AgentPool",
+    "to": "Goose_AgentManager",
+    "relationType": "depends_on"
+  },
+  {
+    "from": "A2A_Instance_Routes",
+    "to": "A2A_Crate_Implementation_Summary",
+    "relationType": "part_of"
   }
 ]
