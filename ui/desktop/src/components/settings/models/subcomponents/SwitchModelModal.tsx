@@ -16,7 +16,7 @@ import { Select } from '../../../ui/Select';
 import { useConfig } from '../../../ConfigContext';
 import { useModelAndProvider } from '../../../ModelAndProviderContext';
 import type { View } from '../../../../utils/navigationUtils';
-import Model, { getProviderMetadata, fetchModelsForProviders } from '../modelInterface';
+import Model, { getProviderMetadata, fetchModelsForProviders, formatModelHint } from '../modelInterface';
 import { getPredefinedModelsFromEnv, shouldShowPredefinedModels } from '../predefinedModelsUtils';
 import { ProviderType } from '../../../../api';
 import { trackModelChanged } from '../../../../utils/analytics';
@@ -83,7 +83,7 @@ export const SwitchModelModal = ({
   const { getProviders, read } = useConfig();
   const { changeModel, currentModel, currentProvider } = useModelAndProvider();
   const [providerOptions, setProviderOptions] = useState<{ value: string; label: string }[]>([]);
-  type ModelOption = { value: string; label: string; provider: string; isDisabled?: boolean };
+  type ModelOption = { value: string; label: string; provider: string; hint?: string; isDisabled?: boolean };
   const [modelOptions, setModelOptions] = useState<{ options: ModelOption[] }[]>([]);
   const [provider, setProvider] = useState<string | null>(
     initialProvider || currentProvider || null
@@ -226,29 +226,36 @@ export const SwitchModelModal = ({
 
         // Process results and build grouped options
         const groupedOptions: {
-          options: { value: string; label: string; provider: string; providerType: ProviderType }[];
+          options: { value: string; label: string; provider: string; hint?: string; providerType: ProviderType }[];
         }[] = [];
         const errorMap: Record<string, string> = {};
 
-        results.forEach(({ provider: p, models, error }) => {
+        results.forEach(({ provider: p, models, modelInfo, error }) => {
           if (error) {
             errorMap[p.name] = error;
             return;
           }
 
           const modelList = models || [];
+          const infoMap = new Map((modelInfo || []).map((info) => [info.name, info]));
 
           const options: {
             value: string;
             label: string;
             provider: string;
+            hint?: string;
             providerType: ProviderType;
-          }[] = modelList.map((m) => ({
-            value: m,
-            label: m,
-            provider: p.name,
-            providerType: p.provider_type,
-          }));
+          }[] = modelList.map((m) => {
+            const info = infoMap.get(m);
+            const hint = info ? formatModelHint(info) : undefined;
+            return {
+              value: m,
+              label: m,
+              provider: p.name,
+              hint: hint || undefined,
+              providerType: p.provider_type,
+            };
+          });
 
           if (p.metadata.allows_unlisted_models && p.provider_type !== 'Custom') {
             options.push({
@@ -525,6 +532,16 @@ export const SwitchModelModal = ({
                         placeholder="Select a model, type to search"
                         isClearable
                         isDisabled={loadingModels}
+                        formatOptionLabel={(option: unknown) => {
+                          const opt = option as ModelOption;
+                          if (!opt.hint) return opt.label;
+                          return (
+                            <div className="flex justify-between items-center w-full">
+                              <span>{opt.label}</span>
+                              <span className="text-xs text-text-muted ml-2">{opt.hint}</span>
+                            </div>
+                          );
+                        }}
                       />
 
                       {attemptedSubmit && validationErrors.model && (

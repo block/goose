@@ -1,4 +1,4 @@
-import { ProviderDetails, getProviderModels } from '../../../api';
+import { ProviderDetails, ModelInfo, getProviderModelInfo } from '../../../api';
 import { errorMessage as getErrorMessage } from '../../../utils/conversionUtils';
 
 export default interface Model {
@@ -46,7 +46,21 @@ export async function getProviderMetadata(
 export interface ProviderModelsResult {
   provider: ProviderDetails;
   models: string[] | null;
+  modelInfo: ModelInfo[] | null;
   error: string | null;
+}
+
+export function formatModelHint(info: ModelInfo): string {
+  const parts: string[] = [];
+  if (info.supports_reasoning) {
+    parts.push('reasoning');
+  }
+  if (info.input_token_cost != null && info.output_token_cost != null) {
+    const inputPerM = (info.input_token_cost * 1_000_000).toFixed(2);
+    const outputPerM = (info.output_token_cost * 1_000_000).toFixed(2);
+    parts.push(`$${inputPerM}/$${outputPerM} per 1M tokens`);
+  }
+  return parts.join(' · ');
 }
 
 export async function fetchModelsForProviders(
@@ -54,18 +68,20 @@ export async function fetchModelsForProviders(
 ): Promise<ProviderModelsResult[]> {
   const modelPromises = activeProviders.map(async (p) => {
     try {
-      const response = await getProviderModels({
+      const response = await getProviderModelInfo({
         path: { name: p.name },
         throwOnError: true,
       });
-      const models = response.data || [];
-      return { provider: p, models, error: null };
+      const infoList: ModelInfo[] = response.data || [];
+      const models = infoList.map((m) => m.name);
+      return { provider: p, models, modelInfo: infoList, error: null };
     } catch (e: unknown) {
       const errMsg = getErrorMessage(e);
       const errorMessage = `Failed to fetch models for ${p.name}${errMsg ? `: ${errMsg}` : ''}`;
       return {
         provider: p,
         models: null,
+        modelInfo: null,
         error: errorMessage,
       };
     }
