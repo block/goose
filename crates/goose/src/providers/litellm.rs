@@ -27,6 +27,7 @@ pub const LITELLM_DOC_URL: &str = "https://docs.litellm.ai/docs/";
 /// needed to avoid false-positive reasoning parameter injection based on model name
 /// heuristics (fixes issue #4221).
 #[derive(Debug, Clone)]
+#[allow(dead_code)] // Fields used for Phase 2/3 (variant system, pricing display)
 struct LiteLLMModelCapabilities {
     /// Whether this model supports reasoning/extended thinking
     supports_reasoning: bool,
@@ -189,6 +190,7 @@ impl LiteLLMProvider {
     }
 
     /// Build a Vec<ModelInfo> from cached capabilities for use in Provider trait methods.
+    #[allow(dead_code)] // Used in tests; will be used in Phase 3 (pricing display)
     fn capabilities_to_model_info(
         capabilities: &HashMap<String, LiteLLMModelCapabilities>,
     ) -> Vec<ModelInfo> {
