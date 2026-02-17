@@ -15,6 +15,7 @@ import {
   Home,
   Pin,
   PinOff,
+  Plus,
   Puzzle,
   Search,
   Trash2,
@@ -342,6 +343,7 @@ const SessionList = React.memo<{
   onSessionClick: (session: Session) => void;
   onDeleteSession: (sessionId: string) => void;
   onCloseProject: (projectName: string, sessionIds: string[]) => void;
+  onNewSessionInProject?: (projectDir: string) => void;
 }>(
   ({
     sessions,
@@ -350,6 +352,7 @@ const SessionList = React.memo<{
     onSessionClick,
     onDeleteSession,
     onCloseProject,
+    onNewSessionInProject,
   }) => {
     const { pinnedProjects, togglePin, isPinned, toggleCollapsed, isCollapsed } =
       useProjectPreferences();
@@ -437,6 +440,18 @@ const SessionList = React.memo<{
                     className={`w-3 h-3 flex-shrink-0 transition-transform duration-200 ${!collapsed ? 'rotate-90' : ''}`}
                   />
                 </button>
+                {onNewSessionInProject && (
+                  <button
+                    onClick={() => {
+                      const dir = group.sessions[0]?.working_dir || '';
+                      if (dir) onNewSessionInProject(dir);
+                    }}
+                    className="opacity-0 group-hover/project:opacity-100 p-1 hover:bg-background-muted rounded transition-all"
+                    title={`New session in ${group.project}`}
+                  >
+                    <Plus className="w-3 h-3 text-text-muted hover:text-text-default" />
+                  </button>
+                )}
                 {!isGeneral && (
                   <button
                     onClick={() => togglePin(group.project)}
@@ -528,8 +543,9 @@ const AppSidebar: React.FC<SidebarProps> = ({ currentPath }) => {
   const [isChatExpanded, setIsChatExpanded] = useState(true);
   const activeSessionId = searchParams.get('resumeSessionId') ?? undefined;
   const { getSessionStatus, clearUnread } = useSidebarSessionStatus(activeSessionId);
-
-  // When activeSessionId changes, ensure it's in the recent sessions list
+  const { addRecentDir, recentDirs } = useProjectPreferences();
+  const [projectDropdownOpen, setProjectDropdownOpen] = useState(false);
+  const projectDropdownRef = useRef<HTMLDivElement>(null);
   // This handles the case where a session is loaded from history that's older than the top 10
   useEffect(() => {
     if (!activeSessionId) return;
@@ -801,14 +817,19 @@ const AppSidebar: React.FC<SidebarProps> = ({ currentPath }) => {
     [activeSessionId, navigate]
   );
 
+  const handleNewSessionInProject = React.useCallback(
+    async (dir: string) => {
+      addRecentDir(dir);
+      await startNewSession('', setView, dir, {
+        allExtensions: configContext.extensionsList,
+      });
+    },
+    [setView, addRecentDir, configContext.extensionsList]
+  );
+
   const handleViewAllClick = React.useCallback(() => {
     navigate('/sessions');
   }, [navigate]);
-
-  // Open Project: recent dirs dropdown + OS directory picker
-  const { addRecentDir, recentDirs } = useProjectPreferences();
-  const [projectDropdownOpen, setProjectDropdownOpen] = useState(false);
-  const projectDropdownRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (!projectDropdownOpen) return;
@@ -938,7 +959,7 @@ const AppSidebar: React.FC<SidebarProps> = ({ currentPath }) => {
                 </div>
                 {recentSessions.length > 0 && (
                   <CollapsibleContent className="overflow-hidden transition-all data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:animate-in data-[state=open]:fade-in-0">
-                    <div className="mt-1 space-y-1">
+                    <div className="mt-1 space-y-1 max-h-[calc(100vh-320px)] overflow-y-auto">
                       <SessionList
                         sessions={recentSessions}
                         activeSessionId={activeSessionId}
@@ -946,6 +967,7 @@ const AppSidebar: React.FC<SidebarProps> = ({ currentPath }) => {
                         onSessionClick={handleSessionClick}
                         onDeleteSession={handleDeleteSession}
                         onCloseProject={handleCloseProject}
+                        onNewSessionInProject={handleNewSessionInProject}
                       />
                       <button
                         onClick={handleViewAllClick}
