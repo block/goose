@@ -14,6 +14,9 @@ import {
   Share2,
   Copy,
   Download,
+  ChevronDown,
+  ChevronRight,
+  GitBranch,
 } from 'lucide-react';
 import { ScrollArea } from '../ui/scroll-area';
 import { Card } from '../ui/card';
@@ -84,6 +87,7 @@ export default function RecipesView() {
   const [scheduleValid, setScheduleIsValid] = useState(true);
 
   const [searchTerm, setSearchTerm] = useState('');
+  const [expandedParents, setExpandedParents] = useState<Set<string>>(new Set());
 
   const filteredRecipes = useMemo(() => {
     if (!searchTerm) return savedRecipes;
@@ -102,6 +106,72 @@ export default function RecipesView() {
       );
     });
   }, [savedRecipes, searchTerm]);
+
+  // Group recipes into parent/child tree structure
+  interface RecipeGroup {
+    parent: RecipeManifest;
+    children: RecipeManifest[];
+  }
+
+  const groupedRecipes = useMemo((): RecipeGroup[] => {
+    // Build a set of child recipe file paths (normalized basenames)
+    const childIds = new Set<string>();
+    const parentGroups: RecipeGroup[] = [];
+
+    // First pass: identify parents and collect their sub_recipe paths
+    const parentMap = new Map<string, RecipeGroup>();
+    for (const manifest of filteredRecipes) {
+      const subRecipes = manifest.recipe.sub_recipes;
+      if (subRecipes && subRecipes.length > 0) {
+        parentMap.set(manifest.id, { parent: manifest, children: [] });
+      }
+    }
+
+    // Second pass: match children to parents by file_path containing sub_recipe path
+    for (const manifest of filteredRecipes) {
+      const filePath = manifest.file_path || '';
+      for (const [parentId, group] of parentMap) {
+        const parentSubRecipes = group.parent.recipe.sub_recipes || [];
+        for (const sub of parentSubRecipes) {
+          // Match if the manifest's file_path ends with the sub_recipe's path
+          // e.g., file_path ends with "subrecipes/ts-quality.yaml" and sub.path is "subrecipes/ts-quality.yaml"
+          if (filePath.endsWith(sub.path) && manifest.id !== parentId) {
+            group.children.push(manifest);
+            childIds.add(manifest.id);
+            break;
+          }
+        }
+        if (childIds.has(manifest.id)) break;
+      }
+    }
+
+    // Build final list: parents with children first, then standalone recipes
+    for (const group of parentMap.values()) {
+      parentGroups.push(group);
+    }
+
+    // Add standalone recipes (not a parent and not a child)
+    const standaloneRecipes = filteredRecipes.filter(
+      (m) => !parentMap.has(m.id) && !childIds.has(m.id)
+    );
+
+    return [
+      ...parentGroups,
+      ...standaloneRecipes.map((m) => ({ parent: m, children: [] })),
+    ];
+  }, [filteredRecipes]);
+
+  const toggleParentExpanded = (parentId: string) => {
+    setExpandedParents((prev) => {
+      const next = new Set(prev);
+      if (next.has(parentId)) {
+        next.delete(parentId);
+      } else {
+        next.add(parentId);
+      }
+      return next;
+    });
+  };
 
   useEffect(() => {
     loadSavedRecipes();
@@ -669,11 +739,42 @@ export default function RecipesView() {
 
     return (
       <div className="space-y-2">
-        {filteredRecipes.map((recipeManifestResponse: RecipeManifest) => (
-          <RecipeItem
-            key={recipeManifestResponse.id}
-            recipeManifestResponse={recipeManifestResponse}
-          />
+        {groupedRecipes.map((group) => (
+          <div key={group.parent.id}>
+            {/* Parent recipe row */}
+            <div className="flex items-center gap-1">
+              {group.children.length > 0 && (
+                <button
+                  onClick={() => toggleParentExpanded(group.parent.id)}
+                  className="p-1 rounded hover:bg-background-muted transition-colors"
+                  title={expandedParents.has(group.parent.id) ? 'Collapse' : 'Expand'}
+                >
+                  {expandedParents.has(group.parent.id) ? (
+                    <ChevronDown className="w-4 h-4 text-text-muted" />
+                  ) : (
+                    <ChevronRight className="w-4 h-4 text-text-muted" />
+                  )}
+                </button>
+              )}
+              <div className={`flex-1 ${group.children.length === 0 ? 'ml-6' : ''}`}>
+                <RecipeItem recipeManifestResponse={group.parent} />
+              </div>
+              {group.children.length > 0 && (
+                <span className="text-xs text-text-muted bg-background-muted px-2 py-0.5 rounded-full mr-2 shrink-0">
+                  <GitBranch className="w-3 h-3 inline mr-1" />
+                  {group.children.length} sub
+                </span>
+              )}
+            </div>
+            {/* Child recipes (indented) */}
+            {group.children.length > 0 && expandedParents.has(group.parent.id) && (
+              <div className="ml-8 pl-3 border-l-2 border-border-standard space-y-1 mt-1 mb-2">
+                {group.children.map((child) => (
+                  <RecipeItem key={child.id} recipeManifestResponse={child} />
+                ))}
+              </div>
+            )}
+          </div>
         ))}
       </div>
     );
