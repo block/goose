@@ -312,7 +312,7 @@ mod tests {
         );
 
         // Check that we got artifact and status events
-        // Events are wrapped in JSON-RPC response: {id, jsonrpc, result: {kind: ..., ...}}
+        // Events are wrapped in JSON-RPC: {id, jsonrpc, result: {kind: ..., ...}}
         let has_artifact = events.iter().any(|e| {
             e.get("result")
                 .and_then(|r| r.get("kind"))
@@ -320,12 +320,11 @@ mod tests {
                 .unwrap_or(false)
         });
         let has_status_completed = events.iter().any(|e| {
-            let result = e.get("result");
-            result
+            e.get("result")
                 .and_then(|r| r.get("kind"))
                 .map(|k| k == "status-update")
                 .unwrap_or(false)
-                && result
+                && e.get("result")
                     .and_then(|r| r.get("status"))
                     .and_then(|s| s.get("state"))
                     .map(|s| s == "completed")
