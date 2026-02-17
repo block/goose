@@ -5,6 +5,7 @@ use axum::{
     response::Response,
 };
 use goose::identity::{ExecutionIdentity, UserIdentity};
+use goose::oidc::OidcValidator;
 
 /// Existing secret-key middleware — unchanged.
 #[allow(dead_code)]
@@ -33,10 +34,11 @@ pub async fn check_token(
 /// Identity extracted from HTTP request headers.
 ///
 /// Extraction priority:
-/// 1. `Authorization: Bearer <jwt>` → decode JWT claims → OIDC identity
-/// 2. `X-Api-Key: <key_id>` → API key identity
-/// 3. `X-Goose-User-Id: <id>` → stable guest identity (for desktop app)
-/// 4. Fallback → anonymous guest with random UUID
+/// 1. `Authorization: Bearer <jwt>` → OIDC-validated identity (if providers configured)
+/// 2. `Authorization: Bearer <jwt>` → unvalidated JWT decode (fallback when no OIDC)
+/// 3. `X-Api-Key: <key_id>` → API key identity
+/// 4. `X-Goose-User-Id: <id>` → stable guest identity (for desktop app)
+/// 5. Fallback → anonymous guest with random UUID
 ///
 /// This never rejects — it always produces an identity.
 /// Auth *enforcement* is handled by `check_token` middleware.
@@ -52,14 +54,71 @@ impl RequestIdentity {
         ExecutionIdentity::new(self.user, agent)
     }
 
-    /// Extract identity from HTTP headers.
-    /// Call this from handlers instead of using an axum extractor
-    /// (avoids dual-axum-version trait conflicts).
+    /// Extract identity from HTTP headers without OIDC validation.
+    /// Uses lightweight JWT claim extraction (no signature check).
+    #[allow(dead_code)]
     pub fn from_headers(headers: &HeaderMap) -> Self {
         RequestIdentity {
             user: extract_user_from_headers(headers),
         }
     }
+
+    /// Extract identity from HTTP headers with full OIDC validation when providers are configured.
+    /// Falls back to unvalidated extraction if OIDC validation fails or no providers configured.
+    pub async fn from_headers_validated(headers: &HeaderMap, oidc: &OidcValidator) -> Self {
+        if let Some(token) = extract_bearer_token(headers) {
+            if oidc.has_providers().await {
+                match oidc.validate_token(&token).await {
+                    Ok(claims) => {
+                        tracing::debug!(
+                            subject = %claims.subject,
+                            issuer = %claims.issuer,
+                            "OIDC token validated"
+                        );
+                        return RequestIdentity {
+                            user: claims.into_user_identity(),
+                        };
+                    }
+                    Err(e) => {
+                        tracing::warn!(error = %e, "OIDC validation failed, falling back");
+                    }
+                }
+            }
+            // Fallback: lightweight JWT decode without signature verification
+            if let Some(user) = UserIdentity::from_bearer_token(&token) {
+                return RequestIdentity { user };
+            }
+        }
+
+        // Non-Bearer fallbacks
+        RequestIdentity {
+            user: extract_non_bearer_identity(headers),
+        }
+    }
+}
+
+fn extract_bearer_token(headers: &HeaderMap) -> Option<String> {
+    headers
+        .get("authorization")
+        .and_then(|v| v.to_str().ok())
+        .and_then(|v| {
+            v.strip_prefix("Bearer ")
+                .or_else(|| v.strip_prefix("bearer "))
+        })
+        .map(|s| s.to_string())
+}
+
+fn extract_non_bearer_identity(headers: &HeaderMap) -> UserIdentity {
+    // API key
+    if let Some(key) = headers.get("x-api-key").and_then(|v| v.to_str().ok()) {
+        return UserIdentity::from_api_key(key);
+    }
+    // Stable guest ID (desktop app)
+    if let Some(id) = headers.get("x-goose-user-id").and_then(|v| v.to_str().ok()) {
+        return UserIdentity::guest_stable(id);
+    }
+    // Anonymous guest
+    UserIdentity::guest()
 }
 
 /// Extract user identity from HTTP headers with fallback chain.

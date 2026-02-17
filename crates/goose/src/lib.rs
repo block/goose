@@ -16,6 +16,7 @@ pub mod logging;
 pub mod mcp_utils;
 pub mod model;
 pub mod oauth;
+pub mod oidc;
 pub mod permission;
 pub mod pipeline;
 pub mod posthog;

@@ -1867,6 +1867,106 @@
         }
       }
     },
+    "/auth/oidc/providers": {
+      "get": {
+        "tags": [
+          "super::routes::auth_config"
+        ],
+        "summary": "List configured OIDC providers.",
+        "operationId": "list_oidc_providers",
+        "responses": {
+          "200": {
+            "description": "List of OIDC providers",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OidcProvidersResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "super::routes::auth_config"
+        ],
+        "summary": "Add an OIDC provider for JWT validation.",
+        "operationId": "add_oidc_provider",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AddOidcProviderRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Provider added",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OidcProvidersResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "super::routes::auth_config"
+        ],
+        "summary": "Remove an OIDC provider by issuer URL.",
+        "operationId": "remove_oidc_provider",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RemoveOidcProviderRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Provider removed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OidcProvidersResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/auth/status": {
+      "get": {
+        "tags": [
+          "super::routes::auth_config"
+        ],
+        "summary": "Get auth system status.",
+        "operationId": "auth_status",
+        "responses": {
+          "200": {
+            "description": "Auth status",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthStatusResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/config": {
       "get": {
         "tags": [
@@ -5617,6 +5717,35 @@
           }
         }
       },
+      "AddOidcProviderRequest": {
+        "type": "object",
+        "required": [
+          "issuer",
+          "audience"
+        ],
+        "properties": {
+          "audience": {
+            "type": "string"
+          },
+          "group_claim": {
+            "type": "string",
+            "nullable": true
+          },
+          "issuer": {
+            "type": "string"
+          },
+          "required_groups": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "tenant_claim": {
+            "type": "string",
+            "nullable": true
+          }
+        }
+      },
       "AgentCatalogResponse": {
         "type": "object",
         "required": [
@@ -5947,6 +6076,29 @@
           },
           "priority": {
             "type": "number"
+          }
+        }
+      },
+      "AuthStatusResponse": {
+        "type": "object",
+        "required": [
+          "oidc_enabled",
+          "provider_count",
+          "issuers"
+        ],
+        "properties": {
+          "issuers": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "oidc_enabled": {
+            "type": "boolean"
+          },
+          "provider_count": {
+            "type": "integer",
+            "minimum": 0
           }
         }
       },
@@ -9220,6 +9372,50 @@
           }
         }
       },
+      "OidcProviderInfo": {
+        "type": "object",
+        "required": [
+          "issuer",
+          "audience",
+          "required_groups"
+        ],
+        "properties": {
+          "audience": {
+            "type": "string"
+          },
+          "group_claim": {
+            "type": "string",
+            "nullable": true
+          },
+          "issuer": {
+            "type": "string"
+          },
+          "required_groups": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "tenant_claim": {
+            "type": "string",
+            "nullable": true
+          }
+        }
+      },
+      "OidcProvidersResponse": {
+        "type": "object",
+        "required": [
+          "providers"
+        ],
+        "properties": {
+          "providers": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/OidcProviderInfo"
+            }
+          }
+        }
+      },
       "OrchestratorAgentInfo": {
         "type": "object",
         "required": [
@@ -10411,6 +10607,17 @@
             "type": "string"
           },
           "session_id": {
+            "type": "string"
+          }
+        }
+      },
+      "RemoveOidcProviderRequest": {
+        "type": "object",
+        "required": [
+          "issuer"
+        ],
+        "properties": {
+          "issuer": {
             "type": "string"
           }
         }

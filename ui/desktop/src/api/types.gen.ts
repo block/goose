@@ -122,6 +122,14 @@ export type AddExtensionRequest = {
     session_id: string;
 };
 
+export type AddOidcProviderRequest = {
+    audience: string;
+    group_claim?: string | null;
+    issuer: string;
+    required_groups?: Array<string>;
+    tenant_claim?: string | null;
+};
+
 export type AgentCatalogResponse = {
     agents: Array<CatalogAgent>;
     total: number;
@@ -240,6 +248,12 @@ export type Annotations = {
     audience?: Array<Role>;
     lastModified?: string;
     priority?: number;
+};
+
+export type AuthStatusResponse = {
+    issuers: Array<string>;
+    oidc_enabled: boolean;
+    provider_count: number;
 };
 
 export type Author = {
@@ -1302,6 +1316,18 @@ export type ObservatoryDashboard = {
     performance: PerformanceSnapshot;
 };
 
+export type OidcProviderInfo = {
+    audience: string;
+    group_claim?: string | null;
+    issuer: string;
+    required_groups: Array<string>;
+    tenant_claim?: string | null;
+};
+
+export type OidcProvidersResponse = {
+    providers: Array<OidcProviderInfo>;
+};
+
 export type OrchestratorAgentInfo = {
     default_mode: string;
     enabled: boolean;
@@ -1700,6 +1726,10 @@ export type RegressionAlert = {
 export type RemoveExtensionRequest = {
     name: string;
     session_id: string;
+};
+
+export type RemoveOidcProviderRequest = {
+    issuer: string;
 };
 
 export type ResourceContents = {
@@ -3741,6 +3771,70 @@ export type GetAgentPerformanceResponses = {
 };
 
 export type GetAgentPerformanceResponse = GetAgentPerformanceResponses[keyof GetAgentPerformanceResponses];
+
+export type RemoveOidcProviderData = {
+    body: RemoveOidcProviderRequest;
+    path?: never;
+    query?: never;
+    url: '/auth/oidc/providers';
+};
+
+export type RemoveOidcProviderResponses = {
+    /**
+     * Provider removed
+     */
+    200: OidcProvidersResponse;
+};
+
+export type RemoveOidcProviderResponse = RemoveOidcProviderResponses[keyof RemoveOidcProviderResponses];
+
+export type ListOidcProvidersData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/auth/oidc/providers';
+};
+
+export type ListOidcProvidersResponses = {
+    /**
+     * List of OIDC providers
+     */
+    200: OidcProvidersResponse;
+};
+
+export type ListOidcProvidersResponse = ListOidcProvidersResponses[keyof ListOidcProvidersResponses];
+
+export type AddOidcProviderData = {
+    body: AddOidcProviderRequest;
+    path?: never;
+    query?: never;
+    url: '/auth/oidc/providers';
+};
+
+export type AddOidcProviderResponses = {
+    /**
+     * Provider added
+     */
+    200: OidcProvidersResponse;
+};
+
+export type AddOidcProviderResponse = AddOidcProviderResponses[keyof AddOidcProviderResponses];
+
+export type AuthStatusData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/auth/status';
+};
+
+export type AuthStatusResponses = {
+    /**
+     * Auth status
+     */
+    200: AuthStatusResponse;
+};
+
+export type AuthStatusResponse2 = AuthStatusResponses[keyof AuthStatusResponses];
 
 export type ReadAllConfigData = {
     body?: never;

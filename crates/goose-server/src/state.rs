@@ -15,6 +15,7 @@ use crate::routes::runs::RunStore;
 use crate::tunnel::TunnelManager;
 use goose::agents::extension_registry::ExtensionRegistry;
 use goose::agents::ExtensionLoadResult;
+use goose::oidc::OidcValidator;
 
 type ExtensionLoadingTasks =
     Arc<Mutex<HashMap<String, Arc<Mutex<Option<JoinHandle<Vec<ExtensionLoadResult>>>>>>>>;
@@ -32,6 +33,7 @@ pub struct AppState {
     pub extension_registry: Arc<ExtensionRegistry>,
     run_store: RunStore,
     pub agent_pool: Arc<AgentPool>,
+    pub oidc_validator: Arc<OidcValidator>,
 }
 
 impl AppState {
@@ -52,6 +54,7 @@ impl AppState {
             extension_registry,
             run_store: RunStore::new(),
             agent_pool: Arc::new(AgentPool::new(10)),
+            oidc_validator: Arc::new(OidcValidator::new(vec![])),
         }))
     }
 
