@@ -11,7 +11,7 @@ use tokio_stream::Stream;
 
 use crate::error::A2AError;
 use crate::types::agent_card::AgentCard;
-use crate::types::config::{PushNotificationConfig, TaskPushNotificationConfig};
+use crate::types::config::TaskPushNotificationConfig;
 use crate::types::core::{Message, Task, TaskState, TaskStatus};
 use crate::types::events::{AgentExecutionEvent, StreamResponse};
 use crate::types::requests::{
@@ -43,6 +43,7 @@ pub struct DefaultRequestHandler<
     executor: Arc<E>,
     event_bus_manager: EventBusManager,
     push_store: Option<P>,
+    #[allow(dead_code)]
     push_sender: Option<PushNotificationSender>,
 }
 
@@ -290,7 +291,7 @@ impl<
             .load(&request.task_id, &request.id)
             .await?
             .ok_or_else(|| {
-                A2AError::task_not_found(&format!("push config {} not found", request.id))
+                A2AError::task_not_found(format!("push config {} not found", request.id))
             })
     }
 

@@ -10,7 +10,6 @@ use crate::error::A2AError;
 use crate::types::config::{
     AuthenticationInfo, PushNotificationConfig, TaskPushNotificationConfig,
 };
-use crate::types::responses::ListTaskPushNotificationConfigResponse;
 
 // ---------------------------------------------------------------------------
 // PushNotificationStore trait
