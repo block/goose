@@ -147,7 +147,8 @@ impl DatabricksProvider {
             fast_retry_config,
             name: DATABRICKS_PROVIDER_NAME.to_string(),
         };
-        provider.model = model.with_fast(DATABRICKS_DEFAULT_FAST_MODEL.to_string());
+        provider.model =
+            model.with_fast(DATABRICKS_DEFAULT_FAST_MODEL, DATABRICKS_PROVIDER_NAME)?;
         Ok(provider)
     }
 

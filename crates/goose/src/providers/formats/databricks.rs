@@ -1056,7 +1056,7 @@ mod tests {
             max_tokens: Some(1024),
             toolshim: false,
             toolshim_model: None,
-            fast_model: None,
+            fast_model_config: None,
             request_params: None,
         };
         let request = create_request(&model_config, "system", &[], &[], &ImageFormat::OpenAi)?;
@@ -1088,7 +1088,7 @@ mod tests {
             max_tokens: Some(1024),
             toolshim: false,
             toolshim_model: None,
-            fast_model: None,
+            fast_model_config: None,
             request_params: None,
         };
         let request = create_request(&model_config, "system", &[], &[], &ImageFormat::OpenAi)?;
@@ -1440,7 +1440,7 @@ mod tests {
             max_tokens: Some(8192),
             toolshim: false,
             toolshim_model: None,
-            fast_model: None,
+            fast_model_config: None,
             request_params: None,
         };
 
@@ -1492,7 +1492,7 @@ mod tests {
             max_tokens: Some(4096),
             toolshim: false,
             toolshim_model: None,
-            fast_model: None,
+            fast_model_config: None,
             request_params: None,
         };
 

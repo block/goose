@@ -67,7 +67,7 @@ pub struct GoogleProvider {
 
 impl GoogleProvider {
     pub async fn from_env(model: ModelConfig) -> Result<Self> {
-        let model = model.with_fast(GOOGLE_DEFAULT_FAST_MODEL.to_string());
+        let model = model.with_fast(GOOGLE_DEFAULT_FAST_MODEL, GOOGLE_PROVIDER_NAME)?;
 
         let config = crate::config::Config::global();
         let api_key: String = config.get_secret("GOOGLE_API_KEY")?;

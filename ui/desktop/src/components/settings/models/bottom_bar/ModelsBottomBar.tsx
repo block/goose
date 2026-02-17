@@ -30,10 +30,7 @@ export default function ModelsBottomBar({
   setView,
   alerts,
 }: ModelsBottomBarProps) {
-  const {
-    currentModel,
-    currentProvider,
-  } = useModelAndProvider();
+  const { currentModel, currentProvider } = useModelAndProvider();
   const currentModelInfo = useCurrentModelInfo();
   const { read, getProviders } = useConfig();
   const [displayProvider, setDisplayProvider] = useState<string | null>(null);

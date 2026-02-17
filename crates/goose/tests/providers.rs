@@ -305,7 +305,7 @@ impl ProviderTester {
             .model_switch_name
             .as_deref()
             .expect("model_switch_name required for test_model_switch");
-        let alt_config = goose::model::ModelConfig::new(alt)?;
+        let alt_config = goose::model::ModelConfig::new(alt)?.with_canonical_limits(&self.name);
 
         let message = Message::user().with_text("Just say hello!");
         let (response, _) = self
