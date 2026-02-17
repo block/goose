@@ -1,7 +1,7 @@
 {
-  "exported_at": "2026-02-17T22:05:49.369490",
-  "entity_count": 1595,
-  "relation_count": 2258,
+  "exported_at": "2026-02-17T23:13:38.439251",
+  "entity_count": 1613,
+  "relation_count": 2279,
   "format_version": "1.0",
   "branch": "feature/cli-via-goosed",
   "session_deliverables": [
@@ -18,6 +18,12 @@
     "SlotDelegation per-agent strategy (48187229)",
     "Observatory Dashboard Endpoints (798c9a4d)",
     "Dynamic Agent Slot Sync + Pipeline Isolation (06eb3fea)",
-    "Pipeline CRUD + DAG Builder + Session Management (ca2f3383)"
+    "Pipeline CRUD + DAG Builder + Session Management (ca2f3383)",
+    {
+      "name": "Home/Chat Unification + WorkflowsOverview + Tooltip Fix",
+      "commit": "c18b0f95",
+      "files_changed": 8,
+      "lines_added": "~800"
+    }
   ]
 }

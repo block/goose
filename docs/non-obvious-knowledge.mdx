@@ -208,3 +208,96 @@ There are **zero** frontend unit tests for the components modified in this sessi
 - `test_cycle_detection` — detects A→B→C→A cycles
 
 Run with: `cargo test -p goose -- pipeline`
+
+## Session 2 Findings (2026-02-17 evening)
+
+### Radix UI Tooltip Portal Infinite Loop
+
+**Critical bug:** `@radix-ui/react-tooltip`'s `TooltipPrimitive.Portal` causes `Maximum update depth exceeded` when combined with React StrictMode.
+
+**Root cause chain:**
+1. React StrictMode double-mounts components
+2. Radix Portal uses `composeRefs` to merge multiple refs
+3. `composeRefs` calls `setRef` which triggers `setState`
+4. `setState` causes re-render → `setRef` called again → infinite loop
+
+**Error signature:**
+```
+Error: Maximum update depth exceeded
+    at setRef (chunk-EYE7376K.js:12:12)
+    at chunk-EYE7376K.js:21:23
+    at Array.map (<anonymous>)
+```
+
+**Fix:** Remove `<TooltipPrimitive.Portal>` wrapper from `TooltipContent` in `src/components/ui/Tooltip.tsx`. Tooltip positioning still works via Radix Popper's CSS transforms.
+
+**Risk:** In rare z-index stacking contexts, non-portaled tooltips might render behind overlapping elements. Monitor for visual issues.
+
+**Affected packages:** `@radix-ui/react-scroll-area@1.2.10`, `react-dialog`, `react-portal` — they share `chunk-EYE7376K.js` in Vite's dependency cache.
+
+### Ripgrep Cannot Search AppSidebar.tsx
+
+`rg` (ripgrep) returns **0 results** for any pattern in `AppSidebar.tsx`, but `grep -c` finds matches correctly. The file is 1082 lines, identified as `JavaScript source` by `file(1)`.
+
+**Workaround:** Use `grep` instead of `rg` for this specific file:
+```bash
+# rg returns nothing:
+rg "handleNewChat" src/components/GooseSidebar/AppSidebar.tsx  # → 0 results
+
+# grep works:
+grep -c "handleNewChat" src/components/GooseSidebar/AppSidebar.tsx  # → 4
+```
+
+**Likely cause:** File encoding anomaly (possible BOM, mixed line endings, or NUL bytes). Not investigated further.
+
+### Home/Chat Unification Architecture
+
+The old architecture had two separate views:
+- `/` → `HubRouteWrapper` → `Hub.tsx` (stats page, dead end)
+- `/pair` → `PairRouteWrapper` → `ChatSessionsContainer` → `BaseChat`
+
+**New architecture:**
+- `/` → `HomeRedirectWrapper` → `<Navigate to="/pair" replace />`
+- `/pair` → `PairRouteWrapper` → `ChatSessionsContainer` → `BaseChat`
+  - 0 messages → `WelcomeState` (greeting + quick prompts + stats + recent sessions)
+  - ≥1 message → `ProgressiveMessageList` (normal chat)
+
+**Key insight:** `ChatSessionsContainer` stays mounted at all times (keeps SSE connections alive). The session is created lazily when the user types their first message.
+
+### Pipeline Routes Need 3-File Registration (Reinforced)
+
+Adding pipeline routes required editing 3 Rust files simultaneously. **Critical discovery:** When working with a concurrent backend agent, these files get reverted/commented frequently. Each `just generate-openapi` can overwrite if the 3 files aren't consistent.
+
+**Pipeline registration status checklist:**
+```bash
+# Verify all 3 are active:
+grep "pub mod pipeline" crates/goose/src/lib.rs
+grep "pub mod pipeline" crates/goose-server/src/routes/mod.rs
+grep -c "pipeline" crates/goose-server/src/openapi.rs  # should be 14+
+```
+
+### WorkflowsOverview Mirrors CatalogsOverview
+
+Both zone overview pages follow identical patterns:
+- `CatalogsOverview.tsx` → `/catalogs` (Agents, Extensions, Apps)
+- `WorkflowsOverview.tsx` → `/workflows` (Recipes, Pipelines, Schedules)
+
+Both zones behave identically:
+- Label click → overview page
+- Sub-items → detail pages
+- `route` property on the zone config makes label navigable
+
+### Session Deletion Backend Pre-existed
+
+`DELETE /sessions/{session_id}` was already implemented in the backend (`SessionStorage::delete_session()` with transactional message + session delete). The frontend just needed UI controls:
+- Hover trash icon on `SessionItem` for individual delete
+- `X` button on project group header for bulk project close
+- Both require `window.confirm()` before proceeding
+
+### Project Grouping Edge Cases (278 Real Sessions)
+
+With 278 real sessions in the database:
+- **72 temp sessions** (`/tmp/.tmpXXXXXX`) each created their own project group — now grouped into "General"
+- **Nested subdirs** (`goose4/crates/goose`) showed as just "goose" — now shows `goose4 › crates/goose`
+- **Home dir detection** can't use `window.appConfig` (only has Goose-specific keys) — uses regex: `/^\/home\/[^/]+$/` and `/^\/Users\/[^/]+$/`
+- **"General" always first** — sorts before all other projects, always present even with 0 sessions

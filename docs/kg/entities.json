@@ -16011,7 +16011,12 @@
       "6 REST endpoints: list/get/save/update/delete/validate",
       "utoipa OpenAPI annotations for auto schema generation",
       "SavePipelineRequest, SavePipelineResponse, ValidatePipelineResponse types",
-      "Registered in routes/mod.rs and openapi.rs"
+      "Registered in routes/mod.rs and openapi.rs",
+      "Rust routes at crates/goose-server/src/routes/pipeline.rs",
+      "REST endpoints: GET /pipelines/list, GET /pipelines/{id}, POST /pipelines/save",
+      "PUT /pipelines/{id}, DELETE /pipelines/{id}, POST /pipelines/validate",
+      "Uses utoipa annotations for OpenAPI generation",
+      "204 lines, follows recipe routes pattern"
     ]
   },
   {
@@ -16289,6 +16294,182 @@
     "observations": [
       "[2026-02-17T22:05:49.369490] ui/desktop/src/components/GooseMessage.tsx \u2014 495 lines (enhanced)",
       "[2026-02-17T22:05:49.369490] ui/desktop/src/utils/generativeSpec.ts \u2014 new utility"
+    ]
+  },
+  {
+    "name": "WorkflowsOverview",
+    "entityType": "Component",
+    "observations": [
+      "React component at src/components/workflows/WorkflowsOverview.tsx",
+      "Dashboard page showing 3 workflow categories: Recipes, Pipelines, Schedules",
+      "Mirrors CatalogsOverview pattern with search, refresh, status indicators",
+      "Fetches from listSavedRecipes(), listPipelines(), listSchedules()",
+      "474 lines, uses semantic design tokens"
+    ]
+  },
+  {
+    "name": "WelcomeState",
+    "entityType": "Component",
+    "observations": [
+      "React component at src/components/WelcomeState.tsx",
+      "Shows when a chat session has 0 messages",
+      "Contains Goose logo, Greeting, 4 quick-start prompts, compact stats, recent sessions",
+      "Replaces old PopularChatTopics component in BaseChat.tsx",
+      "Part of Home/Chat unification \u2014 removes separate Hub landing page"
+    ]
+  },
+  {
+    "name": "HomeRedirectWrapper",
+    "entityType": "Component",
+    "observations": [
+      "Replaces HubRouteWrapper in App.tsx",
+      "Redirects / to /pair using <Navigate to='/pair' replace />",
+      "Part of Home/Chat unification"
+    ]
+  },
+  {
+    "name": "PipelineBackend",
+    "entityType": "Component",
+    "observations": [
+      "Rust module at crates/goose/src/pipeline.rs",
+      "Pipeline DAG model: Pipeline, PipelineNode, PipelineEdge, NodeKind",
+      "YAML/JSON serialization, cycle detection via DFS",
+      "File-based CRUD stored in ~/.config/goose/pipelines/",
+      "Validation with topological sort"
+    ]
+  },
+  {
+    "name": "DecisionHomeChatUnification",
+    "entityType": "Decision",
+    "observations": [
+      "Merged separate Home (Hub.tsx) and Chat (/pair) into single view",
+      "/ now redirects to /pair, WelcomeState shows on empty session",
+      "Sidebar: single Home button replaces separate Home + Chat buttons",
+      "Rationale: eliminates two-step friction, users want to type immediately",
+      "Approved by UX Researcher, UI Designer, Frontend Engineer"
+    ]
+  },
+  {
+    "name": "DecisionWorkflowsOverviewPage",
+    "entityType": "Decision",
+    "observations": [
+      "Added /workflows overview page mirroring /catalogs pattern",
+      "Workflows zone label now navigates to /workflows (was /recipes)",
+      "Sub-items: /recipes, /pipelines, /schedules",
+      "Ensures Catalog and Workflows zones behave identically"
+    ]
+  },
+  {
+    "name": "DecisionTooltipPortalRemoval",
+    "entityType": "Decision",
+    "observations": [
+      "Removed TooltipPrimitive.Portal from Tooltip.tsx",
+      "Root cause: Radix Portal + React StrictMode double-mount = infinite setRef loop",
+      "composeRefs triggers setState -> re-render -> setRef -> infinite loop",
+      "Fix: render TooltipContent inline without Portal",
+      "Tooltip positioning still works via Radix Popper CSS transforms"
+    ]
+  },
+  {
+    "name": "DecisionSessionCleanup",
+    "entityType": "Decision",
+    "observations": [
+      "Added session deletion (individual + bulk project close)",
+      "Backend DELETE /sessions/{id} already existed",
+      "Frontend: trash icon on hover for single delete, X button for project close",
+      "Confirmation dialog before any delete",
+      "No auto-cleanup/retention policy yet \u2014 user-initiated only"
+    ]
+  },
+  {
+    "name": "FindingRadixInfiniteLoop",
+    "entityType": "Finding",
+    "observations": [
+      "Radix UI TooltipPrimitive.Portal causes 'Maximum update depth exceeded'",
+      "Triggered by React StrictMode double-mounting in development",
+      "composeRefs utility calls setRef which triggers setState",
+      "Affects @radix-ui/react-scroll-area@1.2.10, react-dialog, react-portal",
+      "chunk-EYE7376K.js in Vite cache is shared by these packages",
+      "Fix: remove Portal wrapper, render tooltip content inline",
+      "Confidence: 0.85 \u2014 standard fix but edge cases possible with z-index"
+    ]
+  },
+  {
+    "name": "FindingRipgrepFileEncoding",
+    "entityType": "Finding",
+    "observations": [
+      "rg (ripgrep) cannot search AppSidebar.tsx \u2014 returns 0 results",
+      "grep -c finds matches in the same file",
+      "Likely caused by file encoding issue (BOM or NUL bytes)",
+      "Workaround: use grep instead of rg for this specific file",
+      "File is 1082 lines, identified as 'JavaScript source' by file(1)"
+    ]
+  },
+  {
+    "name": "FindingOpenAPIGenerationWipesFiles",
+    "entityType": "Finding",
+    "observations": [
+      "just generate-openapi wipes hand-written api/instances.ts",
+      "@hey-api/openapi-ts outputs to ./src/api and overwrites everything",
+      "Fix: added git checkout restore step to Justfile",
+      "Also: pipeline routes get commented out by backend agent \u2014 need re-enabling after each regen"
+    ]
+  },
+  {
+    "name": "FindingThreeFileRegistration",
+    "entityType": "Finding",
+    "observations": [
+      "Adding new API routes requires changes in 3 Rust files simultaneously",
+      "1. crates/goose/src/lib.rs \u2014 pub mod <module>",
+      "2. crates/goose-server/src/routes/mod.rs \u2014 pub mod + .merge(routes)",
+      "3. crates/goose-server/src/openapi.rs \u2014 paths() + schemas()",
+      "All 3 must be in sync or generate-openapi silently drops endpoints",
+      "Backend agent frequently comments out pipeline entries \u2014 needs coordination"
+    ]
+  },
+  {
+    "name": "SourceScreenshotAnalysis",
+    "entityType": "Source",
+    "observations": [
+      "goose_session.png \u2014 1876x1045 RGBA screenshot",
+      "Shows blank main area, populated sidebar (11 items), no prompt bar visible",
+      "Light theme: all pixels ~RGB(244-246), zero colored elements",
+      "Revealed: Hub.tsx renders nothing useful, need WelcomeState"
+    ]
+  },
+  {
+    "name": "RepoPathWorkflowsOverview",
+    "entityType": "RepoPath",
+    "observations": [
+      "ui/desktop/src/components/workflows/WorkflowsOverview.tsx \u2014 474 lines"
+    ]
+  },
+  {
+    "name": "RepoPathWelcomeState",
+    "entityType": "RepoPath",
+    "observations": [
+      "ui/desktop/src/components/WelcomeState.tsx \u2014 195 lines"
+    ]
+  },
+  {
+    "name": "RepoPathPipelineBackend",
+    "entityType": "RepoPath",
+    "observations": [
+      "crates/goose/src/pipeline.rs \u2014 pipeline model + storage + validation"
+    ]
+  },
+  {
+    "name": "RepoPathPipelineRoutes",
+    "entityType": "RepoPath",
+    "observations": [
+      "crates/goose-server/src/routes/pipeline.rs \u2014 204 lines, REST CRUD"
+    ]
+  },
+  {
+    "name": "RepoPathTooltipFix",
+    "entityType": "RepoPath",
+    "observations": [
+      "ui/desktop/src/components/ui/Tooltip.tsx \u2014 removed Portal wrapper"
     ]
   }
 ]

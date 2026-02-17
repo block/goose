@@ -11288,5 +11288,110 @@
     "from": "Source_NavigationArchitecture",
     "to": "Decision_SidebarZoneNavigation",
     "relationType": "documents"
+  },
+  {
+    "from": "WorkflowsOverview",
+    "to": "RepoPathWorkflowsOverview",
+    "relationType": "located_at"
+  },
+  {
+    "from": "WorkflowsOverview",
+    "to": "CatalogsOverview",
+    "relationType": "derived_from"
+  },
+  {
+    "from": "WorkflowsOverview",
+    "to": "PipelineManager",
+    "relationType": "related_to"
+  },
+  {
+    "from": "WorkflowsOverview",
+    "to": "DecisionWorkflowsOverviewPage",
+    "relationType": "implements"
+  },
+  {
+    "from": "WelcomeState",
+    "to": "RepoPathWelcomeState",
+    "relationType": "located_at"
+  },
+  {
+    "from": "WelcomeState",
+    "to": "DecisionHomeChatUnification",
+    "relationType": "implements"
+  },
+  {
+    "from": "WelcomeState",
+    "to": "BaseChat",
+    "relationType": "related_to"
+  },
+  {
+    "from": "HomeRedirectWrapper",
+    "to": "DecisionHomeChatUnification",
+    "relationType": "implements"
+  },
+  {
+    "from": "PipelineBackend",
+    "to": "RepoPathPipelineBackend",
+    "relationType": "located_at"
+  },
+  {
+    "from": "PipelineRoutes",
+    "to": "RepoPathPipelineRoutes",
+    "relationType": "located_at"
+  },
+  {
+    "from": "PipelineRoutes",
+    "to": "PipelineBackend",
+    "relationType": "depends_on"
+  },
+  {
+    "from": "PipelineBackend",
+    "to": "DagEditor",
+    "relationType": "related_to"
+  },
+  {
+    "from": "DecisionHomeChatUnification",
+    "to": "SourceScreenshotAnalysis",
+    "relationType": "derived_from"
+  },
+  {
+    "from": "DecisionTooltipPortalRemoval",
+    "to": "FindingRadixInfiniteLoop",
+    "relationType": "derived_from"
+  },
+  {
+    "from": "DecisionTooltipPortalRemoval",
+    "to": "RepoPathTooltipFix",
+    "relationType": "located_at"
+  },
+  {
+    "from": "DecisionSessionCleanup",
+    "to": "SessionItem",
+    "relationType": "affects"
+  },
+  {
+    "from": "FindingRadixInfiniteLoop",
+    "to": "RepoPathTooltipFix",
+    "relationType": "located_at"
+  },
+  {
+    "from": "FindingRipgrepFileEncoding",
+    "to": "AppSidebar",
+    "relationType": "affects"
+  },
+  {
+    "from": "FindingOpenAPIGenerationWipesFiles",
+    "to": "FindingThreeFileRegistration",
+    "relationType": "related_to"
+  },
+  {
+    "from": "WorkflowsOverview",
+    "to": "AppSidebar",
+    "relationType": "related_to"
+  },
+  {
+    "from": "WelcomeState",
+    "to": "AppLayout",
+    "relationType": "related_to"
   }
 ]
