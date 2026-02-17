@@ -535,9 +535,43 @@ const createChat = async (
   });
 
   if (!app.isPackaged) {
+    // Try electron-devtools-installer first, fall back to loading from local Chromium installation
     installExtension(REACT_DEVELOPER_TOOLS)
       .then((ext) => log.info(`Added extension: ${ext.name}`))
-      .catch((err: Error) => log.info('Failed to install React DevTools:', err));
+      .catch(async (err: Error) => {
+        log.info(
+          'electron-devtools-installer failed, trying local Chromium extension:',
+          err.message
+        );
+        const reactDevToolsId = 'fmkadmapgofadopljbjfkapdkoienihi';
+        const chromiumExtPaths = [
+          path.join(os.homedir(), '.config/google-chrome/Default/Extensions', reactDevToolsId),
+          path.join(os.homedir(), '.config/chromium/Default/Extensions', reactDevToolsId),
+          path.join(
+            os.homedir(),
+            'Library/Application Support/Google/Chrome/Default/Extensions',
+            reactDevToolsId
+          ),
+        ];
+        for (const extDir of chromiumExtPaths) {
+          try {
+            if (fsSync.existsSync(extDir)) {
+              const versions = fsSync.readdirSync(extDir).sort().reverse();
+              if (versions.length > 0) {
+                const extPath = path.join(extDir, versions[0]);
+                const loaded = await session.defaultSession.loadExtension(extPath, {
+                  allowFileAccess: true,
+                });
+                log.info(`Loaded React DevTools from Chromium: ${loaded.name} (${versions[0]})`);
+                return;
+              }
+            }
+          } catch (loadErr) {
+            log.info(`Failed to load from ${extDir}:`, loadErr);
+          }
+        }
+        log.info('React DevTools not found in any Chromium installation');
+      });
   }
 
   const goosedClient = createClient(

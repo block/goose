@@ -3,7 +3,6 @@ import React, { useEffect, useState } from 'react';
 import {
   Activity,
   AppWindow,
-
   Bot,
   ChefHat,
   ChevronRight,
@@ -79,13 +78,6 @@ const navigationZones: NavigationZone[] = [
         tooltip: 'Browse and run installed workflows',
       },
       {
-        path: '/apps',
-        label: 'Apps',
-        icon: AppWindow,
-        tooltip: 'MCP and custom apps',
-        condition: 'apps',
-      },
-      {
         path: '/schedules',
         label: 'Scheduler',
         icon: Clock,
@@ -138,10 +130,11 @@ const navigationZones: NavigationZone[] = [
         tooltip: 'Browse and install tool extensions',
       },
       {
-        path: '/recipes',
-        label: 'Workflows',
-        icon: FileText,
-        tooltip: 'Browse and import workflow templates',
+        path: '/apps',
+        label: 'Apps',
+        icon: AppWindow,
+        tooltip: 'MCP and custom apps',
+        condition: 'apps',
       },
     ],
   },
@@ -318,7 +311,10 @@ const SessionList = React.memo<{
         {projectGroups.map((group) => {
           const hasActiveSession = group.sessions.some((s) => s.id === activeSessionId);
           return (
-            <Collapsible key={group.project} defaultOpen={hasActiveSession || group.project !== 'General'}>
+            <Collapsible
+              key={group.project}
+              defaultOpen={hasActiveSession || group.project !== 'General'}
+            >
               <CollapsibleTrigger asChild>
                 <button className="flex items-center gap-1.5 w-full px-2 py-1 text-xs font-medium text-text-muted hover:text-text-default transition-colors rounded-md hover:bg-background-medium/30">
                   <FolderOpen className="w-3 h-3 flex-shrink-0" />
