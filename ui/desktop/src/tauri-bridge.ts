@@ -11,7 +11,7 @@ import { open, save, message, confirm } from '@tauri-apps/plugin-dialog';
 import { sendNotification } from '@tauri-apps/plugin-notification';
 import { openUrl, revealItemInDir } from '@tauri-apps/plugin-opener';
 import { relaunch } from '@tauri-apps/plugin-process';
-import { check } from '@tauri-apps/plugin-updater';
+import { check, type Update } from '@tauri-apps/plugin-updater';
 
 import type { Settings } from './utils/settings';
 
@@ -65,6 +65,9 @@ interface UpdaterEvent {
 
 // Store unlisten promises for event cleanup (stored immediately to avoid race conditions)
 const unlistenMap = new Map<string, Map<Function, Promise<UnlistenFn>>>();
+
+// Module-level state for the updater
+let pendingUpdate: Update | null = null;
 
 // Detect platform from navigator
 function detectPlatform(): string {
@@ -253,6 +256,7 @@ export const tauriBridge = {
     try {
       const update = await check();
       if (update) {
+        pendingUpdate = update;
         return {
           updateInfo: { version: update.version, body: update.body },
           error: null,
@@ -266,18 +270,22 @@ export const tauriBridge = {
 
   downloadUpdate: async () => {
     try {
-      const update = await check();
-      if (update) {
-        await update.downloadAndInstall();
-        return { success: true, error: null };
+      if (!pendingUpdate) {
+        const update = await check();
+        if (!update) return { success: false, error: 'No update available' };
+        pendingUpdate = update;
       }
-      return { success: false, error: 'No update available' };
+      await pendingUpdate.download();
+      return { success: true, error: null };
     } catch (e) {
       return { success: false, error: String(e) };
     }
   },
 
-  installUpdate: () => {
+  installUpdate: async () => {
+    if (pendingUpdate) {
+      await pendingUpdate.install();
+    }
     relaunch();
   },
 
@@ -296,8 +304,12 @@ export const tauriBridge = {
     latestVersion?: string;
   } | null> => {
     try {
+      if (pendingUpdate) {
+        return { updateAvailable: true, latestVersion: pendingUpdate.version };
+      }
       const update = await check();
       if (update) {
+        pendingUpdate = update;
         return { updateAvailable: true, latestVersion: update.version };
       }
       return { updateAvailable: false };
