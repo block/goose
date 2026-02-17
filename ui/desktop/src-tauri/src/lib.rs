@@ -125,6 +125,24 @@ pub fn run() {
                 }
             });
 
+            // Intercept external links — open in default browser instead of navigating
+            if let Some(main_window) = app.get_webview_window("main") {
+                main_window.on_navigation(|url| {
+                    let url_str = url.as_str();
+                    // Allow navigation within the app (localhost dev server, tauri app URLs)
+                    if url_str.starts_with("tauri://")
+                        || url_str.starts_with("http://localhost")
+                        || url_str.starts_with("http://127.0.0.1")
+                        || url_str.starts_with("about:")
+                    {
+                        return true;
+                    }
+                    // Open external URLs in default browser
+                    let _ = open::that(url_str);
+                    false
+                });
+            }
+
             // Register global shortcuts
             setup_global_shortcuts(app)?;
 
