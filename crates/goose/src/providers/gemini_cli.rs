@@ -274,7 +274,9 @@ impl ProviderDef for GeminiCliProvider {
             GEMINI_CLI_DEFAULT_MODEL,
             GEMINI_CLI_KNOWN_MODELS.to_vec(),
             GEMINI_CLI_DOC_URL,
-            vec![ConfigKey::from_value_type::<GeminiCliCommand>(true, false, true)],
+            vec![ConfigKey::from_value_type::<GeminiCliCommand>(
+                true, false, true,
+            )],
         )
         .with_unlisted_models()
     }

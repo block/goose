@@ -21,8 +21,8 @@ use goose::config::{
 };
 use goose::model::ModelConfig;
 use goose::posthog::{get_telemetry_choice, TELEMETRY_ENABLED_KEY};
-use goose::providers::provider_test::test_provider_configuration;
 use goose::providers::base::ConfigKey;
+use goose::providers::provider_test::test_provider_configuration;
 use goose::providers::{create, providers, retry_operation, RetryConfig};
 use goose::session::SessionType;
 use serde_json::Value;
@@ -586,10 +586,8 @@ async fn configure_single_key(
                                     .mask('▪')
                                     .interact()?
                             } else {
-                                let mut input = cliclack::input(format!(
-                                    "Enter new value for {}",
-                                    key.name
-                                ));
+                                let mut input =
+                                    cliclack::input(format!("Enter new value for {}", key.name));
                                 if key.default.is_some() {
                                     input = input.default_input(&key.default.clone().unwrap());
                                 }
@@ -700,7 +698,11 @@ pub async fn configure_provider_dialog() -> anyhow::Result<bool> {
         .find(|(p, _)| &p.name == provider_name)
         .expect("Selected provider must exist in metadata");
 
-    for key in provider_meta.config_keys.iter().filter(|k| k.primary || k.oauth_flow) {
+    for key in provider_meta
+        .config_keys
+        .iter()
+        .filter(|k| k.primary || k.oauth_flow)
+    {
         if !configure_single_key(config, provider_name, &provider_meta.display_name, key).await? {
             return Ok(false);
         }
