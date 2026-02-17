@@ -1,6 +1,6 @@
 import { toast, ToastOptions } from 'react-toastify';
 import { Button } from './components/ui/button';
-import { Tooltip, TooltipContent, TooltipTrigger } from './components/ui/Tooltip';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './components/ui/Tooltip';
 import Copy from './components/icons/Copy';
 import { startNewSession } from './sessions';
 import { useNavigation } from './hooks/useNavigation';
@@ -201,16 +201,18 @@ function ToastErrorContent({
           </Button>
         )}
         {hasBoth && (
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button onClick={handleCopyError} shape="round" aria-label="Copy error">
-                <Copy className="h-4 w-4" />
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent side="bottom" className="z-[10000]">
-              Copy error
-            </TooltipContent>
-          </Tooltip>
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button onClick={handleCopyError} shape="round" aria-label="Copy error">
+                  <Copy className="h-4 w-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="bottom" className="z-[10000]">
+                Copy error
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
         )}
         {traceback && !hasBoth && <Button onClick={handleCopyError}>Copy error</Button>}
       </div>
