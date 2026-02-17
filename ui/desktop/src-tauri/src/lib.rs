@@ -6,6 +6,7 @@ mod goosed;
 mod menu;
 mod settings;
 mod tray;
+mod wakelock;
 
 /// Deep links received before the React frontend signals ready.
 pub struct PendingDeepLinks(pub Mutex<Vec<String>>);
@@ -54,6 +55,7 @@ pub fn run() {
         .manage(goosed::GoosedState::default())
         .manage(settings::SettingsState::default())
         .manage(PendingDeepLinks(Mutex::new(Vec::new())))
+        .manage(wakelock::WakelockState::default())
         // Setup
         .setup(|app| {
             // System tray

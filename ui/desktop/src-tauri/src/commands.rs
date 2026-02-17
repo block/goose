@@ -1,5 +1,6 @@
 use crate::goosed::GoosedState;
 use crate::settings::{Settings, SettingsState};
+use crate::wakelock::WakelockState;
 use serde::Serialize;
 use std::collections::HashMap;
 use std::fs;
@@ -194,17 +195,16 @@ pub fn get_version(app: tauri::AppHandle) -> String {
 }
 
 #[tauri::command]
-pub fn set_wakelock(enable: bool) -> Result<bool, String> {
-    // Platform-specific power management
-    // On macOS, use IOPMAssertionCreateWithName via core-foundation
-    // For now, store the state and handle via frontend keepawake if needed
-    log::info!("Wakelock set to: {}", enable);
-    Ok(enable)
+pub fn set_wakelock(
+    enable: bool,
+    state: tauri::State<'_, WakelockState>,
+) -> Result<bool, String> {
+    crate::wakelock::set_wakelock_platform(&state, enable)
 }
 
 #[tauri::command]
-pub fn get_wakelock_state() -> bool {
-    false
+pub fn get_wakelock_state(state: tauri::State<'_, WakelockState>) -> bool {
+    *state.enabled.lock().unwrap_or_else(|e| e.into_inner())
 }
 
 #[tauri::command]
