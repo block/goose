@@ -54,24 +54,33 @@ async fn setup_mock_server() -> (MockServer, HeaderCapture, Box<dyn Provider>) {
         .and(path("/v1/chat/completions"))
         .respond_with(move |req: &Request| {
             capture_clone.capture_session_header(req);
-            ResponseTemplate::new(200).set_body_json(json!({
-                "choices": [{
-                    "finish_reason": "stop",
-                    "index": 0,
-                    "message": {
-                        "content": "Hi there! How can I help you today?",
-                        "role": "assistant"
+            // Return SSE streaming format
+            let sse_response = format!(
+                "data: {}\n\ndata: {}\n\ndata: [DONE]\n\n",
+                json!({
+                    "choices": [{
+                        "delta": {
+                            "content": "Hi there! How can I help you today?",
+                            "role": "assistant"
+                        },
+                        "index": 0
+                    }],
+                    "created": 1755133833,
+                    "id": "chatcmpl-test",
+                    "model": "gpt-5-nano"
+                }),
+                json!({
+                    "choices": [],
+                    "usage": {
+                        "completion_tokens": 10,
+                        "prompt_tokens": 8,
+                        "total_tokens": 18
                     }
-                }],
-                "created": 1755133833,
-                "id": "chatcmpl-test",
-                "model": "gpt-5-nano",
-                "usage": {
-                    "completion_tokens": 10,
-                    "prompt_tokens": 8,
-                    "total_tokens": 18
-                }
-            }))
+                })
+            );
+            ResponseTemplate::new(200)
+                .set_body_string(sse_response)
+                .insert_header("content-type", "text/event-stream")
         })
         .mount(&mock_server)
         .await;
