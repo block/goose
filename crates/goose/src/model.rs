@@ -387,4 +387,40 @@ mod tests {
         let config = ModelConfig::new("test-model").unwrap();
         assert_eq!(config.max_tokens, None);
     }
+
+    #[test]
+    fn test_parse_variant_valid() {
+        let _guard = env_lock::lock_env([("GOOSE_VARIANT", Some("high"))]);
+        let result = ModelConfig::parse_variant().unwrap();
+        assert_eq!(result, Some("high".to_string()));
+    }
+
+    #[test]
+    fn test_parse_variant_normalizes_case() {
+        let _guard = env_lock::lock_env([("GOOSE_VARIANT", Some("HIGH"))]);
+        let result = ModelConfig::parse_variant().unwrap();
+        assert_eq!(result, Some("high".to_string()));
+    }
+
+    #[test]
+    fn test_parse_variant_not_set() {
+        let _guard = env_lock::lock_env([("GOOSE_VARIANT", None::<&str>)]);
+        let result = ModelConfig::parse_variant().unwrap();
+        assert_eq!(result, None);
+    }
+
+    #[test]
+    fn test_parse_variant_invalid() {
+        let _guard = env_lock::lock_env([("GOOSE_VARIANT", Some("turbo"))]);
+        let result = ModelConfig::parse_variant();
+        assert!(result.is_err());
+        assert!(matches!(result.unwrap_err(), ConfigError::InvalidValue(..)));
+    }
+
+    #[test]
+    fn test_parse_variant_empty() {
+        let _guard = env_lock::lock_env([("GOOSE_VARIANT", Some(""))]);
+        let result = ModelConfig::parse_variant().unwrap();
+        assert_eq!(result, None);
+    }
 }

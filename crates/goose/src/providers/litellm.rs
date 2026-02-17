@@ -248,6 +248,18 @@ impl LiteLLMProvider {
         }
     }
 
+    /// Apply the user's variant setting to the request payload.
+    /// LiteLLM translates `reasoning_effort` into provider-specific parameters
+    /// (e.g., OpenAI reasoning_effort, Anthropic thinking budget).
+    fn apply_variant(payload: &mut Value, variant: &str) {
+        if let Some(obj) = payload.as_object_mut() {
+            obj.insert(
+                "reasoning_effort".to_string(),
+                Value::String(variant.to_string()),
+            );
+        }
+    }
+
     async fn post(
         &self,
         session_id: Option<&str>,
@@ -341,10 +353,16 @@ impl Provider for LiteLLMProvider {
         // are user-defined aliases, so these heuristics produce false positives.
         // We check the actual model capabilities from the proxy and strip reasoning
         // params if the model doesn't support them.
-        if !self
+        let supports_reasoning = self
             .model_supports_reasoning(&model_config.model_name)
-            .await
-        {
+            .await;
+
+        if supports_reasoning {
+            // If user specified a variant, apply it as reasoning_effort
+            if let Some(ref variant) = model_config.variant {
+                Self::apply_variant(&mut payload, variant);
+            }
+        } else {
             Self::strip_reasoning_params(&mut payload);
         }
 
@@ -946,5 +964,48 @@ mod tests {
 
         assert!(!capabilities.contains_key("anthropic/*"));
         assert!(capabilities.contains_key("real-model"));
+    }
+
+    #[test]
+    fn test_apply_variant_sets_reasoning_effort() {
+        let mut payload = json!({
+            "model": "claude-sonnet",
+            "messages": [{"role": "system", "content": "hi"}]
+        });
+
+        LiteLLMProvider::apply_variant(&mut payload, "high");
+
+        assert_eq!(payload["reasoning_effort"], "high");
+    }
+
+    #[test]
+    fn test_apply_variant_overrides_existing_reasoning_effort() {
+        let mut payload = json!({
+            "model": "o3-alias",
+            "messages": [{"role": "developer", "content": "hi"}],
+            "reasoning_effort": "medium"
+        });
+
+        LiteLLMProvider::apply_variant(&mut payload, "max");
+
+        assert_eq!(payload["reasoning_effort"], "max");
+    }
+
+    #[test]
+    fn test_variant_not_applied_when_model_lacks_reasoning() {
+        // Simulates the flow: model doesn't support reasoning → strip params,
+        // variant is ignored because apply_variant is only called when supports_reasoning=true
+        let mut payload = json!({
+            "model": "o3-mistral",
+            "messages": [{"role": "developer", "content": "hi"}],
+            "reasoning_effort": "medium",
+            "max_completion_tokens": 1024
+        });
+
+        // Non-reasoning model path: strip, don't apply variant
+        LiteLLMProvider::strip_reasoning_params(&mut payload);
+
+        assert!(payload.get("reasoning_effort").is_none());
+        assert_eq!(payload["messages"][0]["role"], "system");
     }
 }
