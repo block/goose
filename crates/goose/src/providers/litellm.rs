@@ -190,15 +190,15 @@ impl LiteLLMProvider {
     }
 
     /// Build a Vec<ModelInfo> from cached capabilities for use in Provider trait methods.
-    #[allow(dead_code)] // Used in tests; could replace fetch_supported_models in future
     fn capabilities_to_model_info(
         capabilities: &HashMap<String, LiteLLMModelCapabilities>,
     ) -> Vec<ModelInfo> {
-        capabilities
+        let mut models: Vec<ModelInfo> = capabilities
             .iter()
             .map(|(name, caps)| {
                 let mut info = ModelInfo::new(name.clone(), caps.max_input_tokens);
                 info.supports_cache_control = Some(caps.supports_cache_control);
+                info.supports_reasoning = Some(caps.supports_reasoning);
                 info.input_token_cost = caps.input_cost_per_token;
                 info.output_token_cost = caps.output_cost_per_token;
                 if caps.input_cost_per_token.is_some() || caps.output_cost_per_token.is_some() {
@@ -206,7 +206,16 @@ impl LiteLLMProvider {
                 }
                 info
             })
-            .collect()
+            .collect();
+
+        // Sort: reasoning models first, then by name
+        models.sort_by(|a, b| {
+            let a_reasoning = a.supports_reasoning.unwrap_or(false);
+            let b_reasoning = b.supports_reasoning.unwrap_or(false);
+            b_reasoning.cmp(&a_reasoning).then(a.name.cmp(&b.name))
+        });
+
+        models
     }
 
     /// Check if the current model supports reasoning parameters.
@@ -415,6 +424,11 @@ impl Provider for LiteLLMProvider {
     async fn fetch_supported_models(&self) -> Result<Vec<String>, ProviderError> {
         let caps = self.get_model_capabilities().await?;
         Ok(caps.keys().cloned().collect())
+    }
+
+    async fn fetch_model_info(&self) -> Result<Vec<ModelInfo>, ProviderError> {
+        let caps = self.get_model_capabilities().await?;
+        Ok(Self::capabilities_to_model_info(caps))
     }
 }
 
