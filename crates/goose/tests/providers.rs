@@ -130,7 +130,13 @@ impl ProviderTester {
         let model_config = self.provider.get_model_config();
         let (response1, _) = self
             .provider
-            .complete(&model_config, session_id, &system, std::slice::from_ref(&message), &tools)
+            .complete(
+                &model_config,
+                session_id,
+                &system,
+                std::slice::from_ref(&message),
+                &tools,
+            )
             .await?;
 
         // Agentic CLI providers (claude-code, codex) call tools internally and
@@ -180,7 +186,13 @@ impl ProviderTester {
 
         let (response, _) = self
             .provider
-            .complete(&model_config, session_id, "You are a helpful assistant.", &[message], &[])
+            .complete(
+                &model_config,
+                session_id,
+                "You are a helpful assistant.",
+                &[message],
+                &[],
+            )
             .await?;
 
         assert!(
@@ -234,7 +246,13 @@ impl ProviderTester {
 
         let result = self
             .provider
-            .complete(&model_config, session_id, "You are a helpful assistant.", &messages, &[])
+            .complete(
+                &model_config,
+                session_id,
+                "You are a helpful assistant.",
+                &messages,
+                &[],
+            )
             .await;
 
         println!("=== {}::context_length_exceeded_error ===", self.name);
