@@ -867,6 +867,7 @@ mod tests {
             toolshim_model: None,
             fast_model: None,
             request_params: None,
+            variant: None,
         };
 
         let messages = vec![crate::conversation::message::Message::user().with_text("Hello")];
