@@ -51,13 +51,13 @@ pub async fn start_gateway(
     State(state): State<Arc<AppState>>,
     Json(request): Json<StartGatewayRequest>,
 ) -> Response {
-    let config = GatewayConfig {
+    let mut config = GatewayConfig {
         gateway_type: request.gateway_type,
         platform_config: request.platform_config,
         max_sessions: request.max_sessions,
     };
 
-    let gw = match gateway::create_gateway(&config) {
+    let gw = match gateway::create_gateway(&mut config) {
         Ok(gw) => gw,
         Err(e) => return ErrorResponse::bad_request(e.to_string()).into_response(),
     };

@@ -49,6 +49,8 @@ pub struct GatewayStatus {
     pub gateway_type: String,
     pub running: bool,
     pub paired_users: Vec<PairedUserInfo>,
+    #[serde(skip_serializing_if = "HashMap::is_empty")]
+    pub info: HashMap<String, String>,
 }
 
 pub struct GatewayManager {
@@ -84,8 +86,8 @@ impl GatewayManager {
             }
         };
 
-        for config in configs {
-            let gateway = match super::create_gateway(&config) {
+        for mut config in configs {
+            let gateway = match super::create_gateway(&mut config) {
                 Ok(gw) => gw,
                 Err(e) => {
                     tracing::error!(
@@ -204,7 +206,7 @@ impl GatewayManager {
         let running = self.gateways.read().await;
         let mut statuses = Vec::new();
 
-        for (gw_type, _instance) in running.iter() {
+        for (gw_type, instance) in running.iter() {
             let paired_users = self
                 .pairing_store
                 .list_paired_users(gw_type)
@@ -224,6 +226,7 @@ impl GatewayManager {
                 gateway_type: gw_type.clone(),
                 running: true,
                 paired_users,
+                info: instance.gateway.info(),
             });
         }
 

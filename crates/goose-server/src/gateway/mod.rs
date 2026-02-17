@@ -6,6 +6,7 @@ pub mod telegram_format;
 
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use tokio_util::sync::CancellationToken;
 use utoipa::ToSchema;
 
@@ -75,9 +76,13 @@ pub trait Gateway: Send + Sync + 'static {
     ) -> anyhow::Result<()>;
 
     async fn validate_config(&self) -> anyhow::Result<()>;
+
+    fn info(&self) -> HashMap<String, String> {
+        HashMap::new()
+    }
 }
 
-pub fn create_gateway(config: &GatewayConfig) -> anyhow::Result<std::sync::Arc<dyn Gateway>> {
+pub fn create_gateway(config: &mut GatewayConfig) -> anyhow::Result<std::sync::Arc<dyn Gateway>> {
     match config.gateway_type.as_str() {
         "telegram" => Ok(std::sync::Arc::new(telegram::TelegramGateway::new(config)?)),
         other => anyhow::bail!("Unknown gateway type: {}", other),

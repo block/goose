@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Button } from '../../ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '../../ui/card';
 import { Input } from '../../ui/input';
 import {
   Dialog,
@@ -9,17 +9,7 @@ import {
   DialogTitle,
   DialogFooter,
 } from '../../ui/dialog';
-import {
-  Loader2,
-  Copy,
-  Check,
-  Plus,
-  Square,
-  Trash2,
-  ExternalLink,
-  Radio,
-  User,
-} from 'lucide-react';
+import { Loader2, Copy, Check, Square, Trash2, ExternalLink, User } from 'lucide-react';
 import { getApiUrl } from '../../../config';
 
 interface PairedUserInfo {
@@ -34,6 +24,7 @@ interface GatewayStatus {
   gateway_type: string;
   running: boolean;
   paired_users: PairedUserInfo[];
+  info?: Record<string, string>;
 }
 
 interface PairingCodeResponse {
@@ -59,7 +50,6 @@ export default function GatewaySettingsSection() {
   const [gateways, setGateways] = useState<GatewayStatus[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [showAddModal, setShowAddModal] = useState(false);
   const [pairingCode, setPairingCode] = useState<PairingCodeResponse | null>(null);
   const [pairingGatewayType, setPairingGatewayType] = useState<string | null>(null);
   const [copiedCode, setCopiedCode] = useState(false);
@@ -84,6 +74,8 @@ export default function GatewaySettingsSection() {
     return () => clearInterval(interval);
   }, [fetchStatus]);
 
+  const findGateway = (type: string) => gateways.find((g) => g.gateway_type === type);
+
   const handleStopGateway = async (gatewayType: string) => {
     setError(null);
     try {
@@ -93,11 +85,35 @@ export default function GatewaySettingsSection() {
       });
       if (!response.ok) {
         const data = await response.json().catch(() => ({}));
-        throw new Error(data.message || `Failed to stop gateway`);
+        throw new Error(data.message || 'Failed to stop gateway');
       }
       await fetchStatus();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to stop gateway');
+    }
+  };
+
+  const handleStartGateway = async (
+    gatewayType: string,
+    platformConfig: Record<string, unknown>
+  ) => {
+    setError(null);
+    try {
+      const response = await gatewayFetch('/gateway/start', {
+        method: 'POST',
+        body: JSON.stringify({
+          gateway_type: gatewayType,
+          platform_config: platformConfig,
+          max_sessions: 0,
+        }),
+      });
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}));
+        throw new Error(data.message || 'Failed to start gateway');
+      }
+      await fetchStatus();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to start gateway');
     }
   };
 
@@ -146,66 +162,29 @@ export default function GatewaySettingsSection() {
     }
   };
 
+  if (loading) {
+    return (
+      <div className="flex items-center gap-2 text-sm text-text-muted py-4">
+        <Loader2 className="h-4 w-4 animate-spin" />
+        Loading...
+      </div>
+    );
+  }
+
   return (
-    <section className="space-y-4 mt-1">
-      <Card className="rounded-lg">
-        <CardHeader className="pb-0">
-          <CardTitle className="mb-1">Gateways</CardTitle>
-          <CardDescription>
-            Connect Goose to external messaging platforms like Telegram. Messages sent to the bot
-            are handled by Goose as a long-running session.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="pt-4 px-4 space-y-4">
-          {error && (
-            <div className="p-3 bg-red-100 dark:bg-red-900/20 border border-red-300 dark:border-red-800 rounded text-sm text-red-800 dark:text-red-200">
-              {error}
-            </div>
-          )}
+    <>
+      {error && (
+        <div className="p-3 bg-red-100 dark:bg-red-900/20 border border-red-300 dark:border-red-800 rounded text-sm text-red-800 dark:text-red-200 mb-4">
+          {error}
+        </div>
+      )}
 
-          {loading ? (
-            <div className="flex items-center gap-2 text-sm text-text-muted">
-              <Loader2 className="h-4 w-4 animate-spin" />
-              Loading...
-            </div>
-          ) : gateways.length === 0 ? (
-            <div className="text-sm text-text-muted py-2">
-              No gateways configured. Add one to get started.
-            </div>
-          ) : (
-            <div className="space-y-3">
-              {gateways.map((gw) => (
-                <GatewayCard
-                  key={gw.gateway_type}
-                  gateway={gw}
-                  onStop={() => handleStopGateway(gw.gateway_type)}
-                  onGenerateCode={() => handleGeneratePairingCode(gw.gateway_type)}
-                  onUnpairUser={handleUnpairUser}
-                />
-              ))}
-            </div>
-          )}
-
-          <Button
-            variant="default"
-            size="sm"
-            onClick={() => setShowAddModal(true)}
-            className="flex items-center gap-2"
-          >
-            <Plus className="h-4 w-4" />
-            Add Gateway
-          </Button>
-        </CardContent>
-      </Card>
-
-      <AddGatewayModal
-        open={showAddModal}
-        onClose={() => setShowAddModal(false)}
-        onAdded={() => {
-          setShowAddModal(false);
-          fetchStatus();
-        }}
-        onError={setError}
+      <TelegramGatewayCard
+        status={findGateway('telegram')}
+        onStart={(config) => handleStartGateway('telegram', config)}
+        onStop={() => handleStopGateway('telegram')}
+        onGenerateCode={() => handleGeneratePairingCode('telegram')}
+        onUnpairUser={handleUnpairUser}
       />
 
       <PairingCodeModal
@@ -219,138 +198,115 @@ export default function GatewaySettingsSection() {
         onCopy={copyToClipboard}
         copied={copiedCode}
       />
-    </section>
+    </>
   );
 }
 
-function GatewayCard({
-  gateway,
-  onStop,
-  onGenerateCode,
+function PairedUsersList({
+  users,
   onUnpairUser,
 }: {
-  gateway: GatewayStatus;
-  onStop: () => void;
-  onGenerateCode: () => void;
+  users: PairedUserInfo[];
   onUnpairUser: (platform: string, userId: string) => void;
 }) {
-  return (
-    <div className="border border-border-default rounded-md p-3 space-y-3">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <Radio className="h-4 w-4 text-text-muted" />
-          <span className="text-sm font-medium capitalize">{gateway.gateway_type}</span>
-          {gateway.running && (
-            <span className="inline-flex items-center gap-1 text-xs text-green-700 dark:text-green-400 bg-green-100 dark:bg-green-900/30 px-2 py-0.5 rounded-full">
-              Running
-            </span>
-          )}
-        </div>
-        <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" onClick={onGenerateCode}>
-            Pair Device
-          </Button>
-          <Button variant="destructive" size="sm" onClick={onStop}>
-            <Square className="h-3 w-3 mr-1" />
-            Stop
-          </Button>
-        </div>
-      </div>
+  if (users.length === 0) return null;
 
-      {gateway.paired_users.length > 0 && (
-        <div className="space-y-1">
-          <h4 className="text-xs text-text-muted font-medium">Paired Users</h4>
-          {gateway.paired_users.map((user) => (
-            <div
-              key={`${user.platform}-${user.user_id}`}
-              className="flex items-center justify-between py-1.5 px-2 bg-background-muted rounded text-sm"
-            >
-              <div className="flex items-center gap-2">
-                <User className="h-3 w-3 text-text-muted" />
-                <span>{user.display_name || user.user_id}</span>
-                <span className="text-xs text-text-muted">({user.user_id})</span>
-              </div>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => onUnpairUser(user.platform, user.user_id)}
-                className="h-6 w-6 p-0 text-text-muted hover:text-red-600"
-              >
-                <Trash2 className="h-3 w-3" />
-              </Button>
-            </div>
-          ))}
+  return (
+    <div className="space-y-1 mt-2">
+      <h4 className="text-xs text-text-muted font-medium">Paired Users</h4>
+      {users.map((user) => (
+        <div
+          key={`${user.platform}-${user.user_id}`}
+          className="flex items-center justify-between py-1.5 px-2 bg-background-muted rounded text-sm"
+        >
+          <div className="flex items-center gap-2 min-w-0">
+            <User className="h-3 w-3 text-text-muted flex-shrink-0" />
+            <span className="truncate">{user.display_name || user.user_id}</span>
+          </div>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => onUnpairUser(user.platform, user.user_id)}
+            className="h-6 w-6 p-0 text-text-muted hover:text-red-600 flex-shrink-0"
+          >
+            <Trash2 className="h-3 w-3" />
+          </Button>
         </div>
-      )}
+      ))}
     </div>
   );
 }
 
-function AddGatewayModal({
-  open,
-  onClose,
-  onAdded,
-  onError,
+function RunningBadge() {
+  return (
+    <span className="inline-flex items-center gap-1 text-xs text-green-700 dark:text-green-400 bg-green-100 dark:bg-green-900/30 px-2 py-0.5 rounded-full">
+      Running
+    </span>
+  );
+}
+
+function TelegramGatewayCard({
+  status,
+  onStart,
+  onStop,
+  onGenerateCode,
+  onUnpairUser,
 }: {
-  open: boolean;
-  onClose: () => void;
-  onAdded: () => void;
-  onError: (msg: string) => void;
+  status: GatewayStatus | undefined;
+  onStart: (config: Record<string, unknown>) => Promise<void>;
+  onStop: () => void;
+  onGenerateCode: () => void;
+  onUnpairUser: (platform: string, userId: string) => void;
 }) {
   const [botToken, setBotToken] = useState('');
   const [starting, setStarting] = useState(false);
+  const running = status?.running ?? false;
 
   const handleStart = async () => {
-    if (!botToken.trim()) {
-      onError('Bot token is required');
-      return;
-    }
-
+    if (!botToken.trim()) return;
     setStarting(true);
-    try {
-      const response = await gatewayFetch('/gateway/start', {
-        method: 'POST',
-        body: JSON.stringify({
-          gateway_type: 'telegram',
-          platform_config: { bot_token: botToken.trim() },
-          max_sessions: 0,
-        }),
-      });
-
-      if (!response.ok) {
-        const data = await response.json().catch(() => ({}));
-        throw new Error(data.message || 'Failed to start gateway');
-      }
-
-      setBotToken('');
-      onAdded();
-    } catch (err) {
-      onError(err instanceof Error ? err.message : 'Failed to start gateway');
-    } finally {
-      setStarting(false);
-    }
+    await onStart({ bot_token: botToken.trim() });
+    setBotToken('');
+    setStarting(false);
   };
 
   return (
-    <Dialog open={open} onOpenChange={(isOpen) => !isOpen && onClose()}>
-      <DialogContent className="sm:max-w-[480px]">
-        <DialogHeader>
-          <DialogTitle>Add Telegram Gateway</DialogTitle>
-        </DialogHeader>
-
-        <div className="py-4 space-y-4">
-          <div className="space-y-2">
-            <label htmlFor="bot-token" className="text-sm font-medium">
-              Bot Token
-            </label>
-            <Input
-              id="bot-token"
-              type="password"
-              placeholder="123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11"
-              value={botToken}
-              onChange={(e) => setBotToken(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && handleStart()}
-            />
+    <Card className="rounded-lg">
+      <CardHeader className="pb-0">
+        <div className="flex items-center justify-between">
+          <CardTitle className="flex items-center gap-2">
+            Telegram
+            {running && <RunningBadge />}
+          </CardTitle>
+          {running && (
+            <div className="flex items-center gap-2">
+              <Button variant="outline" size="sm" onClick={onGenerateCode}>
+                Pair Device
+              </Button>
+              <Button variant="destructive" size="sm" onClick={onStop}>
+                <Square className="h-3 w-3 mr-1" />
+                Stop
+              </Button>
+            </div>
+          )}
+        </div>
+      </CardHeader>
+      <CardContent className="pt-3 space-y-2">
+        {!running && (
+          <>
+            <div className="flex items-center gap-2">
+              <Input
+                type="password"
+                placeholder="Bot token from @BotFather"
+                value={botToken}
+                onChange={(e) => setBotToken(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && handleStart()}
+                className="text-sm"
+              />
+              <Button size="sm" onClick={handleStart} disabled={starting || !botToken.trim()}>
+                {starting ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Start'}
+              </Button>
+            </div>
             <p className="text-xs text-text-muted">
               Create a bot with{' '}
               <a
@@ -361,29 +317,13 @@ function AddGatewayModal({
               >
                 @BotFather
                 <ExternalLink className="h-3 w-3" />
-              </a>{' '}
-              on Telegram and paste the token here.
+              </a>
             </p>
-          </div>
-        </div>
-
-        <DialogFooter>
-          <Button variant="outline" onClick={onClose}>
-            Cancel
-          </Button>
-          <Button onClick={handleStart} disabled={starting || !botToken.trim()}>
-            {starting ? (
-              <>
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Starting...
-              </>
-            ) : (
-              'Start Gateway'
-            )}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+          </>
+        )}
+        {status && <PairedUsersList users={status.paired_users} onUnpairUser={onUnpairUser} />}
+      </CardContent>
+    </Card>
   );
 }
 
@@ -451,8 +391,7 @@ function PairingCodeModal({
 
           <p className="text-center text-sm text-text-muted">
             Send this code to your{' '}
-            <span className="capitalize font-medium">{gatewayType}</span> bot to pair it with
-            Goose.
+            <span className="capitalize font-medium">{gatewayType}</span> bot to pair.
           </p>
 
           <div className="text-center text-xs text-text-muted">
