@@ -22,7 +22,7 @@ use rmcp::model::Tool;
 
 const TETRATE_PROVIDER_NAME: &str = "tetrate";
 pub const TETRATE_DOC_URL: &str = "https://router.tetrate.ai";
-pub const TETRATE_DASHBOARD_URL: &str = "https://router.tetrate.ai/dashboard";
+pub const TETRATE_DASHBOARD_URL: &str = "https://router.tetrate.ai/billing";
 
 pub const TETRATE_KNOWN_MODELS: &[&str] = &[
     "claude-opus-4-1",
@@ -275,7 +275,7 @@ mod tests {
             ProviderError::CreditsExhausted { top_up_url, .. } => {
                 assert_eq!(
                     top_up_url.as_deref(),
-                    Some("https://router.tetrate.ai/dashboard")
+                    Some("https://router.tetrate.ai/billing")
                 );
             }
             _ => panic!("Expected CreditsExhausted variant"),
