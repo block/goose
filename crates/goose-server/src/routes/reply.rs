@@ -246,7 +246,12 @@ pub async fn reply(
     headers: axum::http::HeaderMap,
     Json(request): Json<ChatRequest>,
 ) -> Result<SseResponse, ErrorResponse> {
-    let identity = RequestIdentity::from_headers_validated(&headers, &state.oidc_validator).await;
+    let identity = RequestIdentity::from_headers_validated(
+        &headers,
+        &state.oidc_validator,
+        &state.session_token_store,
+    )
+    .await;
     let session_start = std::time::Instant::now();
 
     tracing::info!(

@@ -470,6 +470,10 @@ derive_utoipa!(PromptArgument as PromptArgumentSchema);
         super::routes::auth_config::add_oidc_provider,
         super::routes::auth_config::remove_oidc_provider,
         super::routes::auth_config::auth_status,
+        super::routes::user_auth::get_user_info,
+        super::routes::user_auth::login,
+        super::routes::user_auth::logout,
+        super::routes::user_auth::refresh_token,
         // ACP Discovery
         super::routes::acp_discovery::ping,
         super::routes::acp_discovery::list_agents,
@@ -751,6 +755,13 @@ derive_utoipa!(PromptArgument as PromptArgumentSchema);
         super::routes::auth_config::AddOidcProviderRequest,
         super::routes::auth_config::RemoveOidcProviderRequest,
         super::routes::auth_config::AuthStatusResponse,
+        // User Auth types
+        super::routes::user_auth::UserInfoResponse,
+        super::routes::user_auth::LoginRequest,
+        super::routes::user_auth::LoginResponse,
+        super::routes::user_auth::LogoutResponse,
+        super::routes::user_auth::RefreshRequest,
+        super::routes::user_auth::RefreshResponse,
         super::routes::extension_routes::LiveExtensionInfo,
         super::routes::extension_routes::LiveExtensionsResponse,
         // A2A Instance Management types

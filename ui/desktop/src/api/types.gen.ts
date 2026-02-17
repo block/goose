@@ -1122,6 +1122,28 @@ export type LoadedProvider = {
     is_editable: boolean;
 };
 
+export type LoginRequest = {
+    /**
+     * API key for authentication
+     */
+    api_key?: string | null;
+    /**
+     * Display name (optional, for guest upgrade)
+     */
+    display_name?: string | null;
+};
+
+export type LoginResponse = {
+    expires_in: number;
+    token: string;
+    token_type: string;
+    user: UserInfoResponse;
+};
+
+export type LogoutResponse = {
+    success: boolean;
+};
+
 /**
  * MCP App Resource
  * Represents a UI resource that can be rendered in an MCP App
@@ -1713,6 +1735,16 @@ export type RecipeToYamlResponse = {
 
 export type RedactedThinkingContent = {
     data: string;
+};
+
+export type RefreshRequest = {
+    token: string;
+};
+
+export type RefreshResponse = {
+    expires_in: number;
+    token: string;
+    token_type: string;
 };
 
 export type RegressionAlert = {
@@ -2414,6 +2446,15 @@ export type UpsertConfigQuery = {
 
 export type UpsertPermissionsQuery = {
     tool_permissions: Array<ToolPermission>;
+};
+
+export type UserInfoResponse = {
+    auth_method: string;
+    id: string;
+    is_authenticated: boolean;
+    is_guest: boolean;
+    name: string;
+    tenant?: string | null;
 };
 
 export type ValidatePipelineResponse = {
@@ -3772,6 +3813,61 @@ export type GetAgentPerformanceResponses = {
 
 export type GetAgentPerformanceResponse = GetAgentPerformanceResponses[keyof GetAgentPerformanceResponses];
 
+export type LoginData = {
+    body: LoginRequest;
+    path?: never;
+    query?: never;
+    url: '/auth/login';
+};
+
+export type LoginErrors = {
+    /**
+     * Invalid credentials
+     */
+    401: unknown;
+};
+
+export type LoginResponses = {
+    /**
+     * Login successful
+     */
+    200: LoginResponse;
+};
+
+export type LoginResponse2 = LoginResponses[keyof LoginResponses];
+
+export type LogoutData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/auth/logout';
+};
+
+export type LogoutResponses = {
+    /**
+     * Logout successful
+     */
+    200: LogoutResponse;
+};
+
+export type LogoutResponse2 = LogoutResponses[keyof LogoutResponses];
+
+export type GetUserInfoData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/auth/me';
+};
+
+export type GetUserInfoResponses = {
+    /**
+     * Current user info
+     */
+    200: UserInfoResponse;
+};
+
+export type GetUserInfoResponse = GetUserInfoResponses[keyof GetUserInfoResponses];
+
 export type RemoveOidcProviderData = {
     body: RemoveOidcProviderRequest;
     path?: never;
@@ -3819,6 +3915,29 @@ export type AddOidcProviderResponses = {
 };
 
 export type AddOidcProviderResponse = AddOidcProviderResponses[keyof AddOidcProviderResponses];
+
+export type RefreshTokenData = {
+    body: RefreshRequest;
+    path?: never;
+    query?: never;
+    url: '/auth/refresh';
+};
+
+export type RefreshTokenErrors = {
+    /**
+     * Invalid or expired token
+     */
+    401: unknown;
+};
+
+export type RefreshTokenResponses = {
+    /**
+     * Token refreshed
+     */
+    200: RefreshResponse;
+};
+
+export type RefreshTokenResponse = RefreshTokenResponses[keyof RefreshTokenResponses];
 
 export type AuthStatusData = {
     body?: never;

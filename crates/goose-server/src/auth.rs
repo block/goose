@@ -6,6 +6,7 @@ use axum::{
 };
 use goose::identity::{ExecutionIdentity, UserIdentity};
 use goose::oidc::OidcValidator;
+use goose::session_token::SessionTokenStore;
 
 /// Existing secret-key middleware — unchanged.
 #[allow(dead_code)]
@@ -64,9 +65,23 @@ impl RequestIdentity {
     }
 
     /// Extract identity from HTTP headers with full OIDC validation when providers are configured.
-    /// Falls back to unvalidated extraction if OIDC validation fails or no providers configured.
-    pub async fn from_headers_validated(headers: &HeaderMap, oidc: &OidcValidator) -> Self {
+    /// Also validates session tokens issued by `/auth/login`.
+    /// Falls back to unvalidated extraction if validation fails or no providers configured.
+    pub async fn from_headers_validated(
+        headers: &HeaderMap,
+        oidc: &OidcValidator,
+        session_store: &SessionTokenStore,
+    ) -> Self {
         if let Some(token) = extract_bearer_token(headers) {
+            // Try session token first (issued by /auth/login)
+            if let Ok(claims) = session_store.validate_token(&token).await {
+                tracing::debug!(sub = %claims.sub, "Session token validated");
+                return RequestIdentity {
+                    user: claims.into_user_identity(),
+                };
+            }
+
+            // Try OIDC validation
             if oidc.has_providers().await {
                 match oidc.validate_token(&token).await {
                     Ok(claims) => {

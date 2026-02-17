@@ -1867,6 +1867,82 @@
         }
       }
     },
+    "/auth/login": {
+      "post": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Login with API key and receive a session token",
+        "operationId": "login",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LoginRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Login successful",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LoginResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Invalid credentials"
+          }
+        }
+      }
+    },
+    "/auth/logout": {
+      "post": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Logout — revoke the current session token",
+        "operationId": "logout",
+        "responses": {
+          "200": {
+            "description": "Logout successful",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LogoutResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/auth/me": {
+      "get": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Get current user info from request headers",
+        "operationId": "get_user_info",
+        "responses": {
+          "200": {
+            "description": "Current user info",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserInfoResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/auth/oidc/providers": {
       "get": {
         "tags": [
@@ -1942,6 +2018,40 @@
                 }
               }
             }
+          }
+        }
+      }
+    },
+    "/auth/refresh": {
+      "post": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Refresh an existing session token",
+        "operationId": "refresh_token",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RefreshRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Token refreshed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RefreshResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Invalid or expired token"
           }
         }
       }
@@ -8660,6 +8770,57 @@
           }
         }
       },
+      "LoginRequest": {
+        "type": "object",
+        "properties": {
+          "api_key": {
+            "type": "string",
+            "description": "API key for authentication",
+            "nullable": true
+          },
+          "display_name": {
+            "type": "string",
+            "description": "Display name (optional, for guest upgrade)",
+            "nullable": true
+          }
+        }
+      },
+      "LoginResponse": {
+        "type": "object",
+        "required": [
+          "token",
+          "token_type",
+          "expires_in",
+          "user"
+        ],
+        "properties": {
+          "expires_in": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "token": {
+            "type": "string"
+          },
+          "token_type": {
+            "type": "string"
+          },
+          "user": {
+            "$ref": "#/components/schemas/UserInfoResponse"
+          }
+        }
+      },
+      "LogoutResponse": {
+        "type": "object",
+        "required": [
+          "success"
+        ],
+        "properties": {
+          "success": {
+            "type": "boolean"
+          }
+        }
+      },
       "McpAppResource": {
         "type": "object",
         "description": "MCP App Resource\nRepresents a UI resource that can be rendered in an MCP App",
@@ -10564,6 +10725,38 @@
         ],
         "properties": {
           "data": {
+            "type": "string"
+          }
+        }
+      },
+      "RefreshRequest": {
+        "type": "object",
+        "required": [
+          "token"
+        ],
+        "properties": {
+          "token": {
+            "type": "string"
+          }
+        }
+      },
+      "RefreshResponse": {
+        "type": "object",
+        "required": [
+          "token",
+          "token_type",
+          "expires_in"
+        ],
+        "properties": {
+          "expires_in": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "token": {
+            "type": "string"
+          },
+          "token_type": {
             "type": "string"
           }
         }
@@ -12679,6 +12872,37 @@
             "items": {
               "$ref": "#/components/schemas/ToolPermission"
             }
+          }
+        }
+      },
+      "UserInfoResponse": {
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "auth_method",
+          "is_guest",
+          "is_authenticated"
+        ],
+        "properties": {
+          "auth_method": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "is_authenticated": {
+            "type": "boolean"
+          },
+          "is_guest": {
+            "type": "boolean"
+          },
+          "name": {
+            "type": "string"
+          },
+          "tenant": {
+            "type": "string",
+            "nullable": true
           }
         }
       },
