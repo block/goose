@@ -8,8 +8,7 @@ import {
 } from '../../../api';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../../ui/dialog';
 import CustomProviderForm from './modal/subcomponents/forms/CustomProviderForm';
-import CustomProviderWizard from './modal/CustomProviderWizard';
-import { OtherProvidersCard, ManualProviderCard } from './modal/subcomponents/AddProviderCards';
+import { AddProviderCard } from './modal/subcomponents/AddProviderCards';
 import { SwitchModelModal } from '../models/subcomponents/SwitchModelModal';
 import { useModelAndProvider } from '../../ModelAndProviderContext';
 import type { View } from '../../../utils/navigationUtils';
@@ -42,8 +41,7 @@ function ProviderCards({
   onModelSelected?: (model?: string) => void;
 }) {
   const [configuringProvider, setConfiguringProvider] = useState<ProviderDetails | null>(null);
-  const [showCustomProviderModal, setShowCustomProviderModal] = useState(false);
-  const [showCatalogWizard, setShowCatalogWizard] = useState(false);
+  const [showProviderForm, setShowProviderForm] = useState(false);
   const [showSwitchModelModal, setShowSwitchModelModal] = useState(false);
   const [switchModelProvider, setSwitchModelProvider] = useState<string | null>(null);
   const [isActiveProvider, setIsActiveProvider] = useState(false);
@@ -86,12 +84,7 @@ function ProviderCards({
             setIsActiveProvider(false);
           }
 
-          // Use wizard for catalog providers, old form for manual
-          if (result.data.config.catalog_provider_id) {
-            setShowCatalogWizard(true);
-          } else {
-            setShowCustomProviderModal(true);
-          }
+          setShowProviderForm(true);
         }
       } else {
         openModal(provider);
@@ -111,8 +104,7 @@ function ProviderCards({
         throwOnError: true,
       });
       const providerId = editingProvider.id;
-      setShowCustomProviderModal(false);
-      setShowCatalogWizard(false);
+      setShowProviderForm(false);
       setEditingProvider(null);
       if (refreshProviders) {
         refreshProviders();
@@ -131,7 +123,7 @@ function ProviderCards({
       path: { id: editingProvider.id },
       throwOnError: true,
     });
-    setShowCustomProviderModal(false);
+    setShowProviderForm(false);
     setEditingProvider(null);
     setIsActiveProvider(false);
     if (refreshProviders) {
@@ -139,22 +131,17 @@ function ProviderCards({
     }
   }, [editingProvider, refreshProviders]);
 
-  const handleCloseModal = useCallback(() => {
-    setShowCustomProviderModal(false);
+  const handleCloseForm = useCallback(() => {
+    setShowProviderForm(false);
     setEditingProvider(null);
     setIsActiveProvider(false);
   }, []);
 
-  const handleCloseCatalogWizard = useCallback(() => {
-    setShowCatalogWizard(false);
-    setEditingProvider(null);
-  }, []);
-
-  const handleCreateFromCatalog = useCallback(
+  const handleCreateCustomProvider = useCallback(
     async (data: UpdateCustomProviderRequest) => {
       const { createCustomProvider } = await import('../../../api');
       await createCustomProvider({ body: data, throwOnError: true });
-      setShowCatalogWizard(false);
+      setShowProviderForm(false);
       if (refreshProviders) {
         refreshProviders();
       }
@@ -196,19 +183,6 @@ function ProviderCards({
     [setView]
   );
 
-  const handleCreateCustomProvider = useCallback(
-    async (data: UpdateCustomProviderRequest) => {
-      const { createCustomProvider } = await import('../../../api');
-      await createCustomProvider({ body: data, throwOnError: true });
-      setShowCustomProviderModal(false);
-      if (refreshProviders) {
-        refreshProviders();
-      }
-      setShowSwitchModelModal(true);
-    },
-    [refreshProviders]
-  );
-
   const providerCards = useMemo(() => {
     // providers needs to be an array
     const providersArray = Array.isArray(providers) ? providers : [];
@@ -226,13 +200,7 @@ function ProviderCards({
       />
     ));
 
-    // Add catalog-based providers card
-    cards.push(<OtherProvidersCard key="add-catalog" onClick={() => setShowCatalogWizard(true)} />);
-
-    // Add manual custom provider card
-    cards.push(
-      <ManualProviderCard key="add-manual" onClick={() => setShowCustomProviderModal(true)} />
-    );
+    cards.push(<AddProviderCard key="add-provider" onClick={() => setShowProviderForm(true)} />);
 
     return cards;
   }, [providers, isOnboarding, configureProviderViaModal, handleProviderLaunchWithModelSelection]);
@@ -246,6 +214,7 @@ function ProviderCards({
     supports_streaming: editingProvider.config.supports_streaming ?? true,
     requires_auth: editingProvider.config.requires_auth ?? true,
     headers: editingProvider.config.headers ?? undefined,
+    catalog_provider_id: editingProvider.config.catalog_provider_id ?? undefined,
   };
 
   const editable = editingProvider ? editingProvider.isEditable : true;
@@ -253,8 +222,7 @@ function ProviderCards({
   return (
     <>
       {providerCards}
-      {/* Manual custom provider form */}
-      <Dialog open={showCustomProviderModal} onOpenChange={handleCloseModal}>
+      <Dialog open={showProviderForm} onOpenChange={handleCloseForm}>
         <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{title}</DialogTitle>
@@ -263,7 +231,7 @@ function ProviderCards({
             initialData={initialData}
             isEditable={editable}
             onSubmit={editingProvider ? handleUpdateCustomProvider : handleCreateCustomProvider}
-            onCancel={handleCloseModal}
+            onCancel={handleCloseForm}
             onDelete={
               editingProvider?.providerType === 'Custom' ? handleDeleteCustomProvider : undefined
             }
@@ -271,14 +239,6 @@ function ProviderCards({
           />
         </DialogContent>
       </Dialog>
-      {/* Catalog-based provider wizard */}
-      <CustomProviderWizard
-        open={showCatalogWizard}
-        onClose={handleCloseCatalogWizard}
-        onSubmit={editingProvider ? handleUpdateCustomProvider : handleCreateFromCatalog}
-        initialData={editingProvider?.config.catalog_provider_id ? initialData : null}
-        isEditable={editingProvider?.isEditable}
-      />
       {configuringProvider && (
         <ProviderConfigurationModal
           provider={configuringProvider}

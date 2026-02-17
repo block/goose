@@ -13,9 +13,14 @@ import {
 interface ProviderCatalogPickerProps {
   onSelect: (template: ProviderTemplate) => void;
   onCancel: () => void;
+  embedded?: boolean;
 }
 
-export default function ProviderCatalogPicker({ onSelect, onCancel }: ProviderCatalogPickerProps) {
+export default function ProviderCatalogPicker({
+  onSelect,
+  onCancel,
+  embedded,
+}: ProviderCatalogPickerProps) {
   const [selectedFormat, setSelectedFormat] = useState<string>('openai');
   const [providers, setProviders] = useState<ProviderCatalogEntry[]>([]);
   const [filteredProviders, setFilteredProviders] = useState<ProviderCatalogEntry[]>([]);
@@ -169,11 +174,13 @@ export default function ProviderCatalogPicker({ onSelect, onCancel }: ProviderCa
       )}
 
       {/* Actions */}
-      <div className="flex justify-end space-x-2 pt-4">
-        <Button type="button" variant="outline" onClick={onCancel}>
-          Cancel
-        </Button>
-      </div>
+      {!embedded && (
+        <div className="flex justify-end space-x-2 pt-4">
+          <Button type="button" variant="outline" onClick={onCancel}>
+            Cancel
+          </Button>
+        </div>
+      )}
     </div>
   );
 }
