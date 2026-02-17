@@ -168,12 +168,8 @@ export default function DefaultProviderSetupForm({
     ));
   };
 
-  let aboveFoldParameters = parameters.filter((p) => p.required);
-  let belowFoldParameters = parameters.filter((p) => !p.required);
-  if (aboveFoldParameters.length === 0) {
-    aboveFoldParameters = belowFoldParameters;
-    belowFoldParameters = [];
-  }
+  const aboveFoldParameters = parameters.filter((p) => p.primary);
+  const belowFoldParameters = parameters.filter((p) => !p.primary);
 
   const expandCtaText = `${optionalExpanded ? 'Hide' : 'Show'} ${belowFoldParameters.length} options `;
 
