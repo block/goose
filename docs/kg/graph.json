@@ -15099,6 +15099,22 @@
         "5 unit tests: card building, skill building, text conversion both directions, roundtrip",
         "Pattern follows existing acp_compat module structure"
       ]
+    },
+    {
+      "name": "A2A_Follow_Up_Plan",
+      "entityType": "Decision",
+      "observations": [
+        "Three follow-up tasks created after A2A epic completion (goose4-vex5)",
+        "Task goose4-x3e8: Add A2A routes to goose-server (priority 2, ready)",
+        "Task goose4-4wsw: End-to-end SSE streaming validation (priority 3, blocked by x3e8)",
+        "Task goose4-u4g8: Push notification support (priority 3, blocked by x3e8)",
+        "Dependency chain: routes → streaming, routes → push notifications",
+        "Routes task needs: GooseAgentExecutor instantiation, InMemoryTaskStore, auth bridging",
+        "Key files: crates/goose-server/src/routes/a2a.rs (new), crates/goose-server/src/routes/mod.rs (add merge)",
+        "Pattern reference: crates/goose-server/src/routes/acp_ide.rs for JSON-RPC over HTTP",
+        "Pattern reference: crates/goose-server/src/routes/acp_discovery.rs for agent card serving",
+        "Existing deep-dive epic goose4-b67 (A2A vs ACP) still open, assigned to jmercier"
+      ]
     }
   ],
   "relations": [

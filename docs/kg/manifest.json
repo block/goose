@@ -1,6 +1,6 @@
 {
-  "exported_at": "2026-02-17T00:15:58.613578+00:00",
-  "entity_count": 1493,
+  "exported_at": "2026-02-17T00:37:19.870057+00:00",
+  "entity_count": 1494,
   "relation_count": 2120,
   "entity_types": {
     "WorkItem": 2,
@@ -8,7 +8,7 @@
     "CodeAnchor": 5,
     "PlannedAPI": 1,
     "Feature": 8,
-    "Decision": 52,
+    "Decision": 53,
     "Task": 1,
     "Epic": 1,
     "Design": 2,
