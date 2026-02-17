@@ -1,3 +1,7 @@
+/* ═══════════════════════════════════════════════════════════
+   1. TAILWIND IMPORTS & CONFIG
+   ═══════════════════════════════════════════════════════════ */
+
 @import 'tailwindcss';
 @import 'tw-animate-css';
 @plugin '@tailwindcss/typography';
@@ -5,13 +9,17 @@
 @source '../../index.html';
 @source '../**/*.{js,ts,jsx,tsx}';
 
+@custom-variant dark (&:where(.dark, .dark *));
+
 @theme {
   --breakpoint-md: 930px;
 }
 
-/* Cash Sans */
-
-@custom-variant dark (&:where(.dark, .dark *));
+/* ═══════════════════════════════════════════════════════════
+   2. TAILWIND PRIMITIVES — @theme {}
+   Palette colors, breakpoints, shadow reset.
+   Build-time values Tailwind uses directly. NOT part of MCP spec.
+   ═══════════════════════════════════════════════════════════ */
 
 @theme {
   --shadow-*: initial;
@@ -45,163 +53,192 @@
 
   --color-yellow-100: #ffd966;
   --color-yellow-200: #fbcd44;
-
-  --color-accent: var(--color-neutral-900);
 }
 
+/* ═══════════════════════════════════════════════════════════════════════════
+   3. MCP SEMANTIC TOKEN REGISTRATION — @theme inline {}
+   Registers every McpUiStyleVariableKey so Tailwind generates utility classes.
+   Self-referential var() for colors, `initial` for non-color tokens.
+   Actual values are set at runtime by theme-tokens.ts (the single source of truth).
+   ═══════════════════════════════════════════════════════════════════════════ */
+@theme inline {
+  --ease-g2: cubic-bezier(0.55, 0, 1, 0.45);
+
+  /* Backgrounds */
+  --color-background-primary: var(--color-background-primary);
+  --color-background-secondary: var(--color-background-secondary);
+  --color-background-tertiary: var(--color-background-tertiary);
+  --color-background-inverse: var(--color-background-inverse);
+  --color-background-ghost: var(--color-background-ghost);
+  --color-background-info: var(--color-background-info);
+  --color-background-danger: var(--color-background-danger);
+  --color-background-success: var(--color-background-success);
+  --color-background-warning: var(--color-background-warning);
+  --color-background-disabled: var(--color-background-disabled);
+
+  /* Text */
+  --color-text-primary: var(--color-text-primary);
+  --color-text-secondary: var(--color-text-secondary);
+  --color-text-tertiary: var(--color-text-tertiary);
+  --color-text-inverse: var(--color-text-inverse);
+  --color-text-ghost: var(--color-text-ghost);
+  --color-text-info: var(--color-text-info);
+  --color-text-danger: var(--color-text-danger);
+  --color-text-success: var(--color-text-success);
+  --color-text-warning: var(--color-text-warning);
+  --color-text-disabled: var(--color-text-disabled);
+
+  /* Borders */
+  --color-border-primary: var(--color-border-primary);
+  --color-border-secondary: var(--color-border-secondary);
+  --color-border-tertiary: var(--color-border-tertiary);
+  --color-border-inverse: var(--color-border-inverse);
+  --color-border-ghost: var(--color-border-ghost);
+  --color-border-info: var(--color-border-info);
+  --color-border-danger: var(--color-border-danger);
+  --color-border-success: var(--color-border-success);
+  --color-border-warning: var(--color-border-warning);
+  --color-border-disabled: var(--color-border-disabled);
+
+  /* Rings */
+  --color-ring-primary: var(--color-ring-primary);
+  --color-ring-secondary: var(--color-ring-secondary);
+  --color-ring-inverse: var(--color-ring-inverse);
+  --color-ring-info: var(--color-ring-info);
+  --color-ring-danger: var(--color-ring-danger);
+  --color-ring-success: var(--color-ring-success);
+  --color-ring-warning: var(--color-ring-warning);
+
+  /* Typography */
+  --font-sans: initial;
+  --font-mono: initial;
+  --font-weight-normal: initial;
+  --font-weight-medium: initial;
+  --font-weight-semibold: initial;
+  --font-weight-bold: initial;
+  --font-text-xs-size: initial;
+  --font-text-sm-size: initial;
+  --font-text-md-size: initial;
+  --font-text-lg-size: initial;
+  --font-heading-xs-size: initial;
+  --font-heading-sm-size: initial;
+  --font-heading-md-size: initial;
+  --font-heading-lg-size: initial;
+  --font-heading-xl-size: initial;
+  --font-heading-2xl-size: initial;
+  --font-heading-3xl-size: initial;
+  --font-text-xs-line-height: initial;
+  --font-text-sm-line-height: initial;
+  --font-text-md-line-height: initial;
+  --font-text-lg-line-height: initial;
+  --font-heading-xs-line-height: initial;
+  --font-heading-sm-line-height: initial;
+  --font-heading-md-line-height: initial;
+  --font-heading-lg-line-height: initial;
+  --font-heading-xl-line-height: initial;
+  --font-heading-2xl-line-height: initial;
+  --font-heading-3xl-line-height: initial;
+
+  /* Border radius */
+  --border-radius-xs: initial;
+  --border-radius-sm: initial;
+  --border-radius-md: initial;
+  --border-radius-lg: initial;
+  --border-radius-xl: initial;
+  --border-radius-full: initial;
+
+  /* Border width */
+  --border-width-regular: initial;
+
+  /* Shadows */
+  --shadow-hairline: initial;
+  --shadow-sm: initial;
+  --shadow-md: initial;
+  --shadow-lg: initial;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   4. GOOSE DESKTOP UI ALIASES — @theme inline {}
+   App-specific tokens that map to MCP spec tokens.
+   Not part of the MCP spec — only used by Goose components.
+   ═══════════════════════════════════════════════════════════════════════════ */
+@theme inline {
+  --font-serif: serif;
+  --color-ring: var(--color-ring-primary);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --shadow-default: var(--shadow-default);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   5. APP-SPECIFIC VARIABLES — :root / .dark
+   Goose-only variables that derive from MCP tokens. These are NOT duplicated
+   in theme-tokens.ts — they exist only here.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
 :root {
-  /* fonts */
-  --font-sans: 'Cash Sans', sans-serif;
-  --font-mono: monospace;
-
-  /* theming accents */
-  --background-accent: var(--color-accent);
-  --border-accent: var(--color-accent);
-  --text-accent: var(--color-accent);
-  --text-on-accent: var(--color-white);
-
-  /* Semantic */
-  --background-default: var(--color-white);
-  --background-muted: var(--color-neutral-50);
-  --background-medium: var(--color-neutral-100);
-  --background-inverse: var(--color-black);
-  --background-danger: var(--color-red-200);
-  --background-info: var(--color-blue-200);
-
-  --border-default: var(--color-neutral-100);
-  --border-strong: var(--color-neutral-100);
-  --border-danger: var(--color-red-200);
-  --border-info: var(--color-blue-200);
-
-  --text-default: var(--color-neutral-800);
-  --text-muted: var(--color-neutral-600);
+  /* Legacy aliases (used by toast and katex styles in this file) */
   --text-inverse: var(--color-white);
   --text-danger: var(--color-red-200);
-  --text-success: var(--color-green-200);
-  --text-warning: var(--color-yellow-200);
-  --text-info: var(--color-blue-200);
-
-  --placeholder: var(--color-neutral-400);
-
-  --ring: var(--border-strong);
 
   /* Search highlighting */
   --highlight-color: rgba(255, 213, 0, 0.5);
   --highlight-current: rgba(252, 213, 3, 0.6);
 
-  --sidebar: var(--background-muted);
-  --sidebar-foreground: var(--text-default);
-  --sidebar-primary: var(--background-accent);
-  --sidebar-primary-foreground: var(--text-inverse);
-  --sidebar-accent: var(--background-muted);
-  --sidebar-accent-foreground: var(--text-default);
-  --sidebar-border: var(--border-default);
-  --sidebar-ring: var(--border-default);
+  /* Sidebar aliases (shadcn sidebar component convention) */
+  --sidebar: var(--color-background-secondary);
+  --sidebar-foreground: var(--color-text-primary);
+  --sidebar-primary: var(--color-background-inverse);
+  --sidebar-primary-foreground: var(--color-text-inverse);
+  --sidebar-accent: var(--color-background-secondary);
+  --sidebar-accent-foreground: var(--color-text-primary);
+  --sidebar-border: var(--color-border-primary);
+  --sidebar-ring: var(--color-border-primary);
 
-  /* custom shadow */
-
+  /* Custom shadow */
   --shadow-default:
     0px 12px 32px 0px rgba(0, 0, 0, 0.04), 0px 8px 16px 0px rgba(0, 0, 0, 0.02),
     0px 2px 4px 0px rgba(0, 0, 0, 0.04), 0px 0px 1px 0px rgba(0, 0, 0, 0.2);
 }
 
 .dark {
-  /* theming accents */
-  --background-accent: var(--color-white);
-  --border-accent: var(--color-white);
-  --text-accent: var(--color-white);
-  --text-on-accent: var(--color-black);
-
-  /* semantic */
-  --background-default: var(--color-neutral-950);
-  --background-muted: var(--color-neutral-800);
-  --background-medium: var(--color-neutral-700);
-  --background-inverse: var(--color-neutral-200);
-  --background-danger: var(--color-red-100);
-  --background-info: var(--color-blue-100);
-
-  --border-default: var(--color-neutral-800);
-  --border-strong: var(--color-neutral-600);
-  --border-danger: var(--color-red-100);
-  --border-info: var(--color-blue-100);
-
-  --text-default: var(--color-white);
-  --text-muted: var(--color-neutral-300);
+  /* Legacy aliases */
   --text-inverse: var(--color-black);
   --text-danger: var(--color-red-100);
-  --text-success: var(--color-green-100);
-  --text-warning: var(--color-yellow-100);
-  --text-info: var(--color-blue-100);
-
-  --placeholder: var(--color-neutral-400);
-
-  --ring: var(--border-strong);
 
   /* Search highlighting */
   --highlight-color: rgba(255, 213, 0, 0.5);
   --highlight-current: rgba(252, 213, 3, 0.6);
 
-  --sidebar: var(--background-muted);
-  --sidebar-foreground: var(--text-default);
-  --sidebar-primary: var(--background-accent);
-  --sidebar-primary-foreground: var(--text-inverse);
-  --sidebar-accent: var(--background-muted);
-  --sidebar-accent-foreground: var(--text-default);
-  --sidebar-border: var(--border-default);
-  --sidebar-ring: var(--border-default);
+  /* Sidebar aliases */
+  --sidebar: var(--color-background-secondary);
+  --sidebar-foreground: var(--color-text-primary);
+  --sidebar-primary: var(--color-background-inverse);
+  --sidebar-primary-foreground: var(--color-text-inverse);
+  --sidebar-accent: var(--color-background-secondary);
+  --sidebar-accent-foreground: var(--color-text-primary);
+  --sidebar-border: var(--color-border-primary);
+  --sidebar-ring: var(--color-border-primary);
 
+  /* Custom shadow */
   --shadow-default:
     0px 12px 32px 0px rgba(0, 0, 0, 0.2), 0px 8px 16px 0px rgba(0, 0, 0, 0.15),
     0px 2px 4px 0px rgba(0, 0, 0, 0.1), 0px 0px 1px 0px rgba(0, 0, 0, 0.3);
 }
 
-@theme inline {
-  --ease-g2: cubic-bezier(0.55, 0, 1, 0.45);
-
-  --color-background-default: var(--background-default);
-  --color-background-muted: var(--background-muted);
-  --color-background-medium: var(--background-medium);
-  --color-background-inverse: var(--background-inverse);
-  --color-background-danger: var(--background-danger);
-  --color-background-info: var(--background-info);
-
-  --color-background-accent: var(--background-accent);
-  --color-border-accent: var(--border-accent);
-  --color-text-accent: var(--text-accent);
-  --color-text-on-accent: var(--text-on-accent);
-
-  --color-border-default: var(--border-default);
-  --color-border-strong: var(--border-strong);
-  --color-border-danger: var(--border-danger);
-  --color-border-info: var(--border-info);
-
-  --color-text-default: var(--text-default);
-  --color-text-muted: var(--text-muted);
-  --color-text-inverse: var(--text-inverse);
-  --color-text-danger: var(--text-danger);
-  --color-text-warning: var(--text-warning);
-  --color-text-info: var(--text-info);
-
-  --font-sans: 'Cash Sans', sans-serif;
-  --font-mono: monospace;
-  --font-serif: serif;
-
-  --color-ring: var(--ring);
-
-  --color-sidebar-foreground: var(--sidebar-foreground);
-  --color-sidebar-accent: var(--sidebar-accent);
-  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
-  --color-sidebar-border: var(--sidebar-border);
-
-  --shadow-default: var(--shadow-default);
-}
+/* ═══════════════════════════════════════════════════════════════════════════
+   7. BASE LAYER + FONTS + ANIMATIONS + COMPONENTS
+   Everything below is standard Tailwind @layer base / component styles.
+   ═══════════════════════════════════════════════════════════════════════════ */
 
 @layer base {
   * {
-    @apply border-border-default;
+    @apply border-border-primary;
   }
   body {
-    @apply text-text-default;
+    @apply text-text-primary;
   }
 }
 
@@ -486,30 +523,8 @@
   background-color: var(--color-neutral-500);
 }
 
-::-webkit-scrollbar-track {
-  background: transparent;
-  border-radius: 4px;
-}
-
-::-webkit-scrollbar-thumb {
-  background: var(--color-neutral-200);
-  border-radius: 4px;
-}
-
-.dark ::-webkit-scrollbar-thumb {
-  background: var(--color-neutral-400);
-}
-
-::-webkit-scrollbar-thumb:hover {
-  background: var(--color-neutral-300);
-}
-
-.dark ::-webkit-scrollbar-thumb:hover {
-  background: var(--color-neutral-500);
-}
-
 body {
-  background-color: var(--background-default);
+  background-color: var(--color-background-primary);
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
 }
@@ -743,17 +758,6 @@ p > code.bg-inline-code {
   will-change: width;
 }
 
-/* Remove will-change when not transitioning to save memory */
-[data-state='expanded'] [data-slot='sidebar-container'],
-[data-state='collapsed'] [data-slot='sidebar-container'] {
-  will-change: auto;
-}
-
-[data-state='expanded'] [data-slot='sidebar-gap'],
-[data-state='collapsed'] [data-slot='sidebar-gap'] {
-  will-change: auto;
-}
-
 /* Ensure smooth transitions during state changes */
 [data-state='expanded'] [data-slot='sidebar-container'],
 [data-state='collapsed'] [data-slot='sidebar-container'] {
@@ -801,8 +805,8 @@ p > code.bg-inline-code {
 .katex-display {
   margin: 0.75em 0;
   padding: 1em;
-  background-color: var(--background-muted);
-  border: 1px solid var(--border-default);
+  background-color: var(--color-background-secondary);
+  border: 1px solid var(--color-border-primary);
   border-radius: 6px;
   overflow-x: auto;
   overflow-y: hidden;
@@ -825,14 +829,14 @@ p > code.bg-inline-code {
 /* Search Highlighting Styles */
 .search-highlight {
   background-color: var(--highlight-color);
-  color: var(--text-default);
+  color: var(--color-text-primary);
   padding: 0;
   border-radius: 2px;
 }
 
 .search-highlight.current {
   background-color: var(--highlight-current);
-  box-shadow: inset 0 0 0 1px var(--text-default);
+  box-shadow: inset 0 0 0 1px var(--color-text-primary);
   z-index: 2;
 }
 
