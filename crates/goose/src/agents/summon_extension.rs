@@ -54,6 +54,7 @@ pub struct Source {
     pub path: PathBuf,
     pub content: String,
     pub distribution: Option<crate::registry::manifest::AgentDistribution>,
+    pub a2a_url: Option<String>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
@@ -208,6 +209,7 @@ fn parse_skill_content(content: &str, path: PathBuf) -> Option<Source> {
         path,
         content: body,
         distribution: None,
+        a2a_url: None,
     })
 }
 
@@ -230,6 +232,7 @@ fn parse_agent_content(content: &str, path: PathBuf) -> Option<Source> {
         path,
         content: body,
         distribution: None,
+        a2a_url: None,
     })
 }
 
@@ -640,6 +643,7 @@ impl SummonClient {
                     path: entry.local_path.clone().unwrap_or_default(),
                     content,
                     distribution,
+                    a2a_url: None,
                 });
             }
         }
@@ -681,6 +685,7 @@ impl SummonClient {
                 path: PathBuf::from(&sr.path),
                 content: String::new(),
                 distribution: None,
+                a2a_url: None,
             });
         }
     }
@@ -752,6 +757,7 @@ impl SummonClient {
                         path: path.clone(),
                         content: recipe.instructions.clone().unwrap_or_default(),
                         distribution: None,
+                        a2a_url: None,
                     });
                 }
                 Err(e) => {
@@ -935,6 +941,7 @@ Default mode: {}
             path: yaml_path.to_path_buf(),
             content,
             distribution: None,
+            a2a_url: None,
         })
     }
 
@@ -1226,11 +1233,16 @@ Default mode: {}
                 if source.kind == SourceKind::Agent {
                     let strategy = DelegationStrategy::choose(
                         source.distribution.as_ref(),
+                        source.a2a_url.as_deref(),
                         false, // TODO: detect custom extensions from agent frontmatter
                         false, // TODO: detect model override from agent frontmatter
                         false, // TODO: detect modes from agent frontmatter
                     );
                     tracing::info!("Delegation strategy for '{}': {}", source_name, strategy);
+
+                    if strategy.is_a2a() {
+                        return self.handle_a2a_delegate(&source, &params).await;
+                    }
 
                     if strategy.is_external() {
                         return self
@@ -1283,6 +1295,84 @@ Default mode: {}
         .map_err(|e| format!("Delegation failed: {}", e))?;
 
         Ok(vec![Content::text(result)])
+    }
+
+    async fn handle_a2a_delegate(
+        &self,
+        source: &Source,
+        params: &DelegateParams,
+    ) -> Result<Vec<Content>, String> {
+        let url = source.a2a_url.as_ref().ok_or("Agent has no A2A URL")?;
+
+        let instructions = params
+            .instructions
+            .as_ref()
+            .ok_or("Instructions required for A2A delegation")?;
+
+        let client = a2a::client::A2AClient::new(url);
+
+        let message = a2a::types::core::Message {
+            role: a2a::types::core::Role::User,
+            message_id: uuid::Uuid::new_v4().to_string(),
+            parts: vec![a2a::types::core::Part {
+                content: a2a::types::core::PartContent::Text {
+                    text: instructions.clone(),
+                },
+                metadata: None,
+                filename: None,
+                media_type: None,
+            }],
+            context_id: None,
+            task_id: None,
+            extensions: vec![],
+            metadata: None,
+            reference_task_ids: vec![],
+        };
+
+        let request = a2a::types::requests::SendMessageRequest {
+            message,
+            configuration: None,
+            metadata: None,
+        };
+
+        let response = client
+            .send_message(request)
+            .await
+            .map_err(|e| format!("A2A delegation failed: {}", e))?;
+
+        // Extract text from the response
+        let result_text = match response {
+            a2a::types::responses::SendMessageResponse::Task(task) => {
+                // Extract text from task artifacts
+                let mut texts = Vec::new();
+                for artifact in &task.artifacts {
+                    for part in &artifact.parts {
+                        if let a2a::types::core::PartContent::Text { text } = &part.content {
+                            texts.push(text.clone());
+                        }
+                    }
+                }
+                if texts.is_empty() {
+                    format!(
+                        "Task {} completed (state: {:?})",
+                        task.id, task.status.state
+                    )
+                } else {
+                    texts.join("\n\n")
+                }
+            }
+            a2a::types::responses::SendMessageResponse::Message(msg) => {
+                let mut texts = Vec::new();
+                for part in &msg.parts {
+                    if let a2a::types::core::PartContent::Text { text } = &part.content {
+                        texts.push(text.clone());
+                    }
+                }
+                texts.join("\n\n")
+            }
+        };
+
+        Ok(vec![Content::text(result_text)])
     }
 
     async fn handle_acp_delegate(
