@@ -253,8 +253,20 @@ impl ProviderDef for OpenAiProvider {
             OPEN_AI_DOC_URL,
             vec![
                 ConfigKey::new("OPENAI_API_KEY", false, true, None, true),
-                ConfigKey::new("OPENAI_HOST", true, false, Some("https://api.openai.com"), false),
-                ConfigKey::new("OPENAI_BASE_PATH", true, false, Some("v1/chat/completions"), false),
+                ConfigKey::new(
+                    "OPENAI_HOST",
+                    true,
+                    false,
+                    Some("https://api.openai.com"),
+                    false,
+                ),
+                ConfigKey::new(
+                    "OPENAI_BASE_PATH",
+                    true,
+                    false,
+                    Some("v1/chat/completions"),
+                    false,
+                ),
                 ConfigKey::new("OPENAI_ORGANIZATION", false, false, None, false),
                 ConfigKey::new("OPENAI_PROJECT", false, false, None, false),
                 ConfigKey::new("OPENAI_CUSTOM_HEADERS", false, true, None, false),

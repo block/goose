@@ -144,7 +144,13 @@ impl ProviderDef for LiteLLMProvider {
             LITELLM_DOC_URL,
             vec![
                 ConfigKey::new("LITELLM_API_KEY", true, true, None, true),
-                ConfigKey::new("LITELLM_HOST", true, false, Some("http://localhost:4000"), true),
+                ConfigKey::new(
+                    "LITELLM_HOST",
+                    true,
+                    false,
+                    Some("http://localhost:4000"),
+                    true,
+                ),
                 ConfigKey::new(
                     "LITELLM_BASE_PATH",
                     true,
