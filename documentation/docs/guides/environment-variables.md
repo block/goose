@@ -45,6 +45,7 @@ These variables are needed when using custom endpoints, enterprise deployments, 
 | `GOOSE_PROVIDER__TYPE` | The specific type/implementation of the provider | [See available providers](/docs/getting-started/providers#available-providers) | Derived from GOOSE_PROVIDER |
 | `GOOSE_PROVIDER__HOST` | Custom API endpoint for the provider | URL (e.g., "https://api.openai.com") | Provider-specific default |
 | `GOOSE_PROVIDER__API_KEY` | Authentication key for the provider | API key string | None |
+| `GEMINI3_THINKING_LEVEL` | Sets the [thinking level](/docs/getting-started/providers#gemini-3-thinking-levels) for Gemini 3 models globally | `low`, `high` | `low` |
 
 **Examples**
 
@@ -114,6 +115,15 @@ export GOOSE_PREDEFINED_MODELS='[
     "provider": "databricks",
     "alias": "Internal Model (500k)",
     "context_limit": 500000
+  }
+]'
+
+# Gemini 3 with high thinking level
+export GOOSE_PREDEFINED_MODELS='[
+  {
+    "name": "gemini-3-pro",
+    "provider": "google",
+    "request_params": {"thinking_level": "high"}
   }
 ]'
 ```
