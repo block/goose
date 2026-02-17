@@ -546,14 +546,14 @@ mod tests {
         assert_eq!(create_resource(), expected);
     }
 
-    #[test_case(&[], Level::INFO; "default is info")]
+    #[test_case(&[("RUST_LOG", "")], Level::INFO; "default is info")]
     #[test_case(&[("RUST_LOG", "debug")], Level::DEBUG; "RUST_LOG takes precedence")]
-    #[test_case(&[("OTEL_LOG_LEVEL", "error")], Level::ERROR; "OTEL_LOG_LEVEL fallback")]
+    #[test_case(&[("RUST_LOG", ""), ("OTEL_LOG_LEVEL", "error")], Level::ERROR; "OTEL_LOG_LEVEL fallback")]
     #[test_case(&[("RUST_LOG", "warn"), ("OTEL_LOG_LEVEL", "error")], Level::WARN; "RUST_LOG wins over OTEL_LOG_LEVEL")]
     #[test_case(&[("RUST_LOG", "goose=debug"), ("OTEL_LOG_LEVEL", "trace")], Level::TRACE; "directive RUST_LOG falls through to OTEL_LOG_LEVEL")]
     #[test_case(&[("RUST_LOG", "goose=debug")], Level::INFO; "directive RUST_LOG falls through to default")]
-    #[test_case(&[("OTEL_LOG_LEVEL", "INFO")], Level::INFO; "case insensitive")]
-    #[test_case(&[("OTEL_LOG_LEVEL", "bogus")], Level::INFO; "unknown defaults to info")]
+    #[test_case(&[("RUST_LOG", ""), ("OTEL_LOG_LEVEL", "INFO")], Level::INFO; "case insensitive")]
+    #[test_case(&[("RUST_LOG", ""), ("OTEL_LOG_LEVEL", "bogus")], Level::INFO; "unknown defaults to info")]
     fn otel_logs_level_from_env(env: &[(&'static str, &'static str)], expected: Level) {
         let _guard = clear_otel_env(env);
         assert_eq!(otel_logs_level(), expected);
