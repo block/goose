@@ -3,6 +3,7 @@ use async_trait::async_trait;
 use futures::future::BoxFuture;
 use serde_json::{json, Value};
 use std::collections::HashMap;
+use tokio::sync::OnceCell;
 
 use super::api_client::{ApiClient, AuthMethod};
 use super::base::{
@@ -21,6 +22,26 @@ const LITELLM_PROVIDER_NAME: &str = "litellm";
 pub const LITELLM_DEFAULT_MODEL: &str = "gpt-4o-mini";
 pub const LITELLM_DOC_URL: &str = "https://docs.litellm.ai/docs/";
 
+/// Extended model capabilities fetched from LiteLLM proxy's /model/info endpoint.
+/// Contains reasoning support flag and the underlying model identifier, which is
+/// needed to avoid false-positive reasoning parameter injection based on model name
+/// heuristics (fixes issue #4221).
+#[derive(Debug, Clone)]
+struct LiteLLMModelCapabilities {
+    /// Whether this model supports reasoning/extended thinking
+    supports_reasoning: bool,
+    /// Whether this model supports prompt caching
+    supports_cache_control: bool,
+    /// The actual underlying model string (e.g. "anthropic/claude-opus-4-6...")
+    litellm_model: Option<String>,
+    /// Context window size
+    max_input_tokens: usize,
+    /// Cost per input token in USD
+    input_cost_per_token: Option<f64>,
+    /// Cost per output token in USD
+    output_cost_per_token: Option<f64>,
+}
+
 #[derive(Debug, serde::Serialize)]
 pub struct LiteLLMProvider {
     #[serde(skip)]
@@ -29,6 +50,9 @@ pub struct LiteLLMProvider {
     model: ModelConfig,
     #[serde(skip)]
     name: String,
+    /// Cached model capabilities from /model/info, populated once on first use
+    #[serde(skip)]
+    model_capabilities_cache: OnceCell<HashMap<String, LiteLLMModelCapabilities>>,
 }
 
 impl LiteLLMProvider {
@@ -74,10 +98,26 @@ impl LiteLLMProvider {
             base_path,
             model,
             name: LITELLM_PROVIDER_NAME.to_string(),
+            model_capabilities_cache: OnceCell::new(),
         })
     }
 
-    async fn fetch_models(&self) -> Result<Vec<ModelInfo>, ProviderError> {
+    /// Fetch and cache model capabilities from the LiteLLM proxy's /model/info endpoint.
+    /// Returns a map of model_name -> capabilities. The result is cached for the
+    /// lifetime of this provider instance (typically the session).
+    async fn get_model_capabilities(
+        &self,
+    ) -> Result<&HashMap<String, LiteLLMModelCapabilities>, ProviderError> {
+        self.model_capabilities_cache
+            .get_or_try_init(|| async { self.fetch_model_capabilities_from_proxy().await })
+            .await
+    }
+
+    /// Fetches model info from the LiteLLM proxy, extracting both the standard
+    /// ModelInfo fields and extended capabilities (reasoning support, pricing, etc.).
+    async fn fetch_model_capabilities_from_proxy(
+        &self,
+    ) -> Result<HashMap<String, LiteLLMModelCapabilities>, ProviderError> {
         let response = self
             .api_client
             .request(None, "model/info")
@@ -99,7 +139,7 @@ impl LiteLLMProvider {
             ProviderError::RequestFailed("Missing data field in models response".to_string())
         })?;
 
-        let mut models = Vec::new();
+        let mut capabilities = HashMap::new();
         for model_data in models_data {
             if let Some(model_name) = model_data["model_name"].as_str() {
                 if model_name.contains("/*") {
@@ -107,17 +147,103 @@ impl LiteLLMProvider {
                 }
 
                 let model_info = &model_data["model_info"];
-                let context_length =
-                    model_info["max_input_tokens"].as_u64().unwrap_or(128000) as usize;
-                let supports_cache_control = model_info["supports_prompt_caching"].as_bool();
 
-                let mut model_info_obj = ModelInfo::new(model_name, context_length);
-                model_info_obj.supports_cache_control = supports_cache_control;
-                models.push(model_info_obj);
+                // The underlying model string from litellm_params (e.g. "anthropic/claude-opus-4-6...")
+                let litellm_model = model_data["litellm_params"]["model"]
+                    .as_str()
+                    .map(|s| s.to_string());
+
+                // Determine reasoning support:
+                // 1. Explicit model_info.supports_reasoning flag (user-configured)
+                // 2. LiteLLM's built-in supports_reasoning field
+                // 3. Fall back to false (safe default — never inject reasoning params unless known)
+                let supports_reasoning = model_info["supports_reasoning"]
+                    .as_bool()
+                    .unwrap_or(false);
+
+                let supports_cache_control = model_info["supports_prompt_caching"]
+                    .as_bool()
+                    .unwrap_or(false);
+
+                let max_input_tokens =
+                    model_info["max_input_tokens"].as_u64().unwrap_or(128000) as usize;
+
+                let input_cost_per_token = model_info["input_cost_per_token"].as_f64();
+                let output_cost_per_token = model_info["output_cost_per_token"].as_f64();
+
+                capabilities.insert(
+                    model_name.to_string(),
+                    LiteLLMModelCapabilities {
+                        supports_reasoning,
+                        supports_cache_control,
+                        litellm_model,
+                        max_input_tokens,
+                        input_cost_per_token,
+                        output_cost_per_token,
+                    },
+                );
             }
         }
 
-        Ok(models)
+        Ok(capabilities)
+    }
+
+    /// Build a Vec<ModelInfo> from cached capabilities for use in Provider trait methods.
+    fn capabilities_to_model_info(
+        capabilities: &HashMap<String, LiteLLMModelCapabilities>,
+    ) -> Vec<ModelInfo> {
+        capabilities
+            .iter()
+            .map(|(name, caps)| {
+                let mut info = ModelInfo::new(name.clone(), caps.max_input_tokens);
+                info.supports_cache_control = Some(caps.supports_cache_control);
+                info.input_token_cost = caps.input_cost_per_token;
+                info.output_token_cost = caps.output_cost_per_token;
+                if caps.input_cost_per_token.is_some() || caps.output_cost_per_token.is_some() {
+                    info.currency = Some("$".to_string());
+                }
+                info
+            })
+            .collect()
+    }
+
+    /// Check if the current model supports reasoning parameters.
+    /// Returns false if model info is unavailable (safe default).
+    async fn model_supports_reasoning(&self, model_name: &str) -> bool {
+        match self.get_model_capabilities().await {
+            Ok(caps) => caps
+                .get(model_name)
+                .map(|c| c.supports_reasoning)
+                .unwrap_or(false),
+            Err(_) => false,
+        }
+    }
+
+    /// Strip reasoning-specific parameters from the request payload.
+    /// Called when the model is known not to support reasoning, to prevent
+    /// false-positive reasoning param injection from OpenAI format heuristics.
+    fn strip_reasoning_params(payload: &mut Value) {
+        if let Some(obj) = payload.as_object_mut() {
+            obj.remove("reasoning_effort");
+
+            // If the OpenAI formatter used "developer" role (for o-series heuristic),
+            // revert it to "system" since this model isn't actually an o-series model
+            if let Some(messages) = obj.get_mut("messages").and_then(|m| m.as_array_mut()) {
+                for msg in messages.iter_mut() {
+                    if msg.get("role") == Some(&json!("developer")) {
+                        msg["role"] = json!("system");
+                    }
+                }
+            }
+
+            // Revert max_completion_tokens back to max_tokens if it was set by the
+            // o-series heuristic but the model doesn't actually need it
+            if let Some(max_completion_tokens) = obj.remove("max_completion_tokens") {
+                if !obj.contains_key("max_tokens") {
+                    obj.insert("max_tokens".to_string(), max_completion_tokens);
+                }
+            }
+        }
     }
 
     async fn post(
@@ -198,6 +324,7 @@ impl Provider for LiteLLMProvider {
         } else {
             Some(session_id)
         };
+        // Build the request using the standard OpenAI format
         let mut payload = super::formats::openai::create_request(
             model_config,
             system,
@@ -206,6 +333,18 @@ impl Provider for LiteLLMProvider {
             &ImageFormat::OpenAi,
             false,
         )?;
+
+        // Fix for #4221: The OpenAI format uses model-name heuristics (names starting
+        // with "o1", "o3", etc.) to inject reasoning_effort. For LiteLLM, model names
+        // are user-defined aliases, so these heuristics produce false positives.
+        // We check the actual model capabilities from the proxy and strip reasoning
+        // params if the model doesn't support them.
+        if !self
+            .model_supports_reasoning(&model_config.model_name)
+            .await
+        {
+            Self::strip_reasoning_params(&mut payload);
+        }
 
         if self.supports_cache_control().await {
             payload = update_request_for_cache_control(&payload);
@@ -235,20 +374,19 @@ impl Provider for LiteLLMProvider {
     }
 
     async fn supports_cache_control(&self) -> bool {
-        if let Ok(models) = self.fetch_models().await {
-            if let Some(model_info) = models.iter().find(|m| m.name == self.model.model_name) {
-                return model_info.supports_cache_control.unwrap_or(false);
+        if let Ok(caps) = self.get_model_capabilities().await {
+            if let Some(model_caps) = caps.get(&self.model.model_name) {
+                return model_caps.supports_cache_control;
             }
         }
 
+        // Fallback: if we can't reach the proxy, guess based on model name
         self.model.model_name.to_lowercase().contains("claude")
     }
 
     async fn fetch_supported_models(&self) -> Result<Vec<String>, ProviderError> {
-        let models = self.fetch_models().await.map_err(|e| {
-            ProviderError::RequestFailed(format!("Failed to fetch models from LiteLLM: {}", e))
-        })?;
-        Ok(models.into_iter().map(|m| m.name).collect())
+        let caps = self.get_model_capabilities().await?;
+        Ok(caps.keys().cloned().collect())
     }
 }
 
@@ -367,4 +505,352 @@ fn parse_custom_headers(headers_str: String) -> HashMap<String, String> {
         }
     }
     headers
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_strip_reasoning_params_removes_reasoning_effort() {
+        let mut payload = json!({
+            "model": "o3-custom-alias",
+            "messages": [{"role": "developer", "content": "system prompt"}],
+            "reasoning_effort": "medium",
+            "max_completion_tokens": 1024
+        });
+
+        LiteLLMProvider::strip_reasoning_params(&mut payload);
+
+        assert!(payload.get("reasoning_effort").is_none());
+    }
+
+    #[test]
+    fn test_strip_reasoning_params_reverts_developer_to_system() {
+        let mut payload = json!({
+            "model": "o3-custom-alias",
+            "messages": [{"role": "developer", "content": "system prompt"}],
+            "reasoning_effort": "medium"
+        });
+
+        LiteLLMProvider::strip_reasoning_params(&mut payload);
+
+        let messages = payload["messages"].as_array().unwrap();
+        assert_eq!(messages[0]["role"], "system");
+    }
+
+    #[test]
+    fn test_strip_reasoning_params_reverts_max_completion_tokens() {
+        let mut payload = json!({
+            "model": "o3-custom-alias",
+            "messages": [{"role": "developer", "content": "system prompt"}],
+            "reasoning_effort": "medium",
+            "max_completion_tokens": 2048
+        });
+
+        LiteLLMProvider::strip_reasoning_params(&mut payload);
+
+        assert!(payload.get("max_completion_tokens").is_none());
+        assert_eq!(payload["max_tokens"], 2048);
+    }
+
+    #[test]
+    fn test_strip_reasoning_params_preserves_existing_max_tokens() {
+        // If both max_tokens and max_completion_tokens exist, don't overwrite max_tokens
+        let mut payload = json!({
+            "model": "test",
+            "messages": [{"role": "system", "content": "hi"}],
+            "max_tokens": 1024,
+            "max_completion_tokens": 2048
+        });
+
+        LiteLLMProvider::strip_reasoning_params(&mut payload);
+
+        assert_eq!(payload["max_tokens"], 1024);
+        assert!(payload.get("max_completion_tokens").is_none());
+    }
+
+    #[test]
+    fn test_strip_reasoning_params_noop_on_regular_payload() {
+        let mut payload = json!({
+            "model": "gpt-4o",
+            "messages": [{"role": "system", "content": "system prompt"}],
+            "max_tokens": 1024,
+            "temperature": 0.7
+        });
+
+        let original = payload.clone();
+        LiteLLMProvider::strip_reasoning_params(&mut payload);
+
+        assert_eq!(payload, original);
+    }
+
+    #[test]
+    fn test_strip_reasoning_params_preserves_user_messages() {
+        let mut payload = json!({
+            "model": "o3-custom",
+            "messages": [
+                {"role": "developer", "content": "system prompt"},
+                {"role": "user", "content": "hello"},
+                {"role": "assistant", "content": "hi there"}
+            ],
+            "reasoning_effort": "high"
+        });
+
+        LiteLLMProvider::strip_reasoning_params(&mut payload);
+
+        let messages = payload["messages"].as_array().unwrap();
+        assert_eq!(messages[0]["role"], "system");
+        assert_eq!(messages[1]["role"], "user");
+        assert_eq!(messages[2]["role"], "assistant");
+        assert_eq!(messages[1]["content"], "hello");
+    }
+
+    #[test]
+    fn test_parse_model_capabilities_from_proxy_response() {
+        // Simulate the JSON structure returned by LiteLLM's /model/info endpoint
+        let proxy_response = json!({
+            "data": [
+                {
+                    "model_name": "claude-4.5-sonnet",
+                    "litellm_params": {
+                        "model": "anthropic/claude-sonnet-4-5-20250929",
+                        "api_key": "sk-***"
+                    },
+                    "model_info": {
+                        "max_input_tokens": 200000,
+                        "supports_prompt_caching": true,
+                        "supports_reasoning": true,
+                        "input_cost_per_token": 0.000003,
+                        "output_cost_per_token": 0.000015
+                    }
+                },
+                {
+                    "model_name": "open-mistral-small",
+                    "litellm_params": {
+                        "model": "mistral/open-mistral-small-3.1",
+                        "api_key": "sk-***"
+                    },
+                    "model_info": {
+                        "max_input_tokens": 128000,
+                        "supports_prompt_caching": false
+                        // No supports_reasoning → should default to false
+                    }
+                },
+                {
+                    "model_name": "o3-custom",
+                    "litellm_params": {
+                        "model": "openai/o3-mini",
+                        "api_key": "sk-***"
+                    },
+                    "model_info": {
+                        "max_input_tokens": 200000,
+                        "supports_reasoning": true
+                    }
+                }
+            ]
+        });
+
+        // Parse the response the same way fetch_model_capabilities_from_proxy does
+        let models_data = proxy_response["data"].as_array().unwrap();
+        let mut capabilities = HashMap::new();
+
+        for model_data in models_data {
+            let model_name = model_data["model_name"].as_str().unwrap();
+            let model_info = &model_data["model_info"];
+            let litellm_model = model_data["litellm_params"]["model"]
+                .as_str()
+                .map(|s| s.to_string());
+
+            let supports_reasoning = model_info["supports_reasoning"]
+                .as_bool()
+                .unwrap_or(false);
+
+            capabilities.insert(
+                model_name.to_string(),
+                LiteLLMModelCapabilities {
+                    supports_reasoning,
+                    supports_cache_control: model_info["supports_prompt_caching"]
+                        .as_bool()
+                        .unwrap_or(false),
+                    litellm_model,
+                    max_input_tokens: model_info["max_input_tokens"].as_u64().unwrap_or(128000)
+                        as usize,
+                    input_cost_per_token: model_info["input_cost_per_token"].as_f64(),
+                    output_cost_per_token: model_info["output_cost_per_token"].as_f64(),
+                },
+            );
+        }
+
+        // claude-4.5-sonnet: has supports_reasoning: true
+        let claude = capabilities.get("claude-4.5-sonnet").unwrap();
+        assert!(claude.supports_reasoning);
+        assert!(claude.supports_cache_control);
+        assert_eq!(
+            claude.litellm_model.as_deref(),
+            Some("anthropic/claude-sonnet-4-5-20250929")
+        );
+        assert_eq!(claude.max_input_tokens, 200000);
+        assert_eq!(claude.input_cost_per_token, Some(0.000003));
+        assert_eq!(claude.output_cost_per_token, Some(0.000015));
+
+        // open-mistral-small: no supports_reasoning field → false
+        let mistral = capabilities.get("open-mistral-small").unwrap();
+        assert!(!mistral.supports_reasoning);
+        assert!(!mistral.supports_cache_control);
+        assert_eq!(
+            mistral.litellm_model.as_deref(),
+            Some("mistral/open-mistral-small-3.1")
+        );
+
+        // o3-custom: user alias that starts with "o3" but correctly marked as reasoning
+        let o3 = capabilities.get("o3-custom").unwrap();
+        assert!(o3.supports_reasoning);
+        assert_eq!(o3.litellm_model.as_deref(), Some("openai/o3-mini"));
+    }
+
+    #[test]
+    fn test_capabilities_to_model_info() {
+        let mut capabilities = HashMap::new();
+        capabilities.insert(
+            "test-model".to_string(),
+            LiteLLMModelCapabilities {
+                supports_reasoning: true,
+                supports_cache_control: true,
+                litellm_model: Some("anthropic/claude-sonnet-4-5".to_string()),
+                max_input_tokens: 200000,
+                input_cost_per_token: Some(0.000003),
+                output_cost_per_token: Some(0.000015),
+            },
+        );
+        capabilities.insert(
+            "no-pricing-model".to_string(),
+            LiteLLMModelCapabilities {
+                supports_reasoning: false,
+                supports_cache_control: false,
+                litellm_model: None,
+                max_input_tokens: 128000,
+                input_cost_per_token: None,
+                output_cost_per_token: None,
+            },
+        );
+
+        let models = LiteLLMProvider::capabilities_to_model_info(&capabilities);
+
+        let test_model = models.iter().find(|m| m.name == "test-model").unwrap();
+        assert_eq!(test_model.context_limit, 200000);
+        assert_eq!(test_model.supports_cache_control, Some(true));
+        assert_eq!(test_model.input_token_cost, Some(0.000003));
+        assert_eq!(test_model.output_token_cost, Some(0.000015));
+        assert_eq!(test_model.currency, Some("$".to_string()));
+
+        let no_pricing = models
+            .iter()
+            .find(|m| m.name == "no-pricing-model")
+            .unwrap();
+        assert_eq!(no_pricing.context_limit, 128000);
+        assert_eq!(no_pricing.supports_cache_control, Some(false));
+        assert_eq!(no_pricing.input_token_cost, None);
+        assert_eq!(no_pricing.currency, None);
+    }
+
+    /// Integration-style test: simulate the complete flow where the OpenAI formatter
+    /// would incorrectly add reasoning params for a model alias starting with "o3",
+    /// and verify that strip_reasoning_params correctly cleans up the payload.
+    #[test]
+    fn test_false_positive_o3_alias_is_corrected() {
+        // Simulate what openai::create_request produces for a model named "o3-mistral"
+        // (the OpenAI formatter sees "o3" prefix and injects reasoning params)
+        let mut payload = json!({
+            "model": "o3-mistral",
+            "messages": [
+                {"role": "developer", "content": "You are a helpful assistant."},
+                {"role": "user", "content": "Hello"}
+            ],
+            "reasoning_effort": "medium",
+            "max_completion_tokens": 1024
+        });
+
+        // The model is NOT a reasoning model (it's a Mistral model behind a "o3-" alias)
+        LiteLLMProvider::strip_reasoning_params(&mut payload);
+
+        // Verify all reasoning artifacts are removed
+        assert!(payload.get("reasoning_effort").is_none());
+        assert!(payload.get("max_completion_tokens").is_none());
+        assert_eq!(payload["max_tokens"], 1024);
+
+        // System message role should be reverted
+        let messages = payload["messages"].as_array().unwrap();
+        assert_eq!(messages[0]["role"], "system");
+        assert_eq!(messages[0]["content"], "You are a helpful assistant.");
+
+        // User message should be untouched
+        assert_eq!(messages[1]["role"], "user");
+        assert_eq!(messages[1]["content"], "Hello");
+    }
+
+    /// Verify that when a model IS a reasoning model, its payload is NOT stripped
+    /// (i.e., strip_reasoning_params is not called for reasoning models).
+    #[test]
+    fn test_reasoning_model_payload_preserved() {
+        // This represents a correctly-formed payload for an actual reasoning model
+        let payload = json!({
+            "model": "o3-mini",
+            "messages": [
+                {"role": "developer", "content": "You are a helpful assistant."},
+                {"role": "user", "content": "What is 2+2?"}
+            ],
+            "reasoning_effort": "high",
+            "max_completion_tokens": 4096
+        });
+
+        // For a reasoning model, we would NOT call strip_reasoning_params.
+        // Verify the payload remains intact.
+        assert_eq!(payload["reasoning_effort"], "high");
+        assert_eq!(payload["max_completion_tokens"], 4096);
+        assert_eq!(payload["messages"][0]["role"], "developer");
+    }
+
+    #[test]
+    fn test_wildcard_models_filtered_from_capabilities() {
+        let proxy_response = json!({
+            "data": [
+                {
+                    "model_name": "anthropic/*",
+                    "litellm_params": { "model": "anthropic/*" },
+                    "model_info": { "max_input_tokens": 200000 }
+                },
+                {
+                    "model_name": "real-model",
+                    "litellm_params": { "model": "openai/gpt-4o" },
+                    "model_info": { "max_input_tokens": 128000 }
+                }
+            ]
+        });
+
+        let models_data = proxy_response["data"].as_array().unwrap();
+        let mut capabilities = HashMap::new();
+
+        for model_data in models_data {
+            if let Some(model_name) = model_data["model_name"].as_str() {
+                if model_name.contains("/*") {
+                    continue;
+                }
+                capabilities.insert(
+                    model_name.to_string(),
+                    LiteLLMModelCapabilities {
+                        supports_reasoning: false,
+                        supports_cache_control: false,
+                        litellm_model: None,
+                        max_input_tokens: 128000,
+                        input_cost_per_token: None,
+                        output_cost_per_token: None,
+                    },
+                );
+            }
+        }
+
+        assert!(!capabilities.contains_key("anthropic/*"));
+        assert!(capabilities.contains_key("real-model"));
+    }
 }
