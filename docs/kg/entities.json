@@ -15838,5 +15838,158 @@
       "Components: AnalyticsDashboard, AnalyticsView, EvaluateView, MonitoringView, AgentCatalog, DatasetsTab, EvalOverviewTab, EvalRunner, LiveMonitoringTab, ResponseQualityTab, RoutingInspector, RunComparisonView, RunHistoryTab, SankeyDiagram, ToolAnalyticsTab, TopicsTab",
       "All migrated to semantic design tokens as of 2026-02-17"
     ]
+  },
+  {
+    "name": "ProtoJSON_ADR001",
+    "entityType": "Decision",
+    "observations": [
+      "ADR-001 mandates ProtoJSON SCREAMING_SNAKE_CASE for enum serialization in A2A JSON wire format",
+      "Source: /home/jmercier/codes/A2A/adrs/adr-001-protojson-serialization.md",
+      "Accepted 2025-11-18, affects all JSON-RPC and REST bindings",
+      "TaskState serializes as TASK_STATE_WORKING, Role as ROLE_USER",
+      "Confidence: 1.0 \u2014 normative spec requirement"
+    ]
+  },
+  {
+    "name": "LenientDeserialization",
+    "entityType": "Decision",
+    "observations": [
+      "Our A2A crate accepts both SCREAMING_SNAKE_CASE (spec) and lowercase (legacy JS SDK) during deserialization",
+      "Always serializes to spec-compliant SCREAMING_SNAKE_CASE format",
+      "Rationale: Spec Appendix A migration timeline allows both through 0.5.x",
+      "JS SDK v0.3.10 uses lowercase \u2014 our lenient deser ensures interop",
+      "Implementation: custom Deserialize impl in crates/a2a/src/types/core.rs",
+      "Confidence: 0.95 \u2014 pragmatic interop decision"
+    ]
+  },
+  {
+    "name": "DispatcherTrait",
+    "entityType": "Component",
+    "observations": [
+      "Trait-based dispatcher bridging orchestrator routing to execution backends",
+      "Located at: crates/goose/src/agents/dispatch.rs",
+      "Three implementations: InProcessDispatcher, A2ADispatcher, CompositeDispatcher",
+      "CompositeDispatcher routes based on DelegationStrategy per sub-task",
+      "Uses tokio::sync::broadcast for DispatchEvent observability",
+      "Commit: c0f3124c",
+      "Confidence: 0.92 \u2014 tested but not yet wired into production compound execution"
+    ]
+  },
+  {
+    "name": "AgentCatalogEndpoint",
+    "entityType": "Interface",
+    "observations": [
+      "GET /agents/catalog \u2014 unified endpoint merging builtin + external ACP + A2A pool agents",
+      "Located at: crates/goose-server/src/routes/agent_management.rs",
+      "Returns CatalogAgent objects with kind, status, modes",
+      "CatalogAgentKind: Builtin, External, A2a",
+      "OpenAPI types registered, frontend SDK generated",
+      "Commit: e8a3ba9b",
+      "Confidence: 0.95"
+    ]
+  },
+  {
+    "name": "ObservatoryEndpoints",
+    "entityType": "Interface",
+    "observations": [
+      "Three endpoints: GET /observatory/dashboard, /active-agents, /health",
+      "Located at: crates/goose-server/src/routes/observatory.rs",
+      "Dashboard combines SystemHealth + ActiveAgents + PerformanceSnapshot",
+      "Uses OrchestratorAgent slots for builtin agents, AgentPool for A2A instances",
+      "Uses ToolAnalyticsStore for performance metrics (24h window)",
+      "OpenAPI types registered, frontend SDK generated",
+      "Commit: 798c9a4d",
+      "Confidence: 0.93"
+    ]
+  },
+  {
+    "name": "SlotDelegation",
+    "entityType": "Component",
+    "observations": [
+      "Per-agent delegation strategy enum: InProcess, ExternalAcp, RemoteA2A { url }",
+      "Located at: crates/goose-server/src/agent_slot_registry.rs",
+      "Stored in AgentSlotRegistry alongside enabled_agents and bound_extensions",
+      "Set during connect_agent (ACP) and future A2A registration",
+      "Currently #[allow(dead_code)] \u2014 tested but not wired into dispatch",
+      "Commit: 48187229",
+      "Confidence: 0.88"
+    ]
+  },
+  {
+    "name": "CompoundExecutionFanout",
+    "entityType": "Component",
+    "observations": [
+      "Sequential sub-task execution in reply.rs when OrchestratorPlan.is_compound == true",
+      "Each sub-task gets separate apply_routing() call with its own agent config",
+      "Results aggregated via aggregate_results() into single response",
+      "Currently InProcess only \u2014 A2A dispatch not yet wired",
+      "Located at: crates/goose-server/src/routes/reply.rs (lines ~418-470)",
+      "Commit: 0518fbfb",
+      "Confidence: 0.90"
+    ]
+  },
+  {
+    "name": "DynamicSlotSync",
+    "entityType": "Component",
+    "observations": [
+      "reply.rs syncs AgentSlotRegistry state to OrchestratorAgent slots on each request",
+      "Was hardcoded to ['Goose Agent', 'Developer Agent'], now uses all_agent_names()",
+      "Syncs enabled/disabled status and bound extensions per agent",
+      "Located at: crates/goose-server/src/routes/reply.rs (lines ~340-355)",
+      "Commit: 06eb3fea",
+      "Confidence: 0.95"
+    ]
+  },
+  {
+    "name": "PerAgentExtensionScoping",
+    "entityType": "Finding",
+    "observations": [
+      "Per-agent extension scoping was ALREADY fully implemented before this session",
+      "Chain: AgentSlotRegistry.bind_extension() -> reply.rs sync -> OrchestratorAgent slots -> apply_routing() -> agent.set_allowed_extensions() -> prepare_tools_and_prompt() filters tools",
+      "Tool filtering happens in reply_parts.rs:204-213 using allowed_extensions list",
+      "The only gap was hardcoded agent names in sync loop \u2014 fixed in 06eb3fea",
+      "Confidence: 0.97 \u2014 verified by code trace"
+    ]
+  },
+  {
+    "name": "A2AJsSdkNonCompliance",
+    "entityType": "Finding",
+    "observations": [
+      "Official a2a-js SDK v0.3.10 is non-compliant with A2A spec ADR-001",
+      "Uses lowercase enums: 'working', 'user' instead of TASK_STATE_WORKING, ROLE_USER",
+      "Uses slash-style methods: 'message/send' instead of SendMessage",
+      "Missing error codes: -32008 (ExtensionSupportRequired), -32009 (VersionNotSupported)",
+      "Types auto-generated from non-normative JSON Schema, not from proto",
+      "Source: /home/jmercier/codes/a2a-js/src/types.ts",
+      "Confidence: 1.0 \u2014 verified by direct code inspection"
+    ]
+  },
+  {
+    "name": "DualIdentityProposal",
+    "entityType": "Decision",
+    "observations": [
+      "Proposal: agents get persistent IDs, tasks assigned to agent kinds, dual agent+user ID",
+      "User ID never hidden by agent ID for traceability",
+      "Phase 1: Guest user + AgentIdentity struct (~2-3 days, low risk)",
+      "Phase 2: OAuth/OIDC auth middleware (~1-2 weeks, medium risk)",
+      "Phase 3: SAML + enterprise SSO (~3-4 weeks, high risk)",
+      "A2A spec already has tenant field, SecurityScheme, context_id for this",
+      "Document: tmp/docs/proposal-dual-identity-agent-user.mdx",
+      "Status: draft, pending team discussion",
+      "Confidence: 0.85"
+    ]
+  },
+  {
+    "name": "PipelineModuleWIP",
+    "entityType": "Risk",
+    "observations": [
+      "pipeline.rs exists as untracked files in goose-server/routes/ and goose/src/",
+      "Frontend agent keeps re-enabling it, breaking the build",
+      "Missing: pub mod pipeline in goose/src/lib.rs",
+      "Missing: utoipa annotations on route handlers",
+      "mod.rs and openapi.rs references are COMMENTED OUT",
+      "Must be fixed by frontend agent before merge",
+      "Confidence: 1.0 \u2014 repeatedly observed during session"
+    ]
   }
 ]

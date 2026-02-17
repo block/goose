@@ -1,7 +1,7 @@
 {
-  "exported_at": "2026-02-17T18:54:55.243689",
-  "entity_count": 1554,
-  "relation_count": 2198,
+  "exported_at": "2026-02-17T20:56:54.462766",
+  "entity_count": 1566,
+  "relation_count": 2222,
   "format_version": "1.0",
   "branch": "feature/cli-via-goosed",
   "session_deliverables": [
@@ -10,6 +10,13 @@
     "Summon extension split (f681fd86)",
     "A2A spec compliance tests (2eff01c5)",
     "WorkspaceEventBus (75befcfd)",
-    "Desktop UI Polish & Generative UI Integration (665fd046)"
+    "Desktop UI Polish & Generative UI Integration (665fd046)",
+    "A2A Spec Alignment: ProtoJSON enums, PascalCase methods, error codes (78e1c408)",
+    "Dispatcher Trait: InProcess, A2A, Composite backends (c0f3124c)",
+    "Agent Catalog Endpoint: unified /agents/catalog (e8a3ba9b)",
+    "Compound Execution Fan-out in reply route (0518fbfb)",
+    "SlotDelegation per-agent strategy (48187229)",
+    "Observatory Dashboard Endpoints (798c9a4d)",
+    "Dynamic Agent Slot Sync + Pipeline Isolation (06eb3fea)"
   ]
 }

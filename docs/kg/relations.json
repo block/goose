@@ -10988,5 +10988,125 @@
     "from": "AnalyticsTokenMigration",
     "to": "SemanticDesignTokens",
     "relationType": "implements"
+  },
+  {
+    "from": "ProtoJSON_ADR001",
+    "to": "A2A Protocol",
+    "relationType": "constrains"
+  },
+  {
+    "from": "LenientDeserialization",
+    "to": "ProtoJSON_ADR001",
+    "relationType": "implements"
+  },
+  {
+    "from": "LenientDeserialization",
+    "to": "A2AJsSdkNonCompliance",
+    "relationType": "mitigates"
+  },
+  {
+    "from": "DispatcherTrait",
+    "to": "DelegationStrategy",
+    "relationType": "depends_on"
+  },
+  {
+    "from": "DispatcherTrait",
+    "to": "A2AClient",
+    "relationType": "depends_on"
+  },
+  {
+    "from": "DispatcherTrait",
+    "to": "AgentPool",
+    "relationType": "depends_on"
+  },
+  {
+    "from": "AgentCatalogEndpoint",
+    "to": "AgentSlotRegistry",
+    "relationType": "depends_on"
+  },
+  {
+    "from": "AgentCatalogEndpoint",
+    "to": "AgentPool",
+    "relationType": "depends_on"
+  },
+  {
+    "from": "AgentCatalogEndpoint",
+    "to": "OrchestratorAgent",
+    "relationType": "depends_on"
+  },
+  {
+    "from": "ObservatoryEndpoints",
+    "to": "ToolAnalyticsStore",
+    "relationType": "depends_on"
+  },
+  {
+    "from": "ObservatoryEndpoints",
+    "to": "AgentPool",
+    "relationType": "depends_on"
+  },
+  {
+    "from": "ObservatoryEndpoints",
+    "to": "OrchestratorAgent",
+    "relationType": "depends_on"
+  },
+  {
+    "from": "SlotDelegation",
+    "to": "AgentSlotRegistry",
+    "relationType": "belongs_to"
+  },
+  {
+    "from": "SlotDelegation",
+    "to": "DelegationStrategy",
+    "relationType": "mirrors"
+  },
+  {
+    "from": "CompoundExecutionFanout",
+    "to": "OrchestratorAgent",
+    "relationType": "depends_on"
+  },
+  {
+    "from": "CompoundExecutionFanout",
+    "to": "DispatcherTrait",
+    "relationType": "will_use"
+  },
+  {
+    "from": "DynamicSlotSync",
+    "to": "AgentSlotRegistry",
+    "relationType": "reads_from"
+  },
+  {
+    "from": "DynamicSlotSync",
+    "to": "OrchestratorAgent",
+    "relationType": "writes_to"
+  },
+  {
+    "from": "PerAgentExtensionScoping",
+    "to": "AgentSlotRegistry",
+    "relationType": "derived_from"
+  },
+  {
+    "from": "PerAgentExtensionScoping",
+    "to": "prepare_tools_and_prompt",
+    "relationType": "implemented_by"
+  },
+  {
+    "from": "DualIdentityProposal",
+    "to": "A2A Protocol",
+    "relationType": "extends"
+  },
+  {
+    "from": "DualIdentityProposal",
+    "to": "AgentPool",
+    "relationType": "affects"
+  },
+  {
+    "from": "PipelineModuleWIP",
+    "to": "goose-server",
+    "relationType": "affects"
+  },
+  {
+    "from": "A2AJsSdkNonCompliance",
+    "to": "ProtoJSON_ADR001",
+    "relationType": "violates"
   }
 ]

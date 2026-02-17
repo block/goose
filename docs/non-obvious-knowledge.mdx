@@ -1,155 +1,103 @@
-# Non-Obvious Knowledge — Goose Codebase
-
-Hard-won lessons from development that aren't obvious from reading the code.
-
+---
+title: "Non-Obvious Knowledge: Goose Multi-Agent Architecture"
+type: knowledge
+date: 2026-02-17
+updated: 2026-02-17T21:54:00Z
+confidence: 0.95
+tags: [a2a, architecture, gotchas, non-obvious]
 ---
 
-## UI / Electron
+# Non-Obvious Knowledge: Goose Multi-Agent Architecture
 
-### TooltipProvider Must NOT Wrap Individual Tooltips
-**File**: `ui/desktop/src/components/ui/Tooltip.tsx`
+## A2A Spec Compliance
 
-The `Tooltip` component must **not** create a new `<TooltipProvider>` per instance.
-The app already has a top-level provider via `SidebarProvider` in `sidebar.tsx`.
+### 1. ProtoJSON is Normative, JSON Schema is NOT
+- The `a2a.proto` file is the **single source of truth** (spec §1.4)
+- The JSON Schema artifact (`a2a.json`) is a **non-normative build artifact**
+- The official JS SDK (`a2a-js v0.3.10`) generates types from the JSON Schema and is **non-compliant** with ADR-001
+- Our Rust implementation is **more spec-compliant** than the official JS SDK
+- **Evidence**: `a2a-js/package.json` has `generate` script that curls `a2a.json` from GitHub
 
-Creating per-instance providers causes **infinite render loops** when the tooltip
-is inside a frequently-updating component (like `BaseChat` during message streaming):
-new context → child re-mount → state change → parent re-render → new context → ∞
+### 2. Enum Serialization: SCREAMING_SNAKE_CASE Required
+- Per ADR-001 and spec §5.5: enums MUST serialize as `TASK_STATE_WORKING`, `ROLE_USER`
+- The JS SDK uses `"working"`, `"user"` — this is **spec-non-compliant**
+- We implement **lenient deserialization**: accept both formats, always serialize to spec format
+- **Migration timeline** (spec Appendix A): 0.3.x new names alongside legacy, 0.4.x deprecated, ≥0.5.0 removed
 
-**Exception**: Components portaled outside the React tree (e.g., `react-toastify` toasts)
-need their own explicit `<TooltipProvider>` since they don't inherit from the app tree.
+### 3. JSON-RPC Method Names: PascalCase Required
+- Spec §9.4 mandates: `SendMessage`, `GetTask`, `CancelTask` (PascalCase)
+- JS SDK uses: `"message/send"`, `"tasks/get"` (slash-style) — also **non-compliant**
+- We accept both PascalCase and legacy slash-style in our handler
 
-Files with explicit `TooltipProvider`: `SessionListView.tsx`, `DirSwitcher.tsx`,
-`TooltipWrapper.tsx`, `toasts.tsx`.
+### 4. A2A Error Codes Range: -32001 to -32009
+- Spec defines 9 A2A-specific error codes (separate from standard JSON-RPC -327xx codes)
+- Our implementation has all 9; the JS SDK only has 7 (missing -32008 and -32009)
 
-### Recharts Tooltip ≠ Radix Tooltip
-`generative-registry.tsx` uses `<Tooltip>` from **Recharts** (charting library),
-not our Radix-based `Tooltip.tsx`. They share the name but are unrelated components.
+## Architecture Gotchas
 
-### Prompt Bar Overlap
-`<Outlet/>` in `AppLayout.tsx` needs bottom padding (`pb-20`) because the `PromptBar`
-uses `fixed bottom-0 z-50` positioning. Without padding, chat content scrolls behind
-the input bar and becomes unreadable.
+### 5. AgentPool Uses session_id as instance_id
+- `AgentPool::spawn()` creates a session and uses the session ID as the pool instance ID
+- This means agent "instances" are really sessions — there's no persistent agent identity
+- Relevant for the dual identity proposal: agent IDs need a separate lifecycle from sessions
 
-### MarkdownContent Test Drift
-`MarkdownContent.test.tsx` line 389 expects `prose-a:break-all` but the component
-uses `prose-a:break-words`. Pre-existing — update the test if touching that file.
+### 6. OrchestratorAgent Needs a Provider But Often Doesn't Use It
+- `OrchestratorAgent::new(provider)` takes `Arc<Mutex<Option<Provider>>>`
+- For slot enumeration and routing, the provider is never called
+- In observatory.rs, we pass `Arc::new(Mutex::new(None))` as a dummy provider
+- Consider splitting OrchestratorAgent into RoutingCatalog (no provider) + PlanExecutor (needs provider)
 
-### electron-devtools-installer
-React DevTools are installed via `electron-devtools-installer` package (not manual
-Chrome extension path lookup). Only runs in dev mode: `if (!app.isPackaged)`.
+### 7. Per-Agent Extension Scoping is Already Fully Wired
+- The chain: `AgentSlotRegistry.bind_extension()` → `reply.rs` syncs to OrchestratorAgent slots → `apply_routing()` reads `slot.bound_extensions` → `agent.set_allowed_extensions()` → `prepare_tools_and_prompt()` filters tools (reply_parts.rs:204-213)
+- **No additional code needed** — just use `bind_extension`/`unbind_extension` endpoints
+- The reply.rs sync loop was hardcoded to `["Goose Agent", "Developer Agent"]` — now uses dynamic `all_agent_names()`
 
----
+### 8. Pipeline Module is Frontend Agent WIP — DO NOT Enable
+- `crates/goose-server/src/routes/pipeline.rs` and `crates/goose/src/pipeline.rs` are untracked
+- They reference `goose::pipeline` which doesn't exist in `lib.rs` yet
+- The module declarations and OpenAPI refs in `mod.rs` and `openapi.rs` are **commented out**
+- The frontend agent keeps re-enabling them — this breaks the build
+- **Fix**: The frontend agent needs to add `pub mod pipeline;` to `goose/src/lib.rs` AND add utoipa annotations to pipeline route handlers before uncommenting
 
-## Rust / Backend
+### 9. Provider::complete() Signature is Not What You Expect
+- `provider.complete(session_id, system, messages, tools)` takes `Option<&str>` for session_id
+- The `Message` type is `crate::conversation::message::Message`, NOT `a2a::types::core::Message`
+- The `Tool` type is `mcp_core::tool::Tool` from the MCP protocol
+- When building a Dispatcher, you must convert between A2A Messages and conversation Messages
 
-### SessionManager::new Takes PathBuf, Not Optional
-```rust
-SessionManager::new(path: PathBuf)  // correct
-SessionManager::new(None)           // WRONG - not optional, not async
-```
+### 10. The generate_schema Binary Must Be Rebuilt After openapi.rs Changes
+- `just generate-openapi` runs `cargo run -p goose-server --bin generate_schema`
+- If you only edit `openapi.rs` without rebuilding, the binary uses the **old** compiled schema
+- Always do `cargo build -p goose-server` first, THEN `just generate-openapi`
+- The TypeScript types won't appear in `types.gen.ts` until both steps complete
 
-### SessionType Has No Fork Variant
-`SessionType` enum: `User`, `Scheduled`, `Specialist`, `Hidden`, `Terminal`.
-No `Fork` or `Base` variant exists. For forked sessions, use `SessionType::User`.
+### 11. AgentSlotRegistry vs IntentRouter Slot Binding
+- `AgentSlotRegistry` (server-side, in `goose-server`) stores enabled/disabled + bound extensions + delegation strategy
+- `IntentRouter` (core, in `goose`) has its own `AgentSlot` with `bound_extensions`
+- These are **separate data stores** — `reply.rs` syncs from registry → router on each request
+- Changes to the registry don't take effect until the next reply request syncs them
 
-### ExtensionData API
-```rust
-// CORRECT: set_extension_state(name, version, value)
-session.set_extension_state("orchestrator", "1.0.0", &state)?;
+### 12. Compound Execution is Sequential, Not Parallel
+- When `OrchestratorPlan.is_compound == true` with multiple tasks, they execute **sequentially** in `reply.rs`
+- Each sub-task gets its own `apply_routing()` call, creating a separate agent config
+- Results are aggregated via `aggregate_results()` into a single response
+- **Phase 2 TODO**: Wire `CompositeDispatcher` for parallel AgentPool-based fan-out
 
-// WRONG: no insert() method
-session.insert("key", value);
-```
+### 13. SlotDelegation Enum is Allow(dead_code) — By Design
+- `SlotDelegation::RemoteA2A { url }` and `ExternalAcp` are defined but not yet wired into production dispatch
+- The `#[allow(dead_code)]` annotations are intentional — the types are tested and ready
+- The compound execution in reply.rs currently only does InProcess dispatch
+- Wiring A2A dispatch requires creating `A2AClient` from the slot's URL and using `A2ADispatcher`
 
-### create_session Takes 3 Args
-```rust
-session_manager.create_session(path, name, session_type)  // 3 args
-session_manager.create_session(path, name)                 // WRONG - 2 args
-```
+## A2A Spec Reference Quick-Hits
 
-### tempfile::TempDir Must Be Returned from Test Helpers
-SQLite databases backed by temp directories get deleted when `TempDir` drops.
-Test helper functions that create `SessionManager` must return the `TempDir`
-alongside the manager, or the DB disappears mid-test.
+### 14. REST Binding Exists But We Only Implement JSON-RPC
+- Spec §11 defines a full HTTP+JSON/REST binding: `POST /message:send`, `GET /tasks/{id}`
+- We only implement the JSON-RPC binding (§9)
+- The REST binding uses RFC 9457 Problem Details for errors, SSE for streaming
+- **Low priority**: JSON-RPC is sufficient for all current use cases
 
-```rust
-fn setup_test() -> (SessionManager, TempDir) {
-    let dir = TempDir::new().unwrap();
-    let mgr = SessionManager::new(dir.path().to_path_buf());
-    (mgr, dir)  // dir must live as long as mgr
-}
-```
-
-### Clippy Preferences
-- Use `is_none_or(|x| ...)` instead of `map_or(true, |x| ...)`
-- Use `while let Some(x) = iter.next()` instead of `loop { match iter.next() { ... } }`
-- `is_multiple_of` is nightly-only — use `x % n == 0` instead
-
-### Analytics Endpoints Return Defaults on Error
-`get_agent_performance()` and `get_response_quality()` in `analytics.rs` catch
-SQLite errors and return default metrics with a warning log, instead of 500s.
-This is intentional — fresh databases don't have the required schema/columns.
-
----
-
-## Custom Providers / Azure
-
-### Model Name Must Exactly Match Deployment Name
-For Azure-hosted Anthropic (or OpenAI), the `GOOSE_MODEL` in `config.yaml` must
-**exactly** match the `"name"` in the custom provider JSON `models` array, which
-must **exactly** match the Azure deployment name.
-
-```yaml
-# config.yaml
-GOOSE_MODEL: claude-opus-4-6    # hyphens ✓
-GOOSE_MODEL: claude-opus-4.6    # dots ✗ — Azure looks for deployment "claude-opus-4.6"
-```
-
-Error symptom: `The API deployment claude-opus-4.6 does not exist`
-
-### Hyphens in Env Var Names
-Custom provider configs can reference env vars with hyphens
-(`CUSTOM_CLAUDE-OPUS-4-6_API_KEY`). This is unusual — most shells don't support
-hyphens in env var names. Set it in `.env` or `secrets.yaml` instead.
-
----
-
-## Architecture
-
-### Persona = Class Definition, Agent = Runtime Instance
-- **Persona**: Data definition (system prompt, tool groups, temperature, description)
-- **Agent**: Runtime instance that executes with a persona's configuration
-- Multiple Agent instances can share the same Persona definition
-
-### God Files (Refactor Targets)
-| File | Lines | Notes |
-|------|-------|-------|
-| `agents/summon_extension.rs` | ~2212 | Partially split into `summon/` sub-modules |
-| `agents/extension_manager.rs` | ~2158 | Core extension lifecycle |
-| `agents/agent.rs` | ~2108 | Main agent runtime loop |
-
-### AgentPool Architecture
-- Each `AgentInstance` owns a `broadcast::Sender<PoolEvent>` for SSE
-- `run_pooled_agent()` creates Agent, configures provider/extensions, streams events
-- `SpawnConfig` supports `inherit_extensions` (clone from parent) and `exclude_extensions`
-- Backend routes: 6 REST + 1 SSE under `/a2a/instances/`
-- UI not yet built (tracked in goose4-sxqu)
-
-### A2A Wire Format
-- Uses `camelCase` for JSON serialization (serde `rename_all`)
-- `PartContent` uses `"type"` tag (not `"kind"`)
-- `TaskStatus.message` is `Option<Box<Message>>` (not `Option<Message>`)
-- `extensions` and `reference_task_ids` are `Vec<String>` (not `Option<Vec<String>>`)
-
----
-
-## Beads (Issue Tracking)
-
-### Current State (as of 2026-02-17)
-- 237 total, 234 closed, 3 open, 0 blocked
-- Open: `goose4-5jq` (DAG builder P2), `goose4-sxqu` (AgentPool UI P2), `goose4-uhbp` (extension scoping P3)
-
-### Branch
-- `feature/cli-via-goosed` — all multi-instance, A2A, workspace, orchestrator work
-- Latest commit: `5b22ffb7`
+### 15. A2A Spec Migration Timeline (Appendix A)
+- **0.3.x**: New names introduced alongside legacy names (WE ARE HERE)
+- **0.4.x**: Legacy names deprecated
+- **≥0.5.0**: Legacy names eligible for removal
+- Our lenient deserialization handles both — safe through 0.5.x
