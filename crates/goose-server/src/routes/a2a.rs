@@ -25,7 +25,7 @@ use a2a::types::agent_card::{
 };
 use a2a::types::core::{Artifact, Message, Part, PartContent, TaskState, TaskStatus};
 use a2a::types::events::{AgentExecutionEvent, TaskArtifactUpdateEvent, TaskStatusUpdateEvent};
-use axum::extract::{Path, State};
+use axum::extract::State;
 use axum::response::Json;
 use axum::Router;
 use futures::StreamExt;
@@ -58,7 +58,7 @@ pub fn routes(state: Arc<AppState>) -> Router {
     let list_personas = Router::new()
         .route(
             "/agents",
-            axum::routing::get(move |State(st): State<Arc<AppState>>| async move {
+            axum::routing::get(move |State(_): State<Arc<AppState>>| async move {
                 let cards = build_all_persona_cards();
                 let summary: Vec<PersonaSummary> = cards
                     .into_iter()
