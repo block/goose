@@ -169,7 +169,7 @@ pub async fn create_chat_window(
         format!("/?{}", url_parts.join("&"))
     };
 
-    tauri::WebviewWindowBuilder::new(&app, &label, tauri::WebviewUrl::App(url.into()))
+    let mut builder = tauri::WebviewWindowBuilder::new(&app, &label, tauri::WebviewUrl::App(url.into()))
         .title("Goose")
         .inner_size(750.0, 730.0)
         .min_inner_size(560.0, 600.0)
@@ -184,11 +184,72 @@ pub async fn create_chat_window(
             }
             let _ = open::that(s);
             false
-        })
-        .build()
+        });
+
+    #[cfg(target_os = "macos")]
+    {
+        builder = builder
+            .title_bar_style(tauri::TitleBarStyle::Transparent)
+            .hidden_title(true)
+            .traffic_light_position(tauri::LogicalPosition::new(20.0, 16.0));
+    }
+
+    builder.build()
         .map_err(|e| e.to_string())?;
 
     Ok(())
+}
+
+pub fn open_launcher_window(app: &tauri::AppHandle) -> Result<(), String> {
+    // Reuse existing launcher window if open
+    if let Some(window) = app.get_webview_window("launcher") {
+        let _ = window.set_focus();
+        return Ok(());
+    }
+
+    let width = 600.0;
+    let height = 80.0;
+
+    let mut builder = tauri::WebviewWindowBuilder::new(
+        app,
+        "launcher",
+        tauri::WebviewUrl::App("/".into()),
+    )
+    .initialization_script("window.location.hash = '#/launcher';")
+    .title("")
+    .inner_size(width, height)
+    .resizable(false)
+    .minimizable(false)
+    .maximizable(false)
+    .decorations(false)
+    .always_on_top(true)
+    .skip_taskbar(true);
+
+    #[cfg(target_os = "macos")]
+    {
+        builder = builder.transparent(true);
+    }
+
+    let window = builder.build().map_err(|e| e.to_string())?;
+
+    // Position: centered horizontally, upper third of screen
+    if let Ok(Some(monitor)) = window.current_monitor() {
+        let size = monitor.size();
+        let pos = monitor.position();
+        let scale = monitor.scale_factor();
+        let screen_w = size.width as f64 / scale;
+        let screen_h = size.height as f64 / scale;
+        let x = pos.x as f64 / scale + (screen_w - width) / 2.0;
+        let y = pos.y as f64 / scale + screen_h / 3.0 - height / 2.0;
+        let _ = window.set_position(tauri::Position::Logical(tauri::LogicalPosition::new(x, y)));
+    }
+
+    Ok(())
+}
+
+#[tauri::command]
+pub fn create_launcher_window(app: tauri::AppHandle) -> Result<(), String> {
+    open_launcher_window(&app)
 }
 
 fn urlencoding(s: &str) -> String {

@@ -14,7 +14,7 @@ pub struct PendingDeepLinks(pub Mutex<Vec<String>>);
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    tauri::Builder::default()
+    let app = tauri::Builder::default()
         // Plugins
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
@@ -176,21 +176,58 @@ pub fn run() {
             commands::set_menu_bar_icon,
             commands::get_menu_bar_icon_state,
             commands::set_tray_update_available,
+            commands::create_launcher_window,
         ])
         // Cleanup on exit
         .on_window_event(|window, event| {
             if let tauri::WindowEvent::Destroyed = event {
-                // Only cleanup goosed when the last window is destroyed
                 let app = window.app_handle();
                 let windows = app.webview_windows();
                 if windows.len() <= 1 {
+                    // On macOS, skip goosed cleanup if tray keeps the app alive
+                    #[cfg(target_os = "macos")]
+                    {
+                        let keep_alive = app
+                            .state::<settings::SettingsState>()
+                            .0
+                            .lock()
+                            .map(|s| s.show_menu_bar_icon)
+                            .unwrap_or(false);
+                        if keep_alive {
+                            return;
+                        }
+                    }
                     let state = app.state::<goosed::GoosedState>();
                     goosed::stop_goosed(&state);
                 }
             }
         })
-        .run(tauri::generate_context!())
-        .expect("error while running Goose");
+        .build(tauri::generate_context!())
+        .expect("error while building Goose");
+
+    app.run(|app_handle, event| {
+        match event {
+            tauri::RunEvent::ExitRequested { api, .. } => {
+                #[cfg(target_os = "macos")]
+                {
+                    let show_tray = app_handle
+                        .state::<settings::SettingsState>()
+                        .0
+                        .lock()
+                        .map(|s| s.show_menu_bar_icon)
+                        .unwrap_or(false);
+                    if show_tray {
+                        api.prevent_exit();
+                    }
+                }
+            }
+            tauri::RunEvent::Exit => {
+                let state = app_handle.state::<goosed::GoosedState>();
+                goosed::stop_goosed(&state);
+            }
+            _ => {}
+        }
+    });
 }
 
 fn setup_global_shortcuts(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
@@ -225,10 +262,8 @@ fn setup_global_shortcuts(app: &tauri::App) -> Result<(), Box<dyn std::error::Er
     if let Some(ref launcher_shortcut) = shortcuts.quick_launcher {
         let app_handle2 = app.handle().clone();
         if let Err(e) = app.global_shortcut().on_shortcut(launcher_shortcut.as_str(), move |_app, _shortcut, _event| {
-            if let Some(window) = app_handle2.get_webview_window("main") {
-                let _ = window.show();
-                let _ = window.set_focus();
-                let _ = window.emit("quick-launcher", ());
+            if let Err(e) = commands::open_launcher_window(&app_handle2) {
+                log::warn!("Failed to open launcher window: {}", e);
             }
         }) {
             log::warn!("Failed to register launcher shortcut '{}': {}", launcher_shortcut, e);
