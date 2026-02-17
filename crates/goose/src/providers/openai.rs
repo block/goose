@@ -2,9 +2,10 @@ use super::api_client::{ApiClient, AuthMethod};
 use super::base::{ConfigKey, ModelInfo, Provider, ProviderDef, ProviderMetadata};
 use super::embedding::{EmbeddingCapable, EmbeddingRequest, EmbeddingResponse};
 use super::errors::ProviderError;
-use super::formats::openai::create_request;
+use super::formats::openai::{create_request, get_usage, response_to_message};
 use super::formats::openai_responses::{
-    create_responses_request, responses_api_to_streaming_message,
+    create_responses_request, get_responses_usage, responses_api_to_message,
+    responses_api_to_streaming_message, ResponsesApiResponse,
 };
 use super::openai_compatible::{
     handle_response_openai_compat, handle_status_openai_compat, stream_openai_compat,
@@ -304,7 +305,7 @@ impl Provider for OpenAiProvider {
     ) -> Result<MessageStream, ProviderError> {
         if Self::uses_responses_api(&model_config.model_name) {
             let mut payload = create_responses_request(model_config, system, messages, tools)?;
-            payload["stream"] = serde_json::Value::Bool(true);
+            payload["stream"] = serde_json::Value::Bool(self.supports_streaming);
 
             let mut log = RequestLog::start(model_config, &payload)?;
 
@@ -322,20 +323,41 @@ impl Provider for OpenAiProvider {
                     let _ = log.error(e);
                 })?;
 
-            let stream = response.bytes_stream().map_err(io::Error::other);
+            if self.supports_streaming {
+                let stream = response.bytes_stream().map_err(io::Error::other);
 
-            Ok(Box::pin(try_stream! {
-                let stream_reader = StreamReader::new(stream);
-                let framed = FramedRead::new(stream_reader, LinesCodec::new()).map_err(anyhow::Error::from);
+                Ok(Box::pin(try_stream! {
+                    let stream_reader = StreamReader::new(stream);
+                    let framed = FramedRead::new(stream_reader, LinesCodec::new()).map_err(anyhow::Error::from);
 
-                let message_stream = responses_api_to_streaming_message(framed);
-                pin!(message_stream);
-                while let Some(message) = message_stream.next().await {
-                    let (message, usage) = message.map_err(|e| ProviderError::RequestFailed(format!("Stream decode error: {}", e)))?;
-                    log.write(&message, usage.as_ref().map(|f| f.usage).as_ref())?;
-                    yield (message, usage);
-                }
-            }))
+                    let message_stream = responses_api_to_streaming_message(framed);
+                    pin!(message_stream);
+                    while let Some(message) = message_stream.next().await {
+                        let (message, usage) = message.map_err(|e| ProviderError::RequestFailed(format!("Stream decode error: {}", e)))?;
+                        log.write(&message, usage.as_ref().map(|f| f.usage).as_ref())?;
+                        yield (message, usage);
+                    }
+                }))
+            } else {
+                let json: serde_json::Value = response.json().await
+                    .map_err(|e| ProviderError::RequestFailed(format!("Failed to parse JSON: {}", e)))?;
+
+                let responses_api_response: ResponsesApiResponse =
+                    serde_json::from_value(json.clone()).map_err(|e| {
+                        ProviderError::ExecutionError(format!(
+                            "Failed to parse responses API response: {}",
+                            e
+                        ))
+                    })?;
+
+                let message = responses_api_to_message(&responses_api_response)?;
+                let usage_data = get_responses_usage(&responses_api_response);
+                let usage = super::base::ProviderUsage::new(model_config.model_name.clone(), usage_data);
+
+                log.write(&serde_json::to_value(&message).unwrap_or_default(), Some(&usage_data))?;
+
+                Ok(super::base::stream_from_single_message(message, usage))
+            }
         } else {
             let payload = create_request(
                 model_config,
@@ -343,7 +365,7 @@ impl Provider for OpenAiProvider {
                 messages,
                 tools,
                 &ImageFormat::OpenAi,
-                true,
+                self.supports_streaming,
             )?;
             let mut log = RequestLog::start(model_config, &payload)?;
 
@@ -360,7 +382,22 @@ impl Provider for OpenAiProvider {
                     let _ = log.error(e);
                 })?;
 
-            stream_openai_compat(response, log)
+            if self.supports_streaming {
+                stream_openai_compat(response, log)
+            } else {
+                let json: serde_json::Value = response.json().await
+                    .map_err(|e| ProviderError::RequestFailed(format!("Failed to parse JSON: {}", e)))?;
+
+                let message = response_to_message(&json)
+                    .map_err(|e| ProviderError::RequestFailed(format!("Failed to parse message: {}", e)))?;
+
+                let usage_data = get_usage(json.get("usage").unwrap_or(&serde_json::Value::Null));
+                let usage = super::base::ProviderUsage::new(model_config.model_name.clone(), usage_data);
+
+                log.write(&serde_json::to_value(&message).unwrap_or_default(), Some(&usage_data))?;
+
+                Ok(super::base::stream_from_single_message(message, usage))
+            }
         }
     }
 }

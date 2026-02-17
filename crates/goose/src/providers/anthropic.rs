@@ -104,10 +104,19 @@ impl AnthropicProvider {
             api_client = api_client.with_headers(header_map)?;
         }
 
+        let supports_streaming = config.supports_streaming.unwrap_or(true);
+
+        if !supports_streaming {
+            return Err(anyhow::anyhow!(
+                "Anthropic provider does not support non-streaming mode. All Claude models support streaming. \
+                Please remove 'supports_streaming: false' from your provider configuration."
+            ));
+        }
+
         Ok(Self {
             api_client,
             model,
-            supports_streaming: config.supports_streaming.unwrap_or(true),
+            supports_streaming,
             name: config.name.clone(),
         })
     }
