@@ -131,11 +131,30 @@ pub async fn start_goosed(
         if ext.enabled && !ext.url.is_empty() {
             let url = ext.url.trim_end_matches('/').to_string();
             log::info!("Using external goosed backend at {}", url);
-            *state.base_url.lock().unwrap() = Some(url.clone());
-            if !ext.secret.is_empty() {
-                *state.secret_key.lock().unwrap() = ext.secret.clone();
+
+            // Verify connectivity before accepting external backend
+            let client = reqwest::Client::new();
+            let status_url = format!("{}/status", url);
+            match tokio::time::timeout(
+                std::time::Duration::from_secs(5),
+                client.get(&status_url).send(),
+            )
+            .await
+            {
+                Ok(Ok(resp)) if resp.status().is_success() => {
+                    *state.base_url.lock().unwrap() = Some(url.clone());
+                    if !ext.secret.is_empty() {
+                        *state.secret_key.lock().unwrap() = ext.secret.clone();
+                    }
+                    return Ok(url);
+                }
+                _ => {
+                    return Err(format!(
+                        "Could not connect to external backend at {}",
+                        url
+                    ));
+                }
             }
-            return Ok(url);
         }
     }
 
