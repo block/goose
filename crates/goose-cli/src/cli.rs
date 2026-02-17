@@ -710,7 +710,7 @@ enum Command {
             short,
             long,
             help = "Resume a previous session (last used or specified by --name/--session-id)",
-            long_help = "Continue from a previous session. If --name or --session-id is provided, resumes that specific session. Otherwise resumes the most recently used session."
+            long_help = "Continue from a previous session. If --name or --session-id is provided, resumes that specific session. Otherwise, resumes the most recently used session."
         )]
         resume: bool,
 
@@ -719,7 +719,7 @@ enum Command {
             long,
             requires = "resume",
             help = "Fork a previous session (creates new session with copied history)",
-            long_help = "Create a new session by copying all messages from a previous session. Must be used with --resume. If --name or --session-id is provided, forks that specific session. Otherwise forks the most recently used session."
+            long_help = "Create a new session by copying all messages from a previous session. Must be used with --resume. If --name or --session-id is provided, forks that specific session. Otherwise, forks the most recently used session."
         )]
         fork: bool,
 
@@ -1059,7 +1059,7 @@ async fn handle_interactive_session(
     };
 
     tracing::info!(
-        counter.goose.session_starts = 1,
+        monotonic_counter.goose.session_starts = 1,
         session_type,
         interactive = true,
         "Session started"
@@ -1136,7 +1136,7 @@ async fn log_session_completion(
         .unwrap_or((0, 0));
 
     tracing::info!(
-        counter.goose.session_completions = 1,
+        monotonic_counter.goose.session_completions = 1,
         session_type,
         exit_type,
         duration_ms = session_duration.as_millis() as u64,
@@ -1146,14 +1146,14 @@ async fn log_session_completion(
     );
 
     tracing::info!(
-        counter.goose.session_duration_ms = session_duration.as_millis() as u64,
+        monotonic_counter.goose.session_duration_ms = session_duration.as_millis() as u64,
         session_type,
         "Session duration"
     );
 
     if total_tokens > 0 {
         tracing::info!(
-            counter.goose.session_tokens = total_tokens,
+            monotonic_counter.goose.session_tokens = total_tokens,
             session_type,
             "Session tokens"
         );
@@ -1236,7 +1236,7 @@ fn parse_run_input(
             }
 
             tracing::info!(
-                counter.goose.recipe_runs = 1,
+                monotonic_counter.goose.recipe_runs = 1,
                 recipe_name = %recipe_display_name,
                 recipe_version = %recipe_version,
                 session_type = "recipe",
@@ -1323,7 +1323,7 @@ async fn handle_run_command(
         let session_type = if recipe.is_some() { "recipe" } else { "run" };
 
         tracing::info!(
-            counter.goose.session_starts = 1,
+            monotonic_counter.goose.session_starts = 1,
             session_type,
             interactive = false,
             "Headless session started"
@@ -1437,7 +1437,7 @@ pub async fn cli() -> anyhow::Result<()> {
 
     let command_name = get_command_name(&cli.command);
     tracing::info!(
-        counter.goose.cli_commands = 1,
+        monotonic_counter.goose.cli_commands = 1,
         command = command_name,
         "CLI command executed"
     );

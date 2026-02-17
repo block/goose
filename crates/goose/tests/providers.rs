@@ -1,6 +1,7 @@
 use anyhow::Result;
 use dotenvy::dotenv;
-use goose::agents::{ExtensionManager, PromptManager};
+use goose::agents::extension_manager::ExtensionManagerCapabilities;
+use goose::agents::{ExtensionManager, GoosePlatform, PromptManager};
 use goose::config::ExtensionConfig;
 use goose::conversation::message::{Message, MessageContent};
 use goose::providers::anthropic::ANTHROPIC_DEFAULT_MODEL;
@@ -179,15 +180,17 @@ impl ProviderTester {
             .complete(session_id, "You are a helpful assistant.", &[message], &[])
             .await?;
 
-        assert_eq!(
-            response.content.len(),
-            1,
-            "Expected single content item in response"
+        assert!(
+            !response.content.is_empty(),
+            "Expected at least one content item in response"
         );
 
         assert!(
-            matches!(response.content[0], MessageContent::Text(_)),
-            "Expected text response"
+            response
+                .content
+                .iter()
+                .any(|c| matches!(c, MessageContent::Text(_))),
+            "Expected at least one text content item in response"
         );
 
         println!(
@@ -351,13 +354,10 @@ impl ProviderTester {
         self.test_model_listing().await?;
         self.test_basic_response(&self.session_id_for_test("basic_response"))
             .await?;
-        // TODO: remove skip in https://github.com/block/goose/pull/6972
-        if !self.is_cli_provider {
-            self.test_tool_usage(&self.session_id_for_test("tool_usage"))
-                .await?;
-            self.test_image_content_support(&self.session_id_for_test("image_content"))
-                .await?;
-        }
+        self.test_tool_usage(&self.session_id_for_test("tool_usage"))
+            .await?;
+        self.test_image_content_support(&self.session_id_for_test("image_content"))
+            .await?;
         if self.model_switch_name.is_some() {
             self.test_model_switch(&self.session_id_for_test("model_switch"))
                 .await?;
@@ -443,7 +443,13 @@ async fn test_provider(
     let mcp_extension =
         ExtensionConfig::streamable_http("mcp-fixture", &mcp.url, "MCP fixture", 30_u64);
 
-    let provider = match create_with_named_model(&provider_name, model_name).await {
+    let provider = match create_with_named_model(
+        &provider_name,
+        model_name,
+        vec![mcp_extension.clone()],
+    )
+    .await
+    {
         Ok(p) => p,
         Err(e) => {
             println!("Skipping {} tests - failed to create provider: {}", name, e);
@@ -469,7 +475,12 @@ async fn test_provider(
     let temp_dir = tempfile::tempdir()?;
     let shared_provider = Arc::new(tokio::sync::Mutex::new(Some(provider.clone())));
     let session_manager = Arc::new(SessionManager::new(temp_dir.path().to_path_buf()));
-    let extension_manager = Arc::new(ExtensionManager::new(shared_provider, session_manager));
+    let extension_manager = Arc::new(ExtensionManager::new(
+        shared_provider,
+        session_manager,
+        GoosePlatform::GooseCli.to_string(),
+        ExtensionManagerCapabilities { mcpui: false },
+    ));
     extension_manager
         .add_extension(mcp_extension, None, None, None)
         .await

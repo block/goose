@@ -16,10 +16,8 @@ use serde_json::Value;
 use std::sync::Arc;
 use tokio::sync::mpsc;
 use tokio_util::sync::CancellationToken;
-use tracing::error;
 
 pub static EXTENSION_NAME: &str = "Extension Manager";
-// pub static DISPLAY_NAME: &str = "Extension Manager";
 
 #[derive(Debug, thiserror::Error)]
 pub enum ExtensionManagerToolError {
@@ -31,9 +29,6 @@ pub enum ExtensionManagerToolError {
 
     #[error("Missing required parameter: {param_name}")]
     MissingParameter { param_name: String },
-
-    #[error("Invalid action: {action}. Must be 'enable' or 'disable'")]
-    InvalidAction { action: String },
 
     #[error("Extension operation failed: {message}")]
     OperationFailed { message: String },
@@ -85,11 +80,12 @@ impl ExtensionManagerClient {
         let info = InitializeResult {
             protocol_version: ProtocolVersion::V_2025_03_26,
             capabilities: ServerCapabilities {
-                tasks: None,
                 tools: Some(ToolsCapability {
                     list_changed: Some(false),
                 }),
+                tasks: None,
                 resources: None,
+                extensions: None,
                 prompts: None,
                 completions: None,
                 experimental: None,
@@ -97,6 +93,7 @@ impl ExtensionManagerClient {
             },
             server_info: Implementation {
                 name: EXTENSION_NAME.to_string(),
+                description: None,
                 title: Some(EXTENSION_NAME.to_string()),
                 version: "1.0.0".to_string(),
                 icons: None,
@@ -334,7 +331,6 @@ impl ExtensionManagerClient {
             }),
         ];
 
-        // Only add resource tools if extension manager supports resources
         if let Some(weak_ref) = &self.context.extension_manager {
             if let Some(extension_manager) = weak_ref.upgrade() {
                 if extension_manager.supports_resources().await {
@@ -452,18 +448,12 @@ impl McpClientTrait for ExtensionManagerClient {
 
         match result {
             Ok(content) => Ok(CallToolResult::success(content)),
-            Err(error) => {
-                // Log the error for debugging
-                error!("Extension manager tool '{}' failed: {}", name, error);
-
-                // Return proper error result with is_error flag set
-                Ok(CallToolResult {
-                    content: vec![Content::text(error.to_string())],
-                    is_error: Some(true), // ✅ Properly mark as error
-                    structured_content: None,
-                    meta: None,
-                })
-            }
+            Err(error) => Ok(CallToolResult {
+                content: vec![Content::text(error.to_string())],
+                is_error: Some(true),
+                structured_content: None,
+                meta: None,
+            }),
         }
     }
 

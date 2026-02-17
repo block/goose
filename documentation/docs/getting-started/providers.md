@@ -371,7 +371,7 @@ Custom providers must use OpenAI, Anthropic, or Ollama compatible API formats. T
        - **Display Name**: A friendly name for the provider
        - **API URL**: The base URL of the API endpoint
        - **Authentication**:
-         - **API Key**: The API key, which is accessed using a custom environment variable and stored in the keychain (or `secrets.yaml` if the keyring is disabled)
+         - **API Key**: The API key, which is accessed using a custom environment variable and stored in the keychain (or `secrets.yaml` if the keyring is disabled or cannot be accessed)
             - For providers that don't require authorization (e.g., local models like Ollama, vLLM, LM Studio, or internal APIs), uncheck the **"This provider requires an API key"** checkbox
        - **Available Models**: Comma-separated list of available model names
        - **Streaming Support**: Whether the API supports streaming responses (click to toggle)
@@ -430,7 +430,7 @@ Custom providers must use OpenAI, Anthropic, or Ollama compatible API formats. T
        - **Name**: A friendly name for the provider
        - **API URL**: The base URL of the API endpoint
        - **Authentication Required**: Answer "Yes" if your provider needs an API key, or "No" if authentication is not required
-         - If Yes: You'll be prompted to enter your **API Key** (stored securely in the keychain or `secrets.yaml`)
+         - If Yes: You'll be prompted to enter your **API Key** (stored securely in the keychain, or in `secrets.yaml` if the keyring is disabled or cannot be accessed)
          - If No: The API key prompt is skipped
        - **Available Models**: Comma-separated list of available model names
        - **Streaming Support**: Whether the API supports streaming responses
@@ -789,7 +789,7 @@ Here are some local providers we support:
           6. Enter the host where your model is running
 
           :::info Endpoint
-          For the Ollama provider, if you don't provide a host, we set it to `localhost:11434`. When constructing the URL, we preprend `http://` if the scheme is not `http` or `https`. Since Ramalama's default port to serve on is 8080, we set `OLLAMA_HOST=http://0.0.0.0:8080`
+          For the Ollama provider, if you don't provide a host, we set it to `localhost:11434`. When constructing the URL, we prepend `http://` if the scheme is not `http` or `https`. Since Ramalama's default port to serve on is 8080, we set `OLLAMA_HOST=http://0.0.0.0:8080`
           :::
 
           ```
