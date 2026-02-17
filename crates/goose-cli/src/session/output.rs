@@ -372,22 +372,11 @@ fn render_tool_response(resp: &ToolResponse, theme: Theme, debug: bool) {
 }
 
 fn is_shell_tool_name(name: &str) -> bool {
-    matches!(name, "shell" | "developer__shell")
+    matches!(name, "shell")
 }
 
 fn is_file_tool_name(name: &str) -> bool {
-    matches!(
-        name,
-        "read"
-            | "write"
-            | "edit"
-            | "developer__read"
-            | "developer__write"
-            | "developer__edit"
-            | "developer__file_write"
-            | "developer__file_edit"
-            | "developer__text_editor"
-    )
+    matches!(name, "read" | "write" | "edit")
 }
 
 pub fn render_error(message: &str) {

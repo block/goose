@@ -32,7 +32,11 @@ impl ReadTool {
     }
 
     pub fn read(&self, params: ReadParams) -> CallToolResult {
-        let path = resolve_path(&params.path);
+        self.read_with_cwd(params, None)
+    }
+
+    pub fn read_with_cwd(&self, params: ReadParams, working_dir: Option<&Path>) -> CallToolResult {
+        let path = resolve_path(&params.path, working_dir);
         if !path.exists() {
             return CallToolResult::error(vec![Content::text(format!(
                 "File not found: {}",
@@ -61,13 +65,15 @@ impl Default for ReadTool {
     }
 }
 
-fn resolve_path(path: &str) -> PathBuf {
+fn resolve_path(path: &str, working_dir: Option<&Path>) -> PathBuf {
     let path = PathBuf::from(path);
     if path.is_absolute() {
         path
     } else {
-        std::env::current_dir()
-            .unwrap_or_else(|_| PathBuf::from("."))
+        working_dir
+            .map(Path::to_path_buf)
+            .or_else(|| std::env::current_dir().ok())
+            .unwrap_or_else(|| PathBuf::from("."))
             .join(path)
     }
 }
@@ -441,5 +447,25 @@ mod tests {
         assert_eq!(result.is_error, Some(true));
         let text = extract_text(&result).unwrap();
         assert!(text.contains("binary file"));
+    }
+
+    #[test]
+    fn read_resolves_relative_paths_from_working_dir() {
+        let dir = tempfile::tempdir().unwrap();
+        fs::write(dir.path().join("nested.txt"), "from cwd").unwrap();
+
+        let tool = ReadTool::new();
+        let result = tool.read_with_cwd(
+            ReadParams {
+                path: "nested.txt".to_string(),
+                offset: None,
+                limit: None,
+            },
+            Some(dir.path()),
+        );
+
+        assert_eq!(result.is_error, Some(false));
+        let text = extract_text(&result).unwrap();
+        assert_eq!(text, "from cwd");
     }
 }

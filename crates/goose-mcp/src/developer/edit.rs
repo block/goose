@@ -1,5 +1,5 @@
 use std::fs;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use rmcp::model::{CallToolResult, Content};
 use schemars::JsonSchema;
@@ -28,7 +28,15 @@ impl EditTools {
     }
 
     pub fn file_write(&self, params: FileWriteParams) -> CallToolResult {
-        let path = Path::new(&params.path);
+        self.file_write_with_cwd(params, None)
+    }
+
+    pub fn file_write_with_cwd(
+        &self,
+        params: FileWriteParams,
+        working_dir: Option<&Path>,
+    ) -> CallToolResult {
+        let path = resolve_path(&params.path, working_dir);
 
         if let Some(parent) = path.parent() {
             if !parent.as_os_str().is_empty() && !parent.exists() {
@@ -61,9 +69,17 @@ impl EditTools {
     }
 
     pub fn file_edit(&self, params: FileEditParams) -> CallToolResult {
-        let path = Path::new(&params.path);
+        self.file_edit_with_cwd(params, None)
+    }
 
-        let content = match fs::read_to_string(path) {
+    pub fn file_edit_with_cwd(
+        &self,
+        params: FileEditParams,
+        working_dir: Option<&Path>,
+    ) -> CallToolResult {
+        let path = resolve_path(&params.path, working_dir);
+
+        let content = match fs::read_to_string(&path) {
             Ok(c) => c,
             Err(error) => {
                 return CallToolResult::error(vec![Content::text(format!(
@@ -89,7 +105,7 @@ impl EditTools {
             1 => {
                 let new_content = content.replacen(&params.before, &params.after, 1);
 
-                match fs::write(path, &new_content) {
+                match fs::write(&path, &new_content) {
                     Ok(()) => {
                         let old_lines = params.before.lines().count();
                         let new_lines = params.after.lines().count();
@@ -134,6 +150,19 @@ impl EditTools {
 impl Default for EditTools {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+fn resolve_path(path: &str, working_dir: Option<&Path>) -> PathBuf {
+    let path = PathBuf::from(path);
+    if path.is_absolute() {
+        path
+    } else {
+        working_dir
+            .map(Path::to_path_buf)
+            .or_else(|| std::env::current_dir().ok())
+            .unwrap_or_else(|| PathBuf::from("."))
+            .join(path)
     }
 }
 
@@ -326,5 +355,47 @@ mod tests {
 
         assert!(!result.is_error.unwrap_or(false));
         assert_eq!(fs::read_to_string(&path).unwrap(), "keep\nkeep");
+    }
+
+    #[test]
+    fn test_file_write_resolves_relative_paths_from_working_dir() {
+        let dir = setup();
+        let tools = EditTools::new();
+
+        let result = tools.file_write_with_cwd(
+            FileWriteParams {
+                path: "relative.txt".to_string(),
+                content: "relative write".to_string(),
+            },
+            Some(dir.path()),
+        );
+
+        assert!(!result.is_error.unwrap_or(false));
+        assert_eq!(
+            fs::read_to_string(dir.path().join("relative.txt")).unwrap(),
+            "relative write"
+        );
+    }
+
+    #[test]
+    fn test_file_edit_resolves_relative_paths_from_working_dir() {
+        let dir = setup();
+        fs::write(dir.path().join("relative-edit.txt"), "before").unwrap();
+        let tools = EditTools::new();
+
+        let result = tools.file_edit_with_cwd(
+            FileEditParams {
+                path: "relative-edit.txt".to_string(),
+                before: "before".to_string(),
+                after: "after".to_string(),
+            },
+            Some(dir.path()),
+        );
+
+        assert!(!result.is_error.unwrap_or(false));
+        assert_eq!(
+            fs::read_to_string(dir.path().join("relative-edit.txt")).unwrap(),
+            "after"
+        );
     }
 }

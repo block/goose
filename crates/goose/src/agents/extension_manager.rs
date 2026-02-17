@@ -200,28 +200,6 @@ fn is_unprefixed_extension(config: &ExtensionConfig) -> bool {
     }
 }
 
-fn normalize_platform_backed_builtin(config: ExtensionConfig) -> ExtensionConfig {
-    match config {
-        ExtensionConfig::Builtin {
-            name,
-            description,
-            display_name,
-            bundled,
-            available_tools,
-            ..
-        } if PLATFORM_EXTENSIONS.contains_key(name_to_key(&name).as_str()) => {
-            ExtensionConfig::Platform {
-                name,
-                description,
-                display_name,
-                bundled,
-                available_tools,
-            }
-        }
-        other => other,
-    }
-}
-
 /// Returns true if the named extension is a first-class platform extension
 /// whose tools are exposed unprefixed and remain visible during code execution mode.
 pub fn is_first_class_extension(name: &str) -> bool {
@@ -516,7 +494,6 @@ impl ExtensionManager {
         container: Option<&Container>,
         session_id: Option<&str>,
     ) -> ExtensionResult<()> {
-        let config = normalize_platform_backed_builtin(config);
         let sanitized_name = config.key();
 
         if self.extensions.lock().await.contains_key(&sanitized_name) {

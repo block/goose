@@ -113,22 +113,11 @@ fn value_to_markdown(value: &Value, depth: usize, export_full_strings: bool) -> 
 }
 
 fn is_shell_tool_name(tool_name: &str) -> bool {
-    matches!(tool_name, "shell" | "developer__shell")
+    matches!(tool_name, "shell")
 }
 
 fn is_developer_file_tool_name(tool_name: &str) -> bool {
-    matches!(
-        tool_name,
-        "read"
-            | "write"
-            | "edit"
-            | "developer__read"
-            | "developer__write"
-            | "developer__edit"
-            | "developer__file_write"
-            | "developer__file_edit"
-            | "developer__text_editor"
-    )
+    matches!(tool_name, "read" | "write" | "edit")
 }
 
 pub fn tool_request_to_markdown(req: &ToolRequest, export_all_content: bool) -> String {
@@ -168,41 +157,6 @@ pub fn tool_request_to_markdown(req: &ToolRequest, export_all_content: bool) -> 
                         .map(|obj| {
                             obj.iter()
                                 .filter(|(k, _)| k.as_str() != "command")
-                                .map(|(k, v)| (k.clone(), v.clone()))
-                                .collect()
-                        })
-                        .unwrap_or_default();
-                    if !other_args.is_empty() {
-                        md.push_str(&value_to_markdown(
-                            &Value::Object(other_args),
-                            0,
-                            export_all_content,
-                        ));
-                    }
-                }
-                "developer__text_editor" => {
-                    if let Some(Value::String(path)) =
-                        call.arguments.as_ref().and_then(|args| args.get("path"))
-                    {
-                        md.push_str(&format!("*   **path**: `{}`\n", path));
-                    }
-                    if let Some(Value::String(code_edit)) = call
-                        .arguments
-                        .as_ref()
-                        .and_then(|args| args.get("code_edit"))
-                    {
-                        md.push_str(&format!(
-                            "*   **code_edit**:\n    ```\n{}\n    ```\n",
-                            code_edit
-                        ));
-                    }
-
-                    let other_args: serde_json::Map<String, Value> = call
-                        .arguments
-                        .as_ref()
-                        .map(|obj| {
-                            obj.iter()
-                                .filter(|(k, _)| k.as_str() != "path" && k.as_str() != "code_edit")
                                 .map(|(k, v)| (k.clone(), v.clone()))
                                 .collect()
                         })
@@ -573,7 +527,7 @@ mod tests {
         let tool_call = CallToolRequestParams {
             meta: None,
             task: None,
-            name: "developer__shell".into(),
+            name: "shell".into(),
             arguments: Some(object!({
                 "command": "ls -la",
                 "working_dir": "/home/user"
@@ -596,14 +550,15 @@ mod tests {
     }
 
     #[test]
-    fn test_tool_request_to_markdown_text_editor() {
+    fn test_tool_request_to_markdown_edit() {
         let tool_call = CallToolRequestParams {
             meta: None,
             task: None,
-            name: "developer__text_editor".into(),
+            name: "edit".into(),
             arguments: Some(object!({
                 "path": "/path/to/file.txt",
-                "code_edit": "print('Hello World')"
+                "before": "Hello",
+                "after": "World"
             })),
         };
         let tool_request = ToolRequest {
@@ -614,10 +569,11 @@ mod tests {
         };
 
         let result = tool_request_to_markdown(&tool_request, true);
-        assert!(result.contains("#### Tool Call: `text_editor`"));
+        assert!(result.contains("#### Tool Call: `edit`"));
+        assert!(result.contains("namespace: `developer`"));
         assert!(result.contains("**path**: `/path/to/file.txt`"));
-        assert!(result.contains("**code_edit**:"));
-        assert!(result.contains("print('Hello World')"));
+        assert!(result.contains("**before**"));
+        assert!(result.contains("**after**"));
     }
 
     #[test]
@@ -746,7 +702,7 @@ mod tests {
         let tool_call = CallToolRequestParams {
             meta: None,
             task: None,
-            name: "developer__shell".into(),
+            name: "shell".into(),
             arguments: Some(object!({
                 "command": "cat main.py"
             })),
@@ -802,7 +758,7 @@ if __name__ == "__main__":
         let git_status_call = CallToolRequestParams {
             meta: None,
             task: None,
-            name: "developer__shell".into(),
+            name: "shell".into(),
             arguments: Some(object!({
                 "command": "git status --porcelain"
             })),
@@ -850,7 +806,7 @@ if __name__ == "__main__":
         let cargo_build_call = CallToolRequestParams {
             meta: None,
             task: None,
-            name: "developer__shell".into(),
+            name: "shell".into(),
             arguments: Some(object!({
                 "command": "cargo build"
             })),
@@ -904,7 +860,7 @@ warning: unused variable `x`
         let curl_call = CallToolRequestParams {
             meta: None,
             task: None,
-            name: "developer__shell".into(),
+            name: "shell".into(),
             arguments: Some(object!({
                 "command": "curl -s https://api.github.com/repos/microsoft/vscode/releases/latest"
             })),
@@ -956,15 +912,14 @@ warning: unused variable `x`
     }
 
     #[test]
-    fn test_text_editor_tool_with_code_creation() {
+    fn test_write_tool_with_code_creation() {
         let editor_call = CallToolRequestParams {
             meta: None,
             task: None,
-            name: "developer__text_editor".into(),
+            name: "write".into(),
             arguments: Some(object!({
-                "command": "write",
                 "path": "/tmp/fibonacci.js",
-                "file_text": "function fibonacci(n) {\n  if (n <= 1) return n;\n  return fibonacci(n - 1) + fibonacci(n - 2);\n}\n\nconsole.log(fibonacci(10));"
+                "content": "function fibonacci(n) {\n  if (n <= 1) return n;\n  return fibonacci(n - 1) + fibonacci(n - 2);\n}\n\nconsole.log(fibonacci(10));"
             })),
         };
         let tool_request = ToolRequest {
@@ -995,10 +950,10 @@ warning: unused variable `x`
         let request_result = tool_request_to_markdown(&tool_request, true);
         let response_result = tool_response_to_markdown(&tool_response, true);
 
-        // Check request formatting - should format code in file_text properly
-        assert!(request_result.contains("#### Tool Call: `text_editor`"));
+        // Check request formatting - should format code in content properly
+        assert!(request_result.contains("#### Tool Call: `write`"));
         assert!(request_result.contains("**path**: `/tmp/fibonacci.js`"));
-        assert!(request_result.contains("**file_text**:"));
+        assert!(request_result.contains("**content**:"));
         assert!(request_result.contains("function fibonacci(n)"));
         assert!(request_result.contains("return fibonacci(n - 1)"));
 
@@ -1007,13 +962,12 @@ warning: unused variable `x`
     }
 
     #[test]
-    fn test_text_editor_tool_view_code() {
+    fn test_read_tool_view_code() {
         let editor_call = CallToolRequestParams {
             meta: None,
             task: None,
-            name: "developer__text_editor".into(),
+            name: "read".into(),
             arguments: Some(object!({
-                "command": "view",
                 "path": "/src/utils.py"
             })),
         };
@@ -1071,7 +1025,7 @@ def process_data(data: List[Dict]) -> List[Dict]:
         let error_call = CallToolRequestParams {
             meta: None,
             task: None,
-            name: "developer__shell".into(),
+            name: "shell".into(),
             arguments: Some(object!({
                 "command": "python nonexistent_script.py"
             })),
@@ -1116,7 +1070,7 @@ Command failed with exit code 2"#;
         let script_call = CallToolRequestParams {
             meta: None,
             task: None,
-            name: "developer__shell".into(),
+            name: "shell".into(),
             arguments: Some(object!({
                 "command": "python -c \"import sys; print(f'Python {sys.version}'); [print(f'{i}^2 = {i**2}') for i in range(1, 6)]\""
             })),
@@ -1172,7 +1126,7 @@ Command failed with exit code 2"#;
         let multi_call = CallToolRequestParams {
             meta: None,
             task: None,
-            name: "developer__shell".into(),
+            name: "shell".into(),
             arguments: Some(object!({
                 "command": "cd /tmp && ls -la | head -5 && pwd"
             })),
@@ -1226,7 +1180,7 @@ drwx------   3 user  staff    96 Dec  6 16:20 com.apple.launchd.abc
         let grep_call = CallToolRequestParams {
             meta: None,
             task: None,
-            name: "developer__shell".into(),
+            name: "shell".into(),
             arguments: Some(object!({
                 "command": "rg 'async fn' --type rust -n"
             })),
@@ -1279,7 +1233,7 @@ src/middleware.rs:12:async fn auth_middleware(req: Request, next: Next) -> Resul
         let tool_call = CallToolRequestParams {
             meta: None,
             task: None,
-            name: "developer__shell".into(),
+            name: "shell".into(),
             arguments: Some(object!({
                 "command": "echo '{\"test\": \"json\"}'"
             })),
@@ -1323,7 +1277,7 @@ src/middleware.rs:12:async fn auth_middleware(req: Request, next: Next) -> Resul
         let npm_call = CallToolRequestParams {
             meta: None,
             task: None,
-            name: "developer__shell".into(),
+            name: "shell".into(),
             arguments: Some(object!({
                 "command": "npm install express typescript @types/node --save-dev"
             })),

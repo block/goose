@@ -269,17 +269,11 @@ function handleToolRequest(data) {
     const contentDiv = document.createElement('div');
     contentDiv.className = 'tool-content';
     
-    const isShellTool = data.tool_name === 'shell' || data.tool_name === 'developer__shell';
+    const isShellTool = data.tool_name === 'shell';
     const isDeveloperFileTool = [
         'read',
         'write',
-        'edit',
-        'developer__read',
-        'developer__write',
-        'developer__edit',
-        'developer__file_write',
-        'developer__file_edit',
-        'developer__text_editor'
+        'edit'
     ].includes(data.tool_name);
 
     // Format the arguments

@@ -12,6 +12,7 @@ use rmcp::model::{
 };
 use schemars::{schema_for, JsonSchema};
 use serde_json::Value;
+use std::path::Path;
 use std::sync::Arc;
 use tokio_util::sync::CancellationToken;
 
@@ -65,6 +66,7 @@ impl DeveloperClient {
                 `shell` output has a hard limit of 2000 lines or 50KB.
                 When that limit is exceeded, responses show only the last 50 lines and include a temp file path to the full output.
                 For long-running commands, pass `timeout_secs`.
+                Relative paths and shell commands run in the call's working directory when one is provided.
 
                 operating system: {os}
                 current directory: {cwd}
@@ -170,30 +172,31 @@ impl McpClientTrait for DeveloperClient {
         _session_id: &str,
         name: &str,
         arguments: Option<JsonObject>,
-        _working_dir: Option<&str>,
+        working_dir: Option<&str>,
         _cancellation_token: CancellationToken,
     ) -> Result<CallToolResult, Error> {
+        let working_dir = working_dir.map(Path::new);
         match name {
             "shell" => match Self::parse_args::<ShellParams>(arguments) {
-                Ok(params) => Ok(self.shell_tool.shell(params).await),
+                Ok(params) => Ok(self.shell_tool.shell_with_cwd(params, working_dir).await),
                 Err(error) => Ok(CallToolResult::error(vec![Content::text(format!(
                     "Error: {error}"
                 ))])),
             },
             "read" => match Self::parse_args::<ReadParams>(arguments) {
-                Ok(params) => Ok(self.read_tool.read(params)),
+                Ok(params) => Ok(self.read_tool.read_with_cwd(params, working_dir)),
                 Err(error) => Ok(CallToolResult::error(vec![Content::text(format!(
                     "Error: {error}"
                 ))])),
             },
             "write" => match Self::parse_args::<FileWriteParams>(arguments) {
-                Ok(params) => Ok(self.edit_tools.file_write(params)),
+                Ok(params) => Ok(self.edit_tools.file_write_with_cwd(params, working_dir)),
                 Err(error) => Ok(CallToolResult::error(vec![Content::text(format!(
                     "Error: {error}"
                 ))])),
             },
             "edit" => match Self::parse_args::<FileEditParams>(arguments) {
-                Ok(params) => Ok(self.edit_tools.file_edit(params)),
+                Ok(params) => Ok(self.edit_tools.file_edit_with_cwd(params, working_dir)),
                 Err(error) => Ok(CallToolResult::error(vec![Content::text(format!(
                     "Error: {error}"
                 ))])),
@@ -212,6 +215,10 @@ impl McpClientTrait for DeveloperClient {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::session::SessionManager;
+    use rmcp::model::RawContent;
+    use rmcp::object;
+    use std::fs;
 
     #[test]
     fn developer_tools_are_flat() {
@@ -221,5 +228,103 @@ mod tests {
             .collect();
 
         assert_eq!(names, vec!["read", "write", "edit", "shell"]);
+    }
+
+    fn test_context(data_dir: std::path::PathBuf) -> PlatformExtensionContext {
+        PlatformExtensionContext {
+            extension_manager: None,
+            session_manager: Arc::new(SessionManager::new(data_dir)),
+        }
+    }
+
+    fn first_text(result: &CallToolResult) -> &str {
+        match &result.content[0].raw {
+            RawContent::Text(text) => &text.text,
+            _ => panic!("expected text content"),
+        }
+    }
+
+    #[tokio::test]
+    async fn developer_client_uses_working_dir_for_file_tools() {
+        let temp = tempfile::tempdir().unwrap();
+        let client = DeveloperClient::new(test_context(temp.path().join("sessions"))).unwrap();
+        let cwd = temp.path().join("workspace");
+        fs::create_dir_all(&cwd).unwrap();
+
+        let write = client
+            .call_tool(
+                "session",
+                "write",
+                Some(object!({
+                    "path": "notes.txt",
+                    "content": "first line"
+                })),
+                Some(cwd.to_str().unwrap()),
+                CancellationToken::new(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(write.is_error, Some(false));
+        assert_eq!(
+            fs::read_to_string(cwd.join("notes.txt")).unwrap(),
+            "first line"
+        );
+
+        let edit = client
+            .call_tool(
+                "session",
+                "edit",
+                Some(object!({
+                    "path": "notes.txt",
+                    "before": "first",
+                    "after": "updated"
+                })),
+                Some(cwd.to_str().unwrap()),
+                CancellationToken::new(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(edit.is_error, Some(false));
+
+        let read = client
+            .call_tool(
+                "session",
+                "read",
+                Some(object!({
+                    "path": "notes.txt"
+                })),
+                Some(cwd.to_str().unwrap()),
+                CancellationToken::new(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(read.is_error, Some(false));
+        assert_eq!(first_text(&read), "updated line");
+    }
+
+    #[cfg(not(windows))]
+    #[tokio::test]
+    async fn developer_client_uses_working_dir_for_shell_tool() {
+        let temp = tempfile::tempdir().unwrap();
+        let client = DeveloperClient::new(test_context(temp.path().join("sessions"))).unwrap();
+        let cwd = temp.path().join("workspace");
+        fs::create_dir_all(&cwd).unwrap();
+
+        let result = client
+            .call_tool(
+                "session",
+                "shell",
+                Some(object!({
+                    "command": "pwd"
+                })),
+                Some(cwd.to_str().unwrap()),
+                CancellationToken::new(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(result.is_error, Some(false));
+        let observed = std::fs::canonicalize(first_text(&result)).unwrap();
+        let expected = std::fs::canonicalize(&cwd).unwrap();
+        assert_eq!(observed, expected);
     }
 }

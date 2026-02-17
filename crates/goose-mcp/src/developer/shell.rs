@@ -29,13 +29,21 @@ impl ShellTool {
     }
 
     pub async fn shell(&self, params: ShellParams) -> CallToolResult {
+        self.shell_with_cwd(params, None).await
+    }
+
+    pub async fn shell_with_cwd(
+        &self,
+        params: ShellParams,
+        working_dir: Option<&std::path::Path>,
+    ) -> CallToolResult {
         if params.command.trim().is_empty() {
             return CallToolResult::error(vec![Content::text(
                 "Command cannot be empty.".to_string(),
             )]);
         }
 
-        let execution = match run_command(&params.command, params.timeout_secs).await {
+        let execution = match run_command(&params.command, params.timeout_secs, working_dir).await {
             Ok(execution) => execution,
             Err(error) => return CallToolResult::error(vec![Content::text(error)]),
         };
@@ -84,8 +92,12 @@ struct ExecutionOutput {
 async fn run_command(
     command_line: &str,
     timeout_secs: Option<u64>,
+    working_dir: Option<&std::path::Path>,
 ) -> Result<ExecutionOutput, String> {
     let mut command = build_shell_command(command_line);
+    if let Some(path) = working_dir {
+        command.current_dir(path);
+    }
     command.stdout(Stdio::piped());
     command.stderr(Stdio::piped());
     command.stdin(Stdio::null());
@@ -382,6 +394,27 @@ mod tests {
 
         assert_eq!(result.is_error, Some(true));
         assert!(extract_text(&result).contains("Command exited with code 7"));
+    }
+
+    #[cfg(not(windows))]
+    #[tokio::test]
+    async fn shell_uses_working_dir_for_relative_execution() {
+        let dir = tempfile::tempdir().unwrap();
+        let tool = ShellTool::new();
+        let result = tool
+            .shell_with_cwd(
+                ShellParams {
+                    command: "pwd".to_string(),
+                    timeout_secs: None,
+                },
+                Some(dir.path()),
+            )
+            .await;
+
+        assert_eq!(result.is_error, Some(false));
+        let observed = std::fs::canonicalize(extract_text(&result)).unwrap();
+        let expected = std::fs::canonicalize(dir.path()).unwrap();
+        assert_eq!(observed, expected);
     }
 
     #[test]

@@ -2,7 +2,7 @@
 // Provides a simple way to store extension-specific data with versioned keys
 
 use crate::config::base::Config;
-use crate::config::extensions::is_extension_available;
+use crate::config::extensions::{is_extension_available, normalize_platform_extension};
 use crate::config::ExtensionConfig;
 use crate::session::SessionManager;
 use anyhow::Result;
@@ -117,6 +117,11 @@ impl EnabledExtensionsState {
 
     pub fn from_extension_data(extension_data: &ExtensionData) -> Option<Self> {
         let mut state = <Self as ExtensionState>::from_extension_data(extension_data)?;
+        state.extensions = state
+            .extensions
+            .into_iter()
+            .map(normalize_platform_extension)
+            .collect();
         state.extensions.retain(is_extension_available);
         Some(state)
     }
@@ -156,7 +161,7 @@ mod tests {
         Config::new_with_file_secrets(config_file.path(), secrets_file.path()).unwrap()
     }
 
-    fn test_extension() -> ExtensionConfig {
+    fn legacy_test_extension() -> ExtensionConfig {
         ExtensionConfig::Builtin {
             name: "developer".into(),
             description: "dev".into(),
@@ -165,6 +170,10 @@ mod tests {
             bundled: None,
             available_tools: vec![],
         }
+    }
+
+    fn normalized_test_extension() -> ExtensionConfig {
+        normalize_platform_extension(legacy_test_extension())
     }
 
     fn extension_data_with(extensions: Vec<ExtensionConfig>) -> ExtensionData {
@@ -176,8 +185,8 @@ mod tests {
     }
 
     #[test_case(
-        Some(extension_data_with(vec![test_extension()])),
-        Some(vec![test_extension()])
+        Some(extension_data_with(vec![legacy_test_extension()])),
+        Some(vec![normalized_test_extension()])
         ; "prefers_session_data"
     )]
     #[test_case(None, None ; "no_session_falls_back_to_config")]
@@ -295,6 +304,9 @@ mod tests {
         let names: Vec<String> = loaded.extensions.iter().map(|ext| ext.name()).collect();
 
         assert!(names.iter().any(|name| name == "developer"));
+        assert!(loaded.extensions.iter().any(
+            |ext| matches!(ext, ExtensionConfig::Platform { name, .. } if name == "developer")
+        ));
         assert!(!names
             .iter()
             .any(|name| name == "definitely_not_real_platform_extension"));
