@@ -11,14 +11,15 @@ import { ThemePreset } from '../../../../../themes/presets/types';
 import { getThemePresets, applyThemePreset } from '../../../../../api';
 import { getActiveTheme, deleteCustomTheme } from '../../../../../api/theme-api';
 import { useTheme } from '../../../../../contexts/ThemeContext';
-import { Check, Download, Trash2 } from 'lucide-react';
+import { Check, Download, Trash2, Sliders } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipTrigger } from '../../../../ui/Tooltip';
 
 interface PresetGalleryProps {
   onApply?: () => void;
+  onEdit?: (preset: ThemePreset) => void;
 }
 
-export function PresetGallery({ onApply }: PresetGalleryProps) {
+export function PresetGallery({ onApply, onEdit }: PresetGalleryProps) {
   const { resolvedTheme } = useTheme();
   const [presets, setPresets] = useState<ThemePreset[]>([]);
   const [loading, setLoading] = useState(true);
@@ -243,25 +244,44 @@ export function PresetGallery({ onApply }: PresetGalleryProps) {
                     </TooltipContent>
                   </Tooltip>
 
-                  {/* Delete Button (only for custom themes) */}
+                  {/* Edit and Delete Buttons (only for custom themes) */}
                   {isCustom && (
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <Button
-                          onClick={() => handleDeleteTheme(preset.id, preset.name)}
-                          disabled={applying !== null || deleting !== null}
-                          variant="outline"
-                          size="sm"
-                          shape="round"
-                          className="text-text-danger hover:bg-background-danger"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </Button>
-                      </TooltipTrigger>
-                      <TooltipContent>
-                        {deleting === preset.id ? 'Deleting...' : 'Delete Theme'}
-                      </TooltipContent>
-                    </Tooltip>
+                    <>
+                      {/* Edit Button */}
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button
+                            onClick={() => onEdit?.(preset)}
+                            disabled={applying !== null || deleting !== null}
+                            variant="outline"
+                            size="sm"
+                            shape="round"
+                          >
+                            <Sliders className="w-4 h-4" />
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent>Edit Theme</TooltipContent>
+                      </Tooltip>
+
+                      {/* Delete Button */}
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button
+                            onClick={() => handleDeleteTheme(preset.id, preset.name)}
+                            disabled={applying !== null || deleting !== null}
+                            variant="outline"
+                            size="sm"
+                            shape="round"
+                            className="text-text-danger hover:bg-background-danger"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          {deleting === preset.id ? 'Deleting...' : 'Delete Theme'}
+                        </TooltipContent>
+                      </Tooltip>
+                    </>
                   )}
                 </div>
               </div>

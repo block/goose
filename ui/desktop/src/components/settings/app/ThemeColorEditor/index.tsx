@@ -29,6 +29,7 @@ export function ThemeColorEditor({ onClose }: ThemeColorEditorProps) {
   const [selectedVariable, setSelectedVariable] = useState<string | null>(null);
   const [themeName, setThemeName] = useState('My Custom Theme');
   const [themeDescription, setThemeDescription] = useState('');
+  const [editingThemeId, setEditingThemeId] = useState<string | null>(null);
   
   // Use system theme instead of separate mode state
   const activeMode: ColorMode = resolvedTheme;
@@ -88,8 +89,8 @@ export function ThemeColorEditor({ onClose }: ThemeColorEditorProps) {
         return;
       }
       
-      // Generate a unique theme ID from the name
-      const themeId = `custom-${themeName.toLowerCase().replace(/[^a-z0-9]+/g, '-')}-${Date.now()}`;
+      // Use existing ID if editing, otherwise generate new one
+      const themeId = editingThemeId || `custom-${themeName.toLowerCase().replace(/[^a-z0-9]+/g, '-')}-${Date.now()}`;
       
       // Convert back to CSS format
       const cssLines: string[] = [];
@@ -131,7 +132,8 @@ export function ThemeColorEditor({ onClose }: ThemeColorEditorProps) {
         },
       });
       
-      toast.success(`Theme "${themeName}" saved and applied successfully!`);
+      const action = editingThemeId ? 'updated' : 'saved';
+      toast.success(`Theme "${themeName}" ${action} and applied successfully!`);
       
       // Reload the page to apply changes
       window.location.reload();
@@ -159,6 +161,24 @@ export function ThemeColorEditor({ onClose }: ThemeColorEditorProps) {
     } finally {
       setSaving(false);
     }
+  };
+
+  const handleEditTheme = (preset: any) => {
+    // Load the preset's colors into the editor
+    setThemeColors({
+      light: preset.colors.light || {},
+      dark: preset.colors.dark || {},
+    });
+    
+    // Set the theme metadata
+    setThemeName(preset.name);
+    setThemeDescription(preset.description || '');
+    setEditingThemeId(preset.id);
+    
+    // Switch to customize tab
+    setActiveTab('customize');
+    
+    toast.info(`Editing "${preset.name}"`);
   };
 
   const groupedVariables = COLOR_VARIABLES.reduce((acc, variable) => {
@@ -256,7 +276,7 @@ export function ThemeColorEditor({ onClose }: ThemeColorEditorProps) {
 
           {/* Presets Tab */}
           <TabsContent value="presets" className="flex-1 overflow-auto px-6 py-4">
-            <PresetGallery onApply={onClose} />
+            <PresetGallery onApply={onClose} onEdit={handleEditTheme} />
           </TabsContent>
 
           {/* Customize Tab */}
